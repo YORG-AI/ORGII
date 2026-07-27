@@ -34,8 +34,8 @@ import React, {
 } from "react";
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { editorShowTreeIndentGuidesAtom } from "@src/store/ui/editorSettingsAtom";
 
 import { StickyHeadersContainer } from "./StickyHeadersContainer";

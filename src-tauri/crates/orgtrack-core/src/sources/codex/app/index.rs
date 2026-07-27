@@ -15,12 +15,12 @@ use crate::sources::codex::{canonical_session_id, SESSION_PREFIX as CODEX_APP_SE
 use crate::sources::imported_history::{
     self, cache as imported_cache,
     metadata::{ImportedHistoryDiscoveredRecord, SOURCE_CODEX_APP},
-    paths as imported_paths,
+    paths as imported_paths, scan_snapshot,
 };
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
 use super::meta::{
-    parse_codex_session_meta, resolve_codex_transcript_for_thread_id_near_path,
+    parse_codex_session_meta_with_title, resolve_codex_transcript_for_thread_id_near_path,
     session_meta_to_cache_input,
 };
 use super::transcript::{
@@ -260,7 +260,20 @@ fn best_codex_child_match(
 }
 
 fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_codex_app_records()?;
+    let previous_snapshots = scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CODEX_APP);
+    let mut walker = scan_snapshot::SnapshotDirWalker::new(&previous_snapshots, "jsonl", "Codex");
+    let discovery = discover_codex_app_records(&codex_sessions_dirs()?, &mut walker)?;
+    let next_snapshots = walker.into_snapshots();
+    scan_snapshot::persist_dir_snapshots_if_changed(
+        conn,
+        SOURCE_CODEX_APP,
+        &previous_snapshots,
+        &next_snapshots,
+    )?;
+    let CodexAppDiscovery {
+        records: mut discovered,
+        external_titles,
+    } = discovery;
     // Managed (GUI-launched) Codex sessions surface through their
     // code_sessions row (`cli_agent_type = 'codex'`); the imported twin goes
     // unlistable. Same pattern as the OpenCode/Claude readers.
@@ -294,10 +307,27 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
     let mut reparsed_ids = Vec::new();
     let now_ns = unix_epoch_now_ns();
     for record in changed {
-        if should_defer_active_codex_metadata(&record, now_ns) {
+        if should_defer_active_codex_metadata(record, now_ns) {
             continue;
         }
-        if let Some(mut meta) = parse_codex_session_meta(record)? {
+        let stored_watermark = imported_history::watermark::read_parse_watermark_from_conn(
+            conn,
+            SOURCE_CODEX_APP,
+            &record.source_session_id,
+        )?;
+        let external_title = external_titles
+            .get(&record.source_session_id)
+            .cloned()
+            .unwrap_or_default();
+        let parse =
+            parse_codex_session_meta_with_title(record, stored_watermark.as_ref(), external_title)?;
+        imported_history::watermark::write_parse_watermark_from_conn(
+            conn,
+            SOURCE_CODEX_APP,
+            &record.source_session_id,
+            &parse.watermark,
+        )?;
+        if let Some(mut meta) = parse.meta {
             let is_managed_history_mirror =
                 crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
                     &managed_ids,
@@ -335,37 +365,57 @@ fn should_defer_active_codex_metadata(
         && now_ns.saturating_sub(record.source_mtime_ms) < ACTIVE_CODEX_METADATA_QUIET_NS
 }
 
-fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
-    let mut sessions = Vec::new();
-    for sessions_dir in codex_sessions_dirs()? {
-        if sessions_dir.is_dir() {
-            let title_index = load_codex_session_index_for_sessions_dir(&sessions_dir)?;
-            let mut files = Vec::new();
-            collect_codex_session_files(&sessions_dir, &mut files)?;
-            for path in files {
-                let Some(file_stem) = path
-                    .file_stem()
-                    .and_then(|value| value.to_str())
-                    .map(ToString::to_string)
-                else {
-                    continue;
-                };
-                let (source_mtime_ms, source_size_bytes) =
-                    imported_paths::file_metadata_signature(&path, "Codex")?;
-                let source_fingerprint = codex_source_fingerprint(&file_stem, &title_index);
-                sessions.push(ImportedHistoryDiscoveredRecord {
-                    source_session_id: file_stem.clone(),
-                    source_path: path,
-                    source_record_key: file_stem,
-                    source_mtime_ms,
-                    source_size_bytes,
-                    source_fingerprint,
-                    parser_version: CODEX_APP_METADATA_PARSER_VERSION,
-                });
+#[derive(Debug)]
+struct CodexAppDiscovery {
+    records: Vec<ImportedHistoryDiscoveredRecord>,
+    external_titles: HashMap<String, String>,
+}
+
+fn discover_codex_app_records(
+    sessions_dirs: &[PathBuf],
+    walker: &mut scan_snapshot::SnapshotDirWalker<'_>,
+) -> Result<CodexAppDiscovery, String> {
+    let mut records = Vec::new();
+    let mut external_titles = HashMap::new();
+    for sessions_dir in sessions_dirs {
+        if !sessions_dir.is_dir() {
+            continue;
+        }
+        let title_index = load_codex_session_index_for_sessions_dir(sessions_dir)?;
+        let mut files = Vec::new();
+        walker.collect_files(sessions_dir, &mut files)?;
+        for path in files {
+            let Some(file_stem) = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .map(ToString::to_string)
+            else {
+                continue;
+            };
+            let (source_mtime_ms, source_size_bytes) =
+                imported_paths::file_metadata_signature(&path, "Codex")?;
+            if let Some(entry) = codex_title_entry_for_file_stem(&file_stem, &title_index) {
+                external_titles.insert(
+                    file_stem.clone(),
+                    imported_history::truncate_name(&entry.thread_name, 200),
+                );
             }
+            let source_fingerprint = codex_source_fingerprint(&file_stem, &title_index);
+            records.push(ImportedHistoryDiscoveredRecord {
+                source_session_id: file_stem.clone(),
+                source_path: path,
+                source_record_key: file_stem,
+                source_mtime_ms,
+                source_size_bytes,
+                source_fingerprint,
+                parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+            });
         }
     }
-    Ok(sessions)
+    Ok(CodexAppDiscovery {
+        records,
+        external_titles,
+    })
 }
 
 pub(super) fn collect_codex_session_files(
@@ -459,6 +509,7 @@ fn codex_source_fingerprint(
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 pub(super) fn codex_session_index_title_for_record(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<String, String> {
@@ -473,6 +524,7 @@ pub(super) fn codex_session_index_title_for_record(
     )
 }
 
+#[cfg(test)]
 fn codex_index_path_for_session_path(session_path: &Path) -> Option<PathBuf> {
     codex_sessions_dir_for_session_path(session_path).and_then(|sessions_dir| {
         sessions_dir

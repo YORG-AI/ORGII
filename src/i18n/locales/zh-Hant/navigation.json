@@ -547,7 +547,6 @@
       "mySessions": "我的工作階段",
       "memberFilter": "依成員篩選",
       "sessionFilter": "篩選工作階段",
-      "copyId": "複製 ID",
       "directlySharedWithMe": "指定分享給我的",
       "everyone": "所有人",
       "forkedFrom": "接力自 @{{name}}",
@@ -558,7 +557,8 @@
       "viewerOverflow": "還有 {{count}} 人正在看",
       "memberViewing": "正在看：{{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "複製 ID"
     },
     "sync": {
       "quotaExceededToast": "ORG2 雲端同步已暫停：此組織的方案配額已用盡",

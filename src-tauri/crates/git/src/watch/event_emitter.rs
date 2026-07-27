@@ -43,13 +43,15 @@ impl EventEmitter {
         });
 
         let payload = json!({
+            "type": "repo:changed",
             "repo_id": repo_id,
             "change_type": change_type_str,
             "affected_count": affected_count,
             "timestamp": Self::current_timestamp_ms(),
         });
 
-        let _ = self.app_handle.emit("repo:changed", payload);
+        let _ = self.app_handle.emit("repo:changed", payload.clone());
+        crate::hooks::websocket_broadcast(payload.to_string());
     }
 
     /// Emit file changed event (for Filesync channel - individual file changes)

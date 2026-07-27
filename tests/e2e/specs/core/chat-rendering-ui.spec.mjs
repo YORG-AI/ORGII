@@ -2370,7 +2370,7 @@ async function assertTurnMetadataFooterRendered() {
     result: {
       success: {
         command: "gh pr create --title 'Session metadata'",
-        stdout: "https://github.com/yorgai/ORG2/pull/387",
+        stdout: "https://github.com/org2ai/ORG2/pull/387",
         exitCode: 0,
       },
     },

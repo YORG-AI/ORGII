@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import {
   getOrgtrackCheckpointFileStates,
@@ -14,6 +14,7 @@ import type {
   OrgtrackSessionEditArtifact,
   OrgtrackSessionFinalDiff,
 } from "@src/api/tauri/lineage";
+import { useAsyncResource } from "@src/hooks/async";
 
 interface UseOrgtrackSessionArtifactsInput {
   source?: string;
@@ -28,8 +29,26 @@ interface OrgtrackSessionArtifactsState {
   checkpoints: OrgtrackSessionCheckpoint[];
   checkpointFileStatesById: Map<string, OrgtrackCheckpointFileState[]>;
   loading: boolean;
-  error: Error | null;
+  error: string | null;
   reload: () => Promise<void>;
+}
+
+interface OrgtrackSessionArtifactsData {
+  editArtifacts: OrgtrackSessionEditArtifact[];
+  diffChunks: OrgtrackSessionDiffChunk[];
+  finalDiffs: OrgtrackSessionFinalDiff[];
+  checkpoints: OrgtrackSessionCheckpoint[];
+  checkpointFileStatesById: Map<string, OrgtrackCheckpointFileState[]>;
+}
+
+function emptyArtifacts(): OrgtrackSessionArtifactsData {
+  return {
+    editArtifacts: [],
+    diffChunks: [],
+    finalDiffs: [],
+    checkpoints: [],
+    checkpointFileStatesById: new Map(),
+  };
 }
 
 export function useOrgtrackSessionArtifacts({
@@ -37,53 +56,21 @@ export function useOrgtrackSessionArtifacts({
   sessionId,
   enabled = true,
 }: UseOrgtrackSessionArtifactsInput): OrgtrackSessionArtifactsState {
-  const [editArtifacts, setEditArtifacts] = useState<
-    OrgtrackSessionEditArtifact[]
-  >([]);
-  const [diffChunks, setDiffChunks] = useState<OrgtrackSessionDiffChunk[]>([]);
-  const [finalDiffs, setFinalDiffs] = useState<OrgtrackSessionFinalDiff[]>([]);
-  const [checkpoints, setCheckpoints] = useState<OrgtrackSessionCheckpoint[]>(
-    []
-  );
-  const [checkpointFileStatesById, setCheckpointFileStatesById] = useState<
-    Map<string, OrgtrackCheckpointFileState[]>
-  >(new Map());
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
-  const requestIdRef = useRef(0);
-
-  const query = useMemo(() => ({ source, sessionId }), [source, sessionId]);
-
-  const reload = useCallback(async () => {
-    const requestId = requestIdRef.current + 1;
-    requestIdRef.current = requestId;
-    if (!enabled || !sessionId) {
-      setEditArtifacts([]);
-      setDiffChunks([]);
-      setFinalDiffs([]);
-      setCheckpoints([]);
-      setCheckpointFileStatesById(new Map());
-      setLoading(false);
-      setError(null);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const [
-        nextEditArtifacts,
-        nextDiffChunks,
-        nextFinalDiffs,
-        nextCheckpoints,
-      ] = await Promise.all([
-        getOrgtrackSessionEditArtifacts(query),
-        getOrgtrackSessionDiffChunks(query),
-        getOrgtrackSessionFinalDiffs(query),
-        getOrgtrackSessionCheckpoints(query),
-      ]);
+  const fetchArtifacts = useCallback(
+    async (serializedScope: string): Promise<OrgtrackSessionArtifactsData> => {
+      const query = JSON.parse(serializedScope) as {
+        source?: string;
+        sessionId: string;
+      };
+      const [editArtifacts, diffChunks, finalDiffs, checkpoints] =
+        await Promise.all([
+          getOrgtrackSessionEditArtifacts(query),
+          getOrgtrackSessionDiffChunks(query),
+          getOrgtrackSessionFinalDiffs(query),
+          getOrgtrackSessionCheckpoints(query),
+        ]);
       const stateEntries = await Promise.all(
-        nextCheckpoints.map(
+        checkpoints.map(
           async (checkpoint) =>
             [
               checkpoint.checkpointId,
@@ -91,42 +78,29 @@ export function useOrgtrackSessionArtifacts({
             ] as const
         )
       );
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-      setEditArtifacts(nextEditArtifacts);
-      setDiffChunks(nextDiffChunks);
-      setFinalDiffs(nextFinalDiffs);
-      setCheckpoints(nextCheckpoints);
-      setCheckpointFileStatesById(new Map(stateEntries));
-    } catch (caughtError) {
-      if (requestIdRef.current !== requestId) {
-        return;
-      }
-      setError(
-        caughtError instanceof Error
-          ? caughtError
-          : new Error(String(caughtError))
-      );
-    } finally {
-      if (requestIdRef.current === requestId) {
-        setLoading(false);
-      }
-    }
-  }, [enabled, query, sessionId]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+      return {
+        editArtifacts,
+        diffChunks,
+        finalDiffs,
+        checkpoints,
+        checkpointFileStatesById: new Map(stateEntries),
+      };
+    },
+    []
+  );
+  const scopeKey =
+    enabled && sessionId ? JSON.stringify({ source, sessionId }) : null;
+  const resource = useAsyncResource({
+    enabled: Boolean(scopeKey),
+    fetcher: fetchArtifacts,
+    initialData: emptyArtifacts(),
+    scopeKey,
+  });
 
   return {
-    editArtifacts,
-    diffChunks,
-    finalDiffs,
-    checkpoints,
-    checkpointFileStatesById,
-    loading,
-    error,
-    reload,
+    ...resource.data,
+    loading: resource.loading,
+    error: resource.error,
+    reload: resource.refresh,
   };
 }

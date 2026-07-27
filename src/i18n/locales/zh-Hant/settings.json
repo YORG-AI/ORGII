@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "在 GitHub 上為 ORG2 點 Star",
+      "description": "用一個 GitHub Star 支持這個專案。",
+      "loading": "正在檢查...",
+      "star": "點 Star",
+      "starring": "正在加入...",
+      "starred": "已 Star",
+      "thanks": "感謝你的支持！",
+      "openGitHub": "開啟 GitHub",
+      "openingGitHub": "正在開啟...",
+      "unavailableGhMissing": "GitHub CLI 無法使用",
+      "unavailableNotAuthenticated": "請先登入 GitHub CLI",
+      "unavailableNetwork": "無法連接 GitHub",
+      "unavailablePermission": "需要 GitHub 權限",
+      "unavailableTimeout": "GitHub 請求逾時",
+      "unavailableUnexpected": "無法取得 GitHub 狀態",
+      "reminderTitle": "支持 ORG2",
+      "reminderDescription": "如果 ORG2 對你有幫助，可以在 GitHub 上點個 Star 嗎？",
+      "later": "稍後",
+      "neverAskAgain": "不再提醒"
+    },
     "tabGeneral": "通用",
     "loginStatus": "登錄狀態",
     "loggedIn": "已登錄",
@@ -139,9 +160,6 @@
       "helveticaNeue": "Helvetica Neue 風格"
     },
     "uiScale": "界面縮放",
-    "preferences": "偏好設定",
-    "usePointerCursors": "使用指標游標",
-    "usePointerCursorsDesc": "將游標移至互動元素上時變更為指標",
     "timezoneAuto": "自動（瀏覽器）",
     "timezoneSearchPlaceholder": "搜索附近城市",
     "sendOnEnter": "Enter 發送消息",
@@ -230,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "我在電腦前。你可以隨時向我提出澄清問題，執行任何破壞性操作前請先讓我確認",
     "presenceGuidanceInvisibleDefault": "我在附近但顯示為離線。預設自主執行；只有高風險操作或重大重構才通知我，其他問題請彙總成一段摘要，不要逐個詢問",
     "presenceGuidanceAwayDefault": "我暫時不在電腦前。不要等我回覆；根據現有資訊做出最佳判斷，完成能完成的事項，並留下簡明總結和待我回來處理的問題",
-    "followSystem": "跟隨系統"
+    "followSystem": "跟隨系統",
+    "preferences": "偏好設定",
+    "usePointerCursors": "使用指標游標",
+    "usePointerCursorsDesc": "將游標移至互動元素上時變更為指標"
   },
   "background": {
     "title": "背景",

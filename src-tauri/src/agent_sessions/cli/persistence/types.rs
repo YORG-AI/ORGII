@@ -3,6 +3,13 @@ use serde::{Deserialize, Serialize};
 use super::super::types::KeySource;
 use super::super::types::SessionStatus;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CliSessionStatusSnapshot {
+    pub session_id: String,
+    pub status: SessionStatus,
+    pub updated_at: String,
+}
+
 /// A code generation session record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Dar uma estrela ao ORG2 no GitHub",
+      "description": "Apoie o projeto com uma estrela no GitHub.",
+      "loading": "Verificando...",
+      "star": "Dar estrela",
+      "starring": "Adicionando...",
+      "starred": "Com estrela",
+      "thanks": "Obrigado pelo apoio!",
+      "openGitHub": "Abrir GitHub",
+      "openingGitHub": "Abrindo...",
+      "unavailableGhMissing": "GitHub CLI não está disponível",
+      "unavailableNotAuthenticated": "Entre no GitHub CLI",
+      "unavailableNetwork": "GitHub está inacessível",
+      "unavailablePermission": "Permissão do GitHub necessária",
+      "unavailableTimeout": "A solicitação ao GitHub expirou",
+      "unavailableUnexpected": "Status do GitHub indisponível",
+      "reminderTitle": "Apoie o ORG2",
+      "reminderDescription": "Se o ORG2 foi útil, considere dar uma estrela no GitHub.",
+      "later": "Mais tarde",
+      "neverAskAgain": "Não perguntar novamente"
+    },
     "tabGeneral": "Geral",
     "loginStatus": "Status do Login",
     "loggedIn": "Conectado",
@@ -139,9 +160,6 @@
       "helveticaNeue": "Estilo Helvetica Neue"
     },
     "uiScale": "Escala da interface",
-    "preferences": "Preferências",
-    "usePointerCursors": "Usar cursores de ponteiro",
-    "usePointerCursorsDesc": "Altera o cursor para um ponteiro ao passar sobre elementos interativos",
     "timezoneAuto": "Automático (Navegador)",
     "timezoneSearchPlaceholder": "Pesquisar cidades próximas",
     "sendOnEnter": "Enviar mensagens com Enter",
@@ -230,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Estou ao teclado. Podes fazer perguntas de esclarecimento a qualquer momento e confirmar comigo qualquer ação destrutiva antes de a executar",
     "presenceGuidanceInvisibleDefault": "Estou por perto, mas a aparecer offline. Por padrão, trabalha de forma autónoma e avisa-me apenas sobre ações de alto risco ou refatorações significativas; junta as outras perguntas num único resumo em vez de as fazer uma a uma",
     "presenceGuidanceAwayDefault": "Estou longe do teclado. Não fiques bloqueado à minha espera; toma a melhor decisão com a informação disponível, termina o que conseguires e deixa um resumo breve do que aconteceu e das perguntas em aberto para quando eu voltar",
-    "followSystem": "Seguir o sistema"
+    "followSystem": "Seguir o sistema",
+    "preferences": "Preferências",
+    "usePointerCursors": "Usar cursores de ponteiro",
+    "usePointerCursorsDesc": "Altera o cursor para um ponteiro ao passar sobre elementos interativos"
   },
   "background": {
     "title": "Plano de fundo",

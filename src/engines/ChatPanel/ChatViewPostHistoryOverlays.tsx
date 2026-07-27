@@ -24,6 +24,9 @@ interface ChatViewPostHistoryOverlaysProps {
   onSubmitOverride: (input: SubmitOverrideInput) => Promise<boolean>;
   externalScrollToBottomButton: React.ReactNode;
   isImportedHistory: boolean;
+  /** The viewed history session — Address Comments targets its threads
+   * even though this composer dispatches into a fork. */
+  sessionId?: string;
 }
 
 export function ChatViewPostHistoryOverlays({
@@ -33,6 +36,7 @@ export function ChatViewPostHistoryOverlays({
   onSubmitOverride,
   externalScrollToBottomButton,
   isImportedHistory,
+  sessionId,
 }: ChatViewPostHistoryOverlaysProps) {
   const { t: tNavigation } = useTranslation("navigation");
 
@@ -56,6 +60,7 @@ export function ChatViewPostHistoryOverlays({
                 )}
                 chatPanelPosition={position}
                 sessionScope="none"
+                addressSessionId={sessionId ?? null}
                 onSubmitOverride={onSubmitOverride}
                 topRowTrailingContent={externalScrollToBottomButton}
                 bottomAnchored

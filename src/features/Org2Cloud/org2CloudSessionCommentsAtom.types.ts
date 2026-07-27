@@ -28,6 +28,12 @@ export interface CloudSessionCommentsEntry {
   consecutiveFailures?: number;
   /** Epoch ms of the last completed fetch attempt (0 ⇒ never fetched). */
   fetchedAt: number;
+  /**
+   * The last listing's 0004 `serverTime` anchor. TTL refetches pull the
+   * delta behind it (minus the safety overlap); absent — legacy backend or
+   * never fetched — every listing stays full.
+   */
+  lastServerTime?: string;
 }
 
 export type SessionCommentsFetchDecision = "claim" | "skip" | "queue_force";

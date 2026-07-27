@@ -26,10 +26,12 @@ describe("getCloudCapabilities", () => {
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
+      homeEndpoints: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
+      homeEndpoints: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -42,6 +44,20 @@ describe("getCloudCapabilities", () => {
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: true,
+      homeEndpoints: false,
+    });
+  });
+
+  it("parses the 0007 homeEndpoints flag", async () => {
+    rawMock.mockResolvedValueOnce({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+    });
+    expect(await getCloudCapabilities("jwt-1")).toEqual({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
     });
   });
 
@@ -50,11 +66,13 @@ describe("getCloudCapabilities", () => {
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
       storageSegments: false,
+      homeEndpoints: false,
     });
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
+      homeEndpoints: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
@@ -63,14 +81,17 @@ describe("getCloudCapabilities", () => {
     rawMock.mockResolvedValueOnce({
       broadcastSignals: "yes",
       storageSegments: "yes",
+      homeEndpoints: "yes",
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
       storageSegments: false,
+      homeEndpoints: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
       storageSegments: false,
+      homeEndpoints: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -88,10 +109,12 @@ describe("getCloudCapabilities", () => {
     expect(await first).toEqual({
       broadcastSignals: true,
       storageSegments: true,
+      homeEndpoints: false,
     });
     expect(await second).toEqual({
       broadcastSignals: true,
       storageSegments: true,
+      homeEndpoints: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });

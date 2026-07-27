@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ORG2",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "identifier": "yorg.orgii",
   "build": {
     "frontendDist": "../build",

@@ -10,7 +10,7 @@
  * useAgentCompatibility() stays in sync.
  */
 import { useSetAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { AgentInfo, ProviderInfo } from "@src/api/http/config";
 import { rpc } from "@src/api/tauri/rpc";
@@ -19,6 +19,10 @@ import type {
   AvailableApiProvider,
   KeyInfo,
 } from "@src/api/tauri/rpc/schemas/validation";
+import {
+  type AsyncResourceFetchContext,
+  useAsyncResource,
+} from "@src/hooks/async";
 import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
 import { createLogger } from "@src/hooks/logger";
 import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
@@ -142,6 +146,47 @@ function mapAgents(agents: AvailableAgent[]): AgentInfo[] {
   }));
 }
 
+interface SessionDiscoveryData {
+  apiProviders: AvailableApiProvider[];
+  mappedAgents: AgentInfo[];
+  providers: ProviderInfo[];
+  rawAgents: AvailableAgent[];
+}
+
+const EMPTY_SESSION_DISCOVERY: SessionDiscoveryData = {
+  apiProviders: [],
+  mappedAgents: [],
+  providers: [],
+  rawAgents: [],
+};
+
+let discoveryInFlight: Promise<SessionDiscoveryData> | null = null;
+
+function loadSessionDiscovery(force: boolean): Promise<SessionDiscoveryData> {
+  if (!force && discoveryInFlight) return discoveryInFlight;
+
+  const promise = Promise.all([
+    rpc.validation.getAvailableApiProviders(),
+    rpc.validation.getAvailableAgents(),
+    loadSharedLocalKeys(force),
+  ]).then(([apiProviders, rawAgents, allKeys]) => ({
+    apiProviders,
+    mappedAgents: mapAgents(rawAgents),
+    providers: buildProviderInfoList(apiProviders, allKeys),
+    rawAgents,
+  }));
+  discoveryInFlight = promise;
+  void promise.then(
+    () => {
+      if (discoveryInFlight === promise) discoveryInFlight = null;
+    },
+    () => {
+      if (discoveryInFlight === promise) discoveryInFlight = null;
+    }
+  );
+  return promise;
+}
+
 // ============================================
 // Hook Implementation
 // ============================================
@@ -150,22 +195,44 @@ export function useSessionDiscovery(
   options: UseSessionDiscoveryOptions = {}
 ): UseSessionDiscoveryReturn {
   const { autoLoad = true, onSuccess, onError } = options;
-
-  const [providers, setProviders] = useState<ProviderInfo[]>([]);
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
-  const mountedRef = useRef(true);
-
   const setAgentRegistry = useSetAtom(agentRegistryAtom);
-
+  const callbacksRef = useRef({ onError, onSuccess });
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+    callbacksRef.current = { onError, onSuccess };
+  }, [onError, onSuccess]);
+
+  const fetchDiscovery = useCallback(
+    async (
+      _scopeKey: string,
+      context: AsyncResourceFetchContext<SessionDiscoveryData>
+    ) => {
+      try {
+        const data = await loadSessionDiscovery(context.cause === "refresh");
+        callbacksRef.current.onSuccess?.({
+          agents: data.mappedAgents,
+          providers: data.providers,
+        });
+        return data;
+      } catch (error) {
+        const normalizedError =
+          error instanceof Error
+            ? error
+            : new Error("Failed to load session data");
+        log.error("[useSessionDiscovery] Refresh failed:", error);
+        callbacksRef.current.onError?.(normalizedError);
+        throw normalizedError;
+      }
+    },
+    []
+  );
+  const resource = useAsyncResource({
+    autoLoad,
+    fetcher: fetchDiscovery,
+    initialData: EMPTY_SESSION_DISCOVERY,
+    scopeKey: "session-discovery",
+  });
+  const providers = resource.data.providers;
+  const agents = resource.data.mappedAgents;
 
   const availableAgents = useMemo(
     () => agents.filter((agent) => agent.available),
@@ -200,56 +267,14 @@ export function useSessionDiscovery(
     [agents]
   );
 
-  // ============================================
-  // Refresh
-  // ============================================
-
-  const refresh = useCallback(async () => {
-    if (!mountedRef.current) return;
-    setLoading(true);
-    setError(null);
-
-    try {
-      const [apiProviders, rawAgents, allKeys] = await Promise.all([
-        rpc.validation.getAvailableApiProviders(),
-        rpc.validation.getAvailableAgents(),
-        loadSharedLocalKeys(),
-      ]);
-
-      if (!mountedRef.current) return;
-
-      // Populate agentRegistryAtom so useAgentCompatibility stays current
-      setAgentRegistry({ agents: rawAgents, apiProviders });
-
-      const mappedProviders = buildProviderInfoList(apiProviders, allKeys);
-      const mappedAgents = mapAgents(rawAgents);
-
-      setProviders(mappedProviders);
-      setAgents(mappedAgents);
-
-      onSuccess?.({ providers: mappedProviders, agents: mappedAgents });
-    } catch (err) {
-      if (!mountedRef.current) return;
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load session data";
-      log.error("[useSessionDiscovery] Refresh failed:", err);
-      setError(errorMessage);
-      onError?.(err as Error);
-    } finally {
-      if (mountedRef.current) setLoading(false);
-    }
-  }, [onSuccess, onError, setAgentRegistry]);
-
-  // ============================================
-  // Effects
-  // ============================================
-
   useEffect(() => {
-    if (autoLoad && !hasLoadedRef.current) {
-      hasLoadedRef.current = true;
-      refresh();
+    if (resource.status === "ready") {
+      setAgentRegistry({
+        agents: resource.data.rawAgents,
+        apiProviders: resource.data.apiProviders,
+      });
     }
-  }, [autoLoad, refresh]);
+  }, [resource.data, resource.status, setAgentRegistry]);
 
   // ============================================
   // Return
@@ -259,9 +284,9 @@ export function useSessionDiscovery(
     providers,
     agents,
     availableAgents,
-    loading,
-    error,
-    refresh,
+    loading: resource.loading,
+    error: resource.error,
+    refresh: resource.refresh,
     getModelsForProvider,
     isProviderAvailable,
     isAgentAvailable,

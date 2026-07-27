@@ -51,6 +51,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [filter, setFilter] = useState<TeamInboxFilter>(initialFilter);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<TeamInboxItem[]>([]);
+  const [recencyAnchorMs, setRecencyAnchorMs] = useState(() => Date.now());
   const [requestedItemId, setRequestedItemId] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<LoadState>({
     status: "loading",
@@ -68,6 +69,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       .then((page) => {
         if (abortController.signal.aborted) return;
         setItems(page.items);
+        setRecencyAnchorMs(Date.now());
         setHasMore(page.nextCursor != null);
         setLoadState({ status: "ready", message: null });
       })
@@ -326,6 +328,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
             <TeamInboxList
               filter={filter}
               items={visibleItems}
+              recencyAnchorMs={recencyAnchorMs}
               selectedItemId={selectedItemId}
               totalUnread={totalUnread}
               unreadCounts={unreadCounts}

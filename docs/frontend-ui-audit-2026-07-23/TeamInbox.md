@@ -1,7 +1,7 @@
 # Frontend UI Audit — Team Inbox
 
-**Files:** `src/modules/MainApp/TeamInbox/**/*.tsx`
-**Date:** 2026-07-23
+**Files:** `src/modules/MainApp/TeamInbox/**/*.tsx`  
+**Date:** 2026-07-23  
 **Auditor:** ORGII implementation session
 
 ## D1 — Raw HTML vs Design System

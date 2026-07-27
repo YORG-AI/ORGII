@@ -166,6 +166,8 @@ export function useTeamInboxDataSource(): {
   const viewerKey = `${viewerMemberIds.join("|")}::${authIdentityKey ?? "signed-out"}::${activeCloudOrgId ?? "local"}`;
   const commentsSignals = useAtomValue(org2CloudCommentsSignalAtom);
   const cloudReadReceipts = useAtomValue(teamInboxCloudReadReceiptsAtom);
+  const cloudReadReceiptsRef = useRef(cloudReadReceipts);
+  cloudReadReceiptsRef.current = cloudReadReceipts;
   const setCloudReadReceipts = useSetAtom(teamInboxCloudReadReceiptsAtom);
   const activeCloudCommentsRevision = activeCloudOrgId
     ? (commentsSignals[orgCommentsKey(activeCloudOrgId)] ?? 0)
@@ -282,7 +284,7 @@ export function useTeamInboxDataSource(): {
       const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
       const overlaidMentions = overlayCloudReadReceipts(
         mentionItems,
-        cloudReadReceipts,
+        cloudReadReceiptsRef.current,
         cloudScopeKey
       );
       const mergedItems = [...overlaidMentions, ...localItems];
@@ -378,7 +380,7 @@ export function useTeamInboxDataSource(): {
           const cloudScopeKey = `${authIdentityKey ?? "signed-out"}|${activeCloudOrgId ?? "local"}`;
           const appendedMentions = overlayCloudReadReceipts(
             mapMentionsToItems(cloudResult.mentions, activeCloudOrgId ?? ""),
-            cloudReadReceipts,
+            cloudReadReceiptsRef.current,
             cloudScopeKey
           );
           const appended = resolveAssigneeDisplayNames(
@@ -510,7 +512,6 @@ export function useTeamInboxDataSource(): {
       cache.error,
       cache.hasMore,
       cache.items,
-      cloudReadReceipts,
       invalidate,
       setCache,
       setCloudReadReceipts,

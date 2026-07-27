@@ -30,6 +30,7 @@ import TeamInboxRow from "./TeamInboxRow";
 export interface TeamInboxListProps {
   filter: TeamInboxFilter;
   items: readonly TeamInboxItem[];
+  recencyAnchorMs: number;
   selectedItemId: string | null;
   totalUnread: number;
   unreadCounts: TeamInboxUnreadCounts;
@@ -60,6 +61,7 @@ function filterCountBadge(count: number, ariaLabel: string): React.ReactNode {
 const TeamInboxList: React.FC<TeamInboxListProps> = ({
   filter,
   items,
+  recencyAnchorMs,
   selectedItemId,
   totalUnread,
   unreadCounts,
@@ -83,8 +85,8 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
     [items, selectedItemId]
   );
   const groups = useMemo(
-    () => groupTeamInboxItemsByRecency(items, Date.now()),
-    [items]
+    () => groupTeamInboxItemsByRecency(items, recencyAnchorMs),
+    [items, recencyAnchorMs]
   );
   const activeFilterUnread = unreadCounts[filter];
   const filterTabs = useMemo<TabPillItem[]>(

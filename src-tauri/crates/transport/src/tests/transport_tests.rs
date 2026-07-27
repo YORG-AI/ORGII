@@ -34,18 +34,23 @@ async fn test_mock_transport_adapter_agent_events() {
     let events = adapter.get_captured_events().await;
     assert_eq!(events.len(), 2);
 
-    assert_eq!(events[0].event_name, "agent://session-created");
+    // Both events now emit under a single tagged channel; the variant is
+    // carried by the serde `type` discriminator (camelCase) instead of a
+    // per-variant event name.
+    assert_eq!(events[0].event_name, "agent://event");
     assert_eq!(events[0].session_id, session_id);
+    assert_eq!(events[0].payload["type"], "sessionCreated");
 
-    assert_eq!(events[1].event_name, "agent://dialog-turn-started");
+    assert_eq!(events[1].event_name, "agent://event");
     assert_eq!(events[1].session_id, session_id);
 
-    // Verify payload structure
+    // Verify tagged payload structure (camelCase fields nested under `payload`).
     let turn_payload = &events[1].payload;
-    assert_eq!(turn_payload["sessionId"], session_id);
-    assert_eq!(turn_payload["turnId"], "turn-1");
-    assert_eq!(turn_payload["turnIndex"], 1);
-    assert_eq!(turn_payload["userInput"], "Hello, world!");
+    assert_eq!(turn_payload["type"], "dialogTurnStarted");
+    assert_eq!(turn_payload["payload"]["sessionId"], session_id);
+    assert_eq!(turn_payload["payload"]["turnId"], "turn-1");
+    assert_eq!(turn_payload["payload"]["turnIndex"], 1);
+    assert_eq!(turn_payload["payload"]["userInput"], "Hello, world!");
 }
 
 #[tokio::test]
@@ -104,10 +109,11 @@ async fn test_transport_emitter_tool_events() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].event_name, "agent://tool-event");
 
-    let tool_data = &events[0].payload["toolEvent"];
-    assert_eq!(tool_data["tool_name"], "file_write");
-    assert_eq!(tool_data["event_type"], "started");
-    assert_eq!(tool_data["params"]["file_path"], "test.rs");
+    // Flat, camelCase-serialized `ToolEvent` (no bespoke `toolEvent` nesting).
+    let payload = &events[0].payload;
+    assert_eq!(payload["toolName"], "file_write");
+    assert_eq!(payload["eventType"], "started");
+    assert_eq!(payload["params"]["file_path"], "test.rs");
 }
 
 #[tokio::test]

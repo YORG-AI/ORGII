@@ -7,7 +7,7 @@
 
 - TypeScript `tsc --noEmit`: passed.
 - Tauri application `cargo check -p org2`: passed.
-- Focused Rust Team Inbox tests: 12 passed.
+- Focused Rust Team Inbox tests: 7 passed.
 
 ## Layer 2 — Dead code and structural deduplication
 

@@ -36,7 +36,7 @@ interface UseWorkstationSidebarPinnedAndRevealDataParams {
   newSessionLabel: string;
   runtimeLabel: string;
   teamInboxLabel: string;
-  teamInboxUnreadCount: number;
+  teamInboxUnreadCount?: number;
   t: TFunction<"navigation">;
   tSessions: TFunction<"sessions">;
 }

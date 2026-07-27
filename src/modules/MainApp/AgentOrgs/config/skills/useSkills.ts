@@ -1,9 +1,10 @@
 /**
  * Hook for managing coding agent skills.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
+import { useAsyncResource } from "@src/hooks/async";
 import type { DescriptionQuality } from "@src/types/extensions/types";
 
 export interface SkillInfo {
@@ -30,43 +31,21 @@ export interface SkillInfo {
  *   agent UIs so per-agent toggles do not silently rewrite OS/SDE state.
  */
 export function useSkills(workspacePath?: string, agentId?: string) {
-  const [skills, setSkills] = useState<SkillInfo[]>([]);
-  // Default false: a fresh mount of this hook should not flash a
-  // spinner before the IPC even kicks off. `refresh` raises loading
-  // for the actual fetch window; the Placeholder loading variant is
-  // debounced to suppress sub-250ms flashes globally.
-  const [loading, setLoading] = useState(false);
-  const cancelRef = useRef<(() => void) | null>(null);
-
-  const refresh = useCallback(() => {
-    cancelRef.current?.();
-    let cancelled = false;
-    cancelRef.current = () => {
-      cancelled = true;
+  const fetchSkills = useCallback(async (serializedScope: string) => {
+    const scope = JSON.parse(serializedScope) as {
+      agentId?: string;
+      workspacePath?: string;
     };
-
-    queueMicrotask(() => {
-      if (!cancelled) setLoading(true);
-    });
-    rpc.agentOrgs.skills
-      .list({ workspacePath, agentId })
-      .then((result) => {
-        if (!cancelled) setSkills(result);
-      })
-      .catch(() => {
-        // Fetch failure: leave existing skills displayed.
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-  }, [workspacePath, agentId]);
-
-  useEffect(() => {
-    refresh();
-    return () => {
-      cancelRef.current?.();
-    };
-  }, [refresh]);
+    return rpc.agentOrgs.skills.list(scope);
+  }, []);
+  const scopeKey = JSON.stringify({ agentId, workspacePath });
+  const resource = useAsyncResource<SkillInfo[]>({
+    fetcher: fetchSkills,
+    initialData: [],
+    scopeKey,
+  });
+  const setSkills = resource.setData;
+  const refresh = resource.refresh;
 
   const readSkill = useCallback(
     async (name: string) => {
@@ -102,8 +81,14 @@ export function useSkills(workspacePath?: string, agentId?: string) {
         throw err;
       }
     },
-    [workspacePath, agentId, refresh]
+    [workspacePath, agentId, refresh, setSkills]
   );
 
-  return { skills, loading, refresh, readSkill, toggleSkill };
+  return {
+    skills: resource.data,
+    loading: resource.loading,
+    refresh,
+    readSkill,
+    toggleSkill,
+  };
 }

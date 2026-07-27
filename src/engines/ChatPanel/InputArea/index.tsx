@@ -56,6 +56,9 @@ interface InputAreaProps {
   omitChatHeader?: boolean;
   chatPanelPosition?: "left" | "right";
   sessionId?: string;
+  /** Session whose comment threads Address Comments targets when this
+   * composer dispatches elsewhere (external-history fork composer). */
+  addressSessionId?: string | null;
   onSubmitOverride?: (input: SubmitOverrideInput) => Promise<boolean>;
   customMentionOptions?: ReadonlyArray<CustomMentionOption>;
   topRowPills?: React.ReactNode;
@@ -120,6 +123,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     omitChatHeader = false,
     chatPanelPosition = "right",
     sessionId: propSessionId,
+    addressSessionId,
     onSubmitOverride,
     customMentionOptions,
     topRowPills,
@@ -210,6 +214,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     } = useInputArea({
       placeholder,
       sessionId: propSessionId,
+      addressSessionId,
       sessionScope,
       submitDisabled,
       onSubmitOverride,

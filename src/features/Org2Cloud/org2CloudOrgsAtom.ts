@@ -59,6 +59,8 @@ export interface Org2CloudOrg {
   role: string;
   /** Batched entitlement from a 0004 roster listing; absent ⇒ per-org RPC. */
   entitlement?: CloudEntitlementState;
+  /** 0007 directory hook; absent ⇒ the org lives on the active endpoint. */
+  homeEndpoint?: string;
 }
 
 export interface RefetchOrg2CloudOrgsOptions {

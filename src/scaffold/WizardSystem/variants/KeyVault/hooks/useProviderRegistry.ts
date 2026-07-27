@@ -6,7 +6,7 @@
  */
 import type { TFunction } from "i18next";
 import { useSetAtom } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
@@ -16,6 +16,7 @@ import type {
   ProviderProtocol,
 } from "@src/api/tauri/rpc/schemas/validation";
 import { LOCAL_MODEL_PROVIDER } from "@src/api/types/keys";
+import { useAsyncResource } from "@src/hooks/async";
 import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
 
 // ============================================
@@ -197,16 +198,23 @@ async function loadRegistry(): Promise<RegistryCache> {
   if (registryCache) return registryCache;
   if (loadingPromise) return loadingPromise;
 
-  loadingPromise = Promise.all([
+  const promise = Promise.all([
     rpc.validation.getAvailableAgents(),
     rpc.validation.getAvailableApiProviders(),
   ]).then(([agents, apiProviders]) => {
     registryCache = { agents, apiProviders };
-    loadingPromise = null;
     return registryCache;
   });
-
-  return loadingPromise;
+  loadingPromise = promise;
+  void promise.then(
+    () => {
+      if (loadingPromise === promise) loadingPromise = null;
+    },
+    () => {
+      if (loadingPromise === promise) loadingPromise = null;
+    }
+  );
+  return promise;
 }
 
 // ============================================
@@ -513,53 +521,27 @@ export function useProviderRegistry(
 ): UseProviderRegistryResult {
   const { primaryOnly = false } = options;
   const { t } = useTranslation("integrations");
-  const [data, setData] = useState<RegistryCache | null>(registryCache);
-  const [loading, setLoading] = useState(!registryCache);
-  const [error, setError] = useState<string | null>(null);
   const setAgentRegistry = useSetAtom(agentRegistryAtom);
+  const resource = useAsyncResource<RegistryCache | null>({
+    fetcher: loadRegistry,
+    initialData: registryCache,
+    initialStatus: registryCache ? "ready" : "idle",
+    scopeKey: "provider-registry",
+  });
+  const data = resource.data;
+  const refreshResource = resource.refresh;
 
   useEffect(() => {
-    if (registryCache) {
-      setAgentRegistry(registryCache);
-      return;
+    if (resource.status === "ready" && data) {
+      setAgentRegistry(data);
     }
+  }, [data, resource.status, setAgentRegistry]);
 
-    let cancelled = false;
-    loadRegistry()
-      .then((result) => {
-        if (!cancelled) {
-          setData(result);
-          setAgentRegistry(result);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : String(err));
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [setAgentRegistry]);
-
-  const reload = async () => {
+  const reload = useCallback(async () => {
     registryCache = null;
     loadingPromise = null;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await loadRegistry();
-      setData(result);
-      setAgentRegistry(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  };
+    await refreshResource();
+  }, [refreshResource]);
 
   const unifiedProviders = useMemo(() => {
     if (!data) return [];
@@ -578,8 +560,8 @@ export function useProviderRegistry(
       apiProviders: [],
       unifiedProviders: [],
       modelTypeToProviderKey: {},
-      loading,
-      error,
+      loading: resource.loading,
+      error: resource.error,
       reload,
     };
   }
@@ -589,8 +571,8 @@ export function useProviderRegistry(
     apiProviders: data.apiProviders,
     unifiedProviders,
     modelTypeToProviderKey,
-    loading,
-    error,
+    loading: resource.loading,
+    error: resource.error,
     reload,
   };
 }

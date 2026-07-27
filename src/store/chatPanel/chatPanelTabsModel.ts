@@ -98,7 +98,6 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "session",
   "start-page",
   "runtime",
-  "team-inbox",
   "work-management",
   "workspace",
   "organization",

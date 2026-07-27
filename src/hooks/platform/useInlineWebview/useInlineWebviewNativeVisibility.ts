@@ -1,12 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type MutableRefObject, useEffect } from "react";
+import { type MutableRefObject, useEffect, useRef } from "react";
 
 export interface UseInlineWebviewNativeVisibilityParams {
   isWebviewCreated: boolean;
   isVisible: boolean;
   isWebviewAvailable: boolean;
   labelRef: MutableRefObject<string>;
-  updatePosition: (options?: { force?: boolean }) => Promise<void>;
+  updatePosition: (options?: {
+    force?: boolean;
+    show?: boolean;
+  }) => Promise<void>;
   log: (...args: unknown[]) => void;
 }
 
@@ -21,22 +24,21 @@ export function useInlineWebviewNativeVisibility(
     updatePosition,
     log,
   } = params;
+  const transitionGenerationRef = useRef(0);
+  const transitionQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   useEffect(() => {
     if (!isWebviewCreated || !isWebviewAvailable) return;
 
-    let cancelled = false;
+    const generation = ++transitionGenerationRef.current;
 
     const handleVisibility = async () => {
+      if (generation !== transitionGenerationRef.current) return;
+
       try {
         if (isVisible) {
           log("Showing WebView (isVisible=true)");
-          await updatePosition({ force: true });
-          if (cancelled) return;
-          await invoke("set_inline_webview_visibility", {
-            label: labelRef.current,
-            visible: true,
-          });
+          await updatePosition({ force: true, show: true });
         } else {
           log("Staging WebView offscreen (isVisible=false, but still mounted)");
           await invoke("update_inline_webview_position", {
@@ -48,16 +50,24 @@ export function useInlineWebviewNativeVisibility(
           });
         }
       } catch (err) {
-        if (!cancelled) {
+        if (generation === transitionGenerationRef.current) {
           log("Visibility change failed:", err);
         }
       }
     };
 
-    void handleVisibility();
+    // Native WKWebView mutations are serialized per React owner. A newer
+    // visibility intent invalidates queued work before it reaches Tauri, while
+    // an already-running mutation is allowed to finish before the latest
+    // transition applies the final state.
+    transitionQueueRef.current = transitionQueueRef.current
+      .catch(() => undefined)
+      .then(handleVisibility);
 
     return () => {
-      cancelled = true;
+      if (transitionGenerationRef.current === generation) {
+        transitionGenerationRef.current += 1;
+      }
     };
   }, [
     isWebviewCreated,

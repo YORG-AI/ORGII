@@ -35,13 +35,14 @@ import {
   activeWorkspaceRootPathAtom,
   primaryWorkspaceRootPathAtom,
 } from "@src/store/workspace";
+import { LatestScopedTask } from "@src/util/core/latestScopedTask";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 import { copyText } from "@src/util/data/clipboard";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
 import SessionProvenanceSourceIcon from "./SessionProvenanceSourceIcon";
 import { tildePath } from "./sourcePath";
-import { startVisibilityAwarePolling } from "./visibilityPolling";
 
 interface PlatformMeta {
   id: SessionProvenanceHookPlatform;
@@ -101,115 +102,134 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
   const [errors, setErrors] = useState<ErrorByPlatform>({});
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
   const [launchingCodexApproval, setLaunchingCodexApproval] = useState(false);
+  const statusLoadCoordinator = useMemo(() => new LatestScopedTask(), []);
   const approvalAutoExpanded = useRef<Set<SessionProvenanceHookPlatform>>(
     new Set()
   );
-  const mountedRef = useRef(true);
-  const statusRequestRef = useRef(0);
 
   const [masterEnabled, setMasterEnabled] = useState(true);
   const [masterPending, setMasterPending] = useState(false);
   const [liveStatusEnabled, setLiveStatusEnabled] = useState(true);
   const [liveStatusPending, setLiveStatusPending] = useState(false);
 
-  const handleMasterChange = useCallback(async (enabled: boolean) => {
-    setMasterPending(true);
-    const previous = !enabled;
-    setMasterEnabled(enabled);
-    try {
-      const nextStatuses =
-        await rpc.agentOrgs.sessionProvenance.setMasterEnabled({ enabled });
-      setStatuses(indexStatuses(nextStatuses));
-      setErrors({});
-    } catch (error) {
-      setMasterEnabled(previous);
-      const message = error instanceof Error ? error.message : String(error);
-      setErrors(
-        Object.fromEntries(
-          PLATFORMS.map(({ id }) => [id, message])
-        ) as ErrorByPlatform
-      );
-    } finally {
-      setMasterPending(false);
-    }
-  }, []);
-
-  const handleLiveStatusChange = useCallback(async (enabled: boolean) => {
-    setLiveStatusPending(true);
-    const previous = !enabled;
-    setLiveStatusEnabled(enabled);
-    try {
-      const nextStatuses =
-        await rpc.agentOrgs.sessionProvenance.setLiveStatusEnabled({ enabled });
-      setStatuses(indexStatuses(nextStatuses));
-      setErrors({});
-    } catch (error) {
-      setLiveStatusEnabled(previous);
-      const message = error instanceof Error ? error.message : String(error);
-      setErrors(
-        Object.fromEntries(
-          PLATFORMS.map(({ id }) => [id, message])
-        ) as ErrorByPlatform
-      );
-    } finally {
-      setLiveStatusPending(false);
-    }
-  }, []);
-
-  const loadStatuses = useCallback(async (silent = false) => {
-    const requestId = ++statusRequestRef.current;
-    if (!silent) setRefreshing(true);
-    try {
-      const [nextStatuses, nextMasterEnabled, nextLiveStatusEnabled] =
-        await Promise.all([
-          rpc.agentOrgs.sessionProvenance.status(),
-          rpc.agentOrgs.sessionProvenance.masterEnabled(),
-          rpc.agentOrgs.sessionProvenance.liveStatusEnabled(),
-        ]);
-      if (!mountedRef.current || requestId !== statusRequestRef.current) return;
-      setStatuses(indexStatuses(nextStatuses));
-      setMasterEnabled(nextMasterEnabled);
-      setLiveStatusEnabled(nextLiveStatusEnabled);
-      if (!silent) setErrors({});
-    } catch (error) {
-      if (
-        silent ||
-        !mountedRef.current ||
-        requestId !== statusRequestRef.current
-      ) {
-        return;
+  const handleMasterChange = useCallback(
+    async (enabled: boolean) => {
+      statusLoadCoordinator.supersede();
+      setMasterPending(true);
+      const previous = !enabled;
+      setMasterEnabled(enabled);
+      try {
+        const nextStatuses =
+          await rpc.agentOrgs.sessionProvenance.setMasterEnabled({ enabled });
+        setStatuses(indexStatuses(nextStatuses));
+        setErrors({});
+      } catch (error) {
+        setMasterEnabled(previous);
+        const message = error instanceof Error ? error.message : String(error);
+        setErrors(
+          Object.fromEntries(
+            PLATFORMS.map(({ id }) => [id, message])
+          ) as ErrorByPlatform
+        );
+      } finally {
+        setMasterPending(false);
       }
-      const message = error instanceof Error ? error.message : String(error);
-      setErrors(
-        Object.fromEntries(
-          PLATFORMS.map(({ id }) => [id, message])
-        ) as ErrorByPlatform
-      );
-    } finally {
-      if (mountedRef.current && requestId === statusRequestRef.current) {
+    },
+    [statusLoadCoordinator]
+  );
+
+  const handleLiveStatusChange = useCallback(
+    async (enabled: boolean) => {
+      statusLoadCoordinator.supersede();
+      setLiveStatusPending(true);
+      const previous = !enabled;
+      setLiveStatusEnabled(enabled);
+      try {
+        const nextStatuses =
+          await rpc.agentOrgs.sessionProvenance.setLiveStatusEnabled({
+            enabled,
+          });
+        setStatuses(indexStatuses(nextStatuses));
+        setErrors({});
+      } catch (error) {
+        setLiveStatusEnabled(previous);
+        const message = error instanceof Error ? error.message : String(error);
+        setErrors(
+          Object.fromEntries(
+            PLATFORMS.map(({ id }) => [id, message])
+          ) as ErrorByPlatform
+        );
+      } finally {
+        setLiveStatusPending(false);
+      }
+    },
+    [statusLoadCoordinator]
+  );
+
+  const loadStatuses = useCallback(
+    async (silent = false) => {
+      if (!silent) setRefreshing(true);
+      try {
+        const result = await statusLoadCoordinator.run(
+          "status",
+          async (context) => ({
+            context,
+            values: await Promise.all([
+              rpc.agentOrgs.sessionProvenance.status(),
+              rpc.agentOrgs.sessionProvenance.masterEnabled(),
+              rpc.agentOrgs.sessionProvenance.liveStatusEnabled(),
+            ]),
+          })
+        );
+        if (!result.context.isCurrent()) return;
+        const [nextStatuses, nextMasterEnabled, nextLiveStatusEnabled] =
+          result.values;
+        setStatuses(indexStatuses(nextStatuses));
+        setMasterEnabled(nextMasterEnabled);
+        setLiveStatusEnabled(nextLiveStatusEnabled);
+        if (!silent) setErrors({});
+      } catch (error) {
+        if (silent) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setErrors(
+          Object.fromEntries(
+            PLATFORMS.map(({ id }) => [id, message])
+          ) as ErrorByPlatform
+        );
+      } finally {
         setInitialLoading(false);
         if (!silent) setRefreshing(false);
       }
-    }
-  }, []);
+    },
+    [statusLoadCoordinator]
+  );
 
   useEffect(() => {
-    mountedRef.current = true;
     void loadStatuses();
-    return () => {
-      mountedRef.current = false;
-      statusRequestRef.current += 1;
-    };
-  }, [loadStatuses]);
+    return () => statusLoadCoordinator.supersede();
+  }, [loadStatuses, statusLoadCoordinator]);
 
   useEffect(() => {
-    if (statuses.codex?.activationState !== "awaiting_verification") return;
-    return startVisibilityAwarePolling(
-      document,
-      () => loadStatuses(true),
-      2_000
-    );
-  }, [loadStatuses, statuses.codex?.activationState]);
+    if (
+      statuses.codex?.activationState !== "awaiting_verification" ||
+      masterPending ||
+      liveStatusPending ||
+      pendingPlatforms.size > 0
+    ) {
+      return;
+    }
+    const poll = startVisibilityAwarePoll({
+      intervalMs: 2_000,
+      task: () => loadStatuses(true),
+    });
+    return () => poll.stop();
+  }, [
+    liveStatusPending,
+    loadStatuses,
+    masterPending,
+    pendingPlatforms.size,
+    statuses.codex?.activationState,
+  ]);
 
   useEffect(() => {
     for (const platform of PLATFORMS) {
@@ -250,6 +270,7 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
 
   const handleChange = useCallback(
     async (platform: SessionProvenanceHookPlatform, enabled: boolean) => {
+      statusLoadCoordinator.supersede();
       const previous = statuses[platform];
       setPendingPlatforms((current) => new Set(current).add(platform));
       setErrors((current) => ({ ...current, [platform]: undefined }));
@@ -280,7 +301,7 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
         });
       }
     },
-    [statuses]
+    [statuses, statusLoadCoordinator]
   );
 
   const rows = useMemo<PlatformRow[]>(

@@ -40,9 +40,25 @@ const SessionRow: React.FC<SessionRowProps> = memo(
     const handleClick = useCallback(() => {
       onClick(session);
     }, [onClick, session]);
+    const handleKeyDown = useCallback(
+      (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick(session);
+        }
+      },
+      [onClick, session]
+    );
 
     return (
-      <div className={`session-list-item ${className}`} onClick={handleClick}>
+      <div
+        className={`session-list-item ${className}`}
+        role="button"
+        tabIndex={0}
+        aria-label={session.name}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+      >
         <div className="session-item-content">
           <div className="session-item-header">
             <span className="session-item-name">{session.name}</span>
