@@ -29,6 +29,10 @@ function rows(from: number, through: number): AgentOrgGroupChatHistoryRow[] {
 
 const request = { scopeKey: "root-session", generation: 3 } as const;
 
+function olderRequest(beforeId: number) {
+  return { ...request, beforeId };
+}
+
 describe("Agent Org Group Chat durable history", () => {
   it("loads the initial bounded page in durable Inbox order", () => {
     const initial = agentOrgGroupChatHistoryTestApi.createHistoryModel(
@@ -70,7 +74,7 @@ describe("Agent Org Group Chat durable history", () => {
     );
     const loaded = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       initial,
-      request,
+      olderRequest(3),
       {
         rows: [row(1), row(2), row(3, { readAt: "2026-07-17T00:01:00Z" })],
         hasMore: false,
@@ -98,7 +102,7 @@ describe("Agent Org Group Chat durable history", () => {
     );
     const older = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       first,
-      request,
+      olderRequest(3),
       { rows: [row(1), row(2)], hasMore: false }
     );
     const refreshed = agentOrgGroupChatHistoryTestApi.applyRefreshPage(
@@ -141,17 +145,17 @@ describe("Agent Org Group Chat durable history", () => {
 
     const pageTwo = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       refreshed,
-      request,
+      olderRequest(301),
       { rows: rows(201, 300), hasMore: true, nextBeforeId: 201 }
     );
     const pageThree = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       pageTwo,
-      request,
+      olderRequest(201),
       { rows: rows(101, 200), hasMore: true, nextBeforeId: 101 }
     );
     const overlap = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       pageThree,
-      request,
+      olderRequest(101),
       { rows: rows(1, 100), hasMore: false }
     );
 
@@ -189,12 +193,12 @@ describe("Agent Org Group Chat durable history", () => {
 
     const middle = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       refreshed,
-      request,
+      olderRequest(201),
       { rows: rows(101, 200), hasMore: true, nextBeforeId: 101 }
     );
     const completed = agentOrgGroupChatHistoryTestApi.applyOlderPage(
       middle,
-      request,
+      olderRequest(101),
       { rows: rows(1, 100), hasMore: false }
     );
     expect(completed.rows).toHaveLength(300);
@@ -215,21 +219,21 @@ describe("Agent Org Group Chat durable history", () => {
       request,
       { rows: rows(801, 900), hasMore: true, nextBeforeId: 801 }
     );
-    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(model, request, {
-      rows: rows(701, 800),
-      hasMore: true,
-      nextBeforeId: 701,
-    });
-    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(model, request, {
-      rows: rows(601, 700),
-      hasMore: true,
-      nextBeforeId: 601,
-    });
-    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(model, request, {
-      rows: rows(501, 600),
-      hasMore: true,
-      nextBeforeId: 501,
-    });
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(801),
+      { rows: rows(701, 800), hasMore: true, nextBeforeId: 701 }
+    );
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(701),
+      { rows: rows(601, 700), hasMore: true, nextBeforeId: 601 }
+    );
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(601),
+      { rows: rows(501, 600), hasMore: true, nextBeforeId: 501 }
+    );
 
     expect(model.rows).toHaveLength(400);
     expect(model).toMatchObject({
@@ -237,6 +241,69 @@ describe("Agent Org Group Chat durable history", () => {
       nextBeforeId: 501,
       continuationFrontiers: [],
     });
+  });
+
+  it("keeps a refresh-adopted gap cursor when a stale older page lands", () => {
+    let model = agentOrgGroupChatHistoryTestApi.applyRefreshPage(
+      agentOrgGroupChatHistoryTestApi.createHistoryModel(
+        request.scopeKey,
+        request.generation
+      ),
+      request,
+      { rows: rows(100, 150), hasMore: true, nextBeforeId: 100 }
+    );
+    model = agentOrgGroupChatHistoryTestApi.beginLoadOlder(
+      model,
+      olderRequest(100)
+    );
+
+    // While the older page is in flight, a refresh jumps past a gap and
+    // adopts the new page's cursor, stacking the pre-gap frontier.
+    model = agentOrgGroupChatHistoryTestApi.applyRefreshPage(model, request, {
+      rows: rows(200, 250),
+      hasMore: true,
+      nextBeforeId: 200,
+    });
+    expect(model).toMatchObject({
+      nextBeforeId: 200,
+      continuationFrontiers: [{ hasMore: true, nextBeforeId: 100 }],
+    });
+
+    // The stale older page must merge its rows without clobbering the
+    // refresh-adopted cursor; otherwise the gap 151..199 becomes unreachable.
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(100),
+      { rows: rows(50, 99), hasMore: true, nextBeforeId: 50 }
+    );
+    expect(model).toMatchObject({
+      nextBeforeId: 200,
+      loadingOlder: false,
+      continuationFrontiers: [{ hasMore: true, nextBeforeId: 100 }],
+    });
+
+    // Walking the gap overlaps already-loaded rows and resumes the stacked
+    // frontier, then the final page below it completes the history.
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(200),
+      { rows: rows(100, 199), hasMore: true, nextBeforeId: 100 }
+    );
+    expect(model).toMatchObject({
+      hasMore: true,
+      nextBeforeId: 100,
+      continuationFrontiers: [],
+    });
+    model = agentOrgGroupChatHistoryTestApi.applyOlderPage(
+      model,
+      olderRequest(100),
+      { rows: rows(1, 99), hasMore: false }
+    );
+
+    expect(model.rows.map((item) => item.inboxId)).toEqual(
+      rows(1, 250).map((item) => item.inboxId)
+    );
+    expect(model).toMatchObject({ hasMore: false, nextBeforeId: null });
   });
 
   it("bounds stacked refresh gaps and falls back to a complete cursor scan", () => {

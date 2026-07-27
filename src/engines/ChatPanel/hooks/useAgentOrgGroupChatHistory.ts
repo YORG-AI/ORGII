@@ -42,6 +42,10 @@ interface HistoryRequestIdentity {
   generation: number;
 }
 
+interface HistoryOlderRequestIdentity extends HistoryRequestIdentity {
+  beforeId: number;
+}
+
 function createHistoryModel(
   scopeKey: string | null,
   generation: number
@@ -186,7 +190,7 @@ function beginLoadOlder(
 
 function applyOlderPage(
   model: HistoryModel,
-  request: HistoryRequestIdentity,
+  request: HistoryOlderRequestIdentity,
   page: {
     rows: AgentOrgGroupChatHistoryRow[];
     hasMore: boolean;
@@ -194,6 +198,18 @@ function applyOlderPage(
   }
 ): HistoryModel {
   if (!requestMatches(model, request)) return model;
+  if (model.nextBeforeId !== request.beforeId) {
+    // A refresh landed while this page was in flight and adopted a newer
+    // frontier past a gap. That cursor supersedes this page's: keep the rows,
+    // but let the gap walk own pagination — it re-reaches them by overlap.
+    return {
+      ...model,
+      rows: mergeRows(model.rows, page.rows),
+      loadingOlder: false,
+      error: model.errorKind === "older" ? null : model.error,
+      errorKind: model.errorKind === "older" ? null : model.errorKind,
+    };
+  }
   const existingIds = new Set(model.rows.map((row) => row.inboxId));
   const overlapsLoadedRows = page.rows.some((row) =>
     existingIds.has(row.inboxId)
@@ -347,8 +363,9 @@ export function useAgentOrgGroupChatHistory(
     const request = {
       scopeKey,
       generation: generationRef.current,
-    } satisfies HistoryRequestIdentity;
-    const beforeId = visibleModel.nextBeforeId;
+      beforeId: visibleModel.nextBeforeId,
+    } satisfies HistoryOlderRequestIdentity;
+    const beforeId = request.beforeId;
     loadOlderInFlightRef.current = true;
     setModel((current) => beginLoadOlder(current, request));
     try {
