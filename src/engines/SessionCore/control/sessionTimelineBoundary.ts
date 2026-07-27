@@ -15,10 +15,11 @@ import { markSessionStreamingStopped } from "@src/engines/SessionCore/sync/adapt
 import { createLogger } from "@src/hooks/logger";
 import { killAgentShellProcess } from "@src/services/terminal";
 import {
+  closePostStopDispatchEpisodeAtom,
   isPendingCancelAtom,
+  openPostStopDispatchEpisodeAtom,
   setSessionRuntimeStatusAtom,
   streamRetryStatusAtom,
-  userInitiatedCancelAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import { shellProcessMapAtom } from "@src/store/session/shellProcessAtom";
 import {
@@ -190,13 +191,13 @@ export function beginTimelineBoundary(
   }
 
   if (effect.isUserStop) {
-    store.set(userInitiatedCancelAtom, true);
+    store.set(openPostStopDispatchEpisodeAtom, sessionId);
     store.set(isPendingCancelAtom, true);
     // Stop parks every queued follow-up of this session: the natural drain
     // skips them permanently; only an explicit Send Now dispatches them.
     store.set(holdSessionQueueForStopAtom, sessionId);
   } else {
-    store.set(userInitiatedCancelAtom, false);
+    store.set(closePostStopDispatchEpisodeAtom, sessionId);
     store.set(isPendingCancelAtom, false);
   }
 

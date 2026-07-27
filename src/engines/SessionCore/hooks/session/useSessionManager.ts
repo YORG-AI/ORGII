@@ -55,21 +55,16 @@ export function useSessionManager(
 
   const repos = useAtomValue(reposAtom);
 
-  const isLoadingRef = useRef(false);
   // Mirror sessions.length in a ref so loadSessions can read it without
   // being recreated every time the list grows.  Without this, sessions.length
   // in the dep array causes loadSessions to change identity after every load,
-  // which re-fires the autoLoad useEffect and risks a self-exciting loop if
-  // the isLoadingRef guard is ever cleared while a fetch is still in-flight
-  // (e.g. the forceRefresh path calls resetSessionStore() and resets it).
+  // which re-fires the autoLoad useEffect after every store update.
   const sessionsLengthRef = useRef(sessions.length);
-  sessionsLengthRef.current = sessions.length;
+  useEffect(() => {
+    sessionsLengthRef.current = sessions.length;
+  }, [sessions.length]);
 
   const loadSessions = useCallback(async () => {
-    if (isLoadingRef.current) {
-      return;
-    }
-
     const invalidationTimestamp = getSessionCacheInvalidationTimestamp();
     const cacheWasInvalidated =
       invalidationTimestamp !== null &&
@@ -81,25 +76,24 @@ export function useSessionManager(
       localStorage.removeItem(SESSION_CACHE_INVALIDATION_KEY);
     }
 
-    isLoadingRef.current = true;
-
     try {
       await centralLoadSessions({
         forceRefresh: cacheWasInvalidated || sessionsLengthRef.current === 0,
       });
     } catch (err) {
       log.error("[useSessionManager] Failed to load sessions:", err);
-    } finally {
-      isLoadingRef.current = false;
     }
   }, [lastLoadedAt]);
 
   const forceRefresh = useCallback(async () => {
     resetSessionStore();
     localStorage.removeItem(SESSION_CACHE_INVALIDATION_KEY);
-    isLoadingRef.current = false;
-    await loadSessions();
-  }, [loadSessions]);
+    try {
+      await centralLoadSessions({ forceRefresh: true });
+    } catch (err) {
+      log.error("[useSessionManager] Failed to refresh sessions:", err);
+    }
+  }, []);
 
   useEffect(() => {
     if (autoLoad && repos.length > 0) {

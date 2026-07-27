@@ -3,7 +3,22 @@ import { describe, expect, it } from "vitest";
 import {
   resolveActiveGroupPinState,
   resolveVisibleGroupIndices,
+  shouldUseStaticChatHistoryRendering,
 } from "../ChatHistoryList";
+
+describe("shouldUseStaticChatHistoryRendering", () => {
+  it("keeps a large turn virtualized when its collapsed body has one visible item", () => {
+    const sourceItemCount = 25;
+    const collapsedVisibleItemCount = 1;
+
+    expect(collapsedVisibleItemCount).toBeLessThan(sourceItemCount);
+    expect(shouldUseStaticChatHistoryRendering(sourceItemCount)).toBe(false);
+  });
+
+  it("keeps small turns on the static renderer at the threshold", () => {
+    expect(shouldUseStaticChatHistoryRendering(24)).toBe(true);
+  });
+});
 
 describe("resolveVisibleGroupIndices", () => {
   it("returns every group intersecting the viewport", () => {

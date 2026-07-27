@@ -182,6 +182,7 @@ pub async fn agent_send_message(
     #[allow(non_snake_case)] clientMessageId: Option<String>,
     #[allow(non_snake_case)] turnIntentId: Option<String>,
     #[allow(non_snake_case)] turnIntentSource: String,
+    #[allow(non_snake_case)] markDirectUserIntervention: Option<bool>,
 ) -> Result<AgentResponse, String> {
     let source = crate::foundation::session_bridge::TurnIntentBridgeSource::parse(
         &turnIntentSource,
@@ -206,11 +207,9 @@ pub async fn agent_send_message(
         images,
         ide_context,
         isResume.unwrap_or(false),
-        // Direct-user intervention is signalled explicitly at the UI submit
-        // or queue-dispatch boundary. Do not infer it from every generic
-        // agent_send_message call: programmatic continuations use this command
-        // too and must not take over an Agent Org worker accidentally.
-        false,
+        // Only real user-authored submit/queue paths set this. Programmatic
+        // continuations, wake turns, and Resume leave it false.
+        markDirectUserIntervention.unwrap_or(false),
         clientMessageId,
         turnIntentId,
         None,

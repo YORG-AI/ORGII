@@ -77,6 +77,10 @@ export interface QueuedMessage {
 export const messageQueueAtom = atom<QueuedMessage[]>([]);
 messageQueueAtom.debugLabel = "messageQueueAtom";
 
+/** True once the durable queue snapshot has been merged into this Jotai store. */
+export const messageQueueHydratedAtom = atom(false);
+messageQueueHydratedAtom.debugLabel = "messageQueueHydratedAtom";
+
 /** Tracks which queued message is currently being edited in the main input box. */
 export interface QueueEditTarget {
   messageId: string;
