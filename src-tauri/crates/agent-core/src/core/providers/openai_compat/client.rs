@@ -6,14 +6,13 @@
 
 use reqwest::Client;
 use serde_json::Value;
-use std::collections::HashMap;
 use tracing::{debug, warn};
 
 use super::types::{ApiErrorResponse, StreamChunk, ToolCallResponse};
 use crate::providers::openai_policy::{resolve_openai_chat_wire_policy, OpenAiChatWirePolicy};
 use crate::providers::registry::{provider_id, ProviderSpec};
 use crate::providers::traits::{
-    finish_reason as finish, usage_key, LLMResponse, ProviderConfig, ProviderError, ToolCallRequest,
+    finish_reason as finish, LLMResponse, ProviderConfig, ProviderError, ToolCallRequest,
 };
 use crate::utils::build_http_client;
 
@@ -211,7 +210,7 @@ impl OpenAICompatClient {
     /// into a single `LLMResponse`.
     pub(super) fn reassemble_sse_to_response(body: &str) -> Result<LLMResponse, ProviderError> {
         let mut content = String::new();
-        let mut usage: HashMap<String, i64> = HashMap::new();
+        let mut usage = std::collections::HashMap::new();
 
         for line in body.lines() {
             let line = line.trim();
@@ -240,15 +239,7 @@ impl OpenAICompatClient {
                 }
             }
             if let Some(ref api_usage) = chunk.usage {
-                usage.insert(
-                    usage_key::PROMPT_TOKENS.to_string(),
-                    api_usage.prompt_tokens,
-                );
-                usage.insert(
-                    usage_key::COMPLETION_TOKENS.to_string(),
-                    api_usage.completion_tokens,
-                );
-                usage.insert(usage_key::TOTAL_TOKENS.to_string(), api_usage.total_tokens);
+                usage.extend(api_usage.to_usage_map());
             }
         }
 
@@ -274,7 +265,7 @@ impl OpenAICompatClient {
 #[cfg(test)]
 mod tests {
     use super::OpenAICompatClient;
-    use crate::providers::traits::ProviderError;
+    use crate::providers::traits::{usage_key, ProviderError};
 
     #[test]
     fn usage_limit_http_429_is_typed_and_non_transient() {
@@ -306,5 +297,24 @@ mod tests {
                 retry_after_secs: Some(2)
             } if message == "Slow down"
         ));
+    }
+
+    #[test]
+    fn sse_reassembly_normalizes_standard_cached_tokens() {
+        let body = concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1200,\"completion_tokens\":300,\"total_tokens\":1500,\"prompt_tokens_details\":{\"cached_tokens\":800}}}\n\n",
+            "data: [DONE]\n\n"
+        );
+
+        let response = OpenAICompatClient::reassemble_sse_to_response(body)
+            .expect("OpenAI-compatible SSE body should reassemble");
+
+        assert_eq!(response.content.as_deref(), Some("ok"));
+        assert_eq!(response.usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(response.usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(response.usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(response.usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!response.usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
     }
 }

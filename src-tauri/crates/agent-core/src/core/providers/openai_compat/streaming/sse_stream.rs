@@ -23,7 +23,7 @@ use crate::providers::openai_policy::ChatTokenLimitField;
 use crate::providers::registry::provider_id;
 use crate::providers::safe_truncate::safe_truncate_utf8;
 use crate::providers::traits::{
-    finish_reason as finish, LLMResponse, ProviderError, StreamDelta, StreamErrorKind,
+    finish_reason as finish, usage_key, LLMResponse, ProviderError, StreamDelta, StreamErrorKind,
     ToolCallDelta, ToolCallRequest,
 };
 use crate::providers::wire_sanitize::{
@@ -514,13 +514,22 @@ pub(super) async fn run_chat_streaming(
 
             // Usage (usually on final chunk when stream_options.include_usage=true)
             if let Some(ref usage) = chunk.usage {
+                let normalized_usage = usage.to_usage_map();
                 debug!(
-                    "[streaming-usage] OpenAI chunk usage: prompt={}, completion={}, total={}",
-                    usage.prompt_tokens, usage.completion_tokens, usage.total_tokens
+                    "[streaming-usage] OpenAI chunk usage: prompt={}, completion={}, total={}, cache_read={}, cache_write={}",
+                    usage.prompt_tokens,
+                    usage.completion_tokens,
+                    usage.total_tokens,
+                    normalized_usage
+                        .get(usage_key::CACHE_READ_TOKENS)
+                        .copied()
+                        .unwrap_or(0),
+                    normalized_usage
+                        .get(usage_key::CACHE_WRITE_TOKENS)
+                        .copied()
+                        .unwrap_or(0),
                 );
-                final_usage.insert("prompt_tokens".to_string(), usage.prompt_tokens);
-                final_usage.insert("completion_tokens".to_string(), usage.completion_tokens);
-                final_usage.insert("total_tokens".to_string(), usage.total_tokens);
+                final_usage.extend(normalized_usage);
             }
         }
         if stream_done {
@@ -667,7 +676,7 @@ pub(super) async fn run_chat_streaming(
 mod tests {
     use super::*;
     use crate::providers::registry::{find_by_name, provider_id};
-    use crate::providers::traits::{LLMProvider, ProviderConfig};
+    use crate::providers::traits::{usage_key, LLMProvider, ProviderConfig};
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -756,5 +765,57 @@ mod tests {
         );
         assert!(response.tool_calls.is_empty());
         assert_eq!(response.content, None);
+    }
+
+    #[tokio::test]
+    async fn deepseek_stream_normalizes_cache_hit_and_miss_tokens() {
+        crate::test_support::install_crypto_provider_for_tests();
+
+        let server = MockServer::start().await;
+        let body = concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1200,\"completion_tokens\":300,\"total_tokens\":1500,\"prompt_cache_hit_tokens\":800,\"prompt_cache_miss_tokens\":400}}\n\n",
+            "data: [DONE]\n\n"
+        );
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-type", "text/event-stream")
+                    .set_body_string(body),
+            )
+            .mount(&server)
+            .await;
+
+        let spec = find_by_name(provider_id::DEEPSEEK).expect("DeepSeek provider registered");
+        let client = OpenAICompatClient::new(
+            ProviderConfig {
+                api_key: "test-key".to_string(),
+                api_base: Some(server.uri()),
+                extra_headers: HashMap::new(),
+                is_azure: false,
+            },
+            spec,
+            "deepseek-chat".to_string(),
+        );
+
+        let response = client
+            .chat_streaming(
+                &[serde_json::json!({"role": "user", "content": "hello"})],
+                None,
+                "deepseek-chat",
+                1024,
+                0.0,
+                &|_| {},
+                None,
+            )
+            .await
+            .expect("DeepSeek stream should parse");
+
+        assert_eq!(response.usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(response.usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(response.usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(response.usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!response.usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
     }
 }
