@@ -24,6 +24,7 @@ import {
   ORCHESTRATOR_PHASE,
   toAgentRole,
 } from "../../constants";
+import { WORK_ITEM_THREAD_TOKENS } from "../WorkItemThread";
 import {
   ActivePhaseStatus,
   AwaitingUserState,
@@ -63,6 +64,7 @@ interface AgentWorkflowProps {
   /** Collab execution lock held by a teammate (design §16.6). */
   isLockedByOther?: boolean;
   lockHolderName?: string | null;
+  presentation?: "default" | "thread";
 }
 
 const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
@@ -86,6 +88,7 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
   activeAgentRole,
   isLockedByOther,
   lockHolderName,
+  presentation = "default",
 }) => {
   const { t } = useTranslation("projects");
   const persistedPhase: OrchestratorPhase =
@@ -179,15 +182,29 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
   const showCompletedBadge =
     phase === "completed" &&
     !(hasReviewFeedback && reviewOutcome === "approved");
+  const isThread = presentation === "thread";
 
   return (
     <CollapsibleSection
       title={t("workItems.agentWorkflow.title")}
       defaultOpen={true}
       actions={titleAction}
+      compact={isThread}
+      className={isThread ? WORK_ITEM_THREAD_TOKENS.card : ""}
+      headerRowClassName={
+        isThread ? WORK_ITEM_THREAD_TOKENS.collapsibleHeader : undefined
+      }
+      titleButtonClassName={isThread ? "w-full" : undefined}
+      titleButtonTestId={
+        isThread ? "work-item-thread-agent-workflow-toggle" : undefined
+      }
     >
       <div
-        className={`${SECTION_CONTAINER_CLASSES} space-y-2 p-3`}
+        className={
+          isThread
+            ? "space-y-2 p-3"
+            : `${SECTION_CONTAINER_CLASSES} space-y-2 p-3`
+        }
         data-testid="work-item-agent-workflow"
       >
         {phase !== "idle" && (
@@ -202,6 +219,7 @@ const AgentWorkflow: React.FC<AgentWorkflowProps> = ({
             isStartingAgent={isStartingAgent}
             isLockedByOther={isLockedByOther}
             lockHolderName={lockHolderName}
+            compact={isThread}
           />
         )}
         {ACTIVE_PHASES.has(phase) && (

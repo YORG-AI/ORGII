@@ -23,13 +23,13 @@ type TimelineTranslator = (
 
 export function useWorkItemTimeline({
   workItem,
-  teamMembers: _teamMembers,
+  teamMembers,
 }: UseWorkItemTimelineOptions) {
   const { t } = useTranslation("projects");
 
   const timelineEntries = useMemo(
-    () => buildWorkItemTimelineEntries(workItem, t),
-    [workItem, t]
+    () => buildWorkItemTimelineEntries(workItem, t, teamMembers),
+    [workItem, t, teamMembers]
   );
 
   const lastUpdatedRef = useRef(workItem.updated_time);
@@ -42,11 +42,16 @@ export function useWorkItemTimeline({
 
 export function buildWorkItemTimelineEntries(
   workItem: WorkItemExtended,
-  t: TimelineTranslator
+  t: TimelineTranslator,
+  teamMembers: readonly Person[] = []
 ): TimelineEntry[] {
+  const memberNameById = new Map(
+    teamMembers.map((member) => [member.id, member.name])
+  );
   const entries =
-    workItem.history?.map((event) => historyEventToTimelineEntry(event, t)) ??
-    [];
+    workItem.history?.map((event) =>
+      historyEventToTimelineEntry(event, t, memberNameById)
+    ) ?? [];
   const existingCommentIds = commentIdsFromHistory(workItem.history ?? []);
 
   for (const comment of workItem.comments ?? []) {
@@ -58,7 +63,7 @@ export function buildWorkItemTimelineEntries(
       id: comment.id,
       timestamp: comment.created_at,
       type: WORK_ITEM_HISTORY_ACTION.COMMENTED,
-      userName: comment.author,
+      userName: memberNameById.get(comment.author) ?? comment.author,
       descriptions: [comment.content || t("workItems.activity.commented")],
     });
   }
@@ -84,14 +89,18 @@ function commentIdsFromHistory(history: WorkItemHistoryEvent[]): Set<string> {
 
 function historyEventToTimelineEntry(
   event: WorkItemHistoryEvent,
-  t: TimelineTranslator
+  t: TimelineTranslator,
+  memberNameById: ReadonlyMap<string, string>
 ): TimelineEntry {
   return {
     id: event.id,
     timestamp: event.timestamp,
     type: event.action,
     userName:
-      event.actorName || event.actorId || t("workItems.activity.system"),
+      event.actorName ||
+      (event.actorId ? memberNameById.get(event.actorId) : undefined) ||
+      event.actorId ||
+      t("workItems.activity.system"),
     descriptions: eventDescriptions(event, t),
   };
 }

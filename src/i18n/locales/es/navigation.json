@@ -698,7 +698,9 @@
       "addressConfirm_other": "Atender {{count}} comentarios",
       "agentAuthor": "Agente @{{name}}",
       "addressSessionScope": "Session notes",
-      "addressRoundScope": "Round comments"
+      "addressRoundScope": "Round comments",
+      "mentionMembers": "Mencionar",
+      "searchMembers": "Buscar miembros"
     },
     "sharingFloor": {
       "label": "Nivel mínimo de uso compartido",

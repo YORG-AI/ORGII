@@ -1,6 +1,8 @@
 import {
   ArrowRightLeft,
   ArrowUp,
+  Bell,
+  BellOff,
   Bot,
   MessageSquare,
   Pencil,
@@ -49,146 +51,165 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onCommentTextChange,
   onCommentSubmit,
   isSubmittingComment,
+  presentation = "default",
 }) => {
   const { t } = useTranslation("projects");
+  const isThread = presentation === "thread";
 
-  return (
-    <div className="flex flex-1 flex-col">
-      <div
-        className={`${DETAIL_PANEL_TOKENS.sectionGap} flex items-center justify-between`}
-      >
-        <div className="flex items-center gap-3">
-          <Button variant="tertiary" size="small" onClick={onToggleSubscribe}>
-            {isSubscribed
-              ? t("workItems.activity.unsubscribe")
-              : t("workItems.activity.subscribe")}
-          </Button>
-          <Avatar
-            size={24}
-            style={{
-              backgroundColor: currentUser.color || "var(--color-fill-3)",
-              color: "var(--color-text-white)",
-            }}
-          >
-            {currentUser.name.charAt(0).toUpperCase()}
-          </Avatar>
-        </div>
-      </div>
+  const subscriptionControl = (
+    <Button
+      variant="tertiary"
+      appearance="ghost"
+      size="mini"
+      icon={
+        isSubscribed ? (
+          <BellOff size={13} aria-hidden />
+        ) : (
+          <Bell size={13} aria-hidden />
+        )
+      }
+      onClick={onToggleSubscribe}
+      data-testid="work-item-subscription-toggle"
+    >
+      {isSubscribed
+        ? t("workItems.activity.unsubscribe")
+        : t("workItems.activity.subscribe")}
+    </Button>
+  );
 
-      {timelineEntries.length > 0 && (
-        <div className={DETAIL_PANEL_TOKENS.sectionGap}>
-          <TimelineStack>
-            {timelineEntries.map((entry, entryIndex) => {
-              const isDelegationComment =
-                entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
-                entry.userName === OS_AGENT_USERNAME &&
-                entry.descriptions[0]?.startsWith(DELEGATION_PREFIX);
-              const isLast = entryIndex === timelineEntries.length - 1;
+  const timeline = timelineEntries.length > 0 && (
+    <div className={isThread ? "" : DETAIL_PANEL_TOKENS.sectionGap}>
+      <TimelineStack>
+        {timelineEntries.map((entry, entryIndex) => {
+          const isDelegationComment =
+            entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
+            entry.userName === OS_AGENT_USERNAME &&
+            entry.descriptions[0]?.startsWith(DELEGATION_PREFIX);
+          const isLast = entryIndex === timelineEntries.length - 1;
 
-              if (
-                entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
-                !isDelegationComment
-              ) {
-                const body = entry.descriptions[0] ?? "";
-                return (
-                  <ConnectedTimelineItem key={entry.id} isLast={isLast}>
-                    <TimelineCard
-                      copyBody={body}
-                      header={
-                        <TimelineCardHeader
-                          avatar={
-                            <Avatar
-                              size={18}
-                              style={
-                                entry.userName === currentUser.name
-                                  ? {
-                                      backgroundColor:
-                                        currentUser.color ||
-                                        "var(--color-fill-3)",
-                                      color: "var(--color-text-white)",
-                                    }
-                                  : undefined
-                              }
-                            >
-                              {entry.userName.charAt(0).toUpperCase()}
-                            </Avatar>
+          if (
+            entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
+            !isDelegationComment
+          ) {
+            const body = entry.descriptions[0] ?? "";
+            return (
+              <ConnectedTimelineItem key={entry.id} isLast={isLast}>
+                <TimelineCard
+                  copyBody={body}
+                  header={
+                    <TimelineCardHeader
+                      avatar={
+                        <Avatar
+                          size={18}
+                          style={
+                            entry.userName === currentUser.name
+                              ? {
+                                  backgroundColor:
+                                    currentUser.color || "var(--color-fill-3)",
+                                  color: "var(--color-text-white)",
+                                }
+                              : undefined
                           }
-                          actor={entry.userName}
-                          action="commented"
-                          timestamp={entry.timestamp}
-                        />
+                        >
+                          {entry.userName.charAt(0).toUpperCase()}
+                        </Avatar>
                       }
-                    >
-                      <MarkdownContent body={body} />
-                    </TimelineCard>
-                  </ConnectedTimelineItem>
-                );
-              }
+                      actor={entry.userName}
+                      action="commented"
+                      timestamp={entry.timestamp}
+                    />
+                  }
+                >
+                  <MarkdownContent body={body} />
+                </TimelineCard>
+              </ConnectedTimelineItem>
+            );
+          }
 
-              return (
-                <ConnectedTimelineItem key={entry.id} isLast={isLast}>
-                  <TimelineEventCard
-                    icon={
-                      isDelegationComment ? (
-                        <Bot size={12} className="text-primary-6" />
-                      ) : (
-                        TIMELINE_ICONS[entry.type]
-                      )
-                    }
-                  >
-                    <span
-                      className={
-                        isDelegationComment
-                          ? "font-medium text-primary-6"
-                          : "font-medium text-text-1"
-                      }
-                    >
-                      {isDelegationComment
-                        ? t("workItems.activity.agent")
-                        : entry.userName}
-                    </span>{" "}
-                    {entry.descriptions.length === 1 ? (
-                      <span>{entry.descriptions[0]}</span>
-                    ) : (
-                      <details className="mt-0.5">
-                        <summary className="inline cursor-pointer marker:text-text-4 hover:text-text-1">
-                          {t("workItems.activity.editedFields", {
-                            count: entry.descriptions.length,
-                          })}
-                        </summary>
-                        <ul className="m-0 mt-1 list-disc pl-4">
-                          {entry.descriptions.map(
-                            (description, descriptionIndex) => (
-                              <li key={`${entry.id}-${descriptionIndex}`}>
-                                {description}
-                              </li>
-                            )
-                          )}
-                        </ul>
-                      </details>
-                    )}
-                    <span className="mx-1">·</span>
-                    <ActivityTimestamp timestamp={entry.timestamp} />
-                  </TimelineEventCard>
-                </ConnectedTimelineItem>
-              );
-            })}
-          </TimelineStack>
-        </div>
-      )}
+          return (
+            <ConnectedTimelineItem key={entry.id} isLast={isLast}>
+              <TimelineEventCard
+                icon={
+                  isDelegationComment ? (
+                    <Bot size={12} className="text-primary-6" />
+                  ) : (
+                    TIMELINE_ICONS[entry.type]
+                  )
+                }
+              >
+                <span
+                  className={
+                    isDelegationComment
+                      ? "font-medium text-primary-6"
+                      : "font-medium text-text-1"
+                  }
+                >
+                  {isDelegationComment
+                    ? t("workItems.activity.agent")
+                    : entry.userName}
+                </span>{" "}
+                {entry.descriptions.length === 1 ? (
+                  <span>{entry.descriptions[0]}</span>
+                ) : (
+                  <details className="mt-0.5">
+                    <summary className="inline cursor-pointer marker:text-text-4 hover:text-text-1">
+                      {t("workItems.activity.editedFields", {
+                        count: entry.descriptions.length,
+                      })}
+                    </summary>
+                    <ul className="m-0 mt-1 list-disc pl-4">
+                      {entry.descriptions.map(
+                        (description, descriptionIndex) => (
+                          <li key={`${entry.id}-${descriptionIndex}`}>
+                            {description}
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  </details>
+                )}
+                <span className="mx-1">·</span>
+                <ActivityTimestamp timestamp={entry.timestamp} />
+              </TimelineEventCard>
+            </ConnectedTimelineItem>
+          );
+        })}
+      </TimelineStack>
+    </div>
+  );
 
-      <div className="mt-auto flex flex-col gap-2">
+  const composer = (
+    <div
+      className={
+        isThread
+          ? "flex items-start gap-2 rounded-xl border border-border-1 bg-primary-container p-3"
+          : "mt-auto flex flex-col gap-2"
+      }
+    >
+      {isThread ? (
+        <Avatar
+          size={24}
+          style={{
+            backgroundColor: currentUser.color || "var(--color-fill-3)",
+            color: "var(--color-text-white)",
+          }}
+        >
+          {currentUser.name.charAt(0).toUpperCase()}
+        </Avatar>
+      ) : null}
+      <div className="min-w-0 flex-1">
         <RichMarkdownEditor
           placeholder={t("workItems.activity.commentPlaceholder")}
           value={commentText}
           onChange={(markdown) => onCommentTextChange(markdown)}
           onSubmit={onCommentSubmit}
-          minHeight={60}
+          minHeight={isThread ? 48 : 60}
           maxHeight={120}
           appearance="outlined"
+          showTabs={!isThread}
           dataTestId="work-item-comment-editor"
         />
-        <div className="flex items-center justify-end">
+        <div className="mt-2 flex items-center justify-end">
           <Button
             variant={commentText.trim() ? "primary" : "secondary"}
             shape="circle"
@@ -203,6 +224,48 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           />
         </div>
       </div>
+    </div>
+  );
+
+  if (isThread) {
+    return (
+      <section
+        className="flex flex-col gap-3"
+        data-testid="work-item-thread-activity"
+      >
+        <div className="flex min-h-8 items-center justify-between gap-3">
+          <h3 className="text-[13px] font-semibold text-text-1">
+            {t("workItems.activity.title")}
+          </h3>
+          {subscriptionControl}
+        </div>
+        {timeline}
+        {composer}
+      </section>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <div
+        className={`${DETAIL_PANEL_TOKENS.sectionGap} flex items-center justify-between`}
+      >
+        <div className="flex items-center gap-3">
+          {subscriptionControl}
+          <Avatar
+            size={24}
+            style={{
+              backgroundColor: currentUser.color || "var(--color-fill-3)",
+              color: "var(--color-text-white)",
+            }}
+          >
+            {currentUser.name.charAt(0).toUpperCase()}
+          </Avatar>
+        </div>
+      </div>
+
+      {timeline}
+      {composer}
     </div>
   );
 };

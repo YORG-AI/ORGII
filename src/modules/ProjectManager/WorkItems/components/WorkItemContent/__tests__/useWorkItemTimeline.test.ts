@@ -168,4 +168,32 @@ describe("work item history timeline", () => {
       "history-late",
     ]);
   });
+
+  it("resolves stored member ids in history and legacy comments", () => {
+    const entries = buildWorkItemTimelineEntries(
+      workItemWithTimeline({
+        comments: [
+          {
+            id: "comment-member",
+            author: "member-2",
+            content: "Member comment",
+            created_at: "2026-01-02T00:00:00Z",
+          },
+        ],
+        history: [
+          {
+            id: "history-member",
+            action: WORK_ITEM_HISTORY_ACTION.UPDATED,
+            timestamp: "2026-01-01T00:00:00Z",
+            actorId: "member-2",
+            summary: "Updated",
+          },
+        ],
+      }),
+      translate,
+      [{ id: "member-2", name: "Lin" }]
+    );
+
+    expect(entries.map((entry) => entry.userName)).toEqual(["Lin", "Lin"]);
+  });
 });

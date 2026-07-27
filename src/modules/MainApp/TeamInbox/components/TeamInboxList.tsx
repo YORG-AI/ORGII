@@ -185,6 +185,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                 }
                 title={t("inbox.markAllAsRead")}
                 aria-label={t("inbox.markAllAsRead")}
+                data-testid="team-inbox-mark-all-read"
                 onClick={onMarkAllRead}
               />
             ) : null}

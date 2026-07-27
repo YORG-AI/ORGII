@@ -18,6 +18,7 @@ export type {
 } from "./selectors";
 export {
   humanizeToken,
+  isGitHubIssueStatus,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "./labels";

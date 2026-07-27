@@ -37,6 +37,7 @@ import { useSessionCommentTarget } from "../sessionCommentTarget";
 import CommentThreadList from "./CommentThreadList";
 import {
   sessionCommentPresentEventIdsAtom,
+  useSessionCommentMentionableMembers,
   useSessionCommentViewer,
 } from "./SessionCommentsContext";
 
@@ -65,6 +66,7 @@ const SessionCommentsHeaderExtras: React.FC<
       : null
   );
   const viewer = useSessionCommentViewer(target);
+  const mentionableMembers = useSessionCommentMentionableMembers(target);
   const presentRegistry = useAtomValue(sessionCommentPresentEventIdsAtom);
   const [open, setOpen] = useState(false);
 
@@ -84,18 +86,22 @@ const SessionCommentsHeaderExtras: React.FC<
   );
 
   const handleAddNote = useCallback(
-    async (body: string, parentId?: string) =>
+    async (body: string, parentId?: string, mentionedUserIds?: string[]) =>
       // Session-level notes carry NO anchor; replies inherit the parent's.
       // Returning the row satisfies the list's onAdd contract; the agent
       // affordances stay dormant here regardless (no provider ⇒ null
       // context in this dialog's tree).
-      addComment(parentId ? { body, parentId } : { body }),
+      addComment(
+        parentId
+          ? { body, parentId, mentionedUserIds }
+          : { body, mentionedUserIds }
+      ),
     [addComment]
   );
   const handleReplyOnly = useCallback(
-    async (body: string, parentId?: string) => {
+    async (body: string, parentId?: string, mentionedUserIds?: string[]) => {
       if (!parentId) return undefined;
-      return addComment({ body, parentId });
+      return addComment({ body, parentId, mentionedUserIds });
     },
     [addComment]
   );
@@ -149,6 +155,7 @@ const SessionCommentsHeaderExtras: React.FC<
             threads={grouped.sessionLevel}
             viewerUserId={viewer.viewerUserId}
             viewerIsAdmin={viewer.viewerIsAdmin}
+            mentionableMembers={mentionableMembers}
             emptyLabel={
               state === "error"
                 ? t("cloud.comments.loadError")
@@ -171,6 +178,7 @@ const SessionCommentsHeaderExtras: React.FC<
                 threads={grouped.orphaned}
                 viewerUserId={viewer.viewerUserId}
                 viewerIsAdmin={viewer.viewerIsAdmin}
+                mentionableMembers={mentionableMembers}
                 // New top-level anchors into a dropped event would be
                 // meaningless — replies/resolve on existing threads stay.
                 showComposer={false}

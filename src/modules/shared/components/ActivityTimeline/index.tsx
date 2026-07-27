@@ -127,21 +127,36 @@ export function ConnectedTimelineItem({
 export function TimelineCard({
   header,
   copyBody,
+  actions,
   footer,
   children,
+  className = "",
+  bodyClassName = "",
 }: {
   header: React.ReactNode;
   copyBody?: string;
+  actions?: React.ReactNode;
   footer?: React.ReactNode;
   children?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
 }): React.ReactNode {
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-primary-container">
+    <div
+      className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-primary-container ${className}`.trim()}
+    >
       <div className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
         {header}
-        {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
+        {copyBody || actions ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {actions}
+            {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
+          </div>
+        ) : null}
       </div>
-      <div className="min-w-0 select-text px-3 py-3">{children}</div>
+      <div className={`min-w-0 select-text px-3 py-3 ${bodyClassName}`.trim()}>
+        {children}
+      </div>
       {footer}
     </div>
   );

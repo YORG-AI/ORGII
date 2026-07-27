@@ -2,9 +2,24 @@ import { describe, expect, it } from "vitest";
 
 import {
   humanizeToken,
+  isGitHubIssueStatus,
   workItemPriorityLabelKey,
   workItemStatusLabelKey,
 } from "../domain/labels";
+
+describe("isGitHubIssueStatus", () => {
+  it("recognizes the GitHub issue status vocabulary", () => {
+    expect(isGitHubIssueStatus("open")).toBe(true);
+    expect(isGitHubIssueStatus("closed")).toBe(true);
+  });
+
+  it("rejects local Work Item statuses", () => {
+    expect(isGitHubIssueStatus("todo")).toBe(false);
+    expect(isGitHubIssueStatus("in_progress")).toBe(false);
+    expect(isGitHubIssueStatus("completed")).toBe(false);
+    expect(isGitHubIssueStatus("")).toBe(false);
+  });
+});
 
 describe("humanizeToken", () => {
   it("sentence-cases a snake_case enum token", () => {

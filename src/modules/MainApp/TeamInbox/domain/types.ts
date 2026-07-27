@@ -66,6 +66,12 @@ export interface TeamInboxCursor {
 export interface TeamInboxPage {
   items: TeamInboxItem[];
   nextCursor: TeamInboxCursor | null;
+  /** Authoritative source totals; absent on lightweight/test data sources. */
+  unreadCounts?: {
+    all: number;
+    mentions: number;
+    assigned: number;
+  };
 }
 
 export interface ListTeamInboxInput {
@@ -84,7 +90,10 @@ export interface TeamInboxDataSource {
   listPage(input: ListTeamInboxInput): Promise<TeamInboxPage>;
   markRead?(item: TeamInboxItem): Promise<void>;
   markUnread?(item: TeamInboxItem): Promise<void>;
-  markAllRead?(items: readonly TeamInboxItem[]): Promise<void>;
+  markAllRead?(
+    items: readonly TeamInboxItem[],
+    filter?: TeamInboxFilter
+  ): Promise<void>;
   refresh?(): Promise<void>;
   /**
    * Loads the next page from every source that still has one and appends the
@@ -96,6 +105,10 @@ export interface TeamInboxDataSource {
 
 export type TeamInboxNavigationIntent =
   | {
+      kind: "open_session";
+      sessionId: string;
+    }
+  | {
       kind: "open_session_comment";
       sessionId: string;
       commentId: string;
@@ -106,4 +119,5 @@ export type TeamInboxNavigationIntent =
       kind: "open_work_item";
       projectId: string;
       workItemId: string;
+      action?: "start_agent";
     };

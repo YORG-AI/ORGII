@@ -725,7 +725,9 @@
       "addressRoundScope": "Round comments",
       "addressConfirm_one": "Address {{count}} comment",
       "addressConfirm_other": "Address {{count}} comments",
-      "agentAuthor": "Agent @{{name}}"
+      "agentAuthor": "Agent @{{name}}",
+      "mentionMembers": "Mention",
+      "searchMembers": "Search members"
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."

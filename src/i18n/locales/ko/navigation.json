@@ -696,7 +696,9 @@
       "addressConfirm_other": "댓글 {{count}}개 처리",
       "agentAuthor": "에이전트 @{{name}}",
       "addressSessionScope": "Session notes",
-      "addressRoundScope": "Round comments"
+      "addressRoundScope": "Round comments",
+      "mentionMembers": "멤버 언급",
+      "searchMembers": "멤버 검색"
     },
     "sharingFloor": {
       "label": "최소 공유 수준",
