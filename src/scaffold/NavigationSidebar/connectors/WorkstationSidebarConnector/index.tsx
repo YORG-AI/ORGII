@@ -6,6 +6,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
+import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
@@ -65,6 +67,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const sessions = useAtomValue(sessionsAtom);
+  useTeamInboxDataSource();
+  const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
   const sessionPagination = useAtomValue(sessionPaginationAtom);
   const sessionSidebarRevealRequest = useAtomValue(
@@ -103,6 +107,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     openStartPageTab,
     openCreateTargetInStartPage,
     openRuntimeTab,
+    openTeamInboxTab,
     closeAndDestroyChatPanelTab,
   } = useWorkstationSidebarChatPanelAtoms();
 
@@ -203,6 +208,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     createWorkItemLabel,
     workItemsLabel,
     runtimeLabel,
+    teamInboxLabel,
     importGithubIssuesLabel,
     addOrgLabel,
     manageOrgLabel,
@@ -296,6 +302,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     importGithubIssuesLabel,
     newSessionLabel,
     runtimeLabel,
+    teamInboxLabel,
+    teamInboxUnreadCount,
     t,
     tSessions,
   });
@@ -487,6 +495,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     openWorkManagementTab,
     openRuntimeTab,
     runtimeLabel,
+    openTeamInboxTab,
+    teamInboxLabel,
     activateChatPanelTab,
     handleMenuItemClick,
     handleProjectsMenuItemClick,

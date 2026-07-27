@@ -42,6 +42,7 @@ import {
   Columns3,
   Gauge,
   GitPullRequest,
+  Inbox,
   Info,
   LayoutGrid,
   MessageSquarePlus,
@@ -185,6 +186,7 @@ const TabPill = memo(function TabPill({
     launchpad: t("navigation:routes.launchpad"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
     organization: t("navigation:collaboration.manageOrg"),
+    teamInbox: t("navigation:labels.teamInbox", "Team Inbox"),
     workManagement: {
       kanban: t("sessions:simulator.tabs.kanban"),
       projects: t("navigation:labels.projects"),
@@ -221,6 +223,14 @@ const TabPill = memo(function TabPill({
   } else if (tab.type === "runtime") {
     icon = (
       <Gauge
+        size={16}
+        strokeWidth={1.75}
+        className={`shrink-0 ${iconColorClass}`}
+      />
+    );
+  } else if (tab.type === "team-inbox") {
+    icon = (
+      <Inbox
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
