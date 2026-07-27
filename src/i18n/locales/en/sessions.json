@@ -162,7 +162,8 @@
         "hooks": "Hooks",
         "usage": "Usage",
         "quota": "Quota",
-        "assets": "Assets"
+        "assets": "Assets",
+        "profile": "Profile"
       },
       "usage": {
         "title": "Usage & cost",
@@ -273,6 +274,58 @@
         "installed": "Installed",
         "notInstalled": "Not detected",
         "disabled": "Disabled"
+      },
+      "profile": {
+        "title": "Builder profile",
+        "refresh": "Refresh",
+        "summaryLine": "{{sessions}} sessions analysed",
+        "tooFewSessions": "Fewer than 25 sessions — the type is not settled yet.",
+        "noSessionsYet": "No sessions analysed yet — the letters appear as your history is read.",
+        "axisStats": "{{sessions}} sessions · {{consistency}}% agree",
+        "anchorFlip": "neutral point would have to move {{factor}}×",
+        "anchorNeverFlips": "verdict holds at any neutral point",
+        "evidenceHint": "Your median for each signal, against the neutral value it was compared to.",
+        "secondary": "Measured, but not letter-worthy",
+        "secondaryNote": "— most verification leaves no trace in a transcript, so this is low confidence.",
+        "fanout": "{{percent}}% of your sessions fan out to subagents.",
+        "byTool": "By tool",
+        "byToolHint": "Same neutral points everywhere, so these rows are comparable. A letter that only holds in one tool is worth doubting.",
+        "sessionCount": "{{count}} sessions",
+        "overTime": "Over time",
+        "overTimeHint": "Rolling windows, most recent first.",
+        "status": "Status",
+        "coverage": "Sessions read",
+        "coverageReading": "Still reading your history — the profile sharpens as this fills.",
+        "coverageComplete": "Every session on this machine has been read.",
+        "confidence": "Confidence",
+        "confidenceHint": "How strongly your sessions agree with the letters above.",
+        "axesTitle": "Axes",
+        "evidenceCol": {
+          "signal": "Signal",
+          "yours": "Yours",
+          "neutral": "Neutral"
+        },
+        "byToolCol": {
+          "tool": "Tool",
+          "code": "Type",
+          "sessions": "Sessions"
+        },
+        "overTimeCol": {
+          "window": "Window ends",
+          "code": "Type",
+          "sessions": "Sessions"
+        },
+        "fanoutLabel": "Subagent fan-out",
+        "fanoutHint": "Share of sessions that branch into subagents. Kept separate from Focused/Swarm: it is the other level of parallelism and points the other way.",
+        "highlights": "Highlights",
+        "highlightsHint": "One fact per card, drawn from your own sessions.",
+        "caveat": "held loosely: {{reason}}",
+        "clarity": {
+          "slight": "slight preference",
+          "moderate": "moderate preference",
+          "clear": "clear preference",
+          "veryClear": "very clear preference"
+        }
       }
     },
     "list": {
