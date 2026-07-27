@@ -185,11 +185,13 @@ cc = "1.0"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
+# Opt-in Rust heap profiling for the desktop binary. This dependency is not
+# linked unless `--features dhat-heap` is explicitly requested.
+dhat = { version = "0.3.3", optional = true }
 tauri = { workspace = true }
 tauri-plugin-shell = "2"
 tauri-plugin-fs = { version = "=2.4.5", features = ["watch"] }
 tauri-plugin-deep-link = "2"
-tauri-plugin-oauth = "2"
 tauri-plugin-updater = "=2.9.0"
 tauri-plugin-dialog = "=2.6.0"
 tauri-plugin-process = "2.2.0"
@@ -527,6 +529,9 @@ libc = "0.2"
 
 [features]
 default = []
+# Developer-only heap profiler. Never enable this in production builds: DHAT
+# replaces the process-wide allocator and records every Rust heap allocation.
+dhat-heap = ["dep:dhat"]
 # E2E WebDriver automation plugin (debug/test only). Enable with --features webdriver.
 webdriver = ["dep:tauri-plugin-webdriver-automation"]
 semantic-search = ["advanced_search/semantic-search"]
@@ -611,6 +616,14 @@ opt-level = 3
 codegen-units = 4
 panic = "abort"
 strip = true
+
+# Optimized, symbolized build used only by scripts/dev/profile-rust-heap.sh.
+# Keeping this separate preserves the size and performance of normal release
+# artifacts while giving DHAT useful allocation backtraces.
+[profile.dhat]
+inherits = "release"
+debug = 1
+strip = false
 
 # Development profile - faster builds.
 #
