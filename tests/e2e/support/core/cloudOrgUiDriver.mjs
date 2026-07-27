@@ -977,7 +977,7 @@ async function postOpenComment(body) {
   await browser.waitUntil(
     async () =>
       (await execJS(
-        js.click('[data-testid="session-comment-composer"] button')
+        js.click('[data-testid="session-comment-composer-submit"]')
       )) === "clicked",
     {
       timeout: RENDER_TIMEOUT_MS,
@@ -993,6 +993,19 @@ async function postOpenComment(body) {
 }
 
 export async function postTurnComment(body) {
+  await postOpenComment(body);
+}
+
+/** Posts through the production member picker; no RPC/helper creates mention state. */
+export async function postTurnCommentMentioning(body, memberUserId) {
+  await clickRendered(
+    '[data-testid="session-comment-composer-mention-members"]',
+    "comment member mention picker"
+  );
+  await clickRendered(
+    `[data-testid="session-comment-mention-${memberUserId}"]`,
+    "comment mentioned member"
+  );
   await postOpenComment(body);
 }
 
