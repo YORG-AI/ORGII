@@ -8,6 +8,7 @@ import { Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { OrgMemberRuntimeConfig } from "@src/api/tauri/rpc/schemas/agentOrgs";
 import Button from "@src/components/Button";
 import DragTable, { type DragTableColumn } from "@src/components/DragTable";
 import {
@@ -18,7 +19,6 @@ import {
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
-import type { OrgMemberRuntimeConfig } from "@src/modules/MainApp/AgentOrgs/types";
 
 // ── Types ──
 

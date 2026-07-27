@@ -4,6 +4,14 @@ import type { ImportedHistorySourceId } from "./imported/descriptors";
 
 export interface ExternalHistoryScanResult {
   changedSources: ImportedHistorySourceId[];
+  /**
+   * Whole-source cache signatures for every rescanned source, changed or not.
+   * `changedSources` only reports writes made by the rescan call itself;
+   * other surfaces sync the same backend cache between scheduler ticks, so
+   * callers compare these signatures against the ones captured at their last
+   * roster reload to detect staleness the rescan alone cannot see.
+   */
+  sourceSignatures: Record<string, string>;
 }
 
 interface PendingScanWaiter {
@@ -25,8 +33,15 @@ function normalizeScanResult(
 ): ExternalHistoryScanResult {
   // The fallback keeps older native builds and lightweight test doubles safe:
   // if no result payload exists, assume changed and perform the downstream
-  // refresh rather than risking stale UI.
-  return result ?? { changedSources: [...fallbackSources] };
+  // refresh rather than risking stale UI. A payload without signatures (older
+  // native build) degrades to signature-blind change reporting.
+  if (!result) {
+    return { changedSources: [...fallbackSources], sourceSignatures: {} };
+  }
+  return {
+    changedSources: result.changedSources ?? [...fallbackSources],
+    sourceSignatures: result.sourceSignatures ?? {},
+  };
 }
 
 function mergeScanResults(
@@ -36,6 +51,10 @@ function mergeScanResults(
     changedSources: [
       ...new Set(results.flatMap(({ changedSources }) => changedSources)),
     ],
+    sourceSignatures: Object.assign(
+      {},
+      ...results.map(({ sourceSignatures }) => sourceSignatures ?? {})
+    ) as Record<string, string>,
   };
 }
 
@@ -119,7 +138,7 @@ function enqueueExternalHistoryScan(
 ): Promise<ExternalHistoryScanResult> {
   const sources = [...new Set(requestedSources)];
   if (sources.length === 0) {
-    return Promise.resolve({ changedSources: [] });
+    return Promise.resolve({ changedSources: [], sourceSignatures: {} });
   }
 
   const joinsActive = sources.filter(

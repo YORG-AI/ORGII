@@ -89,13 +89,14 @@ export async function computeSegmentHash(value: unknown): Promise<string> {
   return computeSegmentHashFromBytes(segmentCanonicalBytes(value));
 }
 
+/** gzip over already-encoded canonical bytes (no base64 leg). */
+export async function gzipBytes(bytes: Uint8Array): Promise<Uint8Array> {
+  return pipeThroughStream(bytes, new CompressionStream("gzip"));
+}
+
 /** gzip → base64 over already-encoded canonical bytes. */
 export async function gzipBytesToBase64(bytes: Uint8Array): Promise<string> {
-  const compressed = await pipeThroughStream(
-    bytes,
-    new CompressionStream("gzip")
-  );
-  return bytesToBase64(compressed);
+  return bytesToBase64(await gzipBytes(bytes));
 }
 
 /** JSON → gzip → base64 (the client half of `payload_gz`). */
@@ -103,12 +104,18 @@ export async function gzipJsonToBase64(value: unknown): Promise<string> {
   return gzipBytesToBase64(segmentCanonicalBytes(value));
 }
 
-/** base64 → gunzip → JSON (the client half of reading `payload_gz`). */
-export async function gunzipBase64ToJson(base64: string): Promise<unknown> {
-  const compressed = base64ToBytes(base64);
+/** gunzip → JSON over raw gzip bytes (storage-object downloads). */
+export async function gunzipBytesToJson(
+  compressed: Uint8Array
+): Promise<unknown> {
   const bytes = await pipeThroughStream(
     compressed,
     new DecompressionStream("gzip")
   );
   return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+}
+
+/** base64 → gunzip → JSON (the client half of reading `payload_gz`). */
+export async function gunzipBase64ToJson(base64: string): Promise<unknown> {
+  return gunzipBytesToJson(base64ToBytes(base64));
 }

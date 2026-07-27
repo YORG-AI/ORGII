@@ -220,6 +220,28 @@ export class Org2CloudSessionSyncState {
     this.lastPushedMetadataHashes.delete(`${orgId}:${sessionId}`);
   }
 
+  /**
+   * Session ids whose durable markers say THIS device pushed them to the
+   * org — the vanished-session GC's candidate set. Only the persisted atoms
+   * count: the in-memory hash cache dies with the app and would make the
+   * sweep miss rows pushed in earlier runs.
+   */
+  markedSessionIds(orgId: string): Set<string> {
+    const ids = new Set<string>();
+    const store = this.getStore();
+    if (!store) return ids;
+    // Composite keys are `${orgId}:${sessionId}`; cloud org ids are uuids
+    // (no colon), so the prefix cut is exact even if a session id has one.
+    const prefix = `${orgId}:`;
+    for (const key of Object.keys(store.get(org2CloudPushedMetadataAtom))) {
+      if (key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+    }
+    for (const key of Object.keys(store.get(org2CloudPushCursorsAtom))) {
+      if (key.startsWith(prefix)) ids.add(key.slice(prefix.length));
+    }
+    return ids;
+  }
+
   /** Whether local durable state proves this session was previously pushed. */
   wasCloudPushed(orgId: string, sessionId: string): boolean {
     const key = `${orgId}:${sessionId}`;

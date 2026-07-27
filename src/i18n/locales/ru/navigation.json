@@ -405,7 +405,6 @@
     "title": "ORG2 Cloud",
     "signIn": "Войти",
     "signOut": "Выйти",
-    "signedInAs": "Выполнен вход как {{name}}",
     "signedInToast": "Выполнен вход в ORG2 Cloud",
     "sessionExpired": "Сеанс ORG2 Cloud истёк. Войдите снова, чтобы продолжить.",
     "recommendedBadge": "Рекомендуется",
@@ -455,7 +454,6 @@
       "mySessions": "Мои сессии",
       "memberFilter": "Фильтр по участнику",
       "sessionFilter": "Фильтр сеансов",
-      "copyId": "Копировать ID",
       "directlySharedWithMe": "Доступ предоставлен лично мне",
       "everyone": "Все",
       "forkedFrom": "форк от @{{name}}",
@@ -466,7 +464,8 @@
       "viewerOverflow": "и ещё {{count}} смотрят",
       "memberViewing": "смотрит: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Копировать ID"
     },
     "sync": {
       "quotaExceededToast": "Синхронизация ORG2 Cloud приостановлена: квота плана этой организации исчерпана",
@@ -698,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Выполнен вход как {{name}}"
   }
 }

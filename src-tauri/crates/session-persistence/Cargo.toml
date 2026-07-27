@@ -45,3 +45,7 @@ tracing = "0.1"
 
 # Error derive macros — `IntentError` in `turn_intents`.
 thiserror = { workspace = true }
+ts-rs = { version = "12.0.1", optional = true }
+
+[features]
+ts-rs = ["dep:ts-rs"]

@@ -20,10 +20,13 @@ pub async fn release_proxy_token_for_session_pub(session_id: &str) {
 /// Also sends `proxy_session_id` so the market can clean up the billing
 /// context in Redis and update the Job record.
 pub(super) async fn release_proxy_token_for_session(session_id: &str) {
-    let session = match persistence::get_session(session_id) {
-        Ok(Some(s)) => s,
-        _ => return,
-    };
+    let load_session_id = session_id.to_string();
+    let session =
+        match tokio::task::spawn_blocking(move || persistence::get_session(&load_session_id)).await
+        {
+            Ok(Ok(Some(s))) => s,
+            _ => return,
+        };
 
     if session.key_source != KeySource::HostedKey {
         return;

@@ -44,8 +44,13 @@ import { defaultFilter, flattenOptions } from "./optionUtils";
 import { subscribeToDropdownOutsideMouseDown } from "./outsideClick";
 import {
   type DropdownCoordinates,
+  type DropdownVerticalFit,
+  areDropdownCoordinatesEqual,
+  areVerticalFitsEqual,
   calculateDropdownPosition,
+  resolveVerticalFit,
 } from "./positioning";
+import { DROPDOWN_PANEL } from "./tokens";
 import type {
   DropdownOption,
   DropdownOptionGroup,
@@ -63,7 +68,11 @@ export interface DropdownProps {
   /** Trigger element */
   children: React.ReactElement;
 
-  /** @default 'bottom' */
+  /**
+   * Placement relative to the trigger. Vertical placements flip to their
+   * mirror side automatically when the requested side cannot fit the panel.
+   * @default 'bottom-start'
+   */
   position?: DropdownPosition;
 
   /** @default 'click' */
@@ -138,7 +147,7 @@ export interface DropdownProps {
 const Dropdown: React.FC<DropdownProps> = ({
   droplist,
   children,
-  position = "bottom",
+  position = "bottom-start",
   trigger = "click",
   hoverCloseDelayMs = 100,
   popupVisible: controlledVisible,
@@ -169,10 +178,16 @@ const Dropdown: React.FC<DropdownProps> = ({
   const [searchValue, setSearchValue] = useState("");
   const [dropdownPosition, setDropdownPosition] =
     useState<DropdownCoordinates | null>(null);
+  const [verticalFit, setVerticalFit] = useState<DropdownVerticalFit>({
+    position,
+    maxHeight: DROPDOWN_PANEL.maxHeight,
+    constrained: false,
+  });
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const positionFrameRef = useRef<number | null>(null);
 
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
@@ -307,40 +322,88 @@ const Dropdown: React.FC<DropdownProps> = ({
   }, []);
 
   const updatePosition = useCallback(() => {
-    if (!triggerRef.current || !getPopupContainer) return;
+    const triggerElement = triggerRef.current;
+    if (!triggerElement) return;
 
-    setDropdownPosition(
-      calculateDropdownPosition({
-        position,
-        triggerElement: triggerRef.current,
-        containerElement: getPopupContainer(),
-        dropdownElement: dropdownRef.current,
-        avoidViewportOverflow,
-      })
+    // Flip decision first: the portal branch needs the resolved side to
+    // compute its coordinates, and the in-flow branch needs it to pick
+    // its Tailwind placement classes.
+    const nextFit = resolveVerticalFit({
+      position,
+      triggerElement,
+      panelElement: dropdownRef.current,
+    });
+    setVerticalFit((previous) =>
+      areVerticalFitsEqual(previous, nextFit) ? previous : nextFit
+    );
+
+    if (!getPopupContainer) return;
+
+    const nextCoordinates = calculateDropdownPosition({
+      position: nextFit.position,
+      triggerElement,
+      containerElement: getPopupContainer(),
+      dropdownElement: dropdownRef.current,
+      avoidViewportOverflow,
+    });
+    setDropdownPosition((previous) =>
+      areDropdownCoordinatesEqual(previous, nextCoordinates)
+        ? previous
+        : nextCoordinates
     );
   }, [avoidViewportOverflow, position, getPopupContainer]);
 
+  // Scroll and resize can both fire many times per frame; collapse them into
+  // a single measurement so an open dropdown costs one layout read per frame
+  // instead of one per event.
+  const schedulePositionUpdate = useCallback(() => {
+    if (positionFrameRef.current !== null) return;
+    positionFrameRef.current = window.requestAnimationFrame(() => {
+      positionFrameRef.current = null;
+      updatePosition();
+    });
+  }, [updatePosition]);
+
   useEffect(() => {
     if (!visible) return;
-    if (!getPopupContainer) return;
 
     queueMicrotask(() => updatePosition());
     const animationFrameId = window.requestAnimationFrame(updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+    window.addEventListener("resize", schedulePositionUpdate);
+    // Only portal panels are pinned to viewport coordinates and must track
+    // scrolling. In-flow panels move with their trigger, so they settle for
+    // the two passes above plus resize — no capture-phase scroll listener.
+    if (getPopupContainer) {
+      window.addEventListener("scroll", schedulePositionUpdate, true);
+    }
 
     return () => {
       window.cancelAnimationFrame(animationFrameId);
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("resize", schedulePositionUpdate);
+      if (getPopupContainer) {
+        window.removeEventListener("scroll", schedulePositionUpdate, true);
+      }
+      if (positionFrameRef.current !== null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
+      }
     };
-  }, [visible, updatePosition, getPopupContainer]);
+  }, [visible, updatePosition, schedulePositionUpdate, getPopupContainer]);
 
   useEffect(() => {
     if (visible) return;
-    const id = requestAnimationFrame(() => setDropdownPosition(null));
+    const id = requestAnimationFrame(() => {
+      setDropdownPosition(null);
+      // Drop back to the requested side so the next open never flashes on
+      // the side the previous one happened to flip to.
+      setVerticalFit({
+        position,
+        maxHeight: DROPDOWN_PANEL.maxHeight,
+        constrained: false,
+      });
+    });
     return () => cancelAnimationFrame(id);
-  }, [visible, setDropdownPosition]);
+  }, [visible, position]);
 
   useEffect(() => {
     if (visible && isOptionsMode && showSearch) {
@@ -401,7 +464,8 @@ const Dropdown: React.FC<DropdownProps> = ({
         visible={visible}
         getPopupContainer={getPopupContainer}
         dropdownRef={dropdownRef}
-        position={position}
+        position={verticalFit.position}
+        maxHeight={verticalFit.constrained ? verticalFit.maxHeight : undefined}
         className={className}
         style={style}
         dropdownPosition={dropdownPosition}

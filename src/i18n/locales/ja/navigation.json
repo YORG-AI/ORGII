@@ -405,7 +405,6 @@
     "title": "ORG2 クラウド",
     "signIn": "ログイン",
     "signOut": "ログアウト",
-    "signedInAs": "{{name}} としてログイン中",
     "signedInToast": "ORG2 クラウドにサインインしました",
     "sessionExpired": "ORG2 Cloud のセッションが期限切れです。続行するには再度サインインしてください。",
     "recommendedBadge": "おすすめ",
@@ -455,7 +454,6 @@
       "mySessions": "自分のセッション",
       "memberFilter": "メンバーで絞り込み",
       "sessionFilter": "セッションを絞り込み",
-      "copyId": "IDをコピー",
       "directlySharedWithMe": "自分に直接共有",
       "everyone": "全員",
       "forkedFrom": "@{{name}} からフォーク",
@@ -466,7 +464,8 @@
       "viewerOverflow": "他 {{count}} 人が見ています",
       "memberViewing": "閲覧中: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "IDをコピー"
     },
     "sync": {
       "quotaExceededToast": "ORG2 クラウド同期を一時停止しました：この組織のプランのクォータを超過しています",
@@ -698,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "{{name}} としてログイン中"
   }
 }

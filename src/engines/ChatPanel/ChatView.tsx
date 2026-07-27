@@ -451,6 +451,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
             onSubmitOverride={handleExternalHistoryForkSubmit}
             externalScrollToBottomButton={externalScrollToBottomButton}
             isImportedHistory={isImportedHistory}
+            sessionId={sessionId}
           />
           {showInteractArea && !isReadOnlySurface && (
             <ChatFloatingComposer

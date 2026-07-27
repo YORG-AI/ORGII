@@ -9,6 +9,7 @@ import {
   replayFramesMemoryBytes,
   replayWindowBounds,
   shellReplayRangeCacheKey,
+  shellReplayRowsToText,
 } from "@src/engines/SessionCore/replay/shellReplayRange";
 
 function frame(
@@ -149,12 +150,6 @@ describe("ShellReplayRangeCache", () => {
 });
 
 describe("shell replay logical row assembly", () => {
-  function renderedText(rows: ReturnType<typeof buildShellReplayVisualRows>) {
-    return rows
-      .map((row) => row.spans.map((span) => span.text).join(""))
-      .join("\n");
-  }
-
   it.each([100, 1024])(
     "does not create visual newlines at %i-byte frame boundaries",
     (chunkBytes) => {
@@ -168,7 +163,9 @@ describe("shell replay logical row assembly", () => {
       const rows = buildShellReplayVisualRows(frames);
 
       expect(rows).toHaveLength(1);
-      expect(renderedText(rows)).toBe(frames.map((item) => item.text).join(""));
+      expect(shellReplayRowsToText(rows)).toBe(
+        frames.map((item) => item.text).join("")
+      );
     }
   );
 
@@ -181,7 +178,7 @@ describe("shell replay logical row assembly", () => {
       return result;
     });
 
-    expect(renderedText(buildShellReplayVisualRows(frames))).toBe(
+    expect(shellReplayRowsToText(buildShellReplayVisualRows(frames))).toBe(
       "beforeredafter"
     );
   });
@@ -192,6 +189,6 @@ describe("shell replay logical row assembly", () => {
 
     expect(rows).toHaveLength(1);
     expect(rows[0].spans.length).toBeGreaterThan(1);
-    expect(renderedText(rows)).toBe(text);
+    expect(shellReplayRowsToText(rows)).toBe(text);
   });
 });

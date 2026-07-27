@@ -92,7 +92,10 @@ describe("external history rescans", () => {
     active.resolve({ changedSources: ["codex_app"] });
     await first;
     await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(2));
-    await expect(second).resolves.toEqual({ changedSources: ["cline"] });
+    await expect(second).resolves.toEqual({
+      changedSources: ["cline"],
+      sourceSignatures: {},
+    });
     expect(invokeMock.mock.calls[1]).toEqual([
       "external_history_rescan_sources",
       { sources: ["cline"], clear: false },
@@ -112,8 +115,8 @@ describe("external history rescans", () => {
 
     active.resolve({ changedSources: ["codex_app"] });
     await expect(Promise.all([first, joined])).resolves.toEqual([
-      { changedSources: ["codex_app"] },
-      { changedSources: ["codex_app"] },
+      { changedSources: ["codex_app"], sourceSignatures: {} },
+      { changedSources: ["codex_app"], sourceSignatures: {} },
     ]);
   });
 
@@ -153,6 +156,9 @@ describe("external history rescans", () => {
     active.reject(new Error("scan failed"));
     await expect(failed).rejects.toThrow("scan failed");
     await vi.waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(2));
-    await expect(pending).resolves.toEqual({ changedSources: [] });
+    await expect(pending).resolves.toEqual({
+      changedSources: [],
+      sourceSignatures: {},
+    });
   });
 });

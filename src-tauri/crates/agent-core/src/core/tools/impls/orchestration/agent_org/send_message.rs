@@ -55,7 +55,6 @@ fn parse_agent_org_remote_mode(
     }
     Ok(mode)
 }
-
 pub struct OrgSendMessageTool {
     org_context: Arc<AgentOrgRunContext>,
     sender: AgentOrgParticipant,
@@ -665,4 +664,3 @@ impl Tool for OrgSendMessageTool {
         false
     }
 }
-

@@ -42,11 +42,13 @@ function evictIfNeeded(): void {
 
 export async function cachedRead<T>(
   cacheKey: string,
-  fetcher: () => Promise<T>
+  fetcher: () => Promise<T>,
+  options?: { maxAgeMs?: number }
 ): Promise<T> {
+  const maxAgeMs = options?.maxAgeMs ?? CACHE_TTL_MS;
   const now = Date.now();
   const existing = cache.get(cacheKey);
-  if (existing && now - existing.timestamp < CACHE_TTL_MS) {
+  if (maxAgeMs > 0 && existing && now - existing.timestamp < maxAgeMs) {
     return existing.data as T;
   }
 
@@ -63,10 +65,12 @@ export async function cachedRead<T>(
         // stale snapshot; converge the original waiter onto the post-change
         // read (or its already-running shared Promise) instead.
         if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
-        return cachedRead(cacheKey, fetcher);
+        return cachedRead(cacheKey, fetcher, options);
       }
-      evictIfNeeded();
-      cache.set(cacheKey, { data: result, timestamp: Date.now() });
+      if (maxAgeMs > 0) {
+        evictIfNeeded();
+        cache.set(cacheKey, { data: result, timestamp: Date.now() });
+      }
       if (inflight.get(cacheKey) === promise) inflight.delete(cacheKey);
       return result;
     })

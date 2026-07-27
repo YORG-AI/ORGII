@@ -15,9 +15,9 @@ import { chatEventsAtom } from "@src/engines/SessionCore/derived/chatEvents";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
+  postStopDispatchSessionsAtom,
   sessionRuntimeErrorAtom,
   sessionRuntimeStatusAtom,
-  userInitiatedCancelAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import {
   fileReviewMapAtom,
@@ -216,7 +216,9 @@ export function createInspectChatStateHelper(store: E2EStore) {
         isSessionActive: store.get(isSessionActiveAtom),
         isPendingCancel: store.get(isPendingCancelAtom),
         isQueueEditing: store.get(queueEditingAtom),
-        userInitiatedCancel: store.get(userInitiatedCancelAtom),
+        userInitiatedCancel: activeSessionId
+          ? store.get(postStopDispatchSessionsAtom)[activeSessionId] === true
+          : false,
         turnPhase: activeSessionId ? getTurnPhase(activeSessionId) : "idle",
         turnGeneration: activeSessionId
           ? getTurnGeneration(activeSessionId)

@@ -5,7 +5,7 @@
  * "Add channel" wizard open-state lives in the URL via
  * {@link useWizardParam} (`?wizard=channel-add`).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
@@ -15,6 +15,7 @@ import {
 } from "@src/api/http/integrations";
 import { toggleChannel } from "@src/api/tauri/agent";
 import { WIZARD_IDS, buildWizardPath } from "@src/config/mainAppPaths";
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { useWizardParam } from "@src/hooks/navigation";
 import type { WizardCategory } from "@src/scaffold/WizardSystem/variants/Channel/channelWizardTypes";
@@ -41,6 +42,7 @@ import type {
 } from "../Connections/Channels";
 
 const log = createLogger("integrations");
+const EMPTY_SYNC_CONNECTIONS: SyncConnection[] = [];
 
 function resolveConnectionStatus(
   enabled: boolean,
@@ -90,54 +92,20 @@ export function useChannelState(options: UseChannelStateOptions = {}) {
   const [channelProbing, setChannelProbing] = useState(false);
   const [channelProbeResult, setChannelProbeResult] =
     useState<ChannelProbeResult | null>(null);
-  const [projectConnections, setProjectConnections] = useState<
-    SyncConnection[]
-  >([]);
-  const [projectConnectionsLoading, setProjectConnectionsLoading] =
-    useState(false);
-  const [projectConnectionsError, setProjectConnectionsError] = useState<
-    string | null
-  >(null);
   const probeIdRef = useRef(0);
 
-  const refreshProjectConnections = useCallback(async () => {
-    setProjectConnectionsLoading(true);
-    setProjectConnectionsError(null);
-    try {
-      const connections = await syncConnectionsApi.list();
-      setProjectConnections(connections);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setProjectConnectionsError(message);
-      throw err;
-    } finally {
-      setProjectConnectionsLoading(false);
-    }
+  const loadProjectConnections = useCallback(() => {
+    return syncConnectionsApi.list();
   }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    setProjectConnectionsLoading(true);
-    setProjectConnectionsError(null);
-    syncConnectionsApi
-      .list()
-      .then((connections) => {
-        if (!cancelled) setProjectConnections(connections);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setProjectConnectionsError(
-            err instanceof Error ? err.message : String(err)
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setProjectConnectionsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const projectConnectionsResource = useAsyncResource<SyncConnection[]>({
+    fetcher: loadProjectConnections,
+    initialData: EMPTY_SYNC_CONNECTIONS,
+    scopeKey: "project-connections",
+  });
+  const projectConnections = projectConnectionsResource.data;
+  const projectConnectionsLoading = projectConnectionsResource.loading;
+  const projectConnectionsError = projectConnectionsResource.error;
+  const refreshProjectConnections = projectConnectionsResource.refresh;
 
   // ── Derived data ──
   const channelInstances = useMemo(() => {

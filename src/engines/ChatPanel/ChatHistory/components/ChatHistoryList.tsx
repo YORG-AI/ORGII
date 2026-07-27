@@ -55,6 +55,12 @@ export { resolveActiveGroupPinState, resolveVisibleGroupIndices };
 
 const STATIC_RENDER_ITEM_LIMIT = 24;
 
+export function shouldUseStaticChatHistoryRendering(
+  itemCount: number
+): boolean {
+  return itemCount <= STATIC_RENDER_ITEM_LIMIT;
+}
+
 // memo: parent (`ChatHistory/index.tsx`) re-renders on every chat event
 // (atom subscriptions, useDeferredValue ticks). All props are either
 // primitives, useCallback-wrapped, refs, or arrays/objects produced by
@@ -290,8 +296,9 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       return result;
     }, [flatItems]);
 
-    const useStaticRendering =
-      effectiveTotalFlatItems <= STATIC_RENDER_ITEM_LIMIT;
+    const useStaticRendering = shouldUseStaticChatHistoryRendering(
+      effectiveTotalFlatItems
+    );
 
     const staticGroups = useMemo(() => {
       if (!useStaticRendering) return [];

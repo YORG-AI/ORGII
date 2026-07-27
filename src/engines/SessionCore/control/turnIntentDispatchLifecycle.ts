@@ -60,6 +60,12 @@ export function waitForTurnIntentDispatch(
   });
 }
 
+export function getTurnIntentDispatch(
+  turnIntentId: string
+): TurnIntentDispatch | undefined {
+  return recentDispatches.get(turnIntentId);
+}
+
 export function resetTurnIntentDispatchLifecycleForTests(): void {
   recentDispatches.clear();
   waiters.clear();

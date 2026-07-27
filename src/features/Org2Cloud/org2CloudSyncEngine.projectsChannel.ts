@@ -17,14 +17,20 @@ import type { ProjectSyncBridge } from "../TeamCollaboration/engine/projectSyncB
 import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
 import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
 import { ensureProjectOrgForCloudOrg } from "./org2CloudProjectOrgAlias";
-import type { CloudProjectsRpc } from "./org2CloudProjectsClient";
+import type {
+  CloudOrgCollabState,
+  CloudProjectsRpc,
+} from "./org2CloudProjectsClient";
 import {
   createCloudProjectSyncClient,
   isOrg2ProjectsErrorCode,
   toCollabOrgState,
 } from "./org2CloudProjectsClient";
 import { org2CloudCollabStateCursorsAtom } from "./org2CloudSyncAtoms";
-import { CURSOR_OVERLAP_MS } from "./org2CloudSyncEngine.constants";
+import {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
+  CURSOR_OVERLAP_MS,
+} from "./org2CloudSyncEngine.constants";
 import type { CloudStore } from "./org2CloudSyncLifecycle";
 
 const log = createLogger("Org2CloudSyncEngine");
@@ -32,11 +38,21 @@ const log = createLogger("Org2CloudSyncEngine");
 /** Projects/work-items RPC seam (Phase B), same fetch-free-fakes purpose. */
 export type Org2CloudProjectsClientDeps = CloudProjectsRpc;
 
+interface RecentCollabListing {
+  /** Cursor the listing was pulled with; null = complete listing. */
+  since: string | null;
+  completedAtMs: number;
+}
+
 export class Org2CloudProjectsChannel {
   /** Cloud orgId → aliased local project-org id (ensured once per start). */
   private readonly projectOrgAliasIds = new Map<string, string>();
   /** Orgs whose CURRENT start already pulled one COMPLETE collab-state listing. */
   private readonly fullCollabStateOrgIds = new Set<string>();
+  /** Cloud orgId → the last APPLIED listing, shared within the burst window
+   * (see COLLAB_LISTING_SHARE_WINDOW_MS). Recorded only after the cycle and
+   * cursor advance succeed, so sharing never skips an unapplied delta. */
+  private readonly recentListings = new Map<string, RecentCollabListing>();
 
   constructor(
     private readonly getStore: () => CloudStore | null,
@@ -47,6 +63,7 @@ export class Org2CloudProjectsChannel {
   reset(): void {
     this.projectOrgAliasIds.clear();
     this.fullCollabStateOrgIds.clear();
+    this.recentListings.clear();
   }
 
   prune(currentOrgIds: ReadonlySet<string>): void {
@@ -55,6 +72,9 @@ export class Org2CloudProjectsChannel {
     }
     for (const orgId of this.fullCollabStateOrgIds) {
       if (!currentOrgIds.has(orgId)) this.fullCollabStateOrgIds.delete(orgId);
+    }
+    for (const orgId of this.recentListings.keys()) {
+      if (!currentOrgIds.has(orgId)) this.recentListings.delete(orgId);
     }
   }
 
@@ -114,11 +134,25 @@ export class Org2CloudProjectsChannel {
     const since = isFullListing
       ? undefined
       : store.get(org2CloudCollabStateCursorsAtom)[org.orgId];
-    const state = await this.projectsClient.listOrgCollabState(
-      auth.accessToken,
-      org.orgId,
-      since
-    );
+    // Burst coalescing: a listing applied moments ago that COVERS this
+    // request (complete covers everything; an older-or-equal cursor covers a
+    // newer one) is shared instead of re-pulled — its rows are already
+    // applied and its cursor already anchored, so the shared pass runs the
+    // channel with an empty delta purely for the outbox-drain intent.
+    const recent = this.recentListings.get(org.orgId);
+    const sharedListing =
+      recent !== undefined &&
+      Date.now() - recent.completedAtMs < COLLAB_LISTING_SHARE_WINDOW_MS &&
+      (since === undefined
+        ? recent.since === null
+        : recent.since === null || recent.since <= since);
+    const state: CloudOrgCollabState = sharedListing
+      ? { projects: [], workItems: [] }
+      : await this.projectsClient.listOrgCollabState(
+          auth.accessToken,
+          org.orgId,
+          since
+        );
     if (!deps.isCurrentGeneration(generation)) return;
 
     // Same channel + Rust bridge as the retired self-hosted engine; the cloud
@@ -153,6 +187,11 @@ export class Org2CloudProjectsChannel {
     if (cycle.pushErrors.length > 0) deps.scheduleProjectPushRetry();
 
     this.fullCollabStateOrgIds.add(org.orgId);
+    if (sharedListing) return;
+    this.recentListings.set(org.orgId, {
+      since: since ?? null,
+      completedAtMs: Date.now(),
+    });
     // Anchor the delta cursor on the server clock minus a safety overlap so
     // client skew cannot skip rows (consumers are idempotent) — the
     // self-hosted delta-cursor discipline.

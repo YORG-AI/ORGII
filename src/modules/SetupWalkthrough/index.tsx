@@ -1,22 +1,31 @@
 /**
  * Setup Walkthrough Page
  *
- * A wizard-style onboarding flow for first-time users.
- * Also re-enterable from Settings > General.
+ * A wizard-style onboarding flow entered automatically for first-time users.
+ * Completion persists a completed outcome and emits the GitHub Star value
+ * moment. Skipping persists a dismissed outcome without prompting for a Star.
  *
  * Renders outside AppShell (no sidebar) for a focused experience.
  */
+import { useSetAtom } from "jotai";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import "@src/components/DevPassport/devpassport.css";
+import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
+import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
+import { saveSettingAtom } from "@src/store/settings/settingsAtom";
+import {
+  type SetupWalkthroughOutcome,
+  shouldSignalGitHubStarAfterSetup,
+} from "@src/store/settings/setupWalkthrough";
 
 import { STEP_CONFIGS } from "./config";
 import "./index.scss";
@@ -51,7 +60,10 @@ const WALKTHROUGH_STYLES = `
 const SetupWalkthrough: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation("onboarding");
+  const saveSetting = useSetAtom(saveSettingAtom);
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const [isClosing, setIsClosing] = useState(false);
+  const closingRef = useRef(false);
 
   // Add/remove body class for hiding tabbar
   React.useLayoutEffect(() => {
@@ -65,15 +77,37 @@ const SetupWalkthrough: React.FC = () => {
   const isFirstStep = currentStepIndex === 0;
   const isLastStep = currentStepIndex === STEP_CONFIGS.length - 1;
 
+  const closeWalkthrough = useCallback(
+    async (outcome: Exclude<SetupWalkthroughOutcome, "open">) => {
+      if (closingRef.current) return;
+      closingRef.current = true;
+      setIsClosing(true);
+      try {
+        await saveSetting({
+          key: "general.setupWalkthroughOutcome",
+          value: outcome,
+        });
+        if (shouldSignalGitHubStarAfterSetup(outcome)) {
+          signalGitHubStarValueMoment();
+        }
+        navigate(ROUTES.workStation.base.path, { replace: true });
+      } catch {
+        Message.error(t("common:status.saveFailed"));
+      } finally {
+        closingRef.current = false;
+        setIsClosing(false);
+      }
+    },
+    [navigate, saveSetting, t]
+  );
+
   const handleNext = useCallback(() => {
     if (isLastStep) {
-      // Mark setup as complete and navigate to WorkStation
-      localStorage.setItem("setup_walkthrough_completed", "true");
-      navigate(ROUTES.workStation.base.path, { replace: true });
+      void closeWalkthrough("completed");
     } else {
       setCurrentStepIndex((prev) => prev + 1);
     }
-  }, [isLastStep, navigate]);
+  }, [closeWalkthrough, isLastStep]);
 
   const handleBack = useCallback(() => {
     if (!isFirstStep) {
@@ -82,10 +116,8 @@ const SetupWalkthrough: React.FC = () => {
   }, [isFirstStep]);
 
   const handleSkip = useCallback(() => {
-    // Mark setup as complete and navigate to WorkStation
-    localStorage.setItem("setup_walkthrough_completed", "true");
-    navigate(ROUTES.workStation.base.path, { replace: true });
-  }, [navigate]);
+    void closeWalkthrough("dismissed");
+  }, [closeWalkthrough]);
 
   // Left content: Step navigation
   const leftContent = (
@@ -156,7 +188,13 @@ const SetupWalkthrough: React.FC = () => {
         }
         secondaryActions={
           !isLastStep
-            ? [{ label: t("navigation.skipSetup"), onClick: handleSkip }]
+            ? [
+                {
+                  label: t("navigation.skipSetup"),
+                  onClick: handleSkip,
+                  disabled: isClosing,
+                },
+              ]
             : undefined
         }
         primaryAction={{
@@ -164,6 +202,8 @@ const SetupWalkthrough: React.FC = () => {
             ? t("navigation.getStarted")
             : t("common:actions.continue"),
           onClick: handleNext,
+          loading: isClosing,
+          disabled: isClosing,
           icon: isLastStep ? <Check size={16} /> : <ArrowRight size={16} />,
         }}
       />

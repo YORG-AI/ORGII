@@ -10,7 +10,11 @@ import {
 } from "../streamHandlers";
 import {
   clearSessionStreamingStopped,
+  disposeSessionStreamingState,
+  getActiveSessionStreamingTurn,
+  isSessionStreamingStopped,
   markSessionStreamingStopped,
+  noteSessionStreamingTurn,
 } from "../streamHelpers";
 import type { EventHandlerContext } from "../types";
 
@@ -377,7 +381,11 @@ describe("Rust Agent stream handlers", () => {
       content: "",
     });
     expect(ctx.setStreaming).toHaveBeenCalledWith(false);
-    expect(ctx.onStatusChangeRef.current).toHaveBeenCalledWith("completed");
+    expect(ctx.onStatusChangeRef.current).toHaveBeenCalledWith(
+      "completed",
+      undefined,
+      { intermediate: true }
+    );
 
     await dispatchAgentEvent(
       {
@@ -470,5 +478,58 @@ describe("Rust Agent stream handlers", () => {
     expect(upsertSpy).not.toHaveBeenCalled();
     expect(replaceAndRemoveSpy).not.toHaveBeenCalled();
     expect(removeByIdPrefixSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("streamHelpers session-scoped memory cleanup", () => {
+  beforeEach(() => {
+    disposeSessionStreamingState("mem-session");
+  });
+
+  it("disposeSessionStreamingState purges retained turn-level stop markers", () => {
+    noteSessionStreamingTurn("mem-session", "turn-x");
+    markSessionStreamingStopped("mem-session");
+    expect(isSessionStreamingStopped("mem-session", "turn-x")).toBe(true);
+
+    disposeSessionStreamingState("mem-session");
+
+    // The whole session entry is gone — no turn-level suppression survives a
+    // permanent deletion, so nothing is retained for a re-created session id.
+    expect(isSessionStreamingStopped("mem-session", "turn-x")).toBe(false);
+    expect(getActiveSessionStreamingTurn("mem-session")).toBeUndefined();
+  });
+
+  it("clearSessionStreamingStopped preserves turn-level markers (resume contract)", () => {
+    noteSessionStreamingTurn("mem-session", "turn-x");
+    markSessionStreamingStopped("mem-session");
+
+    clearSessionStreamingStopped("mem-session");
+
+    // Resume must keep suppressing late events for the already-stopped turn...
+    expect(isSessionStreamingStopped("mem-session", "turn-x")).toBe(true);
+    // ...but the active-turn pointer is released.
+    expect(getActiveSessionStreamingTurn("mem-session")).toBeUndefined();
+
+    disposeSessionStreamingState("mem-session");
+  });
+
+  it("bounds retained sessions with an LRU safety cap even without disposal", () => {
+    const SESSIONS = 300;
+    for (let idx = 0; idx < SESSIONS; idx += 1) {
+      const id = `cap-session-${idx}`;
+      noteSessionStreamingTurn(id, "turn-1");
+      markSessionStreamingStopped(id);
+    }
+
+    // The oldest-inserted session is evicted once the cap is exceeded...
+    expect(isSessionStreamingStopped("cap-session-0", "turn-1")).toBe(false);
+    // ...while the most recently touched session is retained.
+    expect(
+      isSessionStreamingStopped(`cap-session-${SESSIONS - 1}`, "turn-1")
+    ).toBe(true);
+
+    for (let idx = 0; idx < SESSIONS; idx += 1) {
+      disposeSessionStreamingState(`cap-session-${idx}`);
+    }
   });
 });

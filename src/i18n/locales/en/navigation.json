@@ -484,7 +484,6 @@
       "mySessions": "My sessions",
       "memberFilter": "Filter by member",
       "sessionFilter": "Filter sessions",
-      "copyId": "Copy ID",
       "directlySharedWithMe": "Shared directly with me",
       "everyone": "Everyone",
       "forkedFrom": "forked from @{{name}}",
@@ -495,7 +494,8 @@
       "viewerOverflow": "and {{count}} more viewers",
       "memberViewing": "viewing: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Copy ID"
     },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
@@ -728,6 +728,9 @@
       "optionNone": "No minimum",
       "memberNote": "Your org admin requires sharing at least {{mode}}, so you can't set sessions below that"
     },
-    "signedInAs": "Signed in as {{name}}"
+    "signedInAs": "Signed in as {{name}}",
+    "renameDisplayName": "Edit display name",
+    "renameSaved": "Display name updated",
+    "renameFailed": "Failed to update display name"
   }
 }

@@ -405,7 +405,6 @@
     "title": "ORG2 Cloud",
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
-    "signedInAs": "Đã đăng nhập: {{name}}",
     "signedInToast": "Đã đăng nhập ORG2 Cloud",
     "sessionExpired": "Phiên ORG2 Cloud đã hết hạn. Hãy đăng nhập lại để tiếp tục.",
     "recommendedBadge": "Khuyên dùng",
@@ -455,7 +454,6 @@
       "mySessions": "Phiên của tôi",
       "memberFilter": "Lọc theo thành viên",
       "sessionFilter": "Lọc phiên",
-      "copyId": "Sao chép ID",
       "directlySharedWithMe": "Được chia sẻ trực tiếp với tôi",
       "everyone": "Tất cả",
       "forkedFrom": "được fork từ @{{name}}",
@@ -466,7 +464,8 @@
       "viewerOverflow": "và {{count}} người khác đang xem",
       "memberViewing": "đang xem: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Sao chép ID"
     },
     "sync": {
       "quotaExceededToast": "Đồng bộ ORG2 Cloud tạm dừng: tổ chức này đã vượt hạn mức của gói",
@@ -698,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Đã đăng nhập: {{name}}"
   }
 }

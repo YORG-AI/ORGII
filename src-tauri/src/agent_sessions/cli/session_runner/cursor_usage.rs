@@ -78,19 +78,34 @@ pub(super) async fn fetch_cursor_usage_for_session(
         return;
     }
 
-    if let Err(err) = session_persistence::token_usage::insert_token_usage_record(
-        session_id,
-        "code",
-        summary.dominant_model.as_deref(),
-        account_id,
-        summary.input_tokens as i64,
-        summary.output_tokens as i64,
-        summary.cache_read_tokens as i64,
-        summary.cache_write_tokens as i64,
-        summary.total_tokens as i64,
-        0,
-        None,
-    ) {
+    let persist_session_id = session_id.to_string();
+    let persist_model = summary.dominant_model.clone();
+    let persist_account_id = account_id.map(str::to_string);
+    let input_tokens = summary.input_tokens as i64;
+    let output_tokens = summary.output_tokens as i64;
+    let cache_read_tokens = summary.cache_read_tokens as i64;
+    let cache_write_tokens = summary.cache_write_tokens as i64;
+    let total_tokens = summary.total_tokens as i64;
+    let persist_result = tokio::task::spawn_blocking(move || {
+        session_persistence::token_usage::insert_token_usage_record(
+            &persist_session_id,
+            "code",
+            persist_model.as_deref(),
+            persist_account_id.as_deref(),
+            input_tokens,
+            output_tokens,
+            cache_read_tokens,
+            cache_write_tokens,
+            total_tokens,
+            0,
+            None,
+        )
+    })
+    .await;
+    if let Err(err) = persist_result
+        .map_err(|join_err| join_err.to_string())
+        .and_then(|db_result| db_result.map_err(|db_err| db_err.to_string()))
+    {
         tracing::warn!(
             "[CursorUsage] Failed to insert per-round token usage for session {}: {}",
             session_id,

@@ -6,14 +6,18 @@ import type { CloudSessionComment } from "./org2CloudCommentsClient";
 import {
   type CloudSessionCommentsEntry,
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
+  SESSION_COMMENTS_DELTA_OVERLAP_MS,
   countLiveComments,
   decideSessionCommentsFetch,
   getThreadResolution,
   groupCommentThreads,
   insertComment,
   isThreadResolved,
+  mergeDeltaSessionComments,
+  mergeFullSessionComments,
   mergePresentEventIdEntries,
   patchComment,
+  sessionCommentsDeltaSince,
   sessionCommentsEntryForIdentity,
   shouldEvictSessionCommentsOnError,
   writeSessionCommentsEntry,
@@ -335,6 +339,140 @@ describe("insertComment / patchComment", () => {
     expect(patched[1].body).toBe("");
     // Unknown id: structural no-op.
     expect(patchComment(base, "zzz", { body: "x" })).toEqual(base);
+  });
+});
+
+describe("sessionCommentsDeltaSince", () => {
+  it("subtracts the safety overlap from the stored anchor", () => {
+    expect(sessionCommentsDeltaSince("2026-07-24T10:00:02.000Z")).toBe(
+      new Date(
+        Date.parse("2026-07-24T10:00:02.000Z") -
+          SESSION_COMMENTS_DELTA_OVERLAP_MS
+      ).toISOString()
+    );
+  });
+
+  it("degrades an unparseable anchor to a full listing (undefined)", () => {
+    expect(sessionCommentsDeltaSince("not-a-time")).toBeUndefined();
+  });
+});
+
+describe("mergeDeltaSessionComments", () => {
+  it("upserts stamped delta rows and keeps rows absent from the delta", () => {
+    const existing = [
+      comment({ id: "a", createdAt: "2026-07-24T01:00:00Z" }),
+      comment({ id: "b", createdAt: "2026-07-24T02:00:00Z" }),
+    ];
+    const merged = mergeDeltaSessionComments(existing, [
+      comment({
+        id: "b",
+        createdAt: "2026-07-24T02:00:00Z",
+        editedAt: "2026-07-24T03:00:00Z",
+        body: "edited remotely",
+      }),
+      comment({ id: "c", createdAt: "2026-07-24T04:00:00Z" }),
+    ]);
+    expect(merged.map((entry) => entry.id)).toEqual(["a", "b", "c"]);
+    // `a` was not in the delta: absence behind a cursor proves nothing.
+    expect(merged[0]).toEqual(existing[0]);
+    expect(merged[1].body).toBe("edited remotely");
+  });
+
+  it("LWW on the row's own stamps: a newer local write beats the overlap echo", () => {
+    const localEdit = comment({
+      id: "a",
+      createdAt: "2026-07-24T01:00:00Z",
+      editedAt: "2026-07-24T05:00:00Z",
+      body: "local newer",
+    });
+    const merged = mergeDeltaSessionComments(
+      [localEdit],
+      [
+        comment({
+          id: "a",
+          createdAt: "2026-07-24T01:00:00Z",
+          editedAt: "2026-07-24T04:00:00Z",
+          body: "stale echo",
+        }),
+      ]
+    );
+    expect(merged).toEqual([localEdit]);
+  });
+
+  it("takes the fetched row on equal stamps (server echo is authoritative)", () => {
+    const merged = mergeDeltaSessionComments(
+      [comment({ id: "a", createdAt: "2026-07-24T01:00:00Z", body: "local" })],
+      [comment({ id: "a", createdAt: "2026-07-24T01:00:00Z", body: "server" })]
+    );
+    expect(merged[0].body).toBe("server");
+  });
+
+  it("delta tombstones drop the cached body", () => {
+    const merged = mergeDeltaSessionComments(
+      [comment({ id: "a", createdAt: "2026-07-24T01:00:00Z" })],
+      [
+        comment({
+          id: "a",
+          createdAt: "2026-07-24T01:00:00Z",
+          deletedAt: "2026-07-24T02:00:00Z",
+          body: "",
+        }),
+      ]
+    );
+    expect(merged[0].body).toBe("");
+    expect(merged[0].deletedAt).toBe("2026-07-24T02:00:00Z");
+  });
+
+  it("cannot observe a stamp-free un-resolve (the documented delta gap)", () => {
+    const resolvedLocally = comment({
+      id: "a",
+      createdAt: "2026-07-24T01:00:00Z",
+      resolvedAt: "2026-07-24T03:00:00Z",
+    });
+    // The server row after un-resolve carries no stamp newer than createdAt,
+    // so LWW keeps the locally cached resolved state — full listings own
+    // this reconciliation.
+    const merged = mergeDeltaSessionComments(
+      [resolvedLocally],
+      [comment({ id: "a", createdAt: "2026-07-24T01:00:00Z" })]
+    );
+    expect(merged[0].resolvedAt).toBe("2026-07-24T03:00:00Z");
+  });
+});
+
+describe("mergeFullSessionComments", () => {
+  it("reconciles an un-resolve: the snapshot row replaces the resolved cache", () => {
+    const resolvedLocally = comment({
+      id: "a",
+      createdAt: "2026-07-24T01:00:00Z",
+      resolvedAt: "2026-07-24T03:00:00Z",
+    });
+    const unresolvedOnServer = comment({
+      id: "a",
+      createdAt: "2026-07-24T01:00:00Z",
+    });
+    const merged = mergeFullSessionComments(
+      [resolvedLocally],
+      [unresolvedOnServer],
+      new Set(["a"])
+    );
+    expect(merged).toEqual([unresolvedOnServer]);
+    expect(merged[0].resolvedAt).toBeUndefined();
+  });
+
+  it("preserves optimistic adds the snapshot predates, drops server-deleted rows", () => {
+    const optimistic = comment({
+      id: "new",
+      createdAt: "2026-07-24T05:00:00Z",
+    });
+    const erased = comment({ id: "gone", createdAt: "2026-07-24T01:00:00Z" });
+    const kept = comment({ id: "kept", createdAt: "2026-07-24T02:00:00Z" });
+    const merged = mergeFullSessionComments(
+      [erased, kept, optimistic],
+      [kept],
+      new Set(["gone", "kept"])
+    );
+    expect(merged.map((entry) => entry.id)).toEqual(["kept", "new"]);
   });
 });
 

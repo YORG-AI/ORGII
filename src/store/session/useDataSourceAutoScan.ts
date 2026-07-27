@@ -8,7 +8,10 @@
  * persisted cadence is due (including sources that have never been scanned).
  * Sources without a store receive only a cheap presence probe every 30 minutes;
  * when a store appears, its importer runs immediately. A successful full scan
- * refreshes the canonical session roster only when source data changed.
+ * refreshes the canonical session roster only when source data changed since
+ * the roster's last reload — detected via the rescan's own writes OR a drift
+ * in the per-source cache signature (covering writes other surfaces' syncs
+ * made between ticks).
  * Sources set to "manual" are never auto-scanned or presence-probed, including
  * at startup.
  *
@@ -37,6 +40,7 @@ import {
   dataSourceConfigAtom,
   dataSourceGlobalFrequencyAtom,
   dataSourcePresenceAtom,
+  dataSourceRosterSignaturesAtom,
   effectiveFrequency,
   externalSessionsEnabledAtom,
   getSourceConfig,
@@ -221,8 +225,23 @@ async function performDataSourceAutoScan(force: boolean): Promise<void> {
 
   if (dueSourceIds.length === 0) return;
   const scanResult = await externalHistoryRescanSources(dueSourceIds);
-  if (scanResult.changedSources.length > 0) {
+  // `changedSources` only covers writes made by THIS rescan. Other surfaces
+  // (kanban, usage, an open transcript's pager) sync the same backend cache
+  // between ticks — e.g. a continuation demotion applied during a foreign
+  // sync — so also reload when a source's cache signature drifted from the
+  // one captured at the roster's last rescan-driven reload. Without this the
+  // sidebar can keep showing rows the backend demoted hours ago.
+  const signatureBaseline = store.get(dataSourceRosterSignaturesAtom);
+  const sourceSignatures = scanResult.sourceSignatures ?? {};
+  const signatureDrifted = Object.entries(sourceSignatures).some(
+    ([sourceId, signature]) => signatureBaseline[sourceId] !== signature
+  );
+  if (scanResult.changedSources.length > 0 || signatureDrifted) {
     await loadSessionRoster({ forceRefresh: true });
+    store.set(dataSourceRosterSignaturesAtom, (previous) => ({
+      ...previous,
+      ...sourceSignatures,
+    }));
   }
 
   const scannedAt = Date.now();

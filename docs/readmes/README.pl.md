@@ -1,23 +1,23 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Open-source Agent IDE w stylu Cursor — ale zbudowane z myślą o łatwości review, traceability i twórczej wolności, nie tylko o szybszym kodowaniu.</strong></p>
+  <p><strong>System zapisu dla oprogramowania budowanego z Agents.<br />Uruchamiaj swoje Agents do kodu — odtwórz dowolną sesję, zrób review zespołowo i prześledź każdą linię aż do decyzji, która za nią stoi.</strong></p>
   <p>Zbudowane w Rust i Tauri, przeznaczone do local-first execution i zajmujące mniej niż 100 MB na dysku. Obsługuje livestream i replay trajektorii Agents. Łatwe do śledzenia i review.</p>
 </div>
 
 ---
 
 <p align="center">
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest"><strong>All latest release assets</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest"><strong>All latest release assets</strong></a>
 </p>
 
 ---
@@ -30,9 +30,11 @@
   <video src="https://github.com/user-attachments/assets/bd4833d2-4cc4-4971-9805-84529b14d01a" controls width="720"></video>
 </p>
 
-To nie jest po prostu kolejne narzędzie do kodowania AI; to eksperyment dotyczący organizacji human/Agent oraz org-level alignment. Agents stają się coraz lepsze, ale collaboration, observability, struktura i wspólna accountability nie nadążają — a w niektórych przypadkach się pogarszają. Cursor, Claude Code i podobne narzędzia często traktują Agents jak zewnętrznych asystentów: przydatnych do generowania wyników, ale trudnych do audytu, koordynacji, alignmentu lub rozwoju na poziomie systemu.
+Odpowiedź na pytanie, dlaczego dany fragment kodu istnieje — i czy zadziałał — zawsze wymagała ręcznego zszywania kilku systemów. Jira widzi tylko zgłoszenia. Codex widzi tylko własne sesje. GitHub widzi tylko zacommitowane linie. Amplitude widzi tylko metryki. Dawało się to znieść, gdy kod pisali ludzie. Przy prędkości Agents już nie: kod napisany w poniedziałek w piątek jest legacy.
 
-ORG-II bada inny model: Agents jako trwałych, obserwowalnych współpracowników w ustrukturyzowanej organizacji. Zamiast bezstanowych i trudnych do przeglądu AI IDE sessions, wprowadza odtwarzalne wykonanie Agents, pamięć między sesjami, AI blame i local-first Rust runtime, aby ludzie, Agents i zespoły mogli współpracować wokół wspólnego kontekstu i aligned goals.
+ORG-2 to miejsce, w którym twój zespół uruchamia swoje Agents do kodu — natywny harness w Rust oraz launchery dla ponad 20 Agent CLI — i automatycznie buduje ten zapis. Każda sesja staje się trajektorią, którą członkowie zespołu odtwarzają jak wideo: sprawdzają, jak praca faktycznie powstała, a nie tylko diff, i komentują w kontekście. Sesje uruchomione w innych narzędziach są wciągane i uzupełniane wstecz z ich historii, więc zapis obejmuje także pracę, która nigdy nie przeszła przez aplikację. Zapis łączy to, o co poprosił człowiek, to, jak zrozumiał to Agent, i to, co faktycznie zrobił — dzięki czemu każdą wydaną linię da się prześledzić do sesji, która ją napisała.
+
+To nie jest kolejne narzędzie do kodowania z AI; to eksperyment dotyczący organizacji ludzi i Agents oraz alignmentu na poziomie organizacji. ORG-II traktuje Agents jak trwałych, obserwowalnych współpracowników w ustrukturyzowanej organizacji — odtwarzalne wykonanie, pamięć między sesjami, AI blame i local-first Rust runtime, aby ludzie, Agents i zespoły mogli współpracować wokół wspólnego kontekstu i aligned goals.
 
 ## Funkcje
 
@@ -104,12 +106,12 @@ Bieżąca wersja buildu: v1.1.24 (2026-07-16)
 
 Pobierz najnowszą aplikację desktopową ORGII jednym kliknięciem:
 
-- [macOS Apple Silicon](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
-- [Instalator Windows x64](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
-- [Windows x64 MSI](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
-- [Linux x64 AppImage](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
-- [Linux x64 DEB](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
-- [Wszystkie zasoby najnowszego wydania](https://github.com/yorgai/ORG2/releases/latest)
+- [macOS Apple Silicon](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
+- [Instalator Windows x64](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
+- [Windows x64 MSI](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
+- [Linux x64 AppImage](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
+- [Linux x64 DEB](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
+- [Wszystkie zasoby najnowszego wydania](https://github.com/org2AI/ORG2/releases/latest)
 
 Bezpośrednie linki pobierania zawsze wskazują najnowsze wydanie w GitHub.
 
@@ -141,7 +143,7 @@ Jeśli brakuje sidecar, Rust build tworzy mały placeholder resource, aby develo
 Masz pytania, uwagi lub chcesz śledzić rozwój ORG-2? Dołącz do nas na Discordzie:
 
 👉 **Discord: [discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
-👉 **WeChat: [https://github.com/yorgai/ORG2/issues/128]**
+👉 **WeChat: [https://github.com/org2AI/ORG2/issues/128]**
 
 - **#how-to-use-org2** i **#faq** — szybki start
 - **#announcement** — informacje o wydaniach i aktualizacjach

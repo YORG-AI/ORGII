@@ -19,7 +19,13 @@ import {
   CHART_TOOLTIP,
 } from "@src/components/Chart";
 
-import { formatCompactHour, formatTokensShort, formatUsd } from "./usageFormat";
+import {
+  formatCompactHour,
+  formatTokensAxis,
+  formatTokensShort,
+  formatUsd,
+  formatUsdAxis,
+} from "./usageFormat";
 import { fillHourlyUsageTrend } from "./usageTrendData";
 
 /** Series colors, drawn from the semantic token palette (theme-aware). */
@@ -142,7 +148,7 @@ export default function UsageTrendChart({
               axisLine={false}
               tickLine={false}
               tick={CHART_AXIS_TICK}
-              tickFormatter={(value) => formatTokensShort(value)}
+              tickFormatter={(value) => formatTokensAxis(value)}
               width={48}
             />
             <YAxis
@@ -151,7 +157,7 @@ export default function UsageTrendChart({
               axisLine={false}
               tickLine={false}
               tick={CHART_AXIS_TICK}
-              tickFormatter={(value) => `$${value}`}
+              tickFormatter={(value) => formatUsdAxis(value)}
               width={44}
             />
             <Tooltip

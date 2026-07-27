@@ -148,9 +148,6 @@ export function ChatPanelEmptyContent({
               <Suspense fallback={null}>
                 <CreateWorkItemView
                   orgId={createProjectContext?.orgId}
-                  scopeBreadcrumbLabel={
-                    createProjectContext?.scopeBreadcrumbLabel
-                  }
                   repoPath={workspacePath}
                   onCancel={handleCancelWorkItemCreate}
                   onSetUnsaved={() => undefined}

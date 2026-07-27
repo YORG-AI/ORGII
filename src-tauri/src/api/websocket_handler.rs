@@ -59,6 +59,11 @@ fn get_registry() -> &'static RwLock<HashMap<String, Vec<RegisteredChannel>>> {
 pub fn register_channel(session_id: String, channel: Channel<String>) -> u64 {
     let channel_id = NEXT_CHANNEL_ID.fetch_add(1, Ordering::Relaxed);
     if let Ok(mut map) = get_registry().write() {
+        tracing::info!(
+            "[IPC] channel {} registered for session {}",
+            channel_id,
+            session_id
+        );
         map.entry(session_id).or_default().push(RegisteredChannel {
             channel_id,
             channel,
@@ -76,6 +81,12 @@ pub fn unregister_channel(session_id: &str, channel_id: u64) {
     if let Ok(mut map) = get_registry().write() {
         if let Some(channels) = map.get_mut(session_id) {
             channels.retain(|entry| entry.channel_id != channel_id);
+            tracing::info!(
+                "[IPC] channel {} unregistered for session {} ({} remain)",
+                channel_id,
+                session_id,
+                channels.len()
+            );
             if channels.is_empty() {
                 map.remove(session_id);
             }
@@ -208,6 +219,17 @@ fn dispatch_to_channels(message: &str) {
                 if channels.is_empty() {
                     map.remove(&sid);
                 }
+            } else if matches!(
+                event_type(message).as_deref(),
+                Some("agent:complete") | Some("agent:error")
+            ) {
+                tracing::warn!(
+                    "[IPC] no channel registered for session {}; dropping {} — \
+                     the frontend never subscribed this session's events and \
+                     its turn will only end via the planning-indicator watchdog",
+                    sid,
+                    event_type(message).as_deref().unwrap_or("?")
+                );
             }
             return;
         }

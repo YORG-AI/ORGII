@@ -53,6 +53,7 @@ export const SessionFilterInput = z.object({
   externalHistorySource: z.string().optional(),
   disabledExternalHistorySources: z.array(z.string()).optional(),
   activeOnly: z.boolean().optional(),
+  includeContinuationSuperseded: z.boolean().optional(),
 });
 
 export const SessionAggregateListInput = z.object({
