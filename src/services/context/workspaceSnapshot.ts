@@ -18,7 +18,7 @@ import type { StatusBarAppType } from "@src/store/ui/workStationLayout/statusBar
 import type {
   WorkStationTabCategory,
   WorkStationTabType,
-} from "@src/store/workstation/tabs";
+} from "@src/store/workstation/tabs/types";
 import type { UserPresenceWire } from "@src/types/userPresence";
 
 export interface UserProfileWire {
