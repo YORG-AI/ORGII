@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>O sistema de registro para software construído com Agents.<br />Execute seus Agents de código — reproduza qualquer sessão, revise em equipe e rastreie cada linha até a decisão por trás dela.</strong></p>
+  <p><strong>O sistema de registro de como os Agents constroem software.<br />Execute seus Agents de código — reproduza qualquer sessão, revise em equipe e rastreie cada linha até a decisão por trás dela.</strong></p>
   <p>Criado com Rust e Tauri para execução local-first com menos de 100 MB em disco. Suporta livestream e replay de trajetórias de Agents. Fácil de acompanhar e revisar.</p>
 </div>
 

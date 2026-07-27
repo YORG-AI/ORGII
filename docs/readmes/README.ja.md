@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Agent とともに作られたソフトウェアのための System of Record。<br />コーディング Agent を実行し、任意のセッションを再生し、チームでレビューし、あらゆる行をその背後にある意思決定まで辿れます。</strong></p>
+  <p><strong>Agent がどのようにソフトウェアを作るかを記録する System of Record。<br />コーディング Agent を実行し、任意のセッションを再生し、チームでレビューし、あらゆる行をその背後にある意思決定まで辿れます。</strong></p>
   <p>Rust と Tauri で構築され、local-first 実行を前提とし、ディスク上のサイズは 100MB 未満です。Agent trajectory の livestream と replay に対応しています。追跡しやすく、レビューしやすい構成です。</p>
 </div>
 

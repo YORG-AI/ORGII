@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Agent’larla inşa edilen yazılım için kayıt sistemi.<br />Kodlama Agent’larınızı çalıştırın — herhangi bir oturumu yeniden oynatın, ekipçe inceleyin ve her satırı arkasındaki karara kadar izleyin.</strong></p>
+  <p><strong>Agent'ların yazılımı nasıl inşa ettiğinin kayıt sistemi.<br />Kodlama Agent’larınızı çalıştırın — herhangi bir oturumu yeniden oynatın, ekipçe inceleyin ve her satırı arkasındaki karara kadar izleyin.</strong></p>
   <p>Rust ve Tauri ile oluşturulmuş, local-first çalışmaya yönelik ve diskte 100 MB’tan az yer kaplar. Agent trajectory livestream ve replay desteği sunar. Takip etmesi ve incelemesi kolaydır.</p>
 </div>
 
