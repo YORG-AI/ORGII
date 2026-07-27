@@ -7,7 +7,7 @@ import {
   RefreshCw,
   SquarePen,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 
 import Button from "@src/components/Button";
 import { SearchInput } from "@src/components/SearchInput";
