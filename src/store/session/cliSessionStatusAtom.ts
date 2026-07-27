@@ -9,8 +9,11 @@
  */
 import { type Atom, atom } from "jotai";
 
+import { createLogger } from "@src/hooks/logger";
 import type { CliSessionStatus } from "@src/types/session/session";
 import { isSessionEngineActiveStatus } from "@src/util/session/sessionRuntimeExecuting";
+
+const log = createLogger("SessionRuntimeStatus");
 
 // Single source of truth: @src/types/session/session
 export type { CliSessionStatus } from "@src/types/session/session";
@@ -95,6 +98,12 @@ export const setSessionRuntimeStatusAtom = atom(
       if (!matchesVisibleSession && !noVisibleSession) {
         // Write targets a session that is not visible — dropping it keeps the
         // global mirror owned by the visible session (no cross-session bleed).
+        if (update.status === "completed" || update.status === "failed") {
+          log.warn(
+            `gate dropped terminal "${update.status}" for ` +
+              `${update.sessionId}; visible=${JSON.stringify(gateValues)}`
+          );
+        }
         return;
       }
     }
@@ -232,8 +241,35 @@ isPendingCancelAtom.debugLabel = "isPendingCancel";
  * Cleared by `useQueueDispatch` after it consumes the restore, or on the next
  * fresh `status_changed -> running` event, whichever comes first.
  */
-export const userInitiatedCancelAtom = atom<boolean>(false);
-userInitiatedCancelAtom.debugLabel = "userInitiatedCancel";
+export const postStopDispatchSessionsAtom = atom<
+  Readonly<Record<string, true>>
+>({});
+postStopDispatchSessionsAtom.debugLabel = "postStopDispatchSessions";
+
+/** Open the post-Stop episode for exactly one session. */
+export const openPostStopDispatchEpisodeAtom = atom(
+  null,
+  (_get, set, sessionId: string) => {
+    set(postStopDispatchSessionsAtom, (current) => {
+      if (current[sessionId]) return current;
+      return { ...current, [sessionId]: true };
+    });
+  }
+);
+openPostStopDispatchEpisodeAtom.debugLabel = "openPostStopDispatchEpisode";
+
+/** Close the post-Stop episode without affecting any other active session. */
+export const closePostStopDispatchEpisodeAtom = atom(
+  null,
+  (_get, set, sessionId: string) => {
+    set(postStopDispatchSessionsAtom, (current) => {
+      if (!current[sessionId]) return current;
+      const { [sessionId]: _removed, ...remaining } = current;
+      return remaining;
+    });
+  }
+);
+closePostStopDispatchEpisodeAtom.debugLabel = "closePostStopDispatchEpisode";
 
 /**
  * Pending "restore message to input box" signal.

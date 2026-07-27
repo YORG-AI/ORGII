@@ -1,7 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-pub const DIAGNOSTICS_SCHEMA_VERSION: u32 = 1;
+pub const DIAGNOSTICS_SCHEMA_VERSION: u32 = 2;
+pub const DEFAULT_UPLOAD_INTERVAL_HOURS: u64 = 12;
+pub const MIN_UPLOAD_INTERVAL_HOURS: u64 = 1;
+pub const MAX_UPLOAD_INTERVAL_HOURS: u64 = 24;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -20,6 +23,8 @@ pub struct DiagnosticsServiceConfig {
     pub diagnostics_level: DiagnosticsLevel,
     #[serde(default)]
     pub offline_mode: bool,
+    #[serde(default = "default_upload_interval_hours")]
+    pub upload_interval_hours: u64,
 }
 
 impl Default for DiagnosticsServiceConfig {
@@ -27,11 +32,19 @@ impl Default for DiagnosticsServiceConfig {
         Self {
             diagnostics_level: DiagnosticsLevel::Default,
             offline_mode: false,
+            upload_interval_hours: DEFAULT_UPLOAD_INTERVAL_HOURS,
         }
     }
 }
 
 impl DiagnosticsServiceConfig {
+    pub fn normalized(mut self) -> Self {
+        self.upload_interval_hours = self
+            .upload_interval_hours
+            .clamp(MIN_UPLOAD_INTERVAL_HOURS, MAX_UPLOAD_INTERVAL_HOURS);
+        self
+    }
+
     pub fn uploads_enabled(&self) -> bool {
         !self.offline_mode
     }
@@ -108,4 +121,8 @@ pub struct DiagnosticsUploadPayload {
     pub install_id: String,
     pub generated_at: String,
     pub records: Vec<DiagnosticsQueueRecord>,
+}
+
+pub fn default_upload_interval_hours() -> u64 {
+    DEFAULT_UPLOAD_INTERVAL_HOURS
 }

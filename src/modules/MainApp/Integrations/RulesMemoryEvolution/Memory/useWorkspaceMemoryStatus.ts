@@ -13,10 +13,11 @@
  *     (`~/.orgii/personal/workspace/`) regardless of the active folder.
  */
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type { WorkspaceMemoryStatus } from "@src/api/tauri/rpc/schemas/workspaceMemory";
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import { activeFolderAtom } from "@src/store/workspace/derived";
 
@@ -30,76 +31,51 @@ interface ResolvedWorkspace {
 
 function useWorkspacePath(scope: WorkspaceMemoryScope): ResolvedWorkspace {
   const activeFolder = useAtomValue(activeFolderAtom);
-  const [personalWs, setPersonalWs] = useState<string | null>(null);
+  const fetchPersonalWorkspace = useCallback(async () => {
+    try {
+      return await rpc.agentOrgs.memory.personalWorkspace();
+    } catch (error) {
+      log.warn(
+        "[useWorkspaceMemoryStatus] project_personal_workspace failed:",
+        error
+      );
+      throw error;
+    }
+  }, []);
+  const personalWorkspace = useAsyncResource<string | null>({
+    enabled: scope === "personal",
+    fetcher: fetchPersonalWorkspace,
+    initialData: null,
+    scopeKey: scope === "personal" ? "personal-workspace" : null,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    if (scope !== "personal") return undefined;
-    rpc.agentOrgs.memory
-      .personalWorkspace()
-      .then((path) => {
-        if (!cancelled) setPersonalWs(path);
-      })
-      .catch((err: unknown) => {
-        log.warn(
-          "[useWorkspaceMemoryStatus] project_personal_workspace failed:",
-          err
-        );
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [scope]);
-
-  if (scope === "personal") return { path: personalWs };
+  if (scope === "personal") return { path: personalWorkspace.data };
   return { path: activeFolder?.path ?? null };
-}
-
-function fetchStatus(
-  workspace: string,
-  onResult: (result: WorkspaceMemoryStatus) => void,
-  onDone: () => void,
-  signal: { cancelled: boolean }
-): void {
-  rpc.workspaceMemory
-    .status({ workspace })
-    .then((result: WorkspaceMemoryStatus) => {
-      if (!signal.cancelled) onResult(result);
-    })
-    .catch((err: unknown) => {
-      log.warn("[WorkspaceMemoryStatus] fetch failed:", err);
-    })
-    .finally(() => {
-      if (!signal.cancelled) onDone();
-    });
 }
 
 export function useWorkspaceMemoryStatus(
   scope: WorkspaceMemoryScope = "workspace"
 ) {
   const { path: workspace } = useWorkspacePath(scope);
-  const [status, setStatus] = useState<WorkspaceMemoryStatus | null>(null);
-  const [loading, setLoading] = useState(false);
+  const fetchStatus = useCallback(async (workspacePath: string) => {
+    try {
+      return await rpc.workspaceMemory.status({ workspace: workspacePath });
+    } catch (error) {
+      log.warn("[WorkspaceMemoryStatus] fetch failed:", error);
+      throw error;
+    }
+  }, []);
+  const statusResource = useAsyncResource<WorkspaceMemoryStatus | null>({
+    enabled: Boolean(workspace),
+    fetcher: fetchStatus,
+    initialData: null,
+    scopeKey: workspace,
+  });
 
-  const refresh = useCallback(() => {
-    if (!workspace) return;
-    setLoading(true);
-    const signal = { cancelled: false };
-    fetchStatus(workspace, setStatus, () => setLoading(false), signal);
-  }, [workspace]);
-
-  useEffect(() => {
-    if (!workspace) return;
-    const signal = { cancelled: false };
-    const timer = setTimeout(() => {
-      setLoading(true);
-      fetchStatus(workspace, setStatus, () => setLoading(false), signal);
-    }, 0);
-    return () => {
-      signal.cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [workspace]);
-
-  return { status, loading, workspace, refresh };
+  return {
+    status: statusResource.data,
+    loading: statusResource.loading,
+    workspace,
+    refresh: statusResource.refresh,
+  };
 }

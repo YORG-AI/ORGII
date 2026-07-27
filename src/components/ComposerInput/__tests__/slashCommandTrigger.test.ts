@@ -14,7 +14,7 @@ describe("canStartSlashCommand", () => {
 
   it("ignores slash characters inside path-like text", () => {
     expect(canStartSlashCommand("github/x/y", 6)).toBe(false);
-    expect(canStartSlashCommand("https://github.com/yorgai/ORG2", 6)).toBe(
+    expect(canStartSlashCommand("https://github.com/org2ai/ORG2", 6)).toBe(
       false
     );
   });

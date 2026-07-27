@@ -36,6 +36,7 @@ import { useEditMode } from "./hooks/useEditMode";
 import { useEditorExpansion } from "./hooks/useEditorExpansion";
 import { useInputAreaMenus } from "./hooks/useInputAreaMenus";
 import { useInputAreaVoice } from "./hooks/useInputAreaVoice";
+import { useStopOnDoubleEscape } from "./hooks/useStopOnDoubleEscape";
 import { openedTabMentionOptionsAtom } from "./openedTabMentionOptionsAtom";
 
 interface InputAreaProps {
@@ -55,6 +56,9 @@ interface InputAreaProps {
   omitChatHeader?: boolean;
   chatPanelPosition?: "left" | "right";
   sessionId?: string;
+  /** Session whose comment threads Address Comments targets when this
+   * composer dispatches elsewhere (external-history fork composer). */
+  addressSessionId?: string | null;
   onSubmitOverride?: (input: SubmitOverrideInput) => Promise<boolean>;
   customMentionOptions?: ReadonlyArray<CustomMentionOption>;
   topRowPills?: React.ReactNode;
@@ -119,6 +123,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     omitChatHeader = false,
     chatPanelPosition = "right",
     sessionId: propSessionId,
+    addressSessionId,
     onSubmitOverride,
     customMentionOptions,
     topRowPills,
@@ -209,6 +214,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     } = useInputArea({
       placeholder,
       sessionId: propSessionId,
+      addressSessionId,
       sessionScope,
       submitDisabled,
       onSubmitOverride,
@@ -342,6 +348,10 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     useEffect(() => {
       observeCompact(isCursorCompactRow);
     }, [isCursorCompactRow, observeCompact]);
+
+    // Double-press Escape to stop the running turn. Active only while a turn
+    // is running and stoppable; a single Escape is inert.
+    useStopOnDoubleEscape(isWpGeneWorking && canStopAgent, interruptSession);
 
     // Cursor IDE sessions are read-only; no interactive model/mode pill.
     const modelPill =

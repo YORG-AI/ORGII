@@ -10,11 +10,9 @@
 import type { LucideIcon } from "lucide-react";
 import React from "react";
 
+import ListPanelScrollArea from "@src/components/ListPanel/ListPanelScrollArea";
+import ListPanelTabPillRow from "@src/components/ListPanel/ListPanelTabPillRow";
 import TabPill from "@src/components/TabPill";
-import {
-  ListPanelScrollArea,
-  ListPanelTabPillRow,
-} from "@src/modules/shared/layouts/blocks";
 
 import { getListIconClasses, getListItemClasses } from "./tokens";
 

@@ -8,6 +8,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { REPLAY_SPEED_OPTIONS } from "@src/config/workspace/replayConfig";
+import { getDropdownPanelStyle } from "@src/hooks/dropdown/dropdownPanelStyle";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
 
 import { STATUS_BAR_TEXT_20 } from "./tokens";
@@ -38,18 +39,10 @@ export const PlaybackSpeedInline: React.FC<PlaybackSpeedInlineProps> = ({
     gap: DROPDOWN_PANEL.triggerGapTight,
   });
 
-  const panelPositionStyle = useMemo(() => {
-    const pos = panelPosition;
-    return {
-      ...(pos.top !== undefined
-        ? { top: `${pos.top}px` }
-        : { bottom: `${pos.bottom}px` }),
-      ...(pos.right !== undefined
-        ? { right: `${pos.right}px` }
-        : { left: `${pos.left}px` }),
-      ...(pos.width > 0 ? { minWidth: `${pos.width}px` } : {}),
-    };
-  }, [panelPosition]);
+  const panelPositionStyle = useMemo(
+    () => getDropdownPanelStyle(panelPosition),
+    [panelPosition]
+  );
 
   const label = `${value}x`;
 
@@ -76,7 +69,7 @@ export const PlaybackSpeedInline: React.FC<PlaybackSpeedInlineProps> = ({
         createPortal(
           <div
             ref={panelRef as React.Ref<HTMLDivElement>}
-            className={`${DROPDOWN_CLASSES.menuPanelBase} fixed min-w-[80px]`}
+            className={`${DROPDOWN_CLASSES.menuPanelBase} fixed min-w-[80px] overflow-y-auto`}
             style={panelPositionStyle}
           >
             <div

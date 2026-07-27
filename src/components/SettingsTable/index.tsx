@@ -11,14 +11,14 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
+import SearchSortBar, {
+  type SearchSortBarProps,
+} from "@src/components/SearchSortBar";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import Table, { type TableColumn } from "@src/components/Table";
 import Tooltip from "@src/components/Tooltip";
-import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
-import SearchSortBar, {
-  type SearchSortBarProps,
-} from "@src/modules/shared/layouts/blocks/SearchSortBar";
 
 import {
   SettingsTableAddFooter,

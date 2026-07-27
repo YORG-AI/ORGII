@@ -186,17 +186,9 @@ userDisplayNameAtom.debugLabel = "userDisplayNameAtom";
 // Modal & Dialog State
 // ============================================
 
-/** Login modal visibility */
-export const loginModalVisibleAtom = atom<boolean>(false);
-loginModalVisibleAtom.debugLabel = "loginModalVisibleAtom";
-
 /** Route debug trigger — set to true by Cmd+0; resets to false after toast fires */
 export const routeDebugModalOpenAtom = atom<boolean>(false);
 routeDebugModalOpenAtom.debugLabel = "routeDebugModalOpenAtom";
-
-/** Login modal fixed position */
-export const loginModalFixAtom = atom<boolean>(false);
-loginModalFixAtom.debugLabel = "loginModalFixAtom";
 
 /**
  * Session expired state

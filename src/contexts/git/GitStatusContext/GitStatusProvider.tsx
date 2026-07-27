@@ -141,6 +141,19 @@ export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
     return currentRepo?.path || currentRepo?.fs_uri;
   }, [currentRepo]);
 
+  const resolveRepoPath = useCallback(
+    (repoId: string): string | undefined => {
+      const repo = repoMap.get(repoId);
+      if (repo?.path || repo?.fs_uri) return repo.path || repo.fs_uri;
+
+      const folder = workspaceFolders.find(
+        (candidate) => candidate.id === repoId || candidate.repoId === repoId
+      );
+      return folder?.path;
+    },
+    [repoMap, workspaceFolders]
+  );
+
   // ============================================
   // Watcher Registration Hook
   // ============================================
@@ -233,6 +246,7 @@ export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
     setGitStatusAtom,
     setGitSuggestedActionAtom,
     setGitOperation,
+    resolveRepoPath,
   });
 
   // ============================================

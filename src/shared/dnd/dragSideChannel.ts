@@ -19,6 +19,9 @@ export interface ReferenceDragStash {
 
 const REFERENCE_STASH_TTL_MS = 30_000;
 
+/** Shared synchronous flag for queued-message reorder drags. */
+export const messageQueueReorderActiveRef = { current: false };
+
 export function setInternalFileTreeDrag(
   payload: InternalFileDragPayload
 ): void {

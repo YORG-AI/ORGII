@@ -25,3 +25,4 @@ export * as mcp from "./mcp";
 export * as flow from "./flow";
 export * as humanSession from "./humanSession";
 export * as sessionCore from "./sessionCore";
+export * as cli from "./cli";

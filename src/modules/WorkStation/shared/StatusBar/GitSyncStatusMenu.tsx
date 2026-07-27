@@ -15,6 +15,7 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { DropdownItem } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -22,7 +23,6 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { classNames } from "@src/util/ui/classNames";
 
 import { StatusBarButton } from "./StatusBarBase";
 import { StatusBarTooltip } from "./StatusBarTooltip";
@@ -230,69 +230,65 @@ export const GitSyncStatusMenu: React.FC<GitSyncStatusMenuProps> = memo(
                       const disabled =
                         isSyncBusy || !canSyncDisplayedRepo || action.disabled;
                       return (
-                        <button
+                        <DropdownItem
                           key={action.key}
-                          type="button"
-                          className={classNames(
-                            DROPDOWN_CLASSES.menuActionItem,
-                            disabled && DROPDOWN_CLASSES.itemDisabled
-                          )}
+                          role="menuitem"
+                          fullWidth
+                          tabIndex={0}
                           disabled={disabled}
                           onClick={() => handleAction(action.onSelect)}
-                          role="menuitem"
+                          icon={
+                            <ActionIcon
+                              size={MENU_ICON_SIZE}
+                              className="shrink-0 text-text-1"
+                            />
+                          }
                         >
-                          <ActionIcon
-                            size={MENU_ICON_SIZE}
-                            className="shrink-0 text-text-1"
-                          />
-                          <span className="font-medium text-text-1">
-                            {action.label}
-                          </span>
-                        </button>
+                          <span className="font-medium">{action.label}</span>
+                        </DropdownItem>
                       );
                     })}
                   </>
                 ) : (
                   <>
                     {suggestedAction && SuggestedActionIcon && (
-                      <button
-                        type="button"
-                        className={classNames(
-                          DROPDOWN_CLASSES.menuActionItem,
-                          (isSyncBusy ||
-                            !canSyncDisplayedRepo ||
-                            suggestedAction.disabled) &&
-                            DROPDOWN_CLASSES.itemDisabled
-                        )}
+                      <DropdownItem
+                        role="menuitem"
+                        fullWidth
+                        tabIndex={0}
                         disabled={
                           isSyncBusy ||
                           !canSyncDisplayedRepo ||
                           suggestedAction.disabled
                         }
                         onClick={() => handleAction(suggestedAction.onSelect)}
-                        role="menuitem"
+                        icon={
+                          <SuggestedActionIcon
+                            size={MENU_ICON_SIZE}
+                            className="shrink-0 text-text-1"
+                          />
+                        }
                       >
-                        <SuggestedActionIcon
-                          size={MENU_ICON_SIZE}
-                          className="shrink-0 text-text-1"
-                        />
-                        <span className="font-medium text-text-1">
+                        <span className="font-medium">
                           {suggestedAction.label}
                         </span>
-                      </button>
+                      </DropdownItem>
                     )}
                     <div className={DROPDOWN_CLASSES.menuSeparator} />
-                    <button
-                      type="button"
-                      className={DROPDOWN_CLASSES.menuActionItem}
-                      onClick={() => setShowAllActions(true)}
+                    <DropdownItem
                       role="menuitem"
+                      fullWidth
+                      tabIndex={0}
+                      onClick={() => setShowAllActions(true)}
+                      icon={
+                        <Ellipsis
+                          size={MENU_ICON_SIZE}
+                          className="text-text-1"
+                        />
+                      }
                     >
-                      <Ellipsis size={MENU_ICON_SIZE} className="text-text-1" />
-                      <span className="font-medium text-text-1">
-                        {t("common.more")}
-                      </span>
-                    </button>
+                      <span className="font-medium">{t("common.more")}</span>
+                    </DropdownItem>
                   </>
                 )}
               </div>

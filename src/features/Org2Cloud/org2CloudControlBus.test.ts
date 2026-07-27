@@ -4,6 +4,7 @@ import {
   ORG_CONTROL_CHANGED_EVENT,
   broadcastOrgControlChangedToPeers,
   parseOrgControlChangeKind,
+  parseOrgDbChangeKind,
   registerOrgControlBroadcaster,
 } from "./org2CloudControlBus";
 
@@ -43,5 +44,16 @@ describe("org2 cloud control bus", () => {
   it("rejects unknown wire kinds", () => {
     expect(parseOrgControlChangeKind({ kind: "projects" })).toBeNull();
     expect(parseOrgControlChangeKind({ kind: "scopes" })).toBe("scopes");
+  });
+
+  it("parses server db-change kinds and rejects unknown ones", () => {
+    expect(parseOrgDbChangeKind({ kind: "sessions" })).toBe("sessions");
+    expect(parseOrgDbChangeKind({ kind: "comments" })).toBe("comments");
+    expect(parseOrgDbChangeKind({ kind: "projects" })).toBe("projects");
+    expect(parseOrgDbChangeKind({ kind: "workItems" })).toBe("workItems");
+    expect(parseOrgDbChangeKind({ kind: "roster" })).toBe("roster");
+    expect(parseOrgDbChangeKind({ kind: "policy" })).toBe("policy");
+    expect(parseOrgDbChangeKind({ kind: "entitlement" })).toBeNull();
+    expect(parseOrgDbChangeKind({})).toBeNull();
   });
 });

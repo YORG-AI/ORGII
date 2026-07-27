@@ -11,5 +11,4 @@
  */
 
 export { default as ContentViewModal } from "./ContentView";
-export { default as LoginModal } from "./Login";
 export { default as RenameModal } from "./Rename";

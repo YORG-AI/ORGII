@@ -493,6 +493,8 @@ mod tests {
     fn codex_lifecycle_maps_actor_to_independently_loadable_transcript() {
         let conn = Connection::open_in_memory().expect("in-memory SQLite");
         SqliteRecordStore::init_tables(&conn).expect("initialize orgtrack schema");
+        SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("initialize imported history schema");
         let store = SqliteRecordStore::new(&conn);
         let temp = tempfile::tempdir().expect("Codex session root");
         let sessions_dir = temp

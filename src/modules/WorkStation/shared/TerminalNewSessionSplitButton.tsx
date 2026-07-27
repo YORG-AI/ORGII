@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { DropdownPanel } from "@src/components/Dropdown/exports";
+import { DropdownItem, DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -93,19 +93,22 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
           {shellProfiles
             .filter((profile) => profile.category === "shell")
             .map((profile) => (
-              <button
+              <DropdownItem
                 key={profile.id}
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
                 onClick={() => handlePickProfile(profile)}
+                suffix={
+                  profile.isDefault ? (
+                    <span className="text-xs">
+                      {t("common:common.default", "Default")}
+                    </span>
+                  ) : undefined
+                }
               >
-                <span className="flex-1 truncate">{profile.name}</span>
-                {profile.isDefault && (
-                  <span className="text-xs text-text-3">
-                    {t("common:common.default", "Default")}
-                  </span>
-                )}
-              </button>
+                {profile.name}
+              </DropdownItem>
             ))}
           {shellProfiles.some((profile) => profile.category === "repl") && (
             <>
@@ -113,14 +116,15 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
               {shellProfiles
                 .filter((profile) => profile.category === "repl")
                 .map((profile) => (
-                  <button
+                  <DropdownItem
                     key={profile.id}
-                    type="button"
-                    className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
                     onClick={() => handlePickProfile(profile)}
                   >
-                    <span className="flex-1 truncate">{profile.name}</span>
-                  </button>
+                    {profile.name}
+                  </DropdownItem>
                 ))}
             </>
           )}

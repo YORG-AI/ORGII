@@ -575,7 +575,10 @@ export function createKeyDownHandler(ctx: KeyDownHandlerContext) {
         ctx.insertNewline();
         return;
       }
-      if (!event.shiftKey) {
+      // `requireCmdEnter` is false → "send on Enter" is on. Bare Enter
+      // submits; Shift+Enter and Ctrl/Cmd+Enter both insert a newline so the
+      // user always has an explicit "insert line break" chord available.
+      if (!event.shiftKey && !event.metaKey && !event.ctrlKey) {
         event.preventDefault();
         const text = ctx.getText();
         if (text.trim()) ctx.getOnSubmit()?.(text);

@@ -128,6 +128,16 @@ export async function schemaVersion(): Promise<number | null> {
 }
 
 /**
+ * Raw 0005+ capability read; `null` on pre-0005 backends (PGRST202) and on
+ * transport failure. Interpretation/caching live in `org2CloudCapabilities`.
+ */
+export async function getCloudCapabilitiesRaw(
+  accessToken: string
+): Promise<unknown | null> {
+  return callRpc("get_cloud_capabilities", accessToken);
+}
+
+/**
  * Fetch the signed-in user's cloud profile. Returns `null` on any failure
  * or when the server returns an empty object (no profile row yet).
  */
@@ -156,6 +166,22 @@ export async function getCloudProfile(
     avatarUrl: avatarUrl ?? undefined,
     primaryEmail: primaryEmail ?? undefined,
   };
+}
+
+/**
+ * Rename the signed-in user's display name (0008 `update_cloud_profile`).
+ * Returns the stored name, or `null` on any failure — including pre-0008
+ * backends, where the RPC is absent.
+ */
+export async function updateCloudProfileDisplayName(
+  accessToken: string,
+  displayName: string
+): Promise<string | null> {
+  const payload = await callRpc("update_cloud_profile", accessToken, {
+    p_display_name: displayName,
+  });
+  const parsed = z.object({ displayName: z.string() }).safeParse(payload);
+  return parsed.success ? parsed.data.displayName : null;
 }
 
 const EntitlementStateWireSchema = z.object({
@@ -209,6 +235,11 @@ const CloudOrgWireSchema = z.object({
   // to the per-org RPC for exactly that org. `.catch(undefined)` keeps a
   // malformed entitlement from failing the whole roster parse.
   entitlement: EntitlementStateWireSchema.nullish().catch(undefined),
+  // 0007 org-sharding directory hook (design §7 step 3): the Supabase origin
+  // hosting this org's data plane. null/absent (pre-0007 backends, or an org
+  // living on the active project) ⇒ the active endpoint. `.catch(undefined)`
+  // keeps a malformed value from failing the whole roster parse.
+  homeEndpoint: z.string().nullish().catch(undefined),
 });
 
 export interface CloudOrg {
@@ -216,6 +247,8 @@ export interface CloudOrg {
   name: string;
   role: CloudOrgRole;
   entitlement?: CloudEntitlementState;
+  /** 0007 directory hook; absent ⇒ the org lives on the active endpoint. */
+  homeEndpoint?: string;
 }
 
 const CloudOrgMemberWireSchema = z.object({
@@ -266,14 +299,17 @@ export async function listMyOrgs(
     }
     return null;
   }
-  return parsed.data.map(({ orgId, name, role, entitlement }) => ({
-    orgId,
-    name,
-    role,
-    ...(entitlement
-      ? { entitlement: normalizeEntitlementWire(entitlement) }
-      : {}),
-  }));
+  return parsed.data.map(
+    ({ orgId, name, role, entitlement, homeEndpoint }) => ({
+      orgId,
+      name,
+      role,
+      ...(entitlement
+        ? { entitlement: normalizeEntitlementWire(entitlement) }
+        : {}),
+      ...(homeEndpoint ? { homeEndpoint } : {}),
+    })
+  );
 }
 
 /** Members of a cloud org (`list_org_members`). `[]` on any failure. */

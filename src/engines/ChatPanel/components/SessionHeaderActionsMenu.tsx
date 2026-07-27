@@ -15,6 +15,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { DropdownItem } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -125,126 +126,140 @@ export const SessionHeaderActionsMenu: React.FC<
             }}
           >
             {showTranscriptActions && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
                 onClick={handleOpenSearch}
+                icon={
+                  <Search size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                }
               >
-                <Search size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-                <span className="flex-1 truncate">{t("chat.findInChat")}</span>
-              </button>
+                {t("chat.findInChat")}
+              </DropdownItem>
             )}
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+            <DropdownItem
+              role="menuitem"
+              fullWidth
+              tabIndex={0}
               onClick={handleReloadFromMenu}
               disabled={!currentSessionId}
+              icon={
+                <RefreshCw size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              }
             >
-              <RefreshCw size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              <span className="flex-1 truncate">
-                {t("common:actions.reload")}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              {t("common:actions.reload")}
+            </DropdownItem>
+            <DropdownItem
+              role="menuitem"
+              fullWidth
+              tabIndex={0}
               onClick={handleMoveSession}
               disabled={!currentSessionId}
-              data-testid={
+              dataTestId={
                 moveToWorkstation
                   ? "move-session-to-workstation"
                   : "move-session-to-chat-panel"
               }
-            >
-              {moveToWorkstation ? (
-                <PanelLeft size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              ) : (
-                <PanelRight size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              )}
-              <span className="flex-1 truncate">
-                {moveToWorkstation
-                  ? t("chat.moveToWorkstation", {
-                      defaultValue: "Move to My Workstation",
-                    })
-                  : t("chat.moveToChatPanel", {
-                      defaultValue: "Move to Chat Panel",
-                    })}
-              </span>
-            </button>
-            {showTranscriptActions && (
-              <>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleCopyEventJson}
-                  disabled={eventsLength === 0}
-                >
-                  <Clipboard size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-                  <span className="flex-1 truncate">
-                    {copyEventJsonLabel === "copied"
-                      ? t("chat.copyEventJsonCopied")
-                      : copyEventJsonLabel === "failed"
-                        ? t("chat.copyEventJsonFailed")
-                        : t("chat.copyEventJson")}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleOpenRawTranscript}
-                  disabled={!currentSessionId}
-                  data-testid="view-raw-session-transcript"
-                >
-                  <Braces size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-                  <span className="flex-1 truncate">
-                    {t("chat.rawTranscript.menuItem", {
-                      defaultValue: "View raw transcript",
-                    })}
-                  </span>
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-              onClick={handleOpenLinkWorkItem}
-              disabled={!currentSessionId}
-              data-testid="session-link-work-item-button"
-            >
-              <Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              <span className="flex-1 truncate">
-                {t("chat.linkWorkItem.menuItem")}
-              </span>
-            </button>
-            {showCloudShareSettings && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
-                onClick={handleOpenCloudShareSettings}
-                data-testid="cloud-session-share-settings-button"
-              >
-                <Share2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-                <span className="flex-1 truncate">
-                  {t("navigation:cloud.share.menuItem")}
-                </span>
-              </button>
-            )}
-            {showTranscriptActions && (
-              <>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleOpenExportSessionJson}
-                  disabled={!activeSessionExists}
-                >
-                  <FolderOutput
+              icon={
+                moveToWorkstation ? (
+                  <PanelLeft size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                ) : (
+                  <PanelRight
                     size={DROPDOWN_ITEM.iconSize}
                     strokeWidth={1.75}
                   />
-                  <span className="flex-1 truncate">
-                    {t("chat.importExport.exportAction")}
-                  </span>
-                </button>
+                )
+              }
+            >
+              {moveToWorkstation
+                ? t("chat.moveToWorkstation", {
+                    defaultValue: "Move to My Workstation",
+                  })
+                : t("chat.moveToChatPanel", {
+                    defaultValue: "Move to Chat Panel",
+                  })}
+            </DropdownItem>
+            {showTranscriptActions && (
+              <>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleCopyEventJson}
+                  disabled={eventsLength === 0}
+                  icon={
+                    <Clipboard
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={1.75}
+                    />
+                  }
+                >
+                  {copyEventJsonLabel === "copied"
+                    ? t("chat.copyEventJsonCopied")
+                    : copyEventJsonLabel === "failed"
+                      ? t("chat.copyEventJsonFailed")
+                      : t("chat.copyEventJson")}
+                </DropdownItem>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleOpenRawTranscript}
+                  disabled={!currentSessionId}
+                  dataTestId="view-raw-session-transcript"
+                  icon={
+                    <Braces size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                  }
+                >
+                  {t("chat.rawTranscript.menuItem", {
+                    defaultValue: "View raw transcript",
+                  })}
+                </DropdownItem>
+              </>
+            )}
+            <DropdownItem
+              role="menuitem"
+              fullWidth
+              tabIndex={0}
+              onClick={handleOpenLinkWorkItem}
+              disabled={!currentSessionId}
+              dataTestId="session-link-work-item-button"
+              icon={<Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />}
+            >
+              {t("chat.linkWorkItem.menuItem")}
+            </DropdownItem>
+            {showCloudShareSettings && (
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
+                onClick={handleOpenCloudShareSettings}
+                dataTestId="cloud-session-share-settings-button"
+                icon={
+                  <Share2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                }
+              >
+                {t("navigation:cloud.share.menuItem")}
+              </DropdownItem>
+            )}
+            {showTranscriptActions && (
+              <>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleOpenExportSessionJson}
+                  disabled={!activeSessionExists}
+                  icon={
+                    <FolderOutput
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={1.75}
+                    />
+                  }
+                >
+                  {t("chat.importExport.exportAction")}
+                </DropdownItem>
                 <div className="my-1 border-t border-solid border-border-2" />
                 <div
                   className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}

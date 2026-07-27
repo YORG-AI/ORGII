@@ -42,6 +42,9 @@ export interface UseInputAreaOptions {
   placeholder?: string;
   /** Explicit session ID for the chat surface using this composer. */
   sessionId?: string;
+  /** Session whose comment threads Address Comments targets when the
+   * composer dispatches elsewhere (external-history fork composer). */
+  addressSessionId?: string | null;
   sessionScope?: "active" | "none";
   submitDisabled?: boolean;
   enableAgentInterceptors?: boolean;

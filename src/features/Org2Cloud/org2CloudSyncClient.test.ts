@@ -2,15 +2,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import { decodeSegmentEvents } from "../TeamCollaboration/sync/segmentCodec";
+import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
+import {
+  decodeSegmentEvents,
+  decodeSegmentEventsFromBytes,
+} from "../TeamCollaboration/sync/segmentCodec";
 import {
   ORG2_CLOUD_OFFICIAL_ANON_KEY,
   ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
   ORG2_CLOUD_POSTGREST_SCHEMA,
 } from "./config";
+import { getCloudCapabilities } from "./org2CloudCapabilities";
 import {
   Org2CloudSyncError,
   __SESSION_LISTING_INTERNALS,
+  __STORAGE_SEGMENTS_INTERNALS,
   appendSessionEvents,
   getOrgRepoScopes,
   getSessionEvents,
@@ -20,6 +26,12 @@ import {
   setOrgRepoScopes,
   upsertSessionMetadata,
 } from "./org2CloudSyncClient";
+
+vi.mock("./org2CloudCapabilities", () => ({
+  getCloudCapabilities: vi.fn(),
+}));
+
+const capabilitiesMock = vi.mocked(getCloudCapabilities);
 
 const fetchMock = vi.fn();
 
@@ -46,11 +58,18 @@ function makeEvent(id: string): SessionEvent {
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue(jsonResponse(null));
+  capabilitiesMock.mockResolvedValue({
+    broadcastSignals: false,
+    storageSegments: false,
+    homeEndpoints: false,
+  });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
   fetchMock.mockReset();
+  capabilitiesMock.mockReset();
+  __STORAGE_SEGMENTS_INTERNALS.resetStorageSupport();
 });
 
 describe("org2CloudSyncClient headers", () => {
@@ -232,6 +251,162 @@ describe("cloud_rewrite_session_events", () => {
       totalCount: 0,
     }).catch((caught: unknown) => caught);
     expect(isOrg2SyncErrorCode(error, "ORG2_QUOTA_EXCEEDED")).toBe(true);
+  });
+});
+
+describe("storage segment offload (0006)", () => {
+  beforeEach(() => {
+    capabilitiesMock.mockResolvedValue({
+      broadcastSignals: false,
+      storageSegments: true,
+      homeEndpoints: false,
+    });
+  });
+
+  function appendInput(frozen: SessionEvent[], tail: SessionEvent[] | null) {
+    return {
+      orgId: "org-1",
+      sessionId: "s-1",
+      expectedEpoch: 2,
+      expectedFrozenSeq: 5,
+      expectedTailHash: "hash-old-tail",
+      newFrozenSegments: frozen.length > 0 ? [{ seq: 6, events: frozen }] : [],
+      tail,
+      totalCount: 7,
+    };
+  }
+
+  it("uploads frozen segment objects and ships storagePath wire with an inline tail", async () => {
+    const frozen = [makeEvent("f1")];
+    const tail = [makeEvent("t1")];
+    await appendSessionEvents("jwt-1", appendInput(frozen, tail));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const hash = await computeSegmentHash(frozen);
+    const path = `org-1/s-1/2/6-${hash}.gz`;
+    const [uploadUrl, uploadInit] = fetchMock.mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(uploadUrl).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/storage/v1/object/replay/${path}`
+    );
+    expect(uploadInit.method).toBe("POST");
+    const uploadHeaders = uploadInit.headers as Record<string, string>;
+    expect(uploadHeaders.authorization).toBe("Bearer jwt-1");
+    expect(uploadHeaders["content-type"]).toBe("application/gzip");
+    expect(uploadHeaders["x-upsert"]).toBeUndefined();
+    expect(
+      await decodeSegmentEventsFromBytes(uploadInit.body as Uint8Array)
+    ).toEqual(frozen);
+
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_append_session_events`
+    );
+    const body = lastBody();
+    expect(body.new_frozen_segments).toEqual([
+      { seq: 6, storagePath: path, eventCount: 1, segmentHash: hash },
+    ]);
+    const tailWire = body.tail as Record<string, unknown>;
+    expect(typeof tailWire.payloadGz).toBe("string");
+    expect(tailWire).not.toHaveProperty("storagePath");
+  });
+
+  it("rewrite keys the object paths by the new epoch", async () => {
+    const frozen = [makeEvent("f1")];
+    await rewriteSessionEvents("jwt-1", {
+      orgId: "org-1",
+      sessionId: "s-1",
+      newEpoch: 4,
+      frozenSegments: [{ seq: 1, events: frozen }],
+      tail: null,
+      totalCount: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const hash = await computeSegmentHash(frozen);
+    const path = `org-1/s-1/4/1-${hash}.gz`;
+    expect((fetchMock.mock.calls[0] as [string, RequestInit])[0]).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/storage/v1/object/replay/${path}`
+    );
+    const body = lastBody();
+    expect(body.new_epoch).toBe(4);
+    expect(body.frozen_segments).toEqual([
+      { seq: 1, storagePath: path, eventCount: 1, segmentHash: hash },
+    ]);
+  });
+
+  it("keeps the legacy inline wire when the capabilities probe says false", async () => {
+    capabilitiesMock.mockResolvedValue({
+      broadcastSignals: false,
+      storageSegments: false,
+      homeEndpoints: false,
+    });
+    await appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const segments = lastBody().new_frozen_segments as Array<
+      Record<string, unknown>
+    >;
+    expect(typeof segments[0].payloadGz).toBe("string");
+    expect(segments[0]).not.toHaveProperty("storagePath");
+  });
+
+  it("skips the probe and uploads entirely for a tail-only append", async () => {
+    await appendSessionEvents("jwt-1", appendInput([], [makeEvent("t1")]));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(capabilitiesMock).not.toHaveBeenCalled();
+    expect(lastBody().new_frozen_segments).toEqual([]);
+  });
+
+  it("falls back to the inline wire on a missing-function rejection and remembers the endpoint", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(null))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            code: "PGRST202",
+            message:
+              "Could not find the function org2_cloud.cloud_append_session_events in the schema cache",
+          },
+          404
+        )
+      )
+      .mockResolvedValueOnce(jsonResponse(null));
+    await appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const segments = lastBody().new_frozen_segments as Array<
+      Record<string, unknown>
+    >;
+    expect(typeof segments[0].payloadGz).toBe("string");
+    expect(segments[0]).not.toHaveProperty("storagePath");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(null));
+    await appendSessionEvents("jwt-1", appendInput([makeEvent("f2")], null));
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(String(lastCall().url)).toContain("/rest/v1/rpc/");
+  });
+
+  it("propagates ORG2_VALIDATION on the storage form without falling back", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse(null))
+      .mockResolvedValueOnce(jsonResponse({ message: "ORG2_VALIDATION" }, 400));
+    const error = await appendSessionEvents(
+      "jwt-1",
+      appendInput([makeEvent("f1")], null)
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Org2CloudSyncError);
+    expect((error as Org2CloudSyncError).message).toContain("ORG2_VALIDATION");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("propagates an upload failure before any RPC is attempted", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
+    await expect(
+      appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null))
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        error instanceof Error && error.name === "Org2CloudStorageError"
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -465,6 +640,50 @@ describe("cloud_get_session_events", () => {
       `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_get_session_events`
     );
     expect(result).toMatchObject({ epoch: 1, count: 0, segments: [] });
+  });
+
+  it("parses storagePath segments on the read wire", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 4,
+        frozenSeq: 1,
+        tailHash: "th",
+        count: 3,
+        nextAfterSeq: 1,
+        hasMore: false,
+        segments: [
+          {
+            seq: 1,
+            storagePath: "org-1/s-1/4/1-h1.gz",
+            payloadGz: null,
+            eventCount: 2,
+            segmentHash: "h1",
+          },
+          { seq: 0, payloadGz: "tail", eventCount: 1, segmentHash: "th" },
+        ],
+      })
+    );
+    const result = await getSessionEvents("jwt-1", "org-1", "s-1");
+    expect(result.segments[0].storagePath).toBe("org-1/s-1/4/1-h1.gz");
+    expect(result.segments[0].payloadGz).toBeNull();
+    expect(result.segments[1].payloadGz).toBe("tail");
+  });
+
+  it("rejects a segment carrying neither payloadGz nor storagePath", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        epoch: 1,
+        frozenSeq: 1,
+        tailHash: null,
+        count: 1,
+        nextAfterSeq: 1,
+        hasMore: false,
+        segments: [{ seq: 1, eventCount: 1, segmentHash: "h1" }],
+      })
+    );
+    await expect(getSessionEvents("jwt-1", "org-1", "s-1")).rejects.toThrow(
+      /neither payloadGz nor storagePath/
+    );
   });
 
   it("maps ORG2_RETENTION_EXPIRED into a coded error", async () => {

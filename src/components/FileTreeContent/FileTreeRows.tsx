@@ -7,6 +7,7 @@
 import { ChevronDown, ChevronRight } from "lucide-react";
 import React from "react";
 
+import { FolderHeaderRow } from "@src/components/FolderHeaderRow";
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
 import { TREE_INDENT_PX, TREE_PADDING_X } from "@src/components/TreeRow";
 import type {
@@ -14,7 +15,6 @@ import type {
   StickyScrollNode,
 } from "@src/components/VirtualizedStickyTree";
 import { getStatusBgColor, getStatusColorForFile } from "@src/config/gitStatus";
-import { FolderHeaderRow } from "@src/modules/WorkStation/shared/FolderHeaderRow";
 
 import { NewItemInput } from "./NewItemInput";
 import { TreeNode } from "./TreeNode";

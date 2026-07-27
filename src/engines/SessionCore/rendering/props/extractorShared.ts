@@ -99,10 +99,23 @@ export function detectLanguage(fileName: string): string {
 // Cache Utilities
 // ============================================
 
+/** FNV-1a, 32-bit. Cheap enough to run on every lookup. */
+function hashContent(content: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < content.length; i += 1) {
+    hash ^= content.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
 export function cacheKey(content: string): string {
-  return content.length > 200
-    ? `${content.length}:${content.slice(0, 100)}:${content.slice(-100)}`
-    : content;
+  if (content.length <= 200) return content;
+  // Length + head + tail alone collide when the same file is read again after
+  // an in-place edit that preserves its length (`(32px)` → `(36px)` in the
+  // middle of a 2.3 KB file, observed in real sessions), which would serve the
+  // stale version from cache. The hash covers the middle.
+  return `${content.length}:${hashContent(content)}:${content.slice(0, 100)}:${content.slice(-100)}`;
 }
 
 export function evictAndSet<K, V>(
@@ -126,6 +139,13 @@ export function evictAndSet<K, V>(
 // `foundation/tool_infra/file.rs::format_text_result`.
 // Current separator: `│` (U+2502). Legacy: `→` (U+2192) for older sessions.
 const LINE_PREFIX_REGEX = /^\s*\d+[│→]/;
+// Claude Code's `Read` tool emits `cat -n` style prefixes instead: right-aligned
+// line number + TAB. A tab is far weaker evidence than `│`, so this form is only
+// stripped when the numbers run consecutively over the whole body — see
+// `tabNumberedRange`.
+const TAB_PREFIX_REGEX = /^\s*(\d+)\t/;
+const SYSTEM_REMINDER_PREFIX = "<system-reminder>";
+const SYSTEM_REMINDER_SUFFIX = "</system-reminder>";
 // `read_file` (`agent_core/core/tools/impls/coding/files.rs`) prepends a
 // classification marker line of the form `[action: read_text]` (or
 // `read_image` / `read_pdf`). The marker is purely an LLM hint and must
@@ -139,6 +159,59 @@ const stripCache = new LRUCache<
   string,
   { content: string; lineCount: number; startLine?: number }
 >(MAX_STRIP_CACHE);
+
+/**
+ * Index just past a leading `<system-reminder>…</system-reminder>` block and
+ * any blank lines that follow it. Claude Code prepends one to some `Read`
+ * results (e.g. the staleness notice on memory files). Returns 0 when the body
+ * does not open with a complete block — an unterminated tag means the string is
+ * file content that merely mentions the marker, not a real reminder.
+ */
+function skipLeadingSystemReminder(body: string[]): number {
+  if (body.length === 0) return 0;
+  if (!body[0].trimStart().startsWith(SYSTEM_REMINDER_PREFIX)) return 0;
+
+  const close = body.findIndex((line) => line.includes(SYSTEM_REMINDER_SUFFIX));
+  if (close === -1) return 0;
+
+  let start = close + 1;
+  while (start < body.length && body[start].trim().length === 0) start += 1;
+  return start;
+}
+
+/**
+ * Range of `body` holding `<digits><TAB>` lines whose numbers increase by
+ * exactly 1, or null when `body` is not `cat -n` output.
+ *
+ * A tab separator also occurs in ordinary data (a TSV with a sequential id
+ * column), so the run must cover the whole body — only blank lines and a
+ * `<system-reminder>` block may sit on either side of it. Anything else means
+ * the content is a real file and must be left untouched.
+ */
+function tabNumberedRange(
+  body: string[]
+): { start: number; end: number } | null {
+  const start = skipLeadingSystemReminder(body);
+  let expected: number | null = null;
+  let end = start;
+  for (let i = start; i < body.length; i += 1) {
+    const match = TAB_PREFIX_REGEX.exec(body[i]);
+    if (!match) break;
+    const lineNo = Number.parseInt(match[1], 10);
+    if (expected !== null && lineNo !== expected) return null;
+    expected = lineNo + 1;
+    end += 1;
+  }
+  if (end === start) return null;
+
+  for (let i = end; i < body.length; i += 1) {
+    const rest = body[i].trim();
+    if (rest.length === 0) continue;
+    if (rest.startsWith(SYSTEM_REMINDER_PREFIX)) break;
+    return null;
+  }
+  return { start, end };
+}
 
 /**
  * Strip the leading `[action: ...]` marker plus per-line `<digits><sep>`
@@ -172,9 +245,23 @@ export function stripLineNumberPrefixes(content: string): {
   const firstNonEmpty = body.find((line) => line.trim().length > 0);
   const numbered =
     firstNonEmpty !== undefined && LINE_PREFIX_REGEX.test(firstNonEmpty);
+  const tabRange = numbered ? null : tabNumberedRange(body);
 
-  if (!numbered && !hasActionMarker && !hasReadFileFooter) {
+  if (!numbered && !tabRange && !hasActionMarker && !hasReadFileFooter) {
     const result = { content, lineCount: lines.length };
+    stripCache.set(key, result);
+    return result;
+  }
+
+  if (tabRange) {
+    const numberedBody = body.slice(tabRange.start, tabRange.end);
+    const result = {
+      content: numberedBody
+        .map((line) => line.replace(TAB_PREFIX_REGEX, ""))
+        .join("\n"),
+      lineCount: numberedBody.length,
+      startLine: Number.parseInt(numberedBody[0].trimStart(), 10) || undefined,
+    };
     stripCache.set(key, result);
     return result;
   }

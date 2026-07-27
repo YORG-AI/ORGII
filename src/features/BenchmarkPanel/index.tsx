@@ -21,6 +21,10 @@ import TabPill from "@src/components/TabPill";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import BenchmarkTaskSelector from "@src/features/BenchmarkPanel/BenchmarkTaskSelector";
 import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import {
+  listBenchmarkTasksShared,
+  setBenchmarkAgentBatchStatusShared,
+} from "@src/hooks/benchmark/benchmarkRequestCoordinator";
 import { useBenchmarkAgentBatchRun } from "@src/hooks/benchmark/useBenchmarkAgentBatchRun";
 import { useBenchmarkTasks } from "@src/hooks/benchmark/useBenchmarkTasks";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
@@ -170,7 +174,7 @@ export const BenchmarkPanel: React.FC<BenchmarkPanelProps> = ({
       setAddTasksLoading(true);
       setAddTasksError(null);
       try {
-        const rows = await benchmarkApi.listTasks({
+        const rows = await listBenchmarkTasksShared({
           kind: status.benchmarkKind,
           sourcePath: status.sourcePath,
           limit: BENCHMARK_TASK_LIST_LIMIT,
@@ -310,6 +314,7 @@ export const BenchmarkPanel: React.FC<BenchmarkPanelProps> = ({
           action,
           taskIds,
         });
+        setBenchmarkAgentBatchStatusShared(status);
         setBenchmarkBatchStatus(status);
         void loadSessions({ forceRefresh: true });
         return true;
@@ -418,6 +423,7 @@ export const BenchmarkPanel: React.FC<BenchmarkPanelProps> = ({
         batchId: batchStatus.batchId,
         evaluationMode: BENCHMARK_EVALUATION_MODE.LOCAL_DOCKER,
       });
+      setBenchmarkAgentBatchStatusShared(status);
       setBenchmarkBatchStatus(status);
       const evaluatedCount = status.items.filter(
         (item) => item.evaluationStatus

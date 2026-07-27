@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Ajouter une étoile à ORG2 sur GitHub",
+      "description": "Soutenez le projet avec une étoile GitHub.",
+      "loading": "Vérification...",
+      "star": "Ajouter une étoile",
+      "starring": "Ajout en cours...",
+      "starred": "Étoile ajoutée",
+      "thanks": "Merci pour votre soutien !",
+      "openGitHub": "Ouvrir GitHub",
+      "openingGitHub": "Ouverture...",
+      "unavailableGhMissing": "GitHub CLI n’est pas disponible",
+      "unavailableNotAuthenticated": "Connectez-vous à GitHub CLI",
+      "unavailableNetwork": "GitHub est inaccessible",
+      "unavailablePermission": "Autorisation GitHub requise",
+      "unavailableTimeout": "La requête GitHub a expiré",
+      "unavailableUnexpected": "État GitHub indisponible",
+      "reminderTitle": "Soutenir ORG2",
+      "reminderDescription": "Si ORG2 vous a été utile, pourriez-vous lui ajouter une étoile sur GitHub ?",
+      "later": "Plus tard",
+      "neverAskAgain": "Ne plus demander"
+    },
     "tabGeneral": "Général",
     "loginStatus": "État de connexion",
     "loggedIn": "Connecté",
@@ -139,13 +160,10 @@
       "helveticaNeue": "Style Helvetica Neue"
     },
     "uiScale": "Échelle de l'interface",
-    "preferences": "Préférences",
-    "usePointerCursors": "Utiliser les curseurs en forme de pointeur",
-    "usePointerCursorsDesc": "Transformer le curseur en pointeur au survol des éléments interactifs",
     "timezoneAuto": "Auto (navigateur)",
     "timezoneSearchPlaceholder": "Rechercher des villes proches",
     "sendOnEnter": "Envoyer les messages avec Entrée",
-    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie et Shift+Entrée insère une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie",
+    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie ; Shift+Entrée et Ctrl/Cmd+Entrée insèrent une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie",
     "language": "Langue",
     "languageSearchPlaceholder": "Rechercher des langues...",
     "languageNames": {
@@ -230,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Je suis au clavier. Tu peux me poser des questions de clarification à tout moment et confirmer avec moi toute action destructive avant de l'exécuter",
     "presenceGuidanceInvisibleDefault": "Je suis disponible mais affiché hors ligne. Par défaut, travaille de façon autonome et préviens-moi seulement pour les actions à risque élevé ou les refactorisations importantes ; regroupe les autres questions dans un seul résumé au lieu de les poser une par une",
     "presenceGuidanceAwayDefault": "Je suis loin du clavier. Ne bloque pas en m'attendant ; prends la meilleure décision avec les informations disponibles, termine ce qui peut l'être et laisse un bref résumé de ce qui s'est passé avec les questions ouvertes pour mon retour",
-    "followSystem": "Suivre le système"
+    "followSystem": "Suivre le système",
+    "preferences": "Préférences",
+    "usePointerCursors": "Utiliser les curseurs en forme de pointeur",
+    "usePointerCursorsDesc": "Transformer le curseur en pointeur au survol des éléments interactifs"
   },
   "background": {
     "title": "Arrière-plan",
@@ -1011,7 +1032,7 @@
     "decryptEffect": "Effet Decrypt",
     "decryptEffectDesc": "Activer l'animation Decrypt pour les messages Agent",
     "sendOnEnter": "Envoyer les messages avec Entrée",
-    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie et Shift+Entrée insère une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie"
+    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie ; Shift+Entrée et Ctrl/Cmd+Entrée insèrent une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie"
   },
   "languageServers": {
     "languageServersDesc": "Gérer les serveurs LSP pour l'autocomplétion, les diagnostics et l'intelligence du code",

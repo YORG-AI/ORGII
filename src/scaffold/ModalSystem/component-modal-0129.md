@@ -49,7 +49,6 @@ Used extensively throughout the app for modals:
 
 - `src/components/DeleteModal/index.tsx` - Used in delete modal
 - `src/components/CreateBranchModal/index.tsx` - Used in create branch modal
-- `src/components/LoginModal/index.tsx` - Used in login modal
 - `src/components/GlobalModal/component/FormModal.tsx` - Used in form modal
 - And many other components
 
@@ -363,7 +362,6 @@ interface ConfirmModalConfig {
 The ModalSystem includes several specialized modal variants:
 
 - `variants/QuickUpload/` - File upload modal
-- `variants/Login/` - Login modal
 - `variants/Rename/` - Rename modal
 - `variants/AddFunds/` - Add funds modal
 - `variants/ContentView/` - Content viewing modal

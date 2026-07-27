@@ -25,8 +25,8 @@ import type {
 
 import type { SessionEventsSegmentInput } from "../TeamCollaboration/sync/CollabSyncBackend";
 import {
-  type SegmentWirePayload,
   mapSegmentsBounded,
+  toFrozenSegmentStorage,
   toFrozenSegmentWire,
   toTailWire,
 } from "../TeamCollaboration/sync/segmentCodec";
@@ -35,10 +35,16 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
+import { getCloudCapabilities } from "./org2CloudCapabilities";
 import {
   fetchWithTransportRetry,
   runCloudRequestWithTimeout,
 } from "./org2CloudFetchRetry";
+import { endpointForOrg } from "./org2CloudOrgEndpointRouter";
+import {
+  buildReplayObjectPath,
+  uploadReplayObject,
+} from "./org2CloudStorageClient";
 
 // ---------------------------------------------------------------------------
 // Error model
@@ -149,12 +155,20 @@ async function callSyncRpc(
 // Wire schemas
 // ---------------------------------------------------------------------------
 
-const CloudSegmentWireSchema = z.object({
-  seq: z.number(),
-  payloadGz: z.string(),
-  eventCount: z.number(),
-  segmentHash: z.string(),
-});
+const CloudSegmentWireSchema = z
+  .object({
+    seq: z.number(),
+    // 0006 storage offload: a frozen segment carries storagePath XOR the
+    // legacy inline payloadGz. The tail (seq 0) is always inline.
+    payloadGz: z.string().nullish(),
+    storagePath: z.string().nullish(),
+    eventCount: z.number(),
+    segmentHash: z.string(),
+  })
+  .refine(
+    (segment) => segment.payloadGz != null || segment.storagePath != null,
+    { message: "segment carries neither payloadGz nor storagePath" }
+  );
 
 const CloudSessionEventsSchema = z.object({
   epoch: z.number().nullish().default(null),
@@ -216,13 +230,22 @@ const CloudOrgSessionsSchema = z.object({
     .catch(undefined),
 });
 
+/** Read-side segment wire: inline (`payloadGz`) or offloaded (`storagePath`). */
+export interface CloudSegmentWire {
+  seq?: number;
+  payloadGz?: string | null;
+  storagePath?: string | null;
+  eventCount: number;
+  segmentHash: string;
+}
+
 export interface CloudSessionEventsSnapshot {
   epoch: number | null;
   frozenSeq: number | null;
   tailHash: string | null;
   /** Total event count (frozen + tail); null ⇒ nothing published yet. */
   count: number | null;
-  segments: SegmentWirePayload[];
+  segments: CloudSegmentWire[];
 }
 
 export type CloudSessionEventsSummary = Omit<
@@ -242,7 +265,7 @@ const SESSION_LISTING_MAX_PAGES = 50;
 /** supabaseUrl set of backends that rejected the paged signature (pre-0005). */
 const paginationUnsupportedEndpoints = new Set<string>();
 
-function isPagedSignatureUnsupported(error: unknown): boolean {
+function isRpcSignatureUnsupported(error: unknown): boolean {
   return (
     error instanceof Org2CloudSyncError &&
     error.status === 404 &&
@@ -253,6 +276,58 @@ function isPagedSignatureUnsupported(error: unknown): boolean {
 export const __SESSION_LISTING_INTERNALS = {
   resetPaginationSupport: () => paginationUnsupportedEndpoints.clear(),
 };
+
+/** supabaseUrl set of backends that rejected the storage segment wire (pre-0006). */
+const storageSegmentsUnsupportedEndpoints = new Set<string>();
+
+export const __STORAGE_SEGMENTS_INTERNALS = {
+  resetStorageSupport: () => storageSegmentsUnsupportedEndpoints.clear(),
+};
+
+async function shouldUseStorageSegments(
+  accessToken: string,
+  endpoint: CloudEndpoint
+): Promise<boolean> {
+  if (storageSegmentsUnsupportedEndpoints.has(endpoint.supabaseUrl)) {
+    return false;
+  }
+  return (await getCloudCapabilities(accessToken)).storageSegments;
+}
+
+interface CloudStorageSegmentWire {
+  seq: number;
+  storagePath: string;
+  eventCount: number;
+  segmentHash: string;
+}
+
+/** Upload each frozen segment's raw gzip bytes, then describe it by path. */
+async function uploadFrozenSegmentsToStorage(
+  accessToken: string,
+  endpoint: CloudEndpoint,
+  orgId: string,
+  sessionId: string,
+  epoch: number,
+  segments: SessionEventsSegmentInput[]
+): Promise<CloudStorageSegmentWire[]> {
+  return mapSegmentsBounded(segments, async (segment) => {
+    const encoded = await toFrozenSegmentStorage(segment);
+    const storagePath = buildReplayObjectPath(
+      orgId,
+      sessionId,
+      epoch,
+      encoded.seq,
+      encoded.segmentHash
+    );
+    await uploadReplayObject(accessToken, storagePath, encoded.bytes, endpoint);
+    return {
+      seq: encoded.seq,
+      storagePath,
+      eventCount: encoded.eventCount,
+      segmentHash: encoded.segmentHash,
+    };
+  });
+}
 
 export type CloudOrgScopeState = z.output<typeof CloudOrgScopeStateSchema>;
 
@@ -269,9 +344,12 @@ export async function getOrgRepoScopes(
   accessToken: string,
   orgId: string
 ): Promise<CloudOrgScopeState> {
-  const payload = await callSyncRpc("cloud_get_org_repo_scopes", accessToken, {
-    p_org_id: orgId,
-  });
+  const payload = await callSyncRpc(
+    "cloud_get_org_repo_scopes",
+    accessToken,
+    { p_org_id: orgId },
+    endpointForOrg(orgId)
+  );
   return CloudOrgScopeStateSchema.parse(payload);
 }
 
@@ -336,11 +414,16 @@ export async function upsertSessionMetadata(
   sessionId: string,
   metadata: RemoteTeammateSessionMetadata
 ): Promise<void> {
-  await callSyncRpc("cloud_upsert_session_metadata", accessToken, {
-    p_org_id: orgId,
-    p_session_id: sessionId,
-    metadata,
-  });
+  await callSyncRpc(
+    "cloud_upsert_session_metadata",
+    accessToken,
+    {
+      p_org_id: orgId,
+      p_session_id: sessionId,
+      metadata,
+    },
+    endpointForOrg(orgId)
+  );
 }
 
 export interface CloudRewriteSessionEventsInput {
@@ -357,19 +440,53 @@ export async function rewriteSessionEvents(
   accessToken: string,
   input: CloudRewriteSessionEventsInput
 ): Promise<void> {
-  await callSyncRpc("cloud_rewrite_session_events", accessToken, {
+  const endpoint = endpointForOrg(input.orgId);
+  const baseBody = {
     p_org_id: input.orgId,
     p_session_id: input.sessionId,
     new_epoch: input.newEpoch,
-    // Bounded encode: `Promise.all` over every segment materializes all
-    // canonical/gzip/base64 buffers simultaneously and multiplies RSS.
-    frozen_segments: await mapSegmentsBounded(
-      input.frozenSegments,
-      toFrozenSegmentWire
-    ),
     tail: await toTailWire(input.tail),
     total_count: input.totalCount,
-  });
+  };
+  if (
+    input.frozenSegments.length > 0 &&
+    (await shouldUseStorageSegments(accessToken, endpoint))
+  ) {
+    const frozenSegments = await uploadFrozenSegmentsToStorage(
+      accessToken,
+      endpoint,
+      input.orgId,
+      input.sessionId,
+      input.newEpoch,
+      input.frozenSegments
+    );
+    try {
+      await callSyncRpc(
+        "cloud_rewrite_session_events",
+        accessToken,
+        { ...baseBody, frozen_segments: frozenSegments },
+        endpoint
+      );
+      return;
+    } catch (error) {
+      if (!isRpcSignatureUnsupported(error)) throw error;
+      storageSegmentsUnsupportedEndpoints.add(endpoint.supabaseUrl);
+    }
+  }
+  await callSyncRpc(
+    "cloud_rewrite_session_events",
+    accessToken,
+    {
+      ...baseBody,
+      // Bounded encode: `Promise.all` over every segment materializes all
+      // canonical/gzip/base64 buffers simultaneously and multiplies RSS.
+      frozen_segments: await mapSegmentsBounded(
+        input.frozenSegments,
+        toFrozenSegmentWire
+      ),
+    },
+    endpoint
+  );
 }
 
 export interface CloudAppendSessionEventsInput {
@@ -389,19 +506,53 @@ export async function appendSessionEvents(
   accessToken: string,
   input: CloudAppendSessionEventsInput
 ): Promise<void> {
-  await callSyncRpc("cloud_append_session_events", accessToken, {
+  const endpoint = endpointForOrg(input.orgId);
+  const baseBody = {
     p_org_id: input.orgId,
     p_session_id: input.sessionId,
     expected_epoch: input.expectedEpoch,
     expected_frozen_seq: input.expectedFrozenSeq,
     expected_tail_hash: input.expectedTailHash,
-    new_frozen_segments: await mapSegmentsBounded(
-      input.newFrozenSegments,
-      toFrozenSegmentWire
-    ),
     tail: await toTailWire(input.tail),
     total_count: input.totalCount,
-  });
+  };
+  if (
+    input.newFrozenSegments.length > 0 &&
+    (await shouldUseStorageSegments(accessToken, endpoint))
+  ) {
+    const newFrozenSegments = await uploadFrozenSegmentsToStorage(
+      accessToken,
+      endpoint,
+      input.orgId,
+      input.sessionId,
+      input.expectedEpoch,
+      input.newFrozenSegments
+    );
+    try {
+      await callSyncRpc(
+        "cloud_append_session_events",
+        accessToken,
+        { ...baseBody, new_frozen_segments: newFrozenSegments },
+        endpoint
+      );
+      return;
+    } catch (error) {
+      if (!isRpcSignatureUnsupported(error)) throw error;
+      storageSegmentsUnsupportedEndpoints.add(endpoint.supabaseUrl);
+    }
+  }
+  await callSyncRpc(
+    "cloud_append_session_events",
+    accessToken,
+    {
+      ...baseBody,
+      new_frozen_segments: await mapSegmentsBounded(
+        input.newFrozenSegments,
+        toFrozenSegmentWire
+      ),
+    },
+    endpoint
+  );
 }
 
 /** Member: retention-windowed session listing for one cloud org. */
@@ -411,7 +562,7 @@ export async function listOrgSessions(
   since?: string,
   signal?: AbortSignal
 ): Promise<CloudOrgSessions> {
-  const endpoint = getCloudEndpoint();
+  const endpoint = endpointForOrg(orgId);
   const legacyCall = async () => {
     const payload = await callSyncRpc(
       "cloud_list_org_sessions",
@@ -460,7 +611,7 @@ export async function listOrgSessions(
           15_000
         );
       } catch (error) {
-        if (page === 0 && isPagedSignatureUnsupported(error)) {
+        if (page === 0 && isRpcSignatureUnsupported(error)) {
           paginationUnsupportedEndpoints.add(endpoint.supabaseUrl);
           parsed = await legacyCall();
           break;
@@ -545,7 +696,7 @@ export async function getSessionEvents(
   sessionId: string,
   options?: GetSessionEventsOptions
 ): Promise<CloudSessionEventsSnapshot> {
-  const segments: SegmentWirePayload[] = [];
+  const segments: CloudSegmentWire[] = [];
   const summary = await streamSessionEvents(
     accessToken,
     orgId,
@@ -624,7 +775,7 @@ async function streamSessionEventsPaged(
           ? { p_share_token: options.shareToken }
           : {}),
       },
-      options?.endpoint,
+      options?.endpoint ?? endpointForOrg(orgId),
       options?.signal
     );
     const parsed = CloudSessionEventsPageSchema.parse(payload);
@@ -679,7 +830,7 @@ async function getSessionEventsLegacy(
         ? { p_after_seq: options.afterSeq }
         : {}),
     },
-    options?.endpoint,
+    options?.endpoint ?? endpointForOrg(orgId),
     options?.signal
   );
   const parsed = CloudSessionEventsSchema.parse(payload);
@@ -704,8 +855,10 @@ export async function deleteSession(
   orgId: string,
   sessionId: string
 ): Promise<void> {
-  await callSyncRpc("cloud_delete_session", accessToken, {
-    p_org_id: orgId,
-    p_session_id: sessionId,
-  });
+  await callSyncRpc(
+    "cloud_delete_session",
+    accessToken,
+    { p_org_id: orgId, p_session_id: sessionId },
+    endpointForOrg(orgId)
+  );
 }

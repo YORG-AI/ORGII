@@ -111,6 +111,18 @@ export const dataSourcePresenceAtom = atomWithStorage<
   Record<string, DataSourcePresence>
 >(PRESENCE_STORAGE_KEY, {});
 
+/**
+ * Per-source backend cache signature captured at the last rescan-driven
+ * roster reload. The auto-scan compares fresh rescan signatures against this
+ * baseline: a drift means SOME caller's sync (kanban, usage, transcript
+ * pagers — not necessarily the rescan itself) changed cached rows since the
+ * sidebar last read them, e.g. a continuation demotion, so a reload is due
+ * even when the rescan reports no changes of its own. Deliberately in-memory
+ * only: losing it merely costs one reload after relaunch, while persisting it
+ * could suppress the startup reload that heals a stale persisted sidebar.
+ */
+export const dataSourceRosterSignaturesAtom = atom<Record<string, string>>({});
+
 const EXTERNAL_SESSIONS_ENABLED_STORAGE_KEY = "orgii:externalSessionsEnabled";
 
 /**

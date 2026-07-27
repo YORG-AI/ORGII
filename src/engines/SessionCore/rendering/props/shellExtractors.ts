@@ -1,6 +1,8 @@
 /**
  * Shell / command execution data extractor.
  */
+import { getCommandSymbolList } from "@src/util/terminal/commandParser";
+
 import type {
   ExtractedShellData,
   UniversalEventProps,
@@ -28,18 +30,22 @@ function resolveAction(
   return undefined;
 }
 
+/**
+ * Command labels for the replay sidebar / Station rows.
+ *
+ * Delegates to the shared shell parser: a naive split on `&&|;|` shredded any
+ * command whose arguments contained those characters — `grep -rn "a\|b" src/ |
+ * head` labelled itself `grep, \[|→\]", head` — because quoting was ignored.
+ */
 function getShellCommandDisplay(command: string): {
   shortCommand?: string;
   commandKeywords?: string;
 } {
   if (!command) return {};
-  const parts = command.split(/(?:&&|\|\||;|\|)/);
-  const commands = parts
-    .map((part) => part.trim().split(/\s+/)[0])
-    .filter(Boolean);
+  const symbols = getCommandSymbolList(command);
   return {
-    shortCommand: command.trim().split(/\s+/)[0] || command,
-    commandKeywords: [...new Set(commands)].join(", "),
+    shortCommand: symbols[0] || command.trim().split(/\s+/)[0] || command,
+    commandKeywords: symbols.join(", "),
   };
 }
 

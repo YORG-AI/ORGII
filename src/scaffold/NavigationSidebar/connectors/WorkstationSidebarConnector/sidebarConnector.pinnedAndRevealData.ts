@@ -35,6 +35,8 @@ interface UseWorkstationSidebarPinnedAndRevealDataParams {
   importGithubIssuesLabel: string;
   newSessionLabel: string;
   runtimeLabel: string;
+  teamInboxLabel: string;
+  teamInboxUnreadCount?: number;
   t: TFunction<"navigation">;
   tSessions: TFunction<"sessions">;
 }
@@ -51,6 +53,8 @@ export function useWorkstationSidebarPinnedAndRevealData({
   importGithubIssuesLabel,
   newSessionLabel,
   runtimeLabel,
+  teamInboxLabel,
+  teamInboxUnreadCount,
   t,
   tSessions,
 }: UseWorkstationSidebarPinnedAndRevealDataParams) {
@@ -87,6 +91,8 @@ export function useWorkstationSidebarPinnedAndRevealData({
     kanbanLabel: tSessions("simulator.tabs.kanban"),
     newSessionLabel,
     runtimeLabel,
+    teamInboxLabel,
+    teamInboxUnreadCount,
     workItemDestinations: workItemsSidebarMenuItems,
     t,
   });

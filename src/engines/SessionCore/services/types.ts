@@ -104,6 +104,12 @@ export interface SessionSendMessageParams {
    */
   turnIntentId?: string;
   /**
+   * True only for a real user-authored prompt. Rust-native adapters persist
+   * Agent Org intervention inside the same backend acceptance boundary; CLI
+   * adapters apply it immediately after their command accepts the rerun.
+   */
+  directUserIntent?: boolean;
+  /**
    * Origin of this logical turn. Force-send must remain distinct from a plain
    * submit so a still-cancelling backend turn cannot absorb it as steering.
    */

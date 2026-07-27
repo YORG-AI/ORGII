@@ -5,7 +5,7 @@
  * Returns linked (non-main) worktrees only — the main worktree
  * is already displayed by the primary Source Control section.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 import type {
   GitWorktreeDiffSummary,
@@ -13,7 +13,7 @@ import type {
 } from "@src/api/http/git/types";
 import { getGitWorktrees } from "@src/api/http/git/worktrees";
 import { getCodeEditorWebSocket } from "@src/api/realtime/codeEditorWebSocket";
-import { useMountedCleanup } from "@src/hooks/lifecycle/useMounted";
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
@@ -39,57 +39,59 @@ export interface UseGitWorktreesResult {
   refresh: () => Promise<void>;
 }
 
+interface GitWorktreesData {
+  worktrees: GitWorktreeEntry[];
+  mainDiffSummary: GitWorktreeDiffSummary | null;
+}
+
+const EMPTY_WORKTREES: GitWorktreesData = {
+  worktrees: [],
+  mainDiffSummary: null,
+};
+
 export function useGitWorktrees({
   repoId,
   repoPath,
   enabled = true,
 }: UseGitWorktreesOptions): UseGitWorktreesResult {
-  const [worktrees, setWorktrees] = useState<GitWorktreeEntry[]>([]);
-  const [mainDiffSummary, setMainDiffSummary] =
-    useState<GitWorktreeDiffSummary | null>(null);
-  const [loading, setLoading] = useState(enabled);
-  const loadedRef = useRef(false);
-  const mountedRef = useRef(true);
-  useMountedCleanup(mountedRef);
-
-  const fetchWorktrees = useCallback(async () => {
-    if (!enabled) return;
-
-    if (!loadedRef.current) setLoading(true);
+  const fetchWorktrees = useCallback(async (serializedScope: string) => {
+    const scope = JSON.parse(serializedScope) as {
+      repoId: string;
+      repoPath: string;
+    };
     try {
       const entries = await getGitWorktrees({
-        repo_id: repoId,
-        repo_path: repoPath,
+        repo_id: scope.repoId,
+        repo_path: scope.repoPath,
       });
-      if (!mountedRef.current) return;
-      setWorktrees(entries.filter((entry) => !entry.is_main));
-      setMainDiffSummary(extractMainWorktreeDiffSummary(entries));
+      return {
+        worktrees: entries.filter((entry) => !entry.is_main),
+        mainDiffSummary: extractMainWorktreeDiffSummary(entries),
+      };
     } catch (error) {
       logger.warn("Failed to fetch git worktrees", error);
-    } finally {
-      if (mountedRef.current) {
-        loadedRef.current = true;
-        setLoading(false);
-      }
+      throw error;
     }
-  }, [enabled, repoId, repoPath, mountedRef]);
-
-  const debouncedFetch = useDebouncedCallback(
-    () => fetchWorktrees(),
-    DEBOUNCE_DELAYS.API
+  }, []);
+  const scopeKey =
+    enabled && repoId ? JSON.stringify({ repoId, repoPath }) : null;
+  const resource = useAsyncResource({
+    enabled: Boolean(scopeKey),
+    fetcher: fetchWorktrees,
+    initialData: EMPTY_WORKTREES,
+    scopeKey,
+  });
+  const reloadWorktrees = resource.reload;
+  const resourceStatus = resource.status;
+  const refresh = useCallback(
+    () => reloadWorktrees({ background: resourceStatus === "ready" }),
+    [reloadWorktrees, resourceStatus]
   );
 
-  useEffect(() => {
-    loadedRef.current = false;
-    setLoading(enabled);
-    if (!enabled) {
-      setWorktrees([]);
-      setMainDiffSummary(null);
-      return;
-    }
-
-    void fetchWorktrees();
-  }, [enabled, fetchWorktrees]);
+  const debouncedFetch = useDebouncedCallback(
+    () => reloadWorktrees({ background: true }),
+    DEBOUNCE_DELAYS.API
+  );
 
   useEffect(() => {
     if (!enabled) return;
@@ -114,13 +116,13 @@ export function useGitWorktrees({
     };
   }, [enabled, repoId, debouncedFetch]);
 
-  const visibleWorktrees = enabled ? worktrees : [];
+  const visibleWorktrees = resource.data.worktrees;
 
   return {
     worktrees: visibleWorktrees,
-    mainDiffSummary: enabled ? mainDiffSummary : null,
+    mainDiffSummary: resource.data.mainDiffSummary,
     hasWorktrees: visibleWorktrees.length > 0,
-    loading,
-    refresh: fetchWorktrees,
+    loading: resource.loading,
+    refresh,
   };
 }
