@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
+  type ImportedHistorySourceId,
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
 import { loadSessionRoster } from "@src/store/session";
@@ -18,21 +19,41 @@ import {
   SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS,
 } from "../sidebarConnectorUtils";
 
-/** Rescan every enabled external source, then refresh the canonical roster. */
-export async function rescanSidebarSessions(): Promise<void> {
-  const store = getInstrumentedStore();
+type SessionStore = ReturnType<typeof getInstrumentedStore>;
+
+interface SidebarRescanFlight {
+  scopeKey: string;
+  promise: Promise<void>;
+}
+
+const rescanInFlightByStore = new WeakMap<SessionStore, SidebarRescanFlight>();
+
+function getRescanScope(store: SessionStore): {
+  scopeKey: string;
+  sourceIds: ImportedHistorySourceId[];
+} {
+  if (!store.get(externalSessionsEnabledAtom)) {
+    return { scopeKey: "external-sessions-disabled", sourceIds: [] };
+  }
+  const config = store.get(dataSourceConfigAtom);
+  const sourceIds = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.filter(
+    ({ sourceId }) => getSourceConfig(config, sourceId).enabled
+  ).map(({ sourceId }) => sourceId);
+  return { scopeKey: JSON.stringify(sourceIds), sourceIds };
+}
+
+async function performSidebarSessionsRescan(
+  store: SessionStore,
+  sourceIds: readonly ImportedHistorySourceId[]
+): Promise<void> {
   if (!store.get(externalSessionsEnabledAtom)) {
     // External sessions are switched off entirely — nothing to rescan, and
     // the sidebar reload below would be a no-op for external categories.
     await loadSessionRoster({ forceRefresh: true });
     return;
   }
-  const config = store.get(dataSourceConfigAtom);
-  const sourceIds = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.filter(
-    ({ sourceId }) => getSourceConfig(config, sourceId).enabled
-  ).map(({ sourceId }) => sourceId);
 
-  const scanResult = await externalHistoryRescanSources(sourceIds);
+  const scanResult = await externalHistoryRescanSources([...sourceIds]);
   // Explicit refresh: reload unconditionally. Even a rescan that wrote
   // nothing can follow cache writes from other surfaces' syncs (e.g. a
   // continuation demotion) that the sidebar never rendered.
@@ -53,6 +74,32 @@ export async function rescanSidebarSessions(): Promise<void> {
     }
     return next;
   });
+}
+
+/** Coalesce overlapping refreshes without letting an obsolete scope win. */
+export async function rescanSidebarSessions(): Promise<void> {
+  const store = getInstrumentedStore();
+  const { scopeKey, sourceIds } = getRescanScope(store);
+  const inFlight = rescanInFlightByStore.get(store);
+  if (inFlight) {
+    if (inFlight.scopeKey === scopeKey) return inFlight.promise;
+    try {
+      await inFlight.promise;
+    } catch {
+      // A failed obsolete scope must not suppress the current source set.
+    }
+    return rescanSidebarSessions();
+  }
+
+  const pass = performSidebarSessionsRescan(store, sourceIds);
+  rescanInFlightByStore.set(store, { scopeKey, promise: pass });
+  try {
+    await pass;
+  } finally {
+    if (rescanInFlightByStore.get(store)?.promise === pass) {
+      rescanInFlightByStore.delete(store);
+    }
+  }
 }
 
 export function useSidebarSessionRefreshEffects(): void {
