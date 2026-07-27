@@ -726,12 +726,18 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       </div>
     ) : null;
 
-    const container = getPopupContainer?.() || document.body;
+    const tooltipPortal =
+      tooltipContent && typeof document !== "undefined"
+        ? ReactDOM.createPortal(
+            tooltipContent,
+            getPopupContainer?.() || document.body
+          )
+        : null;
 
     return (
       <>
         {wrappedChildren}
-        {ReactDOM.createPortal(tooltipContent, container)}
+        {tooltipPortal}
       </>
     );
   }
