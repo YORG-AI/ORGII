@@ -103,3 +103,35 @@ The unused `/windows/welcome` mode picker and `/windows/tab` detached-tab host w
 - the storage-safe `getWindowId()` helper used by repo/workspace persistence
 
 **To restore:** reverse the relevant moves and restore the `/windows/*` routes, detached-window manager helpers, and their four Tauri command registrations.
+
+## Orphaned modules sweep — archived 2026-07-27
+
+Unlike the sections above, this was not a feature removal but a mechanical sweep: 34 modules that **no file in the repo imports**, found by building the `src/` import graph and diffing it against the file list.
+
+The graph resolved the `@src` / `@api` / `@common` / `@page` / `@assets` aliases, lazy `import(/* webpackChunkName */ …)`, `new Worker(new URL(…))`, and source paths referenced as plain strings from root configs (vitest `setupFiles`, webpack entry). Every file below additionally has a basename that appears in **no other file** in `src/`, `tests/`, or `scripts/` — so nothing reaches them by import, by test, or by name.
+
+Note that the repo's own `npm run check:unused-exports` does **not** find these. `ts-unused-exports` reports exports nobody imports, which is a different question — a fully-live module that over-exports its internal types lands on that list (1047 modules do), while a module nobody imports at all does not necessarily.
+
+**What moved here (34 files, ~5,120 LOC):**
+
+- `src/components/` — `ComposerInput/ComposerInputSurface`, `FileTreeContent/FileTreeRows`, `Virtualized/VirtualizedSessionList`
+- `src/config/` — `animationConfig`, `externalLinks`, `heavyComponents`
+- `src/engines/ChatPanel/` — `InputArea/components/createPillCache`, `hooks/useInputArea/useRepoSuggestions`, `panels/RecentSessionsPanelView`, `panels/useBenchmarkSessionCreatorSlots` (658 LOC, the largest)
+- `src/engines/Simulator/components/` — `AskUserEvent`, `AskUserPending`, `GridCell/subagentCellHeaderIconKind`
+- `src/engines/BrowserCore/BrowserUrlInput`
+- `src/features/SessionCreator/` — `components/SessionInfoLine/SwitchWorkspaceSelector`, `variants/ChatPanel/AttachmentPopover`
+- `src/hooks/` — `auth/marketAuthHelpers`, `models/useModelCatalog`, `session/useOrgtrackSessionArtifacts`
+- `src/modules/MainApp/Integrations/` — `AddOptionsGrid`, `KeyVault/LocalModels/LocalModelsTabSection`, `KeyVault/Models/Detail/ModelCatalogDisplay`, `RulesMemoryEvolution/hooks/useAutomationRules`
+- `src/modules/WorkStation/` — `WorkStationShellFallback`, `shared/LayoutSettingsDropdown/{LayoutDropdownControls,LayoutThumbs}`, `CodeEditor/Panels/EditorMainPane/content/SearchEditorContent/SearchResultsCodeView`, `CodeEditor/Panels/EditorPrimarySidebar/hooks/useOpenAIImpactTab`
+- `src/modules/ProjectManager/WorkItems/components/WorkItemProperties/AssigneeDropdown`
+- `src/modules/shared/layouts/GenericBottomPanel/DownloadProgressCard`
+- `src/scaffold/` — `GlobalSpotlight/palettes/EditorPalette/hooks/useHintMode`, `NavigationSidebar/utils/menuFromRoutes`, `WizardSystem/shared/externalImport/ExternalImportWizard`
+- `src/store/chatPanel/recentCliAgentsAtom`
+
+**No shared files were edited.** Because nothing imported these modules, severing them required no changes to live code — this archival is a pure `git mv`.
+
+**What deliberately stayed live:** 151 barrel files (`index.ts` / `exports.ts`) that nothing currently imports. Some are deliberate public-API surface that internal callers happen to reach past, so bulk-archiving them would be wrong. They need a per-barrel judgement call and are left for a separate pass.
+
+**Verification:** `tsc --noEmit` clean, full vitest suite green (701 files / 6390 tests), production webpack build clean.
+
+**To restore:** reverse the `git mv` for the file in question. No other edits are needed.
