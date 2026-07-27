@@ -1,7 +1,6 @@
 //! Non-streaming `chat()` implementation for OpenAI-compatible providers.
 
 use serde_json::Value;
-use std::collections::HashMap;
 use tracing::{info, warn};
 
 use super::super::client::OpenAICompatClient;
@@ -173,12 +172,10 @@ pub(super) async fn run_chat(
         .next()
         .ok_or_else(|| ProviderError::ParseError("No choices in response".to_string()))?;
 
-    let mut usage = HashMap::new();
-    if let Some(api_usage) = parsed.usage {
-        usage.insert("prompt_tokens".to_string(), api_usage.prompt_tokens);
-        usage.insert("completion_tokens".to_string(), api_usage.completion_tokens);
-        usage.insert("total_tokens".to_string(), api_usage.total_tokens);
-    }
+    let usage = parsed
+        .usage
+        .map(|api_usage| api_usage.to_usage_map())
+        .unwrap_or_default();
 
     let tool_calls = choice
         .message
@@ -261,4 +258,66 @@ fn split_inline_thinking(
     };
 
     (content_out, merged_reasoning)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::providers::registry::{find_by_name, provider_id};
+    use crate::providers::traits::{usage_key, LLMProvider, ProviderConfig};
+    use std::collections::HashMap;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn non_streaming_standard_usage_normalizes_cached_tokens() {
+        crate::test_support::install_crypto_provider_for_tests();
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/chat/completions"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "choices": [{
+                    "message": {"content": "ok"},
+                    "finish_reason": "stop"
+                }],
+                "usage": {
+                    "prompt_tokens": 1200,
+                    "completion_tokens": 300,
+                    "total_tokens": 1500,
+                    "prompt_tokens_details": {"cached_tokens": 800}
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let spec = find_by_name(provider_id::OPENAI).expect("OpenAI provider registered");
+        let client = OpenAICompatClient::new(
+            ProviderConfig {
+                api_key: "test-key".to_string(),
+                api_base: Some(server.uri()),
+                extra_headers: HashMap::new(),
+                is_azure: false,
+            },
+            spec,
+            "gpt-4.1".to_string(),
+        );
+
+        let response = client
+            .chat(
+                &[serde_json::json!({"role": "user", "content": "hello"})],
+                None,
+                "gpt-4.1",
+                1024,
+                0.0,
+            )
+            .await
+            .expect("OpenAI-compatible response should parse");
+
+        assert_eq!(response.usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(response.usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(response.usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(response.usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!response.usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
 }

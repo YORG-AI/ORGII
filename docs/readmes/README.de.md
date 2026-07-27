@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Das System of Record für Software, die mit Agents gebaut wird.<br />Führe deine Coding-Agents aus — spiele jede Session ab, prüfe sie im Team und verfolge jede Zeile zurück bis zur Entscheidung dahinter.</strong></p>
+  <p><strong>Das System of Record dafür, wie Agents Software bauen.<br />Führe deine Coding-Agents aus — spiele jede Session ab, prüfe sie im Team und verfolge jede Zeile zurück bis zur Entscheidung dahinter.</strong></p>
   <p>Gebaut mit Rust und Tauri für local-first Ausführung mit weniger als 100 MB auf der Festplatte. Unterstützt Livestream und Replay von Agent-Trajektorien. Leicht zu verfolgen und zu prüfen.</p>
 </div>
 

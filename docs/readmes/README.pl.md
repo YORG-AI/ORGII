@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>System zapisu dla oprogramowania budowanego z Agents.<br />Uruchamiaj swoje Agents do kodu — odtwórz dowolną sesję, zrób review zespołowo i prześledź każdą linię aż do decyzji, która za nią stoi.</strong></p>
+  <p><strong>System zapisu tego, jak Agents budują oprogramowanie.<br />Uruchamiaj swoje Agents do kodu — odtwórz dowolną sesję, zrób review zespołowo i prześledź każdą linię aż do decyzji, która za nią stoi.</strong></p>
   <p>Zbudowane w Rust i Tauri, przeznaczone do local-first execution i zajmujące mniej niż 100 MB na dysku. Obsługuje livestream i replay trajektorii Agents. Łatwe do śledzenia i review.</p>
 </div>
 

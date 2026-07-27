@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Le système de référence pour les logiciels construits avec des Agents.<br />Exécutez vos Agents de code — rejouez n’importe quelle session, relisez en équipe et remontez de chaque ligne à la décision qui l’a produite.</strong></p>
+  <p><strong>Le système de référence de la façon dont les Agents construisent les logiciels.<br />Exécutez vos Agents de code — rejouez n’importe quelle session, relisez en équipe et remontez de chaque ligne à la décision qui l’a produite.</strong></p>
   <p>Construit avec Rust et Tauri pour une exécution local-first sous 100 Mo sur disque. Prend en charge le livestream et le replay des trajectoires d’Agents. Facile à suivre et à relire.</p>
 </div>
 

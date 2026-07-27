@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Hệ thống ghi nhận cho phần mềm được xây dựng cùng Agents.<br />Chạy các Agent lập trình của bạn — replay bất kỳ phiên nào, review theo nhóm và truy vết từng dòng về đúng quyết định đằng sau nó.</strong></p>
+  <p><strong>Hệ thống ghi nhận cách Agents xây dựng phần mềm.<br />Chạy các Agent lập trình của bạn — replay bất kỳ phiên nào, review theo nhóm và truy vết từng dòng về đúng quyết định đằng sau nó.</strong></p>
   <p>Được xây dựng bằng Rust và Tauri cho thực thi local-first, chiếm dưới 100MB trên ổ đĩa. Hỗ trợ livestream và replay trajectory của Agents. Dễ theo dõi và review.</p>
 </div>
 

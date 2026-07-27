@@ -876,9 +876,11 @@ pub fn set_sensitive_file_permissions(path: &Path) -> std::io::Result<()> {
 
 #[cfg(windows)]
 fn current_windows_account_for_acl() -> Option<String> {
-    let whoami = std::process::Command::new("whoami")
-        .stdin(Stdio::null())
-        .stderr(Stdio::null())
+    let mut cmd = std::process::Command::new("whoami");
+    cmd.stdin(Stdio::null()).stderr(Stdio::null());
+    // Suppress console window on Windows.
+    app_platform::hide_console(&mut cmd);
+    let whoami = cmd
         .output()
         .ok()
         .and_then(|output| {

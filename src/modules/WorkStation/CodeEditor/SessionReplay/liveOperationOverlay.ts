@@ -9,6 +9,7 @@ import { getEventStatus } from "@src/util/data/converters/eventStatus";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
 import {
+  convertShellSearchOperation,
   convertToExploreOperation,
   convertToFileOperation,
   convertToShellOperation,
@@ -156,6 +157,22 @@ export function applyLiveOperationOverlay(
 
   if (subtool === APP_SUBTOOL.SHELL) {
     const liveShellOperation = convertToShellOperation(currentEvent, true);
+    // Grep/rg pipelines run through the shell overlay onto the explore list,
+    // mirroring deriveIDEState's routing.
+    const liveSearchOperation = liveShellOperation
+      ? convertShellSearchOperation(liveShellOperation)
+      : null;
+    if (liveSearchOperation) {
+      return {
+        fileOperations: derivedState.fileOperations,
+        shellOperations: derivedState.shellOperations,
+        exploreOperations: replaceOrPrependByEventId(
+          derivedState.exploreOperations,
+          liveSearchOperation
+        ),
+        toolOperations: derivedState.toolOperations,
+      };
+    }
     return {
       fileOperations: derivedState.fileOperations,
       shellOperations: liveShellOperation
