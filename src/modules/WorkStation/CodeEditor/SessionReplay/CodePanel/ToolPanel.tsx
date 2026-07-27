@@ -12,6 +12,7 @@ import {
   statusToLifecycle,
   useLifecycleLabels,
 } from "@src/engines/SessionCore/rendering/registry";
+import { useTerminalSurfaceStyle } from "@src/hooks/terminal/useTerminalSurfaceStyle";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
@@ -34,28 +35,39 @@ function formatJson(record: Record<string, unknown>): string {
 }
 
 const ToolPane: React.FC<ToolPaneProps> = memo(
-  ({ label, content, emptyLabel, borderTop = false }) => (
-    <section
-      className={`flex min-h-0 flex-1 flex-col ${
-        borderTop ? "border-t border-border-2" : ""
-      }`}
-    >
-      <div className="flex h-9 shrink-0 items-center px-3 text-[11px] font-bold uppercase text-text-2">
-        {label}
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto px-3 pb-[100px]">
-        {content ? (
-          <pre className="m-0 whitespace-pre-wrap break-words text-[12px] leading-5 text-text-2">
-            {content}
-          </pre>
-        ) : (
-          <div className="flex h-full items-center justify-center text-[12px] text-text-4">
-            {emptyLabel}
-          </div>
-        )}
-      </div>
-    </section>
-  )
+  ({ label, content, emptyLabel, borderTop = false }) => {
+    const { foreground, mutedForeground, typography } =
+      useTerminalSurfaceStyle();
+
+    return (
+      <section
+        className={`flex min-h-0 flex-1 flex-col ${
+          borderTop ? "border-t border-border-2" : ""
+        }`}
+      >
+        <div className="flex h-9 shrink-0 items-center px-3 text-[11px] font-bold uppercase text-text-2">
+          {label}
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto px-3 pb-[100px]">
+          {content ? (
+            <pre
+              className="m-0 whitespace-pre-wrap break-words"
+              style={{ ...typography, color: foreground }}
+            >
+              {content}
+            </pre>
+          ) : (
+            <div
+              className="flex h-full items-center justify-center"
+              style={{ ...typography, color: mutedForeground }}
+            >
+              {emptyLabel}
+            </div>
+          )}
+        </div>
+      </section>
+    );
+  }
 );
 
 ToolPane.displayName = "ToolPane";

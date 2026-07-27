@@ -4,10 +4,10 @@
  * Returns the list of OrgMember (top-level org definitions) for use in
  * assignee pickers and orchestrator config resolution.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
-import { useMounted } from "@src/hooks/lifecycle/useMounted";
+import { useAsyncResource } from "@src/hooks/async";
 import { createLogger } from "@src/hooks/logger";
 
 import type { OrgMember } from "../types";
@@ -15,42 +15,23 @@ import type { OrgMember } from "../types";
 const log = createLogger("AgentOrgs");
 
 export function useAgentOrgs() {
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
-  const [loading, setLoading] = useState(false);
-  const mountedRef = useMounted();
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const fetchOrgs = useCallback(async () => {
     try {
-      const result = await rpc.agentOrgs.orgs.list();
-      if (mountedRef.current) setOrgs(result);
+      return await rpc.agentOrgs.orgs.list();
     } catch (error) {
       log.error("[AgentOrgs] Failed to fetch:", error);
-    } finally {
-      if (mountedRef.current) setLoading(false);
+      throw error;
     }
-  }, [mountedRef]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      setLoading(true);
-      try {
-        const result = await rpc.agentOrgs.orgs.list();
-        if (!cancelled) setOrgs(result);
-      } catch (error) {
-        log.error("[AgentOrgs] Failed to fetch:", error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+  const resource = useAsyncResource<OrgMember[]>({
+    fetcher: fetchOrgs,
+    initialData: [],
+    scopeKey: "agent-orgs",
+  });
 
-  return { orgs, loading, refresh };
+  return {
+    orgs: resource.data,
+    loading: resource.loading,
+    refresh: resource.refresh,
+  };
 }

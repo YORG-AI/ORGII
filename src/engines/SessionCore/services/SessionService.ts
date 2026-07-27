@@ -24,6 +24,7 @@ import {
   respondQuestion,
   sessionLaunch,
 } from "@src/api/tauri/agent";
+import { rpc } from "@src/api/tauri/rpc";
 import { ROUTES } from "@src/config/routes";
 import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
@@ -257,10 +258,7 @@ export const SessionService = {
         };
       }
 
-      const session = await invokeTauri<{
-        sessionId: string;
-        status: string;
-      } | null>("cli_agent_status", { sessionId });
+      const session = await rpc.cli.status({ sessionId });
 
       if (!session) {
         throw new Error(`CLI session not found: ${sessionId}`);
@@ -302,6 +300,7 @@ export const SessionService = {
       isResume,
       clientMessageId,
       turnIntentId,
+      directUserIntent,
       turnIntentSource,
     } = params;
     // Gate ADE context on the session row's persisted repo so a session
@@ -360,6 +359,7 @@ export const SessionService = {
         isResume,
         clientMessageId,
         turnIntentId,
+        directUserIntent,
         turnIntentSource,
         adeContext,
         sessionRepoPath: sessionRow?.repoPath ?? null,

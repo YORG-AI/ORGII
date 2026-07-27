@@ -430,7 +430,7 @@ describe("cloud teammate hover card", () => {
       createElement(CloudSessionHoverCardContent, {
         row: makeRow("s1", {
           title: "Fix realtime flow",
-          repoScopeKey: "yorgai/org2",
+          repoScopeKey: "org2ai/org2",
           branch: "feat/org2-cloud-auth",
           lastActivityAt: "2026-07-10T12:00:00Z",
           cliAgentType: "claude_code_cli",

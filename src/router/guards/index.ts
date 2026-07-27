@@ -9,3 +9,4 @@
 export { AuthGuard } from "./AuthGuard";
 export { AuthRedirect } from "./AuthRedirect";
 export { RepoGuard } from "./RepoGuard";
+export { SetupWalkthroughGuard } from "./SetupWalkthroughGuard";

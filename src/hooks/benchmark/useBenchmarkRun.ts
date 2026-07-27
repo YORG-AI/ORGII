@@ -19,6 +19,12 @@ import {
   benchmarkSourcePathAtom,
   benchmarkTargetRepoPathAtom,
 } from "@src/store/benchmark";
+import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
+
+import {
+  getBenchmarkRunStatusShared,
+  setBenchmarkRunStatusShared,
+} from "./benchmarkRequestCoordinator";
 
 const RUN_STATUS_POLL_INTERVAL_MS = 2_000;
 
@@ -124,6 +130,7 @@ export function useBenchmarkRun() {
             ? targetRepoPath
             : undefined,
       });
+      setBenchmarkRunStatusShared(status);
       setRunStatus(status);
       return status;
     } catch (error) {
@@ -151,6 +158,7 @@ export function useBenchmarkRun() {
     setRunError(null);
     try {
       const status = await benchmarkApi.cancelRun({ runId: runStatus.runId });
+      setBenchmarkRunStatusShared(status);
       setRunStatus(status);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -169,24 +177,25 @@ export function useBenchmarkRun() {
     }
 
     let cancelled = false;
-    const intervalId = window.setInterval(() => {
-      benchmarkApi
-        .getRunStatus({ runId: runStatus.runId })
-        .then((status) => {
-          if (!cancelled) {
-            setRunStatus(status);
-          }
-        })
-        .catch((error) => {
-          if (!cancelled) {
-            setRunError(error instanceof Error ? error.message : String(error));
-          }
-        });
-    }, RUN_STATUS_POLL_INTERVAL_MS);
+    const runId = runStatus.runId;
+    const poll = startVisibilityAwarePoll({
+      intervalMs: RUN_STATUS_POLL_INTERVAL_MS,
+      task: async () => {
+        const status = await getBenchmarkRunStatusShared(runId);
+        if (!cancelled) {
+          setRunStatus(status);
+        }
+      },
+      onError: (error) => {
+        if (!cancelled) {
+          setRunError(error instanceof Error ? error.message : String(error));
+        }
+      },
+    });
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      poll.stop();
     };
   }, [runStatus?.runId, runStatus?.status, setRunError, setRunStatus]);
 

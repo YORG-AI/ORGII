@@ -547,7 +547,6 @@
       "mySessions": "我的会话",
       "memberFilter": "按成员筛选",
       "sessionFilter": "筛选会话",
-      "copyId": "复制 ID",
       "directlySharedWithMe": "指定分享给我的",
       "everyone": "全部成员",
       "forkedFrom": "接力自 @{{name}}",
@@ -558,7 +557,8 @@
       "viewerOverflow": "还有 {{count}} 人正在看",
       "memberViewing": "正在看：{{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "复制 ID"
     },
     "sync": {
       "quotaExceededToast": "ORG2 云同步已暂停：该组织的套餐配额已用尽",
@@ -791,6 +791,9 @@
       "optionNone": "无最低要求",
       "memberNote": "组织管理员要求至少分享到{{mode}}，因此你不能把会话设得比这更低"
     },
-    "signedInAs": "已登录：{{name}}"
+    "signedInAs": "已登录：{{name}}",
+    "renameDisplayName": "修改显示名",
+    "renameSaved": "显示名已更新",
+    "renameFailed": "显示名更新失败"
   }
 }

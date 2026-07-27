@@ -5,20 +5,20 @@
 //! element (A2UI) inline in the chat without requiring a separate canvas app.
 //!
 //! ## Modes
-//! - `"html"` — self-contained HTML/SVG/CSS string rendered in a sandboxed
-//!   iframe. The agent should inline all styles and scripts.
-//! - `"url"` — a URL that will be loaded inside an embedded iframe. Only
-//!   HTTPS URLs or relative paths are accepted by the frontend sandbox.
+//! - `"html"` — self-contained HTML/SVG/CSS string sanitized and rendered in
+//!   Shadow DOM. Styles are preserved; scripts and event handlers are removed.
+//! - `"url"` — an HTTPS URL or relative path presented as an external-open
+//!   action rather than embedded in chat.
 //! - `"a2ui"` — a streaming JSONL sequence of A2UI element descriptors.
 //!   Supported types: heading, text, code, image, button, divider, list,
 //!   table, chart, form. Each JSONL line is streamed incrementally to the
 //!   card as it arrives.
 //!
 //! ## Return value
-//! The tool echoes back the accepted payload as a JSON confirmation so the LLM
-//! can verify the arguments were accepted. The frontend picks up the canvas
-//! event through the `canvas-inline-event` window event pipeline — not via the
-//! tool result text.
+//! The tool returns a concise acceptance acknowledgment. It deliberately does
+//! not claim visual success because the tool execution path cannot inspect the
+//! rendered card. The frontend picks up the canvas event through the
+//! `canvas-inline-event` window event pipeline — not via the tool result text.
 
 use async_trait::async_trait;
 use serde_json::Value;
@@ -27,6 +27,18 @@ use crate::tools::names as tool_names;
 use crate::tools::traits::{Tool, ToolError};
 
 pub struct RenderInlineCanvasTool;
+
+fn format_canvas_acceptance(mode: &str, content_len: usize, title: &str, url: &str) -> String {
+    match mode {
+        "html" | "a2ui" | "react" => format!(
+            "render_inline_canvas: accepted {mode} content ({content_len} bytes), title=\"{title}\"; visual output not verified"
+        ),
+        "url" => format!(
+            "render_inline_canvas: accepted url=\"{url}\", title=\"{title}\"; visual output not verified"
+        ),
+        _ => format!("render_inline_canvas: accepted mode={mode}, title=\"{title}\""),
+    }
+}
 
 impl RenderInlineCanvasTool {
     pub fn new() -> Self {
@@ -51,8 +63,8 @@ impl Tool for RenderInlineCanvasTool {
          Use this to present data visualisations, live previews, or structured output\n\
          without leaving the conversation.\n\n\
          Modes:\n\
-         - \"html\": Render a self-contained HTML/SVG/CSS snippet. Inline all styles and\n\
-           scripts — no external CDN links (they are blocked by the sandbox).\n\
+         - \"html\": Render a self-contained HTML/SVG/CSS snippet. Inline all styles;\n\
+           scripts and event-handler attributes are removed by the sandbox.\n\
          - \"url\": Embed an HTTPS URL in an iframe. Suitable for live dashboards or\n\
            documentation pages that are safe to embed.\n\
          - \"a2ui\": Stream a sequence of typed UI elements as JSONL lines. Each line is\n\
@@ -86,7 +98,10 @@ impl Tool for RenderInlineCanvasTool {
          - Prefer \"a2ui\" for structured reports, tables, and charts — it streams incrementally.\n\
          - Prefer \"html\" only for bespoke layouts that none of the a2ui types can express.\n\
          - Keep HTML payloads under 64 KB for smooth rendering.\n\
-         - Always set a descriptive \"title\" — it appears in the card header."
+         - Always set a descriptive \"title\" — it appears in the card header.\n\
+         - A successful tool result only confirms that the payload was accepted by the UI.\n\
+           It does not prove visual correctness. Do not claim the preview was visually\n\
+           verified unless you inspected it through a screenshot or browser snapshot."
     }
 
     fn category(&self) -> &str {
@@ -180,15 +195,30 @@ impl Tool for RenderInlineCanvasTool {
             .map(|s| s.len())
             .unwrap_or(0);
 
-        Ok(match mode {
-            "html" | "a2ui" | "react" => format!(
-                "render_inline_canvas: rendered {mode} content ({content_len} bytes), title=\"{title}\""
-            ),
-            "url" => {
-                let url = params.get("url").and_then(Value::as_str).unwrap_or("");
-                format!("render_inline_canvas: embedded url=\"{url}\", title=\"{title}\"")
-            }
-            _ => format!("render_inline_canvas: accepted mode={mode}, title=\"{title}\""),
-        })
+        let url = params.get("url").and_then(Value::as_str).unwrap_or("");
+        Ok(format_canvas_acceptance(mode, content_len, title, url))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_canvas_acceptance;
+
+    #[test]
+    fn acceptance_does_not_claim_visual_success() {
+        let result = format_canvas_acceptance("html", 42, "Prototype", "");
+
+        assert!(result.contains("accepted html content"));
+        assert!(result.contains("visual output not verified"));
+        assert!(!result.contains("rendered html content"));
+    }
+
+    #[test]
+    fn url_acceptance_does_not_claim_embedding_succeeded() {
+        let result = format_canvas_acceptance("url", 0, "Docs", "https://example.com");
+
+        assert!(result.contains("accepted url=\"https://example.com\""));
+        assert!(result.contains("visual output not verified"));
+        assert!(!result.contains("embedded url"));
     }
 }

@@ -24,6 +24,17 @@ use crate::state::AgentAppState;
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
 use super::org_wake::{promote_agent_org_wake_session_to_running, resolve_agent_org_wake_mode};
 
+async fn persist_direct_user_intervention(
+    params: Option<EnterMemberInterventionParams>,
+) -> Result<(), String> {
+    let Some(params) = params else {
+        return Ok(());
+    };
+    tokio::task::spawn_blocking(move || AgentMemberInterventionStore::enter(params).map(|_| ()))
+        .await
+        .map_err(|err| format!("Agent Org intervention worker failed: {err}"))?
+}
+
 pub(super) fn should_divert_to_mid_turn_steering(
     source: TurnIntentBridgeSource,
     is_resume: bool,
@@ -150,15 +161,13 @@ pub(crate) async fn send_message_impl(
         let _ = org_tasks::resume_paused_run_for_user_message(state, &session_id).await?;
     }
 
-    if mark_direct_user_intervention && !is_resume && !content.trim().is_empty() {
-        let runtime_snapshot = session_handle.runtime.read().await.clone();
-        if let Some(runtime) = runtime_snapshot {
-            if let Some(org_context) = runtime.agent_org_context.as_ref() {
-                let org_run_id = org_context.run_id.clone();
-                let org_context = org_context.clone();
-                let session_id_for_intervention = session_id.clone();
-                tokio::task::spawn_blocking(move || {
-                    let member_id =
+    let direct_user_intervention =
+        if mark_direct_user_intervention && !is_resume && !content.trim().is_empty() {
+            let runtime_snapshot = session_handle.runtime.read().await.clone();
+            match runtime_snapshot.and_then(|runtime| runtime.agent_org_context.clone()) {
+                Some(org_context) => {
+                    let session_id_for_intervention = session_id.clone();
+                    let member_id = tokio::task::spawn_blocking(move || {
                         crate::session::persistence::get_session(&session_id_for_intervention)
                             .map_err(|err| err.to_string())?
                             .and_then(|record| record.org_member_id)
@@ -167,31 +176,34 @@ pub(crate) async fn send_message_impl(
                                     "Agent Org session {} has no canonical member_id",
                                     session_id_for_intervention
                                 )
-                            })?;
-                    if !can_enter_member_intervention(&member_id) {
+                            })
+                    })
+                    .await
+                    .map_err(|err| format!("Agent Org member lookup worker failed: {err}"))??;
+                    if can_enter_member_intervention(&member_id) {
+                        let agent_id = org_context.require_participant_agent_id(&member_id)?;
+                        Some(EnterMemberInterventionParams {
+                            org_run_id: org_context.run_id,
+                            member_id,
+                            agent_id,
+                            session_id: session_id.clone(),
+                            reason: Some("direct_user_chat".to_string()),
+                            ttl_secs: DEFAULT_INTERVENTION_TTL_SECS,
+                        })
+                    } else {
                         tracing::debug!(
-                            org_run_id = %org_run_id,
-                            session_id = %session_id_for_intervention,
+                            org_run_id = %org_context.run_id,
+                            session_id = %session_id,
                             "ordinary coordinator message does not enter member intervention"
                         );
-                        return Ok::<(), String>(());
+                        None
                     }
-                    let agent_id = org_context.require_participant_agent_id(&member_id)?;
-                    AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
-                        org_run_id,
-                        member_id,
-                        agent_id,
-                        session_id: session_id_for_intervention,
-                        reason: Some("direct_user_chat".to_string()),
-                        ttl_secs: DEFAULT_INTERVENTION_TTL_SECS,
-                    })?;
-                    Ok::<(), String>(())
-                })
-                .await
-                .map_err(|err| err.to_string())??;
+                }
+                None => None,
             }
-        }
-    }
+        } else {
+            None
+        };
 
     let app_handle = state.app_handle.clone();
 
@@ -215,6 +227,10 @@ pub(crate) async fn send_message_impl(
         images.as_deref(),
         session_handle.scheduler.is_turn_processing(),
     ) {
+        // Steering mutates an already-running member turn, so intervention is
+        // part of accepting the control action. If the durable takeover row
+        // cannot be written, do not inject a message that Wake may race.
+        persist_direct_user_intervention(direct_user_intervention.clone()).await?;
         crate::foundation::session_bridge::upsert_turn_intent(
             &session_id,
             &effective_turn_intent_id,
@@ -315,6 +331,7 @@ pub(crate) async fn send_message_impl(
     let display_text_for_closure = display_text;
     let workspace_root_for_closure = effective_workspace_root.clone();
     let turn_intent_id_for_closure = effective_turn_intent_id.clone();
+    let direct_user_intervention_for_closure = direct_user_intervention;
     // Resolve durable mode-control rows from exactly the bounded inbox batch
     // this background wake will drain. A control row in a later batch must
     // not change the mode of earlier work; rows become one-shot only when the
@@ -366,9 +383,14 @@ pub(crate) async fn send_message_impl(
         let workspace_root = workspace_root_for_closure;
         let session = session_for_closure;
         let turn_intent_id = turn_intent_id_for_closure;
+        let direct_user_intervention = direct_user_intervention_for_closure;
         let org_wake_run_id = org_wake_run_id;
 
         Box::pin(async move {
+            // The scheduler now owns this accepted turn. Intervention is a
+            // turn-start side effect, not submit preflight: queued work that is
+            // invalidated before execution must never leave a takeover row.
+            persist_direct_user_intervention(direct_user_intervention).await?;
             // Queued and coalesced messages are not running sessions. Promote
             // the DB state only when the scheduler actually begins execution.
             // For Agent Org wakes, re-check the run and update the session in
@@ -437,7 +459,7 @@ pub(crate) async fn send_message_impl(
                 channel: None,
                 chat_id: None,
                 turn_id: Some(turn_id.clone()),
-                turn_intent_id,
+                turn_intent_id: turn_intent_id.clone(),
             };
 
             let response =
@@ -472,6 +494,7 @@ pub(crate) async fn send_message_impl(
                     .ok()
                     .map(|r| crate::lifecycle::TerminalTurnSignal {
                         turn_id: r.turn_id.clone(),
+                        turn_intent_id: Some(turn_intent_id.clone()),
                         status: match final_turn_state {
                             crate::session::DialogTurnState::Cancelled => {
                                 crate::lifecycle::TurnTerminalStatus::Cancelled

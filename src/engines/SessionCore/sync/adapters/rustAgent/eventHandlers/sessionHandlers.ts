@@ -24,7 +24,7 @@ function settleTerminalRuntime(
   ctx: EventHandlerContext,
   status: "completed" | "failed" | "cancelled" = "completed",
   errorMessage?: string,
-  meta?: { turnId?: string; turnStatus?: string }
+  meta?: { turnId?: string; turnIntentId?: string; turnStatus?: string }
 ): void {
   resetAllStreamingState(ctx);
   ctx.setStreaming(false);
@@ -51,6 +51,10 @@ export function handleComplete(
   sessionId: string,
   ctx: EventHandlerContext
 ): void {
+  log.info(
+    `[agent:complete] handling for ${sessionId} ` +
+      `(statusHandler=${ctx.onStatusChangeRef.current ? "wired" : "MISSING"})`
+  );
   resetAllStreamingState(ctx);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
@@ -73,7 +77,12 @@ export function handleComplete(
         }
       : undefined;
   ctx.onAgentCompleteRef.current?.(tokenUsage);
-  ctx.onStatusChangeRef.current?.("completed");
+  // `agent:complete` carries content/usage, but authoritative finality is the
+  // following `agent:turn_completed`, which also carries turnIntentId. Treat
+  // this as intermediate so a delayed complete cannot release a newer turn.
+  ctx.onStatusChangeRef.current?.("completed", undefined, {
+    intermediate: true,
+  });
 }
 
 export function handleTurnCompleted(
@@ -90,6 +99,7 @@ export function handleTurnCompleted(
   const status = cancelled ? "cancelled" : failed ? "failed" : "completed";
   settleTerminalRuntime(sessionId, ctx, status, undefined, {
     turnId: event.turnId,
+    turnIntentId: event.turnIntentId,
     turnStatus: event.turnStatus,
   });
 }
@@ -153,7 +163,15 @@ export function handleError(
   clearStreamRetryStatus(ctx, sessionId);
   // Status change fires before onAgentComplete so session activity is already
   // terminal before completion callbacks update derived session state.
-  ctx.onStatusChangeRef.current?.("failed", event.error);
+  const turnIntentId =
+    event.details && "turnIntentId" in event.details
+      ? String(event.details.turnIntentId)
+      : undefined;
+  ctx.onStatusChangeRef.current?.(
+    "failed",
+    event.error,
+    turnIntentId ? { turnIntentId } : undefined
+  );
   ctx.onAgentCompleteRef.current?.();
 }
 

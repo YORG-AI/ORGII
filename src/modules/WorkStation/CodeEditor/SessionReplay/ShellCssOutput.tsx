@@ -3,8 +3,7 @@
  * settings as Workstation (theme palette + font atoms). Avoids xterm canvas/WebGL glitches.
  * Command and output render as plain terminal text without syntax highlighting.
  */
-import type { CSSProperties } from "react";
-import React, { memo, useEffect, useMemo, useRef } from "react";
+import React, { memo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import "@src/components/ShellReplayOutput/index.scss";
@@ -38,8 +37,8 @@ const SimulatorShellCssOutputComponent: React.FC<
     foreground,
     mutedForeground,
     errorForeground,
-    terminalFontSize,
     typography,
+    typographyVariables,
   } = useTerminalSurfaceStyle();
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -64,29 +63,11 @@ const SimulatorShellCssOutputComponent: React.FC<
     return () => cancelAnimationFrame(frameId);
   }, [plainOutput, isLoading, exitCode]);
 
-  const surfaceTypographyVars = useMemo((): CSSProperties => {
-    const letterSpacing = typography.letterSpacing;
-    const letterSpacingCss =
-      typeof letterSpacing === "number"
-        ? `${letterSpacing}px`
-        : (letterSpacing ?? "normal");
-    return {
-      ["--simulator-shell-font-size" as string]: `${terminalFontSize}px`,
-      ["--simulator-shell-font-family" as string]: String(
-        typography.fontFamily ?? "monospace"
-      ),
-      ["--simulator-shell-letter-spacing" as string]: String(letterSpacingCss),
-      ["--simulator-shell-line-height" as string]: String(
-        typography.lineHeight ?? 1.45
-      ),
-    } as CSSProperties;
-  }, [terminalFontSize, typography]);
-
   return (
     <div
       ref={scrollRef}
       className="simulator-shell-surface min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-[100px] pt-2"
-      style={surfaceTypographyVars}
+      style={typographyVariables}
     >
       {!hideCommandLine ? (
         <div className="mb-1 min-w-0 max-w-full">

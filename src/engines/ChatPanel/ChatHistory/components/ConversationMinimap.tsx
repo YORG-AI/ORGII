@@ -290,7 +290,7 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           "sessions:chat.conversationNavigator",
           "Conversation navigator"
         )}
-        className={`${showFloatingMinimap ? "flex" : "hidden"} pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity @[640px]/chatbody:right-0 @[640px]/chatbody:flex @[640px]/chatbody:w-[38px] @[640px]/chatbody:items-center @[640px]/chatbody:rounded-none @[640px]/chatbody:border-0 @[640px]/chatbody:bg-transparent @[640px]/chatbody:p-0 @[640px]/chatbody:shadow-none @[640px]/chatbody:backdrop-blur-none motion-reduce:transition-none`}
+        className={`${showFloatingMinimap ? "flex" : "hidden"} pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity @[640px]/chatbody:right-0 @[640px]/chatbody:w-[38px] @[640px]/chatbody:items-center @[640px]/chatbody:rounded-none @[640px]/chatbody:border-0 @[640px]/chatbody:bg-transparent @[640px]/chatbody:p-0 @[640px]/chatbody:shadow-none @[640px]/chatbody:backdrop-blur-none motion-reduce:transition-none`}
         onMouseEnter={() => setIsPointerOver(true)}
         onMouseLeave={() => {
           setIsPointerOver(false);

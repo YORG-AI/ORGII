@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "GitHub で ORG2 に Star を付ける",
+      "description": "GitHub Star でプロジェクトを応援してください。",
+      "loading": "確認中...",
+      "star": "Star を付ける",
+      "starring": "追加中...",
+      "starred": "Star 済み",
+      "thanks": "ご支援ありがとうございます！",
+      "openGitHub": "GitHub を開く",
+      "openingGitHub": "開いています...",
+      "unavailableGhMissing": "GitHub CLI を利用できません",
+      "unavailableNotAuthenticated": "GitHub CLI にログインしてください",
+      "unavailableNetwork": "GitHub に接続できません",
+      "unavailablePermission": "GitHub の権限が必要です",
+      "unavailableTimeout": "GitHub リクエストがタイムアウトしました",
+      "unavailableUnexpected": "GitHub の状態を取得できません",
+      "reminderTitle": "ORG2 を応援",
+      "reminderDescription": "ORG2 が役に立ったら、GitHub で Star を付けていただけませんか？",
+      "later": "後で",
+      "neverAskAgain": "今後表示しない"
+    },
     "tabGeneral": "一般",
     "loginStatus": "ログイン状態",
     "loggedIn": "ログイン済み",
@@ -139,13 +160,10 @@
       "helveticaNeue": "Helvetica Neue 風"
     },
     "uiScale": "UIスケール",
-    "preferences": "設定",
-    "usePointerCursors": "ポインターカーソルを使用",
-    "usePointerCursorsDesc": "インタラクティブな要素にカーソルを合わせたときにポインターへ変更します",
     "timezoneAuto": "自動（ブラウザ）",
     "timezoneSearchPlaceholder": "近くの都市を検索",
     "sendOnEnter": "Enter でメッセージを送信",
-    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します",
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter と Ctrl/Cmd+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します",
     "language": "言語",
     "languageSearchPlaceholder": "言語を検索...",
     "languageNames": {
@@ -230,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "私はキーボードの前にいます。不明点はいつでも確認し、破壊的な操作を実行する前に必ず確認してください",
     "presenceGuidanceInvisibleDefault": "近くにいますがオフライン表示です。基本的には自律的に進め、高リスクな操作や大きなリファクタリングのときだけ通知してください。その他の質問は一つずつではなく、まとめてください",
     "presenceGuidanceAwayDefault": "私は席を外しています。私の返答を待たず、手元の情報で最善の判断をして、完了できることを進め、戻ったとき用に結果と未解決の質問を簡潔に残してください",
-    "followSystem": "システムに従う"
+    "followSystem": "システムに従う",
+    "preferences": "設定",
+    "usePointerCursors": "ポインターカーソルを使用",
+    "usePointerCursorsDesc": "インタラクティブな要素にカーソルを合わせたときにポインターへ変更します"
   },
   "background": {
     "title": "背景",
@@ -1011,7 +1032,7 @@
     "decryptEffect": "Decrypt エフェクト",
     "decryptEffectDesc": "Agent メッセージに Decrypt アニメーションを有効にする",
     "sendOnEnter": "Enter でメッセージを送信",
-    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します"
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter と Ctrl/Cmd+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します"
   },
   "languageServers": {
     "languageServersDesc": "オートコンプリート、診断、コードインテリジェンスのためのLSPサーバーを管理",

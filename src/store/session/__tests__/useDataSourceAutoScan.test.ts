@@ -396,6 +396,44 @@ describe("runDataSourceAutoScan", () => {
     );
   });
 
+  it("reloads on cache-signature drift even when the rescan itself wrote nothing", async () => {
+    const config: DataSourceConfigMap = Object.fromEntries(
+      IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [
+        sourceId,
+        { enabled: false, frequency: "default" as const, lastScannedAt: null },
+      ])
+    );
+    config.codex_app = {
+      enabled: true,
+      frequency: "120s",
+      lastScannedAt: NOW - 120_000,
+    };
+    mocks.store?.set(dataSourceConfigAtom, config);
+    // Another surface's sync already ingested the change (and e.g. demoted a
+    // continuation sibling), so this rescan reports no writes of its own —
+    // only the signature reveals the roster is stale.
+    mocks.externalHistoryRescanSources.mockResolvedValueOnce({
+      changedSources: [],
+      sourceSignatures: { codex_app: "4:2026-07-24T05:43:08Z:1" },
+    });
+
+    await runDataSourceAutoScan();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
+
+    // Next due pass sees the identical signature: the roster already
+    // reflects it, so no further reload happens.
+    mocks.store?.set(dataSourceConfigAtom, config);
+    mocks.externalHistoryRescanSources.mockResolvedValueOnce({
+      changedSources: [],
+      sourceSignatures: { codex_app: "4:2026-07-24T05:43:08Z:1" },
+    });
+
+    await runDataSourceAutoScan();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledOnce();
+  });
+
   it("deduplicates overlapping startup passes", async () => {
     const config: DataSourceConfigMap = Object.fromEntries(
       IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(({ sourceId }) => [

@@ -26,6 +26,7 @@ import {
   createProjectTab,
   createRuntimeTab,
   createSessionTab,
+  createTeamInboxTab,
   createTerminalTab,
   createWorkItemTab,
   createWorkManagementTab,
@@ -122,6 +123,25 @@ export const openRuntimeInChatPanelTabAtom = atom(
   }
 );
 openRuntimeInChatPanelTabAtom.debugLabel = "openRuntimeInChatPanelTab";
+
+/** Open or focus the singleton Team Inbox tab. */
+export const openTeamInboxInChatPanelTabAtom = atom(
+  null,
+  (get, set, title: string = "Team Inbox") => {
+    const existingTab = get(chatPanelTabsAtom).tabs.find(
+      (tab) => tab.type === "team-inbox"
+    );
+    if (existingTab) {
+      set(activateChatPanelTabAtom, existingTab.id);
+      return existingTab.id;
+    }
+
+    const tab = createTeamInboxTab({ title });
+    set(appendAndActivateChatPanelTabAtom, { tab });
+    return tab.id;
+  }
+);
+openTeamInboxInChatPanelTabAtom.debugLabel = "openTeamInboxInChatPanelTab";
 
 interface OpenWorkManagementTabOptions {
   section?: WorkManagementSection;

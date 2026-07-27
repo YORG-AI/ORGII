@@ -8,6 +8,7 @@
  */
 import { indexOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { buildCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { recordGuestImportedSession } from "@src/store/session/sessionAtom/guestImportRegistry";
@@ -291,7 +292,17 @@ function refreshImportedSessionPresentation(
     existing.session_id,
     refreshedImportedFrom
   );
+  // Rows imported before the ownership stamp used the selector form carry a
+  // bare org uuid, which resolves to no owning org. Heal them here: this
+  // refresh is the only path a long-lived import takes, so without it a
+  // legacy row never regains its ownership-derived affordances. Guest rows
+  // (no ownership stamp) and non-cloud scopes are left untouched.
+  const normalizedOrgId =
+    existing.orgId === importedFrom.orgId
+      ? buildCloudOrgSelectorValue(importedFrom.orgId)
+      : existing.orgId;
   const unchanged =
+    existing.orgId === normalizedOrgId &&
     existing.name === remoteSession.title &&
     existing.repoPath === repoPath &&
     existing.agentDisplayName === sourcePresentation.agentLabel &&
@@ -310,6 +321,7 @@ function refreshImportedSessionPresentation(
 
   const refreshed: Session = {
     ...existing,
+    ...(normalizedOrgId !== undefined ? { orgId: normalizedOrgId } : {}),
     name: remoteSession.title,
     repoPath,
     agentDisplayName: sourcePresentation.agentLabel,
@@ -571,7 +583,11 @@ async function importRemoteSessionInner(
       // context (org sync profile, no token). A share-token import is the
       // GUEST path (CollabShareImportDialog, no local membership): it stays
       // under Personal, i.e. no orgId (preserving any prior member stamp).
-      orgId: shareToken ? existing?.orgId : orgId,
+      // Selector value (`cloud:<uuid>`), never a bare org uuid: a bare value
+      // fails `parseCloudOrgSelectorValue`, hiding the session from every
+      // consumer that resolves ownership through it (share dialog, org
+      // selector, the engine's own ownedByOrg gate).
+      orgId: shareToken ? existing?.orgId : buildCloudOrgSelectorValue(orgId),
       importedFrom,
       // Retire the legacy error_message idiom for collab imports; clears any
       // leftover value on upgraded pre-M3 rows.

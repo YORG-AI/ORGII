@@ -7,8 +7,9 @@
  * Results are cached after the first successful fetch — the set of available
  * shells doesn't change during a single app session.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 
+import { useAsyncResource } from "@src/hooks/async";
 import type { DetectedShell, ShellProfile } from "@src/types/terminal";
 import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
 
@@ -20,6 +21,7 @@ interface UseAvailableShellsReturn {
 }
 
 let cachedProfiles: ShellProfile[] | null = null;
+const EMPTY_SHELL_PROFILES: ShellProfile[] = [];
 
 function detectedShellToProfile(shell: DetectedShell): ShellProfile {
   return {
@@ -35,44 +37,32 @@ function detectedShellToProfile(shell: DetectedShell): ShellProfile {
 }
 
 export function useAvailableShells(): UseAvailableShellsReturn {
-  const [profiles, setProfiles] = useState<ShellProfile[]>(
-    cachedProfiles ?? []
-  );
-  const [loading, setLoading] = useState(cachedProfiles === null);
-  const [error, setError] = useState<string | null>(null);
-  const fetchedRef = useRef(cachedProfiles !== null);
-
   const fetchShells = useCallback(async () => {
-    if (!isTauriReady()) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const detected = await invokeTauri<DetectedShell[]>(
-        "detect_available_shells"
-      );
-      const mapped = detected.map(detectedShellToProfile);
-      cachedProfiles = mapped;
-      setProfiles(mapped);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
+    if (cachedProfiles) return cachedProfiles;
+    if (!isTauriReady()) return EMPTY_SHELL_PROFILES;
+    const detected = await invokeTauri<DetectedShell[]>(
+      "detect_available_shells"
+    );
+    cachedProfiles = detected.map(detectedShellToProfile);
+    return cachedProfiles;
   }, []);
-
-  useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchedRef.current = true;
-      fetchShells();
-    }
-  }, [fetchShells]);
+  const resource = useAsyncResource({
+    fetcher: fetchShells,
+    initialData: cachedProfiles ?? EMPTY_SHELL_PROFILES,
+    initialStatus: cachedProfiles ? "ready" : "idle",
+    scopeKey: "available-shells",
+  });
+  const refreshResource = resource.refresh;
 
   const refresh = useCallback(() => {
     cachedProfiles = null;
-    fetchShells();
-  }, [fetchShells]);
+    void refreshResource();
+  }, [refreshResource]);
 
-  return { profiles, loading, error, refresh };
+  return {
+    profiles: resource.data,
+    loading: resource.loading,
+    error: resource.error,
+    refresh,
+  };
 }

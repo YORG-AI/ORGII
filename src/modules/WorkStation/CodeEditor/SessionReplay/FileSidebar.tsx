@@ -26,7 +26,6 @@ import {
 import { PANEL_CONSTANTS } from "../Panels/EditorPrimarySidebar/config";
 import { getShellStatusBadge } from "./ShellSidebar";
 import SimulatorTreePanel from "./components/SimulatorTreePanel";
-import { buildFileOperationSequenceInfo } from "./fileOperationSequence";
 import type { FileTreeInput } from "./fileTreeUtils";
 import { resolveFileOperationPayload } from "./resolveFilePayload";
 import type {
@@ -136,34 +135,21 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
     () => fileOperations.filter((op) => op.type === FILE_OPERATION_TYPE.READ),
     [fileOperations]
   );
-  const readSequenceInfo = useMemo(
-    () => buildFileOperationSequenceInfo(readOperations),
-    [readOperations]
-  );
 
   const readFileKey = useMemo(
-    () =>
-      readOperations
-        .map((op) => `${op.eventId}:${op.event?.createdAt ?? ""}`)
-        .join(","),
+    () => readOperations.map((op) => op.eventId).join(","),
     [readOperations]
   );
 
   const readItems: FileTreeInput[] = useMemo(
     () =>
-      readOperations.map((op) => {
-        const sequence = readSequenceInfo.get(op.eventId);
-        return {
-          id: op.eventId,
-          filePath: op.filePath,
-          fileName: op.fileName,
-          secondaryInfo: sequence
-            ? `${sequence.sequenceLabel} · ${sequence.pathHint}`
-            : undefined,
-        };
-      }),
+      readOperations.map((op) => ({
+        id: op.eventId,
+        filePath: op.filePath,
+        fileName: op.fileName,
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by readFileKey
-    [readFileKey, readSequenceInfo]
+    [readFileKey]
   );
 
   const writeOperations = useMemo(
@@ -175,23 +161,19 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       ),
     [fileOperations]
   );
-  const writeSequenceInfo = useMemo(
-    () => buildFileOperationSequenceInfo(writeOperations),
-    [writeOperations]
-  );
 
   const writeFileKey = useMemo(
     () =>
       writeOperations
         .map((op) => {
           if (op.type === FILE_OPERATION_TYPE.DELETE) {
-            return `${op.eventId}:D:${op.event?.createdAt ?? ""}`;
+            return `${op.eventId}:D`;
           }
           const hasBaseline =
             op.writeHasBaselineContent !== undefined
               ? op.writeHasBaselineContent
               : Boolean(resolveFileOperationPayload(op).oldContent);
-          return `${op.eventId}:${hasBaseline ? "M" : "A"}:${op.event?.createdAt ?? ""}:${op.editCount ?? 1}`;
+          return `${op.eventId}:${hasBaseline ? "M" : "A"}`;
         })
         .join(","),
     [writeOperations]
@@ -201,22 +183,16 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
     () =>
       writeOperations.map((op) => {
         const badge = getWriteStatusBadge(op);
-        const sequence = writeSequenceInfo.get(op.eventId);
-        const editCount =
-          op.editCount && op.editCount > 1 ? ` · ${op.editCount} edits` : "";
         return {
           id: op.eventId,
           filePath: op.filePath,
           fileName: op.fileName,
           statusLabel: badge?.label,
           statusColorClass: badge?.colorClass,
-          secondaryInfo: sequence
-            ? `${sequence.sequenceLabel} · ${sequence.pathHint}${editCount}`
-            : undefined,
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by writeFileKey
-    [writeFileKey, writeSequenceInfo]
+    [writeFileKey]
   );
 
   const exploreItems: FileTreeInput[] = useMemo(

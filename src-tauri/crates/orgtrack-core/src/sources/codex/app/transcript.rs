@@ -1313,8 +1313,9 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
 
     let mut results: Vec<CodexExecResult> = Vec::new();
     for part in parts {
-        if let Some(result) = codex_exec_result_from_text(part) {
-            results.push(result);
+        let parsed_results = codex_exec_results_from_text(part);
+        if !parsed_results.is_empty() {
+            results.extend(parsed_results);
         } else if !is_codex_script_wrapper_text(part) {
             if let Some(result) = results.last_mut() {
                 append_incremental_output(&mut result.output, part);
@@ -1324,8 +1325,38 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
     results
 }
 
-fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
-    let value: Value = serde_json::from_str(text.trim()).ok()?;
+fn codex_exec_results_from_text(text: &str) -> Vec<CodexExecResult> {
+    // Desktop `exec` can return either one JSON object per text part or one
+    // Script-completed envelope whose Output payload is an array of results.
+    // Normalize both shapes here so callers only handle per-command results.
+    let direct = serde_json::from_str::<Value>(text.trim())
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default();
+    if !direct.is_empty() {
+        return direct;
+    }
+
+    let Some(payload) = codex_script_output_payload(text) else {
+        return Vec::new();
+    };
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default()
+}
+
+fn codex_exec_results_from_value(value: Value) -> Vec<CodexExecResult> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .filter_map(codex_exec_result_from_value)
+            .collect(),
+        value => codex_exec_result_from_value(value).into_iter().collect(),
+    }
+}
+
+fn codex_exec_result_from_value(value: Value) -> Option<CodexExecResult> {
     let object = value.as_object()?;
     if !object.contains_key("output")
         && !object.contains_key("session_id")
@@ -1350,6 +1381,16 @@ fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
             .or_else(|| object.get("exitCode"))
             .and_then(Value::as_i64),
     })
+}
+
+fn codex_script_output_payload(text: &str) -> Option<&str> {
+    if !is_codex_script_wrapper_text(text) {
+        return None;
+    }
+    ["\nOutput:\r\n", "\nOutput:\n"]
+        .into_iter()
+        .find_map(|marker| text.split_once(marker).map(|(_, payload)| payload.trim()))
+        .filter(|payload| !payload.is_empty())
 }
 
 fn json_scalar_string(value: &Value) -> Option<String> {

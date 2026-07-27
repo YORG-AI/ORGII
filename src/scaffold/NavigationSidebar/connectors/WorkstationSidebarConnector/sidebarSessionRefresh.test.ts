@@ -61,4 +61,20 @@ describe("rescanSidebarSessions", () => {
       mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt
     ).toEqual(expect.any(Number));
   });
+
+  it("reloads even when the rescan reports no changes of its own", async () => {
+    // Other surfaces sync the same backend cache between explicit refreshes
+    // (e.g. a continuation demotion during a foreign sync), so a manual
+    // rescan must reload unconditionally rather than trust changedSources.
+    mocks.externalHistoryRescanSources.mockResolvedValue({
+      changedSources: [],
+      sourceSignatures: { codex_app: "1:2026-07-24T05:43:08Z:1" },
+    });
+
+    await rescanSidebarSessions();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledWith({
+      forceRefresh: true,
+    });
+  });
 });

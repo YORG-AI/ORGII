@@ -39,7 +39,10 @@ import {
   EMPTY_ENTRY,
   decideSessionCommentsFetch,
   insertComment,
+  mergeDeltaSessionComments,
+  mergeFullSessionComments,
   patchComment,
+  sessionCommentsDeltaSince,
   sessionCommentsEntryForIdentity,
   sessionCommentsErrorRetryDelayMs,
   shouldEvictSessionCommentsOnError,
@@ -75,8 +78,10 @@ export type {
 } from "./org2CloudSessionCommentsAtom.types";
 export {
   MAX_SESSION_COMMENT_CACHE_ENTRIES,
+  SESSION_COMMENTS_DELTA_OVERLAP_MS,
   SESSION_COMMENTS_ERROR_RETRY_MS,
   SESSION_COMMENTS_ERROR_RETRY_MAX_MS,
+  sessionCommentsDeltaSince,
   sessionCommentsErrorRetryDelayMs,
   countLiveComments,
   decideSessionCommentsFetch,
@@ -84,6 +89,8 @@ export {
   groupCommentThreads,
   insertComment,
   isThreadResolved,
+  mergeDeltaSessionComments,
+  mergeFullSessionComments,
   mergePresentEventIdEntries,
   patchComment,
   sessionCommentsEntryForIdentity,
@@ -165,6 +172,7 @@ export function useSessionComments(
         let claimed = false;
         let queuedForce = false;
         let knownIdsAtStart = new Set<string>();
+        let anchorAtStart: string | undefined;
         setEntries((previous) => {
           const stored = previous[targetKey];
           const entry =
@@ -182,6 +190,7 @@ export function useSessionComments(
           knownIdsAtStart = new Set(
             (entry?.comments ?? []).map((comment) => comment.id)
           );
+          anchorAtStart = entry?.lastServerTime;
           return writeSessionCommentsEntry(previous, targetKey, {
             ...(entry ?? EMPTY_ENTRY),
             identityKey: requestIdentityKey,
@@ -209,10 +218,19 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          const { comments, viewerOwnsSession } = await listSessionComments(
+          // Force paths (manual refresh, session-signal tokens, the
+          // SUBSCRIBED-edge recovery) stay FULL listings — a full snapshot
+          // is the only read that reconciles the stamp-free un-resolve.
+          // TTL/org-signal refetches pull the delta behind the stored anchor.
+          const since =
+            !force && anchorAtStart !== undefined
+              ? sessionCommentsDeltaSince(anchorAtStart)
+              : undefined;
+          const listing = await listSessionComments(
             accessToken,
             targetOrgId,
-            targetSessionId
+            targetSessionId,
+            since !== undefined ? { since } : undefined
           );
           const latestAfterFetch = authRef.current;
           if (
@@ -222,12 +240,10 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          // MERGE, not wholesale-replace: preserve ONLY rows that appeared
-          // locally AFTER the fetch was claimed (optimistic adds the server
-          // snapshot predates — their id is not in knownIdsAtStart). A row
-          // that WAS known at start but is missing from the response was
-          // deleted server-side (e.g. GDPR erasure) and is dropped — merging
-          // it back would make it immortal.
+          // MERGE, not wholesale-replace — see mergeFullSessionComments /
+          // mergeDeltaSessionComments for the two paths' invariants. The
+          // fallback-aware `appliedSince` (not the requested `since`) picks
+          // the path: a pre-delta backend answers every request in full.
           setEntries((previous) => {
             const latestAuth = authRef.current;
             if (
@@ -237,25 +253,26 @@ export function useSessionComments(
               return previous;
             }
             const stored = previous[targetKey];
-            const existing =
-              stored?.identityKey === requestIdentityKey ? stored.comments : [];
-            const fetchedIds = new Set(comments.map((comment) => comment.id));
-            const merged = existing
-              .filter(
-                (comment) =>
-                  !fetchedIds.has(comment.id) &&
-                  !knownIdsAtStart.has(comment.id)
-              )
-              .reduce(
-                (list, comment) => insertComment(list, comment),
-                comments
-              );
+            const sameIdentity = stored?.identityKey === requestIdentityKey;
+            const existing = sameIdentity ? stored.comments : [];
+            const merged =
+              listing.appliedSince !== undefined
+                ? mergeDeltaSessionComments(existing, listing.comments)
+                : mergeFullSessionComments(
+                    existing,
+                    listing.comments,
+                    knownIdsAtStart
+                  );
+            const lastServerTime =
+              listing.serverTime ??
+              (sameIdentity ? stored.lastServerTime : undefined);
             return writeSessionCommentsEntry(previous, targetKey, {
               identityKey: requestIdentityKey,
               comments: merged,
-              viewerOwnsSession,
+              viewerOwnsSession: listing.viewerOwnsSession,
               state: "ready",
               fetchedAt: Date.now(),
+              ...(lastServerTime !== undefined ? { lastServerTime } : {}),
             });
           });
         } catch (error) {
@@ -267,7 +284,10 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          log.warn("cloud_list_session_comments failed:", error);
+          log.warn(
+            `cloud_list_session_comments failed for ${targetKey}:`,
+            error
+          );
           // Visibility revocation EVICTS the cached bodies (0002 invariant
           // 5 for already-cached data); transient failures keep them.
           const evict = shouldEvictSessionCommentsOnError(error);

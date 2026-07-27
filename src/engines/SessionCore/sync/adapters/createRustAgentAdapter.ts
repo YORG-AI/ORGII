@@ -95,6 +95,27 @@ export interface RustAgentConfig {
 
 const logger = createLogger("RustAgentAdapter");
 
+export interface StreamingEdgeController {
+  readonly value: boolean;
+  set(value: boolean): void;
+}
+
+export function createStreamingEdgeController(
+  write: (value: boolean) => void
+): StreamingEdgeController {
+  let lastValue: boolean | undefined;
+  return {
+    get value(): boolean {
+      return lastValue ?? false;
+    },
+    set(value: boolean): void {
+      if (lastValue === value) return;
+      lastValue = value;
+      write(value);
+    },
+  };
+}
+
 // Terminal event types — signal turn completion and lock out further
 // "running" signals. Module-scoped because every open Rust session shares
 // the same wire contract; rebuilding these sets per handler retains needless
@@ -224,6 +245,17 @@ export function createRustAgentAdapter(
     transformUserText,
     features,
   } = config;
+  const streamingControllers = new Map<string, StreamingEdgeController>();
+
+  const getStreamingController = (sessionId: string) => {
+    const existing = streamingControllers.get(sessionId);
+    if (existing) return existing;
+    const created = createStreamingEdgeController((value) => {
+      void eventStoreProxy.setStreaming(value, sessionId);
+    });
+    streamingControllers.set(sessionId, created);
+    return created;
+  };
 
   return {
     category,
@@ -332,7 +364,7 @@ export function createRustAgentAdapter(
       sessionId: string,
       callbacks: EventHandlerCallbacks
     ): SessionEventHandler {
-      let _streaming = false;
+      const streamingController = getStreamingController(sessionId);
 
       // Two-flag system for status signaling:
       //
@@ -355,6 +387,49 @@ export function createRustAgentAdapter(
 
       // Event queue to ensure sequential processing (prevents race conditions)
       let eventQueuePromise = Promise.resolve();
+
+      // One hung dispatch (an IPC invoke that never settles) must not starve
+      // every later event — the terminal would never apply and the turn only
+      // ends via the 60s planning watchdog. After the deadline the queue
+      // moves on; the stalled dispatch's late outcome is logged, not thrown.
+      const QUEUE_DISPATCH_DEADLINE_MS = 15_000;
+      const withQueueDeadline = (
+        dispatch: Promise<void>,
+        eventType: string
+      ): Promise<void> =>
+        new Promise((resolve, reject) => {
+          const timer = setTimeout(() => {
+            logger.error(
+              `[${category}] dispatch of "${eventType}" on ${sessionId} ` +
+                `exceeded ${QUEUE_DISPATCH_DEADLINE_MS}ms — releasing the ` +
+                `event queue so terminal events cannot starve`
+            );
+            dispatch.then(
+              () =>
+                logger.warn(
+                  `[${category}] stalled "${eventType}" dispatch on ` +
+                    `${sessionId} eventually completed`
+                ),
+              (err) =>
+                logger.warn(
+                  `[${category}] stalled "${eventType}" dispatch on ` +
+                    `${sessionId} eventually failed:`,
+                  err
+                )
+            );
+            resolve();
+          }, QUEUE_DISPATCH_DEADLINE_MS);
+          dispatch.then(
+            () => {
+              clearTimeout(timer);
+              resolve();
+            },
+            (err) => {
+              clearTimeout(timer);
+              reject(err);
+            }
+          );
+        });
 
       // Consecutive dispatch failures within a single turn. A handler that
       // throws leaves the EventStore potentially inconsistent (a tool_call
@@ -418,18 +493,21 @@ export function createRustAgentAdapter(
             }
           : undefined,
         setStreaming: (value: boolean) => {
-          // Token/thinking deltas all assert the same active state. Crossing the
-          // Tauri boundary for every chunk only rewrites one bool, yet it can
-          // generate hundreds of IPC calls per minute during a long reply.
-          if (_streaming === value) return;
-          _streaming = value;
-          void eventStoreProxy.setStreaming(value, sessionId);
+          // Token/thinking deltas all assert the same active state. The shared
+          // controller coalesces identical edges across handler replacement.
+          streamingController.set(value);
         },
       });
-
       return {
         handleEvent(raw: RawSessionEvent): void {
-          if (_disposed) return;
+          if (_disposed) {
+            if (TERMINAL_EVENTS.has(raw.type)) {
+              logger.warn(
+                `[${category}] disposed handler swallowed ${raw.type} for ${sessionId}`
+              );
+            }
+            return;
+          }
 
           // Liveness stamp for EVERY channel event, before any filtering.
           // Ephemeral events (tool_call_delta, stream_retry) never reach the
@@ -515,7 +593,10 @@ export function createRustAgentAdapter(
               ) {
                 return;
               }
-              return dispatchAgentEvent(event, ctx);
+              return withQueueDeadline(
+                dispatchAgentEvent(event, ctx),
+                event.type
+              );
             })
             .then(() => {
               if (_disposed) return;
@@ -577,20 +658,22 @@ export function createRustAgentAdapter(
 
           ctx.trackedCodingSessionsRef?.current.clear();
 
-          _streaming = false;
           _runningSignaled = false;
           _turnCompleted = false;
           _consecutiveDispatchFailures = 0;
-          eventStoreProxy.setStreaming(false, sessionId);
+          streamingController.set(false);
         },
 
         get isStreaming(): boolean {
-          return _streaming;
+          return streamingController.value;
         },
 
         dispose(): void {
           _disposed = true;
           this.reset();
+          if (streamingControllers.get(sessionId) === streamingController) {
+            streamingControllers.delete(sessionId);
+          }
         },
       };
     },
@@ -607,7 +690,11 @@ export function createRustAgentAdapter(
 
     async stopSession(sessionId: string, reason: CancelReason): Promise<void> {
       markSessionStreamingStopped(sessionId);
-      void eventStoreProxy.setStreaming(false, sessionId);
+      const existingController = streamingControllers.get(sessionId);
+      const streamingController =
+        existingController ?? getStreamingController(sessionId);
+      streamingController.set(false);
+      if (!existingController) streamingControllers.delete(sessionId);
       await cancel(sessionId, reason);
     },
   };

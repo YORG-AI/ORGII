@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   beginTurnDispatch: vi.fn(),
   cancelTurn: vi.fn(),
   confirmTurnRunning: vi.fn(),
-  enterIntervention: vi.fn(),
   failOptimisticTurn: vi.fn(),
   getSession: vi.fn(),
   getTurnPhase: vi.fn(),
@@ -27,11 +26,11 @@ const mocks = vi.hoisted(() => ({
   markTurnTerminal: vi.fn(),
   messageError: vi.fn(),
   messageWarning: vi.fn(),
+  removeByIdPrefix: vi.fn(),
   sendMessage: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/agent", () => ({
-  enterAgentOrgSessionIntervention: mocks.enterIntervention,
   getSession: mocks.getSession,
 }));
 
@@ -63,7 +62,10 @@ vi.mock("@src/engines/SessionCore/control/turnLifecycle", async () => {
 });
 
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
-  eventStoreProxy: { append: mocks.append },
+  eventStoreProxy: {
+    append: mocks.append,
+    removeByIdPrefix: mocks.removeByIdPrefix,
+  },
 }));
 
 vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
@@ -141,7 +143,6 @@ describe("useQueueDispatch Agent Org intervention", () => {
     mocks.beginTurnDispatch.mockReset().mockReturnValue(11);
     mocks.cancelTurn.mockReset().mockResolvedValue(undefined);
     mocks.confirmTurnRunning.mockReset();
-    mocks.enterIntervention.mockReset().mockResolvedValue(true);
     mocks.failOptimisticTurn.mockReset();
     mocks.getSession.mockReset().mockResolvedValue(null);
     mocks.getTurnPhase.mockReset().mockReturnValue("idle");
@@ -149,6 +150,7 @@ describe("useQueueDispatch Agent Org intervention", () => {
     mocks.markTurnTerminal.mockReset();
     mocks.messageError.mockReset();
     mocks.messageWarning.mockReset();
+    mocks.removeByIdPrefix.mockReset().mockResolvedValue(1);
     mocks.sendMessage.mockReset().mockResolvedValue(undefined);
     store = createStore();
     root = createSmokeRoot();
@@ -158,59 +160,83 @@ describe("useQueueDispatch Agent Org intervention", () => {
     await root.unmount();
   });
 
-  async function mountWithQueuedMessage(): Promise<void> {
-    store.set(messageQueueAtom, [makeQueuedMessage()]);
+  async function mountWithMessages(messages: QueuedMessage[]): Promise<void> {
+    store.set(messageQueueAtom, messages);
     await root.render(
       createElement(Provider, { store }, createElement(QueueDispatchHarness))
     );
   }
 
-  it("persists the queued event, marks intervention, and then dispatches", async () => {
+  async function mountWithQueuedMessage(): Promise<void> {
+    await mountWithMessages([makeQueuedMessage()]);
+  }
+
+  it("persists the queued event and dispatches it as direct user intent", async () => {
     await mountWithQueuedMessage();
 
     await vi.waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledOnce());
 
     expect(mocks.append).toHaveBeenCalledOnce();
-    expect(mocks.enterIntervention).toHaveBeenCalledWith(SESSION_ID);
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: SESSION_ID,
         content: "queued worker follow-up",
         turnIntentId: "turn-intent-queued-1",
+        directUserIntent: true,
         turnIntentSource: "force_send",
       })
     );
     expect(mocks.append.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.enterIntervention.mock.invocationCallOrder[0]
-    );
-    expect(mocks.enterIntervention.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.sendMessage.mock.invocationCallOrder[0]
     );
     expect(store.get(messageQueueAtom)).toEqual([]);
   });
 
-  it("parks the queued message without sending when intervention persistence fails", async () => {
-    mocks.enterIntervention.mockRejectedValue(
-      new Error("intervention store unavailable")
+  it("does not let a blocked Send Now freeze another idle session", async () => {
+    const blocked = makeQueuedMessage();
+    const ready: QueuedMessage = {
+      ...makeQueuedMessage(),
+      id: "queued-other-session",
+      turnIntentId: "turn-intent-other-session",
+      sessionId: "agent-builtin:sde-other-session",
+      content: "independent follow-up",
+      displayContent: "independent follow-up",
+      priority: "next",
+    };
+    mocks.getTurnPhase.mockImplementation((sessionId: string) =>
+      sessionId === SESSION_ID ? "working" : "idle"
     );
+
+    await mountWithMessages([blocked, ready]);
+
+    await vi.waitFor(() =>
+      expect(mocks.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ sessionId: ready.sessionId })
+      )
+    );
+    expect(mocks.cancelTurn).toHaveBeenCalledWith(SESSION_ID, "force-send");
+    expect(store.get(messageQueueAtom)).toEqual([
+      expect.objectContaining({ id: blocked.id }),
+    ]);
+  });
+
+  it("removes the optimistic queued event when backend dispatch fails", async () => {
+    mocks.sendMessage.mockRejectedValue(new Error("backend send unavailable"));
 
     await mountWithQueuedMessage();
 
     await vi.waitFor(() =>
-      expect(mocks.failOptimisticTurn).toHaveBeenCalledOnce()
+      expect(mocks.removeByIdPrefix).toHaveBeenCalledWith(
+        "synthetic-user-event",
+        SESSION_ID
+      )
     );
 
-    expect(mocks.sendMessage).not.toHaveBeenCalled();
-    expect(mocks.markTurnTerminal).toHaveBeenCalledWith(SESSION_ID, "failed", {
-      generation: 11,
-    });
     expect(store.get(messageQueueAtom)).toEqual([
       expect.objectContaining({
         id: "queued-intervention-1",
-        priority: "next",
         requiresExplicitDispatch: true,
       }),
     ]);
-    expect(mocks.messageError).toHaveBeenCalledOnce();
   });
 });

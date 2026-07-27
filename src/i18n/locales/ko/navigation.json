@@ -405,7 +405,6 @@
     "title": "ORG2 클라우드",
     "signIn": "로그인",
     "signOut": "로그아웃",
-    "signedInAs": "로그인 계정: {{name}}",
     "signedInToast": "ORG2 클라우드에 로그인했습니다",
     "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
     "recommendedBadge": "추천",
@@ -455,7 +454,6 @@
       "mySessions": "내 세션",
       "memberFilter": "멤버별 필터",
       "sessionFilter": "세션 필터",
-      "copyId": "ID 복사",
       "directlySharedWithMe": "나에게 직접 공유됨",
       "everyone": "전체",
       "forkedFrom": "@{{name}}에서 포크됨",
@@ -466,7 +464,8 @@
       "viewerOverflow": "외 {{count}}명이 보고 있습니다",
       "memberViewing": "보는 중: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "ID 복사"
     },
     "sync": {
       "quotaExceededToast": "ORG2 클라우드 동기화 일시 중지: 이 조직의 플랜 할당량을 초과했습니다",
@@ -698,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "로그인 계정: {{name}}"
   }
 }

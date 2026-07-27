@@ -52,6 +52,16 @@ export const DROPDOWN_PANEL = {
   maxHeight: 256,
   maxHeightClass: "max-h-64",
 
+  /** Breathing room kept between a positioned panel and the viewport edge (px). */
+  viewportPadding: 8,
+
+  /**
+   * Floor for the container-aware max height. Below this a flipped panel is
+   * less usable than one that overflows slightly, so we stop shrinking and
+   * let the panel scroll instead.
+   */
+  minAvailableHeight: 120,
+
   /** Max height for scrollable options inside a panel with search/header.
    *  Shorter than maxHeight so scroll triggers before outer overflow-hidden clips. */
   optionsMaxHeight: 200,
@@ -193,6 +203,7 @@ export const DROPDOWN_CLASSES = {
   /** Scrollable options container (scrollbar hidden) */
   optionsContainer: [
     "flex flex-col",
+    "min-h-0",
     "cursor-default",
     DROPDOWN_PANEL.itemsGapClass,
     DROPDOWN_PANEL.paddingClass,
@@ -204,6 +215,7 @@ export const DROPDOWN_CLASSES = {
   /** Scrollable options container when a `sectionLabel` header sits above. */
   optionsContainerBelowHeader: [
     "flex flex-col",
+    "min-h-0",
     "cursor-default",
     DROPDOWN_PANEL.itemsGapClass,
     DROPDOWN_PANEL.paddingBelowHeaderClass,
@@ -215,6 +227,7 @@ export const DROPDOWN_CLASSES = {
   /** Scrollable options container (visible scrollbar, e.g. table selector, timezone) */
   optionsContainerScrollbar: [
     "flex flex-col",
+    "min-h-0",
     "cursor-default",
     DROPDOWN_PANEL.itemsGapClass,
     DROPDOWN_PANEL.paddingClass,
@@ -227,6 +240,7 @@ export const DROPDOWN_CLASSES = {
   optionsContainerOverlay: [
     "scrollbar-overlay",
     "flex",
+    "min-h-0",
     "flex-col",
     "overflow-y-auto",
     DROPDOWN_PANEL.paddingClass,
@@ -236,6 +250,7 @@ export const DROPDOWN_CLASSES = {
   /** Scrollable options container (visible scrollbar) when a header sits above. */
   optionsContainerScrollbarBelowHeader: [
     "flex flex-col",
+    "min-h-0",
     "cursor-default",
     DROPDOWN_PANEL.itemsGapClass,
     DROPDOWN_PANEL.paddingBelowHeaderClass,

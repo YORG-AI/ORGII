@@ -104,18 +104,36 @@ const TrafficLights: React.FC<TrafficLightsProps> = ({
     }
   };
 
+  const handleKeyActivate = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    action: () => void
+  ) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      action();
+    }
+  };
+
   return (
     <div className={`title-bar-buttons flex items-center ${className}`}>
       {/* Red button - Close */}
       <div
         className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#CE5347] bg-[#ED6A5E]"
+        role="button"
+        tabIndex={0}
+        aria-label="Close window"
         onClick={handleClose}
+        onKeyDown={(event) => handleKeyActivate(event, handleClose)}
       ></div>
 
       {/* Yellow button - Minimize */}
       <div
         className="mr-1.5 h-[14px] w-[14px] cursor-pointer rounded-full border-[0.5px] border-solid border-[#D6A243] bg-[#F6BE4F]"
+        role="button"
+        tabIndex={0}
+        aria-label="Minimize window"
         onClick={handleMinimize}
+        onKeyDown={(event) => handleKeyActivate(event, handleMinimize)}
       ></div>
 
       {/* Green button - Maximize/restore, can be disabled */}
@@ -123,7 +141,16 @@ const TrafficLights: React.FC<TrafficLightsProps> = ({
         className={`h-[14px] w-[14px] rounded-full border-[0.5px] border-solid border-[#58A942] bg-[#62C554] ${
           disableMaximize ? "cursor-not-allowed opacity-50" : "cursor-pointer"
         }`}
+        role="button"
+        tabIndex={disableMaximize ? -1 : 0}
+        aria-label="Maximize or restore window"
+        aria-disabled={disableMaximize}
         onClick={disableMaximize ? undefined : handleMaximize}
+        onKeyDown={
+          disableMaximize
+            ? undefined
+            : (event) => handleKeyActivate(event, handleMaximize)
+        }
       ></div>
     </div>
   );

@@ -317,6 +317,7 @@ export const WSMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
+  "repo:changed",
   "repo:status_updated",
   "file:changed",
   "repo:git_operation",
@@ -344,6 +345,7 @@ export const CodeEditorWebSocketMessageSchema = z
     data: z.unknown().optional(),
     payload: z.unknown().optional(),
     status: z.unknown().optional(),
+    turn_intent_id: z.string().optional(),
     files: z.array(z.unknown()).optional(),
     timestamp: z.number().optional(),
   })

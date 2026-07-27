@@ -405,7 +405,6 @@
     "title": "ORG2 Cloud",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
-    "signedInAs": "{{name}} olarak giriş yapıldı",
     "signedInToast": "Signed in to ORG2 Cloud",
     "sessionExpired": "ORG2 Cloud oturumunuzun süresi doldu. Devam etmek için yeniden giriş yapın.",
     "recommendedBadge": "Recommended",
@@ -455,7 +454,6 @@
       "mySessions": "Oturumlarım",
       "memberFilter": "Üyeye göre filtrele",
       "sessionFilter": "Oturumları filtrele",
-      "copyId": "ID'yi kopyala",
       "directlySharedWithMe": "Doğrudan benimle paylaşılanlar",
       "everyone": "Herkes",
       "forkedFrom": "@{{name}} oturumundan çatallandı",
@@ -466,7 +464,8 @@
       "viewerOverflow": "ve {{count}} kişi daha izliyor",
       "memberViewing": "görüntülüyor: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "ID'yi kopyala"
     },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
@@ -698,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "{{name}} olarak giriş yapıldı"
   }
 }

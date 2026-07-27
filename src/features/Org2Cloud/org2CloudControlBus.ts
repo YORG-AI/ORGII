@@ -69,3 +69,32 @@ export function parseOrgControlChangeKind(
     ? kind
     : null;
 }
+
+/**
+ * Server-originated change signal (0005 Broadcast-from-Database): DB triggers
+ * `realtime.send` this event on the same org channel. Distinct from the
+ * client-sent ORG_CONTROL_CHANGED_EVENT so neither side misparses the other.
+ */
+export const ORG_DB_CHANGED_EVENT = "org-db-changed";
+
+export type Org2CloudDbChangeKind =
+  | "sessions"
+  | "comments"
+  | "projects"
+  | "workItems"
+  | "roster"
+  | "policy";
+
+export function parseOrgDbChangeKind(
+  payload: Record<string, unknown>
+): Org2CloudDbChangeKind | null {
+  const kind = payload.kind;
+  return kind === "sessions" ||
+    kind === "comments" ||
+    kind === "projects" ||
+    kind === "workItems" ||
+    kind === "roster" ||
+    kind === "policy"
+    ? kind
+    : null;
+}

@@ -1,11 +1,9 @@
 //! Codex session-meta parsing and parent-thread resolution.
 
 use std::collections::BTreeSet;
-use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::sources::codex::canonical_session_id;
@@ -13,14 +11,15 @@ use crate::sources::imported_history::{
     self,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
-        RoundUsage, SOURCE_CODEX_APP,
+        StoredRoundUsage, SOURCE_CODEX_APP,
     },
+    watermark::{ImportedParseWatermark, WatermarkedTranscriptReader},
 };
 
 use super::impact::{collect_codex_impact_from_patch_apply_end, collect_codex_impact_from_payload};
 use super::index::{
-    codex_session_index_title_for_record, codex_sessions_dir_for_session_path,
-    codex_thread_id_from_file_stem, collect_codex_session_files,
+    codex_sessions_dir_for_session_path, codex_thread_id_from_file_stem,
+    collect_codex_session_files,
 };
 use super::transcript::user_message_from_payload;
 use super::{
@@ -42,98 +41,92 @@ struct CodexTurnContextPayload {
     model: String,
 }
 
-pub(crate) fn parse_codex_session_meta(
-    record: &ImportedHistoryDiscoveredRecord,
-) -> Result<Option<CodexAppSessionMeta>, String> {
-    let file = fs::File::open(&record.source_path).map_err(|err| {
-        format!(
-            "Failed to open Codex history {}: {err}",
-            record.source_path.display()
-        )
-    })?;
-    let reader = BufReader::new(file);
-
-    let mut created_at_ms = 0;
-    let mut updated_at_ms = 0;
-    let mut external_title = codex_session_index_title_for_record(record)?;
-    let mut first_prompt = String::new();
-    let mut model: Option<String> = None;
-    let mut repo_path: Option<String> = None;
+/// Resumable accumulator for one rollout's meta scan. Every field is exactly
+/// the per-file state the old single-pass loop kept in locals, so it can be
+/// frozen into a parse watermark's `state_json` at a complete-line boundary
+/// and resumed against only the appended suffix.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct CodexSessionMetaState {
+    created_at_ms: i64,
+    updated_at_ms: i64,
+    /// Title carried inside the transcript's `session_meta` lines; the fresh
+    /// session-index title (external, re-read each parse) still wins.
+    transcript_title: String,
+    first_prompt: String,
+    model: Option<String>,
+    repo_path: Option<String>,
     // Session totals are accumulated from per-round deltas (robust to codex's
     // cumulative resets on /compact). `input_tokens` is cache-inclusive here to
     // match the imported-cache convention.
-    let mut input_tokens = 0;
-    let mut output_tokens = 0;
-    let mut cache_read_tokens = 0;
-    let mut cache_write_tokens = 0;
-    let mut rounds: Vec<RoundUsage> = Vec::new();
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+    rounds: Vec<StoredRoundUsage>,
     // Previous cumulative `total_token_usage` for delta computation.
-    let mut prev_input = 0i64;
-    let mut prev_cached = 0i64;
-    let mut prev_cache_write = 0i64;
-    let mut prev_output = 0i64;
+    prev_input: i64,
+    prev_cached: i64,
+    prev_cache_write: i64,
+    prev_output: i64,
     // Primary impact source: `patch_apply_end` events, which Codex emits after
     // every *successful* apply with a structured `changes` map (path ->
     // unified_diff). This covers every edit path uniformly — the `apply_patch`
-    // tool, `exec`-wrapped patches, etc. The tool-call scan below is only a
+    // tool, `exec`-wrapped patches, etc. The tool-call scan is only a
     // fallback for older rollouts that predate `patch_apply_end`.
-    let mut impact = ImportedHistoryImpactStats::default();
-    let mut touched_files = BTreeSet::new();
-    let mut fallback_impact = ImportedHistoryImpactStats::default();
-    let mut fallback_touched = BTreeSet::new();
-    let mut parent_thread_id: Option<String> = None;
-    let mut source_metadata = CodexAppSourceMetadata::default();
+    impact: ImportedHistoryImpactStats,
+    touched_files: BTreeSet<String>,
+    fallback_impact: ImportedHistoryImpactStats,
+    fallback_touched: BTreeSet<String>,
+    parent_thread_id: Option<String>,
+    source_metadata: CodexAppSourceMetadata,
+}
 
-    for line in reader.lines() {
-        let line = line.map_err(|err| format!("Failed to read Codex history line: {err}"))?;
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
+impl CodexSessionMetaState {
+    fn feed(&mut self, trimmed: &str, record: &ImportedHistoryDiscoveredRecord) {
         let parsed: CodexJsonlLine = match serde_json::from_str(trimmed) {
             Ok(parsed) => parsed,
-            Err(_) => continue,
+            Err(_) => return,
         };
         if let Some(timestamp) = parsed
             .timestamp
             .as_deref()
             .and_then(imported_history::parse_iso_to_epoch_ms_opt)
         {
-            if created_at_ms == 0 || timestamp < created_at_ms {
-                created_at_ms = timestamp;
+            if self.created_at_ms == 0 || timestamp < self.created_at_ms {
+                self.created_at_ms = timestamp;
             }
-            if timestamp > updated_at_ms {
-                updated_at_ms = timestamp;
+            if timestamp > self.updated_at_ms {
+                self.updated_at_ms = timestamp;
             }
         }
-        if first_prompt.is_empty() {
+        if self.first_prompt.is_empty() {
             if let Some(message) = user_message_from_payload(&parsed.payload) {
-                first_prompt = message;
+                self.first_prompt = message;
             }
         }
-        if external_title.is_empty() && parsed.line_type == "session_meta" {
+        if self.transcript_title.is_empty() && parsed.line_type == "session_meta" {
             if let Some(title) = session_title_from_payload(&parsed.payload) {
-                external_title = imported_history::truncate_name(&title, 200);
+                self.transcript_title = imported_history::truncate_name(&title, 200);
             }
         }
-        if parent_thread_id.is_none() && parsed.line_type == "session_meta" {
-            parent_thread_id = parent_thread_id_from_session_meta_payload(
+        if self.parent_thread_id.is_none() && parsed.line_type == "session_meta" {
+            self.parent_thread_id = parent_thread_id_from_session_meta_payload(
                 &parsed.payload,
                 codex_thread_id_from_file_stem(&record.source_record_key),
             );
         }
         if parsed.line_type == "session_meta" {
-            capture_subagent_source_metadata(&parsed.payload, &mut source_metadata);
+            capture_subagent_source_metadata(&parsed.payload, &mut self.source_metadata);
         }
-        if model.is_none() || repo_path.is_none() {
+        if self.model.is_none() || self.repo_path.is_none() {
             if let Ok(turn_context) =
                 serde_json::from_value::<CodexTurnContextPayload>(parsed.payload.clone())
             {
-                if model.is_none() && !turn_context.model.trim().is_empty() {
-                    model = Some(turn_context.model);
+                if self.model.is_none() && !turn_context.model.trim().is_empty() {
+                    self.model = Some(turn_context.model);
                 }
-                if repo_path.is_none() && !turn_context.cwd.trim().is_empty() {
-                    repo_path = Some(turn_context.cwd);
+                if self.repo_path.is_none() && !turn_context.cwd.trim().is_empty() {
+                    self.repo_path = Some(turn_context.cwd);
                 }
             }
         }
@@ -153,102 +146,215 @@ pub(crate) fn parse_codex_session_meta(
                 // Per-field delta, treating a decrease (codex resets on /compact)
                 // as a fresh start so totals never go negative or undercount.
                 let delta = |cum: i64, prev: i64| if cum >= prev { cum - prev } else { cum };
-                let d_input = delta(cum_input, prev_input);
-                let d_cached = delta(cum_cached, prev_cached);
-                let d_cache_write = delta(cum_cache_write, prev_cache_write);
-                let d_output = delta(cum_output, prev_output);
+                let d_input = delta(cum_input, self.prev_input);
+                let d_cached = delta(cum_cached, self.prev_cached);
+                let d_cache_write = delta(cum_cache_write, self.prev_cache_write);
+                let d_output = delta(cum_output, self.prev_output);
                 let d_fresh = (d_input - d_cached - d_cache_write).max(0);
                 if d_input > 0 || d_output > 0 {
                     let event_ms = parsed
                         .timestamp
                         .as_deref()
                         .and_then(imported_history::parse_iso_to_epoch_ms_opt)
-                        .unwrap_or(updated_at_ms);
-                    rounds.push(RoundUsage {
-                        source: SOURCE_CODEX_APP,
-                        source_session_id: record.source_session_id.clone(),
-                        session_id: canonical_session_id(&record.source_session_id),
-                        seq: rounds.len() as i64,
-                        model: model.clone(),
+                        .unwrap_or(self.updated_at_ms);
+                    self.rounds.push(StoredRoundUsage {
+                        seq: self.rounds.len() as i64,
+                        model: self.model.clone(),
                         input_tokens: d_fresh,
                         output_tokens: d_output,
                         cache_read_tokens: d_cached,
                         cache_write_tokens: d_cache_write,
                         created_at_ms: event_ms,
                     });
-                    input_tokens += d_input;
-                    output_tokens += d_output;
-                    cache_read_tokens += d_cached;
-                    cache_write_tokens += d_cache_write;
+                    self.input_tokens += d_input;
+                    self.output_tokens += d_output;
+                    self.cache_read_tokens += d_cached;
+                    self.cache_write_tokens += d_cache_write;
                 }
-                prev_input = cum_input;
-                prev_cached = cum_cached;
-                prev_cache_write = cum_cache_write;
-                prev_output = cum_output;
+                self.prev_input = cum_input;
+                self.prev_cached = cum_cached;
+                self.prev_cache_write = cum_cache_write;
+                self.prev_output = cum_output;
             }
         }
-        collect_codex_impact_from_patch_apply_end(&parsed.payload, &mut impact, &mut touched_files);
+        collect_codex_impact_from_patch_apply_end(
+            &parsed.payload,
+            &mut self.impact,
+            &mut self.touched_files,
+        );
         collect_codex_impact_from_payload(
             &parsed.payload,
-            &mut fallback_impact,
-            &mut fallback_touched,
+            &mut self.fallback_impact,
+            &mut self.fallback_touched,
         );
     }
 
-    // Prefer the authoritative `patch_apply_end` tally; only fall back to the
-    // tool-call scan when no successful applies were recorded (older rollouts).
-    if touched_files.is_empty() && impact.lines_added == 0 && impact.lines_removed == 0 {
-        impact = fallback_impact;
-        touched_files = fallback_touched;
-    }
+    fn finish(
+        mut self,
+        record: &ImportedHistoryDiscoveredRecord,
+        external_title: String,
+    ) -> Option<CodexAppSessionMeta> {
+        // Prefer the authoritative `patch_apply_end` tally; only fall back to
+        // the tool-call scan when no successful applies were recorded.
+        if self.touched_files.is_empty()
+            && self.impact.lines_added == 0
+            && self.impact.lines_removed == 0
+        {
+            self.impact = self.fallback_impact;
+            self.touched_files = self.fallback_touched;
+        }
+        self.impact.touched_files = self.touched_files.into_iter().collect();
+        self.impact.files_changed = self.impact.touched_files.len() as i64;
 
-    impact.touched_files = touched_files.into_iter().collect();
-    impact.files_changed = impact.touched_files.len() as i64;
+        if self.created_at_ms == 0 && record.source_mtime_ms == 0 {
+            return None;
+        }
 
-    if created_at_ms == 0 && record.source_mtime_ms == 0 {
-        return Ok(None);
-    }
-
-    let name = if !external_title.is_empty() {
-        external_title
-    } else if first_prompt.is_empty() {
-        record.source_record_key.clone()
-    } else {
-        imported_history::truncate_name(&first_prompt, 200)
-    };
-    source_metadata.first_prompt = (!first_prompt.trim().is_empty()).then_some(first_prompt);
-    Ok(Some(CodexAppSessionMeta {
-        source_session_id: record.source_session_id.clone(),
-        session_id: canonical_session_id(&record.source_session_id),
-        source_path: record.source_path.to_string_lossy().to_string(),
-        source_record_key: record.source_record_key.clone(),
-        source_mtime_ms: record.source_mtime_ms,
-        source_size_bytes: record.source_size_bytes,
-        source_fingerprint: record.source_fingerprint.clone(),
-        name,
-        parent_session_id: parent_thread_id
-            .as_deref()
-            .and_then(|thread_id| codex_parent_session_id_for_record(record, thread_id)),
-        created_at_ms: if created_at_ms > 0 {
-            created_at_ms
+        let title = if external_title.is_empty() {
+            self.transcript_title
         } else {
-            record.source_mtime_ms
-        },
-        updated_at_ms: if updated_at_ms > 0 {
-            updated_at_ms
+            external_title
+        };
+        let name = if !title.is_empty() {
+            title
+        } else if self.first_prompt.is_empty() {
+            record.source_record_key.clone()
         } else {
-            record.source_mtime_ms
-        },
-        model,
-        repo_path,
-        input_tokens,
-        output_tokens,
-        cache_read_tokens,
-        cache_write_tokens,
-        impact,
-        rounds,
-        source_metadata,
-    }))
+            imported_history::truncate_name(&self.first_prompt, 200)
+        };
+        let session_id = canonical_session_id(&record.source_session_id);
+        let rounds = self
+            .rounds
+            .into_iter()
+            .map(|round| {
+                round.into_round_usage(SOURCE_CODEX_APP, &record.source_session_id, &session_id)
+            })
+            .collect();
+        let mut source_metadata = self.source_metadata;
+        source_metadata.first_prompt =
+            (!self.first_prompt.trim().is_empty()).then_some(self.first_prompt);
+        Some(CodexAppSessionMeta {
+            source_session_id: record.source_session_id.clone(),
+            session_id,
+            source_path: record.source_path.to_string_lossy().to_string(),
+            source_record_key: record.source_record_key.clone(),
+            source_mtime_ms: record.source_mtime_ms,
+            source_size_bytes: record.source_size_bytes,
+            source_fingerprint: record.source_fingerprint.clone(),
+            name,
+            parent_session_id: self
+                .parent_thread_id
+                .as_deref()
+                .and_then(|thread_id| codex_parent_session_id_for_record(record, thread_id)),
+            created_at_ms: if self.created_at_ms > 0 {
+                self.created_at_ms
+            } else {
+                record.source_mtime_ms
+            },
+            updated_at_ms: if self.updated_at_ms > 0 {
+                self.updated_at_ms
+            } else {
+                record.source_mtime_ms
+            },
+            model: self.model,
+            repo_path: self.repo_path,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            cache_read_tokens: self.cache_read_tokens,
+            cache_write_tokens: self.cache_write_tokens,
+            impact: self.impact,
+            rounds,
+            source_metadata,
+        })
+    }
+}
+
+pub(crate) struct CodexSessionMetaParse {
+    pub meta: Option<CodexAppSessionMeta>,
+    pub watermark: ImportedParseWatermark,
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub resumed: bool,
+}
+
+pub(crate) fn parse_codex_session_meta_with_title(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
+) -> Result<CodexSessionMetaParse, String> {
+    let mut reader = WatermarkedTranscriptReader::open(
+        &record.source_path,
+        "Codex",
+        watermark,
+        CODEX_APP_METADATA_PARSER_VERSION,
+        record.source_mtime_ms,
+        record.source_size_bytes,
+    )?;
+    let mut state = CodexSessionMetaState::default();
+    let mut resumed = false;
+    if let Some(state_json) = reader.resume_state_json() {
+        match serde_json::from_str::<CodexSessionMetaState>(state_json) {
+            Ok(parsed) => {
+                state = parsed;
+                resumed = true;
+            }
+            Err(_) => {
+                reader = WatermarkedTranscriptReader::open(
+                    &record.source_path,
+                    "Codex",
+                    None,
+                    CODEX_APP_METADATA_PARSER_VERSION,
+                    record.source_mtime_ms,
+                    record.source_size_bytes,
+                )?;
+            }
+        }
+    }
+    let mut tail_state: Option<CodexSessionMetaState> = None;
+    while let Some(line) = reader.next_line()? {
+        let trimmed = line.text.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if line.terminated {
+            state.feed(trimmed, record);
+        } else {
+            let mut snapshot = state.clone();
+            snapshot.feed(trimmed, record);
+            tail_state = Some(snapshot);
+        }
+    }
+    let state_json = serde_json::to_string(&state)
+        .map_err(|err| format!("Failed to serialize Codex parse state: {err}"))?;
+    let next_watermark = reader.into_watermark(
+        CODEX_APP_METADATA_PARSER_VERSION,
+        record.source_mtime_ms,
+        record.source_size_bytes,
+        state_json,
+    );
+    let meta = tail_state
+        .unwrap_or(state)
+        .finish(record, external_title);
+    Ok(CodexSessionMetaParse {
+        meta,
+        watermark: next_watermark,
+        resumed,
+    })
+}
+
+#[cfg(test)]
+pub(crate) fn parse_codex_session_meta_incremental(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+) -> Result<CodexSessionMetaParse, String> {
+    let external_title = super::index::codex_session_index_title_for_record(record)?;
+    parse_codex_session_meta_with_title(record, watermark, external_title)
+}
+
+#[cfg(test)]
+pub(crate) fn parse_codex_session_meta(
+    record: &ImportedHistoryDiscoveredRecord,
+) -> Result<Option<CodexAppSessionMeta>, String> {
+    Ok(parse_codex_session_meta_incremental(record, None)?.meta)
 }
 
 pub(super) fn session_meta_to_cache_input(meta: CodexAppSessionMeta) -> ImportedHistoryCacheInput {

@@ -321,6 +321,11 @@ pub fn prune_missing_records_from_conn(
             [source],
         )
         .ok();
+        conn.execute(
+            "DELETE FROM imported_history_parse_watermarks WHERE source = ?1",
+            [source],
+        )
+        .ok();
         return Ok(());
     }
 
@@ -342,6 +347,13 @@ pub fn prune_missing_records_from_conn(
         "DELETE FROM imported_history_round_usage \
          WHERE source = ?1 AND session_id NOT IN \
              (SELECT session_id FROM imported_history_session_cache WHERE source = ?1)",
+        [source],
+    )
+    .ok();
+    conn.execute(
+        "DELETE FROM imported_history_parse_watermarks \
+         WHERE source = ?1 AND source_session_id NOT IN \
+             (SELECT source_session_id FROM imported_history_session_cache WHERE source = ?1)",
         [source],
     )
     .ok();
@@ -763,9 +775,42 @@ pub fn query_cached_session_from_conn(
 /// while the cache primary key is `(source, source_session_id)`. Resolve the
 /// source first, then reuse the canonical row decoder so the targeted and
 /// paginated paths cannot drift in field handling.
+///
+/// Continuation-superseded siblings resolve to `None`: a context-window
+/// continuation copies the whole conversation into a newer session file, so
+/// the family's newest sibling is the only row exact-id resolution may
+/// surface. Without this, by-id hydration (deep links, open-tab/pinned row
+/// hydration, cloud My-sessions hydration) re-adds rows the listing demoted
+/// and one conversation shows once per continuation rewrite. Other unlistable
+/// rows (subagents, managed mirrors) still resolve — callers rely on that for
+/// parent placement and replay.
+///
+/// Existence checks that must treat a demoted sibling as still-present (the
+/// cloud vanished-session sweep) use
+/// `query_cached_session_by_session_id_including_superseded_from_conn`.
 pub fn query_cached_session_by_session_id_from_conn(
     conn: &Connection,
     session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, false)
+}
+
+/// Exact-id resolution WITHOUT the continuation-supersession filter: a row
+/// demoted by the continuation election still resolves. The cloud
+/// vanished-session sweep confirms suspects through this path — a superseded
+/// sibling has not vanished locally, and reporting it absent would retract
+/// the team's shared cloud session on every context-window continuation.
+pub fn query_cached_session_by_session_id_including_superseded_from_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
+    query_cached_session_by_session_id_impl(conn, session_id, true)
+}
+
+fn query_cached_session_by_session_id_impl(
+    conn: &Connection,
+    session_id: &str,
+    include_continuation_superseded: bool,
 ) -> Result<Option<(String, ImportedHistoryCachedSession)>, String> {
     let source = conn
         .query_row(
@@ -788,7 +833,89 @@ pub fn query_cached_session_by_session_id_from_conn(
         1,
         0,
     )?;
-    Ok(sessions.into_iter().next().map(|session| (source, session)))
+    let Some(session) = sessions.into_iter().next() else {
+        return Ok(None);
+    };
+    if !include_continuation_superseded
+        && has_newer_continuation_sibling(conn, &source, &session)?
+    {
+        return Ok(None);
+    }
+    Ok(Some((source, session)))
+}
+
+/// True when this top-level row belongs to a continuation family and a
+/// strictly newer sibling exists, mirroring the demotion election's ordering
+/// (`updated_at_ms`, then `source_session_id`) so exact-id resolution and the
+/// paginated listing agree on which sibling represents the conversation.
+/// Recomputed from content rather than read off `listable` so the answer
+/// stays correct mid-sync (a freshly parsed loser is `listable = 1` until the
+/// same sync's election runs) and never conflates managed-mirror hiding with
+/// supersession.
+fn has_newer_continuation_sibling(
+    conn: &Connection,
+    source: &str,
+    session: &ImportedHistoryCachedSession,
+) -> Result<bool, String> {
+    if session.parent_session_id.is_some() {
+        return Ok(false);
+    }
+    let Some(group_key) = session
+        .source_metadata_json
+        .as_deref()
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .as_ref()
+        .and_then(|metadata| metadata.get(CONTINUATION_GROUP_KEY_FIELD))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|key| !key.is_empty())
+        .map(str::to_string)
+    else {
+        return Ok(false);
+    };
+    conn.query_row(
+        &format!(
+            "SELECT EXISTS(
+                SELECT 1 FROM imported_history_session_cache
+                WHERE source = ?1
+                  AND source_session_id != ?2
+                  AND COALESCE(parent_session_id, '') = ''
+                  AND CASE WHEN json_valid(source_metadata_json)
+                       THEN json_extract(source_metadata_json, '$.{CONTINUATION_GROUP_KEY_FIELD}')
+                       END = ?3
+                  AND (updated_at_ms > ?4
+                       OR (updated_at_ms = ?4 AND source_session_id > ?2))
+            )"
+        ),
+        rusqlite::params![
+            source,
+            session.source_session_id,
+            group_key,
+            session.updated_at_ms
+        ],
+        |row| Ok(row.get::<_, i64>(0)? != 0),
+    )
+    .map_err(|err| format!("Failed to query continuation siblings for {source}: {err}"))
+}
+
+/// Cheap whole-source content signature for staleness checks: row count, the
+/// newest cache-write stamp, and the listable sum. It changes whenever ANY
+/// caller's sync inserts, re-parses, prunes, or (de)lists rows for the source
+/// — including continuation demotions applied during a sync triggered by a
+/// different surface, which per-call "did MY call write" reporting cannot
+/// see. The frontend compares it against the signature captured at its last
+/// roster reload to decide whether the sidebar is stale.
+pub fn query_source_cache_signature_from_conn(
+    conn: &Connection,
+    source: &str,
+) -> Result<String, String> {
+    conn.query_row(
+        "SELECT COUNT(*) || ':' || COALESCE(MAX(updated_at), '') || ':' || COALESCE(SUM(listable), 0)
+         FROM imported_history_session_cache WHERE source = ?1",
+        [source],
+        |row| row.get::<_, String>(0),
+    )
+    .map_err(|err| format!("Failed to compute imported history cache signature for {source}: {err}"))
 }
 
 pub fn query_cached_sessions_for_source_from_conn(

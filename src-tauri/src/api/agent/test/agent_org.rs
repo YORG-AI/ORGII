@@ -435,6 +435,7 @@ pub async fn test_agent_org_launch_coordinator(
                             true,
                             Some(agent_core::lifecycle::TerminalTurnSignal {
                                 turn_id: response.turn_id.clone(),
+                                turn_intent_id: None,
                                 status: agent_core::lifecycle::TurnTerminalStatus::Completed,
                                 completed_at: chrono::Utc::now()
                                     .to_rfc3339_opts(chrono::SecondsFormat::Millis, true),

@@ -7,6 +7,7 @@ import {
 import { loadSessionRoster } from "@src/store/session";
 import {
   dataSourceConfigAtom,
+  dataSourceRosterSignaturesAtom,
   externalSessionsEnabledAtom,
   getSourceConfig,
 } from "@src/store/session/dataSourceConfigAtom";
@@ -27,9 +28,14 @@ export async function rescanSidebarSessions(): Promise<void> {
   ).map(({ sourceId }) => sourceId);
 
   const scanResult = await externalHistoryRescanSources(sourceIds);
-  if (scanResult?.changedSources.length !== 0) {
-    await loadSessionRoster({ forceRefresh: true });
-  }
+  // Explicit refresh: reload unconditionally. Even a rescan that wrote
+  // nothing can follow cache writes from other surfaces' syncs (e.g. a
+  // continuation demotion) that the sidebar never rendered.
+  await loadSessionRoster({ forceRefresh: true });
+  store.set(dataSourceRosterSignaturesAtom, (previous) => ({
+    ...previous,
+    ...(scanResult?.sourceSignatures ?? {}),
+  }));
 
   const lastScannedAt = Date.now();
   store.set(dataSourceConfigAtom, (previous) => {

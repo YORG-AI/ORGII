@@ -55,18 +55,23 @@ pub async fn terminate_process_tree(pid: i64, _label: &str) {
 /// in the database — callers are responsible for setting the appropriate final status
 /// (e.g., Cancelled for user cancel, or nothing before a re-run).
 pub async fn kill_running_agent(session_id: &str) -> bool {
-    let had_running_task = {
+    let running_task = {
         let mut sessions = RUNNING_SESSIONS.lock().await;
-        if let Some(handle) = sessions.remove(session_id) {
-            flush_cli_streams_for_session(session_id);
-            handle.abort();
-            true
-        } else {
-            false
-        }
+        sessions.remove(session_id)
     };
+    let had_running_task = running_task.is_some();
+    if let Some(handle) = running_task {
+        // The flush can touch SQLite. Never hold the global runner registry
+        // lock across that blocking-pool round trip or unrelated sessions'
+        // start/stop operations would serialize behind it.
+        flush_cli_streams_for_session(session_id).await;
+        handle.abort();
+    }
 
-    if let Ok(Some(session)) = persistence::get_session(session_id) {
+    let process_session_id = session_id.to_string();
+    let persisted_session =
+        tokio::task::spawn_blocking(move || persistence::get_session(&process_session_id)).await;
+    if let Ok(Ok(Some(session))) = persisted_session {
         if let Some(pid) = session.pid {
             terminate_process_tree(pid, session_id).await;
         }
@@ -92,15 +97,39 @@ pub async fn cancel_session(session_id: &str, reason: CancelReason) -> Result<bo
     // on the DB-error branch so the cause is visible while still
     // proceeding with the cancel (we don't want to fail the cancel
     // just because we couldn't decorate the broadcast).
-    let session = match persistence::get_session(session_id) {
-        Ok(s) => s,
-        Err(err) => {
+    let lookup_session_id = session_id.to_string();
+    let (session, active_turn_intent_id) = match tokio::task::spawn_blocking(move || {
+        let session =
+            persistence::get_session(&lookup_session_id).map_err(|err| err.to_string())?;
+        let latest = session_persistence::turn_intents::latest_for_sessions(std::slice::from_ref(
+            &lookup_session_id,
+        ))
+        .map_err(|err| err.to_string())?
+        .remove(&lookup_session_id)
+        .filter(|intent| {
+            intent.status == session_persistence::turn_intents::TurnIntentStatus::Running
+        })
+        .map(|intent| intent.turn_intent_id);
+        Ok::<_, String>((session, latest))
+    })
+    .await
+    {
+        Ok(Ok(result)) => result,
+        Ok(Err(err)) => {
             tracing::warn!(
                 session_id = %session_id,
                 error = %err,
                 "cli::cancel_session: get_session DB error; broadcast will lack session metadata"
             );
-            None
+            (None, None)
+        }
+        Err(err) => {
+            tracing::warn!(
+                session_id = %session_id,
+                error = %err,
+                "cli::cancel_session: status lookup task failed"
+            );
+            (None, None)
         }
     };
 
@@ -112,8 +141,23 @@ pub async fn cancel_session(session_id: &str, reason: CancelReason) -> Result<bo
 
     let had_running = kill_running_agent(session_id).await;
 
-    persistence::update_status(session_id, SessionStatus::Cancelled)
-        .map_err(|e| format!("DB error: {}", e))?;
+    let persist_session_id = session_id.to_string();
+    let persist_turn_intent_id = active_turn_intent_id.clone();
+    tokio::task::spawn_blocking(move || {
+        persistence::update_cli_turn_lifecycle(
+            &persist_session_id,
+            SessionStatus::Cancelled,
+            None,
+            persist_turn_intent_id.as_deref().map(|turn_intent_id| {
+                (
+                    turn_intent_id,
+                    session_persistence::turn_intents::TurnIntentStatus::Cancelled,
+                )
+            }),
+        )
+    })
+    .await
+    .map_err(|err| format!("Task error: {err}"))??;
 
     // Cancelling also wakes any parked PermissionRequest hook long-poll
     // (no-decision) — covered again by clear_live_status below when the
@@ -140,7 +184,7 @@ pub async fn cancel_session(session_id: &str, reason: CancelReason) -> Result<bo
         crate::orgtrack::agent_live_status::clear(&[session_id]);
     }
 
-    let status_msg = serde_json::json!({
+    let mut status_msg = serde_json::json!({
         "type": "code_session.status_changed",
         "session_id": session_id,
         "status": "cancelled",
@@ -148,6 +192,9 @@ pub async fn cancel_session(session_id: &str, reason: CancelReason) -> Result<bo
         "background": session.as_ref().is_some_and(|s| s.background),
         "session_name": session.as_ref().map(|s| s.name.clone()),
     });
+    if let Some(turn_intent_id) = active_turn_intent_id {
+        status_msg["turn_intent_id"] = serde_json::Value::String(turn_intent_id);
+    }
     crate::api::websocket_handler::broadcast(status_msg.to_string());
 
     tracing::info!(

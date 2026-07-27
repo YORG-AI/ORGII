@@ -53,7 +53,6 @@ export interface CreateWorkItemViewProps {
    */
   orgId?: string | null;
   repoPath?: string | null;
-  scopeBreadcrumbLabel?: string;
   onCancel: () => void;
   onSetUnsaved: (hasUnsaved: boolean) => void;
   onWorkItemCreated: (result?: CreatedWorkItemResult) => void;
@@ -96,7 +95,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   projectName,
   orgId,
   repoPath,
-  scopeBreadcrumbLabel,
   onCancel,
   onSetUnsaved,
   onWorkItemCreated,
@@ -147,7 +145,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     projectName,
     projectSlug,
     repoPath,
-    scopeBreadcrumbLabel,
   });
 
   const { draft, editorRef } = inlineFields;
@@ -282,7 +279,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       className="flex min-w-0 flex-nowrap items-center gap-1.5"
       data-testid="create-work-item-pinned-actions"
     >
-      {inlineFields.workItemOrgPill}
+      {inlineFields.workItemProjectPill}
       {inlineFields.inlinePropertyPills}
     </div>
   );

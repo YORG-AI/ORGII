@@ -407,7 +407,6 @@
     "title": "ORG2 Cloud",
     "signIn": "Connexion",
     "signOut": "Déconnexion",
-    "signedInAs": "Connecté en tant que {{name}}",
     "signedInToast": "Connecté à ORG2 Cloud",
     "sessionExpired": "Votre session ORG2 Cloud a expiré. Reconnectez-vous pour continuer.",
     "recommendedBadge": "Recommandé",
@@ -457,7 +456,6 @@
       "mySessions": "Mes sessions",
       "memberFilter": "Filtrer par membre",
       "sessionFilter": "Filtrer les sessions",
-      "copyId": "Copier l’ID",
       "directlySharedWithMe": "Partagées directement avec moi",
       "everyone": "Tout le monde",
       "forkedFrom": "dupliquée depuis @{{name}}",
@@ -468,7 +466,8 @@
       "viewerOverflow": "et {{count}} autres spectateurs",
       "memberViewing": "regarde : {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Copier l’ID"
     },
     "sync": {
       "quotaExceededToast": "Synchro ORG2 Cloud en pause : le quota du forfait de cette organisation est dépassé",
@@ -700,6 +699,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Connecté en tant que {{name}}"
   }
 }
