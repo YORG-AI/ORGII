@@ -1,4 +1,4 @@
-import type { Session } from "@src/store/session";
+import type { Session } from "@src/store/session/sessionAtom/types";
 
 import { getSessionListDisplayName } from "./sessionSidebarRow";
 

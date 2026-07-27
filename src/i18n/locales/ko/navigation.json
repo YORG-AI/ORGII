@@ -61,15 +61,9 @@
     "startSession": "세션 시작",
     "sessions": "Session 목록",
     "selectProject": "Project 선택",
-    "startPage": "시작 페이지",
     "inbox": "받은 편지함",
     "login": "로그인",
     "setup": "설정",
-    "devJourney": "개발 여정",
-    "devRecord": "개발 기록",
-    "gitDashboard": "Git 대시보드",
-    "devActivity": "Dev 활동",
-    "usageHistory": "사용 내역",
     "tokenMarket": "Token 마켓",
     "taskMarket": "작업 마켓",
     "channels": "Channel",
@@ -85,20 +79,8 @@
     "ideaArea": "아이디어 공간",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "그리드 사용자 지정",
-    "horizontalGap": "수평 간격",
-    "verticalGap": "수직 간격",
-    "resetToDefault": "기본값으로 재설정"
-  },
-  "greetings": {
-    "morning": "좋은 아침입니다",
-    "afternoon": "좋은 오후입니다",
-    "evening": "좋은 저녁입니다"
-  },
   "sidebar": {
     "tabs": {
-      "build": "홈",
       "workstation": "Workstation",
       "manage": "관리",
       "core": "코어",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "새로 추가",
       "collapseAll": "모두 접기",
-      "markAllRead": "모두 읽음으로 표시",
-      "openHome": "홈 열기",
-      "openWorkstation": "Workstation 열기"
+      "markAllRead": "모두 읽음으로 표시"
     },
     "search": {
       "folders": "워크스페이스 검색...",
@@ -358,15 +338,6 @@
       "projects": "프로젝트"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "제품 업데이트",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "세부 정보",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG 전환",
     "addOrg": "ORG 추가",
@@ -434,7 +405,9 @@
     "title": "ORG2 클라우드",
     "signIn": "로그인",
     "signOut": "로그아웃",
+    "signedInAs": "로그인 계정: {{name}}",
     "signedInToast": "ORG2 클라우드에 로그인했습니다",
+    "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
     "recommendedBadge": "추천",
     "recommendedDesc": "관리형 세션 공유, 리플레이 저장, 팀 권한, 안전한 공유 링크를 제공합니다. Supabase 설정이 필요 없습니다. Auth, 데이터베이스 마이그레이션, RLS 정책, 결제, 보존 기간, 할당량, 백엔드 업그레이드는 ORG2가 관리합니다",
     "customEndpoint": {
@@ -474,13 +447,15 @@
       "retentionUpgrade": "이 세션은 플랜의 리플레이 기간을 벗어났습니다 — 보려면 업그레이드하세요",
       "importError": "세션을 가져오지 못했습니다",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "내 정보"
     },
     "sidebar": {
       "teamSessions": "팀 세션",
       "mySessions": "내 세션",
       "memberFilter": "멤버별 필터",
       "sessionFilter": "세션 필터",
+      "copyId": "ID 복사",
       "directlySharedWithMe": "나에게 직접 공유됨",
       "everyone": "전체",
       "forkedFrom": "@{{name}}에서 포크됨",
@@ -613,25 +588,22 @@
         "inviteInvalid": "유효하지 않은 초대 코드입니다.",
         "inviteRevoked": "철회된 초대입니다.",
         "inviteExpired": "만료된 초대입니다.",
-        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다."
+        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다.",
+        "network": "클라우드 서비스에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요."
       }
-    },
-    "defaultAccess": {
-      "label": "기본 동기화 수준",
-      "help": "리포 범위와 일치하고 개별 설정이 없는 이 기기의 세션에 적용됩니다. '끔'이면 직접 켜기 전까지 세션이 로컬에만 남습니다"
     },
     "syncLevel": {
       "menuItem": "클라우드 동기화 수준…",
       "title": "클라우드 동기화 수준",
       "hint": "이 세션을 각 클라우드 조직에 어떻게 공유할지(공유 안 함·메타데이터만·전체 리플레이)와 공개 범위를 선택하세요.",
-      "orgDefaultOption": "조직 기본값({{mode}})",
       "modeOff": "끔",
       "modeMetadata": "메타데이터만",
       "modeFullReplay": "전체 리플레이",
       "visibilityOrg": "조직 전체",
       "visibilityRestricted": "나만",
       "taggedNote": "이 세션은 이 조직으로 이동되었으므로 태그가 유지되는 동안 최소한 메타데이터는 공유됩니다.",
-      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다."
+      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다.",
+      "orgMinimumOption": "조직 최소값({{mode}})"
     },
     "share": {
       "menuItem": "클라우드 공유…",

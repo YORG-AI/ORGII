@@ -34,7 +34,7 @@ import { useLaunchpadTab } from "./hooks/useLaunchpadTab";
 import { useTerminalTabTeardown } from "./hooks/useTerminalTabTeardown";
 
 interface AppShellProps {
-  /** Whether WorkStation is currently visible (code view mode is active) */
+  /** Whether the routed WorkStation surface is currently visible */
   isActive?: boolean;
   /** Whether the chat panel is taking over the WorkStation surface */
   chatPanelFocused?: boolean;
@@ -117,7 +117,16 @@ const AppShell = React.memo(
       workStationPanels,
     });
 
-    const portsEnabled = isCodeMode && isActive && !isAgentStation;
+    // The WorkStation host stays mounted behind the Launchpad / maximized chat
+    // surface. Port discovery is useful only while an actual code-host tab is
+    // visible; keeping it alive behind those overlays causes an idle 60s scan.
+    const portsEnabled =
+      isCodeMode &&
+      isActive &&
+      !chatPanelFocused &&
+      activeWorkStationTab != null &&
+      activeWorkStationTab.type !== "start" &&
+      !isAgentStation;
     useWorkspacePortAdvertisedUrls(portsEnabled);
 
     const showStatusBar = !statusBarHidden && !isAgentStation;

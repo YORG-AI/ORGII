@@ -1,13 +1,17 @@
 //! Transcript loading and tool-call chunk assembly.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
-use std::io::{BufRead, BufReader};
-use std::path::Path;
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::UNIX_EPOCH;
 
 use core_types::activity::ActivityChunk;
+use serde::Serialize;
 use serde_json::{json, Value};
 
+use crate::projectors::turn_metadata::{project_activity_chunks, ProjectedTurnMetadata};
 use crate::sources::imported_history::{self, strip_orgii_exec_mode_bridge, ImportedToolCall};
 
 use super::desktop_exec::{
@@ -20,6 +24,365 @@ use super::normalize::{
 use super::CodexJsonlLine;
 
 const CODEX_PROVIDER_SLUG: &str = "codex";
+const CODEX_EMBEDDED_IMAGE_MARKER: &str = "\"image_url\":\"data:image/";
+const CODEX_OMITTED_IMAGE_VALUE: &str = "[embedded image omitted]";
+const CODEX_TURN_OFFSET_CACHE_CAPACITY: usize = 8;
+const CODEX_TURN_OFFSET_LIMIT_PER_SESSION: usize = 4_096;
+const CODEX_INITIAL_TURN_LIMIT: usize = 4_096;
+const CODEX_REVERSE_SCAN_BLOCK_BYTES: usize = 256 * 1024;
+const CODEX_REVERSE_SCAN_MAX_LINE_BYTES: usize = 4 * 1024 * 1024;
+const CODEX_TURN_HEADER_PROBE_BYTES: u64 = 8 * 1024 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CodexTranscriptSignature {
+    modified_ns: u128,
+    size_bytes: u64,
+}
+
+#[derive(Debug, Clone)]
+struct CodexTurnOffset {
+    turn_id: String,
+    byte_offset: u64,
+    sequence: usize,
+}
+
+#[derive(Debug)]
+struct CodexTurnOffsetCacheEntry {
+    path: PathBuf,
+    signature: CodexTranscriptSignature,
+    turns: HashMap<String, (u64, usize)>,
+}
+
+#[derive(Debug, Default)]
+struct CodexTurnOffsetCache {
+    entries: VecDeque<CodexTurnOffsetCacheEntry>,
+}
+
+impl CodexTurnOffsetCache {
+    fn get(
+        &mut self,
+        path: &Path,
+        signature: CodexTranscriptSignature,
+        turn_id: &str,
+    ) -> Option<(u64, usize)> {
+        let index = self.entries.iter().position(|entry| entry.path == path)?;
+        let entry = self.entries.remove(index)?;
+        if entry.signature != signature {
+            return None;
+        }
+        let offset = entry.turns.get(turn_id).copied();
+        self.entries.push_back(entry);
+        offset
+    }
+
+    fn insert(
+        &mut self,
+        path: PathBuf,
+        signature: CodexTranscriptSignature,
+        offsets: Vec<CodexTurnOffset>,
+    ) {
+        if let Some(index) = self.entries.iter().position(|entry| entry.path == path) {
+            self.entries.remove(index);
+        }
+        let turns = offsets
+            .into_iter()
+            .rev()
+            .take(CODEX_TURN_OFFSET_LIMIT_PER_SESSION)
+            .map(|offset| (offset.turn_id, (offset.byte_offset, offset.sequence)))
+            .collect();
+        self.entries.push_back(CodexTurnOffsetCacheEntry {
+            path,
+            signature,
+            turns,
+        });
+        while self.entries.len() > CODEX_TURN_OFFSET_CACHE_CAPACITY {
+            self.entries.pop_front();
+        }
+    }
+}
+
+fn codex_turn_offset_cache() -> &'static Mutex<CodexTurnOffsetCache> {
+    static CACHE: OnceLock<Mutex<CodexTurnOffsetCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(CodexTurnOffsetCache::default()))
+}
+
+fn codex_transcript_file_signature(path: &Path) -> Result<CodexTranscriptSignature, String> {
+    let metadata = fs::metadata(path)
+        .map_err(|err| format!("Failed to stat Codex history {}: {err}", path.display()))?;
+    let modified_ns = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(UNIX_EPOCH).ok())
+        .map(|duration| duration.as_nanos())
+        .unwrap_or_default();
+    Ok(CodexTranscriptSignature {
+        modified_ns,
+        size_bytes: metadata.len(),
+    })
+}
+
+fn remember_codex_turn_offsets(
+    path: &Path,
+    signature_before: CodexTranscriptSignature,
+    offsets: Vec<CodexTurnOffset>,
+) -> Result<(), String> {
+    let signature_after = codex_transcript_file_signature(path)?;
+    if signature_before == signature_after {
+        codex_turn_offset_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .insert(path.to_path_buf(), signature_after, offsets);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexAppInitialWindow {
+    pub chunks: Vec<ActivityChunk>,
+    #[serde(skip_serializing)]
+    pub turns: Vec<ProjectedTurnMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexAppTurnWindow {
+    pub chunks: Vec<ActivityChunk>,
+    pub turn_id: String,
+    pub loaded_event_count: usize,
+}
+
+enum CodexTranscriptCollectionMode<'a> {
+    Full,
+    Initial { recent_turn_count: usize },
+    Turn { turn_id: &'a str },
+}
+
+struct CompletedCodexTurn {
+    chunks: Vec<ActivityChunk>,
+    summary: ProjectedTurnMetadata,
+    next_turn_id: Option<String>,
+}
+
+struct CodexTranscriptCollector<'a> {
+    session_id: &'a str,
+    mode: CodexTranscriptCollectionMode<'a>,
+    output: Vec<ActivityChunk>,
+    current: Vec<ActivityChunk>,
+    compacted: VecDeque<Vec<ActivityChunk>>,
+    recent: VecDeque<CompletedCodexTurn>,
+    turns: VecDeque<ProjectedTurnMetadata>,
+    turn_offsets: VecDeque<CodexTurnOffset>,
+    selected_turn_found: bool,
+}
+
+impl<'a> CodexTranscriptCollector<'a> {
+    fn new(session_id: &'a str, mode: CodexTranscriptCollectionMode<'a>) -> Self {
+        Self {
+            session_id,
+            mode,
+            output: Vec::new(),
+            current: Vec::new(),
+            compacted: VecDeque::new(),
+            recent: VecDeque::new(),
+            turns: VecDeque::new(),
+            turn_offsets: VecDeque::new(),
+            selected_turn_found: false,
+        }
+    }
+
+    fn record_turn_offset(&mut self, turn_id: String, byte_offset: u64, sequence: usize) {
+        if self.turn_offsets.len() >= CODEX_TURN_OFFSET_LIMIT_PER_SESSION {
+            self.turn_offsets.pop_front();
+        }
+        self.turn_offsets.push_back(CodexTurnOffset {
+            turn_id,
+            byte_offset,
+            sequence,
+        });
+    }
+
+    fn start_turn(&mut self, user_chunk: ActivityChunk) -> bool {
+        if self.current.iter().any(is_codex_user_chunk) {
+            self.finish_current(Some(user_chunk.chunk_id.clone()));
+            if self.selected_turn_found {
+                return true;
+            }
+        }
+        self.current.push(user_chunk);
+        false
+    }
+
+    fn finish_current(&mut self, next_turn_id: Option<String>) {
+        let Some(user_chunk) = self.current.iter().find(|chunk| is_codex_user_chunk(chunk)) else {
+            if matches!(self.mode, CodexTranscriptCollectionMode::Full) {
+                self.output.append(&mut self.current);
+            }
+            return;
+        };
+        let turn_id = user_chunk.chunk_id.clone();
+        match &self.mode {
+            CodexTranscriptCollectionMode::Full => {
+                self.output.append(&mut self.current);
+                return;
+            }
+            CodexTranscriptCollectionMode::Turn {
+                turn_id: requested_turn_id,
+            } => {
+                if turn_id == *requested_turn_id {
+                    self.output.append(&mut self.current);
+                    self.selected_turn_found = true;
+                } else {
+                    self.current.clear();
+                }
+                return;
+            }
+            CodexTranscriptCollectionMode::Initial { .. } => {}
+        }
+
+        let mut summary = project_activity_chunks(&self.current)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| ProjectedTurnMetadata {
+                turn_id: turn_id.clone(),
+                start_sequence: codex_sequence_from_chunk_id(&turn_id).unwrap_or_default(),
+                started_at: user_chunk.created_at.clone(),
+                ended_at: Some(user_chunk.created_at.clone()),
+                status: "completed".to_string(),
+                user_preview: String::new(),
+                event_count: 1,
+                body_event_count: 0,
+                modified_files: Vec::new(),
+                resource_interactions: Vec::new(),
+                git_artifacts: Vec::new(),
+            });
+        if let Some(sequence) = codex_sequence_from_chunk_id(&turn_id) {
+            summary.start_sequence = sequence;
+        }
+
+        let CodexTranscriptCollectionMode::Initial { recent_turn_count } = &self.mode else {
+            unreachable!("full and selected-turn modes returned above");
+        };
+        let recent_turn_count = (*recent_turn_count).clamp(1, CODEX_INITIAL_TURN_LIMIT);
+        if self.turns.len() >= CODEX_INITIAL_TURN_LIMIT {
+            self.turns.pop_front();
+        }
+        self.turns.push_back(summary.clone());
+        self.recent.push_back(CompletedCodexTurn {
+            chunks: std::mem::take(&mut self.current),
+            summary,
+            next_turn_id,
+        });
+        while self.recent.len() > recent_turn_count {
+            if let Some(completed) = self.recent.pop_front() {
+                self.compact_completed_turn(completed);
+            }
+        }
+    }
+
+    fn compact_completed_turn(&mut self, completed: CompletedCodexTurn) {
+        if let Some(user_chunk) = completed.chunks.into_iter().find(is_codex_user_chunk) {
+            let compacted_limit = match &self.mode {
+                CodexTranscriptCollectionMode::Initial { recent_turn_count } => {
+                    CODEX_INITIAL_TURN_LIMIT
+                        .saturating_sub((*recent_turn_count).clamp(1, CODEX_INITIAL_TURN_LIMIT))
+                }
+                _ => 0,
+            };
+            if compacted_limit == 0 {
+                return;
+            }
+            if self.compacted.len() >= compacted_limit {
+                self.compacted.pop_front();
+            }
+            self.compacted.push_back(vec![
+                user_chunk,
+                build_unloaded_turn_placeholder_chunk(
+                    self.session_id,
+                    &completed.summary,
+                    completed.next_turn_id,
+                ),
+            ]);
+        }
+    }
+
+    fn finish(
+        mut self,
+    ) -> (
+        Vec<ActivityChunk>,
+        Vec<ProjectedTurnMetadata>,
+        Vec<CodexTurnOffset>,
+    ) {
+        self.finish_current(None);
+        while let Some(compacted) = self.compacted.pop_front() {
+            self.output.extend(compacted);
+        }
+        while let Some(completed) = self.recent.pop_front() {
+            self.output.extend(completed.chunks);
+        }
+        (
+            self.output,
+            self.turns.into_iter().collect(),
+            self.turn_offsets.into_iter().collect(),
+        )
+    }
+}
+
+fn is_codex_user_chunk(chunk: &ActivityChunk) -> bool {
+    chunk.function == imported_history::FUNCTION_USER_MESSAGE
+}
+
+fn codex_sequence_from_chunk_id(chunk_id: &str) -> Option<i64> {
+    chunk_id.rsplit('-').next()?.parse().ok()
+}
+
+fn build_unloaded_turn_placeholder_chunk(
+    session_id: &str,
+    turn: &ProjectedTurnMetadata,
+    next_turn_id: Option<String>,
+) -> ActivityChunk {
+    let mut chunk = ActivityChunk::new(session_id, "assistant", "assistant");
+    chunk.chunk_id = format!("codex-unloaded-turn-{}", turn.turn_id);
+    chunk.created_at = turn
+        .ended_at
+        .clone()
+        .unwrap_or_else(|| turn.started_at.clone());
+    chunk.result = json!({
+        "observation": format!("Codex turn {} is not loaded yet.", turn.turn_id),
+        "role": "assistant",
+        "is_delta": false,
+        "is_full_content": true,
+        "unloadedTurn": {
+            "turnId": turn.turn_id,
+            "nextTurnId": next_turn_id,
+            "startedAt": turn.started_at,
+            "endedAt": turn.ended_at,
+            "durationMs": Value::Null,
+            "eventCount": turn.event_count,
+            "bodyEventCount": turn.body_event_count,
+        },
+    });
+    chunk
+}
+
+/// Codex can repeat a screenshot's base64 payload in thousands of tool-output
+/// rows. The replay projection only consumes each output part's text field, so
+/// deserializing the image bytes into `serde_json::Value` is pure allocation
+/// churn. Remove the ignored payload in-place before JSON parsing while
+/// preserving the surrounding output array and text parts.
+pub(crate) fn strip_ignored_embedded_images(line: &mut String) {
+    let mut search_from = 0usize;
+    while let Some(relative_marker) = line[search_from..].find(CODEX_EMBEDDED_IMAGE_MARKER) {
+        let marker_start = search_from + relative_marker;
+        let value_start = marker_start + "\"image_url\":\"".len();
+        let Some(relative_end) = line[value_start..].find('"') else {
+            break;
+        };
+        let value_end = value_start + relative_end;
+        line.replace_range(value_start..value_end, CODEX_OMITTED_IMAGE_VALUE);
+        search_from = value_start + CODEX_OMITTED_IMAGE_VALUE.len();
+    }
+}
 
 struct PendingBackgroundToolCall {
     calls: Vec<ImportedToolCall>,
@@ -37,19 +400,402 @@ pub fn load_codex_app_from_path(
     session_id: &str,
     path: &Path,
 ) -> Result<Vec<ActivityChunk>, String> {
-    let file = fs::File::open(path)
-        .map_err(|err| format!("Failed to open Codex history {}: {err}", path.display()))?;
-    let reader = BufReader::new(file);
+    let signature_before = codex_transcript_file_signature(path)?;
+    let (chunks, _, offsets) = load_codex_app_from_path_with_mode(
+        session_id,
+        path,
+        CodexTranscriptCollectionMode::Full,
+        0,
+        0,
+    )?;
+    remember_codex_turn_offsets(path, signature_before, offsets)?;
+    Ok(chunks)
+}
 
+pub fn load_codex_app_initial_window_from_path(
+    session_id: &str,
+    path: &Path,
+    recent_turn_count: usize,
+) -> Result<CodexAppInitialWindow, String> {
+    let signature_before = codex_transcript_file_signature(path)?;
+    let recent_turn_count = recent_turn_count.clamp(1, CODEX_INITIAL_TURN_LIMIT);
+    let recent_offsets = find_recent_codex_user_offsets(
+        path,
+        signature_before.size_bytes,
+        recent_turn_count.saturating_add(1),
+    )?;
+    if !recent_offsets.is_empty() {
+        let window = load_codex_app_initial_tail_window(
+            session_id,
+            path,
+            recent_turn_count,
+            &recent_offsets,
+        )?;
+        let offsets = recent_offsets
+            .iter()
+            .map(|byte_offset| CodexTurnOffset {
+                turn_id: codex_lazy_turn_id(*byte_offset),
+                byte_offset: *byte_offset,
+                sequence: codex_lazy_turn_sequence(*byte_offset),
+            })
+            .collect();
+        remember_codex_turn_offsets(path, signature_before, offsets)?;
+        return Ok(window);
+    }
+
+    // Metadata-only or partially written rollouts may not contain any user
+    // messages. Preserve the compatibility parser for those files; normal
+    // rollouts take the tail-window path above and never scan old turn bodies.
+    let (chunks, turns, offsets) = load_codex_app_from_path_with_mode(
+        session_id,
+        path,
+        CodexTranscriptCollectionMode::Initial { recent_turn_count },
+        0,
+        0,
+    )?;
+    remember_codex_turn_offsets(path, signature_before, offsets)?;
+    Ok(CodexAppInitialWindow { chunks, turns })
+}
+
+pub fn load_codex_app_turn_from_path(
+    session_id: &str,
+    path: &Path,
+    turn_id: &str,
+) -> Result<CodexAppTurnWindow, String> {
+    let signature = codex_transcript_file_signature(path)?;
+    let (start_offset, initial_sequence) = codex_turn_offset_cache()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .get(path, signature, turn_id)
+        .or_else(|| {
+            codex_lazy_turn_offset(turn_id).map(|offset| (offset, codex_lazy_turn_sequence(offset)))
+        })
+        .unwrap_or((0, 0));
+    let (selected_chunks, _, _) = load_codex_app_from_path_with_mode(
+        session_id,
+        path,
+        CodexTranscriptCollectionMode::Turn { turn_id },
+        start_offset,
+        initial_sequence,
+    )?;
+    let loaded_event_count = selected_chunks.len();
     let mut chunks = Vec::new();
+    let mut remembered_offsets = vec![CodexTurnOffset {
+        turn_id: turn_id.to_string(),
+        byte_offset: start_offset,
+        sequence: initial_sequence,
+    }];
+    if start_offset > 0 {
+        if let Some(previous_offset) = find_recent_codex_user_offsets(path, start_offset, 1)?
+            .into_iter()
+            .next()
+        {
+            if let Some((previous_user, previous_summary)) =
+                load_codex_turn_header(session_id, path, previous_offset)?
+            {
+                chunks.push(previous_user);
+                chunks.push(build_unloaded_turn_placeholder_chunk(
+                    session_id,
+                    &previous_summary,
+                    Some(turn_id.to_string()),
+                ));
+                remembered_offsets.push(CodexTurnOffset {
+                    turn_id: previous_summary.turn_id,
+                    byte_offset: previous_offset,
+                    sequence: codex_lazy_turn_sequence(previous_offset),
+                });
+            }
+        }
+    }
+    chunks.extend(selected_chunks);
+    remember_codex_turn_offsets(path, signature, remembered_offsets)?;
+    Ok(CodexAppTurnWindow {
+        chunks,
+        turn_id: turn_id.to_string(),
+        loaded_event_count,
+    })
+}
+
+fn codex_lazy_turn_sequence(byte_offset: u64) -> usize {
+    usize::try_from(byte_offset).unwrap_or(usize::MAX)
+}
+
+fn codex_lazy_turn_id(byte_offset: u64) -> String {
+    format!("codex-user-{}", codex_lazy_turn_sequence(byte_offset))
+}
+
+fn codex_lazy_turn_offset(turn_id: &str) -> Option<u64> {
+    turn_id.strip_prefix("codex-user-")?.parse().ok()
+}
+
+fn load_codex_app_initial_tail_window(
+    session_id: &str,
+    path: &Path,
+    recent_turn_count: usize,
+    newest_first_offsets: &[u64],
+) -> Result<CodexAppInitialWindow, String> {
+    let mut ascending_offsets = newest_first_offsets.to_vec();
+    ascending_offsets.sort_unstable();
+    let body_start = ascending_offsets.len().saturating_sub(recent_turn_count);
+    let mut chunks = Vec::new();
+    let mut turns = Vec::new();
+
+    if body_start > 0 {
+        let placeholder_offset = ascending_offsets[body_start - 1];
+        if let Some((user_chunk, summary)) =
+            load_codex_turn_header(session_id, path, placeholder_offset)?
+        {
+            let next_turn_id = ascending_offsets
+                .get(body_start)
+                .copied()
+                .map(codex_lazy_turn_id);
+            chunks.push(user_chunk);
+            chunks.push(build_unloaded_turn_placeholder_chunk(
+                session_id,
+                &summary,
+                next_turn_id,
+            ));
+            turns.push(summary);
+        }
+    }
+
+    for byte_offset in ascending_offsets.into_iter().skip(body_start) {
+        let turn_id = codex_lazy_turn_id(byte_offset);
+        let (turn_chunks, _, _) = load_codex_app_from_path_with_mode(
+            session_id,
+            path,
+            CodexTranscriptCollectionMode::Turn { turn_id: &turn_id },
+            byte_offset,
+            codex_lazy_turn_sequence(byte_offset),
+        )?;
+        turns.extend(project_activity_chunks(&turn_chunks));
+        chunks.extend(turn_chunks);
+    }
+
+    Ok(CodexAppInitialWindow { chunks, turns })
+}
+
+fn load_codex_turn_header(
+    session_id: &str,
+    path: &Path,
+    byte_offset: u64,
+) -> Result<Option<(ActivityChunk, ProjectedTurnMetadata)>, String> {
+    let mut file = fs::File::open(path)
+        .map_err(|err| format!("Failed to open Codex history {}: {err}", path.display()))?;
+    file.seek(SeekFrom::Start(byte_offset)).map_err(|err| {
+        format!(
+            "Failed to seek Codex history {} to {byte_offset}: {err}",
+            path.display()
+        )
+    })?;
+    let mut reader = BufReader::new(file);
+    let mut scanned_bytes = 0u64;
+    let mut line = String::new();
+    while scanned_bytes < CODEX_TURN_HEADER_PROBE_BYTES {
+        line.clear();
+        let bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|err| format!("Failed to read Codex turn header: {err}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        scanned_bytes = scanned_bytes.saturating_add(bytes_read as u64);
+        let parsed: CodexJsonlLine = match serde_json::from_str(line.trim()) {
+            Ok(parsed) => parsed,
+            Err(_) => continue,
+        };
+        if parsed.payload.get("type").and_then(Value::as_str) != Some("user_message") {
+            continue;
+        }
+        let Some(message) = user_message_from_payload(&parsed.payload) else {
+            continue;
+        };
+        let created_at = parsed
+            .timestamp
+            .as_deref()
+            .map(imported_history::normalize_created_at)
+            .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+        let sequence = codex_lazy_turn_sequence(byte_offset);
+        let user_chunk = imported_history::user_message_chunk(
+            session_id,
+            CODEX_PROVIDER_SLUG,
+            sequence,
+            &created_at,
+            &message,
+        );
+        let mut summary = project_activity_chunks(std::slice::from_ref(&user_chunk))
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| ProjectedTurnMetadata {
+                turn_id: user_chunk.chunk_id.clone(),
+                start_sequence: sequence as i64,
+                started_at: created_at.clone(),
+                ended_at: Some(created_at.clone()),
+                status: "completed".to_string(),
+                user_preview: message.clone(),
+                event_count: 1,
+                body_event_count: 0,
+                modified_files: Vec::new(),
+                resource_interactions: Vec::new(),
+                git_artifacts: Vec::new(),
+            });
+        summary.start_sequence = i64::try_from(sequence).unwrap_or(i64::MAX);
+        summary.status = "completed".to_string();
+        return Ok(Some((user_chunk, summary)));
+    }
+    Ok(None)
+}
+
+fn find_recent_codex_user_offsets(
+    path: &Path,
+    before_exclusive: u64,
+    limit: usize,
+) -> Result<Vec<u64>, String> {
+    if limit == 0 || before_exclusive == 0 {
+        return Ok(Vec::new());
+    }
+    let mut file = fs::File::open(path)
+        .map_err(|err| format!("Failed to open Codex history {}: {err}", path.display()))?;
+    let file_len = file
+        .metadata()
+        .map_err(|err| format!("Failed to stat Codex history {}: {err}", path.display()))?
+        .len();
+    let mut cursor = before_exclusive.min(file_len);
+    let mut suffix = Vec::<u8>::new();
+    let mut discarding_oversized_line = false;
+    let mut offsets = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
+
+    while cursor > 0 && offsets.len() < limit {
+        let block_start = cursor.saturating_sub(CODEX_REVERSE_SCAN_BLOCK_BYTES as u64);
+        let block_len = usize::try_from(cursor - block_start).unwrap_or_default();
+        file.seek(SeekFrom::Start(block_start)).map_err(|err| {
+            format!(
+                "Failed to seek Codex history {} to {block_start}: {err}",
+                path.display()
+            )
+        })?;
+        let mut combined = vec![0u8; block_len];
+        file.read_exact(&mut combined)
+            .map_err(|err| format!("Failed to reverse-read Codex history: {err}"))?;
+        combined.extend_from_slice(&suffix);
+        suffix.clear();
+
+        let mut line_end = combined.len();
+        let mut skipped_boundary_fragment = !discarding_oversized_line;
+        while line_end > 0 {
+            let Some(newline_index) = combined[..line_end].iter().rposition(|byte| *byte == b'\n')
+            else {
+                break;
+            };
+            let line_start = newline_index + 1;
+            if skipped_boundary_fragment {
+                maybe_record_codex_user_offset(
+                    &combined[line_start..line_end],
+                    block_start.saturating_add(line_start as u64),
+                    &mut offsets,
+                    limit,
+                );
+            } else {
+                skipped_boundary_fragment = true;
+                discarding_oversized_line = false;
+            }
+            if offsets.len() >= limit {
+                break;
+            }
+            line_end = newline_index;
+        }
+        if offsets.len() >= limit {
+            break;
+        }
+
+        let leading_fragment = &combined[..line_end];
+        if block_start == 0 {
+            if !discarding_oversized_line {
+                maybe_record_codex_user_offset(leading_fragment, 0, &mut offsets, limit);
+            }
+        } else if discarding_oversized_line {
+            suffix.clear();
+        } else if leading_fragment.len() <= CODEX_REVERSE_SCAN_MAX_LINE_BYTES {
+            suffix.extend_from_slice(leading_fragment);
+        } else {
+            suffix.clear();
+            discarding_oversized_line = true;
+        }
+        cursor = block_start;
+    }
+
+    Ok(offsets)
+}
+
+fn maybe_record_codex_user_offset(
+    line: &[u8],
+    byte_offset: u64,
+    offsets: &mut Vec<u64>,
+    limit: usize,
+) {
+    const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
+    if offsets.len() >= limit
+        || !line
+            .windows(USER_MESSAGE_NEEDLE.len())
+            .any(|window| window == USER_MESSAGE_NEEDLE)
+    {
+        return;
+    }
+    let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) else {
+        return;
+    };
+    if parsed.payload.get("type").and_then(Value::as_str) == Some("user_message") {
+        offsets.push(byte_offset);
+    }
+}
+
+fn load_codex_app_from_path_with_mode<'a>(
+    session_id: &'a str,
+    path: &Path,
+    mode: CodexTranscriptCollectionMode<'a>,
+    start_offset: u64,
+    initial_sequence: usize,
+) -> Result<
+    (
+        Vec<ActivityChunk>,
+        Vec<ProjectedTurnMetadata>,
+        Vec<CodexTurnOffset>,
+    ),
+    String,
+> {
+    let mut file = fs::File::open(path)
+        .map_err(|err| format!("Failed to open Codex history {}: {err}", path.display()))?;
+    if start_offset > 0 {
+        file.seek(SeekFrom::Start(start_offset)).map_err(|err| {
+            format!(
+                "Failed to seek Codex history {} to {start_offset}: {err}",
+                path.display()
+            )
+        })?;
+    }
+    let mut reader = BufReader::new(file);
+
+    let mut collector = CodexTranscriptCollector::new(session_id, mode);
     let mut pending_tool_calls: HashMap<String, Vec<ImportedToolCall>> = HashMap::new();
     let mut background_tool_calls: HashMap<String, PendingBackgroundToolCall> = HashMap::new();
     let mut pending_task_turn_id: Option<String> = None;
+    let mut pending_task_turn_offset: Option<u64> = None;
     let mut active_task_turn_id: Option<String> = None;
-    let mut sequence = 0usize;
+    let mut sequence = initial_sequence;
 
-    for line in reader.lines() {
-        let line = line.map_err(|err| format!("Failed to read Codex history line: {err}"))?;
+    let mut line = String::new();
+    let mut next_byte_offset = start_offset;
+    loop {
+        line.clear();
+        let line_start_offset = next_byte_offset;
+        let bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|err| format!("Failed to read Codex history line: {err}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        next_byte_offset = next_byte_offset.saturating_add(bytes_read as u64);
+        strip_ignored_embedded_images(&mut line);
         let trimmed = line.trim();
         if trimmed.is_empty() {
             continue;
@@ -77,26 +823,38 @@ pub fn load_codex_app_from_path(
                     .get("turn_id")
                     .and_then(Value::as_str)
                     .map(str::to_string);
+                pending_task_turn_offset = Some(line_start_offset);
             }
             "user_message" => {
                 if let Some(message) = user_message_from_payload(&parsed.payload) {
-                    chunks.push(imported_history::user_message_chunk(
+                    let user_sequence = sequence;
+                    let user_chunk = imported_history::user_message_chunk(
                         session_id,
                         CODEX_PROVIDER_SLUG,
                         sequence,
                         &created_at,
                         &message,
-                    ));
+                    );
                     sequence += 1;
+                    if collector.start_turn(user_chunk) {
+                        break;
+                    }
+                    collector.record_turn_offset(
+                        format!("codex-user-{user_sequence}"),
+                        pending_task_turn_offset.take().unwrap_or(line_start_offset),
+                        user_sequence,
+                    );
                     if let Some(turn_id) = pending_task_turn_id.take() {
-                        chunks.push(imported_history::task_lifecycle_chunk(
-                            session_id,
-                            CODEX_PROVIDER_SLUG,
-                            sequence,
-                            &created_at,
-                            imported_history::ACTION_TYPE_TASK_START,
-                            &turn_id,
-                        ));
+                        collector
+                            .current
+                            .push(imported_history::task_lifecycle_chunk(
+                                session_id,
+                                CODEX_PROVIDER_SLUG,
+                                sequence,
+                                &created_at,
+                                imported_history::ACTION_TYPE_TASK_START,
+                                &turn_id,
+                            ));
                         sequence += 1;
                         active_task_turn_id = Some(turn_id);
                     }
@@ -104,33 +862,37 @@ pub fn load_codex_app_from_path(
             }
             "agent_message" => {
                 if let Some(message) = parsed.payload.get("message").and_then(Value::as_str) {
-                    chunks.push(imported_history::assistant_message_chunk(
-                        session_id,
-                        CODEX_PROVIDER_SLUG,
-                        sequence,
-                        &created_at,
-                        message,
-                    ));
+                    collector
+                        .current
+                        .push(imported_history::assistant_message_chunk(
+                            session_id,
+                            CODEX_PROVIDER_SLUG,
+                            sequence,
+                            &created_at,
+                            message,
+                        ));
                     sequence += 1;
                 }
             }
             "message" => {
                 if parsed.payload.get("role").and_then(Value::as_str) == Some("assistant") {
                     if let Some(text) = content_text_from_payload(&parsed.payload) {
-                        chunks.push(imported_history::assistant_message_chunk(
-                            session_id,
-                            CODEX_PROVIDER_SLUG,
-                            sequence,
-                            &created_at,
-                            &text,
-                        ));
+                        collector
+                            .current
+                            .push(imported_history::assistant_message_chunk(
+                                session_id,
+                                CODEX_PROVIDER_SLUG,
+                                sequence,
+                                &created_at,
+                                &text,
+                            ));
                         sequence += 1;
                     }
                 }
             }
             "reasoning" | "agent_reasoning" => {
                 if let Some(text) = reasoning_text_from_payload(&parsed.payload) {
-                    chunks.push(imported_history::thinking_chunk(
+                    collector.current.push(imported_history::thinking_chunk(
                         session_id,
                         CODEX_PROVIDER_SLUG,
                         sequence,
@@ -156,9 +918,14 @@ pub fn load_codex_app_from_path(
             }
             "web_search_call" => {
                 if let Some(call) = web_search_call_from_payload(&parsed.payload, &created_at) {
-                    chunks.push(codex_tool_call_chunk(session_id, sequence, &call, "", None));
+                    collector
+                        .current
+                        .push(codex_tool_call_chunk(session_id, sequence, &call, "", None));
                     sequence += 1;
                 }
+            }
+            "sub_agent_activity" => {
+                attach_subagent_activity_to_pending_call(&parsed.payload, &mut pending_tool_calls);
             }
             "function_call_output" | "custom_tool_call_output" => {
                 let call_id = parsed.payload.get("call_id").and_then(Value::as_str);
@@ -184,7 +951,7 @@ pub fn load_codex_app_from_path(
                                         background.calls,
                                         output_value,
                                         &final_output,
-                                        &mut chunks,
+                                        &mut collector.current,
                                         &mut sequence,
                                         &mut background_tool_calls,
                                     );
@@ -207,7 +974,7 @@ pub fn load_codex_app_from_path(
                             calls,
                             output_value,
                             &output,
-                            &mut chunks,
+                            &mut collector.current,
                             &mut sequence,
                             &mut background_tool_calls,
                         );
@@ -218,14 +985,16 @@ pub fn load_codex_app_from_path(
                 if let Some(turn_id) =
                     lifecycle_turn_id(&parsed.payload, active_task_turn_id.as_deref())
                 {
-                    chunks.push(imported_history::task_lifecycle_chunk(
-                        session_id,
-                        CODEX_PROVIDER_SLUG,
-                        sequence,
-                        &created_at,
-                        imported_history::ACTION_TYPE_TASK_COMPLETED,
-                        turn_id,
-                    ));
+                    collector
+                        .current
+                        .push(imported_history::task_lifecycle_chunk(
+                            session_id,
+                            CODEX_PROVIDER_SLUG,
+                            sequence,
+                            &created_at,
+                            imported_history::ACTION_TYPE_TASK_COMPLETED,
+                            turn_id,
+                        ));
                     sequence += 1;
                     active_task_turn_id = None;
                 }
@@ -234,14 +1003,16 @@ pub fn load_codex_app_from_path(
                 if let Some(turn_id) =
                     lifecycle_turn_id(&parsed.payload, active_task_turn_id.as_deref())
                 {
-                    chunks.push(imported_history::task_lifecycle_chunk(
-                        session_id,
-                        CODEX_PROVIDER_SLUG,
-                        sequence,
-                        &created_at,
-                        imported_history::ACTION_TYPE_TASK_FAILED,
-                        turn_id,
-                    ));
+                    collector
+                        .current
+                        .push(imported_history::task_lifecycle_chunk(
+                            session_id,
+                            CODEX_PROVIDER_SLUG,
+                            sequence,
+                            &created_at,
+                            imported_history::ACTION_TYPE_TASK_FAILED,
+                            turn_id,
+                        ));
                     sequence += 1;
                     active_task_turn_id = None;
                 }
@@ -252,7 +1023,9 @@ pub fn load_codex_app_from_path(
 
     for calls in pending_tool_calls.into_values() {
         for call in calls {
-            chunks.push(codex_tool_call_chunk(session_id, sequence, &call, "", None));
+            collector
+                .current
+                .push(codex_tool_call_chunk(session_id, sequence, &call, "", None));
             sequence += 1;
         }
     }
@@ -266,14 +1039,60 @@ pub fn load_codex_app_from_path(
         }
         let outputs = output_parts_for_tool_calls(&background.calls, &background.latest_output);
         for (call, output) in background.calls.iter().zip(outputs.iter()) {
-            chunks.push(codex_tool_call_chunk(
+            collector.current.push(codex_tool_call_chunk(
                 session_id, sequence, call, output, None,
             ));
             sequence += 1;
         }
     }
 
-    Ok(chunks)
+    Ok(collector.finish())
+}
+
+fn attach_subagent_activity_to_pending_call(
+    payload: &Value,
+    pending_tool_calls: &mut HashMap<String, Vec<ImportedToolCall>>,
+) {
+    if payload.get("kind").and_then(Value::as_str) != Some("started") {
+        return;
+    }
+    let Some(call_id) = payload.get("event_id").and_then(Value::as_str) else {
+        return;
+    };
+    let Some(calls) = pending_tool_calls.get_mut(call_id) else {
+        return;
+    };
+    let Some(call) = calls
+        .iter_mut()
+        .find(|call| call.canonical_name == "subagent")
+    else {
+        return;
+    };
+    let Some(args) = call.args.as_object_mut() else {
+        return;
+    };
+    if let Some(thread_id) = payload
+        .get("agent_thread_id")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        args.insert(
+            "codexAgentThreadId".to_string(),
+            Value::String(thread_id.to_string()),
+        );
+    }
+    if let Some(agent_path) = payload
+        .get("agent_path")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        args.insert(
+            "agent_path".to_string(),
+            Value::String(agent_path.to_string()),
+        );
+    }
 }
 
 fn lifecycle_turn_id<'a>(payload: &'a Value, active_turn_id: Option<&'a str>) -> Option<&'a str> {
@@ -494,8 +1313,9 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
 
     let mut results: Vec<CodexExecResult> = Vec::new();
     for part in parts {
-        if let Some(result) = codex_exec_result_from_text(part) {
-            results.push(result);
+        let parsed_results = codex_exec_results_from_text(part);
+        if !parsed_results.is_empty() {
+            results.extend(parsed_results);
         } else if !is_codex_script_wrapper_text(part) {
             if let Some(result) = results.last_mut() {
                 append_incremental_output(&mut result.output, part);
@@ -505,8 +1325,38 @@ fn codex_exec_results(output: Option<&Value>) -> Vec<CodexExecResult> {
     results
 }
 
-fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
-    let value: Value = serde_json::from_str(text.trim()).ok()?;
+fn codex_exec_results_from_text(text: &str) -> Vec<CodexExecResult> {
+    // Desktop `exec` can return either one JSON object per text part or one
+    // Script-completed envelope whose Output payload is an array of results.
+    // Normalize both shapes here so callers only handle per-command results.
+    let direct = serde_json::from_str::<Value>(text.trim())
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default();
+    if !direct.is_empty() {
+        return direct;
+    }
+
+    let Some(payload) = codex_script_output_payload(text) else {
+        return Vec::new();
+    };
+    serde_json::from_str::<Value>(payload)
+        .ok()
+        .map(codex_exec_results_from_value)
+        .unwrap_or_default()
+}
+
+fn codex_exec_results_from_value(value: Value) -> Vec<CodexExecResult> {
+    match value {
+        Value::Array(values) => values
+            .into_iter()
+            .filter_map(codex_exec_result_from_value)
+            .collect(),
+        value => codex_exec_result_from_value(value).into_iter().collect(),
+    }
+}
+
+fn codex_exec_result_from_value(value: Value) -> Option<CodexExecResult> {
     let object = value.as_object()?;
     if !object.contains_key("output")
         && !object.contains_key("session_id")
@@ -531,6 +1381,16 @@ fn codex_exec_result_from_text(text: &str) -> Option<CodexExecResult> {
             .or_else(|| object.get("exitCode"))
             .and_then(Value::as_i64),
     })
+}
+
+fn codex_script_output_payload(text: &str) -> Option<&str> {
+    if !is_codex_script_wrapper_text(text) {
+        return None;
+    }
+    ["\nOutput:\r\n", "\nOutput:\n"]
+        .into_iter()
+        .find_map(|marker| text.split_once(marker).map(|(_, payload)| payload.trim()))
+        .filter(|payload| !payload.is_empty())
 }
 
 fn json_scalar_string(value: &Value) -> Option<String> {
@@ -828,5 +1688,45 @@ fn reasoning_text_from_payload(payload: &Value) -> Option<String> {
         None
     } else {
         Some(parts.join("\n"))
+    }
+}
+
+#[cfg(test)]
+mod window_cache_tests {
+    use super::*;
+
+    #[test]
+    fn codex_turn_offset_cache_bounds_sessions_and_turns() {
+        let signature = CodexTranscriptSignature {
+            modified_ns: 1,
+            size_bytes: 2,
+        };
+        let mut cache = CodexTurnOffsetCache::default();
+        for session in 0..=CODEX_TURN_OFFSET_CACHE_CAPACITY {
+            let offsets = (0..=CODEX_TURN_OFFSET_LIMIT_PER_SESSION)
+                .map(|turn| CodexTurnOffset {
+                    turn_id: format!("turn-{turn}"),
+                    byte_offset: turn as u64,
+                    sequence: turn,
+                })
+                .collect();
+            cache.insert(
+                PathBuf::from(format!("session-{session}.jsonl")),
+                signature,
+                offsets,
+            );
+        }
+
+        assert_eq!(cache.entries.len(), CODEX_TURN_OFFSET_CACHE_CAPACITY);
+        assert!(cache
+            .get(Path::new("session-0.jsonl"), signature, "turn-4096")
+            .is_none());
+        assert!(cache
+            .get(Path::new("session-8.jsonl"), signature, "turn-0")
+            .is_none());
+        assert_eq!(
+            cache.get(Path::new("session-8.jsonl"), signature, "turn-4096"),
+            Some((4096, 4096))
+        );
     }
 }

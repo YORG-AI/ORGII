@@ -1,8 +1,4 @@
-import type {
-  SessionEvent,
-  SimulatorEventFilterValue,
-  SimulatorEventPreview,
-} from "../types";
+import type { SessionEvent } from "../types";
 import type {
   DerivedSnapshot,
   LatestCanvasPreview,
@@ -12,10 +8,33 @@ import type {
   SnapshotPayload,
   StreamingSnapshot,
 } from "./EventStoreProxyTypes";
+import {
+  isCanvasEvent,
+  recomputeLatestCanvasPreview,
+} from "./snapshotMaterialization.canvasPreview";
+import { applyIncrementalOrders } from "./snapshotMaterialization.deltaOrders";
+import {
+  buildOrderMembership,
+  chatSortRank,
+  sameIdList,
+} from "./snapshotMaterialization.orderMembership";
+import {
+  patchSimulatorPreviewIndexes,
+  rebuildSimulatorPreviewIndexes,
+} from "./snapshotMaterialization.simulatorPreview";
 
 export function isStreamingSnapshot(
   snapshot: Snapshot
 ): snapshot is StreamingSnapshot {
+  return (
+    "streaming" in snapshot &&
+    snapshot.streaming === true &&
+    !("events" in snapshot)
+  );
+}
+
+/** Active turn state, independent of the legacy StreamingSnapshot wire shape. */
+export function isSnapshotActivelyStreaming(snapshot: Snapshot): boolean {
   return "streaming" in snapshot && snapshot.streaming === true;
 }
 
@@ -23,168 +42,6 @@ export function isSnapshotDelta(
   payload: SnapshotPayload
 ): payload is SnapshotDelta {
   return "snapshotDelta" in payload && payload.snapshotDelta === true;
-}
-
-function getFallbackFilterCategory(
-  event: SessionEvent
-): SimulatorEventFilterValue {
-  if (event.source === "user") return "key_interactions";
-  if (
-    event.uiCanonical === "edit_file" ||
-    event.uiCanonical === "delete_file"
-  ) {
-    return "file_changes";
-  }
-  if (event.command || event.uiCanonical === "run_shell") {
-    return "terminal_events";
-  }
-  if (
-    event.uiCanonical === "read_file" ||
-    event.uiCanonical === "list_dir" ||
-    event.uiCanonical === "code_search" ||
-    event.uiCanonical === "glob" ||
-    event.uiCanonical === "find_files" ||
-    event.uiCanonical === "search"
-  ) {
-    return "explore";
-  }
-  if (event.filePath) return "file_changes";
-  return "other";
-}
-
-function buildSimulatorEventPreview(
-  event: SessionEvent
-): SimulatorEventPreview {
-  return {
-    id: event.id,
-    sessionId: event.sessionId,
-    createdAt: event.createdAt,
-    functionName: event.functionName,
-    uiCanonical: event.uiCanonical,
-    actionType: event.actionType,
-    source: event.source,
-    displayText: event.displayText,
-    displayStatus: event.displayStatus,
-    displayVariant: event.displayVariant,
-    activityStatus: event.activityStatus,
-    filterCategory: getFallbackFilterCategory(event),
-    threadId: event.threadId,
-    processId: event.processId,
-    callId: event.callId,
-    filePath: event.filePath,
-    command: event.command,
-    isDelta: event.isDelta,
-    repoId: event.repoId,
-    repoPath: event.repoPath,
-  };
-}
-
-/**
- * Preview objects are pure projections of their event, so they are cached by
- * event object identity: events untouched by a delta keep the same object in
- * `eventsById` and therefore reuse their preview across materializations.
- */
-const simulatorPreviewCache = new WeakMap<
-  SessionEvent,
-  SimulatorEventPreview
->();
-
-function previewForEvent(event: SessionEvent): SimulatorEventPreview {
-  const cached = simulatorPreviewCache.get(event);
-  if (cached) return cached;
-  const preview = buildSimulatorEventPreview(event);
-  simulatorPreviewCache.set(event, preview);
-  return preview;
-}
-
-function rebuildSimulatorPreviewIndexes(
-  cache: NormalizedSnapshotCache,
-  simulatorEvents: SessionEvent[]
-): void {
-  const eventPreviewById: Record<string, SimulatorEventPreview> = {};
-  const createdAtById: Record<string, string> = {};
-  const threadIdById: Record<string, string> = {};
-  const functionNameById: Record<string, string> = {};
-  const displayStatusById: Record<string, string> = {};
-  const displayVariantById: Record<string, string> = {};
-
-  for (const event of simulatorEvents) {
-    eventPreviewById[event.id] = previewForEvent(event);
-    createdAtById[event.id] = event.createdAt;
-    if (event.threadId) threadIdById[event.id] = event.threadId;
-    functionNameById[event.id] = event.functionName;
-    displayStatusById[event.id] = event.displayStatus;
-    displayVariantById[event.id] = event.displayVariant;
-  }
-
-  cache.eventPreviewById = eventPreviewById;
-  cache.createdAtById = createdAtById;
-  cache.threadIdById = threadIdById;
-  cache.functionNameById = functionNameById;
-  cache.displayStatusById = displayStatusById;
-  cache.displayVariantById = displayVariantById;
-}
-
-/**
- * Copy-on-write patch of the preview index Records for changed simulator
- * events: a Record whose entries are all value-identical keeps its object
- * identity (pure-render consumers bail out); a touched Record is shallow-
- * cloned exactly once. Only valid while the simulator id ordering is
- * unchanged — membership changes must go through
- * `rebuildSimulatorPreviewIndexes`.
- */
-function patchSimulatorPreviewIndexes(
-  cache: NormalizedSnapshotCache,
-  simulatorEvents: SessionEvent[],
-  changedIds: ReadonlySet<string>
-): void {
-  let eventPreviewById: Record<string, SimulatorEventPreview> | null = null;
-  let createdAtById: Record<string, string> | null = null;
-  let threadIdById: Record<string, string> | null = null;
-  let functionNameById: Record<string, string> | null = null;
-  let displayStatusById: Record<string, string> | null = null;
-  let displayVariantById: Record<string, string> | null = null;
-
-  for (const event of simulatorEvents) {
-    if (!changedIds.has(event.id)) continue;
-    const preview = previewForEvent(event);
-    if (cache.eventPreviewById[event.id] !== preview) {
-      eventPreviewById ??= { ...cache.eventPreviewById };
-      eventPreviewById[event.id] = preview;
-    }
-    if (cache.createdAtById[event.id] !== event.createdAt) {
-      createdAtById ??= { ...cache.createdAtById };
-      createdAtById[event.id] = event.createdAt;
-    }
-    if (event.threadId) {
-      if (cache.threadIdById[event.id] !== event.threadId) {
-        threadIdById ??= { ...cache.threadIdById };
-        threadIdById[event.id] = event.threadId;
-      }
-    } else if (event.id in cache.threadIdById) {
-      threadIdById ??= { ...cache.threadIdById };
-      delete threadIdById[event.id];
-    }
-    if (cache.functionNameById[event.id] !== event.functionName) {
-      functionNameById ??= { ...cache.functionNameById };
-      functionNameById[event.id] = event.functionName;
-    }
-    if (cache.displayStatusById[event.id] !== event.displayStatus) {
-      displayStatusById ??= { ...cache.displayStatusById };
-      displayStatusById[event.id] = event.displayStatus;
-    }
-    if (cache.displayVariantById[event.id] !== event.displayVariant) {
-      displayVariantById ??= { ...cache.displayVariantById };
-      displayVariantById[event.id] = event.displayVariant;
-    }
-  }
-
-  if (eventPreviewById) cache.eventPreviewById = eventPreviewById;
-  if (createdAtById) cache.createdAtById = createdAtById;
-  if (threadIdById) cache.threadIdById = threadIdById;
-  if (functionNameById) cache.functionNameById = functionNameById;
-  if (displayStatusById) cache.displayStatusById = displayStatusById;
-  if (displayVariantById) cache.displayVariantById = displayVariantById;
 }
 
 export function attachSimulatorPreviewFields<TSnapshot extends Snapshot>(
@@ -224,6 +81,11 @@ export function buildNormalizedCache(
   for (const event of events) {
     eventsById.set(event.id, event);
   }
+  const orderMembershipById = buildOrderMembership(
+    chatEvents.map((event) => event.id),
+    messagesEvents.map((event) => event.id),
+    sortedSimulatorEvents.map((event) => event.id)
+  );
   const cache: NormalizedSnapshotCache = {
     eventsById,
     eventIds: events.map((event) => event.id),
@@ -236,6 +98,13 @@ export function buildNormalizedCache(
     functionNameById: {},
     displayStatusById: {},
     displayVariantById: {},
+    orderMembershipById,
+    runningEventIds: new Set(
+      events
+        .filter((event) => event.displayStatus === "running")
+        .map((event) => event.id)
+    ),
+    latestCanvasPreview: snapshot.latestCanvasPreview,
   };
   rebuildSimulatorPreviewIndexes(cache, sortedSimulatorEvents);
   return cache;
@@ -296,6 +165,7 @@ export interface PendingDeltaState {
   chatEventCount: number;
   hasRunningEvent: boolean;
   latestCanvasPreview?: LatestCanvasPreview;
+  streaming: boolean;
   lastEventId: string | null;
   /** Ids whose event object identity changed (upserted) since last flush. */
   changedEventIds: Set<string>;
@@ -303,15 +173,6 @@ export interface PendingDeltaState {
   chatOrderChanged: boolean;
   messagesOrderChanged: boolean;
   simulatorOrderChanged: boolean;
-}
-
-function sameIdList(previous: string[], next: string[]): boolean {
-  if (previous === next) return true;
-  if (previous.length !== next.length) return false;
-  for (let index = 0; index < previous.length; index++) {
-    if (previous[index] !== next[index]) return false;
-  }
-  return true;
 }
 
 /**
@@ -330,6 +191,7 @@ export function applyDeltaToCache(
     chatEventCount: delta.chatEventCount,
     hasRunningEvent: delta.hasRunningEvent,
     latestCanvasPreview: delta.latestCanvasPreview,
+    streaming: delta.streaming === true,
     lastEventId: delta.lastEventId,
     changedEventIds: new Set<string>(),
     eventOrderChanged: false,
@@ -338,41 +200,83 @@ export function applyDeltaToCache(
     simulatorOrderChanged: false,
   };
 
-  state.eventOrderChanged =
-    state.eventOrderChanged || !sameIdList(cache.eventIds, delta.eventIds);
-  state.chatOrderChanged =
-    state.chatOrderChanged ||
-    !sameIdList(cache.chatEventIds, delta.chatEventIds);
-  state.messagesOrderChanged =
-    state.messagesOrderChanged ||
-    !sameIdList(cache.messagesEventIds, delta.messagesEventIds);
-  state.simulatorOrderChanged =
-    state.simulatorOrderChanged ||
-    !sameIdList(cache.sortedSimulatorEventIds, delta.sortedSimulatorEventIds);
+  let canvasMayHaveChanged = delta.removedIds.some(
+    (id) => id === cache.latestCanvasPreview?.eventId
+  );
+  const sortKeyChangedIds = new Set<string>();
 
   for (const removedId of delta.removedIds) {
     cache.eventsById.delete(removedId);
+    cache.runningEventIds.delete(removedId);
     state.changedEventIds.delete(removedId);
   }
   for (const event of delta.upserts) {
     if (!isSessionEvent(event)) continue;
-    if (cache.eventsById.get(event.id) !== event) {
+    const previousEvent = cache.eventsById.get(event.id);
+    canvasMayHaveChanged ||=
+      isCanvasEvent(previousEvent) || isCanvasEvent(event);
+    if (previousEvent !== event) {
       state.changedEventIds.add(event.id);
     }
+    if (
+      !previousEvent ||
+      previousEvent.createdAt !== event.createdAt ||
+      chatSortRank(previousEvent) !== chatSortRank(event)
+    ) {
+      sortKeyChangedIds.add(event.id);
+    }
     cache.eventsById.set(event.id, event);
+    if (event.displayStatus === "running") {
+      cache.runningEventIds.add(event.id);
+    } else {
+      cache.runningEventIds.delete(event.id);
+    }
   }
 
-  cache.eventIds = delta.eventIds;
-  cache.chatEventIds = delta.chatEventIds;
-  cache.messagesEventIds = delta.messagesEventIds;
-  cache.sortedSimulatorEventIds = delta.sortedSimulatorEventIds;
+  if (delta.incrementalOrders) {
+    const changes = applyIncrementalOrders(delta, cache, sortKeyChangedIds);
+    state.eventOrderChanged ||= changes.eventOrderChanged;
+    state.chatOrderChanged ||= changes.chatOrderChanged;
+    state.messagesOrderChanged ||= changes.messagesOrderChanged;
+    state.simulatorOrderChanged ||= changes.simulatorOrderChanged;
+    if (canvasMayHaveChanged) recomputeLatestCanvasPreview(cache);
+  } else {
+    state.eventOrderChanged ||= !sameIdList(cache.eventIds, delta.eventIds);
+    state.chatOrderChanged ||= !sameIdList(
+      cache.chatEventIds,
+      delta.chatEventIds
+    );
+    state.messagesOrderChanged ||= !sameIdList(
+      cache.messagesEventIds,
+      delta.messagesEventIds
+    );
+    state.simulatorOrderChanged ||= !sameIdList(
+      cache.sortedSimulatorEventIds,
+      delta.sortedSimulatorEventIds
+    );
+    cache.eventIds = delta.eventIds;
+    cache.chatEventIds = delta.chatEventIds;
+    cache.messagesEventIds = delta.messagesEventIds;
+    cache.sortedSimulatorEventIds = delta.sortedSimulatorEventIds;
+    cache.orderMembershipById = buildOrderMembership(
+      delta.chatEventIds,
+      delta.messagesEventIds,
+      delta.sortedSimulatorEventIds
+    );
+    cache.latestCanvasPreview = delta.latestCanvasPreview;
+  }
 
   state.version = delta.version;
   state.eventCount = delta.eventCount;
-  state.chatEventCount = delta.chatEventCount;
-  state.hasRunningEvent = delta.hasRunningEvent;
-  state.latestCanvasPreview = delta.latestCanvasPreview;
+  state.chatEventCount = delta.incrementalOrders
+    ? cache.chatEventIds.length
+    : delta.chatEventCount;
+  state.hasRunningEvent = delta.incrementalOrders
+    ? cache.runningEventIds.size > 0
+    : delta.hasRunningEvent;
+  state.latestCanvasPreview = cache.latestCanvasPreview;
   state.lastEventId = delta.lastEventId;
+  state.streaming = delta.streaming === true;
   return state;
 }
 
@@ -466,6 +370,7 @@ export function materializePendingDelta(
       chatEventCount: pending.chatEventCount,
       hasRunningEvent: pending.hasRunningEvent,
       latestCanvasPreview: pending.latestCanvasPreview,
+      streaming: pending.streaming,
     },
     cache
   );
@@ -505,6 +410,17 @@ export function materializeStreamingSnapshot(
     functionNameById: {},
     displayStatusById: {},
     displayVariantById: {},
+    orderMembershipById: buildOrderMembership(
+      chatEvents.map((event) => event.id),
+      [],
+      sortedSimulatorEvents.map((event) => event.id)
+    ),
+    runningEventIds: new Set(
+      [...chatEvents, ...sortedSimulatorEvents]
+        .filter((event) => event.displayStatus === "running")
+        .map((event) => event.id)
+    ),
+    latestCanvasPreview: snapshot.latestCanvasPreview,
   };
   rebuildSimulatorPreviewIndexes(cache, sortedSimulatorEvents);
   return attachSimulatorPreviewFields(

@@ -31,8 +31,8 @@ function StatTile({
   tooltip,
 }: StatTileProps) {
   const valueClass = emphasis
-    ? "text-2xl font-semibold text-text-1"
-    : "text-lg font-semibold text-text-1";
+    ? "text-xl font-semibold text-text-1"
+    : "text-base font-semibold text-text-1";
   const valueNode = tooltip ? (
     <Tooltip content={tooltip} position="bottom" mouseEnterDelay={500}>
       <span
@@ -46,11 +46,11 @@ function StatTile({
   );
   return (
     <div className="flex flex-col gap-1.5 rounded-xl border border-border-1 bg-primary-container p-4">
-      <span className="text-[12px] text-text-2">{label}</span>
+      <span className="text-xs text-text-2">{label}</span>
       <div className="flex items-baseline gap-2">
         {valueNode}
         {secondaryValue ? (
-          <span className="text-sm font-medium text-text-3">
+          <span className="text-xs font-medium text-text-3">
             {secondaryValue}
           </span>
         ) : null}

@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token de decisión",
     "tooltip": "Atribución estimada de la herramienta. Método: {{method}}. Entrada: {{inputBytes}} bytes. Salida: {{outputBytes}} bytes. Decisión: {{decisionTokens}} Token. Contexto: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Lectura de cache LLM relacionada: {{cacheReadTokens}} Token. Escritura de cache LLM relacionada: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Título (opcional)"
+  },
   "history": {
     "untitledSession": "Session sin título",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Creado",
       "updated": "Actualizado",
       "lastUpdated": "Última actualización",
+      "external": "Externa",
+      "internal": "Interna",
       "rounds": "Rondas",
       "roundCount_one": "{{count}} ronda",
       "roundCount_other": "{{count}} rondas",
@@ -123,10 +128,11 @@
       "freq": {
         "default": "Predeterminado",
         "manual": "Manual",
-        "60s": "Cada 60s",
-        "5m": "Cada 5 min",
-        "1h": "Cada hora",
-        "1d": "Diario"
+        "60s": "Cada 60 s",
+        "120s": "Cada 120 s",
+        "10m": "Cada 10 min",
+        "30m": "Cada 30 min",
+        "1h": "Cada hora"
       },
       "openFolder": "Abrir carpeta",
       "tabs": {
@@ -1315,6 +1321,8 @@
     "terminalSummary": {
       "command_one": "{{count}} comando",
       "command_other": "{{count}} comandos",
+      "mcp_one": "{{count}} llamada MCP",
+      "mcp_other": "{{count}} llamadas MCP",
       "wait_one": "{{count}} espera",
       "wait_other": "{{count}} esperas",
       "check_one": "{{count}} comprobación",
@@ -2092,7 +2100,10 @@
     "categoryLabel": "Categoría de sesión",
     "categoryTemplate": "Seleccionar {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Agents integrados",
+    "builtIns": "Integrados",
+    "humanSession": {
+      "name": "Registro de trabajo"
+    },
     "cliAgents": "Agents CLI",
     "customAgents": "Agents personalizados",
     "agentOrgs": "Equipos Agent",

@@ -75,7 +75,7 @@
   align-items: flex-start;
   gap: 8px;
   padding: 6px 12px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s;
 
   &:hover {
@@ -176,7 +176,7 @@
   align-items: center;
   gap: 8px;
   padding: 6px 12px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s;
 
   &:hover {

@@ -139,10 +139,13 @@
       "helveticaNeue": "Style Helvetica Neue"
     },
     "uiScale": "Échelle de l'interface",
+    "preferences": "Préférences",
+    "usePointerCursors": "Utiliser les curseurs en forme de pointeur",
+    "usePointerCursorsDesc": "Transformer le curseur en pointeur au survol des éléments interactifs",
     "timezoneAuto": "Auto (navigateur)",
     "timezoneSearchPlaceholder": "Rechercher des villes proches",
     "sendOnEnter": "Envoyer les messages avec Entrée",
-    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie et Shift+Entrée insère une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie",
+    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie ; Shift+Entrée et Ctrl/Cmd+Entrée insèrent une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie",
     "language": "Langue",
     "languageSearchPlaceholder": "Rechercher des langues...",
     "languageNames": {
@@ -1008,7 +1011,7 @@
     "decryptEffect": "Effet Decrypt",
     "decryptEffectDesc": "Activer l'animation Decrypt pour les messages Agent",
     "sendOnEnter": "Envoyer les messages avec Entrée",
-    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie et Shift+Entrée insère une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie"
+    "sendOnEnterDesc": "Lorsque cette option est activée, Entrée envoie ; Shift+Entrée et Ctrl/Cmd+Entrée insèrent une nouvelle ligne. Sinon, Ctrl/Cmd+Entrée envoie"
   },
   "languageServers": {
     "languageServersDesc": "Gérer les serveurs LSP pour l'autocomplétion, les diagnostics et l'intelligence du code",

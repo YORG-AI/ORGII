@@ -352,7 +352,7 @@
   background: transparent;
   border: none;
   outline: none;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   color: var(--color-text-3);
   font-size: 14px;
   transition: color 0.1s;
@@ -380,7 +380,7 @@
   background: transparent;
   border: none;
   outline: none;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   color: var(--color-text-3);
   font-size: 14px;
   transition: color 0.1s;

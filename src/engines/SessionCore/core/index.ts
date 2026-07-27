@@ -57,8 +57,13 @@ export {
   sessionIdAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
+  sessionHydrationCountMapAtom,
+  sessionHydrationByIdAtom,
+  beginSessionHydrationAtom,
+  endSessionHydrationAtom,
   specsAtom,
 } from "./atoms";
+export type { SessionHydrationState } from "./atoms";
 
 // Action Atoms
 export {

@@ -1,22 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DiffStats } from "@src/api/http/project";
+import { parseRawSessionEvent } from "@src/engines/SessionCore/core/schemas";
+import { subscribeToSessionEvents } from "@src/engines/SessionCore/sync/useSessionChannel";
 import { invokeTauri } from "@src/util/platform/tauri/init";
 
-const POLL_INTERVAL_MS = 10_000;
+const EVENT_SETTLE_MS = 500;
 const DEFAULT_BASE_BRANCH = "main";
 
 interface UseLiveDiffStatsOptions {
+  sessionId?: string | null;
   repoPath?: string | null;
   branch?: string;
   isLive: boolean;
 }
 
 export function useLiveDiffStats(options: UseLiveDiffStatsOptions) {
-  const { repoPath, branch, isLive } = options;
+  const { sessionId, repoPath, branch, isLive } = options;
 
   const [liveDiffStats, setLiveDiffStats] = useState<DiffStats | null>(null);
-  const livePollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pollDiffStats = useCallback(async () => {
     if (!repoPath || !branch) return;
@@ -32,21 +35,31 @@ export function useLiveDiffStats(options: UseLiveDiffStatsOptions) {
   }, [repoPath, branch]);
 
   useEffect(() => {
-    if (!isLive) return;
+    if (!isLive || !sessionId) return;
     let cancelled = false;
-    const poll = async () => {
-      if (cancelled) return;
-      await pollDiffStats();
-      if (!cancelled) {
-        livePollRef.current = setTimeout(poll, POLL_INTERVAL_MS);
-      }
+    const scheduleRefresh = (raw: string) => {
+      if (cancelled || document.hidden) return;
+      const event = parseRawSessionEvent(raw);
+      if (event.type !== "agent:file_change") return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        if (!cancelled) void pollDiffStats();
+      }, EVENT_SETTLE_MS);
     };
-    poll();
+    // Defer the initial external read so this effect only establishes the
+    // subscription synchronously; the async completion owns the state update.
+    refreshTimerRef.current = setTimeout(() => {
+      refreshTimerRef.current = null;
+      if (!cancelled) void pollDiffStats();
+    }, 0);
+    const unsubscribe = subscribeToSessionEvents(sessionId, scheduleRefresh);
     return () => {
       cancelled = true;
-      if (livePollRef.current) clearTimeout(livePollRef.current);
+      unsubscribe();
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
-  }, [isLive, pollDiffStats]);
+  }, [sessionId, isLive, pollDiffStats]);
 
   return liveDiffStats;
 }

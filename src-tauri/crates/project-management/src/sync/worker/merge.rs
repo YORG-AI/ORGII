@@ -128,7 +128,8 @@ async fn process_merge_entry_inner(entry: OutboxEntry, id: i64) -> Result<(), St
     .await
     .map_err(|err| format!("merge lookup join error: {}", err))??;
 
-    let Some(short_id) = short_id else {
+    let preferred_short_id = adapter.preferred_work_item_short_id(&change.external_id);
+    let Some(mut short_id) = short_id else {
         // No local item bound to this external_id.
         if change.deleted {
             // The remote was created and removed before we ever
@@ -139,8 +140,26 @@ async fn process_merge_entry_inner(entry: OutboxEntry, id: i64) -> Result<(), St
             );
             return finalize_success(id).await;
         }
-        return apply_inbound_create(id, &project_slug, &adapter_id, &change).await;
+        return apply_inbound_create(id, &project_slug, &adapter_id, &change, preferred_short_id)
+            .await;
     };
+
+    if let Some(preferred_short_id) = preferred_short_id {
+        if preferred_short_id != short_id {
+            let rename_slug = project_slug.clone();
+            let rename_current = short_id.clone();
+            let rename_preferred = preferred_short_id.clone();
+            short_id = tokio::task::spawn_blocking(move || {
+                super::identity::rename_work_item_short_id(
+                    &rename_slug,
+                    &rename_current,
+                    &rename_preferred,
+                )
+            })
+            .await
+            .map_err(|err| format!("merge short-id rename join error: {err}"))??;
+        }
+    }
 
     if change.deleted {
         return apply_remote_delete(id, &project_slug, &short_id, &change.external_id).await;
@@ -326,8 +345,9 @@ async fn process_merge_entry_inner(entry: OutboxEntry, id: i64) -> Result<(), St
     }
 }
 
-/// Apply a "create-from-remote" merge: allocate a new local short_id,
-/// materialize a fresh work item from the inbound `change.fields`, and
+/// Apply a "create-from-remote" merge: use the adapter's canonical short id
+/// when it has one, otherwise allocate a new local short id; materialize a
+/// fresh work item from the inbound `change.fields`, and
 /// stamp the `(adapter_id, external_id)` binding plus per-field
 /// watermarks so subsequent inbound updates target the same row.
 ///
@@ -344,18 +364,36 @@ async fn apply_inbound_create(
     project_slug: &str,
     adapter_id: &str,
     change: &ExternalChange,
+    preferred_short_id: Option<String>,
 ) -> Result<(), String> {
     let create_slug = project_slug.to_string();
     let create_adapter = adapter_id.to_string();
     let create_external = change.external_id.clone();
     let create_fields = change.fields.clone();
+    let create_preferred_short_id = preferred_short_id;
     let remote_mtime_ms = change.remote_updated_at.timestamp_millis();
 
     let outcome = tokio::task::spawn_blocking(move || -> Result<String, String> {
-        let short_id = allocate_short_id(&create_slug)?;
+        let uses_external_short_id = create_preferred_short_id.is_some();
+        let short_id = match create_preferred_short_id {
+            Some(short_id) => short_id,
+            None => allocate_short_id(&create_slug)?,
+        };
+        // `workitems.id` is the private relational identity and must remain
+        // globally unique even when two GitHub repositories both have #42.
+        // Existing project-allocated items retain their historical id shape.
+        let work_item_id = if uses_external_short_id {
+            format!(
+                "sync:{}:{}:{}",
+                create_adapter, create_slug, create_external
+            )
+        } else {
+            short_id.clone()
+        };
         let project_id = read_project(&create_slug)?.meta.id;
         upsert_remote_catalog_entries(&project_id, &create_fields)?;
-        let (frontmatter, body) = build_inbound_create_frontmatter(&short_id, &create_fields);
+        let (frontmatter, body) =
+            build_inbound_create_frontmatter(&work_item_id, &short_id, &create_fields);
         write_work_item(&create_slug, &short_id, &frontmatter, &body)?;
 
         let revisions =
@@ -474,6 +512,7 @@ fn build_creator_backfill_update(
 }
 
 fn build_inbound_create_frontmatter(
+    work_item_id: &str,
     short_id: &str,
     fields: &serde_json::Value,
 ) -> (WorkItemFrontmatter, String) {
@@ -496,7 +535,7 @@ fn build_inbound_create_frontmatter(
         .unwrap_or_default();
 
     let frontmatter = WorkItemFrontmatter {
-        id: short_id.to_string(),
+        id: work_item_id.to_string(),
         short_id: short_id.to_string(),
         title: pick_string("title").unwrap_or_default(),
         project: None,

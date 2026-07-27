@@ -25,6 +25,7 @@ import { extractSkillNameFromPath } from "@src/util/skills/skillPath";
 
 import type { ComposerFragmentPart } from "./cutHandler";
 import { parseGitHubPillUrl } from "./githubUrl";
+import { parseHttpUrlPill } from "./httpUrl";
 import type { ComposerPillAttrs } from "./types";
 import { TERMINAL_COPY_MAX_AGE, sanitizeText } from "./utils";
 
@@ -250,6 +251,21 @@ export function createPasteHandler(ctx: PasteHandlerContext) {
         fileName: githubReference.displayName,
         isFolder: false,
         iconType: githubReference.iconType,
+        lineStart: null,
+        lineEnd: null,
+      });
+      ctx.insertTextAtCaret(" ");
+      return true;
+    }
+
+    const httpReference = parseHttpUrlPill(pastedText);
+    if (httpReference) {
+      event.preventDefault();
+      ctx.insertPill({
+        filePath: httpReference.url,
+        fileName: httpReference.displayName,
+        isFolder: false,
+        iconType: "link",
         lineStart: null,
         lineEnd: null,
       });

@@ -246,17 +246,12 @@ const HoverCardPortal: React.FC<HoverCardPortalProps> = ({
     cardSize.width,
     cardSize.height
   );
-  const viewport = getViewportSize();
 
   return createPortal(
     <div
       ref={cardRef}
       data-hover-card="true"
-      style={{
-        ...style,
-        maxHeight: viewport.height - VIEWPORT_PADDING_PX * 2,
-        overflowY: "auto",
-      }}
+      style={style}
       onMouseEnter={cancelPendingClose}
       onMouseLeave={() => scheduleClose(instanceId, CARD_LEAVE_DELAY_MS)}
     >
@@ -270,7 +265,10 @@ export const HoverCardPanel: React.FC<HoverCardPanelProps> = ({
   title,
   children,
 }) => (
-  <div className="w-[280px] rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown">
+  <div
+    className="w-[280px] overflow-y-auto rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown"
+    style={{ maxHeight: `calc(100vh - ${VIEWPORT_PADDING_PX * 2}px)` }}
+  >
     {title && (
       <div
         className="mb-2 block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium text-text-1"

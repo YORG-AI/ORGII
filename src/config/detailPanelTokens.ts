@@ -59,6 +59,24 @@ export const INFO_CARD_TOKENS = {
 // Detail Panel Layout
 // ============================================
 
+/** Standard 900px content / 932px padded-shell width used by detail surfaces. */
+export const DETAIL_PANEL_WIDTH_TOKENS = {
+  contentMaxWidth: "max-w-[900px]",
+  contentWidth: "mx-auto w-full max-w-[900px]",
+  contentWidthWithPadding: "mx-auto w-full max-w-[900px] py-4 pb-[50vh]",
+  contentWidthWithPaddingNoTop: "mx-auto w-full max-w-[900px] pb-6 pb-[50vh]",
+  headerWidth: "mx-auto w-full max-w-[932px]",
+} as const;
+
+/** Wide 1200px content / 1232px padded-shell width reserved for issue surfaces. */
+export const ISSUE_PANEL_WIDTH_TOKENS = {
+  contentMaxWidth: "max-w-[1200px]",
+  contentWidth: "mx-auto w-full max-w-[1200px]",
+  contentWidthWithPadding: "mx-auto w-full max-w-[1200px] py-4 pb-[50vh]",
+  contentWidthWithPaddingNoTop: "mx-auto w-full max-w-[1200px] pb-6 pb-[50vh]",
+  headerWidth: "mx-auto w-full max-w-[1232px]",
+} as const;
+
 export const DETAIL_PANEL_TOKENS = {
   /** Outer container */
   container: "flex h-full flex-col",
@@ -87,24 +105,12 @@ export const DETAIL_PANEL_TOKENS = {
   /** Shared primary container surface used by settings and chat-panel content */
   primaryContainer:
     "rounded-xl border border-border-1 bg-primary-container p-4",
-  /** Raw max-width constraint shared by all content areas and overlays */
-  contentMaxWidth: "max-w-[900px]",
-  /** Content width wrapper — centered with max-width */
-  contentWidth: "mx-auto w-full max-w-[900px]",
-  /** Content width + vertical padding — use as inner wrapper inside scrollContent (wizard format) */
-  contentWidthWithPadding: "mx-auto w-full max-w-[900px] py-4 pb-[50vh]",
-  /** Content width + bottom padding — use with scrollContentNoTop (header above) */
-  contentWidthWithPaddingNoTop: "mx-auto w-full max-w-[900px] pb-6 pb-[50vh]",
+  ...DETAIL_PANEL_WIDTH_TOKENS,
   /**
    * Bottom inset on scrollable wizard / settings-style bodies so the last block
    * clears the footer (matches SETTINGS_MAIN_CONTENT_WRAPPER_CLASSES).
    */
   contentScrollBottom: "pb-6 pb-[50vh]",
-  /**
-   * Width for InternalHeader when used with contentPadding (px-4 = 16px × 2).
-   * 932px so the inner area after padding equals contentWidth's 900px.
-   */
-  headerWidth: "mx-auto w-full max-w-[932px]",
 } as const;
 
 // ============================================

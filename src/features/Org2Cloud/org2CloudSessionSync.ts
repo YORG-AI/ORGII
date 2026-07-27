@@ -3,249 +3,238 @@ import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreP
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
 import { createLogger } from "@src/hooks/logger";
-import { createCollabAvatarIdentity } from "@src/store/collaboration/protocol";
-import {
-  COLLAB_IDENTITY_KIND,
-  COLLAB_ROLE,
-  COLLAB_SESSION_ACCESS_MODE,
-} from "@src/store/collaboration/types";
-import type {
-  CollabMemberRecord,
-  CollabOrgRecord,
-  RemoteTeammateSessionMetadata,
-} from "@src/store/collaboration/types";
+import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import {
-  createDefaultAccessSettings,
   sha256Hex,
   stableStringify,
-  toRemoteMetadata,
 } from "../TeamCollaboration/collabSyncUtils";
 import {
   computeFrozenEventCount,
   splitFrozenIntoSegments,
 } from "../TeamCollaboration/engine/collabSyncEngineHelpers";
-import { getSessionForkedFrom } from "../TeamCollaboration/forkSession";
 import { computeSegmentHash } from "../TeamCollaboration/sync/collabGzip";
 import type { CloudPushAccess } from "./org2CloudAccessSettings";
 import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
-import type { CollabSessionPushCursor } from "./org2CloudSyncAtoms";
+import { broadcastOrgControlChangedToPeers } from "./org2CloudControlBus";
 import {
-  org2CloudPushCursorsAtom,
-  org2CloudPushedMetadataAtom,
-} from "./org2CloudSyncAtoms";
-import * as org2CloudSyncClient from "./org2CloudSyncClient";
+  buildCloudSessionMetadata,
+  metadataPayloadForHash,
+} from "./org2CloudSessionSync.metadata";
+import { Org2CloudSessionSyncState } from "./org2CloudSessionSync.state";
+import type {
+  Org2CloudSyncClientDeps,
+  PreparedPushEvents,
+  PreparedPushPlan,
+} from "./org2CloudSessionSync.types";
+import type { CollabSessionPushCursor } from "./org2CloudSyncAtoms";
 import { isOrg2SyncErrorCode } from "./org2CloudSyncClient";
 import type { CloudStore } from "./org2CloudSyncLifecycle";
 
-const log = createLogger("Org2CloudSyncEngine");
+export {
+  buildCloudSessionMetadata,
+  isCloudPushCandidate,
+} from "./org2CloudSessionSync.metadata";
+export type { Org2CloudSyncClientDeps } from "./org2CloudSessionSync.types";
 
-/** Safety TTL for rechecking a session whose events plane was verified clean. */
-const EVENTS_CLEAN_TTL_MS = 10 * 60_000;
+const log = createLogger("Org2CloudSyncEngine");
 
 /** Largest cursor accepted by the backend's int4 `p_after_seq` argument. */
 const HEAD_READ_AFTER_SEQ = 2_147_483_647;
 
-/** Client seam so tests inject fetch-free fakes. */
-export type Org2CloudSyncClientDeps = Pick<
-  typeof org2CloudSyncClient,
-  | "upsertSessionMetadata"
-  | "appendSessionEvents"
-  | "rewriteSessionEvents"
-  | "getSessionEvents"
-  | "getOrgRepoScopes"
-  | "deleteSession"
->;
-
-interface PreparedPushPlan {
-  perEventHashes: string[];
-  frozenEventCount: number;
-  tailEvents: SessionEvent[];
-  tailHash: string | null;
-  frozenChainHash: string;
-}
-
-interface PreparedPushEvents {
-  stampAtRead: number;
-  events: SessionEvent[];
-  plan(): Promise<PreparedPushPlan>;
-}
-
 /**
- * Build cloud metadata while restoring fork lineage stripped from Session rows.
+ * Keep every segment mutation comfortably below PostgREST / PostgreSQL
+ * statement-timeout and renderer-RSS cliffs. Each frozen segment is bounded
+ * to 256 KiB before gzip, so a batch carries at most ~4 MiB of canonical
+ * input and the client codec only materializes one batch of wire payloads.
  */
-export function buildCloudSessionMetadata(
-  session: Session,
-  orgId: string,
-  userId: string,
-  displayName: string,
-  scopeKey: string | null,
-  access: CloudPushAccess
-): RemoteTeammateSessionMetadata {
-  const org: CollabOrgRecord = { id: orgId, name: "", createdAt: "" };
-  const member: CollabMemberRecord = {
-    id: userId,
-    orgId,
-    displayName,
-    avatar: createCollabAvatarIdentity(displayName),
-    role: COLLAB_ROLE.MEMBER,
-    identityKind: COLLAB_IDENTITY_KIND.HUMAN,
-    joinedAt: "",
-  };
-  const settings = {
-    ...createDefaultAccessSettings(orgId, userId),
-    accessMode: access.accessMode,
-    sessionVisibility: { [session.session_id]: access.visibility },
-  };
-  const withLineage: Session = {
-    ...session,
-    forkedFrom: getSessionForkedFrom(session),
-  };
-  return toRemoteMetadata(withLineage, org, member, settings, scopeKey);
+export const SESSION_SEGMENT_UPLOAD_BATCH_SIZE = 16;
+
+/** Hash only a bounded event window at once; large CLI histories can be GBs. */
+const EVENT_HASH_CONCURRENCY = 16;
+
+/** Per-session transient retry policy (org entitlement failures back off elsewhere). */
+export const SESSION_PUSH_RETRY_BASE_MS = 60_000;
+export const SESSION_PUSH_RETRY_MAX_MS = 30 * 60_000;
+
+interface SessionPushRetryState {
+  failures: number;
+  retryAtMs: number;
 }
 
-/** True for local sessions that may ever be pushed to the cloud. */
-export function isCloudPushCandidate(session: Session): boolean {
-  // Imported teammate copies must never round-trip under the local user.
-  // The user's own external history has no importedFrom and remains shareable.
-  return !session.importedFrom;
+async function hashEventsBounded(events: SessionEvent[]): Promise<string[]> {
+  const hashes = new Array<string>(events.length);
+  for (let start = 0; start < events.length; start += EVENT_HASH_CONCURRENCY) {
+    const end = Math.min(start + EVENT_HASH_CONCURRENCY, events.length);
+    const batch = events.slice(start, end);
+    const batchHashes = await Promise.all(
+      batch.map((event) => sha256Hex(stableStringify(event)))
+    );
+    for (let index = 0; index < batchHashes.length; index += 1) {
+      hashes[start + index] = batchHashes[index];
+    }
+  }
+  return hashes;
 }
-
 /**
  * Owns one session's metadata/event push plane, including persisted cursors,
  * event-clean stamps, OCC re-anchors, and retract bookkeeping.
+ *
+ * In-memory bookkeeping (pushed-metadata hashes, clean-event-plane stamps,
+ * cursor/pushed-marker storage) lives in the Org2CloudSessionSyncState base
+ * class in org2CloudSessionSync.state.ts; this subclass adds the
+ * network-facing push/rewrite orchestration that calls the sync client.
  */
-export class Org2CloudSessionSync {
-  /** `${orgId}:${sessionId}` to hash of the last upserted metadata. */
-  private readonly lastPushedMetadataHashes = new Map<string, string>();
-  /** sessionId to orgId to time when the event plane was verified clean. */
-  private readonly cleanEventPlanes = new Map<string, Map<string, number>>();
-  /** Session activity stamp prevents a mid-push write from being marked clean. */
-  private readonly eventActivityStamps = new Map<string, number>();
-  /** Org-independent event reads and hashing shared across orgs in one pass. */
-  private readonly passPushPrepareCache = new Map<
+export class Org2CloudSessionSync extends Org2CloudSessionSyncState {
+  /** Transient event-plane failures, bounded by live (org, session) pairs. */
+  private readonly sessionPushRetryStates = new Map<
     string,
-    Promise<PreparedPushEvents>
+    SessionPushRetryState
   >();
 
+  /** A short read must repeat identically across passes before it rewrites. */
+  private readonly sessionShrinkCandidates = new Map<string, number>();
+
   constructor(
-    private readonly getStore: () => CloudStore | null,
+    getStore: () => CloudStore | null,
     private readonly client: Org2CloudSyncClientDeps
-  ) {}
-
-  reset(): void {
-    this.lastPushedMetadataHashes.clear();
-    this.cleanEventPlanes.clear();
-    this.eventActivityStamps.clear();
-    this.passPushPrepareCache.clear();
+  ) {
+    super(getStore);
   }
 
-  /** Start a new engine pass; prepared events must never leak across passes. */
-  beginPass(): void {
-    this.passPushPrepareCache.clear();
+  override reset(): void {
+    super.reset();
+    this.sessionPushRetryStates.clear();
+    this.sessionShrinkCandidates.clear();
   }
 
-  /** Drop clean markers and stamp a local event-store write. */
-  noteSessionEventActivity(sessionId: string): void {
-    this.eventActivityStamps.set(
-      sessionId,
-      (this.eventActivityStamps.get(sessionId) ?? 0) + 1
-    );
-    this.cleanEventPlanes.delete(sessionId);
-  }
-
-  private isEventPlaneClean(orgId: string, sessionId: string): boolean {
-    const cleanAt = this.cleanEventPlanes.get(sessionId)?.get(orgId);
-    return cleanAt !== undefined && Date.now() - cleanAt < EVENTS_CLEAN_TTL_MS;
-  }
-
-  private markEventPlaneClean(
-    orgId: string,
-    sessionId: string,
-    stampAtRead: number
+  override prune(
+    liveOrgIds: ReadonlySet<string>,
+    liveSessionIds: ReadonlySet<string>
   ): void {
-    if ((this.eventActivityStamps.get(sessionId) ?? 0) !== stampAtRead) return;
-    let byOrg = this.cleanEventPlanes.get(sessionId);
-    if (!byOrg) {
-      byOrg = new Map();
-      this.cleanEventPlanes.set(sessionId, byOrg);
+    super.prune(liveOrgIds, liveSessionIds);
+    for (const states of [
+      this.sessionPushRetryStates,
+      this.sessionShrinkCandidates,
+    ] as const) {
+      for (const key of states.keys()) {
+        const separatorIndex = key.indexOf(":");
+        const orgId =
+          separatorIndex === -1 ? key : key.slice(0, separatorIndex);
+        const sessionId =
+          separatorIndex === -1 ? "" : key.slice(separatorIndex + 1);
+        if (!liveOrgIds.has(orgId) || !liveSessionIds.has(sessionId)) {
+          states.delete(key);
+        }
+      }
     }
-    byOrg.set(orgId, Date.now());
   }
 
-  private getCursor(
+  private isSessionPushBackedOff(orgId: string, sessionId: string): boolean {
+    const key = `${orgId}:${sessionId}`;
+    const state = this.sessionPushRetryStates.get(key);
+    if (!state) return false;
+    if (Date.now() < state.retryAtMs) return true;
+    return false;
+  }
+
+  private noteSessionPushFailure(orgId: string, sessionId: string): void {
+    const key = `${orgId}:${sessionId}`;
+    const previous = this.sessionPushRetryStates.get(key);
+    const failures = (previous?.failures ?? 0) + 1;
+    const delayMs = Math.min(
+      SESSION_PUSH_RETRY_BASE_MS * 2 ** (failures - 1),
+      SESSION_PUSH_RETRY_MAX_MS
+    );
+    this.sessionPushRetryStates.set(key, {
+      failures,
+      retryAtMs: Date.now() + delayMs,
+    });
+  }
+
+  private clearSessionPushFailure(orgId: string, sessionId: string): void {
+    this.sessionPushRetryStates.delete(`${orgId}:${sessionId}`);
+  }
+
+  private shouldBackOffSessionFailure(error: unknown): boolean {
+    // Entitlement failures already have org-wide active/inactive backoff and
+    // toast policy in Org2CloudSyncEngine. Duplicating that state here would
+    // keep one session asleep after the org is explicitly resumed.
+    return (
+      !isOrg2SyncErrorCode(error, "ORG2_QUOTA_EXCEEDED") &&
+      !isOrg2SyncErrorCode(error, "ORG2_SYNC_DISABLED")
+    );
+  }
+
+  /**
+   * Seed the volatile cold-start caches from a server-authoritative listing.
+   * For imported CLI sessions the local `updated_at` comes from the source
+   * transcript and is part of the uploaded metadata. When that payload and
+   * the persisted cursor both match the server summary, a restart does not
+   * need to read/normalize/hash the entire transcript again.
+   */
+  async seedFromRemoteSummary(
+    auth: Org2CloudAuthState,
     orgId: string,
-    sessionId: string
-  ): CollabSessionPushCursor | undefined {
-    return this.getStore()?.get(org2CloudPushCursorsAtom)[
-      `${orgId}:${sessionId}`
-    ];
-  }
-
-  private setCursor(cursor: CollabSessionPushCursor): void {
-    this.getStore()?.set(org2CloudPushCursorsAtom, (current) => ({
-      ...current,
-      [`${cursor.orgId}:${cursor.sessionId}`]: cursor,
-    }));
-  }
-
-  private async computeFrozenChainHash(
-    perEventHashes: string[],
-    frozenEventCount: number
-  ): Promise<string> {
-    return sha256Hex(perEventHashes.slice(0, frozenEventCount).join("\n"));
-  }
-
-  /** Force the next metadata plane to upsert even if its bytes are unchanged. */
-  invalidatePushedMetadataHash(orgId: string, sessionId: string): void {
-    this.lastPushedMetadataHashes.delete(`${orgId}:${sessionId}`);
-  }
-
-  /** Whether local durable state proves this session was previously pushed. */
-  wasCloudPushed(orgId: string, sessionId: string): boolean {
-    const key = `${orgId}:${sessionId}`;
-    return (
-      this.lastPushedMetadataHashes.has(key) ||
-      this.getPushedMetadataMarker(orgId, sessionId) ||
-      this.getCursor(orgId, sessionId) !== undefined
+    session: Session,
+    scopeKey: string | null,
+    access: CloudPushAccess,
+    remote: RemoteTeammateSessionMetadata
+  ): Promise<void> {
+    const key = `${orgId}:${session.session_id}`;
+    if (this.remoteSeedAttemptedKeys.has(key)) return;
+    this.remoteSeedAttemptedKeys.add(key);
+    if (
+      remote.deletedAt ||
+      remote.ownerUserId !== auth.userId ||
+      remote.sourceSessionId !== session.session_id
+    ) {
+      return;
+    }
+    const displayName =
+      auth.profile?.displayName ?? auth.profile?.primaryEmail ?? auth.userId;
+    const localMetadata = buildCloudSessionMetadata(
+      session,
+      orgId,
+      auth.userId,
+      displayName,
+      scopeKey,
+      access,
+      auth.profile?.avatarUrl
     );
-  }
+    const [localHash, remoteHash] = await Promise.all([
+      sha256Hex(stableStringify(metadataPayloadForHash(localMetadata))),
+      sha256Hex(stableStringify(metadataPayloadForHash(remote))),
+    ]);
+    if (localHash !== remoteHash) return;
 
-  private getPushedMetadataMarker(orgId: string, sessionId: string): boolean {
-    return (
-      this.getStore()?.get(org2CloudPushedMetadataAtom)[
-        `${orgId}:${sessionId}`
-      ] === true
+    // upsertMetadataIfChanged gates on the FULL payload hash; seeding the
+    // stripped comparison hash would never match it and every restart would
+    // re-upsert an identical payload for every pushed session.
+    this.lastPushedMetadataHashes.set(
+      key,
+      await sha256Hex(stableStringify(localMetadata))
     );
-  }
-
-  private setPushedMetadataMarker(orgId: string, sessionId: string): void {
-    this.getStore()?.set(org2CloudPushedMetadataAtom, (current) => ({
-      ...current,
-      [`${orgId}:${sessionId}`]: true,
-    }));
-  }
-
-  private clearPushedMetadataMarker(orgId: string, sessionId: string): void {
-    const key = `${orgId}:${sessionId}`;
-    this.getStore()?.set(org2CloudPushedMetadataAtom, (current) => {
-      if (!(key in current)) return current;
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
-  }
-
-  private clearCursor(orgId: string, sessionId: string): void {
-    const key = `${orgId}:${sessionId}`;
-    this.getStore()?.set(org2CloudPushCursorsAtom, (current) => {
-      if (!(key in current)) return current;
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
+    this.setPushedMetadataMarker(orgId, session.session_id);
+    if (!isImportedHistorySession(session.session_id)) return;
+    const cursor = this.getCursor(orgId, session.session_id);
+    if (
+      !cursor ||
+      remote.eventsEpoch !== cursor.epoch ||
+      remote.eventsFrozenSeq !== cursor.frozenSeq ||
+      remote.eventsCount !== cursor.pushedCount ||
+      (remote.eventsTailHash ?? null) !== cursor.tailHash
+    ) {
+      return;
+    }
+    this.markEventPlaneClean(
+      orgId,
+      session,
+      this.eventActivityStamps.get(session.session_id) ?? 0
+    );
   }
 
   /** Soft-tombstone a prior push and clear every local pushed marker. */
@@ -262,6 +251,7 @@ export class Org2CloudSessionSync {
     this.invalidatePushedMetadataHash(orgId, sessionId);
     this.clearPushedMetadataMarker(orgId, sessionId);
     this.clearCursor(orgId, sessionId);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   private async upsertMetadataIfChanged(
@@ -279,7 +269,8 @@ export class Org2CloudSessionSync {
       auth.userId,
       displayName,
       scopeKey,
-      access
+      access,
+      auth.profile?.avatarUrl
     );
     const key = `${orgId}:${session.session_id}`;
     const hash = await sha256Hex(stableStringify(metadata));
@@ -292,6 +283,7 @@ export class Org2CloudSessionSync {
     );
     this.lastPushedMetadataHashes.set(key, hash);
     this.setPushedMetadataMarker(orgId, session.session_id);
+    broadcastOrgControlChangedToPeers(orgId, "sessions");
   }
 
   /** Load the complete native or external-history transcript for upload. */
@@ -318,9 +310,7 @@ export class Org2CloudSessionSync {
       const plan = (): Promise<PreparedPushPlan> => {
         if (!planPromise) {
           planPromise = (async () => {
-            const perEventHashes = await Promise.all(
-              events.map((event) => sha256Hex(stableStringify(event)))
-            );
+            const perEventHashes = await hashEventsBounded(events);
             const frozenEventCount = computeFrozenEventCount(events);
             const tailEvents = events.slice(frozenEventCount);
             const tailHash =
@@ -356,6 +346,40 @@ export class Org2CloudSessionSync {
     access: CloudPushAccess
   ): Promise<void> {
     const sessionId = session.session_id;
+    if (
+      access.accessMode !== COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY &&
+      this.isSessionPushBackedOff(orgId, sessionId)
+    ) {
+      // Metadata remains cheap and live while the expensive transcript plane
+      // sleeps. The hash gate makes this a no-RPC no-op when unchanged.
+      await this.upsertMetadataIfChanged(
+        auth,
+        orgId,
+        session,
+        scopeKey,
+        access
+      );
+      return;
+    }
+    try {
+      await this.pushSessionOnce(auth, orgId, session, scopeKey, access);
+      this.clearSessionPushFailure(orgId, sessionId);
+    } catch (error) {
+      if (this.shouldBackOffSessionFailure(error)) {
+        this.noteSessionPushFailure(orgId, sessionId);
+      }
+      throw error;
+    }
+  }
+
+  private async pushSessionOnce(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    session: Session,
+    scopeKey: string | null,
+    access: CloudPushAccess
+  ): Promise<void> {
+    const sessionId = session.session_id;
     if (access.accessMode === COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY) {
       await this.upsertMetadataIfChanged(
         auth,
@@ -370,7 +394,12 @@ export class Org2CloudSessionSync {
       this.clearCursor(orgId, sessionId);
       return;
     }
-    if (this.isEventPlaneClean(orgId, sessionId)) {
+    // The external-history scanner updates sessionsAtom directly, without an
+    // EventStore notification. Gate on the source's updated_at as well as the
+    // event-store stamp, and defer metadata together with replay so a live CLI
+    // turn does not produce one cloud upsert per scanner refresh.
+    if (!this.isExternalHistorySettled(session)) return;
+    if (this.isEventPlaneClean(orgId, session)) {
       await this.upsertMetadataIfChanged(
         auth,
         orgId,
@@ -391,15 +420,30 @@ export class Org2CloudSessionSync {
         scopeKey,
         access
       );
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
+    const shrinkKey = `${orgId}:${sessionId}`;
+    let confirmedShrink = false;
     if (cursor && events.length < cursor.pushedCount) {
-      log.warn(
-        `persisted read for ${sessionId} returned ${events.length} events ` +
-          `but the cloud cursor covers ${cursor.pushedCount}; skipping`
-      );
-      return;
+      if (this.sessionShrinkCandidates.get(shrinkKey) === events.length) {
+        this.sessionShrinkCandidates.delete(shrinkKey);
+        confirmedShrink = true;
+        log.info(
+          `persisted read for ${sessionId} returned ${events.length} events ` +
+            `on consecutive passes while the cloud cursor covers ` +
+            `${cursor.pushedCount}; re-anchoring via epoch rewrite`
+        );
+      } else {
+        this.sessionShrinkCandidates.set(shrinkKey, events.length);
+        log.warn(
+          `persisted read for ${sessionId} returned ${events.length} events ` +
+            `but the cloud cursor covers ${cursor.pushedCount}; skipping`
+        );
+        return;
+      }
+    } else {
+      this.sessionShrinkCandidates.delete(shrinkKey);
     }
 
     const {
@@ -411,7 +455,8 @@ export class Org2CloudSessionSync {
     } = await plan();
 
     if (cursor) {
-      let frozenIntact = frozenEventCount >= cursor.frozenEventCount;
+      let frozenIntact =
+        !confirmedShrink && frozenEventCount >= cursor.frozenEventCount;
       if (frozenIntact && cursor.frozenEventCount > 0) {
         const chainAtCursor =
           cursor.frozenEventCount === frozenEventCount
@@ -421,6 +466,20 @@ export class Org2CloudSessionSync {
                 cursor.frozenEventCount
               );
         frozenIntact = chainAtCursor === cursor.frozenChainHash;
+      }
+
+      if (!frozenIntact) {
+        // An epoch rewrite re-uploads the ENTIRE frozen history. It is the
+        // expensive path, so name the condition that forced it: a silent
+        // rewrite loop is indistinguishable from steady state in the ledger.
+        log.info(
+          `epoch rewrite for ${sessionId} org ${orgId}: ` +
+            `confirmedShrink=${confirmedShrink} ` +
+            `frozen=${frozenEventCount} cursorFrozen=${cursor.frozenEventCount} ` +
+            `chainMismatch=${
+              !confirmedShrink && frozenEventCount >= cursor.frozenEventCount
+            }`
+        );
       }
 
       if (frozenIntact) {
@@ -440,7 +499,7 @@ export class Org2CloudSessionSync {
             scopeKey,
             access
           );
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         }
         await this.upsertMetadataIfChanged(
@@ -455,64 +514,142 @@ export class Org2CloudSessionSync {
           cursor.frozenSeq + 1
         );
         try {
-          await this.client.appendSessionEvents(auth.accessToken, {
+          await this.appendSessionBatches(
+            auth,
             orgId,
             sessionId,
-            expectedEpoch: cursor.epoch,
-            expectedFrozenSeq: cursor.frozenSeq,
-            expectedTailHash: cursor.tailHash,
-            newFrozenSegments: frozenSegments,
-            tail: tailEvents.length > 0 ? tailEvents : null,
-            totalCount: events.length,
-          });
-          this.setCursor({
-            orgId,
-            sessionId,
-            epoch: cursor.epoch,
-            frozenSeq: cursor.frozenSeq + frozenSegments.length,
-            pushedCount: events.length,
-            frozenEventCount,
-            frozenChainHash,
-            tailHash,
-          });
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+            cursor,
+            frozenSegments,
+            {
+              events,
+              perEventHashes,
+              frozenEventCount,
+              frozenChainHash,
+              tailEvents,
+              tailHash,
+            }
+          );
+          broadcastOrgControlChangedToPeers(orgId, "sessions");
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         } catch (error) {
           if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT")) throw error;
           await this.rewriteSession(auth, orgId, session, scopeKey, access, {
             events,
+            perEventHashes,
             frozenEventCount,
             frozenChainHash,
             tailEvents,
             tailHash,
             newEpoch: null,
           });
-          this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+          this.markEventPlaneClean(orgId, session, stampAtRead);
           return;
         }
       }
 
       await this.rewriteSession(auth, orgId, session, scopeKey, access, {
         events,
+        perEventHashes,
         frozenEventCount,
         frozenChainHash,
         tailEvents,
         tailHash,
         newEpoch: cursor.epoch + 1,
       });
-      this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+      this.markEventPlaneClean(orgId, session, stampAtRead);
       return;
     }
 
     await this.rewriteSession(auth, orgId, session, scopeKey, access, {
       events,
+      perEventHashes,
       frozenEventCount,
       frozenChainHash,
       tailEvents,
       tailHash,
       newEpoch: 1,
     });
-    this.markEventPlaneClean(orgId, sessionId, stampAtRead);
+    this.markEventPlaneClean(orgId, session, stampAtRead);
+  }
+
+  /**
+   * Extend an established epoch in statement-timeout-safe batches. Every
+   * acknowledged batch advances the durable cursor, so a transport failure or
+   * app restart resumes after the last committed segment instead of reloading,
+   * re-encoding, and re-uploading the complete transcript.
+   */
+  private async appendSessionBatches(
+    auth: Org2CloudAuthState,
+    orgId: string,
+    sessionId: string,
+    initialCursor: CollabSessionPushCursor,
+    frozenSegments: ReturnType<typeof splitFrozenIntoSegments>,
+    plan: {
+      events: SessionEvent[];
+      perEventHashes: string[];
+      frozenEventCount: number;
+      frozenChainHash: string;
+      tailEvents: SessionEvent[];
+      tailHash: string | null;
+    }
+  ): Promise<CollabSessionPushCursor> {
+    let cursor = initialCursor;
+    // An empty frozen delta still needs one append to replace the mutable tail
+    // (or repair total_count), so model it as a single empty final batch.
+    const batchCount = Math.max(
+      1,
+      Math.ceil(frozenSegments.length / SESSION_SEGMENT_UPLOAD_BATCH_SIZE)
+    );
+    for (let batchIndex = 0; batchIndex < batchCount; batchIndex += 1) {
+      const start = batchIndex * SESSION_SEGMENT_UPLOAD_BATCH_SIZE;
+      const batch = frozenSegments.slice(
+        start,
+        start + SESSION_SEGMENT_UPLOAD_BATCH_SIZE
+      );
+      const finalBatch = batchIndex === batchCount - 1;
+      const appendedEventCount = batch.reduce(
+        (count, segment) => count + segment.events.length,
+        0
+      );
+      const nextFrozenEventCount = cursor.frozenEventCount + appendedEventCount;
+      const nextFrozenSeq = cursor.frozenSeq + batch.length;
+      const nextChainHash =
+        nextFrozenEventCount === plan.frozenEventCount
+          ? plan.frozenChainHash
+          : await this.computeFrozenChainHash(
+              plan.perEventHashes,
+              nextFrozenEventCount
+            );
+      const nextTail = finalBatch ? plan.tailEvents : [];
+      const nextTailHash = finalBatch ? plan.tailHash : null;
+      const nextPushedCount = finalBatch
+        ? plan.events.length
+        : nextFrozenEventCount;
+
+      await this.client.appendSessionEvents(auth.accessToken, {
+        orgId,
+        sessionId,
+        expectedEpoch: cursor.epoch,
+        expectedFrozenSeq: cursor.frozenSeq,
+        expectedTailHash: cursor.tailHash,
+        newFrozenSegments: batch,
+        tail: nextTail.length > 0 ? nextTail : null,
+        totalCount: nextPushedCount,
+      });
+      cursor = {
+        orgId,
+        sessionId,
+        epoch: cursor.epoch,
+        frozenSeq: nextFrozenSeq,
+        pushedCount: nextPushedCount,
+        frozenEventCount: nextFrozenEventCount,
+        frozenChainHash: nextChainHash,
+        tailHash: nextTailHash,
+      };
+      this.setCursor(cursor);
+    }
+    return cursor;
   }
 
   /** Full epoch rewrite; conflicts re-anchor on the current server epoch once. */
@@ -524,6 +661,7 @@ export class Org2CloudSessionSync {
     access: CloudPushAccess,
     plan: {
       events: SessionEvent[];
+      perEventHashes: string[];
       frozenEventCount: number;
       frozenChainHash: string;
       tailEvents: SessionEvent[];
@@ -544,24 +682,57 @@ export class Org2CloudSessionSync {
     );
     for (;;) {
       try {
+        const progressive =
+          frozenSegments.length > SESSION_SEGMENT_UPLOAD_BATCH_SIZE;
+        const initialSegments = progressive
+          ? frozenSegments.slice(0, SESSION_SEGMENT_UPLOAD_BATCH_SIZE)
+          : frozenSegments;
+        const initialFrozenEventCount = initialSegments.reduce(
+          (count, segment) => count + segment.events.length,
+          0
+        );
+        const initialChainHash =
+          initialFrozenEventCount === plan.frozenEventCount
+            ? plan.frozenChainHash
+            : await this.computeFrozenChainHash(
+                plan.perEventHashes,
+                initialFrozenEventCount
+              );
         await this.client.rewriteSessionEvents(auth.accessToken, {
           orgId,
           sessionId,
           newEpoch: epoch,
-          frozenSegments,
-          tail: plan.tailEvents.length > 0 ? plan.tailEvents : null,
-          totalCount: plan.events.length,
+          frozenSegments: initialSegments,
+          tail:
+            !progressive && plan.tailEvents.length > 0 ? plan.tailEvents : null,
+          totalCount: progressive
+            ? initialFrozenEventCount
+            : plan.events.length,
         });
-        this.setCursor({
+        const cursor: CollabSessionPushCursor = {
           orgId,
           sessionId,
           epoch,
-          frozenSeq: frozenSegments.length,
-          pushedCount: plan.events.length,
-          frozenEventCount: plan.frozenEventCount,
-          frozenChainHash: plan.frozenChainHash,
-          tailHash: plan.tailHash,
-        });
+          frozenSeq: initialSegments.length,
+          pushedCount: progressive
+            ? initialFrozenEventCount
+            : plan.events.length,
+          frozenEventCount: initialFrozenEventCount,
+          frozenChainHash: initialChainHash,
+          tailHash: progressive ? null : plan.tailHash,
+        };
+        this.setCursor(cursor);
+        if (progressive) {
+          await this.appendSessionBatches(
+            auth,
+            orgId,
+            sessionId,
+            cursor,
+            frozenSegments.slice(initialSegments.length),
+            plan
+          );
+        }
+        broadcastOrgControlChangedToPeers(orgId, "sessions");
         return;
       } catch (error) {
         if (!isOrg2SyncErrorCode(error, "ORG2_CONFLICT") || reanchored) {

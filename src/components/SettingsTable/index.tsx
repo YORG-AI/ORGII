@@ -324,18 +324,24 @@ function SettingsTableToolbar({
       </div>
       {hasInlineSearch && searchBar ? (
         <div className="order-1 flex w-full shrink-0 items-center gap-2 @[640px]:order-2 @[640px]:w-auto">
-          <Input
-            type="search"
-            size={searchBar.searchInputSize ?? "small"}
-            className="min-w-0 flex-1 @[640px]:w-52 @[640px]:flex-none"
-            value={searchBar.searchValue ?? ""}
-            placeholder={searchBar.searchPlaceholder}
-            prefix={<Search size={14} className="text-text-3" aria-hidden />}
-            onChange={(value) => searchBar.onSearchChange?.(value)}
-            allowClear={searchBar.allowSearchClear ?? true}
-            onClear={searchBar.onSearchClear}
-          />
-          {searchBar.rightContent}
+          <div className="min-w-0 flex-1 @[640px]:w-52 @[640px]:flex-none">
+            <Input
+              type="search"
+              size={searchBar.searchInputSize ?? "small"}
+              className="w-full min-w-0"
+              value={searchBar.searchValue ?? ""}
+              placeholder={searchBar.searchPlaceholder}
+              prefix={<Search size={14} className="text-text-3" aria-hidden />}
+              onChange={(value) => searchBar.onSearchChange?.(value)}
+              allowClear={searchBar.allowSearchClear ?? true}
+              onClear={searchBar.onSearchClear}
+            />
+          </div>
+          {searchBar.rightContent ? (
+            <div className="flex shrink-0 items-center gap-2">
+              {searchBar.rightContent}
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -588,7 +594,7 @@ export default function SettingsTable<RowData>({
       {hasHeader && (
         <div
           ref={searchRef}
-          className={`${containedScroll ? "shrink-0" : "sticky top-0 z-[21]"} ${stickyBordered ? "settings-table-sticky-mask bg-bg-2" : ""}`.trim()}
+          className={`${containedScroll ? "shrink-0" : "settings-table-sticky-toolbar"} ${stickyBordered ? "settings-table-sticky-mask bg-bg-2" : ""}`.trim()}
         >
           <div
             className={`${stickyBordered ? "settings-table-sticky-surface -mx-px border-x border-t border-border-1" : ""} border-b border-border-1 px-4 ${surfaceVariant !== "transparent" ? "rounded-t-xl" : ""} ${surfaceClassName} ${searchHeaderClassName}`.trim()}

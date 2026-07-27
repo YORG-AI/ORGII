@@ -1,8 +1,11 @@
 import { execFileSync, spawn } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -29,6 +32,91 @@ const SECONDARY_CLI_PROXY_PORT = Number.parseInt(
   process.env.E2E_SECONDARY_CLI_PROXY_PORT ?? "28889",
   10
 );
+
+function writeJsonAtomically(path, value) {
+  mkdirSync(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.${process.pid}.tmp`;
+  writeFileSync(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  renameSync(temporaryPath, path);
+}
+
+function seedSecondaryRealAccount(orgiiHome) {
+  if (process.env.E2E_PROVIDER_MODE !== "oauth-live") return null;
+
+  const requestedAccount = (process.env.E2E_SECONDARY_ACCOUNT ?? "").trim();
+  if (!requestedAccount) {
+    throw new Error(
+      "E2E_PROVIDER_MODE=oauth-live requires E2E_SECONDARY_ACCOUNT for the second app"
+    );
+  }
+  if (requestedAccount === (process.env.E2E_OPENAI_ACCOUNT ?? "").trim()) {
+    throw new Error(
+      "The two live app instances must use different OAuth accounts; rotating one credential chain concurrently is unsafe"
+    );
+  }
+
+  // WDIO's primary app already owns an isolated OAuth home. Seed only the
+  // explicitly selected second account from that isolated copy, never the
+  // user's complete credentials file.
+  const primaryHome = process.env.ORGII_HOME;
+  if (!primaryHome) {
+    throw new Error("The primary isolated ORGII_HOME is missing");
+  }
+  const sourcePath = join(primaryHome, "credentials.json");
+  if (!existsSync(sourcePath)) {
+    throw new Error(`Primary credentials are missing at ${sourcePath}`);
+  }
+  const source = JSON.parse(readFileSync(sourcePath, "utf8"));
+  const match = Object.entries(source.credentials ?? {}).find(
+    ([id, account]) =>
+      id === requestedAccount || account?.name === requestedAccount
+  );
+  if (!match) {
+    throw new Error(
+      `Secondary live account ${requestedAccount} was not found in the isolated credential source`
+    );
+  }
+
+  const [accountId, account] = match;
+  const targetPath = join(orgiiHome, "credentials.json");
+  writeJsonAtomically(targetPath, {
+    version: source.version ?? "2.0",
+    updated_at: source.updated_at ?? new Date().toISOString(),
+    credentials: {
+      [accountId]: { ...account, enabled: true },
+    },
+  });
+  return {
+    accountId,
+    accountName: account?.name ?? accountId,
+    sourceEnabled: account?.enabled === true,
+    sourcePath,
+    targetPath,
+  };
+}
+
+function mergeSecondaryRealAccount(seededAccount) {
+  if (!seededAccount || !existsSync(seededAccount.targetPath)) return;
+  const source = JSON.parse(readFileSync(seededAccount.sourcePath, "utf8"));
+  const secondary = JSON.parse(readFileSync(seededAccount.targetPath, "utf8"));
+  const rotated = secondary.credentials?.[seededAccount.accountId];
+  if (!rotated) {
+    throw new Error(
+      `Second app lost its selected account ${seededAccount.accountName}`
+    );
+  }
+
+  // Preserve the user's enabled/disabled preference while retaining any
+  // token rotation performed by the live second app. WDIO later mirrors this
+  // combined isolated file back to its source as one clean shutdown step.
+  source.credentials = source.credentials ?? {};
+  source.credentials[seededAccount.accountId] = {
+    ...rotated,
+    enabled: seededAccount.sourceEnabled,
+  };
+  source.updated_at = secondary.updated_at ?? source.updated_at;
+  writeJsonAtomically(seededAccount.sourcePath, source);
+}
 
 async function canConnect(port) {
   return new Promise((resolveConnection) => {
@@ -363,6 +451,8 @@ export async function startSecondCloudInstance() {
 
   const tempRoot = mkdtempSync(join(tmpdir(), "orgii-e2e-instance2-"));
   const orgiiHome = join(tempRoot, "home");
+  const externalHistoryHome = join(orgiiHome, "external-history-home");
+  const seededAccount = seedSecondaryRealAccount(orgiiHome);
   const binary = buildSecondaryBinary(tempRoot);
   const driverProcess = spawn(
     "tauri-wd",
@@ -374,6 +464,10 @@ export async function startSecondCloudInstance() {
         ORGII_E2E: "1",
         ORGII_E2E_DISABLE_BACKGROUND_LLM: "1",
         ORGII_HOME: orgiiHome,
+        // Defense in depth: the embedded E2E identity derives this same path,
+        // but the launcher pins it explicitly so a parser regression can
+        // never expose the real user's Codex/Claude histories to account 2.
+        ORGII_EXTERNAL_HISTORY_HOME: externalHistoryHome,
         ORGII_IDE_SERVER_PORT: String(SECONDARY_IDE_PORT),
         ORGII_CLI_PROXY_PORT: String(SECONDARY_CLI_PROXY_PORT),
       },
@@ -424,12 +518,17 @@ export async function startSecondCloudInstance() {
       client,
       ideServerPort: SECONDARY_IDE_PORT,
       orgiiHome,
+      seededAccountName: seededAccount?.accountName ?? null,
       async stop() {
         try {
           await client?.deleteSession();
         } finally {
           driverProcess.kill("SIGTERM");
-          rmSync(tempRoot, { force: true, recursive: true });
+          try {
+            mergeSecondaryRealAccount(seededAccount);
+          } finally {
+            rmSync(tempRoot, { force: true, recursive: true });
+          }
         }
       },
     };

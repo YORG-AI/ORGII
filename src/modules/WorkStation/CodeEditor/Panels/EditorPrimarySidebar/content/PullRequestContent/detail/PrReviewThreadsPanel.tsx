@@ -17,10 +17,10 @@ import { useTranslation } from "react-i18next";
 import type { GitHubReviewComment } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
-import Textarea from "@src/components/Textarea";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
-
-import { GithubMarkdown } from "../../shared/githubTimeline";
+import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
+import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 
 interface ThreadGroup {
   rootId: number;
@@ -103,7 +103,7 @@ function ReviewThread({
   }, [reply, submitting, onReply, thread.rootId]);
 
   return (
-    <div className="rounded-xl border border-border-1">
+    <div className="rounded-xl border border-border-1 bg-primary-container">
       <div className="border-b border-border-1 px-3 py-2">
         <div className="mb-1 truncate text-[11px] font-medium text-text-2">
           {thread.path}
@@ -122,20 +122,22 @@ function ReviewThread({
                 </span>{" "}
                 {formatTimeAgo(comment.created_at)}
               </div>
-              <GithubMarkdown body={comment.body} />
+              <MarkdownContent body={comment.body} />
             </div>
           </div>
         ))}
       </div>
       {onReply ? (
         <div className="border-t border-border-1 px-3 py-2">
-          <Textarea
+          <RichMarkdownEditor
             value={reply}
-            onChange={setReply}
+            onChange={(markdown) => setReply(markdown)}
             placeholder={t("git.pr.replyPlaceholder", "Reply…")}
-            rows={2}
-            size="mini"
-            resize="none"
+            minHeight={56}
+            maxHeight={144}
+            appearance="outlined"
+            onSubmit={() => void handleReply()}
+            dataTestId={`pr-review-reply-editor-${thread.rootId}`}
           />
           <div className="mt-1.5 flex justify-end">
             <Button
@@ -196,7 +198,9 @@ export const PrReviewThreadsPanel: React.FC<PrReviewThreadsPanelProps> = ({
       </button>
       {expanded ? (
         <div className="max-h-[40vh] overflow-y-auto px-4 pb-3 scrollbar-hide">
-          <div className="mx-auto flex w-full max-w-[920px] flex-col gap-3">
+          <div
+            className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-3`}
+          >
             {threads.map((thread) => (
               <ReviewThread
                 key={thread.rootId}

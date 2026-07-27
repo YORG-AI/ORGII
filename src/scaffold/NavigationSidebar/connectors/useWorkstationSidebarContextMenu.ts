@@ -8,7 +8,10 @@ import { type MouseEvent, useCallback } from "react";
 import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import {
+  isCursorIdeSession,
+  isHumanSession,
+} from "@src/util/session/sessionDispatch";
 import { isChatPanelTuiSessionId } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
 import {
@@ -164,7 +167,7 @@ export function useWorkstationSidebarContextMenu({
           openInNewTabItem,
           openInMyStationItem,
           renameItem,
-          exportItem,
+          ...(!isHumanSession(item.id) ? [exportItem] : []),
         ];
         // Move (tag) the session into a managed cloud org, independent of
         // repo-scope auto-sharing. Owner's own pushable sessions only.

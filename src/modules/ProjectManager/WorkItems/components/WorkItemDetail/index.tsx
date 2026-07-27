@@ -11,13 +11,15 @@ import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
-import type {
-  WorkItemPriority,
-  WorkItemStatus,
+import {
+  WORK_ITEM_STATUS,
+  type WorkItemPriority,
+  type WorkItemStatus,
 } from "@src/types/core/workItem";
 
 import { getContextMenuItems } from "../../config";
 import { useWorkItemOrchestrator } from "../../hooks/useWorkItemOrchestrator";
+import { formatWorkItemShortId } from "../../workItemIdentity";
 import WorkItemContextMenu from "../WorkItemContextMenu";
 import { WorkItemDetailBody } from "./WorkItemDetailBody";
 import {
@@ -71,6 +73,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   surface = WORK_ITEM_DETAIL_SURFACE.main,
   breadcrumbProjectName,
   breadcrumbIcon,
+  titleEditable,
   propertiesOpen: controlledPropertiesOpen,
   onToggleProperties,
   publishHeaderToWorkstation = false,
@@ -110,6 +113,14 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     onPendingChangesChange,
     onRegisterActions,
   });
+  const displayStatus =
+    displayWorkItem.workItemStatus ?? displayWorkItem.status;
+  const isGitHubWorkItem =
+    displayStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    displayStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
+  const canEditTitle =
+    Boolean(onUpdateWorkItem) && titleEditable !== false && !isGitHubWorkItem;
+  const displayShortId = formatWorkItemShortId(shortId, displayStatus);
 
   const {
     isStartingAgent,
@@ -287,15 +298,29 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   const headerContent = useMemo(
     () => (
       <WorkItemDetailHeaderBreadcrumb
-        workItem={workItem}
+        workItem={displayWorkItem}
         breadcrumbProjectName={breadcrumbProjectName}
         breadcrumbIcon={breadcrumbIcon}
-        shortId={shortId}
+        shortId={displayShortId}
         onClose={_onClose}
+        onTitleChange={
+          canEditTitle
+            ? (title) => handleLocalUpdate({ name: title })
+            : undefined
+        }
         t={t}
       />
     ),
-    [workItem, breadcrumbProjectName, breadcrumbIcon, shortId, _onClose, t]
+    [
+      displayWorkItem,
+      breadcrumbProjectName,
+      breadcrumbIcon,
+      displayShortId,
+      _onClose,
+      canEditTitle,
+      handleLocalUpdate,
+      t,
+    ]
   );
 
   const headerTrailing = useMemo(

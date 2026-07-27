@@ -1,22 +1,20 @@
 import { Link2, Search, X } from "lucide-react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
+import { Virtuoso } from "react-virtuoso";
 
-import {
-  type EnrichedWorkItem,
-  type ProjectData,
-  projectApi,
-} from "@src/api/http/project";
+import { projectApi } from "@src/api/http/project";
 import { linkSessionToWorkItem } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 
-interface WorkItemLinkOption {
-  project: ProjectData;
-  item: EnrichedWorkItem;
-}
+import {
+  type WorkItemLinkOption,
+  createAsyncGenerationGuard,
+  loadWorkItemLinkOptions,
+} from "./linkSessionToWorkItemModel";
 
 interface LinkSessionToWorkItemModalProps {
   open: boolean;
@@ -41,34 +39,46 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
   const [linkingId, setLinkingId] = useState<string | null>(null);
   const [items, setItems] = useState<WorkItemLinkOption[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const loadGenerationGuardRef = useRef(createAsyncGenerationGuard());
+  const linkGenerationGuardRef = useRef(createAsyncGenerationGuard());
 
   useEffect(() => {
-    if (!open) return;
-    let cancelled = false;
+    const guard = loadGenerationGuardRef.current;
+    const linkGuard = linkGenerationGuardRef.current;
+    if (!open) {
+      guard.invalidate();
+      linkGuard.invalidate();
+      setItems([]);
+      setLoading(false);
+      setQuery("");
+      setLinkingId(null);
+      setError(null);
+      return;
+    }
+    const generation = guard.begin();
+    const isCurrent = () => guard.isCurrent(generation);
 
     const loadItems = async () => {
       setLoading(true);
       setError(null);
+      setItems([]);
       try {
         const projects = await projectApi.readProjects();
-        const groups = await Promise.all(
-          projects.map(async (project) => {
-            const workItems = await projectApi.readWorkItemsEnriched(
-              project.slug
-            );
-            return workItems.map((item) => ({ project, item }));
-          })
+        const loadedItems = await loadWorkItemLinkOptions(
+          projects,
+          projectApi.readWorkItemsEnriched,
+          isCurrent
         );
-        if (!cancelled) {
-          setItems(groups.flat());
+        if (loadedItems && isCurrent()) {
+          setItems(loadedItems);
         }
       } catch (err) {
-        if (!cancelled) {
+        if (isCurrent()) {
           const message = err instanceof Error ? err.message : String(err);
           setError(message);
         }
       } finally {
-        if (!cancelled) {
+        if (isCurrent()) {
           setLoading(false);
         }
       }
@@ -76,16 +86,9 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
 
     void loadItems();
     return () => {
-      cancelled = true;
+      guard.invalidate();
+      linkGuard.invalidate();
     };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      setLinkingId(null);
-      setError(null);
-    }
   }, [open]);
 
   const filteredItems = useMemo(() => {
@@ -102,6 +105,8 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
 
   const handleLink = async (option: WorkItemLinkOption) => {
     if (!sessionId) return;
+    const guard = linkGenerationGuardRef.current;
+    const generation = guard.begin();
     setLinkingId(option.item.shortId);
     try {
       await linkSessionToWorkItem({
@@ -110,6 +115,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
         workItemId: option.item.shortId,
         agentRole: "custom",
       });
+      if (!guard.isCurrent(generation)) return;
       Message.success(t("common:toasts.sessionLinkedToWorkItem"));
       onLinked?.({
         projectSlug: option.project.slug,
@@ -118,10 +124,13 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
       });
       onClose();
     } catch (err) {
+      if (!guard.isCurrent(generation)) return;
       const message = err instanceof Error ? err.message : String(err);
       Message.error(t("common:toasts.sessionLinkFailed", { message }));
     } finally {
-      setLinkingId(null);
+      if (guard.isCurrent(generation)) {
+        setLinkingId(null);
+      }
     }
   };
 
@@ -169,7 +178,10 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
           />
         </div>
 
-        <div className="min-h-[260px] overflow-y-auto p-3">
+        <div
+          className="min-h-[260px] p-3"
+          style={{ height: "min(52vh, 480px)" }}
+        >
           {loading ? (
             <div className="rounded-xl border border-dashed border-border-2 bg-fill-1 px-4 py-8 text-center text-[12px] text-text-3">
               {t("chat.linkWorkItem.loading")}
@@ -183,14 +195,21 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
               {t("chat.linkWorkItem.empty")}
             </div>
           ) : (
-            <div className="flex flex-col gap-2">
-              {filteredItems.map((option) => {
+            <Virtuoso
+              data={filteredItems}
+              data-testid="session-link-work-item-virtual-list"
+              style={{ height: "100%" }}
+              defaultItemHeight={58}
+              increaseViewportBy={{ top: 116, bottom: 232 }}
+              computeItemKey={(_index, option) =>
+                `${option.project.slug}:${option.item.shortId}`
+              }
+              itemContent={(_index, option) => {
                 const isLinking = linkingId === option.item.shortId;
                 return (
                   <button
-                    key={`${option.project.slug}:${option.item.shortId}`}
                     type="button"
-                    className="flex w-full items-start justify-between gap-3 rounded-xl border border-solid border-border-1 bg-bg-1 px-3 py-2 text-left transition-colors hover:border-border-2 hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
+                    className="mb-2 flex w-full items-start justify-between gap-3 rounded-xl border border-solid border-border-1 bg-bg-1 px-3 py-2 text-left transition-colors hover:border-border-2 hover:bg-surface-hover disabled:cursor-wait disabled:opacity-60"
                     data-testid={`session-link-work-item-option-${option.item.shortId}`}
                     onClick={() => void handleLink(option)}
                     disabled={Boolean(linkingId)}
@@ -215,8 +234,8 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
                     </span>
                   </button>
                 );
-              })}
-            </div>
+              }}
+            />
           )}
         </div>
       </div>

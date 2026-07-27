@@ -642,6 +642,73 @@ async fn merge_cycle_creates_local_item_for_unbound_external_id() {
     assert_eq!(metadata.field_revisions["labels"].source, "echo");
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn merge_cycle_uses_github_issue_number_as_the_short_id() {
+    let _sandbox = test_env::sandbox();
+    write_project("alpha", &project_meta("alpha", None), "", true).expect("write project");
+    set_sync_kind("alpha", "github");
+
+    let change = ExternalChange {
+        entity_type: EntityType::WorkItem,
+        external_id: "210".to_string(),
+        local_entity_id: None,
+        fields: serde_json::json!({
+            "title": "GitHub issue",
+            "body": "Imported from GitHub",
+            "status": "open",
+        }),
+        remote_updated_at: Utc.timestamp_millis_opt(1_700_000_000_000).unwrap(),
+        deleted: false,
+    };
+    let conn = io::conn().expect("conn");
+    io::append(&conn, &merge_entry("alpha", &change)).expect("append");
+    drop(conn);
+
+    merge_cycle(8).await.expect("merge cycle ok");
+
+    let short_id = crate::projects::io::find_by_external_ref("alpha", "github", "210")
+        .expect("lookup")
+        .expect("GitHub issue should be bound");
+    assert_eq!(short_id, "210");
+
+    let work_item = read_work_item("alpha", "210").expect("read GitHub issue");
+    assert_eq!(work_item.frontmatter.short_id, "210");
+    assert_eq!(work_item.frontmatter.title, "GitHub issue");
+    assert_ne!(
+        work_item.frontmatter.id, "210",
+        "the private row id must remain distinct and globally unique"
+    );
+}
+
+#[test]
+fn boot_normalization_replaces_legacy_github_short_ids() {
+    let _sandbox = test_env::sandbox();
+    write_project("alpha", &project_meta("alpha", None), "", true).expect("write project");
+    set_sync_kind("alpha", "github");
+    let frontmatter = wi_fm("ORG-0210", "Legacy GitHub issue", "open");
+    write_work_item("alpha", "ORG-0210", &frontmatter, "").expect("seed work item");
+    md_apply(
+        "alpha",
+        "ORG-0210",
+        HashMap::new(),
+        Some(("github".to_string(), "210".to_string())),
+    )
+    .expect("bind GitHub issue");
+
+    let normalized = super::identity::normalize_existing_external_short_ids()
+        .expect("normalize external short ids");
+    assert_eq!(normalized, 1);
+    assert!(read_work_item("alpha", "ORG-0210").is_err());
+    assert_eq!(
+        read_work_item("alpha", "210")
+            .expect("read normalized issue")
+            .frontmatter
+            .id,
+        "w_ORG-0210",
+        "renaming must not change the stable internal row id"
+    );
+}
+
 /// An inbound delete for an external_id that was never seen
 /// locally (created and removed remotely before our first pull)
 /// is a silent no-op — the row is finalized Succeeded with no

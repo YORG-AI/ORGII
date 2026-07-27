@@ -61,15 +61,9 @@
     "startSession": "開始會話",
     "sessions": "Session 列表",
     "selectProject": "選擇專案",
-    "startPage": "起始頁",
     "inbox": "收件箱",
     "login": "登錄",
     "setup": "設置嚮導",
-    "devJourney": "開發歷程",
-    "devRecord": "開發記錄",
-    "gitDashboard": "Git 儀表盤",
-    "devActivity": "Dev 活動",
-    "usageHistory": "使用歷史",
     "tokenMarket": "Token 市場",
     "taskMarket": "任務市場",
     "channels": "Channel",
@@ -86,20 +80,8 @@
     "ideaArea": "想法廣場",
     "changelog": "更新日誌"
   },
-  "appGrid": {
-    "customizeGrid": "自定義網格",
-    "horizontalGap": "水平間距",
-    "verticalGap": "垂直間距",
-    "resetToDefault": "恢復默認"
-  },
-  "greetings": {
-    "morning": "早上好",
-    "afternoon": "下午好",
-    "evening": "晚上好"
-  },
   "sidebar": {
     "tabs": {
-      "build": "起始頁",
       "workstation": "工作站",
       "manage": "管理",
       "core": "核心",
@@ -135,9 +117,7 @@
     "actions": {
       "addNew": "新建",
       "collapseAll": "全部摺疊",
-      "markAllRead": "全部標為已讀",
-      "openHome": "開啟首頁",
-      "openWorkstation": "開啟工作站"
+      "markAllRead": "全部標為已讀"
     },
     "search": {
       "folders": "搜尋工作區...",
@@ -450,15 +430,6 @@
       "projects": "專案"
     }
   },
-  "changelog": {
-    "title": "更新日誌",
-    "subtitle": "產品更新",
-    "commitCount": "{{count}} 次提交",
-    "commitCount_one": "{{count}} 次提交",
-    "details": "詳情",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "切換 ORG",
     "addOrg": "新增 ORG",
@@ -519,7 +490,8 @@
       "agentError": "請先選擇本機 Agent 再分叉。",
       "backendError": "歷史已複製，但可執行的分叉工作階段註冊失敗。請重試。",
       "parentOpenUnavailable": "無法從此分叉開啟來源工作階段。",
-      "replayError": "此工作階段尚無完整回放。請讓擁有者共享完整回放後重試。"
+      "replayError": "此工作階段尚無完整回放。請讓擁有者共享完整回放後重試。",
+      "openParentButton": "開啟來自 {{name}} 的來源工作階段"
     }
   },
   "cloud": {
@@ -527,6 +499,7 @@
     "signIn": "登入",
     "signOut": "登出",
     "signedInToast": "已登入 ORG2 雲端",
+    "sessionExpired": "ORG2 雲端登入已過期，請重新登入後繼續。",
     "recommendedBadge": "推薦",
     "recommendedDesc": "託管式工作階段共享、重播儲存、團隊權限與安全分享連結，無需自行架設 Supabase。ORG2 為你管理 Auth、資料庫遷移、RLS 政策、計費、資料保留、配額與後端升級",
     "customEndpoint": {
@@ -566,13 +539,15 @@
       "retentionUpgrade": "此工作階段已超出目前方案的重播期限 — 升級後即可檢視",
       "importError": "無法匯入工作階段",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "關於我"
     },
     "sidebar": {
       "teamSessions": "團隊工作階段",
       "mySessions": "我的工作階段",
       "memberFilter": "依成員篩選",
       "sessionFilter": "篩選工作階段",
+      "copyId": "複製 ID",
       "directlySharedWithMe": "指定分享給我的",
       "everyone": "所有人",
       "forkedFrom": "接力自 @{{name}}",
@@ -705,25 +680,22 @@
         "inviteInvalid": "邀請碼無效。",
         "inviteRevoked": "該邀請已被撤銷。",
         "inviteExpired": "該邀請已過期。",
-        "inviteExhausted": "該邀請的使用次數已用完。"
+        "inviteExhausted": "該邀請的使用次數已用完。",
+        "network": "無法連線雲端服務。請檢查網路後重試。"
       }
-    },
-    "defaultAccess": {
-      "label": "預設同步層級",
-      "help": "套用於此裝置上符合儲存庫範圍、且沒有個別設定的工作階段。選擇「關閉」時，工作階段會保留在本機，直到你主動開啟"
     },
     "syncLevel": {
       "menuItem": "雲端同步層級…",
       "title": "雲端同步層級",
       "hint": "為每個雲端組織選擇此工作階段要共享的內容——不共享、僅中繼資料或完整重播——以及誰可以看到。",
-      "orgDefaultOption": "組織預設（{{mode}}）",
       "modeOff": "關閉",
       "modeMetadata": "僅中繼資料",
       "modeFullReplay": "完整重播",
       "visibilityOrg": "組織內所有人",
       "visibilityRestricted": "僅自己",
       "taggedNote": "此工作階段已移入此組織，在保持標記期間至少會共享中繼資料。",
-      "floorNote": "組織管理員要求至少分享到{{mode}}。"
+      "floorNote": "組織管理員要求至少分享到{{mode}}。",
+      "orgMinimumOption": "組織最低要求（{{mode}}）"
     },
     "share": {
       "menuItem": "雲端分享…",
@@ -818,6 +790,7 @@
       "help": "設定本組織儲存庫中的工作階段，成員最少必須分享到什麼等級。成員無法設得更低。「無最低要求」維持目前行為",
       "optionNone": "無最低要求",
       "memberNote": "組織管理員要求至少分享到{{mode}}，因此你無法將工作階段設得比這更低"
-    }
+    },
+    "signedInAs": "已登入：{{name}}"
   }
 }

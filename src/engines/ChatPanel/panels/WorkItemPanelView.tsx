@@ -24,21 +24,22 @@ import {
   WorkItemContent,
   WorkItemProperties,
 } from "@src/modules/ProjectManager/WorkItems/components";
+import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import { useWorkItemOrchestrator } from "@src/modules/ProjectManager/WorkItems/hooks";
 import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
-import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
+import { closeWorkItemChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
   type ChatPanelSelectedWorkItem,
   chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
-import type { WorkItem } from "@src/types/core/workItem";
+import { WORK_ITEM_STATUS, type WorkItem } from "@src/types/core/workItem";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
-import ChatView from "../ChatView";
+import SessionContentView from "../SessionContentView";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
@@ -49,6 +50,7 @@ const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
 interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
   onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
+  onClose?: () => void;
 }
 
 function toStandaloneFrontmatter(
@@ -169,8 +171,10 @@ function toWorkItemPartialUpdate(
 export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   selectedWorkItem,
   onUpdateWorkItem,
+  onClose,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
+  const closeWorkItemTab = useSetAtom(closeWorkItemChatPanelTabAtom);
   const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
   const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
@@ -283,7 +287,9 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           // Reading the deleted project's items throws before it can return an
           // empty list, so detect the parent tombstone explicitly. The local
           // project store is authoritative even when cloud transport is down.
-          setSelectedWorkItem(null);
+          // Close the owning tab too: its payload, not the legacy selection
+          // atom, is what keeps the detail surface mounted.
+          closeWorkItemTab(selectedWorkItem.shortId);
           return;
         }
         const items = await projectApi.readWorkItemsEnriched(
@@ -293,10 +299,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         const fresh = items.find(
           (item) => item.shortId === selectedWorkItem.shortId
         );
-        if (!fresh) {
+        if (!fresh || fresh.deletedAt) {
           // A collaborator may delete the item itself or its parent project
-          // while this detail is open. Do not leave an editable ghost surface.
-          setSelectedWorkItem(null);
+          // while this detail is open. Enriched reads intentionally retain
+          // soft-deleted rows, so a tombstone must be treated as absent too;
+          // otherwise the sidebar disappears while an editable ghost remains.
+          closeWorkItemTab(selectedWorkItem.shortId);
           return;
         }
         setSelectedWorkItem((current) =>
@@ -327,7 +335,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     } catch (error) {
       logger.warn("Failed to refresh chat panel work item", error);
     }
-  }, [selectedWorkItem, setSelectedWorkItem]);
+  }, [closeWorkItemTab, selectedWorkItem, setSelectedWorkItem]);
 
   useProjectDataChanged(
     useCallback(() => {
@@ -405,6 +413,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       : undefined;
   const isGitHubSyncedProject =
     projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const selectedWorkItemStatus =
+    selectedWorkItem.workItem.workItemStatus ??
+    selectedWorkItem.workItem.status;
+  const isGitHubWorkItem =
+    isGitHubSyncedProject ||
+    selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
   const projectSelectionReadonly =
     Boolean(selectedWorkItem.projectSlug) &&
     (projectSyncAdapterId === undefined || isGitHubSyncedProject);
@@ -426,12 +441,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         selectedWorkItem.projectSlug,
         selectedWorkItem.shortId
       );
-      setSelectedWorkItem(null);
+      // The tab payload owns this surface. Clearing only the legacy selection
+      // mirror leaves the deleted detail mounted until another data-change
+      // refresh happens, and a later cascade can fall back to that ghost tab.
+      closeWorkItemTab(selectedWorkItem.shortId);
       await emit("orgii-data-changed");
     } catch (error) {
       logger.error("Failed to delete chat panel work item", error);
     }
-  }, [selectedWorkItem, setSelectedWorkItem, t]);
+  }, [closeWorkItemTab, selectedWorkItem, t]);
 
   const headerActions = useMemo(
     () => (
@@ -494,30 +512,41 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
 
   const headerContent = useMemo(
     () => (
-      <ProjectManagerBreadcrumb
-        segments={[
-          { label: selectedWorkItem.projectName },
-          {
-            label: selectedWorkItem.shortId
-              ? `${selectedWorkItem.shortId} · ${selectedWorkItem.workItem.name}`
-              : selectedWorkItem.workItem.name,
-            icon: isGitHubSyncedProject ? (
-              <IntegrationIcon
-                type={STORY_SYNC_ADAPTER.GITHUB}
-                size={HEADER_ICON_SIZE.sm}
-              />
-            ) : (
-              <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
-            ),
-          },
-        ]}
+      <WorkItemDetailHeaderBreadcrumb
+        workItem={selectedWorkItem.workItem}
+        breadcrumbProjectName={selectedWorkItem.projectName}
+        breadcrumbIcon={
+          isGitHubSyncedProject ? (
+            <IntegrationIcon
+              type={STORY_SYNC_ADAPTER.GITHUB}
+              size={HEADER_ICON_SIZE.sm}
+            />
+          ) : (
+            <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          )
+        }
+        shortId={selectedWorkItem.shortId}
+        onClose={onClose}
+        onTitleChange={
+          !isGitHubWorkItem &&
+          (!selectedWorkItem.projectSlug || projectSyncAdapterId !== undefined)
+            ? (title) => void handleUpdateWorkItem({ name: title })
+            : undefined
+        }
+        t={t}
       />
     ),
     [
       selectedWorkItem.projectName,
       selectedWorkItem.shortId,
-      selectedWorkItem.workItem.name,
+      selectedWorkItem.workItem,
+      selectedWorkItem.projectSlug,
       isGitHubSyncedProject,
+      isGitHubWorkItem,
+      projectSyncAdapterId,
+      handleUpdateWorkItem,
+      onClose,
+      t,
     ]
   );
 
@@ -568,7 +597,6 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             repoPath={repoPath}
             projectSlug={selectedWorkItem.projectSlug}
             shortId={selectedWorkItem.shortId}
-            titleVisible
             onStartAgent={handleStartAgent}
             isStartingAgent={isStartingAgent}
             onCancelAgent={handleCancelAgent}
@@ -631,7 +659,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <ChatView
+            <SessionContentView
               sessionId={floatingSessionId}
               secondary
               surfaceBgClass="bg-chat-pane"

@@ -44,15 +44,19 @@ async function loadChatPanelTabAtoms() {
     chatPanelTabsAtom,
     closeChatPanelTabAtom,
     closeOtherChatPanelTabsAtom,
+    closeProjectOrgChatPanelTabsAtom,
+    closeWorkItemChatPanelTabAtom,
     normalizePersistedChatPanelTabsState,
-    openCloudOrgManagementInChatPanelTabAtom,
+    openOrganizationInChatPanelTabAtom,
     openCreateTargetInChatPanelStartPageAtom,
     openWorkManagementChatPanelTabAtom,
     openOrFocusChatPanelStartPageTabAtom,
     openRuntimeInChatPanelTabAtom,
     openOrFocusSessionInChatPanelTabAtom,
     openOrReplaceSessionInChatPanelTabAtom,
+    openProjectInChatPanelTabAtom,
     openSessionInNewChatTabAtom,
+    openWorkItemInChatPanelTabAtom,
     prevChatPanelTabAtom,
     setChatPanelTabTitleAtom,
     syncActiveChatPanelTabStateAtom,
@@ -69,6 +73,7 @@ async function loadChatPanelTabAtoms() {
     chatPanelMaximizedAtom,
     chatPanelNavigateAtom,
     chatPanelStartPageOpenAtom,
+    chatPanelSelectedWorkItemAtom,
     CHAT_PANEL_SURFACE_KIND,
     CHAT_PANEL_CREATE_TARGET,
   } = await import("@src/store/ui/chatPanelAtom");
@@ -96,6 +101,8 @@ async function loadChatPanelTabAtoms() {
     chatPanelStartPageOpenAtom,
     closeChatPanelTabAtom,
     closeOtherChatPanelTabsAtom,
+    closeProjectOrgChatPanelTabsAtom,
+    closeWorkItemChatPanelTabAtom,
     createChatPanelTerminalAtom,
     kanbanDetailPanelVisibleAtom,
     kanbanReplayBoundsAtom,
@@ -106,18 +113,20 @@ async function loadChatPanelTabAtoms() {
     kanbanReplaySpeedAtom,
     kanbanSelectedTaskIdAtom,
     normalizePersistedChatPanelTabsState,
-    openCloudOrgManagementInChatPanelTabAtom,
+    openOrganizationInChatPanelTabAtom,
     openCreateTargetInChatPanelStartPageAtom,
     openWorkManagementChatPanelTabAtom,
     openOrFocusChatPanelStartPageTabAtom,
     openRuntimeInChatPanelTabAtom,
     openOrFocusSessionInChatPanelTabAtom,
     openOrReplaceSessionInChatPanelTabAtom,
+    openProjectInChatPanelTabAtom,
     WORK_MANAGEMENT_SECTION,
     WORK_MANAGEMENT_PROJECTS_VIEW,
     workManagementCreatorVisibleAtom,
     workManagementProjectsViewAtom,
     openSessionInNewChatTabAtom,
+    openWorkItemInChatPanelTabAtom,
     prevChatPanelTabAtom,
     setChatPanelTabTitleAtom,
     syncActiveChatPanelTabStateAtom,
@@ -126,6 +135,7 @@ async function loadChatPanelTabAtoms() {
     sessionViewAtom,
     sessionsAtom,
     store,
+    chatPanelSelectedWorkItemAtom,
     workstationTabHeaderAtomByHost,
   };
 }
@@ -175,6 +185,29 @@ describe("closeChatPanelTabAtom", () => {
     store.set(closeChatPanelTabAtom, fallbackState.activeTabId);
     expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(1);
     expect(store.get(chatPanelTabsAtom).tabs[0].type).toBe("start-page");
+  }, 30_000);
+
+  it("releases the pipeline when Launchpad replaces the active session", async () => {
+    const {
+      activeSessionIdAtom,
+      chatPanelTabsAtom,
+      closeChatPanelTabAtom,
+      openSessionInNewChatTabAtom,
+      sessionViewAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const sessionTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-heavy-replay",
+      sessionName: "Heavy replay",
+    });
+
+    expect(store.get(activeSessionIdAtom)).toBe("session-heavy-replay");
+    store.set(closeChatPanelTabAtom, sessionTabId);
+
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(store.get(activeSessionIdAtom)).toBeNull();
+    expect(store.get(sessionViewAtom).activeSessionId).toBeNull();
   });
 
   it("restores docked presentation when the final management tab closes", async () => {
@@ -331,6 +364,127 @@ describe("closeOtherChatPanelTabsAtom", () => {
         .get(terminalSessionsAtom)
         .some((session) => session.id === terminalSessionId)
     ).toBe(false);
+  });
+});
+
+describe("closeWorkItemChatPanelTabAtom", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("removes the tab-owned payload and clears the active selection", async () => {
+    const {
+      chatPanelSelectedWorkItemAtom,
+      chatPanelTabsAtom,
+      closeWorkItemChatPanelTabAtom,
+      openWorkItemInChatPanelTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+    const selectedWorkItem = {
+      shortId: "ORG-1",
+      projectSlug: "project-one",
+      projectId: "project-one",
+      projectName: "Project One",
+      workItem: {
+        session_id: "ORG-1",
+        name: "Deleted remotely",
+      },
+    } as never;
+
+    store.set(openWorkItemInChatPanelTabAtom, selectedWorkItem);
+    expect(store.get(chatPanelSelectedWorkItemAtom)).toBe(selectedWorkItem);
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some((tab) => tab.workItem?.shortId === "ORG-1")
+    ).toBe(true);
+
+    store.set(closeWorkItemChatPanelTabAtom, "ORG-1");
+
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some((tab) => tab.workItem?.shortId === "ORG-1")
+    ).toBe(false);
+    expect(store.get(chatPanelSelectedWorkItemAtom)).toBeNull();
+  });
+});
+
+describe("closeProjectOrgChatPanelTabsAtom", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("removes every cached project surface for a revoked org only", async () => {
+    const {
+      chatPanelTabsAtom,
+      closeProjectOrgChatPanelTabsAtom,
+      openProjectInChatPanelTabAtom,
+      openOrganizationInChatPanelTabAtom,
+      openWorkItemInChatPanelTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+
+    store.set(openOrganizationInChatPanelTabAtom, {
+      organization: {
+        kind: "local",
+        projectOrg: {
+          orgId: "revoked-org",
+          orgName: "Revoked Team",
+          orgScope: "project_org",
+        },
+      },
+    });
+    store.set(openProjectInChatPanelTabAtom, {
+      project: { id: "revoked-project", name: "Revoked Project" },
+      projectSlug: "revoked-project",
+      orgId: "revoked-org",
+      orgName: "Revoked Team",
+    } as never);
+    store.set(openWorkItemInChatPanelTabAtom, {
+      shortId: "REV-1",
+      projectSlug: "revoked-project",
+      projectId: "revoked-project",
+      projectName: "Revoked Project",
+      orgId: "revoked-org",
+      orgName: "Revoked Team",
+      workItem: { session_id: "REV-1", name: "Revoked Item" },
+    } as never);
+    store.set(openWorkItemInChatPanelTabAtom, {
+      shortId: "LIVE-1",
+      projectSlug: "live-project",
+      projectId: "live-project",
+      projectName: "Live Project",
+      orgId: "live-org",
+      orgName: "Live Team",
+      workItem: { session_id: "LIVE-1", name: "Live Item" },
+    } as never);
+
+    store.set(closeProjectOrgChatPanelTabsAtom, ["revoked-org"]);
+
+    const tabs = store.get(chatPanelTabsAtom).tabs;
+    expect(
+      tabs.some(
+        (tab) =>
+          tab.workItem?.orgId === "revoked-org" ||
+          tab.project?.orgId === "revoked-org" ||
+          (tab.organization?.kind === "local" &&
+            tab.organization.projectOrg.orgId === "revoked-org")
+      )
+    ).toBe(false);
+    expect(tabs.some((tab) => tab.workItem?.shortId === "LIVE-1")).toBe(true);
   });
 });
 
@@ -680,27 +834,27 @@ describe("ChatPanel navigation tabs", () => {
       activeChatPanelSurfaceAtom,
       CHAT_PANEL_SURFACE_KIND,
       chatPanelTabsAtom,
-      openCloudOrgManagementInChatPanelTabAtom,
+      openOrganizationInChatPanelTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
     const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
-    const managementTabId = store.set(
-      openCloudOrgManagementInChatPanelTabAtom,
-      {
-        cloudOrg: { orgId: "org-a" },
-        title: "Manage ORG",
-      }
-    );
+    const managementTabId = store.set(openOrganizationInChatPanelTabAtom, {
+      organization: { kind: "cloud", cloudOrg: { orgId: "org-a" } },
+      title: "Manage ORG",
+    });
 
     expect(store.get(chatPanelTabsAtom)).toMatchObject({
       activeTabId: managementTabId,
       tabs: expect.arrayContaining([
         expect.objectContaining({
           id: managementTabId,
-          type: "cloud-org",
+          type: "organization",
           title: "Manage ORG",
-          cloudOrg: { orgId: "org-a" },
+          organization: {
+            kind: "cloud",
+            cloudOrg: { orgId: "org-a" },
+          },
         }),
       ]),
     });
@@ -709,22 +863,36 @@ describe("ChatPanel navigation tabs", () => {
       cloudOrg: { orgId: "org-a" },
     });
 
-    const switchedTabId = store.set(openCloudOrgManagementInChatPanelTabAtom, {
-      cloudOrg: { orgId: "org-b" },
+    const switchedTabId = store.set(openOrganizationInChatPanelTabAtom, {
+      organization: {
+        kind: "local",
+        projectOrg: {
+          orgId: "local-b",
+          orgName: "Local B",
+          orgScope: "project_org",
+        },
+      },
       title: "Manage ORG",
     });
     expect(switchedTabId).toBe(managementTabId);
     expect(
       store
         .get(chatPanelTabsAtom)
-        .tabs.filter((tab) => tab.type === "cloud-org")
-    ).toEqual([expect.objectContaining({ cloudOrg: { orgId: "org-b" } })]);
+        .tabs.filter((tab) => tab.type === "organization")
+    ).toEqual([
+      expect.objectContaining({
+        organization: {
+          kind: "local",
+          projectOrg: expect.objectContaining({ orgId: "local-b" }),
+        },
+      }),
+    ]);
 
     store.set(activateChatPanelTabAtom, launchpadTabId);
     store.set(activateChatPanelTabAtom, managementTabId);
     expect(store.get(activeChatPanelSurfaceAtom)).toEqual({
-      kind: CHAT_PANEL_SURFACE_KIND.CLOUD_ORG,
-      cloudOrg: { orgId: "org-b" },
+      kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
+      projectOrg: expect.objectContaining({ orgId: "local-b" }),
     });
   });
 
@@ -827,6 +995,47 @@ describe("ChatPanel navigation tabs", () => {
     expect(normalized?.activeTabId).toBe("start-b");
   });
 
+  it("migrates cloud and local org tabs into the active shared organization tab", async () => {
+    const { normalizePersistedChatPanelTabsState } =
+      await loadChatPanelTabAtoms();
+
+    const normalized = normalizePersistedChatPanelTabsState({
+      activeTabId: "local-org",
+      tabs: [
+        {
+          id: "cloud-org",
+          type: "cloud-org",
+          title: "Manage ORG",
+          cloudOrg: { orgId: "cloud-a" },
+        },
+        {
+          id: "local-org",
+          type: "project-org",
+          title: "Local A",
+          projectOrg: {
+            orgId: "local-a",
+            orgName: "Local A",
+            orgScope: "project_org",
+          },
+        },
+      ],
+    });
+
+    expect(normalized).toMatchObject({
+      activeTabId: "chat-organization-management",
+      tabs: [
+        {
+          id: "chat-organization-management",
+          type: "organization",
+          organization: {
+            kind: "local",
+            projectOrg: { orgId: "local-a" },
+          },
+        },
+      ],
+    });
+  });
+
   it("keeps one persisted management tab per sidebar section", async () => {
     const { normalizePersistedChatPanelTabsState, WORK_MANAGEMENT_SECTION } =
       await loadChatPanelTabAtoms();
@@ -885,6 +1094,28 @@ describe("ChatPanel navigation tabs", () => {
       normalized?.tabs.filter((tab) => tab.type === "runtime")
     ).toHaveLength(1);
     expect(normalized?.activeTabId).toBe("runtime-b");
+  });
+
+  it("drops retired persisted surface types", async () => {
+    const { normalizePersistedChatPanelTabsState } =
+      await loadChatPanelTabAtoms();
+
+    expect(
+      normalizePersistedChatPanelTabsState({
+        activeTabId: "retired-changelog",
+        tabs: [
+          { id: "start", type: "start-page", title: "Launchpad" },
+          {
+            id: "retired-changelog",
+            type: "changelog",
+            title: "Changelog",
+          },
+        ],
+      })
+    ).toEqual({
+      activeTabId: "start",
+      tabs: [{ id: "start", type: "start-page", title: "Launchpad" }],
+    });
   });
 
   it("migrates persisted legacy Launchpad tabs to the start page", async () => {

@@ -18,7 +18,9 @@ import {
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { mintTurnIntentId } from "@src/engines/SessionCore/sync/adapters/shared/eventFactories";
+import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { stripCopyEventNamespace } from "../TeamCollaboration/copyEventId";
@@ -38,7 +40,14 @@ import {
 const log = createLogger("addressCommentsRun");
 const RUN_DEADLINE_MS = 15 * 60_000;
 
-export const addressRunActiveAtom = atom<Record<string, boolean>>({});
+export interface AddressRunActivity {
+  /** Null means the run targets every currently addressable thread. */
+  selectedHeadIds: readonly string[] | null;
+}
+
+export const addressRunActiveAtom = atom<Record<string, AddressRunActivity>>(
+  {}
+);
 addressRunActiveAtom.debugLabel = "addressRunActiveAtom";
 
 export interface ActiveAddressRun {
@@ -50,21 +59,52 @@ export interface ActiveAddressRun {
 }
 
 const activeAddressRuns = new Map<string, ActiveAddressRun>();
-const scheduledRunsBySession = new Map<string, number>();
+interface ScheduledAddressRun {
+  token: symbol;
+  selectedHeadIds: ReadonlySet<string> | null;
+}
 
-function updateRunActive(localSessionId: string, delta: 1 | -1): void {
-  const next = Math.max(
-    0,
-    (scheduledRunsBySession.get(localSessionId) ?? 0) + delta
-  );
-  if (next === 0) scheduledRunsBySession.delete(localSessionId);
-  else scheduledRunsBySession.set(localSessionId, next);
+const scheduledRunsBySession = new Map<string, ScheduledAddressRun[]>();
+
+function publishRunActivity(localSessionId: string): void {
+  const runs = scheduledRunsBySession.get(localSessionId) ?? [];
+  const selected = new Set<string>();
+  for (const run of runs) {
+    for (const headId of run.selectedHeadIds ?? []) selected.add(headId);
+  }
+  const selectedHeadIds = runs.some((run) => run.selectedHeadIds === null)
+    ? null
+    : [...selected];
   getInstrumentedStore().set(addressRunActiveAtom, (current) => {
-    if (next > 0) return { ...current, [localSessionId]: true };
-    if (!(localSessionId in current)) return current;
-    const { [localSessionId]: _removed, ...rest } = current;
-    return rest;
+    if (runs.length === 0) {
+      if (!(localSessionId in current)) return current;
+      const { [localSessionId]: _removed, ...rest } = current;
+      return rest;
+    }
+    return { ...current, [localSessionId]: { selectedHeadIds } };
   });
+}
+
+function beginRunActivity(
+  localSessionId: string,
+  selectedHeadIds: readonly string[] | undefined
+): () => void {
+  const run: ScheduledAddressRun = {
+    token: Symbol("address-comments-run"),
+    selectedHeadIds:
+      selectedHeadIds === undefined ? null : new Set(selectedHeadIds),
+  };
+  const current = scheduledRunsBySession.get(localSessionId) ?? [];
+  scheduledRunsBySession.set(localSessionId, [...current, run]);
+  publishRunActivity(localSessionId);
+  return () => {
+    const remaining = (scheduledRunsBySession.get(localSessionId) ?? []).filter(
+      (candidate) => candidate.token !== run.token
+    );
+    if (remaining.length === 0) scheduledRunsBySession.delete(localSessionId);
+    else scheduledRunsBySession.set(localSessionId, remaining);
+    publishRunActivity(localSessionId);
+  };
 }
 
 async function waitForTurnTerminal(
@@ -176,7 +216,7 @@ function notifyAddressRunFinished(): void {
 }
 
 export function isAddressRunActive(localSessionId: string): boolean {
-  return (scheduledRunsBySession.get(localSessionId) ?? 0) > 0;
+  return (scheduledRunsBySession.get(localSessionId)?.length ?? 0) > 0;
 }
 
 async function freshAccessToken(): Promise<string> {
@@ -291,7 +331,7 @@ export async function runAddressCommentsRound(
     selectedHeadIds,
     instruction,
   } = input;
-  updateRunActive(localSessionId, 1);
+  const finishRunActivity = beginRunActivity(localSessionId, selectedHeadIds);
   let run: ActiveAddressRun | null = null;
   try {
     const listToken = await freshAccessToken();
@@ -302,9 +342,26 @@ export async function runAddressCommentsRound(
     );
     // Defense in depth: the rendered affordance also uses this server-derived
     // bit, but the runner itself must never spend a model account for an
-    // imported replay, a fork looking at its parent, or another member.
-    if (!viewerOwnsSession || localSessionId !== cloudSessionId) {
+    // imported replay, an unrelated local session, or another member. A
+    // verified owner fork may address its source threads.
+    if (!viewerOwnsSession) {
       throw new Error("@agent is available only on the owner's source session");
+    }
+    if (localSessionId !== cloudSessionId) {
+      const localSession = getInstrumentedStore().get(
+        sessionByIdAtom(localSessionId)
+      );
+      const forkedFrom = getSessionForkedFrom(
+        localSession ?? { session_id: localSessionId }
+      );
+      if (
+        forkedFrom?.orgId !== orgId ||
+        forkedFrom.sourceSessionId !== cloudSessionId
+      ) {
+        throw new Error(
+          "@agent may use only a verified local fork of the owner's cloud source"
+        );
+      }
     }
     let threads = collectAddressableThreads(comments);
     if (selectedHeadIds !== undefined) {
@@ -319,6 +376,17 @@ export async function runAddressCommentsRound(
 
     const turnIntentId = mintTurnIntentId();
     const deadlineMs = Date.now() + RUN_DEADLINE_MS;
+    // Register before dispatch. A fast tool call may arrive as soon as the
+    // transport accepts the turn; registering after dispatch left a race in
+    // which a legitimate reply_session_comment call was rejected.
+    run = {
+      orgId,
+      cloudSessionId,
+      localSessionId,
+      validHeadIds: new Set(threads.map((thread) => thread.headId)),
+      replied: new Map(),
+    };
+    activeAddressRuns.set(localSessionId, run);
     await dispatchTurn({
       displayContent: buildDisplayContent(threads),
       agentContent: buildAddressCommentsBriefing(threads, instruction),
@@ -329,14 +397,6 @@ export async function runAddressCommentsRound(
       throw new Error("address-comments turn dispatched to the wrong session");
     }
 
-    run = {
-      orgId,
-      cloudSessionId,
-      localSessionId,
-      validHeadIds: new Set(threads.map((thread) => thread.headId)),
-      replied: new Map(),
-    };
-    activeAddressRuns.set(localSessionId, run);
     await waitForTurnTerminal(dispatch, deadlineMs);
     log.info(
       `address round on ${localSessionId}: ${threads.length} thread(s), ${run.replied.size} agent repl(ies)`
@@ -350,7 +410,7 @@ export async function runAddressCommentsRound(
     if (run && activeAddressRuns.get(localSessionId) === run) {
       activeAddressRuns.delete(localSessionId);
     }
-    updateRunActive(localSessionId, -1);
+    finishRunActivity();
     notifyAddressRunFinished();
   }
 }

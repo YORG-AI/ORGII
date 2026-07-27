@@ -1,5 +1,6 @@
 import type {
   ChatPanelSelectedCloudOrg,
+  ChatPanelSelectedOrganization,
   ChatPanelSelectedProject,
   ChatPanelSelectedProjectOrg,
   ChatPanelSelectedWorkItem,
@@ -17,10 +18,9 @@ export type ChatPanelTabType =
   | "runtime"
   | "work-management"
   | "workspace"
-  | "cloud-org"
+  | "organization"
   | "work-item"
   | "project"
-  | "project-org"
   | "explore";
 
 export interface ChatPanelTab {
@@ -61,10 +61,10 @@ export interface ChatPanelTab {
    */
   workspace?: ChatPanelSelectedWorkspace;
   /**
-   * For "cloud-org" tabs: the managed organization restored when this tab
-   * is activated. The management page itself provides the org switcher.
+   * For "organization" tabs: the cloud or local organization restored when
+   * this shared management tab is activated.
    */
-  cloudOrg?: ChatPanelSelectedCloudOrg;
+  organization?: ChatPanelSelectedOrganization;
   /**
    * For "work-item" tabs: the linked work item plus its project/org context.
    * Writable in place — the work-item panel edits/refreshes this payload.
@@ -75,11 +75,6 @@ export interface ChatPanelTab {
    * panel self-fetches the project's work items from `project.projectSlug`.
    */
   project?: ChatPanelSelectedProject;
-  /**
-   * For "project-org" tabs: the linked local / project organization whose hub
-   * (work items etc.) this pill owns.
-   */
-  projectOrg?: ChatPanelSelectedProjectOrg;
 }
 
 export interface ChatPanelTabsState {
@@ -87,8 +82,27 @@ export interface ChatPanelTabsState {
   activeTabId: string;
 }
 
+/** Fixed id of the shared cloud/local organization management tab. */
+export const ORGANIZATION_TAB_ID = "chat-organization-management";
+
 const DEFAULT_FULLSCREEN_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "work-management",
+]);
+
+/**
+ * Tab types safe to restore from persisted state. Terminals are process-bound,
+ * and unknown/retired surface types are discarded after legacy migrations.
+ */
+const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
+  "session",
+  "start-page",
+  "runtime",
+  "work-management",
+  "workspace",
+  "organization",
+  "work-item",
+  "project",
+  "explore",
 ]);
 
 export function isChatPanelTabDefaultFullscreen(
@@ -122,9 +136,28 @@ export function normalizePersistedChatPanelTabsState(
   if (!Array.isArray(candidate.tabs)) return null;
 
   const mappedTabs = candidate.tabs
-    .filter((tab) => tab.type !== "terminal")
     .map((tab) => {
       const persistedType = (tab as { type: string }).type;
+      const legacyTab = tab as ChatPanelTab & {
+        cloudOrg?: ChatPanelSelectedCloudOrg;
+        projectOrg?: ChatPanelSelectedProjectOrg;
+      };
+      if (persistedType === "cloud-org" && legacyTab.cloudOrg) {
+        return {
+          ...tab,
+          type: "organization",
+          organization: { kind: "cloud", cloudOrg: legacyTab.cloudOrg },
+          cloudOrg: undefined,
+        } as ChatPanelTab;
+      }
+      if (persistedType === "project-org" && legacyTab.projectOrg) {
+        return {
+          ...tab,
+          type: "organization",
+          organization: { kind: "local", projectOrg: legacyTab.projectOrg },
+          projectOrg: undefined,
+        } as ChatPanelTab;
+      }
       if (persistedType === "session" && !tab.sessionId) {
         return {
           ...tab,
@@ -149,7 +182,8 @@ export function normalizePersistedChatPanelTabsState(
         } as ChatPanelTab;
       }
       return tab;
-    });
+    })
+    .filter((tab) => PERSISTED_CHAT_PANEL_TAB_TYPES.has(tab.type));
 
   const activeMappedTab = mappedTabs.find(
     (tab) => tab.id === candidate.activeTabId
@@ -175,10 +209,10 @@ export function normalizePersistedChatPanelTabsState(
     activeMappedTab?.type === "runtime"
       ? activeMappedTab.id
       : mappedTabs.find((tab) => tab.type === "runtime")?.id;
-  const preferredCloudOrgTabId =
-    activeMappedTab?.type === "cloud-org"
-      ? activeMappedTab.id
-      : mappedTabs.find((tab) => tab.type === "cloud-org")?.id;
+  const preferredOrganizationTab =
+    activeMappedTab?.type === "organization"
+      ? activeMappedTab
+      : mappedTabs.find((tab) => tab.type === "organization");
   // The Launchpad start page is a singleton: collapse any persisted duplicates
   // to a single tab (preferring the active one) so new-session / launchpad
   // entry points can never stack more than one.
@@ -186,22 +220,28 @@ export function normalizePersistedChatPanelTabsState(
     activeMappedTab?.type === "start-page"
       ? activeMappedTab.id
       : mappedTabs.find((tab) => tab.type === "start-page")?.id;
-  const survivingTabs = mappedTabs.filter(
-    (tab) =>
-      (tab.type !== "work-management" ||
-        (tab.managementSection !== undefined &&
-          tab.id ===
-            preferredWorkManagementTabIds.get(tab.managementSection))) &&
-      (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
-      (tab.type !== "cloud-org" || tab.id === preferredCloudOrgTabId) &&
-      (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
-  );
+  const survivingTabs = mappedTabs
+    .filter(
+      (tab) =>
+        (tab.type !== "work-management" ||
+          (tab.managementSection !== undefined &&
+            tab.id ===
+              preferredWorkManagementTabIds.get(tab.managementSection))) &&
+        (tab.type !== "runtime" || tab.id === preferredRuntimeTabId) &&
+        (tab.type !== "organization" || tab === preferredOrganizationTab) &&
+        (tab.type !== "start-page" || tab.id === preferredStartPageTabId)
+    )
+    .map((tab) =>
+      tab.type === "organization" ? { ...tab, id: ORGANIZATION_TAB_ID } : tab
+    );
   if (survivingTabs.length === 0) return null;
 
-  const activeTabId = survivingTabs.some(
-    (tab) => tab.id === candidate.activeTabId
-  )
-    ? (candidate.activeTabId as string)
-    : survivingTabs[0].id;
+  const activeTabId =
+    preferredOrganizationTab !== undefined &&
+    activeMappedTab === preferredOrganizationTab
+      ? ORGANIZATION_TAB_ID
+      : survivingTabs.some((tab) => tab.id === candidate.activeTabId)
+        ? (candidate.activeTabId as string)
+        : survivingTabs[0].id;
   return { tabs: survivingTabs, activeTabId };
 }

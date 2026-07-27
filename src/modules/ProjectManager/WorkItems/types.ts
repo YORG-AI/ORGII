@@ -59,6 +59,21 @@ export type StatusFilterType =
   | "open"
   | "closed";
 
+/** Pre-computed status counts used by work-item filters and summaries. */
+export interface StatusCounts {
+  all: number;
+  backlog: number;
+  todo: number;
+  inProgress: number;
+  inReview: number;
+  done: number;
+  cancelled: number;
+  duplicate: number;
+  open: number;
+  closed: number;
+  [key: string]: number;
+}
+
 // ============================================
 // Filter Mapping
 // ============================================

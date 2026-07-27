@@ -31,6 +31,12 @@ export interface UseSessionMenuItemsParams {
   excludedSessionIds?: ReadonlySet<string>;
   includeExternal: boolean;
   groupVisibleCounts: ReadonlyMap<string, number>;
+  /**
+   * Render every session already present in each subgroup and let the caller
+   * own the only visible client-side pager. Cloud scope uses this before it
+   * flattens subgroup headers into the top-level "My sessions" section.
+   */
+  showAllLoadedGroupSessions?: boolean;
   expandedSubagentParentIds?: ReadonlySet<string>;
   /** IDs temporarily forced through view filters for cross-surface reveal. */
   revealedSessionIds?: ReadonlySet<string>;

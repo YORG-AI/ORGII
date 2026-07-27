@@ -15,7 +15,6 @@ import InputActions from "./InputActions";
 import InputEditor from "./InputEditor";
 import PromptPolishButton from "./PromptPolishButton";
 import ReplyInfoDisplay from "./ReplyInfoDisplay";
-import WorktreeBranchPill from "./WorktreeBranchPill";
 
 interface SharedComposerBarProps {
   composerInputRef: React.RefObject<ComposerInputRef | null>;
@@ -40,7 +39,7 @@ interface SharedComposerBarProps {
   onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
-  onImagePaste: (files: File[]) => void;
+  onImagePaste?: (files: File[]) => void;
   onAddContent: () => void;
   onUpload: () => void;
   onOpenSkillsTools: () => void;
@@ -284,6 +283,8 @@ interface NormalComposerContentProps extends SharedComposerBarProps {
   promptPolish: PromptPolishControl;
   promptPolishDisabled: boolean;
   submitDisabled?: boolean;
+  showAgentControls?: boolean;
+  showImageAttachments?: boolean;
 }
 
 export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
@@ -341,12 +342,16 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
   promptPolish,
   promptPolishDisabled,
   submitDisabled,
+  showAgentControls = true,
+  showImageAttachments = true,
 }) => {
   const { t } = useTranslation("sessions");
 
   return (
     <div className="flex min-h-0 w-full flex-col">
-      <ImageAttachmentPreview ownerId={dropTargetId} />
+      {showImageAttachments && (
+        <ImageAttachmentPreview ownerId={dropTargetId} />
+      )}
       {showVoiceUi ? (
         <VoiceRecordingBar
           elapsedSeconds={voice.elapsedSeconds}
@@ -364,7 +369,7 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
           toolbarItemGap={false}
           repoPath={currentRepoPath}
           inlineLayout={isCursorCompactRow}
-          showContextInfo={!isCursorIde}
+          showContextInfo={showAgentControls && !isCursorIde}
           editorSlot={
             <InputEditor
               key="chat-panel-input-editor"
@@ -413,16 +418,17 @@ export const NormalComposerContent: React.FC<NormalComposerContentProps> = ({
             >
               {modePill}
               {modelPill}
-              <WorktreeBranchPill />
             </div>
           }
           submitButton={
             <div className="flex h-7 items-center gap-0.5">
-              <PromptPolishButton
-                control={promptPolish}
-                disabled={promptPolishDisabled}
-              />
-              {voiceFeatureEnabled && (
+              {showAgentControls && (
+                <PromptPolishButton
+                  control={promptPolish}
+                  disabled={promptPolishDisabled}
+                />
+              )}
+              {showAgentControls && voiceFeatureEnabled && (
                 <VoiceInputButton
                   onPressStart={voice.start}
                   onPressEnd={voice.stop}

@@ -9,11 +9,18 @@ import { org2CloudSyncEngine } from "@src/features/Org2Cloud/org2CloudSyncEngine
 import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { autoTagLaunchedSessionToActiveCloudOrg } from "./autoTagNewSession";
-import { resolveShareableScopeKeys } from "./repoScopeResolver";
+import {
+  resolveMatchingOrgRepoScope,
+  resolveShareableScopeKeys,
+} from "./repoScopeResolver";
 import { sessionOrgTagsAtom, tokensForSession } from "./sessionOrgTagsAtom";
 
 vi.mock("./repoScopeResolver", () => ({
   resolveShareableScopeKeys: vi.fn(async () => []),
+  resolveMatchingOrgRepoScope: vi.fn(
+    async (keys: string[] | null, scopes: string[] | undefined) =>
+      scopes?.find((scope) => keys?.includes(scope)) ?? null
+  ),
 }));
 
 vi.mock("@src/features/Org2Cloud/org2CloudSyncEngine", () => ({
@@ -23,6 +30,7 @@ vi.mock("@src/features/Org2Cloud/org2CloudSyncEngine", () => ({
 }));
 
 const resolveScopeKeysMock = vi.mocked(resolveShareableScopeKeys);
+const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
 const syncPassMock = vi.mocked(org2CloudSyncEngine.runSyncPassAndWaitForDrain);
 
 const store = createInstrumentedStore();
@@ -47,6 +55,10 @@ describe("autoTagLaunchedSessionToActiveCloudOrg", () => {
     store.set(org2CloudOrgsAtom, []);
     store.set(org2CloudRepoScopesAtom, {});
     resolveScopeKeysMock.mockResolvedValue([]);
+    resolveMatchingScopeMock.mockImplementation(
+      async (keys, scopes) =>
+        scopes?.find((scope) => keys?.includes(scope)) ?? null
+    );
     syncPassMock.mockResolvedValue(undefined);
   });
 
@@ -73,6 +85,20 @@ describe("autoTagLaunchedSessionToActiveCloudOrg", () => {
       sessionId: "session-1",
       repoPath: "/repo/acme",
       launchOrgId: "personal-org",
+    });
+
+    expect(tagged).toBe(true);
+  });
+
+  it("tags when differently named GitHub forks resolve to one upstream", async () => {
+    seedCloudScope();
+    resolveScopeKeysMock.mockResolvedValue(["github.com/org2ai/org2"]);
+    resolveMatchingScopeMock.mockResolvedValue("github.com/vantanode/org2");
+
+    const tagged = await autoTagLaunchedSessionToActiveCloudOrg({
+      sessionId: "session-fork-network",
+      repoPath: "/repo/org2",
+      launchOrgId: null,
     });
 
     expect(tagged).toBe(true);

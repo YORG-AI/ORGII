@@ -139,10 +139,13 @@
       "helveticaNeue": "Kiểu Helvetica Neue"
     },
     "uiScale": "Tỷ lệ giao diện",
+    "preferences": "Tùy chọn",
+    "usePointerCursors": "Sử dụng con trỏ dạng bàn tay",
+    "usePointerCursorsDesc": "Đổi con trỏ sang dạng bàn tay khi di chuột qua các phần tử tương tác",
     "timezoneAuto": "Tự động (Trình duyệt)",
     "timezoneSearchPlaceholder": "Tìm kiếm thành phố gần nhất",
     "sendOnEnter": "Gửi tin nhắn bằng Enter",
-    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi",
+    "sendOnEnterDesc": "Khi bật, Enter gửi; Shift+Enter và Ctrl/Cmd+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi",
     "language": "Ngôn ngữ",
     "languageSearchPlaceholder": "Tìm kiếm ngôn ngữ...",
     "languageNames": {
@@ -1008,7 +1011,7 @@
     "decryptEffect": "Hiệu ứng Decrypt",
     "decryptEffectDesc": "Bật hiệu ứng Decrypt cho tin nhắn Agent",
     "sendOnEnter": "Gửi tin nhắn bằng Enter",
-    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi"
+    "sendOnEnterDesc": "Khi bật, Enter gửi; Shift+Enter và Ctrl/Cmd+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi"
   },
   "languageServers": {
     "languageServersDesc": "Quản lý máy chủ LSP cho tự động hoàn thành, chẩn đoán và trí tuệ mã",

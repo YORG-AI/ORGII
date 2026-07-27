@@ -109,6 +109,13 @@ export const GENERAL_SETTINGS_REGISTRY = {
     description: "UI scale percentage (75-150)",
     category: "general",
   },
+  "general.usePointerCursors": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Show a pointer cursor when hovering over interactive UI elements",
+    category: "general",
+  },
   "general.applicationUiFont": {
     schema: z.enum(APPLICATION_UI_FONT_IDS),
     default: APPLICATION_UI_FONT_DEFAULT_ID,
@@ -248,13 +255,6 @@ export const GENERAL_SETTINGS_REGISTRY = {
     default: false,
     description:
       "Prevent the system from sleeping while any agent session is actively working. Releases automatically when all sessions finish or the toggle is turned off",
-    category: "general",
-  },
-  "general.autoUpdateEnabled": {
-    schema: z.boolean(),
-    default: true,
-    description:
-      "Automatically check for app updates, install them during startup, and download them silently while the app is running",
     category: "general",
   },
   "general.updateChannel": {

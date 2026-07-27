@@ -9,6 +9,7 @@ import {
   orgIdOfCompositeKey,
   pruneOrgKeyedRecord,
   reconcileOrg2CloudPersistedState,
+  rosterReconcileKey,
   shouldReconcileRoster,
 } from "./org2CloudRosterReconcile";
 import {
@@ -58,12 +59,31 @@ describe("shouldReconcileRoster", () => {
     expect(shouldReconcileRoster(false, 3)).toBe(false);
   });
 
-  it("never prunes on an empty roster, even when loaded", () => {
-    expect(shouldReconcileRoster(true, 0)).toBe(false);
+  it("prunes on an authoritatively empty roster", () => {
+    expect(shouldReconcileRoster(true, 0)).toBe(true);
   });
 
-  it("prunes only when loaded with a non-empty roster", () => {
+  it("prunes when loaded with a non-empty roster", () => {
     expect(shouldReconcileRoster(true, 1)).toBe(true);
+  });
+});
+
+describe("rosterReconcileKey", () => {
+  it("changes when membership changes under the same identity", () => {
+    const first = rosterReconcileKey("cloud|user-1", true, [LIVE, ZOMBIE]);
+    const afterLeave = rosterReconcileKey("cloud|user-1", true, [LIVE]);
+
+    expect(first).not.toBe(afterLeave);
+  });
+
+  it("is stable across roster order and duplicate rows", () => {
+    expect(rosterReconcileKey("cloud|user-1", true, [ZOMBIE, LIVE, LIVE])).toBe(
+      rosterReconcileKey("cloud|user-1", true, [LIVE, ZOMBIE])
+    );
+  });
+
+  it("does not authorize pruning before a successful load", () => {
+    expect(rosterReconcileKey("cloud|user-1", false, [LIVE])).toBeNull();
   });
 });
 
@@ -114,12 +134,10 @@ describe("reconcileOrg2CloudPersistedState", () => {
     const store = createStore();
     store.set(org2CloudAccessSettingsAtom, {
       [LIVE]: {
-        defaultMode: "metadata_only",
         sessionModes: {},
         sessionVisibility: {},
       },
       [ZOMBIE]: {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
@@ -136,7 +154,6 @@ describe("reconcileOrg2CloudPersistedState", () => {
       [LIVE, ZOMBIE].sort()
     );
     expect(store.get(org2CloudAccessSettingsAtom)[ZOMBIE]).toEqual({
-      defaultMode: "full_replay",
       sessionModes: {},
       sessionVisibility: {},
     });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type {
+  ApiCall,
   ApiCallHotspot,
   PushHotspot,
   TimerHotspot,
@@ -10,7 +11,20 @@ import {
   selectVisibleApiHotspots,
   selectVisiblePushHotspots,
   selectVisibleTimerHotspots,
+  sortApiCalls,
 } from "./PanelContent";
+
+function apiCall(id: string, method: string, status: number): ApiCall {
+  return {
+    id,
+    method,
+    url: `/rpc/${id}`,
+    fullUrl: `http://localhost/rpc/${id}`,
+    transport: "http",
+    status,
+    timestamp: "2026-07-18T00:00:00.000Z",
+  };
+}
 
 function hotspot(index: number, isLikelyPolling: boolean): ApiCallHotspot {
   return {
@@ -42,6 +56,19 @@ describe("selectVisibleApiHotspots", () => {
       "key-7",
       "key-9",
     ]);
+  });
+});
+
+describe("sortApiCalls", () => {
+  it("sorts a copy without mutating the tracked call order", () => {
+    const calls = [apiCall("b", "POST", 500), apiCall("a", "GET", 200)];
+
+    expect(
+      sortApiCalls(calls, { key: "method", direction: "asc" }).map(
+        (call) => call.id
+      )
+    ).toEqual(["a", "b"]);
+    expect(calls.map((call) => call.id)).toEqual(["b", "a"]);
   });
 });
 

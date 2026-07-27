@@ -1,4 +1,4 @@
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { GitFork } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
@@ -10,6 +10,7 @@ import Tooltip from "@src/components/Tooltip";
 import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
@@ -39,6 +40,9 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
 }) => {
   const { t } = useTranslation("navigation");
   const { openSession } = useSessionView();
+  const openOrReplaceSessionTab = useSetAtom(
+    openOrReplaceSessionInChatPanelTabAtom
+  );
   const { fork, state } = useForkImportedSession(session);
   const sessions = useAtomValue(sessionsAtom);
   const remoteEntries = useAtomValue(org2CloudRemoteSessionsAtom);
@@ -60,6 +64,16 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
       }
       return;
     }
+    // The fork is created while the active ChatPanel tab is still bound to
+    // the read-only imported replay. `openSession` updates WorkStation/session
+    // atoms, but it does not retarget that tab; without this replacement the
+    // sidebar selects the new fork while the chat/header keep rendering the
+    // parent. Parent navigation below already uses the same two-step contract.
+    openOrReplaceSessionTab({
+      sessionId: outcome.localSessionId,
+      sessionName: outcome.name,
+      repoPath: outcome.repoPath,
+    });
     openSession(outcome.localSessionId, outcome.name, outcome.repoPath);
   };
 
@@ -72,6 +86,11 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
           candidate.importedFrom.sourceSessionId === forkedFrom.sourceSessionId)
     );
     if (localMatch) {
+      openOrReplaceSessionTab({
+        sessionId: localMatch.session_id,
+        sessionName: localMatch.name,
+        repoPath: localMatch.repoPath,
+      });
       openSession(localMatch.session_id, localMatch.name, localMatch.repoPath);
       return;
     }

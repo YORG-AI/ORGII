@@ -69,7 +69,7 @@
   }
 
   &__column-header--sortable {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
   }
 
   &__column-header--sortable:hover {
@@ -168,7 +168,7 @@
     border: none;
     color: var(--color-primary-6);
     background: var(--cm-editor-gutter-bg, var(--color-bg-2));
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     font-size: 12px;
     will-change: transform;
   }

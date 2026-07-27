@@ -43,7 +43,6 @@ interface NavigationMenuParentRowProps extends Omit<
   onToggleSubmenu: (key: string) => void;
   /** Present when `item.navigableParent`: a body click selects the item. */
   onMenuItemClick?: NavigationMenuItemClickHandler;
-  compactRows: boolean;
 }
 
 export const NavigationMenuParentRow = React.forwardRef<
@@ -64,7 +63,6 @@ export const NavigationMenuParentRow = React.forwardRef<
     onRowActionClick,
     onToggleSubmenu,
     onMenuItemClick,
-    compactRows,
     onMouseEnter,
     onMouseLeave,
     ...rootProps
@@ -89,8 +87,6 @@ export const NavigationMenuParentRow = React.forwardRef<
     },
     [resetImmediateCursor, onMouseLeave]
   );
-  const rowHeightClass = compactRows ? "h-8" : "min-h-[36px]";
-
   return (
     <div
       {...rootProps}
@@ -114,7 +110,9 @@ export const NavigationMenuParentRow = React.forwardRef<
         tabIndex={item.disabled ? -1 : 0}
         aria-expanded={isOpen}
         aria-disabled={item.disabled || undefined}
-        className={`group/parent flex ${rowHeightClass} items-center justify-between rounded-lg transition-colors duration-150 ${
+        className={`group/parent flex h-8 items-center ${
+          item.disclosureFollowsLabel ? "justify-start" : "justify-between"
+        } rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"
         } ${submenuSelected ? "bg-sidebar-selected text-text-1" : "text-text-1"} ${
           item.disabled
@@ -150,19 +148,27 @@ export const NavigationMenuParentRow = React.forwardRef<
           onRowMouseEnter(event, item.routePath)
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div
+          className={`flex min-w-0 items-center gap-3 ${
+            item.disclosureFollowsLabel ? "" : "flex-1"
+          }`}
+        >
           {renderLeadingIcon({
             item,
             iconColor,
             renderIcon,
           })}
           {!collapsed && (
-            <div className="flex min-w-0 flex-1 flex-col gap-0">
-              <span className="truncate text-[13px] text-text-1">
+            <div
+              className={`flex min-w-0 flex-col gap-0 ${
+                item.disclosureFollowsLabel ? "" : "flex-1"
+              }`}
+            >
+              <span className="truncate text-[13px] leading-4 text-text-1">
                 {item.label}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] text-text-3">
+                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
                   {item.subtitle}
                 </span>
               )}
@@ -170,7 +176,9 @@ export const NavigationMenuParentRow = React.forwardRef<
           )}
         </div>
         {!collapsed && (
-          <span className="ml-1 inline-flex flex-shrink-0 items-center gap-1.5 leading-none">
+          <span
+            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex flex-shrink-0 items-center gap-1.5 leading-none`}
+          >
             {/* Cloud thread roots carry hover metadata (owner · time) and
                 Fork/More actions; parentHoverGroup keys the reveal on the
                 named group so nested child rows can't capture it. */}
@@ -195,36 +203,30 @@ export const NavigationMenuParentRow = React.forwardRef<
                   : undefined
               }
             />
-            {(() => {
-              const Chevron = isOpen ? ChevronsDownUp : ChevronsUpDown;
-              const chevron = (
-                <Chevron
+            {item.disclosureFollowsLabel ? (
+              isOpen ? (
+                <ChevronsDownUp
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
                 />
-              );
-              // On a navigable parent the body click NAVIGATES, so the
-              // chevron becomes the dedicated expand/collapse control.
-              return navigable ? (
-                <button
-                  type="button"
-                  aria-label={t("actions.toggle")}
-                  data-testid={
-                    item.dataTestId ? `${item.dataTestId}-toggle` : undefined
-                  }
-                  className="inline-flex shrink-0 items-center justify-center rounded p-0.5 hover:bg-fill-3"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onToggleSubmenu(item.key);
-                  }}
-                >
-                  {chevron}
-                </button>
               ) : (
-                chevron
-              );
-            })()}
+                <ChevronsUpDown
+                  size={12}
+                  strokeWidth={2}
+                  className="shrink-0 text-text-2"
+                />
+              )
+            ) : (
+              <NavigationMenuRowActionButton
+                icon={isOpen ? ChevronsDownUp : ChevronsUpDown}
+                label={t("actions.toggle")}
+                dataTestId={
+                  item.dataTestId ? `${item.dataTestId}-toggle` : undefined
+                }
+                onClick={() => onToggleSubmenu(item.key)}
+              />
+            )}
           </span>
         )}
       </div>
@@ -260,7 +262,6 @@ interface NavigationMenuLeafRowProps extends Omit<
   ) => void;
   onRowMouseEnter: NavigationMenuRowMouseEnterHandler;
   onRowActionClick: NavigationMenuRowActionClickHandler;
-  compactRows: boolean;
 }
 
 export const NavigationMenuLeafRow = React.forwardRef<
@@ -278,7 +279,6 @@ export const NavigationMenuLeafRow = React.forwardRef<
     onMenuItemContextMenu,
     onRowMouseEnter,
     onRowActionClick,
-    compactRows,
     onMouseEnter,
     onMouseLeave,
     ...rootProps
@@ -311,8 +311,6 @@ export const NavigationMenuLeafRow = React.forwardRef<
     },
     [resetImmediateCursor, onMouseLeave]
   );
-  const rowHeightClass = compactRows ? "h-8" : "min-h-[36px]";
-
   return (
     <div
       {...rootProps}
@@ -333,9 +331,9 @@ export const NavigationMenuLeafRow = React.forwardRef<
         data-testid={item.dataTestId}
         data-menu-item-id={item.id}
         data-selected={isSelected ? "true" : "false"}
-        className={`group flex ${rowHeightClass} items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
+        className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"
-        } ${item.subtitle ? "py-1.5" : ""} ${
+        } ${
           item.disabled
             ? isSecondaryTone
               ? "cursor-default text-text-2 opacity-60"
@@ -372,7 +370,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
           {!collapsed && (
             <div className="flex min-w-0 flex-1 flex-col gap-0">
               <span
-                className={`min-w-0 truncate text-[13px] ${
+                className={`min-w-0 truncate text-[13px] leading-4 ${
                   item.disabled
                     ? isSecondaryTone
                       ? "text-text-2"
@@ -387,7 +385,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
                 {item.label}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] text-text-3">
+                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
                   {item.subtitle}
                 </span>
               )}
@@ -447,7 +445,11 @@ function renderLeadingIcon({
           action.onClick(event);
         }}
       >
-        <ActionIcon size={14} strokeWidth={2} />
+        <ActionIcon
+          size={14}
+          strokeWidth={2}
+          className={action.iconClassName}
+        />
       </button>
     </span>
   );
@@ -557,6 +559,7 @@ function renderRowActions({
       <NavigationMenuRowActionButton
         key={`${action.label}:${actionIndex}`}
         icon={action.icon}
+        iconClassName={action.iconClassName}
         label={action.label}
         active={action.active}
         dataTestId={action.dataTestId}

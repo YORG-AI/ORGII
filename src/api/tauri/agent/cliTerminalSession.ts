@@ -17,11 +17,14 @@ export interface CliTuiSessionCreateParams {
   platform: CliAgentType;
   name: string;
   repoPath?: string;
-  /** Create a fresh isolated worktree (`branch` = base ref when set). */
+  /** Create a fresh isolated worktree. */
   isolate?: boolean;
-  branch?: string;
+  /** Dedicated base ref for a fresh isolated worktree. */
+  worktreeBaseRef?: string;
   /** Reuse an existing worktree checkout (mutually exclusive with isolate). */
   worktreePath?: string;
+  /** Session ownership scope selected in the sidebar. */
+  orgId?: string;
 }
 
 export interface CliTuiSessionInfo {
@@ -79,8 +82,11 @@ export async function cliAgentCreateTuiSession(
       runner: "tui",
       ...(params.repoPath ? { repoPath: params.repoPath } : {}),
       ...(params.isolate ? { isolate: true } : {}),
-      ...(params.branch ? { branch: params.branch } : {}),
+      ...(params.worktreeBaseRef
+        ? { worktreeBaseRef: params.worktreeBaseRef }
+        : {}),
       ...(params.worktreePath ? { worktreePath: params.worktreePath } : {}),
+      ...(params.orgId ? { orgId: params.orgId } : {}),
     },
   });
 }

@@ -17,7 +17,6 @@ import {
   Bot,
   Box,
   ChartGantt,
-  ChartNoAxesGantt,
   ChevronsLeftRightEllipsis,
   CircleDollarSign,
   CirclePile,
@@ -111,7 +110,6 @@ export const ICON_NAME_MAP: Record<string, LucideIcon | null> = {
   "list-todo": ListTodo,
   "folder-kanban": FolderKanban,
   radar: Radar,
-  "chart-no-axes-gantt": ChartNoAxesGantt,
   activity: Activity,
   users: Users,
   kanban: ChartGantt, // Using ChartGantt for kanban

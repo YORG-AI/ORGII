@@ -37,7 +37,6 @@ export * from "./cursorIdeTurnSummariesAtom";
 export * from "./mcpProgressAtom";
 export * from "./planApprovalAtom";
 export * from "./runningLocationAtom";
-export * from "./selectedWorktreePathAtom";
 export * from "./worktreeLaunchSourceAtom";
 export * from "./worktreeSourceCacheAtom";
 export * from "./cliAgentVisibilityAtom";

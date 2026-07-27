@@ -23,9 +23,11 @@ use tauri::{AppHandle, Emitter, Manager};
 use tracing::{debug, warn};
 
 use super::scripts::{
-    ANTI_BOT_DETECTION_SCRIPT, CONSOLE_CAPTURE_SCRIPT, ELEMENT_INSPECTOR_SCRIPT,
-    NETWORK_CAPTURE_SCRIPT, PAGE_AGENT_SCRIPT, SHORTCUT_FORWARDING_SCRIPT,
+    ANTI_BOT_DETECTION_SCRIPT, ELEMENT_INSPECTOR_SCRIPT, PAGE_AGENT_SCRIPT,
+    SHORTCUT_FORWARDING_SCRIPT,
 };
+#[cfg(debug_assertions)]
+use super::scripts::{CONSOLE_CAPTURE_SCRIPT, NETWORK_CAPTURE_SCRIPT};
 
 /// Global ref-count table: label → number of active React instances that have
 /// called `create_inline_webview` and not yet called `close_inline_webview`.
@@ -254,45 +256,53 @@ pub async fn create_inline_webview(
     let label_for_closure = label.clone();
     let app_for_closure = app.clone();
 
-    // Build the webview with anti-bot detection, console/network capture, element inspector,
-    // page agent (DOM automation), and new window handling
+    // Build the webview with anti-bot detection, element inspector, page agent
+    // (DOM automation), and new window handling. Console/network interception is
+    // diagnostic-only and is not injected into bundled release webviews.
     let mut builder = WebviewBuilder::new(
         &label,
         WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {}", e))?),
     )
-    .initialization_script(ANTI_BOT_DETECTION_SCRIPT)
-    .initialization_script(CONSOLE_CAPTURE_SCRIPT)
-    .initialization_script(NETWORK_CAPTURE_SCRIPT)
-    .initialization_script(ELEMENT_INSPECTOR_SCRIPT)
-    .initialization_script(PAGE_AGENT_SCRIPT)
-    .initialization_script(SHORTCUT_FORWARDING_SCRIPT)
-    .on_new_window(move |new_window_url, _cookies| {
-        let url_str = new_window_url.to_string();
-        debug!(url = %url_str, "browser::inline: new window requested");
+    .initialization_script(ANTI_BOT_DETECTION_SCRIPT);
 
-        if new_window_url.scheme() == "orgii-shortcut" {
-            if let Some(shortcut) = new_window_url.host_str() {
-                let _ = app_for_closure.emit(
-                    "inline-webview-shortcut",
-                    serde_json::json!({
-                        "shortcut": shortcut,
-                        "keys": ""
-                    }),
-                );
+    #[cfg(debug_assertions)]
+    {
+        builder = builder
+            .initialization_script(CONSOLE_CAPTURE_SCRIPT)
+            .initialization_script(NETWORK_CAPTURE_SCRIPT);
+    }
+
+    builder = builder
+        .initialization_script(ELEMENT_INSPECTOR_SCRIPT)
+        .initialization_script(PAGE_AGENT_SCRIPT)
+        .initialization_script(SHORTCUT_FORWARDING_SCRIPT)
+        .on_new_window(move |new_window_url, _cookies| {
+            let url_str = new_window_url.to_string();
+            debug!(url = %url_str, "browser::inline: new window requested");
+
+            if new_window_url.scheme() == "orgii-shortcut" {
+                if let Some(shortcut) = new_window_url.host_str() {
+                    let _ = app_for_closure.emit(
+                        "inline-webview-shortcut",
+                        serde_json::json!({
+                            "shortcut": shortcut,
+                            "keys": ""
+                        }),
+                    );
+                }
+                return tauri::webview::NewWindowResponse::Deny;
             }
-            return tauri::webview::NewWindowResponse::Deny;
-        }
 
-        let _ = app_for_closure.emit(
-            "webview-new-window-request",
-            serde_json::json!({
-                "url": url_str,
-                "webviewLabel": label_for_closure
-            }),
-        );
+            let _ = app_for_closure.emit(
+                "webview-new-window-request",
+                serde_json::json!({
+                    "url": url_str,
+                    "webviewLabel": label_for_closure
+                }),
+            );
 
-        tauri::webview::NewWindowResponse::Deny
-    });
+            tauri::webview::NewWindowResponse::Deny
+        });
 
     // Set user agent if provided
     if let Some(ua) = user_agent {

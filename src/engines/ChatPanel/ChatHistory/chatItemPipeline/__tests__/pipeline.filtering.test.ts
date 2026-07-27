@@ -297,7 +297,7 @@ describe("processChatItems", () => {
       expect(stats.totalActivities).toBe(3);
     });
 
-    it("does not count loading placeholder in stats", () => {
+    it("keeps the loading placeholder standalone without counting it", () => {
       const loadingEvent = makeSessionEvent({
         id: "loading",
         action_type: "tool_call",
@@ -305,11 +305,16 @@ describe("processChatItems", () => {
         result: {},
       });
 
-      const { stats } = processChatItems([loadingEvent], {
+      const { items, stats } = processChatItems([loadingEvent], {
         preFilterEmptyActivities: false,
-        groupActionSummaries: false,
+        groupActionSummaries: true,
       });
 
+      expect(items).toHaveLength(1);
+      expect(items[0]).toMatchObject({
+        type: "activity",
+        event: { id: "loading" },
+      });
       expect(stats.totalActivities).toBe(0);
     });
   });

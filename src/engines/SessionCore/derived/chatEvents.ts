@@ -52,6 +52,24 @@ let _prevQueuedMessages: unknown = null;
 let _prevLiveContent: string | null = null;
 const _liveAssistantCreatedAtBySession = new Map<string, string>();
 
+/**
+ * Release chat-derivation inputs for a departing session.
+ *
+ * The module-level reference-stability cache otherwise keeps both the raw and
+ * derived event arrays alive when ChatPanel unmounts, because no subsequent
+ * atom read is available to observe the cleared session id.
+ */
+export function resetChatEventsMemoCaches(sessionId?: string): void {
+  _prevSessionId = null;
+  _prevChatEvents = [];
+  _prevRawChatEvents = [];
+  _prevQueuedMessages = null;
+  _prevLiveContent = null;
+  if (sessionId) {
+    _liveAssistantCreatedAtBySession.delete(sessionId);
+  }
+}
+
 function getLiveAssistantCreatedAt(sessionId: string): string {
   const existing = _liveAssistantCreatedAtBySession.get(sessionId);
   if (existing) return existing;

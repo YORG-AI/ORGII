@@ -1,24 +1,19 @@
 /**
  * useAppNavigation Hook
  *
- * Unified navigation system for cross-view-mode navigation.
+ * Unified navigation system for application routes.
  * Route is the single source of truth - all navigation goes through React Router.
  *
  * Features:
- * - Clean view mode switching (mainApp ↔ session ↔ code)
- * - MainApp tab management integrated with navigation
- * - WorkStation app mode navigation (code, database, browser)
+ * - Generic route navigation with lazy-route preloading
  * - Session route navigation
  *
  * Usage:
  * ```tsx
- * const { navigateTo, goToSettings, goToEditor, goToNewSession } = useAppNavigation();
+ * const { navigateTo, goToSettings, goToNewSession } = useAppNavigation();
  *
- * // Navigate to specific mainApp route with tab
+ * // Navigate to Settings
  * goToSettings();
- *
- * // Navigate to WorkStation with specific app
- * goToEditor(); // or goToBrowser()
  *
  * // Navigate to session creator (clears active session)
  * goToNewSession(); // or goToNewSession({ projectId, workflowId })
@@ -26,21 +21,21 @@
  *
  * Architecture:
  * - Uses React Router's navigate() for all navigation
- * - MainApp tabs are created/activated via atoms (no navigation in tab atoms)
- * - ViewModeSync handles viewMode atom updates based on route changes
+ * - The router owns which shell is mounted for each route branch
  *
  * Created: 2026-02-01
  */
 import { useSetAtom } from "jotai";
 import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import {
   type ExternalSkillsetsTab,
   type IntegrationsCategorySegment,
+  type SettingsPathOptions,
   buildExternalSkillsetsPath,
   buildIntegrationsPath,
+  buildSettingsPath,
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
 import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms";
@@ -61,21 +56,12 @@ import {
 // Types
 // ============================================
 
-/** Workstation app modes */
-export type WorkStationApp = "code" | "browser";
-
 /** Navigation options */
 export interface NavigateOptions {
   /** Replace current history entry instead of pushing */
   replace?: boolean;
   /** Navigation state to pass to the route */
   state?: Record<string, unknown>;
-}
-
-/** Tab configuration for mainApp navigation */
-export interface MainAppTabConfig {
-  title: string;
-  icon?: string;
 }
 
 /** Optional query params when opening the empty session workspace */
@@ -87,15 +73,6 @@ export interface GoToNewSessionOptions {
 }
 
 // ============================================
-// Route Mappings
-// ============================================
-
-const WORK_STATION_ROUTES: Record<WorkStationApp, string> = {
-  code: ROUTES.workStation.code.path,
-  browser: ROUTES.workStation.browser.path,
-};
-
-// ============================================
 // Hook Implementation
 // ============================================
 
@@ -103,40 +80,19 @@ export interface UseAppNavigationReturn {
   // Generic navigation
   navigateTo: (path: string, options?: NavigateOptions) => void;
 
-  // MainApp navigation (creates/activates tabs)
-  navigateToMainApp: (
-    path: string,
-    tabConfig: MainAppTabConfig,
-    options?: NavigateOptions
-  ) => void;
-
-  // Workstation navigation
-  navigateToWorkStation: (
-    app?: WorkStationApp,
-    options?: NavigateOptions
-  ) => void;
-
   // Convenience methods
-  goToStartPage: () => void;
-  goToSettings: () => void;
-  goToProjects: () => void;
-  goToMarket: () => void;
+  goToSettings: (options?: SettingsPathOptions) => void;
   goToIntegrations: (options?: {
     category?: IntegrationsCategorySegment;
     modelsTab?: string;
     devToolsTab?: string;
     skillsetTab?: ExternalSkillsetsTab;
   }) => void;
-  goToAgentOrgs: () => void;
-  goToEditor: () => void;
-  goToBrowser: () => void;
   goToNewSession: (options?: GoToNewSessionOptions) => void;
 }
 
 export function useAppNavigation(): UseAppNavigationReturn {
   const navigate = useNavigate();
-  const { t: tNav } = useTranslation("navigation");
-
   // Session lifecycle atoms (for goToNewSession)
   const dispatchClearSession = useSetAtom(clearSessionAtom);
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
@@ -171,62 +127,16 @@ export function useAppNavigation(): UseAppNavigationReturn {
     [navigate, promoteActiveSessionCreatorDraft]
   );
 
-  const navigateToMainApp = useCallback(
-    (path: string, _tabConfig: MainAppTabConfig, options?: NavigateOptions) => {
-      promoteActiveSessionCreatorDraft();
-      navigate(path, {
-        replace: options?.replace,
-        state: options?.state,
-      });
-    },
-    [navigate, promoteActiveSessionCreatorDraft]
-  );
-
-  /**
-   * Workstation navigation
-   * Navigates to the specified app (code, database, browser)
-   */
-  const navigateToWorkStation = useCallback(
-    (app: WorkStationApp = "code", options?: NavigateOptions) => {
-      promoteActiveSessionCreatorDraft();
-      const path = WORK_STATION_ROUTES[app];
-      navigate(path, {
-        replace: options?.replace,
-        state: options?.state,
-      });
-    },
-    [navigate, promoteActiveSessionCreatorDraft]
-  );
-
   // ========================================
   // Convenience Methods
   // ========================================
 
-  const goToStartPage = useCallback(() => {
-    navigateToMainApp(ROUTES.app.home.start.path, {
-      title: "Start Page",
-      icon: "home",
-    });
-  }, [navigateToMainApp]);
-
-  const goToSettings = useCallback(() => {
-    navigateToMainApp(ROUTES.app.settings.path, {
-      title: "Settings",
-      icon: "settings",
-    });
-  }, [navigateToMainApp]);
-
-  const goToProjects = useCallback(() => {
-    promoteActiveSessionCreatorDraft();
-    navigate(ROUTES.workStation.project.path);
-  }, [navigate, promoteActiveSessionCreatorDraft]);
-
-  const goToMarket = useCallback(() => {
-    navigateToMainApp(ROUTES.app.market.tokenMarket.path, {
-      title: "Token Market",
-      icon: "store",
-    });
-  }, [navigateToMainApp]);
+  const goToSettings = useCallback(
+    (options?: SettingsPathOptions) => {
+      navigateTo(buildSettingsPath(options));
+    },
+    [navigateTo]
+  );
 
   const goToIntegrations = useCallback(
     (options?: {
@@ -246,10 +156,7 @@ export function useAppNavigation(): UseAppNavigationReturn {
           search.set("devToolsTab", options.devToolsTab);
         }
         const query = search.toString();
-        navigateToMainApp(query ? `${pathname}?${query}` : pathname, {
-          title: tNav("labels.agentOrgs"),
-          icon: "infinity",
-        });
+        navigateTo(query ? `${pathname}?${query}` : pathname);
         return;
       }
 
@@ -259,28 +166,10 @@ export function useAppNavigation(): UseAppNavigationReturn {
       if (options?.devToolsTab) search.set("devToolsTab", options.devToolsTab);
       const query = search.toString();
       const path = query ? `${basePath}?${query}` : basePath;
-      navigateToMainApp(path, {
-        title: tNav("labels.agentOrgs"),
-        icon: "infinity",
-      });
+      navigateTo(path);
     },
-    [navigateToMainApp, tNav]
+    [navigateTo]
   );
-
-  const goToAgentOrgs = useCallback(() => {
-    navigateToMainApp(ROUTES.app.home.agentOrgs.path, {
-      title: tNav("labels.agentOrgs"),
-      icon: "infinity",
-    });
-  }, [navigateToMainApp, tNav]);
-
-  const goToEditor = useCallback(() => {
-    navigateToWorkStation("code");
-  }, [navigateToWorkStation]);
-
-  const goToBrowser = useCallback(() => {
-    navigateToWorkStation("browser");
-  }, [navigateToWorkStation]);
 
   const goToNewSession = useCallback(
     (options?: GoToNewSessionOptions) => {
@@ -332,18 +221,10 @@ export function useAppNavigation(): UseAppNavigationReturn {
   return {
     // Core navigation
     navigateTo,
-    navigateToMainApp,
-    navigateToWorkStation,
 
     // Convenience methods
-    goToStartPage,
     goToSettings,
-    goToProjects,
-    goToMarket,
     goToIntegrations,
-    goToAgentOrgs,
-    goToEditor,
-    goToBrowser,
     goToNewSession,
   };
 }

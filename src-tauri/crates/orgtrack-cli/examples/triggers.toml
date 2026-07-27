@@ -1,0 +1,36 @@
+# Example orgtrack triggers — usage/behavior threshold rules.
+# Install at ~/.orgtrack/triggers.toml (or pass --triggers <path>), then:
+#   orgtrack check --db ~/.orgtrack/index.db
+# Exits 2 if any `error` fires, 1 if --strict and any `warn`, else 0.
+#
+# metric:  cost_usd | tokens | input_tokens | output_tokens
+#          | cache_read_tokens | cache_write_tokens | session_count | cache_hit_rate
+# scope:   total | day | source | project | session
+# op:      > | >= | < | <=
+# severity: info | warn | error
+
+[[trigger]]
+id = "daily-spend-cap"
+metric = "cost_usd"
+scope = "day"
+op = ">"
+value = 50
+severity = "warn"
+message = "Daily spend over $50 on {scope} (actual {actual})"
+
+[[trigger]]
+id = "runaway-session"
+metric = "tokens"
+scope = "session"
+op = ">"
+value = 50000000     # 50M tokens in one session
+severity = "error"
+
+[[trigger]]
+id = "inefficient-source"
+metric = "cache_hit_rate"
+scope = "source"
+op = "<"
+value = 0.6          # under 60% cache hits
+severity = "warn"
+message = "{scope} cache-hit rate {actual} is low"

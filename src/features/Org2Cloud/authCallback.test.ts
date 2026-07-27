@@ -38,6 +38,29 @@ describe("isOrg2CloudAuthCallback", () => {
       false
     );
   });
+
+  it("matches an exact nonce-bound localhost callback", () => {
+    const expected =
+      "http://localhost:43123/org2-cloud/auth/callback?state=b8c71b7e-7ac6-4ebd-aeab-c1976bb01e9d";
+    expect(
+      isOrg2CloudAuthCallback(
+        `${expected}#access_token=at&refresh_token=rt&expires_at=1751500000`,
+        expected
+      )
+    ).toBe(true);
+    expect(
+      isOrg2CloudAuthCallback(
+        "http://localhost:43123/org2-cloud/auth/callback?state=4f9305ac-9892-42f7-825f-2b7bb7ac99fd#access_token=at",
+        expected
+      )
+    ).toBe(false);
+    expect(
+      isOrg2CloudAuthCallback(
+        "http://localhost:43124/org2-cloud/auth/callback?state=b8c71b7e-7ac6-4ebd-aeab-c1976bb01e9d#access_token=at",
+        expected
+      )
+    ).toBe(false);
+  });
 });
 
 describe("parseAuthCallbackFragment", () => {
@@ -52,6 +75,21 @@ describe("parseAuthCallbackFragment", () => {
   it("parses a complete fragment for an isolated desktop instance", () => {
     expect(
       parseAuthCallbackFragment(INSTANCE2_VALID_URL, INSTANCE2_CALLBACK_URL)
+    ).toEqual({
+      accessToken: "header.payload.sig",
+      refreshToken: "rt-123",
+      expiresAt: 1751500000,
+    });
+  });
+
+  it("parses a complete fragment from the expected loopback callback", () => {
+    const expected =
+      "http://localhost:43123/org2-cloud/auth/callback?state=b8c71b7e-7ac6-4ebd-aeab-c1976bb01e9d";
+    expect(
+      parseAuthCallbackFragment(
+        `${expected}#access_token=header.payload.sig&refresh_token=rt-123&expires_at=1751500000`,
+        expected
+      )
     ).toEqual({
       accessToken: "header.payload.sig",
       refreshToken: "rt-123",

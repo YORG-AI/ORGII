@@ -54,6 +54,8 @@ interface UseSessionCreatorHandlersOptions {
   setAdvancedConfig: (config: AdvancedConfig) => void;
   selectRepo: (repoId: string) => void;
   forceRefreshRepos: () => Promise<void>;
+  /** Clears repo-scoped launch selections before committing a repo switch. */
+  onRepoScopeChange?: () => void;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ export function useSessionCreatorChatPanelHandlers({
   setAdvancedConfig,
   selectRepo,
   forceRefreshRepos,
+  onRepoScopeChange,
 }: UseSessionCreatorHandlersOptions) {
   const { t } = useTranslation();
   const { registry } = useAgentCompatibility();
@@ -108,6 +111,7 @@ export function useSessionCreatorChatPanelHandlers({
   // mirrored into the session source once it belongs to the selected repo.
   const handleRepoChange = useCallback(
     (repoId: string, options?: { repoKind?: RepoKind }) => {
+      onRepoScopeChange?.();
       selectRepo(repoId);
       const repo = reposList.find((repoItem) => repoItem.id === repoId);
       const isFolder =
@@ -142,6 +146,7 @@ export function useSessionCreatorChatPanelHandlers({
       effectiveSource?.repoPath,
       effectiveSource?.branch,
       setSessionSource,
+      onRepoScopeChange,
     ]
   );
 
@@ -149,6 +154,7 @@ export function useSessionCreatorChatPanelHandlers({
   // until the repo-selection store reports that repo's checked-out branch.
   const handleRepoSelectForSession = useCallback(
     (selectedRepoId: string, repo: RepoItem) => {
+      onRepoScopeChange?.();
       if (isSystemPathSourceId(repo.id)) {
         const repoPath = getSystemPathSourcePath(repo);
         setSessionSource(
@@ -185,7 +191,7 @@ export function useSessionCreatorChatPanelHandlers({
         branch: undefined,
       });
     },
-    [handleImportWorkspace, setSessionSource, t]
+    [handleImportWorkspace, onRepoScopeChange, setSessionSource, t]
   );
 
   // ── Agent category selection ──────────────────────────────────────────────
@@ -204,6 +210,8 @@ export function useSessionCreatorChatPanelHandlers({
         agentIconId: selection.agentIconId ?? null,
         cliAgentType: selection.cliAgentType ?? null,
       }));
+
+      if (selection.category === "human_session") return;
 
       const newCliType = selection.cliAgentType;
       const hasModel = Boolean(

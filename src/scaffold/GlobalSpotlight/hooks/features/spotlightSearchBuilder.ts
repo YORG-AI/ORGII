@@ -41,6 +41,7 @@ interface BuildSearchModeItemsArgs {
     icon: SpotlightItem["icon"]
   ) => void;
   translate: Translator;
+  devModeEnabled?: boolean;
 }
 
 export function buildSearchModeItems({
@@ -52,6 +53,7 @@ export function buildSearchModeItems({
   onSelectEditorAction,
   onSelectPath,
   translate,
+  devModeEnabled = false,
 }: BuildSearchModeItemsArgs): SpotlightItem[] {
   const commandFilterActive = searchQuery.startsWith(">");
   const effectiveSearchQuery = commandFilterActive
@@ -92,7 +94,7 @@ export function buildSearchModeItems({
   const matchedDestinations: NavDestination[] = searchNavDestinations(
     searchQuery,
     translate
-  );
+  ).filter((destination) => devModeEnabled || !destination.devOnly);
   results.push(
     ...buildGroupedNavItems(matchedDestinations, onSelectPath, translate)
   );

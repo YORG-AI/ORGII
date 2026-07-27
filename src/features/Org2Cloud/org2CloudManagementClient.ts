@@ -18,6 +18,7 @@
 import { z } from "zod/v4";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 import {
   CLOUD_ASSIGNABLE_ROLES,
   type CloudAssignableRole,
@@ -75,7 +76,7 @@ async function callManagementRpc(
   accessToken: string,
   body: Record<string, unknown>
 ): Promise<unknown> {
-  const response = await fetch(rpcUrl(functionName), {
+  const response = await fetchWithTransportRetry(rpcUrl(functionName), {
     method: "POST",
     headers: rpcHeaders(accessToken),
     body: JSON.stringify(body),

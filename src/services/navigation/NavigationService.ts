@@ -21,6 +21,7 @@ interface NavigationLocation {
 
 const navigationHistory: NavigationLocation[] = [];
 let historyIndex = -1;
+const MAX_NAVIGATION_HISTORY = 100;
 
 // ============================================
 // NavigationService - Singleton API
@@ -72,6 +73,11 @@ export const NavigationService = {
     // Remove any forward history
     navigationHistory.splice(historyIndex + 1);
     navigationHistory.push(location);
+    if (navigationHistory.length > MAX_NAVIGATION_HISTORY) {
+      const overflow = navigationHistory.length - MAX_NAVIGATION_HISTORY;
+      navigationHistory.splice(0, overflow);
+      historyIndex = Math.max(-1, historyIndex - overflow);
+    }
     historyIndex = navigationHistory.length - 1;
   },
 

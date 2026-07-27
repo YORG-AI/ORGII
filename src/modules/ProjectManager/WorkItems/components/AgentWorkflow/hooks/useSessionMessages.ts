@@ -5,11 +5,13 @@ import {
   getSession,
 } from "@src/api/tauri/agent";
 import { isSubagentSpawningTool } from "@src/engines/SessionCore/sync/adapters/shared";
+import { subscribeToSessionEvents } from "@src/engines/SessionCore/sync/useSessionChannel";
 import { isTerminalStatus } from "@src/types/session/session";
 
 import type { AgentMessage } from "../types";
 
-const POLL_INTERVAL_MS = 3000;
+const EVENT_SETTLE_MS = 750;
+const MAX_TEXT_MESSAGES = 100;
 const MAX_TOOL_MESSAGES = 30;
 const TEXT_ROLES = new Set(["user", "assistant"]);
 
@@ -34,7 +36,7 @@ export function useSessionMessages(options: UseSessionMessagesOptions) {
   const [loading, setLoading] = useState(true);
   const [sessionStatus, setSessionStatus] = useState<string | null>(null);
 
-  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionNotifiedRef = useRef(false);
   const terminalRef = useRef(false);
   const seenSubAgentMsgIdsRef = useRef<Set<string>>(new Set());
@@ -48,7 +50,9 @@ export function useSessionMessages(options: UseSessionMessagesOptions) {
       const result = (await agentLoadMessages(
         sessionId
       )) as unknown as AgentMessage[];
-      const textMessages = result.filter((msg) => TEXT_ROLES.has(msg.role));
+      const textMessages = result
+        .filter((msg) => TEXT_ROLES.has(msg.role))
+        .slice(-MAX_TEXT_MESSAGES);
       const toolMessages = result
         .filter((msg) => !TEXT_ROLES.has(msg.role))
         .slice(-MAX_TOOL_MESSAGES);
@@ -68,9 +72,10 @@ export function useSessionMessages(options: UseSessionMessagesOptions) {
           hasNew = true;
         }
       }
-      if (seenSubAgentMsgIdsRef.current.size > 200) {
+      while (seenSubAgentMsgIdsRef.current.size > 200) {
         const firstKey = seenSubAgentMsgIdsRef.current.values().next().value;
         if (firstKey) seenSubAgentMsgIdsRef.current.delete(firstKey);
+        else break;
       }
       if (hasNew) {
         onSubAgentChangeRef.current?.();
@@ -108,19 +113,36 @@ export function useSessionMessages(options: UseSessionMessagesOptions) {
     completionNotifiedRef.current = false;
     terminalRef.current = false;
 
-    const poll = async () => {
+    const refresh = async () => {
       if (cancelled) return;
       await loadMessages();
       await checkSessionStatus();
-      if (cancelled || terminalRef.current) return;
-      pollTimerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
     };
 
-    poll();
+    void refresh();
+    const scheduleRefresh = () => {
+      if (cancelled || terminalRef.current || document.hidden) return;
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null;
+        void refresh();
+      }, EVENT_SETTLE_MS);
+    };
+    const unsubscribe = isRunning
+      ? subscribeToSessionEvents(sessionId, scheduleRefresh)
+      : () => undefined;
+    const handleVisibilityOrFocus = () => {
+      if (!document.hidden) scheduleRefresh();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+    window.addEventListener("focus", handleVisibilityOrFocus);
 
     return () => {
       cancelled = true;
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+      unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
   }, [sessionId, isRunning, loadMessages, checkSessionStatus]);
 

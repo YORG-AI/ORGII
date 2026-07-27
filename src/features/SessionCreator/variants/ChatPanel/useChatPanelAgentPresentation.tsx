@@ -119,6 +119,16 @@ export function useChatPanelAgentPresentation({
       if (isCursorIdeMode) {
         return <ModelIcon agentType="cursor_cli" size={size} />;
       }
+      if (dispatchCategory === "human_session") {
+        return React.createElement(
+          resolveAgentIcon(resolvedAgentIconId || "clipboard-list"),
+          {
+            size,
+            strokeWidth: 1.75,
+            className: "text-text-1",
+          }
+        );
+      }
       if (isRustMode) {
         const iconId = resolvedAgentIconId || "code";
         return React.createElement(resolveAgentIcon(iconId), {
@@ -133,6 +143,7 @@ export function useChatPanelAgentPresentation({
       isRustMode,
       isCliMode,
       isCursorIdeMode,
+      dispatchCategory,
       cliAgentType,
       resolvedAgentIconId,
       hasAgentSelected,

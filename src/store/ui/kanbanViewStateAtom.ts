@@ -12,7 +12,7 @@
  *   - `kanbanSelectedTaskIdAtom` and `kanbanDetailPanelVisibleAtom` are
  *     transient session state. Module-level Jotai atoms are enough to
  *     survive remounts during navigation while still resetting on reload,
- *     matching the rationale documented on `viewModeAtom`.
+ *     so route transitions do not discard the user's board preferences.
  *
  * Selection is stored as the task **id**, not the `KanbanTask` object:
  * the task list is rebuilt every render from live session data, so
@@ -23,6 +23,7 @@ import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 import {
+  DEFAULT_KANBAN_TIME_FILTER,
   KANBAN_AGENT_TYPE_FILTER,
   KANBAN_SIDEBAR_FILTER,
   type KanbanAgentTypeFilter,
@@ -230,7 +231,7 @@ kanbanSidebarFilterAtom.debugLabel = "kanban/sidebarFilter";
 /** Persisted user preference — the active time-window pill. */
 export const kanbanTimeFilterAtom = atomWithStorage<KanbanTimeFilter>(
   TIME_FILTER_STORAGE_KEY,
-  "12h",
+  DEFAULT_KANBAN_TIME_FILTER,
   timeFilterStorage
 );
 kanbanTimeFilterAtom.debugLabel = "kanban/timeFilter";

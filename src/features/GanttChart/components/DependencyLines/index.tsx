@@ -23,6 +23,8 @@ export interface GanttDependencyLinesProps {
   >;
   config: GanttConfig;
   highlightedTask?: string | null;
+  visibleTop: number;
+  visibleBottom: number;
 }
 
 const GanttDependencyLines: React.FC<GanttDependencyLinesProps> = ({
@@ -30,6 +32,8 @@ const GanttDependencyLines: React.FC<GanttDependencyLinesProps> = ({
   taskPositions,
   config,
   highlightedTask,
+  visibleTop,
+  visibleBottom,
 }) => {
   const dependencies = useMemo(() => {
     const lines: DependencyLineData[] = [];
@@ -52,6 +56,15 @@ const GanttDependencyLines: React.FC<GanttDependencyLinesProps> = ({
         const toX = toPosition.left;
         const toY = toPosition.top + config.rowHeight / 2;
 
+        // Keep dependency DOM bounded to lines that cross the rendered row
+        // window. Coordinates remain global so partially visible paths line up.
+        if (
+          Math.max(fromY, toY) < visibleTop ||
+          Math.min(fromY, toY) > visibleBottom
+        ) {
+          return;
+        }
+
         lines.push({
           from: { x: fromX, y: fromY },
           to: { x: toX, y: toY },
@@ -62,7 +75,7 @@ const GanttDependencyLines: React.FC<GanttDependencyLinesProps> = ({
     });
 
     return lines;
-  }, [tasks, taskPositions, config.rowHeight]);
+  }, [tasks, taskPositions, config.rowHeight, visibleTop, visibleBottom]);
 
   const createPath = (line: DependencyLineData): string => {
     const { from, to } = line;

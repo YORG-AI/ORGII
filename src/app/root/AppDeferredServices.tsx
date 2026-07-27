@@ -123,16 +123,24 @@ const DeferredTerminalPersistence = React.lazy(() =>
             log.warn("[TerminalPersistence] Failed to load buffers:", error);
           });
 
-        terminalPersistence.startAutoSave();
-
         const handleBeforeUnload = () => {
           void terminalPersistence.flushPendingWrites();
         };
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === "hidden") {
+            void terminalPersistence.flushPendingWrites();
+          }
+        };
         window.addEventListener("beforeunload", handleBeforeUnload);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
           window.removeEventListener("beforeunload", handleBeforeUnload);
-          terminalPersistence.stopAutoSave();
+          document.removeEventListener(
+            "visibilitychange",
+            handleVisibilityChange
+          );
+          void terminalPersistence.flushPendingWrites();
         };
       }, []);
 

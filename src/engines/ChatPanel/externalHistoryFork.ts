@@ -137,6 +137,10 @@ export async function forkExternalHistoryIntoOrgiiSession(params: {
     params.userMessage,
     source.displayName
   );
+  // This continuation is a normal top-level ORGII session. `parentSessionId`
+  // is reserved for real subagents and would hide the continuation from the
+  // primary session list after a reload. The handoff prompt carries the
+  // external source context without changing the new session's hierarchy.
   const result = await SessionService.create({
     task: content,
     imageDataUrls: params.imageDataUrls,
@@ -147,7 +151,6 @@ export async function forkExternalHistoryIntoOrgiiSession(params: {
     keySource: "own_key",
     agentDefinitionId: setup.execution.agentDefinitionId,
     mode: "build",
-    parentSessionId: params.sourceSessionId,
   });
   return result.sessionId;
 }

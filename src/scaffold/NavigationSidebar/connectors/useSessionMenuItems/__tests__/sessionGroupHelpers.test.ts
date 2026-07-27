@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  SESSION_GROUP_LABELS,
+  getSessionGroupKey,
+} from "@src/config/sessionAgentGroups";
+
 import { groupKeyToWireCategory } from "../sessionGroupHelpers";
 
 describe("groupKeyToWireCategory", () => {
@@ -23,6 +28,12 @@ describe("groupKeyToWireCategory", () => {
 
   it("maps existing non-imported groups to their loader categories", () => {
     expect(groupKeyToWireCategory("cli")).toBe("cli_agent");
+    expect(groupKeyToWireCategory("human")).toBe("human_session");
     expect(groupKeyToWireCategory("os")).toBe("rust_agent");
+  });
+
+  it("keeps Human sessions in the Work Logs sidebar group", () => {
+    expect(getSessionGroupKey("humansession-1")).toBe("human");
+    expect(SESSION_GROUP_LABELS.human).toBe("Work Logs");
   });
 });

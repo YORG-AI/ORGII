@@ -184,17 +184,21 @@ describe("session sync state callbacks", () => {
     expect(updateSessionStatus).not.toHaveBeenCalled();
   });
 
-  it("opens the FSM turn on running status", () => {
-    const actions = createActions();
-    const callbacks = createSessionEventHandlerCallbacks(
-      "session-1",
-      actions,
-      vi.fn()
-    );
+  it("opens the FSM turn on running and installing statuses", () => {
+    for (const status of ["running", "installing"] as const) {
+      const actions = createActions();
+      const callbacks = createSessionEventHandlerCallbacks(
+        "session-1",
+        actions,
+        vi.fn()
+      );
 
-    callbacks.onStatusChange?.("running");
+      callbacks.onStatusChange?.(status);
+    }
 
-    expect(markTurnRunning).toHaveBeenCalledWith("session-1");
+    expect(markTurnRunning).toHaveBeenCalledTimes(2);
+    expect(markTurnRunning).toHaveBeenNthCalledWith(1, "session-1");
+    expect(markTurnRunning).toHaveBeenNthCalledWith(2, "session-1");
   });
 
   it("calls dismissCanvasAtNewTurn with the session id when status is 'running'", () => {
@@ -242,6 +246,7 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
       setSessionRuntimeError: vi.fn(),
       setPendingCancel: vi.fn(),
       setStreamRetryStatus: vi.fn(),
+      clearCanvasPreviewOnSessionSwitch: vi.fn(),
     };
   }
 
@@ -263,6 +268,21 @@ describe("resetSessionSwitchState optimistic-running preservation", () => {
     expect(actions.setSessionContextTokens).toHaveBeenCalledWith(0);
     expect(actions.setSessionContextUsage).toHaveBeenCalledWith(null);
     expect(actions.setSessionContextBreakdown).toHaveBeenCalledWith(null);
+  });
+
+  it("clears canvas preview when switching between sessions", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions, "session-b", "session-a");
+    expect(actions.clearCanvasPreviewOnSessionSwitch).toHaveBeenCalledWith(
+      "session-a",
+      "session-b"
+    );
+  });
+
+  it("does not request a canvas clear without an entering session", () => {
+    const actions = createSwitchActions();
+    resetSessionSwitchState(actions);
+    expect(actions.clearCanvasPreviewOnSessionSwitch).not.toHaveBeenCalled();
   });
 
   it("preserves running for a session just optimistically started", () => {

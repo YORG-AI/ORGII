@@ -674,9 +674,11 @@ fn zcode_plugin_hooks_value_carries_marker_and_post_tool_use() {
     assert!(command.contains(HOOK_MARKER));
     assert!(command.ends_with("zcode"));
     // ZCode plugin/data/marketplace paths stay inside its plugin store.
-    assert!(zcode_plugin_hooks_path()
-        .to_string_lossy()
-        .contains(".zcode/cli/plugins"));
+    let plugins_root = app_paths::home_dir()
+        .join(".zcode")
+        .join("cli")
+        .join("plugins");
+    assert!(zcode_plugin_hooks_path().starts_with(plugins_root));
     assert!(zcode_plugin_data_dir()
         .to_string_lossy()
         .ends_with("session-provenance@orgii"));
@@ -693,10 +695,16 @@ fn zcode_plugin_id_is_name_at_marketplace() {
 #[test]
 fn zcode_config_path_is_under_zcode_cli() {
     let path = zcode_config_path();
-    let path_str = path.to_string_lossy();
-    assert!(
-        path_str.ends_with(".zcode/cli/config.json"),
-        "expected ~/.zcode/cli/config.json, got {path_str}"
+    let expected = app_paths::home_dir()
+        .join(".zcode")
+        .join("cli")
+        .join("config.json");
+    assert_eq!(
+        path,
+        expected,
+        "expected {}, got {}",
+        expected.display(),
+        path.display()
     );
 }
 

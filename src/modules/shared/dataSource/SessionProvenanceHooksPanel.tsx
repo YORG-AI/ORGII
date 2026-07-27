@@ -13,7 +13,13 @@ import {
 import HookPlatformsTable from "./SessionProvenanceHookPlatformsTable";
 import RecentSignalsTable from "./SessionProvenanceRecentSignalsTable";
 
-const SessionProvenanceHooksPanel: React.FC = () => {
+interface SessionProvenanceHooksPanelProps {
+  showTitle?: boolean;
+}
+
+const SessionProvenanceHooksPanel: React.FC<
+  SessionProvenanceHooksPanelProps
+> = ({ showTitle = true }) => {
   const { t } = useTranslation("integrations");
 
   return (
@@ -21,9 +27,14 @@ const SessionProvenanceHooksPanel: React.FC = () => {
       className={SECTION_GAP_CLASSES}
       data-testid="session-provenance-hooks-panel"
     >
-      <h3 className={SECTION_SUBHEADING_CLASSES}>
-        {t("agentOrgs.sessionProvenance.title")}
-      </h3>
+      {showTitle ? (
+        <h3
+          className={SECTION_SUBHEADING_CLASSES}
+          data-testid="session-provenance-hooks-title"
+        >
+          {t("agentOrgs.sessionProvenance.title")}
+        </h3>
+      ) : null}
       <HookPlatformsTable />
       <RecentSignalsTable />
     </div>

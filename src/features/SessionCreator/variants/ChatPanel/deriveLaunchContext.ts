@@ -1,4 +1,5 @@
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
+import { buildCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   DEFAULT_SESSION_ORG_ID,
   DEFAULT_SESSION_ORG_NAME,
@@ -10,12 +11,14 @@ import type {
 } from "@src/store/ui/chatPanelAtom";
 
 export interface ChatPanelLaunchContextInput {
+  activeCloudOrg: { orgId: string; name: string } | null;
   selectedProjectOrgContext: ChatPanelSelectedProjectOrg | null;
   selectedProjectContext: ChatPanelSelectedProject | null;
   selectedWorkItemContext: ChatPanelSelectedWorkItem | null;
 }
 
 export function deriveChatPanelLaunchContext({
+  activeCloudOrg,
   selectedProjectOrgContext,
   selectedProjectContext,
   selectedWorkItemContext,
@@ -46,6 +49,13 @@ export function deriveChatPanelLaunchContext({
     return {
       orgId: selectedProjectOrgContext.orgId,
       orgName: selectedProjectOrgContext.orgName,
+    };
+  }
+
+  if (activeCloudOrg) {
+    return {
+      orgId: buildCloudOrgSelectorValue(activeCloudOrg.orgId),
+      orgName: activeCloudOrg.name,
     };
   }
 

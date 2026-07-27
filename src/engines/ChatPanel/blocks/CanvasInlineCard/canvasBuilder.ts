@@ -23,6 +23,7 @@ const CANVAS_THEME_VARIABLES = [
   "--color-text-1",
   "--color-text-2",
   "--color-primary-6",
+  "--interactive-cursor",
 ] as const;
 
 function buildThemeVariables(): string {
@@ -70,7 +71,7 @@ const BASE_STYLES = `
     border:1px solid var(--color-border-1,rgba(255,255,255,.08));}
   pre code{background:none;padding:0;}
   img{max-width:100%;height:auto;border-radius:4px;}
-  button{cursor:pointer;}
+  button{cursor:var(--interactive-cursor,default);}
   ::-webkit-scrollbar{width:6px;height:6px;}
   ::-webkit-scrollbar-track{background:transparent;}
   ::-webkit-scrollbar-thumb{background:var(--color-fill-3,rgba(255,255,255,.15));border-radius:3px;}

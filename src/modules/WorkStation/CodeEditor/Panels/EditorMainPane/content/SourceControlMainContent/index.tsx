@@ -166,8 +166,8 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
       <Suspense fallback={<DetailFallback />}>
         <IssueDetailPanel
           issue={selectedIssueState.issue}
-          comments={selectedIssueState.comments}
-          commentsLoading={selectedIssueState.commentsLoading}
+          timeline={selectedIssueState.timeline}
+          timelineLoading={selectedIssueState.timelineLoading}
           submittingComment={selectedIssueState.submittingComment}
           onClose={() => undefined}
           onCloseIssue={handleCloseIssue}

@@ -49,18 +49,30 @@ export function useAllChangesFiles({
 
   const statsLoadedPathsRef = useRef<Set<string>>(new Set());
   const contentLoadedPathsRef = useRef<Set<string>>(new Set());
-  const inFlightContentRef = useRef<Set<string>>(new Set());
+  const inFlightContentRef = useRef<Map<string, number>>(new Map());
   const activeContentPathsRef = useRef<Set<string>>(new Set());
   const previousFilesKeyRef = useRef("");
-  const isLoadingStatsRef = useRef(false);
+  const statsLoadGenerationRef = useRef<number | null>(null);
+  const requestGenerationRef = useRef(0);
+  const filesWithDiffsRef = useRef<GitFile[]>([]);
   const sectionRefs = useRef(
     new Map<string, React.RefObject<HTMLDivElement | null>>()
   );
 
+  filesWithDiffsRef.current = filesWithDiffs;
+
   const filesKey = useMemo(
     () =>
       files
-        .map((file) => file.path)
+        .map((file) =>
+          JSON.stringify([
+            file.path,
+            file.original_path ?? "",
+            file.status,
+            file.staged,
+            file.repoRoot ?? "",
+          ])
+        )
         .sort()
         .join("|"),
     [files]
@@ -72,7 +84,8 @@ export function useAllChangesFiles({
   const loadStatsForFiles = useCallback(
     async (filesToLoad: GitFile[]) => {
       if (!repoPath || filesToLoad.length === 0) return;
-      if (isLoadingStatsRef.current) return;
+      const generation = requestGenerationRef.current;
+      if (statsLoadGenerationRef.current === generation) return;
 
       // Note: `useGitFiles` seeds every file with `additions: 0, deletions: 0`
       // (numeric, not undefined), so we cannot use those fields to detect
@@ -82,7 +95,7 @@ export function useAllChangesFiles({
       );
       if (unloadedFiles.length === 0) return;
 
-      isLoadingStatsRef.current = true;
+      statsLoadGenerationRef.current = generation;
 
       try {
         // Group files by their effective repo root so worktree files are
@@ -105,6 +118,7 @@ export function useAllChangesFiles({
             );
           })
         );
+        if (generation !== requestGenerationRef.current) return;
 
         const statsMap = new Map<
           string,
@@ -141,9 +155,12 @@ export function useAllChangesFiles({
           })
         );
       } catch (error) {
+        if (generation !== requestGenerationRef.current) return;
         log.error("[AllChangesView] Failed to load stats:", error);
       } finally {
-        isLoadingStatsRef.current = false;
+        if (statsLoadGenerationRef.current === generation) {
+          statsLoadGenerationRef.current = null;
+        }
       }
     },
     [repoId, repoPath]
@@ -155,16 +172,17 @@ export function useAllChangesFiles({
   const loadContentForFile = useCallback(
     async (file: GitFile) => {
       if (!repoPath) return;
+      const generation = requestGenerationRef.current;
       activeContentPathsRef.current.add(file.path);
       if (file.oldContent !== undefined || file.newContent !== undefined)
         return;
       if (contentLoadedPathsRef.current.has(file.path)) return;
-      if (inFlightContentRef.current.has(file.path)) return;
+      if (inFlightContentRef.current.get(file.path) === generation) return;
 
       const effectivePath = getEffectiveRepoPath(file, repoPath);
       const resolvedRepoId = repoId ?? effectivePath;
 
-      inFlightContentRef.current.add(file.path);
+      inFlightContentRef.current.set(file.path, generation);
 
       try {
         const diff = await loadWorkingTreeDiff({
@@ -174,7 +192,17 @@ export function useAllChangesFiles({
         });
 
         if (diff) {
-          if (!activeContentPathsRef.current.has(file.path)) return;
+          if (
+            generation !== requestGenerationRef.current ||
+            !activeContentPathsRef.current.has(file.path)
+          ) {
+            releaseWorkingTreeDiff({
+              repoId: resolvedRepoId,
+              repoPath: effectivePath,
+              file,
+            });
+            return;
+          }
           contentLoadedPathsRef.current.add(file.path);
           statsLoadedPathsRef.current.add(file.path);
           const { oldContent, newContent } = diff;
@@ -197,7 +225,11 @@ export function useAllChangesFiles({
             : `${effectivePath}/${file.path}`;
           try {
             const content = await readTextFile(absolutePath);
-            if (!activeContentPathsRef.current.has(file.path)) return;
+            if (
+              generation !== requestGenerationRef.current ||
+              !activeContentPathsRef.current.has(file.path)
+            )
+              return;
             contentLoadedPathsRef.current.add(file.path);
             statsLoadedPathsRef.current.add(file.path);
             const additions = countContentLines(content);
@@ -224,9 +256,12 @@ export function useAllChangesFiles({
           }
         }
       } catch (error) {
+        if (generation !== requestGenerationRef.current) return;
         log.error("[AllChangesView] Failed to load content:", error);
       } finally {
-        inFlightContentRef.current.delete(file.path);
+        if (inFlightContentRef.current.get(file.path) === generation) {
+          inFlightContentRef.current.delete(file.path);
+        }
       }
     },
     [repoId, repoPath]
@@ -236,7 +271,9 @@ export function useAllChangesFiles({
     (path: string) => {
       activeContentPathsRef.current.delete(path);
       contentLoadedPathsRef.current.delete(path);
-      const file = filesWithDiffs.find((entry) => entry.path === path);
+      const file = filesWithDiffsRef.current.find(
+        (entry) => entry.path === path
+      );
       if (file && repoPath) {
         const effectivePath = getEffectiveRepoPath(file, repoPath);
         releaseWorkingTreeDiff({
@@ -253,8 +290,41 @@ export function useAllChangesFiles({
         )
       );
     },
-    [filesWithDiffs, repoId, repoPath]
+    [repoId, repoPath]
   );
+
+  // Component-owned expanded bodies and section refs must not survive a tab
+  // close or repository/file-set scope change. In-flight work cannot be
+  // cancelled by the current APIs, so advancing the generation rejects its
+  // completion; the late diff path above also evicts any cache entry it wrote.
+  useEffect(() => {
+    const statsLoadedPaths = statsLoadedPathsRef.current;
+    const contentLoadedPaths = contentLoadedPathsRef.current;
+    const inFlightContent = inFlightContentRef.current;
+    const activeContentPaths = activeContentPathsRef.current;
+    const sectionRefMap = sectionRefs.current;
+
+    return () => {
+      requestGenerationRef.current += 1;
+      const currentFiles = filesWithDiffsRef.current;
+      for (const path of activeContentPaths) {
+        const file = currentFiles.find((entry) => entry.path === path);
+        if (!file || !repoPath) continue;
+        const effectivePath = getEffectiveRepoPath(file, repoPath);
+        releaseWorkingTreeDiff({
+          repoId: repoId ?? effectivePath,
+          repoPath: effectivePath,
+          file,
+        });
+      }
+      statsLoadedPaths.clear();
+      contentLoadedPaths.clear();
+      inFlightContent.clear();
+      activeContentPaths.clear();
+      sectionRefMap.clear();
+      statsLoadGenerationRef.current = null;
+    };
+  }, [filesKey, repoId, repoPath]);
 
   // Sync files state — preserve loaded diffs on polling updates
   useEffect(() => {

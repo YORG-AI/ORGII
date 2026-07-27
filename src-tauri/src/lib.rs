@@ -110,6 +110,7 @@ pub mod benchmark;
 pub mod cli_managed_proxy;
 pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, index_manager, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
 pub mod orgtrack;
+mod runtime_instance;
 pub(crate) mod setup;
 pub mod usage_diagnostics;
 
@@ -152,6 +153,29 @@ use infrastructure::index_manager::IndexManager;
 /// app_lib::run();
 /// ```
 pub fn run() {
+    // Resolve the embedded Tauri identity before ANY app-path consumer runs.
+    // Secondary development binaries are commonly launched directly, so a
+    // launcher-provided ORGII_HOME cannot be required for isolation. Preserve
+    // an explicit override for tests/portable installs; otherwise derive the
+    // secondary data root from the same identity that owns its WebView profile
+    // and service ports.
+    let context = tauri::generate_context!();
+    let runtime_profile =
+        runtime_instance::RuntimeInstanceProfile::from_identifier(&context.config().identifier);
+    if std::env::var_os("ORGII_HOME").is_none() {
+        if let Some(data_home) = runtime_profile.default_orgii_home(&app_paths::home_dir()) {
+            std::env::set_var("ORGII_HOME", data_home);
+        }
+    }
+    if std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME").is_none() {
+        let resolved_orgii_home = app_paths::orgii_root();
+        if let Some(external_history_home) =
+            runtime_profile.default_external_history_home(&resolved_orgii_home)
+        {
+            std::env::set_var("ORGII_EXTERNAL_HISTORY_HOME", external_history_home);
+        }
+    }
+
     apply_linux_webkit_cpu_guards();
 
     // Augment $PATH from the user's login shell so binary probes (`which npm`,
@@ -376,6 +400,30 @@ pub fn run() {
         .setup(|app| {
             // Python sidecar removed — all backend logic now in Rust.
 
+            // The Tauri identifier is embedded in each built binary and is
+            // therefore available even when the executable is launched
+            // directly. Use it as the runtime source of truth for ports;
+            // launcher env vars remain optional overrides for diagnostics.
+            let runtime_profile =
+                runtime_instance::RuntimeInstanceProfile::from_identifier(
+                    &app.config().identifier,
+                );
+            if !agent_cli::managed_config::set_managed_proxy_port_default(
+                runtime_profile.cli_proxy_port,
+            ) {
+                tracing::warn!(
+                    requested_port = runtime_profile.cli_proxy_port,
+                    "[Runtime Instance] CLI proxy default was already configured"
+                );
+            }
+            tracing::info!(
+                instance_id = runtime_profile.instance_id,
+                identifier = %app.config().identifier,
+                ide_server_port = runtime_profile.ide_server_port,
+                cli_proxy_port = runtime_profile.cli_proxy_port,
+                "[Runtime Instance] resolved isolated service defaults"
+            );
+
             #[cfg(all(debug_assertions, feature = "webdriver"))]
             {
                 use tauri::Manager;
@@ -518,6 +566,7 @@ pub fn run() {
             // Start unified IDE server (Git API + Search API + WebSocket) in background
             // thread. Local single-user server: a small worker cap serves it fine and
             // avoids a full core-count worker pool (the app spawns several runtimes).
+            let ide_server_port = runtime_profile.ide_server_port;
             std::thread::spawn(move || match tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(4)
                 .enable_all()
@@ -525,7 +574,7 @@ pub fn run() {
             {
                 Ok(rt) => {
                     rt.block_on(async {
-                        match api::start_server(ws_tx).await {
+                        match api::start_server(ws_tx, ide_server_port).await {
                             Ok(_) => tracing::info!("[IDE Server] Server stopped"),
                             Err(err) => {
                                 tracing::error!(error = %err, "[IDE Server] Failed to start unified server")
@@ -989,7 +1038,7 @@ pub fn run() {
                 }
             }
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .unwrap_or_else(|err| {
             tracing::error!(error = %err, "error while building tauri application");
             std::process::exit(1);

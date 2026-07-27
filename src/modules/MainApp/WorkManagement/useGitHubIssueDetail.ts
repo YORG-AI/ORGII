@@ -1,47 +1,40 @@
-import { useStore } from "jotai";
 import { useCallback, useEffect, useState } from "react";
 
-import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
-import { useWorkStationTabs } from "@src/hooks/workStation/tabs";
+import type {
+  GitHubIssue,
+  GitHubIssueTimelineItem,
+} from "@src/api/tauri/github";
 import {
   addIssueComment,
   closeIssue,
-  fetchIssueComments,
+  fetchIssueTimeline,
+  issueCommentToTimelineItem,
   reopenIssue,
 } from "@src/services/git/operations/githubIssues";
-import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
-import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
-import { createGitHubIssueDetailTab } from "@src/store/workstation/tabs";
 
-import type { ManagedIssueItem } from "./githubWorkItemsModel";
+import type { ManagedIssueItem } from "./githubManagedItemModel";
 
 export interface IssueDetailState {
   source: ManagedIssueItem;
   issue: GitHubIssue;
-  comments: GitHubIssueComment[];
-  commentsLoading: boolean;
+  timeline: GitHubIssueTimelineItem[];
+  timelineLoading: boolean;
   submittingComment: boolean;
   error: string | null;
 }
 
-export function useGitHubIssueDetail(
-  onDetailViewChange: (open: boolean, onBack: (() => void) | null) => void
-) {
-  const store = useStore();
-  const { openTab } = useWorkStationTabs();
-  const [issueDetail, setIssueDetail] = useState<IssueDetailState | null>(null);
-  const detailViewOpen = Boolean(issueDetail);
-
-  const handleBackFromDetail = useCallback(() => {
-    setIssueDetail(null);
-  }, []);
+export function useGitHubIssueDetail({
+  onDetailViewChange,
+}: {
+  onDetailViewChange: (open: boolean, onBack: (() => void) | null) => void;
+}) {
+  const [detail, setDetail] = useState<IssueDetailState | null>(null);
+  const closeDetail = useCallback(() => setDetail(null), []);
+  const detailOpen = Boolean(detail);
 
   useEffect(() => {
-    onDetailViewChange(
-      detailViewOpen,
-      detailViewOpen ? handleBackFromDetail : null
-    );
-  }, [detailViewOpen, handleBackFromDetail, onDetailViewChange]);
+    onDetailViewChange(detailOpen, detailOpen ? closeDetail : null);
+  }, [closeDetail, detailOpen, onDetailViewChange]);
 
   useEffect(
     () => () => {
@@ -50,139 +43,95 @@ export function useGitHubIssueDetail(
     [onDetailViewChange]
   );
 
-  const handleOpenIssue = useCallback((issue: ManagedIssueItem) => {
-    setIssueDetail({
+  const openDetail = useCallback((issue: ManagedIssueItem) => {
+    setDetail({
       source: issue,
       issue: issue.rawIssue,
-      comments: [],
-      commentsLoading: true,
+      timeline: [],
+      timelineLoading: true,
       submittingComment: false,
       error: null,
     });
 
     void (async () => {
-      const result = await fetchIssueComments({
+      const result = await fetchIssueTimeline({
         remoteUrl: issue.remoteUrl,
         issueNumber: issue.id,
       });
-      setIssueDetail((current) => {
+      setDetail((current) => {
         if (current?.issue.html_url !== issue.rawIssue.html_url) {
           return current;
         }
         return {
           ...current,
-          comments: result.data ?? [],
-          commentsLoading: false,
+          timeline: result.data ?? [],
+          timelineLoading: false,
           error: result.error ?? null,
         };
       });
     })();
   }, []);
 
-  const handleOpenIssueInMyStation = useCallback(
-    (issue: ManagedIssueItem) => {
-      const selectedIssueAtom = workstationSelectedIssueAtomFamily(
-        workstationRepoScopeKey(undefined, issue.repoPath)
-      );
-      store.set(selectedIssueAtom, {
-        issue: issue.rawIssue,
-        comments: [],
-        loading: false,
-        commentsLoading: true,
-        error: null,
-        submittingComment: false,
-      });
-      openTab(
-        createGitHubIssueDetailTab(
-          issue.id,
-          issue.title,
-          issue.repoPath,
-          issue.remoteUrl
-        )
-      );
-
-      void (async () => {
-        const result = await fetchIssueComments({
-          remoteUrl: issue.remoteUrl,
-          issueNumber: issue.id,
-        });
-        store.set(selectedIssueAtom, (current) => {
-          if (current.issue?.html_url !== issue.rawIssue.html_url) {
-            return current;
-          }
-          return {
-            ...current,
-            comments: result.data ?? [],
-            commentsLoading: false,
-            error: result.error ?? null,
-          };
-        });
-      })();
-    },
-    [openTab, store]
-  );
-
-  const handleCloseIssueDetail = useCallback(async () => {
-    const currentIssue = issueDetail;
-    if (!currentIssue) return;
+  const closeCurrentIssue = useCallback(async () => {
+    const currentDetail = detail;
+    if (!currentDetail) return;
     const result = await closeIssue({
-      remoteUrl: currentIssue.source.remoteUrl,
-      issueNumber: currentIssue.issue.number,
+      remoteUrl: currentDetail.source.remoteUrl,
+      issueNumber: currentDetail.issue.number,
     });
-    setIssueDetail((current) => {
-      if (!current || current.issue.html_url !== currentIssue.issue.html_url) {
+    setDetail((current) => {
+      if (current?.issue.html_url !== currentDetail.issue.html_url)
         return current;
-      }
-      if (result.data) {
-        return { ...current, issue: result.data, error: null };
-      }
-      return { ...current, error: result.error };
+      return result.data
+        ? { ...current, issue: result.data, error: null }
+        : { ...current, error: result.error };
     });
-  }, [issueDetail]);
+  }, [detail]);
 
-  const handleReopenIssueDetail = useCallback(async () => {
-    const currentIssue = issueDetail;
-    if (!currentIssue) return;
+  const reopenCurrentIssue = useCallback(async () => {
+    const currentDetail = detail;
+    if (!currentDetail) return;
     const result = await reopenIssue({
-      remoteUrl: currentIssue.source.remoteUrl,
-      issueNumber: currentIssue.issue.number,
+      remoteUrl: currentDetail.source.remoteUrl,
+      issueNumber: currentDetail.issue.number,
     });
-    setIssueDetail((current) => {
-      if (!current || current.issue.html_url !== currentIssue.issue.html_url) {
+    setDetail((current) => {
+      if (current?.issue.html_url !== currentDetail.issue.html_url)
         return current;
-      }
-      if (result.data) {
-        return { ...current, issue: result.data, error: null };
-      }
-      return { ...current, error: result.error };
+      return result.data
+        ? { ...current, issue: result.data, error: null }
+        : { ...current, error: result.error };
     });
-  }, [issueDetail]);
+  }, [detail]);
 
-  const handleAddIssueDetailComment = useCallback(
+  const addComment = useCallback(
     async (body: string) => {
-      const currentIssue = issueDetail;
-      if (!currentIssue) return;
-      setIssueDetail((current) =>
-        current?.issue.html_url === currentIssue.issue.html_url
+      const currentDetail = detail;
+      if (!currentDetail) return;
+      setDetail((current) =>
+        current?.issue.html_url === currentDetail.issue.html_url
           ? { ...current, submittingComment: true }
           : current
       );
       const result = await addIssueComment({
-        remoteUrl: currentIssue.source.remoteUrl,
-        issueNumber: currentIssue.issue.number,
+        remoteUrl: currentDetail.source.remoteUrl,
+        issueNumber: currentDetail.issue.number,
         body,
       });
       if (result.data) {
         const comment = result.data;
-        setIssueDetail((current) =>
-          current?.issue.html_url === currentIssue.issue.html_url
+        setDetail((current) =>
+          current?.issue.html_url === currentDetail.issue.html_url
             ? {
                 ...current,
                 issue: {
                   ...current.issue,
                   comments: current.issue.comments + 1,
                 },
-                comments: [...current.comments, comment],
+                timeline: [
+                  ...current.timeline,
+                  issueCommentToTimelineItem(comment),
+                ],
                 submittingComment: false,
                 error: null,
               }
@@ -190,24 +139,23 @@ export function useGitHubIssueDetail(
         );
         return;
       }
-      setIssueDetail((current) =>
-        current?.issue.html_url === currentIssue.issue.html_url
+      setDetail((current) =>
+        current?.issue.html_url === currentDetail.issue.html_url
           ? { ...current, submittingComment: false, error: result.error }
           : current
       );
       throw new Error(result.error);
     },
-    [issueDetail]
+    [detail]
   );
 
   return {
-    issueDetail,
-    clearIssueDetail: handleBackFromDetail,
-    handleAddIssueDetailComment,
-    handleBackFromDetail,
-    handleCloseIssueDetail,
-    handleOpenIssue,
-    handleOpenIssueInMyStation,
-    handleReopenIssueDetail,
+    detail,
+    detailOpen,
+    closeDetail,
+    openDetail,
+    closeCurrentIssue,
+    reopenCurrentIssue,
+    addComment,
   };
 }

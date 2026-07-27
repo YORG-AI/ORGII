@@ -46,6 +46,10 @@ export function renderTabContent(
   boldWhenActive = true
 ): ReactNode {
   const displayIcon = isHovered && tab.hoverIcon ? tab.hoverIcon : tab.icon;
+  const displayBadge = isHovered && tab.hoverBadge ? tab.hoverBadge : tab.badge;
+  const reservedBadge = displayBadge ?? tab.hoverBadge;
+  const alignBadgeToLabelBaseline =
+    !tab.icon && !tab.hoverIcon && Boolean(tab.badge || tab.hoverBadge);
   if (isIconOnly || (tab.icon && !tab.label)) {
     return displayIcon || <span className="truncate">{tab.label}</span>;
   }
@@ -54,15 +58,25 @@ export function renderTabContent(
   ) : (
     <span className="truncate">{tab.label}</span>
   );
-  if (tab.icon || tab.badge || tab.hoverIcon) {
+  if (tab.icon || tab.badge || tab.hoverIcon || tab.hoverBadge) {
     return (
-      <div className="flex items-center gap-1.5">
+      <div
+        className={`flex gap-1.5 ${
+          alignBadgeToLabelBaseline ? "items-baseline" : "items-center"
+        }`}
+      >
         {displayIcon && (
           <div className="flex flex-shrink-0 items-center">{displayIcon}</div>
         )}
         {label}
-        {tab.badge && (
-          <div className="flex flex-shrink-0 items-center">{tab.badge}</div>
+        {reservedBadge && (
+          <div
+            className={`flex flex-shrink-0 items-center ${
+              displayBadge ? "" : "invisible"
+            }`}
+          >
+            {reservedBadge}
+          </div>
         )}
       </div>
     );

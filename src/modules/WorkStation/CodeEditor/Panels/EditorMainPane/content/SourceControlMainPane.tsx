@@ -121,8 +121,8 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
       <Suspense fallback={<LazyFallback />}>
         <IssueDetailPanel
           issue={selectedIssueState.issue}
-          comments={selectedIssueState.comments}
-          commentsLoading={selectedIssueState.commentsLoading}
+          timeline={selectedIssueState.timeline}
+          timelineLoading={selectedIssueState.timelineLoading}
           submittingComment={selectedIssueState.submittingComment}
           showHeader={false}
           onClose={() => undefined}

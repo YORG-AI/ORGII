@@ -46,10 +46,18 @@ export function isOrg2CloudAuthCallback(
     const expected = new URL(expectedCallbackUrl);
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+    const expectedHost = expected.hostname.toLowerCase();
+    const expectedPath = expected.pathname
+      .replace(/^\/+|\/+$/g, "")
+      .toLowerCase();
     return (
       parsed.protocol.toLowerCase() === expected.protocol.toLowerCase() &&
-      host === ORG2_CLOUD_AUTH_DEEP_LINK_HOST &&
-      path === ORG2_CLOUD_AUTH_DEEP_LINK_PATH
+      host === expectedHost &&
+      parsed.port === expected.port &&
+      path === expectedPath &&
+      parsed.search === expected.search &&
+      parsed.username === "" &&
+      parsed.password === ""
     );
   } catch {
     return false;

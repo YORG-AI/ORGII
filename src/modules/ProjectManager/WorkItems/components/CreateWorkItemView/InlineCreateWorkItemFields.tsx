@@ -1,4 +1,5 @@
-import { BookOpen, Building2, ChevronRight } from "lucide-react";
+import { useAtomValue } from "jotai";
+import { BookOpen } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -10,8 +11,12 @@ import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import type { PropertyDropdownOption } from "@src/components/PropertyField/PropertyDropdownField";
+import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { resolveProjectOrgScopeId } from "@src/features/Organizations/orgSelectorEntries";
+import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import { createLogger } from "@src/hooks/logger";
 import {
   mapWorkItemUpdatesToDraftPatch,
@@ -30,7 +35,6 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -40,6 +44,10 @@ import type {
   WorkItemProject,
 } from "@src/types/core/workItem";
 
+import {
+  DEFAULT_PERSONAL_PROJECT_ORG_ID,
+  filterSelectableProjectOrgs,
+} from "../../../projectOrgVisibility";
 import WorkItemContentStack from "../WorkItemContentStack";
 import WorkItemProperties from "../WorkItemProperties";
 import type { WorkItemPropertyFieldKey } from "../WorkItemProperties/types";
@@ -89,6 +97,8 @@ export interface InlineCreateWorkItemFieldsState {
   stubWorkItem: WorkItemExtended;
   titleSection: React.ReactNode;
   updateDraft: (patch: Partial<WorkItemDraft>) => void;
+  /** Project picker, scoped to the org the creator is operating under. */
+  workItemProjectPill: React.ReactNode;
   workItemPillBreadcrumb: React.ReactNode;
 }
 
@@ -108,7 +118,6 @@ export interface UseInlineCreateWorkItemFieldsOptions {
   projectName?: string;
   projectSlug?: string;
   repoPath?: string | null;
-  scopeBreadcrumbLabel?: string;
 }
 
 export function useInlineCreateWorkItemFields({
@@ -127,13 +136,13 @@ export function useInlineCreateWorkItemFields({
   projectName,
   projectSlug,
   repoPath,
-  scopeBreadcrumbLabel,
 }: UseInlineCreateWorkItemFieldsOptions): InlineCreateWorkItemFieldsState {
   const { t } = useTranslation("projects");
   const { t: tSessions } = useTranslation("sessions");
   const [editorResetKey, setEditorResetKey] = useState(0);
   const { agents: customAgents } = useAgentDefinitions();
   const { orgs: availableOrgs } = useAgentOrgs();
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const [loadedMembers, setLoadedMembers] = useState<Person[]>([]);
   const [loadedProjects, setLoadedProjects] = useState<
     CreateWorkItemProjectOption[]
@@ -258,10 +267,41 @@ export function useInlineCreateWorkItemFields({
     };
   }, [selectedProjectSlug, availableMembers.length]);
 
+  const selectableProjectOrgs = useMemo(
+    () => filterSelectableProjectOrgs(projectOrgs, cloudOrgs),
+    [cloudOrgs, projectOrgs]
+  );
+  const selectableProjectOrgIds = useMemo(
+    () => new Set(selectableProjectOrgs.map((org) => org.id)),
+    [selectableProjectOrgs]
+  );
+
+  // The organization is not picked here — a work item belongs to whichever
+  // org the app is currently scoped to. A creator opened inside a specific
+  // org surface keeps that surface's org; everything else follows the
+  // globally selected org from the sidebar.
+  const globalOrgSelectorValue = useAtomValue(sidebarSelectedOrgIdAtom);
+  const globalProjectOrgId = useMemo(
+    () => resolveProjectOrgScopeId(globalOrgSelectorValue, projectOrgs),
+    [globalOrgSelectorValue, projectOrgs]
+  );
+  const requestedOrgId = surfaceOrgId ?? globalProjectOrgId;
+  const effectiveOrgId = selectableProjectOrgIds.has(requestedOrgId)
+    ? requestedOrgId
+    : DEFAULT_PERSONAL_PROJECT_ORG_ID;
+
   const resolvedMembers =
     availableMembers.length > 0 ? availableMembers : loadedMembers;
-  const resolvedProjects: CreateWorkItemProjectOption[] =
-    availableProjects.length > 0 ? availableProjects : loadedProjects;
+  // Only projects under the effective org are offered — picking a project
+  // must never silently move the item to another organization.
+  const resolvedProjects = useMemo<CreateWorkItemProjectOption[]>(() => {
+    const projects: CreateWorkItemProjectOption[] =
+      availableProjects.length > 0 ? availableProjects : loadedProjects;
+    return projects.filter(
+      (project) =>
+        (project.orgId ?? DEFAULT_PERSONAL_PROJECT_ORG_ID) === effectiveOrgId
+    );
+  }, [availableProjects, loadedProjects, effectiveOrgId]);
   const resolvedLabels =
     availableLabels.length > 0 ? availableLabels : loadedLabels;
 
@@ -294,13 +334,6 @@ export function useInlineCreateWorkItemFields({
     (project) => project.id === draft.projectId
   );
   const selectedProjectName = selectedProject?.name ?? projectName ?? "";
-  const selectedProjectOrgId = selectedProject?.orgId;
-  const effectiveOrgId =
-    selectedProjectOrgId ?? draft.orgId ?? surfaceOrgId ?? "personal-org";
-  const selectedProjectOrgLabel =
-    projectOrgs.find((org) => org.id === effectiveOrgId)?.name ??
-    scopeBreadcrumbLabel ??
-    t("orgs.personalOrg");
   const projectBreadcrumbLabel =
     selectedProjectName || t("projects.dashboardTitle");
 
@@ -315,70 +348,20 @@ export function useInlineCreateWorkItemFields({
     [resolvedProjects]
   );
 
-  const orgOptions = useMemo<PropertyDropdownOption<string>[]>(
-    () =>
-      projectOrgs.map((org) => ({
-        value: org.id,
-        label: org.name,
-        icon: <Building2 size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE} />,
-      })),
-    [projectOrgs]
-  );
-
   const handleProjectBreadcrumbChange = useCallback(
     (value: string) => updateDraftWithUndo({ projectId: value }),
     [updateDraftWithUndo]
   );
 
-  const handleOrgBreadcrumbChange = useCallback(
-    (nextOrgId: string) => {
-      const patch: Partial<WorkItemDraft> = { orgId: nextOrgId };
-      const currentProject = resolvedProjects.find(
-        (project) => project.id === draft.projectId
-      );
-      if (currentProject && currentProject.orgId !== nextOrgId) {
-        const nextProject = resolvedProjects.find(
-          (project) => project.orgId === nextOrgId
-        );
-        patch.projectId = nextProject?.id;
-      }
-      updateDraftWithUndo(patch);
-    },
-    [draft.projectId, resolvedProjects, updateDraftWithUndo]
-  );
-
-  const orgBreadcrumbSegment =
-    orgOptions.length > 0 ? (
-      <PropertyDropdownField
-        value={effectiveOrgId}
-        label={selectedProjectOrgLabel}
-        icon={null}
-        options={orgOptions}
-        onChange={handleOrgBreadcrumbChange}
-        placement="portal"
-        fieldVariant="pill"
-        triggerVariant="pill"
-        searchable
-        searchPlaceholder={t("workItems.properties.searchProjects")}
-        selected={Boolean(selectedProjectOrgId ?? draft.orgId)}
-        maxWidthClassName="max-w-[220px] shrink-0"
-        dataTestId="create-work-item-org-select"
-      />
-    ) : (
-      <PropertyDropdownField
-        value="org"
-        label={selectedProjectOrgLabel}
-        icon={null}
-        placement="portal"
-        fieldVariant="pill"
-        triggerVariant="pill"
-        readonly
-        searchable={false}
-        selected
-        maxWidthClassName="max-w-[220px] shrink-0"
-        dataTestId="create-work-item-org-select"
-      />
-    );
+  // Standalone creations carry the org explicitly, so keep the draft in step
+  // with the scope even though nothing in this view can change it. Held back
+  // until the org list has loaded so the first render does not stamp the
+  // personal-org fallback over a real scope.
+  useEffect(() => {
+    if (selectableProjectOrgs.length === 0) return;
+    if (draft.orgId === effectiveOrgId) return;
+    updateDraft({ orgId: effectiveOrgId });
+  }, [draft.orgId, effectiveOrgId, selectableProjectOrgs.length, updateDraft]);
 
   const projectBreadcrumbSegment =
     projectOptions.length > 0 ? (
@@ -422,13 +405,6 @@ export function useInlineCreateWorkItemFields({
       className="flex min-w-0 flex-nowrap items-center gap-1.5"
       data-testid="create-work-item-pill-breadcrumb"
     >
-      {orgBreadcrumbSegment}
-      <ChevronRight
-        size={14}
-        strokeWidth={1.75}
-        className="shrink-0 text-fill-4"
-        aria-hidden
-      />
       {projectBreadcrumbSegment}
     </div>
   );
@@ -475,8 +451,8 @@ export function useInlineCreateWorkItemFields({
       autoFocus
       fieldVariant="ghost"
       size="small"
-      className="flex-1"
-      inputClassName={PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}
+      className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
+      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
       data-testid="create-work-item-title-input"
     />
   );
@@ -528,6 +504,7 @@ export function useInlineCreateWorkItemFields({
     stubWorkItem,
     titleSection,
     updateDraft,
+    workItemProjectPill: projectBreadcrumbSegment,
     workItemPillBreadcrumb,
   };
 }

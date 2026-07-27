@@ -20,9 +20,12 @@ use serde_json::{json, Value};
 
 use crate::sources::imported_history::{
     self, cache as imported_cache,
-    metadata::{ImportedHistoryCacheInput, ImportedHistoryImpactStats, SOURCE_WARP},
-    paths as imported_paths, ImportedHistoryRecentPath, ImportedHistorySessionPage,
-    ImportedHistorySessionRow, ImportedToolCall,
+    metadata::{
+        ImportedHistoryCacheInput, ImportedHistoryImpactStats, ImportedHistoryRecordSignature,
+        SOURCE_WARP,
+    },
+    ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedHistorySessionRow,
+    ImportedToolCall,
 };
 
 pub const WARP_SESSION_PREFIX: &str = "warpapp-";
@@ -86,6 +89,22 @@ struct WarpConversationRecord {
     summary_json: Option<String>,
     task_count: i64,
     task_bytes: i64,
+    task_last_modified_at: String,
+}
+
+impl WarpConversationRecord {
+    fn signature(&self, db_path: &Path) -> ImportedHistoryRecordSignature {
+        let conversation_modified = parse_warp_timestamp_ms(&self.last_modified_at).unwrap_or(0);
+        let task_modified = parse_warp_timestamp_ms(&self.task_last_modified_at).unwrap_or(0);
+        ImportedHistoryRecordSignature {
+            source_session_id: self.conversation_id.clone(),
+            source_path: db_path.to_string_lossy().to_string(),
+            source_mtime_ms: conversation_modified.max(task_modified),
+            source_size_bytes: self.task_bytes,
+            source_fingerprint: warp_source_fingerprint(self),
+            parser_version: WARP_METADATA_PARSER_VERSION,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -146,17 +165,18 @@ fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
         return Ok(());
     };
 
-    let (source_mtime_ms, source_size_bytes) =
-        imported_paths::file_metadata_signature(&db_path, "Warp")?;
-    let sidecar_signature = imported_paths::sqlite_sidecar_signature(&db_path);
     let records = list_conversation_records(&source_conn)?;
-    let live_ids = records
+    let signatures = records
         .iter()
-        .map(|record| record.conversation_id.clone())
+        .map(|record| record.signature(&db_path))
         .collect::<Vec<_>>();
-    let mut inputs = Vec::with_capacity(records.len());
+    let changed =
+        imported_cache::changed_records_from_conn(cache_conn, SOURCE_WARP, &records, |record| {
+            record.signature(&db_path)
+        })?;
+    let mut inputs = Vec::with_capacity(changed.len());
 
-    for record in records {
+    for record in changed {
         let fallback_ms = parse_warp_timestamp_ms(&record.last_modified_at).unwrap_or(0);
         let task_blobs = load_task_blobs(&source_conn, &record.conversation_id)?;
         let analysis = analyze_task_blobs(
@@ -165,16 +185,18 @@ fn sync_warp_history_cache(cache_conn: &mut Connection) -> Result<(), String> {
             fallback_ms,
         );
         inputs.push(conversation_to_cache_input(
-            record,
+            record.clone(),
             analysis,
             &db_path,
-            source_mtime_ms,
-            source_size_bytes,
-            &sidecar_signature,
         ));
     }
 
-    imported_cache::sync_source_cache_from_conn(cache_conn, SOURCE_WARP, live_ids, inputs)
+    imported_cache::sync_source_cache_from_conn(
+        cache_conn,
+        SOURCE_WARP,
+        imported_cache::live_ids_from_signatures(&signatures),
+        inputs,
+    )
 }
 
 fn list_conversation_records(conn: &Connection) -> Result<Vec<WarpConversationRecord>, String> {
@@ -190,7 +212,8 @@ fn list_conversation_records(conn: &Connection) -> Result<Vec<WarpConversationRe
         "SELECT c.conversation_id, c.conversation_data, \
                 CAST(c.last_modified_at AS TEXT), {summary_expr}, \
                 (SELECT COUNT(*) FROM agent_tasks t WHERE t.conversation_id = c.conversation_id), \
-                (SELECT COALESCE(SUM(LENGTH(t.task)), 0) FROM agent_tasks t WHERE t.conversation_id = c.conversation_id) \
+                (SELECT COALESCE(SUM(LENGTH(t.task)), 0) FROM agent_tasks t WHERE t.conversation_id = c.conversation_id), \
+                (SELECT COALESCE(MAX(CAST(t.last_modified_at AS TEXT)), '') FROM agent_tasks t WHERE t.conversation_id = c.conversation_id) \
          FROM agent_conversations c ORDER BY c.last_modified_at ASC, c.id ASC"
     );
     let mut stmt = conn
@@ -205,6 +228,7 @@ fn list_conversation_records(conn: &Connection) -> Result<Vec<WarpConversationRe
                 summary_json: row.get(3)?,
                 task_count: row.get::<_, Option<i64>>(4)?.unwrap_or_default(),
                 task_bytes: row.get::<_, Option<i64>>(5)?.unwrap_or_default(),
+                task_last_modified_at: row.get::<_, Option<String>>(6)?.unwrap_or_default(),
             })
         })
         .map_err(|err| format!("Failed to query Warp conversations: {err}"))?;
@@ -223,10 +247,8 @@ fn conversation_to_cache_input(
     record: WarpConversationRecord,
     analysis: WarpTaskAnalysis,
     db_path: &Path,
-    source_mtime_ms: i64,
-    source_size_bytes: i64,
-    sidecar_signature: &str,
 ) -> ImportedHistoryCacheInput {
+    let signature = record.signature(db_path);
     let summary = record
         .summary_json
         .as_deref()
@@ -263,7 +285,6 @@ fn conversation_to_cache_input(
     let updated_at_ms = analysis.updated_at_ms.unwrap_or(fallback_updated_at);
     let parent_session_id = non_empty(data.parent_conversation_id.as_deref())
         .map(|parent| format!("{WARP_SESSION_PREFIX}{parent}"));
-    let source_fingerprint = warp_source_fingerprint(&record, sidecar_signature);
     let listable =
         !data.is_remote_child && !summary.is_unlisted_auto_code_diff && !analysis.chunks.is_empty();
     let source_metadata_json = serde_json::to_string(&json!({
@@ -276,12 +297,12 @@ fn conversation_to_cache_input(
         source: SOURCE_WARP,
         source_session_id: record.conversation_id.clone(),
         session_id: format!("{WARP_SESSION_PREFIX}{}", record.conversation_id),
-        source_path: db_path.to_string_lossy().to_string(),
+        source_path: signature.source_path,
         source_record_key: record.conversation_id,
-        source_mtime_ms,
-        source_size_bytes,
-        source_fingerprint,
-        parser_version: WARP_METADATA_PARSER_VERSION,
+        source_mtime_ms: signature.source_mtime_ms,
+        source_size_bytes: signature.source_size_bytes,
+        source_fingerprint: signature.source_fingerprint,
+        parser_version: signature.parser_version,
         name: imported_history::truncate_name(&title, 200),
         created_at_ms,
         updated_at_ms,
@@ -299,7 +320,7 @@ fn conversation_to_cache_input(
     }
 }
 
-fn warp_source_fingerprint(record: &WarpConversationRecord, sidecar_signature: &str) -> String {
+fn warp_source_fingerprint(record: &WarpConversationRecord) -> String {
     [
         record.conversation_id.as_str(),
         record.conversation_data_json.as_str(),
@@ -307,7 +328,7 @@ fn warp_source_fingerprint(record: &WarpConversationRecord, sidecar_signature: &
         record.last_modified_at.as_str(),
         &record.task_count.to_string(),
         &record.task_bytes.to_string(),
-        sidecar_signature,
+        record.task_last_modified_at.as_str(),
     ]
     .join("|")
 }
@@ -325,12 +346,14 @@ fn analyze_task_blobs(
         }
     }
 
-    let mut analysis = WarpTaskAnalysis::default();
-    analysis.root_description = task_values
-        .iter()
-        .find(|task| is_root_task(task))
-        .and_then(|task| field_str(task, &["description"]))
-        .and_then(|value| non_empty(Some(value)));
+    let mut analysis = WarpTaskAnalysis {
+        root_description: task_values
+            .iter()
+            .find(|task| is_root_task(task))
+            .and_then(|task| field_str(task, &["description"]))
+            .and_then(|value| non_empty(Some(value))),
+        ..WarpTaskAnalysis::default()
+    };
 
     let mut messages = Vec::new();
     for (task_index, task) in task_values.iter().enumerate() {

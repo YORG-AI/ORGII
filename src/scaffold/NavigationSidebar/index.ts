@@ -97,8 +97,6 @@ export type {
 export {
   // Base composed sidebars
   NavigationSidebar,
-  // Page-specific sidebars
-  HomeSidebar,
 } from "./variants";
 
 // Variant types

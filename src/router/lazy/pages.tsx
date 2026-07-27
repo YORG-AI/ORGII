@@ -4,26 +4,11 @@ import React from "react";
 // Lazy page components
 // ============================================
 
-export const SuggestionsPage = React.lazy(
-  () =>
-    import(/* webpackChunkName: "workspace" */ "@src/modules/MainApp/StartPage")
-);
-
 export const SelectRepoPage = React.lazy(
   () =>
     import(
       /* webpackChunkName: "workspace" */ "@src/modules/MainApp/SelectRepo"
     )
-);
-
-export const ChangelogPage = React.lazy(
-  () =>
-    import(/* webpackChunkName: "changelog" */ "@src/modules/MainApp/Changelog")
-);
-
-export const Settings = React.lazy(
-  () =>
-    import(/* webpackChunkName: "settings" */ "@/src/modules/MainApp/Settings")
 );
 
 export const AgentOrgsPage = React.lazy(
@@ -63,15 +48,6 @@ export const AuthCallback = React.lazy(
     import(
       /* webpackChunkName: "auth-callback" */ "@src/modules/AppLogin/AuthCallback"
     )
-);
-
-export const TabWindow = React.lazy(
-  () => import(/* webpackChunkName: "windows" */ "@src/windows/TabWindow")
-);
-
-export const ModeSelectionWindow = React.lazy(
-  () =>
-    import(/* webpackChunkName: "windows" */ "@src/windows/ModeSelectionWindow")
 );
 
 export const LoginPage = React.lazy(

@@ -26,6 +26,7 @@ import {
   getInstrumentedStore,
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import type {
   EventHandlerCallbacks,
@@ -33,11 +34,16 @@ import type {
   SessionEventHandler,
 } from "../../types";
 import { makeToolCallEvent } from "../shared/eventBuilders";
-import { mergeStreamingText } from "../shared/streamTextAccumulator";
+import {
+  appendBoundedToolCallArgs,
+  makeRoomForToolCallDelta,
+  mergeStreamingText,
+} from "../shared/streamTextAccumulator";
 import {
   buildToolArgsFromParsed,
   parsePartialToolArgs,
 } from "../shared/streamingParsers";
+import { capStreamContent } from "../shared/subagentTracking";
 import type { AgentWSEvent, PermissionRequestEvent } from "../shared/types";
 import {
   isCliTerminalStatus,
@@ -50,6 +56,7 @@ import {
 import { buildCliStreamingEvent } from "./streamingEvent";
 
 const log = createLogger("CliAdapter");
+const MAX_FINALIZED_STREAM_IDS = 256;
 
 export function createCliEventHandler(
   sessionId: string,
@@ -102,6 +109,16 @@ export function createCliEventHandler(
     if (!finalAssistantSettleTimer) return;
     clearTimeout(finalAssistantSettleTimer);
     finalAssistantSettleTimer = undefined;
+  }
+
+  function rememberFinalizedStreamEvent(eventId: string): void {
+    if (finalizedStreamEventIds.has(eventId)) return;
+    while (finalizedStreamEventIds.size >= MAX_FINALIZED_STREAM_IDS) {
+      const oldestId = finalizedStreamEventIds.values().next().value;
+      if (oldestId === undefined) break;
+      finalizedStreamEventIds.delete(oldestId);
+    }
+    finalizedStreamEventIds.add(eventId);
   }
 
   function reconcileTerminalEventsIfNeeded(): void {
@@ -247,6 +264,7 @@ export function createCliEventHandler(
     setStreamingMode(true);
     const indexValue = chunk.result?.index;
     const index = typeof indexValue === "number" ? indexValue : 0;
+    makeRoomForToolCallDelta(toolCallDeltaBuffers, index);
     const existing = toolCallDeltaBuffers.get(index) ?? { argsJson: "" };
     const toolCallId =
       asString(chunk.result?.tool_call_id) ??
@@ -263,7 +281,7 @@ export function createCliEventHandler(
     const nextBuffer = {
       toolCallId,
       toolName,
-      argsJson: existing.argsJson + argumentsDelta,
+      argsJson: appendBoundedToolCallArgs(existing.argsJson, argumentsDelta),
     };
     toolCallDeltaBuffers.set(index, nextBuffer);
 
@@ -326,7 +344,7 @@ export function createCliEventHandler(
         msgStreamId = createStreamMessageId(sessionId);
         msgStartedAt = chunk.created_at || new Date().toISOString();
       }
-      msgContent = mergeStreamingText(msgContent, deltaText);
+      msgContent = capStreamContent(mergeStreamingText(msgContent, deltaText));
       eventStoreProxy.upsert(
         buildCliStreamingEvent(
           msgStreamId,
@@ -351,7 +369,9 @@ export function createCliEventHandler(
         thinkStreamId = createStreamThinkingId(sessionId);
         thinkStartedAt = chunk.created_at || new Date().toISOString();
       }
-      thinkContent = mergeStreamingText(thinkContent, deltaText);
+      thinkContent = capStreamContent(
+        mergeStreamingText(thinkContent, deltaText)
+      );
       eventStoreProxy.upsert(
         buildCliStreamingEvent(
           thinkStreamId,
@@ -380,7 +400,7 @@ export function createCliEventHandler(
           if (tempId && tempId !== event.id) {
             if (isMessageType) clearMessageStream();
             else clearThinkingStream();
-            finalizedStreamEventIds.add(event.id);
+            rememberFinalizedStreamEvent(event.id);
             eventStoreProxy
               .replaceAndRemove(tempId, event, sessionId)
               .then(reconcileAfterFinalEvent);
@@ -428,7 +448,7 @@ export function createCliEventHandler(
       return;
     }
     if (finalizedStreamEventIds.has(completeEvent.id)) return;
-    finalizedStreamEventIds.add(completeEvent.id);
+    rememberFinalizedStreamEvent(completeEvent.id);
 
     if (streamType === "message") {
       const tsTempId = msgStreamId;
@@ -488,7 +508,7 @@ export function createCliEventHandler(
       callbacks.onAgentComplete?.();
     }
 
-    if (status === "running") {
+    if (isSessionRuntimeExecuting(status)) {
       observedTerminalStatus = undefined;
       protectedRunningTurnBySession.delete(sessionId);
       cancelled = false;

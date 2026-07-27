@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token decision",
     "tooltip": "Attribution estimée de l’outil. Méthode : {{method}}. Entrée : {{inputBytes}} bytes. Sortie : {{outputBytes}} bytes. Décision : {{decisionTokens}} Token. Contexte : {{contextTokens}} Token. Follow-up : {{followupTokens}} Token. Cache LLM lié lu : {{cacheReadTokens}} Token. Cache LLM lié écrit : {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Titre (facultatif)"
+  },
   "history": {
     "untitledSession": "Session sans titre",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Créé",
       "updated": "Mis à jour",
       "lastUpdated": "Dernière mise à jour",
+      "external": "Externe",
+      "internal": "Interne",
       "rounds": "Rounds",
       "roundCount_one": "{{count}} round",
       "roundCount_other": "{{count}} rounds",
@@ -123,10 +128,11 @@
       "freq": {
         "default": "Par défaut",
         "manual": "Manuel",
-        "60s": "Toutes les 60s",
-        "5m": "Toutes les 5 min",
-        "1h": "Toutes les heures",
-        "1d": "Quotidien"
+        "60s": "Toutes les 60 s",
+        "120s": "Toutes les 120 s",
+        "10m": "Toutes les 10 min",
+        "30m": "Toutes les 30 min",
+        "1h": "Toutes les heures"
       },
       "openFolder": "Ouvrir le dossier",
       "tabs": {
@@ -1315,6 +1321,8 @@
     "terminalSummary": {
       "command_one": "{{count}} commande",
       "command_other": "{{count}} commandes",
+      "mcp_one": "{{count}} appel MCP",
+      "mcp_other": "{{count}} appels MCP",
       "wait_one": "{{count}} attente",
       "wait_other": "{{count}} attentes",
       "check_one": "{{count}} vérification",
@@ -2092,7 +2100,10 @@
     "categoryLabel": "Catégorie de session",
     "categoryTemplate": "Sélectionner {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Agents intégrés",
+    "builtIns": "Intégrés",
+    "humanSession": {
+      "name": "Journal de travail"
+    },
     "cliAgents": "Agents CLI",
     "customAgents": "Agents personnalisés",
     "agentOrgs": "Équipes Agent",

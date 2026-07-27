@@ -311,9 +311,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
         ref={chatContainerRef as React.RefObject<HTMLDivElement>}
         style={chatHistoryContainerStyle}
       >
-        <div
-          className={`flex items-center justify-between ${DETAIL_PANEL_TOKENS.contentWidth}`}
-        >
+        <div className={DETAIL_PANEL_TOKENS.contentWidth}>
           <SessionHeader sessionInfo={sessionInfo} />
         </div>
 

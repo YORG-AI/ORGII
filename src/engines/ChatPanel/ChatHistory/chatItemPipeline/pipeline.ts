@@ -6,7 +6,7 @@
  * - Deduplicates running/completed tool_call pairs
  * - Groups consecutive read file events
  * - Groups consecutive exploration tool calls
- * - Groups consecutive terminal commands and follow-up waits
+ * - Groups consecutive shell commands, MCP calls, and terminal follow-ups
  * - Groups file edits/deletions with reads performed between them
  * - Stacks consecutive browser actions
  * - Consolidates partial observations
@@ -25,10 +25,11 @@ import {
   type ActionSummaryCategory,
   getActionSummaryCategory,
   isBrowserEvent,
+  isCommandGroupActivityEvent,
   isFileModificationEvent,
   isManageTodoEvent,
+  isMcpToolEvent,
   isReadFileEvent,
-  isTerminalActivityEvent,
   isTerminalCommandEvent,
 } from "./classifiers";
 import { buildDedupMaps } from "./dedup";
@@ -306,11 +307,13 @@ export function processChatItems(
     if (terminalBuffer.length === 0) return;
 
     const minToGroup = opts.minTerminalActivitiesToGroup ?? 1;
-    const hasCommand = terminalBuffer.some(isTerminalCommandEvent);
+    const hasGroupAnchor = terminalBuffer.some(
+      (event) => isTerminalCommandEvent(event) || isMcpToolEvent(event)
+    );
     if (
       opts.groupTerminalActivities &&
       terminalBuffer.length >= minToGroup &&
-      hasCommand
+      hasGroupAnchor
     ) {
       const firstTerminal = terminalBuffer[0];
       result.push({
@@ -431,6 +434,15 @@ export function processChatItems(
       continue;
     }
 
+    // Initial hydration may inject one synthetic placeholder event. Keep it
+    // standalone so ActivityRouter can render the shared loading block instead
+    // of letting tool classification fold it into an activity group.
+    if (event.id === "loading") {
+      flushAllBuffers();
+      result.push(eventToItem(event));
+      continue;
+    }
+
     // Merge args from running event into result events with empty args
     if (
       event.actionType === "tool_call" &&
@@ -540,12 +552,12 @@ export function processChatItems(
       flushReadFileBuffer();
     }
 
-    // Buffer: consecutive terminal commands plus their wait/monitor/inspect
-    // follow-ups. Explicit infrastructure failures remain standalone error
-    // cards, matching the exploration-group failure policy.
+    // Buffer: consecutive shell commands, MCP calls, and terminal
+    // wait/monitor/inspect follow-ups. Explicit infrastructure failures remain
+    // standalone error cards, matching the exploration-group failure policy.
     if (
       opts.groupTerminalActivities &&
-      isTerminalActivityEvent(event) &&
+      isCommandGroupActivityEvent(event) &&
       !isFailedToolCall(event)
     ) {
       flushBrowserBuffer();

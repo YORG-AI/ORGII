@@ -5,6 +5,7 @@ import type { NavigationMenuItem } from "../config";
 
 interface NavigationMenuRowActionButtonProps {
   icon?: NavigationMenuItem["rowActionIcon"];
+  iconClassName?: string;
   label: string;
   active?: boolean;
   dataTestId?: string;
@@ -13,6 +14,7 @@ interface NavigationMenuRowActionButtonProps {
 
 export function NavigationMenuRowActionButton({
   icon,
+  iconClassName,
   label,
   active,
   dataTestId,
@@ -27,9 +29,7 @@ export function NavigationMenuRowActionButton({
       aria-pressed={active}
       title={label}
       data-testid={dataTestId}
-      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition-colors duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:outline-none ${
-        active ? "text-text-1" : "text-text-3"
-      }`}
+      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded transition-colors duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:outline-none ${active ? "bg-sidebar-selected text-text-1" : "text-text-2"}`}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -39,6 +39,7 @@ export function NavigationMenuRowActionButton({
       {React.createElement(RowActionIcon, {
         size: 14,
         strokeWidth: icon ? 2 : 1.75,
+        className: iconClassName,
       })}
     </button>
   );

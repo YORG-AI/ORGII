@@ -181,25 +181,16 @@ pub async fn agent_send_message(
     #[allow(non_snake_case)] isResume: Option<bool>,
     #[allow(non_snake_case)] clientMessageId: Option<String>,
     #[allow(non_snake_case)] turnIntentId: Option<String>,
-    #[allow(non_snake_case)] turnIntentSource: Option<String>,
+    #[allow(non_snake_case)] turnIntentSource: String,
 ) -> Result<AgentResponse, String> {
-    // Lifecycle source: FE may declare whether this dispatch is a queued
-    // flush, force-send, or plain submit so the lifecycle log records the
-    // origin. Unknown / absent values fall back to UserSubmit.
-    let source = turnIntentSource
-        .as_deref()
-        .and_then(|s| match s {
-            "user_submit" => {
-                Some(crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit)
-            }
-            "queue" => Some(crate::foundation::session_bridge::TurnIntentBridgeSource::Queue),
-            "force_send" => {
-                Some(crate::foundation::session_bridge::TurnIntentBridgeSource::ForceSend)
-            }
-            "resume" => Some(crate::foundation::session_bridge::TurnIntentBridgeSource::Resume),
-            _ => None,
-        })
-        .unwrap_or(crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit);
+    let source = crate::foundation::session_bridge::TurnIntentBridgeSource::parse(
+        &turnIntentSource,
+    )
+    .ok_or_else(|| {
+        format!(
+            "Unknown turnIntentSource {turnIntentSource:?}; expected one of user_submit, queue, force_send, resume, agent_org, wingman, mobile_remote"
+        )
+    })?;
     message::send_message_impl(
         &state,
         session_id,

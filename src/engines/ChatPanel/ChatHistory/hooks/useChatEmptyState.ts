@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 
+import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
@@ -14,6 +15,7 @@ import {
 } from "@src/store/session/cliSessionStatusAtom";
 
 export interface UseChatEmptyStateOptions {
+  activeSessionId: string | null;
   sessionLoadStatus: string;
   optimizedLen: number;
   /** Grace period in ms before confirming the "load failed" empty state. */
@@ -36,6 +38,7 @@ export interface UseChatEmptyStateReturn {
  * failed" placeholder by `gracePeriodMs` so real data has time to arrive.
  */
 export function useChatEmptyState({
+  activeSessionId,
   sessionLoadStatus,
   optimizedLen,
   gracePeriodMs = 5_000,
@@ -43,6 +46,10 @@ export function useChatEmptyState({
   const isAgentWorking = useAtomValue(isSessionActiveAtom);
   const isPendingCancel = useAtomValue(isPendingCancelAtom);
   const isRolledBack = useAtomValue(sessionRolledBackAtom);
+  const sessionHydration = useAtomValue(
+    sessionHydrationByIdAtom(activeSessionId ?? "")
+  );
+  const isHydrating = (sessionHydration?.count ?? 0) > 0;
 
   const isPendingCancelRef = useRef(false);
   useLayoutEffect(() => {
@@ -53,20 +60,20 @@ export function useChatEmptyState({
   // working" for empty-state purposes: the eventStore has already been
   // truncated but Rust hasn't sent a terminal status event yet.
   const shouldShowEmpty =
-    sessionLoadStatus === "loaded" &&
+    (sessionLoadStatus === "loaded" || isHydrating) &&
     optimizedLen === 0 &&
     (!isAgentWorking || isPendingCancel);
 
   const [emptyConfirmed, setEmptyConfirmed] = useState(false);
 
   useEffect(() => {
-    if (!shouldShowEmpty) return;
+    if (!shouldShowEmpty || isHydrating) return;
     const timer = setTimeout(() => setEmptyConfirmed(true), gracePeriodMs);
     return () => {
       clearTimeout(timer);
       setEmptyConfirmed(false);
     };
-  }, [shouldShowEmpty, isPendingCancel, gracePeriodMs]);
+  }, [shouldShowEmpty, isHydrating, isPendingCancel, gracePeriodMs]);
 
   return {
     shouldShowEmpty,

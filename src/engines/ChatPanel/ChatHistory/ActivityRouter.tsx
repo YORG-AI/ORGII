@@ -262,6 +262,10 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
     }, [event.result]);
 
     const renderContent = () => {
+      if (event.id === "loading") {
+        return <ChatLoadingBlock />;
+      }
+
       const actionType = event.actionType;
       const functionName = event.functionName;
       const eventType = getRegistryEventType(event);

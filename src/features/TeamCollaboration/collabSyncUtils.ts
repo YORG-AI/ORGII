@@ -113,7 +113,12 @@ export function normalizeRepoScopeKey(input: string): string {
  * git remote means no shareable identity.
  */
 export function isLocalRepoPath(value: string): boolean {
-  return value.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(value);
+  return (
+    value.startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(value) ||
+    /^\\\\\?\\(?:[a-zA-Z]:\\|UNC\\)/i.test(value) ||
+    value.startsWith("\\\\")
+  );
 }
 
 /**

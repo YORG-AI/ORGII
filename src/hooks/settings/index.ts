@@ -29,6 +29,12 @@ export {
 
 export { useDevModeGuard } from "./useDevModeGuard";
 
+export {
+  applyPointerCursorPreference,
+  POINTER_CURSORS_ATTRIBUTE,
+  usePointerCursorPreference,
+} from "./usePointerCursorPreference";
+
 export { useSleepInhibitor } from "./useSleepInhibitor";
 
 export {

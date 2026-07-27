@@ -61,15 +61,9 @@
     "startSession": "Nouvelle session",
     "sessions": "Sessions",
     "selectProject": "Choisir une project",
-    "startPage": "Page d'accueil",
     "inbox": "Boîte de réception",
     "login": "Connexion",
     "setup": "Configuration",
-    "devJourney": "Dev Journey",
-    "devRecord": "Journal de développement",
-    "gitDashboard": "Tableau de bord Git",
-    "devActivity": "Activité Dev",
-    "usageHistory": "Historique d'utilisation",
     "tokenMarket": "Marché Token",
     "taskMarket": "Marché des tâches",
     "channels": "Canaux",
@@ -85,20 +79,8 @@
     "ideaArea": "Espace Idées",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Personnaliser la grille",
-    "horizontalGap": "Espacement horizontal",
-    "verticalGap": "Espacement vertical",
-    "resetToDefault": "Réinitialiser par défaut"
-  },
-  "greetings": {
-    "morning": "Bonjour",
-    "afternoon": "Bon après-midi",
-    "evening": "Bonsoir"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Accueil",
       "workstation": "Workstation",
       "manage": "Gérer",
       "core": "Cœur",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Ajouter nouveau",
       "collapseAll": "Tout réduire",
-      "markAllRead": "Tout marquer comme lu",
-      "openHome": "Ouvrir l’accueil",
-      "openWorkstation": "Ouvrir le Workstation"
+      "markAllRead": "Tout marquer comme lu"
     },
     "search": {
       "folders": "Rechercher dans l’espace de travail...",
@@ -360,15 +340,6 @@
       "projects": "Projets"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Mises à jour produit",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Détails",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Changer d’ORG",
     "addOrg": "Ajouter une ORG",
@@ -436,7 +407,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Connexion",
     "signOut": "Déconnexion",
+    "signedInAs": "Connecté en tant que {{name}}",
     "signedInToast": "Connecté à ORG2 Cloud",
+    "sessionExpired": "Votre session ORG2 Cloud a expiré. Reconnectez-vous pour continuer.",
     "recommendedBadge": "Recommandé",
     "recommendedDesc": "Partage de sessions managé, stockage des replays, permissions d'équipe et liens de partage sécurisés. Aucune configuration Supabase requise. ORG2 gère pour vous l'Auth, les migrations de base de données, les politiques RLS, la facturation, la rétention, les quotas et les mises à niveau du backend",
     "customEndpoint": {
@@ -476,13 +449,15 @@
       "retentionUpgrade": "Cette session est hors de la fenêtre de replay de votre forfait — mettez à niveau pour la voir",
       "importError": "Impossible d'importer la session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "À propos de moi"
     },
     "sidebar": {
       "teamSessions": "Sessions d'équipe",
       "mySessions": "Mes sessions",
       "memberFilter": "Filtrer par membre",
       "sessionFilter": "Filtrer les sessions",
+      "copyId": "Copier l’ID",
       "directlySharedWithMe": "Partagées directement avec moi",
       "everyone": "Tout le monde",
       "forkedFrom": "dupliquée depuis @{{name}}",
@@ -615,25 +590,22 @@
         "inviteInvalid": "Ce code d'invitation n'est pas valide.",
         "inviteRevoked": "Cette invitation a été révoquée.",
         "inviteExpired": "Cette invitation a expiré.",
-        "inviteExhausted": "Cette invitation n'a plus d'utilisations."
+        "inviteExhausted": "Cette invitation n'a plus d'utilisations.",
+        "network": "Connexion au service cloud impossible. Vérifiez le réseau et réessayez."
       }
-    },
-    "defaultAccess": {
-      "label": "Niveau de synchro par défaut",
-      "help": "S'applique aux sessions de cet appareil correspondant à une portée de dépôt et sans réglage propre. « Désactivé » garde les sessions en local tant que vous n'activez rien"
     },
     "syncLevel": {
       "menuItem": "Niveau de synchro cloud…",
       "title": "Niveau de synchro cloud",
       "hint": "Choisissez ce que cette session partage avec chaque organisation cloud — rien, les métadonnées seules ou le replay complet — et qui peut la voir.",
-      "orgDefaultOption": "Défaut de l'organisation ({{mode}})",
       "modeOff": "Désactivé",
       "modeMetadata": "Métadonnées seules",
       "modeFullReplay": "Replay complet",
       "visibilityOrg": "Toute l'organisation",
       "visibilityRestricted": "Moi uniquement",
       "taggedNote": "Cette session a été déplacée dans cette organisation : tant qu'elle y est rattachée, elle partage au moins ses métadonnées.",
-      "floorNote": "L'administrateur de votre organisation exige un partage d'au moins {{mode}}."
+      "floorNote": "L'administrateur de votre organisation exige un partage d'au moins {{mode}}.",
+      "orgMinimumOption": "Minimum de l’organisation ({{mode}})"
     },
     "share": {
       "menuItem": "Partage cloud…",

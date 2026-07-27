@@ -168,10 +168,12 @@ describe("forkExternalHistoryIntoOrgiiSession", () => {
         keySource: "own_key",
         agentDefinitionId: "custom:security-auditor",
         mode: "build",
-        parentSessionId: "codexapp-source-1",
         task: expect.stringContaining("continue and run tests"),
       })
     );
+    expect(
+      vi.mocked(SessionService.create).mock.calls[0]?.[0]
+    ).not.toHaveProperty("parentSessionId");
   });
 
   it("does not load or create anything when the shared setup is cancelled", async () => {

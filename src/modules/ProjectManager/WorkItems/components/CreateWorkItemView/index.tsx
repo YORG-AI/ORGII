@@ -53,7 +53,6 @@ export interface CreateWorkItemViewProps {
    */
   orgId?: string | null;
   repoPath?: string | null;
-  scopeBreadcrumbLabel?: string;
   onCancel: () => void;
   onSetUnsaved: (hasUnsaved: boolean) => void;
   onWorkItemCreated: (result?: CreatedWorkItemResult) => void;
@@ -75,8 +74,11 @@ export interface CreateWorkItemViewProps {
   chatPanelFooter?: boolean;
   /** Center the Launchpad toggle and composer as one stack. */
   centerLauncherContent?: boolean;
-  /** Render Session Creator in Agent mode with Work Item fields attached above it. */
-  renderAgentComposer?: (headerContent: React.ReactNode) => React.ReactNode;
+  /** Render Session Creator in Agent mode with Work Item fields in its composer. */
+  renderAgentComposer?: (
+    headerContent: React.ReactNode,
+    pinnedActionsContent: React.ReactNode
+  ) => React.ReactNode;
   defaultAiAssignee?: {
     id: string;
     name: string;
@@ -93,7 +95,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   projectName,
   orgId,
   repoPath,
-  scopeBreadcrumbLabel,
   onCancel,
   onSetUnsaved,
   onWorkItemCreated,
@@ -144,7 +145,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     projectName,
     projectSlug,
     repoPath,
-    scopeBreadcrumbLabel,
   });
 
   const { draft, editorRef } = inlineFields;
@@ -265,13 +265,22 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   );
 
   const composerHeaderContent = (
-    <div className="px-1" data-testid="create-work-item-composer-header">
-      <InlineCreateWorkItemFields
-        className="w-full"
-        showDescription={false}
-        showDividers={false}
-        state={inlineFields}
-      />
+    <div data-testid="create-work-item-composer-header">
+      <div className="flex h-10 items-center px-1 py-0">
+        {inlineFields.titleSection}
+      </div>
+      <div className="px-2" aria-hidden>
+        <div className="border-t border-border-2" />
+      </div>
+    </div>
+  );
+  const workItemPropertyPills = (
+    <div
+      className="flex min-w-0 flex-nowrap items-center gap-1.5"
+      data-testid="create-work-item-pinned-actions"
+    >
+      {inlineFields.workItemProjectPill}
+      {inlineFields.inlinePropertyPills}
     </div>
   );
 
@@ -379,7 +388,10 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                     : "min-h-0 flex-1 overflow-hidden pt-6"
                 }
               >
-                {renderAgentComposer(composerHeaderContent)}
+                {renderAgentComposer(
+                  composerHeaderContent,
+                  workItemPropertyPills
+                )}
               </div>
             ) : renderAgentComposer ? (
               <div
@@ -393,10 +405,8 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                   className={`mx-auto flex min-h-0 w-full flex-col ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
                 >
                   <div className="session-creator-chat-panel-fullscreen-composer relative w-full">
-                    <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
+                    <ComposerShell className="session-creator-chat-panel-fullscreen-input-shell relative z-10 !pt-1.5">
                       {composerHeaderContent}
-                    </div>
-                    <ComposerShell className="session-creator-chat-panel-fullscreen-input-shell relative z-10">
                       <div className="min-h-0 px-1">
                         {inlineFields.descriptionSection}
                       </div>
@@ -411,6 +421,17 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                         dropdownDirection="down"
                         toolbarItemGap={false}
                         showContextInfo={false}
+                        pills={
+                          <>
+                            <div
+                              aria-hidden
+                              className="mx-1 h-4 w-px shrink-0 bg-border-2"
+                            />
+                            <div className="flex min-w-0 items-center overflow-x-auto scrollbar-hide">
+                              {workItemPropertyPills}
+                            </div>
+                          </>
+                        }
                         submitButton={
                           <LaunchButton
                             ariaLabel={t("common:actions.save")}

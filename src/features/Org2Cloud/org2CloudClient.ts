@@ -18,12 +18,18 @@ import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
+import {
+  fetchWithTransportRetry,
+  runCloudRequestWithTimeout,
+} from "./org2CloudFetchRetry";
 import { CLOUD_ORG_ROLES, type CloudOrgRole } from "./org2CloudOrgManagement";
 
 const log = createLogger("Org2CloudClient");
 
 /** Refresh when the access token expires within this many seconds. */
 const REFRESH_SKEW_SECONDS = 60;
+/** A dead WKWebView fetch must not hold every auth-gated single-flight forever. */
+const AUTH_REFRESH_TIMEOUT_MS = 15_000;
 
 const CloudProfileWireSchema = z.object({
   userId: z.string().optional(),
@@ -53,8 +59,14 @@ export interface RefreshedTokens {
   expiresAt: number;
 }
 
+interface RefreshAttemptResult {
+  tokens: RefreshedTokens | null;
+  /** GoTrue explicitly rejected the refresh credential (400/401). */
+  permanentlyRejected: boolean;
+}
+
 let inFlightRefresh:
-  | { key: string; promise: Promise<RefreshedTokens | null> }
+  | { key: string; promise: Promise<RefreshAttemptResult> }
   | undefined;
 
 type CloudRpcEndpoint = Pick<
@@ -89,11 +101,14 @@ async function callRpc(
   endpoint: CloudRpcEndpoint = getCloudEndpoint()
 ): Promise<unknown | null> {
   try {
-    const response = await fetch(rpcUrl(functionName, endpoint), {
-      method: "POST",
-      headers: rpcHeaders(accessToken, endpoint),
-      body: JSON.stringify(body ?? {}),
-    });
+    const response = await fetchWithTransportRetry(
+      rpcUrl(functionName, endpoint),
+      {
+        method: "POST",
+        headers: rpcHeaders(accessToken, endpoint),
+        body: JSON.stringify(body ?? {}),
+      }
+    );
     if (!response.ok) {
       log.warn(`rpc ${functionName} failed with status ${response.status}`);
       return null;
@@ -110,6 +125,16 @@ async function callRpc(
 export async function schemaVersion(): Promise<number | null> {
   const payload = await callRpc("schema_version");
   return typeof payload === "number" ? payload : null;
+}
+
+/**
+ * Raw 0005+ capability read; `null` on pre-0005 backends (PGRST202) and on
+ * transport failure. Interpretation/caching live in `org2CloudCapabilities`.
+ */
+export async function getCloudCapabilitiesRaw(
+  accessToken: string
+): Promise<unknown | null> {
+  return callRpc("get_cloud_capabilities", accessToken);
 }
 
 /**
@@ -143,45 +168,20 @@ export async function getCloudProfile(
   };
 }
 
-const CloudOrgWireSchema = z.object({
-  orgId: z.string(),
-  name: z.string(),
-  role: z.enum(CLOUD_ORG_ROLES),
-});
-
-export interface CloudOrg {
-  orgId: string;
-  name: string;
-  role: CloudOrgRole;
-}
-
-const CloudOrgMemberWireSchema = z.object({
-  userId: z.string(),
-  displayName: z.string().nullish(),
-  role: z.enum(CLOUD_ORG_ROLES),
-  status: z.string(),
-  joinedAt: z.string().nullish(),
-  // Per-member sharing floor (admin-set MINIMUM for this member; 'off' = no
-  // member-level requirement — the org-wide floor still applies). Absent on
-  // pre-floor backends ⇒ 'off'; unrecognized values degrade to 'off' too.
-  sharingFloor: z
-    .enum([
-      COLLAB_SESSION_ACCESS_MODE.OFF,
-      COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
-      COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
-    ])
-    .nullish()
-    .catch(undefined),
-});
-
-export interface CloudOrgMember {
-  userId: string;
-  displayName?: string;
-  role: CloudOrgRole;
-  status: string;
-  joinedAt?: string;
-  /** Member-level sharing floor; absent/'off' ⇒ no member requirement. */
-  sharingFloor?: CollabSessionAccessMode;
+/**
+ * Rename the signed-in user's display name (0008 `update_cloud_profile`).
+ * Returns the stored name, or `null` on any failure — including pre-0008
+ * backends, where the RPC is absent.
+ */
+export async function updateCloudProfileDisplayName(
+  accessToken: string,
+  displayName: string
+): Promise<string | null> {
+  const payload = await callRpc("update_cloud_profile", accessToken, {
+    p_display_name: displayName,
+  });
+  const parsed = z.object({ displayName: z.string() }).safeParse(payload);
+  return parsed.success ? parsed.data.displayName : null;
 }
 
 const EntitlementStateWireSchema = z.object({
@@ -213,6 +213,73 @@ export interface CloudEntitlementState {
   orgSharingFloor?: CollabSessionAccessMode;
 }
 
+function normalizeEntitlementWire(
+  parsed: z.infer<typeof EntitlementStateWireSchema>
+): CloudEntitlementState {
+  return {
+    plan: parsed.plan,
+    status: parsed.status,
+    replayRetentionDays: parsed.replayRetentionDays ?? undefined,
+    maxOrgMembers: parsed.maxOrgMembers ?? undefined,
+    sessionSyncEnabled: parsed.sessionSyncEnabled ?? undefined,
+    orgSharingFloor: parsed.orgSharingFloor ?? undefined,
+  };
+}
+
+const CloudOrgWireSchema = z.object({
+  orgId: z.string(),
+  name: z.string(),
+  role: z.enum(CLOUD_ORG_ROLES),
+  // 0004 backends resolve each org's entitlement inside the roster listing;
+  // null/absent (older or degraded backends, or one failing org) falls back
+  // to the per-org RPC for exactly that org. `.catch(undefined)` keeps a
+  // malformed entitlement from failing the whole roster parse.
+  entitlement: EntitlementStateWireSchema.nullish().catch(undefined),
+  // 0007 org-sharding directory hook (design §7 step 3): the Supabase origin
+  // hosting this org's data plane. null/absent (pre-0007 backends, or an org
+  // living on the active project) ⇒ the active endpoint. `.catch(undefined)`
+  // keeps a malformed value from failing the whole roster parse.
+  homeEndpoint: z.string().nullish().catch(undefined),
+});
+
+export interface CloudOrg {
+  orgId: string;
+  name: string;
+  role: CloudOrgRole;
+  entitlement?: CloudEntitlementState;
+  /** 0007 directory hook; absent ⇒ the org lives on the active endpoint. */
+  homeEndpoint?: string;
+}
+
+const CloudOrgMemberWireSchema = z.object({
+  userId: z.string(),
+  displayName: z.string().nullish(),
+  role: z.enum(CLOUD_ORG_ROLES),
+  status: z.string(),
+  joinedAt: z.string().nullish(),
+  // Per-member sharing floor (admin-set MINIMUM for this member; 'off' = no
+  // member-level requirement — the org-wide floor still applies). Absent on
+  // pre-floor backends ⇒ 'off'; unrecognized values degrade to 'off' too.
+  sharingFloor: z
+    .enum([
+      COLLAB_SESSION_ACCESS_MODE.OFF,
+      COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
+      COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
+    ])
+    .nullish()
+    .catch(undefined),
+});
+
+export interface CloudOrgMember {
+  userId: string;
+  displayName?: string;
+  role: CloudOrgRole;
+  status: string;
+  joinedAt?: string;
+  /** Member-level sharing floor; absent/'off' ⇒ no member requirement. */
+  sharingFloor?: CollabSessionAccessMode;
+}
+
 /**
  * Cloud orgs the signed-in user belongs to (`list_my_orgs`). Returns `null`
  * on any failure (offline / unreachable / wire drift) and `[]` only when the
@@ -232,7 +299,17 @@ export async function listMyOrgs(
     }
     return null;
   }
-  return parsed.data;
+  return parsed.data.map(
+    ({ orgId, name, role, entitlement, homeEndpoint }) => ({
+      orgId,
+      name,
+      role,
+      ...(entitlement
+        ? { entitlement: normalizeEntitlementWire(entitlement) }
+        : {}),
+      ...(homeEndpoint ? { homeEndpoint } : {}),
+    })
+  );
 }
 
 /** Members of a cloud org (`list_org_members`). `[]` on any failure. */
@@ -280,58 +357,71 @@ export async function getEntitlementState(
     }
     return null;
   }
-  const { plan, status, replayRetentionDays, maxOrgMembers } = parsed.data;
-  return {
-    plan,
-    status,
-    replayRetentionDays: replayRetentionDays ?? undefined,
-    maxOrgMembers: maxOrgMembers ?? undefined,
-    sessionSyncEnabled: parsed.data.sessionSyncEnabled ?? undefined,
-    orgSharingFloor: parsed.data.orgSharingFloor ?? undefined,
-  };
+  return normalizeEntitlementWire(parsed.data);
 }
 
 /**
  * Standard Supabase (GoTrue) refresh-token exchange. Plain apikey header —
  * no PostgREST profile headers. `null` on any failure.
  */
-export async function refreshSession(
+async function refreshSessionAttempt(
   refreshToken: string,
   endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
-): Promise<RefreshedTokens | null> {
+): Promise<RefreshAttemptResult> {
   const key = `${endpoint.supabaseUrl}\0${endpoint.anonKey}\0${refreshToken}`;
   if (inFlightRefresh?.key === key) return inFlightRefresh.promise;
 
-  const promise = (async (): Promise<RefreshedTokens | null> => {
+  const promise = (async (): Promise<RefreshAttemptResult> => {
     try {
-      const response = await fetch(
-        `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
-        {
-          method: "POST",
-          headers: {
-            apikey: endpoint.anonKey,
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({ refresh_token: refreshToken }),
-        }
+      // Transport retry is safe here too: a lost-response race re-sends the
+      // previous refresh token, which GoTrue's reuse interval tolerates
+      // (same rotated session), and the in-flight dedupe above already
+      // serializes concurrent refreshes.
+      const { response, payload } = await runCloudRequestWithTimeout(
+        async (signal) => {
+          const response = await fetchWithTransportRetry(
+            `${endpoint.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+            {
+              method: "POST",
+              headers: {
+                apikey: endpoint.anonKey,
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({ refresh_token: refreshToken }),
+              signal,
+            }
+          );
+          return {
+            response,
+            payload: response.ok ? await response.json() : null,
+          };
+        },
+        AUTH_REFRESH_TIMEOUT_MS
       );
       if (!response.ok) {
         log.warn(`token refresh failed with status ${response.status}`);
-        return null;
+        return {
+          tokens: null,
+          permanentlyRejected:
+            response.status === 400 || response.status === 401,
+        };
       }
-      const parsed = RefreshResponseSchema.safeParse(await response.json());
+      const parsed = RefreshResponseSchema.safeParse(payload);
       if (!parsed.success) {
         log.warn("token refresh returned unexpected shape");
-        return null;
+        return { tokens: null, permanentlyRejected: false };
       }
       return {
-        accessToken: parsed.data.access_token,
-        refreshToken: parsed.data.refresh_token,
-        expiresAt: parsed.data.expires_at,
+        tokens: {
+          accessToken: parsed.data.access_token,
+          refreshToken: parsed.data.refresh_token,
+          expiresAt: parsed.data.expires_at,
+        },
+        permanentlyRejected: false,
       };
     } catch (error) {
       log.warn("token refresh request error:", error);
-      return null;
+      return { tokens: null, permanentlyRejected: false };
     }
   })();
   inFlightRefresh = { key, promise };
@@ -342,6 +432,18 @@ export async function refreshSession(
   }
 }
 
+export async function refreshSession(
+  refreshToken: string,
+  endpoint: { supabaseUrl: string; anonKey: string } = getCloudEndpoint()
+): Promise<RefreshedTokens | null> {
+  return (await refreshSessionAttempt(refreshToken, endpoint)).tokens;
+}
+
+export interface EnsureFreshSessionOptions {
+  /** Called only when GoTrue explicitly rejects the refresh credential. */
+  onRefreshRejected?: () => void;
+}
+
 /**
  * Return `state` unchanged while the access token is comfortably valid;
  * otherwise refresh and return the updated state. The CALLER persists the
@@ -349,16 +451,21 @@ export async function refreshSession(
  * refresh failed — the caller decides whether to sign the user out.
  */
 export async function ensureFreshSession(
-  state: Org2CloudAuthState
+  state: Org2CloudAuthState,
+  options?: EnsureFreshSessionOptions
 ): Promise<Org2CloudAuthState | null> {
   const nowSeconds = Date.now() / 1000;
   if (state.expiresAt - nowSeconds > REFRESH_SKEW_SECONDS) {
     return state;
   }
-  const refreshed = await refreshSession(state.refreshToken, {
+  const attempt = await refreshSessionAttempt(state.refreshToken, {
     supabaseUrl: state.supabaseUrl,
     anonKey: state.supabaseAnonKey,
   });
+  const refreshed = attempt.tokens;
+  if (!refreshed && attempt.permanentlyRejected) {
+    options?.onRefreshRejected?.();
+  }
   if (!refreshed) return null;
   return {
     ...state,

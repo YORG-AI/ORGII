@@ -10,6 +10,8 @@ import type { SessionEventsSegmentInput } from "./CollabSyncBackend";
 import {
   computeSegmentHashFromBytes,
   gunzipBase64ToJson,
+  gunzipBytesToJson,
+  gzipBytes,
   gzipBytesToBase64,
   segmentCanonicalBytes,
 } from "./collabGzip";
@@ -18,6 +20,14 @@ import {
 export interface SegmentWirePayload {
   seq?: number;
   payloadGz: string;
+  eventCount: number;
+  segmentHash: string;
+}
+
+/** Raw-gzip encode of one frozen segment for a Storage object upload. */
+export interface SegmentStoragePayload {
+  seq: number;
+  bytes: Uint8Array;
   eventCount: number;
   segmentHash: string;
 }
@@ -31,6 +41,18 @@ export async function toFrozenSegmentWire(
   return {
     seq: segment.seq,
     payloadGz: await gzipBytesToBase64(bytes),
+    eventCount: segment.events.length,
+    segmentHash: await computeSegmentHashFromBytes(bytes),
+  };
+}
+
+export async function toFrozenSegmentStorage(
+  segment: SessionEventsSegmentInput
+): Promise<SegmentStoragePayload> {
+  const bytes = segmentCanonicalBytes(segment.events);
+  return {
+    seq: segment.seq,
+    bytes: await gzipBytes(bytes),
     eventCount: segment.events.length,
     segmentHash: await computeSegmentHashFromBytes(bytes),
   };
@@ -54,6 +76,14 @@ export async function decodeSegmentEvents(
   return z
     .array(z.custom<SessionEvent>())
     .parse(await gunzipBase64ToJson(payloadGz));
+}
+
+export async function decodeSegmentEventsFromBytes(
+  bytes: Uint8Array
+): Promise<SessionEvent[]> {
+  return z
+    .array(z.custom<SessionEvent>())
+    .parse(await gunzipBytesToJson(bytes));
 }
 
 /**

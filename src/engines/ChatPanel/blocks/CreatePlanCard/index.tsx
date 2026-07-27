@@ -35,6 +35,7 @@ import {
   shouldDefaultCollapsePlanCard,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useMountedCleanup } from "@src/hooks/lifecycle/useMounted";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -138,7 +139,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
     const { t } = useTranslation("sessions");
     const activeSessionId = useAtomValue(activeSessionIdAtom);
     const sessionId = sessionIdProp ?? activeSessionId;
-    const approvalMap = useAtomValue(pendingPlanApprovalsAtom);
+    const currentPendingPlan = usePendingPlanApproval(sessionId);
     const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
     const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
     // Read the plan's *own* session row for model+key — approving a
@@ -183,18 +184,17 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
       if (!isEditing) setEditedContent(content);
     }, [content, isEditing]);
 
-    const state = sessionId ? approvalMap.get(sessionId) : undefined;
     const cardRevisionId = planRevisionId || toolCallId;
     const idMatch =
-      !!state?.current &&
+      !!currentPendingPlan &&
       !!cardRevisionId &&
-      (state.current.planRevisionId === cardRevisionId ||
-        state.current.toolCallId === cardRevisionId);
+      (currentPendingPlan.planRevisionId === cardRevisionId ||
+        currentPendingPlan.toolCallId === cardRevisionId);
     const ready =
       surfaceState?.readyForReview ??
       (idMatch && !isStreaming && effectiveApprovalStatus === "pending");
     const autoApproveAt = idMatch
-      ? (state.current?.autoApproveAt ?? null)
+      ? (currentPendingPlan.autoApproveAt ?? null)
       : null;
     const [nowMs, setNowMs] = useState<number>(() => Date.now());
 
@@ -327,7 +327,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
     // Save persists the edited plan to its backing store (plan file + the plan
     // event the preview re-reads + the pending snapshot) and exits edit mode,
     // WITHOUT approving or building. A later Build approves the persisted plan.
-    const pendingSnapshot = state?.current ?? null;
+    const pendingSnapshot = currentPendingPlan;
     const handleSave = useCallback(async () => {
       if (!sessionId || !interactive || submittingRef.current) return;
       submittingRef.current = true;

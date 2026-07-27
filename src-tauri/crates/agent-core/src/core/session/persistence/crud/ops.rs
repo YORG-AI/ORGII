@@ -740,25 +740,42 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
         .map_err(|error| {
             rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
         })?;
-    let workspace_path = {
+    let cleanup_context = {
         let conn = get_connection()?;
-        let row: SqliteResult<Option<String>> = conn.query_row(
-            "SELECT workspace_path FROM agent_sessions WHERE session_id = ?1",
+        let row: SqliteResult<(Option<String>, Option<String>, Option<String>)> = conn.query_row(
+            "SELECT workspace_path, worktree_path, base_branch FROM agent_sessions WHERE session_id = ?1",
             [session_id],
-            |row| row.get::<_, Option<String>>(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         );
         match row {
-            Ok(p) => p,
+            Ok(context) => Some(context),
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(err) => {
-                warn!(
-                    "Failed to read workspace_path for session {}: {}",
-                    session_id, err
-                );
-                None
-            }
+            Err(err) => return Err(err),
         }
     };
+
+    // Session-owned worktrees must be removed before the row that identifies
+    // their repo/path/branch. A failed Git cleanup keeps the row intact so a
+    // later delete can retry. Reused linked worktrees have no `base_branch`
+    // metadata and are deliberately not removed.
+    if let Some((Some(repo_path), worktree_path, Some(_base_branch))) = cleanup_context.as_ref() {
+        let repo_path = std::path::PathBuf::from(repo_path);
+        let worktree_still_exists = worktree_path
+            .as_deref()
+            .is_some_and(|path| std::path::Path::new(path).exists());
+        if repo_path.exists() {
+            git::worktree::remove_session_worktree(&repo_path, session_id, true)
+                .map_err(|error| rusqlite::Error::ToSqlConversionFailure(error.into()))?;
+        } else if worktree_still_exists {
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format!(
+                    "Cannot clean worktree for session {session_id}: repository path no longer exists: {}",
+                    repo_path.display()
+                )
+                .into(),
+            ));
+        }
+    }
 
     shared::delete_session_cascade(
         session_id,
@@ -826,22 +843,6 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
             session_id, err
         );
     }
-
-    // Tear down the per-session worktree + `agent/<sid>` branch. Only
-    // meaningful when the session was grounded in a project; pure-channel
-    // OS sessions without a `workspace_path` never had a worktree.
-    if let Some(ref repo_path_str) = workspace_path {
-        let repo_path = std::path::PathBuf::from(repo_path_str);
-        if repo_path.exists() {
-            if let Err(err) = git::worktree::remove_session_worktree(&repo_path, session_id, true) {
-                warn!(
-                    "Failed to remove agent worktree for deleted session {}: {}",
-                    session_id, err
-                );
-            }
-        }
-    }
-
     Ok(())
 }
 

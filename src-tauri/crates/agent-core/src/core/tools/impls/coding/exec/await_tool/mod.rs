@@ -49,6 +49,8 @@ mod snapshot;
 
 use async_trait::async_trait;
 use serde_json::Value;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
 
 use crate::tools::names as tool_names;
@@ -56,12 +58,14 @@ use crate::tools::traits::{Tool, ToolError};
 
 pub struct AwaitTool {
     pub(super) session_key: TokioMutex<Option<String>>,
+    pub(super) cancel_flag: TokioMutex<Option<Arc<AtomicBool>>>,
 }
 
 impl Default for AwaitTool {
     fn default() -> Self {
         Self {
             session_key: TokioMutex::new(None),
+            cancel_flag: TokioMutex::new(None),
         }
     }
 }
@@ -150,6 +154,10 @@ impl Tool for AwaitTool {
 
     async fn set_session_key(&self, session_key: &str) {
         *self.session_key.lock().await = Some(session_key.to_string());
+    }
+
+    async fn set_cancel_flag(&self, cancel_flag: Arc<AtomicBool>) {
+        *self.cancel_flag.lock().await = Some(cancel_flag);
     }
 
     async fn execute_text(
