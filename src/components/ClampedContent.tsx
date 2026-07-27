@@ -34,6 +34,8 @@ export interface ClampedContentProps {
   fadeFrom?: string;
   /** When false, renders children flush with no clamp (default true). */
   enabled?: boolean;
+  /** Keep the collapsed expand control visible instead of revealing it on hover/focus. */
+  alwaysShowControl?: boolean;
   /** Extra classes applied to the clamped viewport. */
   className?: string;
 }
@@ -43,6 +45,7 @@ const ClampedContent: React.FC<ClampedContentProps> = ({
   maxHeight = CLAMPED_CONTENT_MAX_HEIGHT,
   fadeFrom = "from-fill-2",
   enabled = true,
+  alwaysShowControl = false,
   className = "",
 }) => {
   const { t } = useTranslation("common");
@@ -102,6 +105,7 @@ const ClampedContent: React.FC<ClampedContentProps> = ({
           expandedLabel={t("actions.collapse")}
           fadeFrom={fadeFrom}
           showLabel
+          alwaysShowControl={alwaysShowControl}
         />
       )}
     </div>

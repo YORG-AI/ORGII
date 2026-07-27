@@ -86,6 +86,16 @@ interface TurnPaginationControlsProps {
   groupChatViewAvailable?: boolean;
 }
 
+export function shouldShowTurnPaginationSpinner(params: {
+  turnPaginationReady: boolean;
+  pageCount: number;
+}): boolean {
+  // A loaded session with no rounds is a stable empty state, not an
+  // indefinitely loading page. ChatHistory owns the initial-load indicator;
+  // this selector only spins while an existing round is still hydrating.
+  return !params.turnPaginationReady && params.pageCount > 0;
+}
+
 const SELECT_TRIGGER_BASE =
   "flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 text-[13px] font-normal text-text-1 transition-colors";
 const SELECT_CHEVRON_CLASS = "shrink-0 text-text-3 transition-transform";
@@ -142,6 +152,10 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
     groupChatViewAvailable = false,
   }) => {
     const { t } = useTranslation();
+    const showTurnPaginationSpinner = shouldShowTurnPaginationSpinner({
+      turnPaginationReady,
+      pageCount,
+    });
     const switchableMembers = agentOrgMembers.filter(
       (member) => member.sessionRuntime
     );
@@ -380,7 +394,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                   }}
                 >
                   <span className="truncate">{currentTurnPageLabel}</span>
-                  {!turnPaginationReady ? (
+                  {showTurnPaginationSpinner ? (
                     <Loader2
                       size={DROPDOWN_ITEM.iconSize}
                       className="shrink-0 animate-spin text-text-3"

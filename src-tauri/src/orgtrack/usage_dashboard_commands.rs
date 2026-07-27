@@ -6,6 +6,8 @@
 //! is served by the existing `get_session_llm_usage_spans` /
 //! `get_session_tool_usage_attributions` commands, not here.
 
+use std::sync::OnceLock;
+
 use database::db::get_connection;
 use orgtrack_core::pricing;
 use orgtrack_core::usage_dashboard::{
@@ -46,6 +48,15 @@ const DAY_MS: i64 = 86_400_000;
 const MAX_SESSION_ROWS: usize = 1_000;
 /// Request-log page cap (rounds are finer-grained, so allow more).
 const MAX_ROUND_ROWS: usize = 5_000;
+static USAGE_QUERY_QUEUE: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
+
+async fn acquire_usage_query_permit() -> Result<tokio::sync::SemaphorePermit<'static>, String> {
+    USAGE_QUERY_QUEUE
+        .get_or_init(|| tokio::sync::Semaphore::new(1))
+        .acquire()
+        .await
+        .map_err(|_| "Usage query queue closed".to_string())
+}
 
 fn open_conn() -> Result<rusqlite::Connection, String> {
     get_connection().map_err(|err| format!("Failed to open sessions DB: {err}"))
@@ -63,6 +74,8 @@ fn build_filter(
         start_ms,
         end_ms,
         session_id: session_id.filter(|value| !value.is_empty()),
+        // The desktop dashboard scopes to the four primary buckets.
+        all_sources: false,
     }
 }
 
@@ -93,6 +106,7 @@ pub async fn usage_dashboard_summary(
     end_ms: Option<i64>,
     session_id: Option<String>,
 ) -> Result<UsageSummary, String> {
+    let _permit = acquire_usage_query_permit().await?;
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
         let filter = build_filter(bucket, start_ms, end_ms, session_id);
@@ -111,6 +125,7 @@ pub async fn usage_dashboard_trends(
     session_id: Option<String>,
     bucket_unit: Option<String>,
 ) -> Result<Vec<UsageTrendPoint>, String> {
+    let _permit = acquire_usage_query_permit().await?;
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
         let filter = build_filter(bucket, start_ms, end_ms, session_id);
@@ -121,7 +136,7 @@ pub async fn usage_dashboard_trends(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Summary + trends + request-log page in one call (one round-store scan).
+/// Optional summary/trends and request-log page from one round-store scan.
 #[tauri::command]
 pub async fn usage_dashboard_overview(
     bucket: Option<String>,
@@ -135,7 +150,11 @@ pub async fn usage_dashboard_overview(
     unknown_model: Option<bool>,
     search: Option<String>,
     bucket_unit: Option<String>,
+    include_headline: Option<bool>,
+    include_trends: Option<bool>,
+    include_rounds: Option<bool>,
 ) -> Result<UsageOverview, String> {
+    let _permit = acquire_usage_query_permit().await?;
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
         let filter = build_filter(bucket, start_ms, end_ms, session_id);
@@ -144,7 +163,18 @@ pub async fn usage_dashboard_overview(
         let round_query = UsageRoundQuery::from_wire(model, unknown_model.unwrap_or(false), search);
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(MAX_ROUND_ROWS).min(MAX_ROUND_ROWS);
-        usage_dashboard::usage_overview(&conn, &filter, &round_query, sort, offset, limit, unit)
+        usage_dashboard::usage_overview(
+            &conn,
+            &filter,
+            &round_query,
+            sort,
+            offset,
+            limit,
+            unit,
+            include_headline.unwrap_or(true),
+            include_trends.unwrap_or(true),
+            include_rounds.unwrap_or(true),
+        )
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -161,6 +191,7 @@ pub async fn usage_dashboard_rounds(
     offset: Option<usize>,
     limit: Option<usize>,
 ) -> Result<Vec<UsageRoundRow>, String> {
+    let _permit = acquire_usage_query_permit().await?;
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
         let filter = build_filter(bucket, start_ms, end_ms, session_id);
@@ -185,6 +216,7 @@ pub async fn usage_dashboard_sessions(
     offset: Option<usize>,
     limit: Option<usize>,
 ) -> Result<Vec<UsageSessionRow>, String> {
+    let _permit = acquire_usage_query_permit().await?;
     tokio::task::spawn_blocking(move || {
         let conn = open_conn()?;
         let filter = build_filter(bucket, start_ms, end_ms, session_id);

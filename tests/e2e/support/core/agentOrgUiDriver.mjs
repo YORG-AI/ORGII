@@ -436,13 +436,22 @@ export async function getApiAccount() {
     (row) =>
       row.agent_type === API_AGENT_TYPE &&
       row.enabled &&
-      row.has_api_key &&
+      (row.has_api_key || row.has_session_token) &&
       (row.enabled_models ?? []).length > 0 &&
       matchesOptionalAccountName(row, API_ACCOUNT_NAME)
   );
   if (!account) {
     throw new Error(
-      `No enabled API account found. requested=${API_ACCOUNT_NAME ?? "<any>"} agentType=${API_AGENT_TYPE}`
+      `No enabled runnable account found. requested=${API_ACCOUNT_NAME ?? "<any>"} agentType=${API_AGENT_TYPE} rows=${JSON.stringify(
+        accounts.map((row) => ({
+          id: row.id,
+          name: row.name,
+          type: row.agent_type,
+          enabled: row.enabled,
+          hasCredential: Boolean(row.has_api_key || row.has_session_token),
+          models: row.enabled_models,
+        }))
+      )}`
     );
   }
   return account;

@@ -6,6 +6,8 @@ export interface TabPillItem {
   icon?: ReactNode;
   hoverIcon?: ReactNode;
   badge?: ReactNode;
+  /** Trailing content revealed on hover while preserving the tab's width. */
+  hoverBadge?: ReactNode;
   disabled?: boolean;
   dropdown?: ReactNode;
   dataTestId?: string;

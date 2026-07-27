@@ -24,7 +24,10 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import InlineInfoCard from "@src/modules/shared/layouts/blocks/InlineInfoCard";
+import {
+  CollapsibleSection,
+  InlineInfoCard,
+} from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
 import SessionProvenanceSourceIcon from "./SessionProvenanceSourceIcon";
@@ -60,6 +63,9 @@ const ACTION_TAG_COLOR: Record<string, TagProps["color"]> = {
 // Max render width (px) for the path columns; content past this is truncated.
 const PATH_COL_MAX_PX = 300;
 const WORKSPACE_COL_MAX_PX = 200;
+const RECENT_SIGNALS_LIMIT = 50;
+const RECENT_SIGNALS_PAGE_SIZE = 10;
+const RECENT_SIGNALS_PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 /**
  * Collapse the middle of a long path to `/.../`, keeping the leading segment and
@@ -205,6 +211,12 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedRowKeys, setExpandedRowKeys] = useState<string[]>([]);
+  const [open, setOpen] = useState(false);
+  const mountedRef = useRef(true);
+  const requestGenerationRef = useRef(0);
+  const inFlightRef = useRef<
+    Promise<SessionProvenanceRecentSignal[]> | undefined
+  >(undefined);
   // Dedupe per-session final-diff fetches across expanded rows.
   const diffCache = useRef(
     new Map<string, Promise<OrgtrackSessionFinalDiff[]>>()
@@ -222,24 +234,67 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
   }, []);
 
   const load = useCallback(async () => {
+    const requestGeneration = ++requestGenerationRef.current;
     setRefreshing(true);
     // Drop cached diffs so a manual refresh re-reads newly imported patches.
     diffCache.current.clear();
-    try {
-      const next = await rpc.agentOrgs.sessionProvenance.recentSignals({
-        limit: 50,
+    let pending = inFlightRef.current;
+    if (!pending) {
+      pending = rpc.agentOrgs.sessionProvenance.recentSignals({
+        limit: RECENT_SIGNALS_LIMIT,
       });
+      inFlightRef.current = pending;
+    }
+    try {
+      const next = await pending;
+      if (requestGeneration !== requestGenerationRef.current) return;
       setSignals(next);
     } catch {
-      setSignals([]);
+      if (requestGeneration === requestGenerationRef.current) {
+        setSignals([]);
+      }
     } finally {
-      setRefreshing(false);
+      if (inFlightRef.current === pending) {
+        inFlightRef.current = undefined;
+      }
+      if (requestGeneration === requestGenerationRef.current) {
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (open && signals === null) void load();
+  }, [load, open, signals]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      // Tauri invokes are not abortable. Invalidate late completions so an
+      // unmounted Hooks view cannot retain or publish stale signal rows.
+      mountedRef.current = false;
+      requestGenerationRef.current += 1;
+    };
+  }, []);
+
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    // useCollapsible publishes from its state updater. Defer parent state so
+    // React never sees this component update during CollapsibleSection's render.
+    queueMicrotask(() => {
+      if (!mountedRef.current) return;
+      setOpen(nextOpen);
+      if (nextOpen) return;
+
+      // Match Usage's recent-request lifecycle: a collapsed history table keeps
+      // no row/diff payload. Reopening performs one fresh bounded fetch, while a
+      // quick close/reopen shares any equivalent request already in flight.
+      requestGenerationRef.current += 1;
+      diffCache.current.clear();
+      setSignals(null);
+      setRefreshing(false);
+      setExpandedRowKeys([]);
+    });
+  }, []);
 
   const sourceMeta = (source: string) =>
     SIGNAL_SOURCE_META[source] ?? {
@@ -391,68 +446,79 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
           .includes(term)
       : true
   );
+  const title = t("agentOrgs.sessionProvenance.signals.title", {
+    defaultValue: "Recent signals",
+  });
 
   return (
     <div
       className={SECTION_GAP_CLASSES}
       data-testid="session-provenance-recent-signals"
     >
-      <h3 className={SECTION_SUBHEADING_CLASSES}>
-        {t("agentOrgs.sessionProvenance.signals.title", {
-          defaultValue: "Recent signals",
-        })}
-      </h3>
-      <SettingsTable<SessionProvenanceRecentSignal>
-        columns={columns}
-        rows={rows}
-        getRowKey={(row) =>
-          `${row.source}:${row.sessionId}:${row.filePath}:${row.action}:${row.occurredAt}:${row.captureMethod}`
-        }
-        headerHeight="tall"
-        inlineHeaderToolbar
-        hover
-        loading={signals === null}
-        expandable={{
-          expandedRowRender: (row) => (
-            <SignalDiffCard signal={row} fetchDiffs={fetchDiffs} />
-          ),
-          // Only edit signals can carry a patch; reads/searches stay flat.
-          rowExpandable: (row) => EDIT_ACTIONS.has(row.action),
-          expandedRowKeys,
-          onExpandedRowsChange: setExpandedRowKeys,
-        }}
-        emptyTitle={
-          term
-            ? t("agentOrgs.sessionProvenance.signals.noResults", {
-                defaultValue: "No matching signals",
-              })
-            : t("agentOrgs.sessionProvenance.signals.empty", {
-                defaultValue: "No hook signals received yet.",
-              })
-        }
-        searchBar={{
-          searchValue: searchQuery,
-          searchPlaceholder: t("agentOrgs.sessionProvenance.signals.search", {
-            defaultValue: "Search signals",
-          }),
-          onSearchChange: setSearchQuery,
-          onSearchClear: () => setSearchQuery(""),
-          searchInputSize: "default",
-          rightContent: (
-            <Button
-              variant="secondary"
-              size="default"
-              loading={refreshing}
-              icon={<RefreshCw size={14} />}
-              onClick={() => void load()}
-            >
-              {t("agentOrgs.sessionProvenance.signals.refresh", {
-                defaultValue: "Refresh",
-              })}
-            </Button>
-          ),
-        }}
-      />
+      <CollapsibleSection
+        title={signals === null ? title : `${title} (${signals.length})`}
+        defaultOpen={false}
+        onOpenChange={handleOpenChange}
+        titleButtonTestId="session-provenance-recent-signals-toggle"
+        compact
+        titleClassName={SECTION_SUBHEADING_CLASSES}
+      >
+        <SettingsTable<SessionProvenanceRecentSignal>
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) =>
+            `${row.source}:${row.sessionId}:${row.filePath}:${row.action}:${row.occurredAt}:${row.captureMethod}`
+          }
+          headerHeight="tall"
+          inlineHeaderToolbar
+          hover
+          loading={signals === null}
+          // SettingsTable's built-in pagination snapshots and restores its
+          // nearest scroll ancestor while switching pages/page sizes.
+          pageSize={RECENT_SIGNALS_PAGE_SIZE}
+          pageSizeOptions={RECENT_SIGNALS_PAGE_SIZE_OPTIONS}
+          expandable={{
+            expandedRowRender: (row) => (
+              <SignalDiffCard signal={row} fetchDiffs={fetchDiffs} />
+            ),
+            // Only edit signals can carry a patch; reads/searches stay flat.
+            rowExpandable: (row) => EDIT_ACTIONS.has(row.action),
+            expandedRowKeys,
+            onExpandedRowsChange: setExpandedRowKeys,
+          }}
+          emptyTitle={
+            term
+              ? t("agentOrgs.sessionProvenance.signals.noResults", {
+                  defaultValue: "No matching signals",
+                })
+              : t("agentOrgs.sessionProvenance.signals.empty", {
+                  defaultValue: "No hook signals received yet.",
+                })
+          }
+          searchBar={{
+            searchValue: searchQuery,
+            searchPlaceholder: t("agentOrgs.sessionProvenance.signals.search", {
+              defaultValue: "Search signals",
+            }),
+            onSearchChange: setSearchQuery,
+            onSearchClear: () => setSearchQuery(""),
+            searchInputSize: "default",
+            rightContent: (
+              <Button
+                variant="secondary"
+                size="default"
+                loading={refreshing}
+                icon={<RefreshCw size={14} />}
+                onClick={() => void load()}
+              >
+                {t("agentOrgs.sessionProvenance.signals.refresh", {
+                  defaultValue: "Refresh",
+                })}
+              </Button>
+            ),
+          }}
+        />
+      </CollapsibleSection>
     </div>
   );
 };

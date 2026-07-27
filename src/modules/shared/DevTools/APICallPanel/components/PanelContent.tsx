@@ -1,9 +1,10 @@
 // ============================================
 // PanelContent Component
 // ============================================
-import React, { useMemo } from "react";
+import { ChevronDown, ChevronRight, ChevronsUpDown } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Virtuoso } from "react-virtuoso";
 
-import Table, { type TableColumn } from "@src/components/Table";
 import type {
   ApiCall,
   ApiCallHotspot,
@@ -299,6 +300,184 @@ const PushTrafficSummary: React.FC<{ hotspots: PushHotspot[] }> = ({
   );
 };
 
+type ApiCallSortKey =
+  | "method"
+  | "target"
+  | "time"
+  | "trigger"
+  | "status"
+  | "component";
+type SortDirection = "asc" | "desc";
+
+interface ApiCallSort {
+  key: ApiCallSortKey;
+  direction: SortDirection;
+}
+
+const API_CALL_GRID_TEMPLATE =
+  "28px minmax(70px, 0.7fr) minmax(220px, 3fr) repeat(4, minmax(90px, 1fr))";
+
+function compareApiCalls(
+  callA: ApiCall,
+  callB: ApiCall,
+  key: ApiCallSortKey
+): number {
+  switch (key) {
+    case "method":
+      return callA.method.localeCompare(callB.method);
+    case "target":
+      return getApiCallTarget(callA).localeCompare(getApiCallTarget(callB));
+    case "time":
+      return (
+        new Date(callA.timestamp).getTime() -
+        new Date(callB.timestamp).getTime()
+      );
+    case "trigger":
+      return (callA.interactionType ?? "auto").localeCompare(
+        callB.interactionType ?? "auto"
+      );
+    case "status":
+      return (
+        (callA.status ?? (callA.error ? 500 : 0)) -
+        (callB.status ?? (callB.error ? 500 : 0))
+      );
+    case "component":
+      return (callA.componentName ?? "").localeCompare(
+        callB.componentName ?? ""
+      );
+  }
+}
+
+export function sortApiCalls(
+  calls: ApiCall[],
+  sort: ApiCallSort | null
+): ApiCall[] {
+  if (!sort) return calls;
+  const direction = sort.direction === "asc" ? 1 : -1;
+  return [...calls].sort(
+    (callA, callB) => compareApiCalls(callA, callB, sort.key) * direction
+  );
+}
+
+const ApiCallStatus: React.FC<{ call: ApiCall }> = ({ call }) => {
+  const statusInfo = getStatusInfo(call.status, call.error, call.duration);
+  const statusToneClass =
+    statusInfo.class === "status-error"
+      ? "text-danger-6"
+      : statusInfo.class === "status-pending"
+        ? "text-warning-6"
+        : "text-success-6";
+  const statusDotClass =
+    statusInfo.class === "status-error"
+      ? "bg-danger-6"
+      : statusInfo.class === "status-pending"
+        ? "animate-pulse bg-warning-6"
+        : "bg-success-6";
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${statusToneClass}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
+      {statusInfo.label}
+    </span>
+  );
+};
+
+interface ApiCallRowProps {
+  call: ApiCall;
+  expanded: boolean;
+  first: boolean;
+  onToggle: () => void;
+}
+
+const ApiCallRow: React.FC<ApiCallRowProps> = ({
+  call,
+  expanded,
+  first,
+  onToggle,
+}) => (
+  <div
+    className={`min-w-[780px] border-b border-border-2 ${first ? "bg-primary-6/10" : "bg-bg-2"}`}
+  >
+    <div
+      className="grid min-h-8 items-center hover:bg-fill-1"
+      style={{ gridTemplateColumns: API_CALL_GRID_TEMPLATE }}
+    >
+      <button
+        type="button"
+        className="flex h-full items-center justify-center text-text-3"
+        aria-label={expanded ? "Collapse API call" : "Expand API call"}
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+      </button>
+      <span className="truncate px-2 text-[11px] text-text-2">
+        {call.method}
+      </span>
+      <button
+        type="button"
+        className="block overflow-hidden text-ellipsis whitespace-nowrap px-2 text-left text-[11px] text-primary-6"
+        onClick={onToggle}
+        title={call.fullUrl}
+      >
+        {call.transport === "tauri"
+          ? getApiCallTarget(call)
+          : formatApiUrl(call.fullUrl)}
+      </button>
+      <span className="truncate px-2 text-[11px] text-text-2">
+        {formatTime(call.timestamp)}
+      </span>
+      <span className="truncate px-2 text-[11px] text-text-2">
+        {getTriggerLabel(call.interactionType)}
+      </span>
+      <span className="truncate px-2">
+        <ApiCallStatus call={call} />
+      </span>
+      <span
+        className="truncate px-2 text-[11px] text-text-2"
+        title={call.filePath || call.componentName}
+      >
+        {call.componentName
+          ? `${call.componentName}${call.lineNumber ? `:${call.lineNumber}` : ""}`
+          : "—"}
+      </span>
+    </div>
+    {expanded && (
+      <div className="border-t border-border-2 bg-bg-3 px-4 py-3">
+        <ApiCallDetails call={call} />
+      </div>
+    )}
+  </div>
+);
+
+interface SortHeaderProps {
+  label: string;
+  column: ApiCallSortKey;
+  sort: ApiCallSort | null;
+  onSort: (column: ApiCallSortKey) => void;
+}
+
+const SortHeader: React.FC<SortHeaderProps> = ({
+  label,
+  column,
+  sort,
+  onSort,
+}) => (
+  <button
+    type="button"
+    className="flex h-full min-w-0 items-center gap-1 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+    onClick={() => onSort(column)}
+  >
+    <span className="truncate">{label}</span>
+    <ChevronsUpDown
+      size={11}
+      className={sort?.key === column ? "text-primary-6" : "opacity-50"}
+      aria-hidden
+    />
+  </button>
+);
+
 const PanelContent: React.FC<PanelContentProps> = ({
   apiCalls,
   hotspots,
@@ -306,145 +485,21 @@ const PanelContent: React.FC<PanelContentProps> = ({
   pushHotspots,
   expandedCall,
   onToggleExpand,
-  onExpandedChange,
 }) => {
-  const columns = useMemo<TableColumn<ApiCall>[]>(
-    () => [
-      {
-        key: "method",
-        dataIndex: "method",
-        title: "Method",
-        width: "10%",
-        sorter: (callA, callB) => callA.method.localeCompare(callB.method),
-        render: (_value, call) => (
-          <span className="text-[11px] text-text-2">{call.method}</span>
-        ),
-      },
-      {
-        key: "target",
-        dataIndex: "url",
-        title: "Target",
-        width: "42%",
-        sorter: (callA, callB) =>
-          getApiCallTarget(callA).localeCompare(getApiCallTarget(callB)),
-        render: (_value, call) => (
-          <button
-            type="button"
-            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap text-left text-[11px] text-primary-6"
-            onClick={() => onToggleExpand(call.id)}
-            title={call.fullUrl}
-          >
-            {call.transport === "tauri"
-              ? getApiCallTarget(call)
-              : formatApiUrl(call.fullUrl)}
-          </button>
-        ),
-      },
-      {
-        key: "time",
-        dataIndex: "timestamp",
-        title: "Time",
-        width: "12%",
-        sorter: (callA, callB) =>
-          new Date(callA.timestamp).getTime() -
-          new Date(callB.timestamp).getTime(),
-        render: (_value, call) => (
-          <span className="text-[11px] text-text-2">
-            {formatTime(call.timestamp)}
-          </span>
-        ),
-      },
-      {
-        key: "trigger",
-        dataIndex: "interactionType",
-        title: "Trigger",
-        width: "12%",
-        sorter: (callA, callB) =>
-          (callA.interactionType ?? "auto").localeCompare(
-            callB.interactionType ?? "auto"
-          ),
-        render: (_value, call) => (
-          <span className="text-[11px] text-text-2">
-            {getTriggerLabel(call.interactionType)}
-          </span>
-        ),
-      },
-      {
-        key: "status",
-        dataIndex: "status",
-        title: "Status",
-        width: "12%",
-        sorter: (callA, callB) => {
-          const statusA = callA.status ?? (callA.error ? 500 : 0);
-          const statusB = callB.status ?? (callB.error ? 500 : 0);
-          return statusA - statusB;
-        },
-        render: (_value, call) => {
-          const statusInfo = getStatusInfo(
-            call.status,
-            call.error,
-            call.duration
-          );
-          const statusToneClass =
-            statusInfo.class === "status-error"
-              ? "text-danger-6"
-              : statusInfo.class === "status-pending"
-                ? "text-warning-6"
-                : "text-success-6";
-          const statusDotClass =
-            statusInfo.class === "status-error"
-              ? "bg-danger-6"
-              : statusInfo.class === "status-pending"
-                ? "bg-warning-6 animate-pulse"
-                : "bg-success-6";
-          return (
-            <span
-              className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${statusToneClass}`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass}`} />
-              {statusInfo.label}
-            </span>
-          );
-        },
-      },
-      {
-        key: "component",
-        dataIndex: "componentName",
-        title: "Component",
-        width: "12%",
-        sorter: (callA, callB) =>
-          (callA.componentName ?? "").localeCompare(callB.componentName ?? ""),
-        render: (_value, call) =>
-          call.componentName ? (
-            <span
-              className="text-[11px] text-text-2"
-              title={call.filePath || call.componentName}
-            >
-              {call.componentName}
-              {call.lineNumber ? `:${call.lineNumber}` : ""}
-            </span>
-          ) : (
-            <span className="text-[11px] text-text-4">—</span>
-          ),
-      },
-    ],
-    [onToggleExpand]
+  const [sort, setSort] = useState<ApiCallSort | null>(null);
+  const sortedCalls = useMemo(
+    () => sortApiCalls(apiCalls, sort),
+    [apiCalls, sort]
   );
 
-  const expandable = useMemo(
-    () => ({
-      expandedRowRender: (call: ApiCall) => (
-        <div className="border-t border-border-2 bg-bg-3 px-4 py-3">
-          <ApiCallDetails call={call} />
-        </div>
-      ),
-      expandedRowKeys: expandedCall ? [expandedCall] : [],
-      onExpandedRowsChange: (keys: string[]) => {
-        onExpandedChange(keys[0] ?? null);
-      },
-    }),
-    [expandedCall, onExpandedChange]
-  );
+  const handleSort = (column: ApiCallSortKey) => {
+    setSort((current) => {
+      if (current?.key !== column) return { key: column, direction: "asc" };
+      if (current.direction === "asc")
+        return { key: column, direction: "desc" };
+      return null;
+    });
+  };
 
   if (
     apiCalls.length === 0 &&
@@ -455,28 +510,73 @@ const PanelContent: React.FC<PanelContentProps> = ({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
-      <TimerHotspotSummary hotspots={timerHotspots} />
-      <HotspotSummary hotspots={hotspots} />
-      <PushTrafficSummary hotspots={pushHotspots} />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="max-h-[45%] shrink-0 overflow-auto">
+        <TimerHotspotSummary hotspots={timerHotspots} />
+        <HotspotSummary hotspots={hotspots} />
+        <PushTrafficSummary hotspots={pushHotspots} />
+      </div>
       {apiCalls.length > 0 ? (
-        <Table<ApiCall>
-          columns={columns}
-          data={apiCalls}
-          rowKey="id"
-          pagination={false}
-          hover
-          stripe={false}
-          border={false}
-          size="small"
-          className="!border-0"
-          expandable={expandable}
-          rowClassName={(call, index) =>
-            index === 0
-              ? "!bg-primary-6/10 hover:!bg-fill-1"
-              : "hover:!bg-fill-1"
-          }
-        />
+        <div className="min-h-0 flex-1 overflow-x-auto">
+          <div className="flex h-full min-w-[780px] flex-col">
+            <div
+              className="grid h-8 shrink-0 border-b border-border-2 bg-bg-3"
+              style={{ gridTemplateColumns: API_CALL_GRID_TEMPLATE }}
+            >
+              <span aria-hidden />
+              <SortHeader
+                label="Method"
+                column="method"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Target"
+                column="target"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Time"
+                column="time"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Trigger"
+                column="trigger"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Status"
+                column="status"
+                sort={sort}
+                onSort={handleSort}
+              />
+              <SortHeader
+                label="Component"
+                column="component"
+                sort={sort}
+                onSort={handleSort}
+              />
+            </div>
+            <Virtuoso
+              className="min-h-0 flex-1"
+              data={sortedCalls}
+              computeItemKey={(_index, call) => call.id}
+              increaseViewportBy={160}
+              itemContent={(index, call) => (
+                <ApiCallRow
+                  call={call}
+                  first={index === 0}
+                  expanded={expandedCall === call.id}
+                  onToggle={() => onToggleExpand(call.id)}
+                />
+              )}
+            />
+          </div>
+        </div>
       ) : (
         <div className="px-4 py-8 text-center text-[12px] text-text-3">
           No API calls captured yet. Timer activity is shown above.

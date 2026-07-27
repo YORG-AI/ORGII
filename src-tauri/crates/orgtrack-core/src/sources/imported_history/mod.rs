@@ -3,6 +3,10 @@ pub mod managed_mirror;
 pub mod managed_roots;
 pub mod metadata;
 pub mod paths;
+#[cfg(feature = "git")]
+pub mod repo_identity;
+pub mod scan_snapshot;
+pub mod watermark;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -168,6 +172,8 @@ pub struct ImportedHistorySessionRow {
     pub background: bool,
     pub is_active: bool,
     pub repo_path: Option<String>,
+    pub repo_root_path: Option<String>,
+    pub repo_remote_urls: Vec<String>,
     pub storage_path: Option<String>,
     pub repo_name: Option<String>,
     pub branch: Option<String>,
@@ -205,6 +211,10 @@ pub struct ImportedHistorySidebarRow {
     pub is_active: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_root_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repo_remote_urls: Vec<String>,
     /// The source app's own transcript file — the store of record for an
     /// imported session, which never has a `sessions.db` copy. Absent for
     /// rows cached before the path was recorded.
@@ -244,6 +254,8 @@ pub struct ImportedHistoryRowInput {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub repo_path: Option<String>,
+    pub repo_root_path: Option<String>,
+    pub repo_remote_urls: Vec<String>,
     pub storage_path: Option<String>,
     pub branch: Option<String>,
     pub files_changed: i64,
@@ -297,6 +309,8 @@ pub fn row_from_input(input: ImportedHistoryRowInput) -> ImportedHistorySessionR
         background: false,
         is_active: false,
         repo_path: input.repo_path,
+        repo_root_path: input.repo_root_path,
+        repo_remote_urls: input.repo_remote_urls,
         storage_path: input.storage_path,
         repo_name,
         branch: input.branch,

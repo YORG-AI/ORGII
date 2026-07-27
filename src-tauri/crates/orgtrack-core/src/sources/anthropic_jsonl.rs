@@ -25,13 +25,23 @@ use crate::sources::imported_history::{
 
 const MAX_TOOL_OUTPUT_CHARS: usize = 50_000;
 
-pub(crate) struct AnthropicJsonlSource {
+/// Config for the generic Anthropic/Claude-style JSONL transcript reader. Any
+/// tool that writes newline-delimited JSON transcripts under a set of root
+/// directories is a value of this struct — no bespoke parser required (see
+/// `omp` / `qoder_cli`, and the CLI's declarative loader plugins).
+///
+/// The identity fields are `&'static str` because built-in sources are static;
+/// dynamic hosts (the CLI's plugin loader) intern their ids once for the
+/// process lifetime. `candidate_roots` is owned so it can be built from a
+/// manifest, not only a function.
+#[derive(Debug, Clone)]
+pub struct AnthropicJsonlSource {
     pub source: &'static str,
     pub session_prefix: &'static str,
     pub provider_slug: &'static str,
     pub display_name: &'static str,
     pub parser_version: i64,
-    pub candidate_roots: fn() -> Vec<PathBuf>,
+    pub candidate_roots: Vec<PathBuf>,
     pub exclude_subagent_dirs: bool,
 }
 
@@ -82,7 +92,7 @@ struct TranscriptTurn {
     message: JsonlMessage,
 }
 
-pub(crate) fn list_sessions_paginated(
+pub fn list_sessions_paginated(
     config: &AnthropicJsonlSource,
     conn: &mut Connection,
     limit: usize,
@@ -92,7 +102,7 @@ pub(crate) fn list_sessions_paginated(
     imported_cache::query_imported_session_page_from_conn(conn, config.source, limit, offset)
 }
 
-pub(crate) fn list_recent_paths(
+pub fn list_recent_paths(
     config: &AnthropicJsonlSource,
     conn: &mut Connection,
     limit: usize,
@@ -101,7 +111,7 @@ pub(crate) fn list_recent_paths(
     imported_cache::query_imported_recent_paths_from_conn(conn, config.source, limit)
 }
 
-pub(crate) fn load_session(
+pub fn load_session(
     config: &AnthropicJsonlSource,
     conn: &Connection,
     session_id: &str,
@@ -150,7 +160,7 @@ fn discover_records(
 ) -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
     let mut records = Vec::new();
     let mut seen_paths = HashSet::new();
-    for root in (config.candidate_roots)() {
+    for root in config.candidate_roots.clone() {
         if !root.is_dir() {
             continue;
         }
@@ -711,7 +721,7 @@ mod tests {
             provider_slug: "test",
             display_name: "Test",
             parser_version: 1,
-            candidate_roots: Vec::new,
+            candidate_roots: Vec::new(),
             exclude_subagent_dirs: false,
         }
     }

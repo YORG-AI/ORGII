@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 const PRIMARY_IDE_SERVER_PORT: u16 = 13_847;
 const PRIMARY_CLI_PROXY_PORT: u16 = 17_888;
-const INSTANCE_IDENTIFIER_PREFIX: &str = "yorg.orgii.instance";
+const INSTANCE_IDENTIFIER_PREFIXES: &[&str] = &["yorg.orgii.instance", "yorg.orgii.e2e.instance"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RuntimeInstanceProfile {
@@ -36,11 +36,22 @@ impl RuntimeInstanceProfile {
         (self.instance_id > 1)
             .then(|| user_home.join(format!(".orgii-instance{}", self.instance_id)))
     }
+
+    /// Secondary identities must not scan the real user's Codex/Claude
+    /// histories. Launch helpers normally provide an explicit override, but
+    /// direct executable launches need the same isolation guarantee.
+    pub(crate) fn default_external_history_home(
+        self,
+        resolved_orgii_home: &Path,
+    ) -> Option<PathBuf> {
+        (self.instance_id > 1).then(|| resolved_orgii_home.join("external-history-home"))
+    }
 }
 
 fn parse_instance_id(identifier: &str) -> Option<u16> {
-    identifier
-        .strip_prefix(INSTANCE_IDENTIFIER_PREFIX)?
+    INSTANCE_IDENTIFIER_PREFIXES
+        .iter()
+        .find_map(|prefix| identifier.strip_prefix(prefix))?
         .parse::<u16>()
         .ok()
         .filter(|id| (2..=99).contains(id))
@@ -76,6 +87,24 @@ mod tests {
         assert_eq!(
             profile.default_orgii_home(Path::new("C:/Users/Test")),
             Some(PathBuf::from("C:/Users/Test/.orgii-instance2"))
+        );
+        assert_eq!(
+            profile.default_external_history_home(Path::new("C:/Users/Test/.orgii-instance2")),
+            Some(PathBuf::from(
+                "C:/Users/Test/.orgii-instance2/external-history-home"
+            ))
+        );
+    }
+
+    #[test]
+    fn webdriver_secondary_identifier_keeps_the_same_isolation_profile() {
+        let profile = RuntimeInstanceProfile::from_identifier("yorg.orgii.e2e.instance2");
+        assert_eq!(profile.instance_id, 2);
+        assert_eq!(profile.ide_server_port, 13_848);
+        assert_eq!(profile.cli_proxy_port, 17_889);
+        assert_eq!(
+            profile.default_external_history_home(Path::new("/tmp/e2e-home")),
+            Some(PathBuf::from("/tmp/e2e-home/external-history-home"))
         );
     }
 

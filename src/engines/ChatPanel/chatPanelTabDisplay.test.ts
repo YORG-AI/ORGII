@@ -12,7 +12,7 @@ import {
 const labels: ChatPanelTabDisplayLabels = {
   launchpad: "Launchpad",
   runtime: "Runtime",
-  cloudOrg: "Manage ORG",
+  organization: "Manage ORG",
   workManagement: {
     kanban: "Kanban",
     projects: "Projects",
@@ -87,7 +87,7 @@ describe("resolveChatPanelTabDisplayTitle", () => {
   it("keeps organization management distinct from Launchpad", () => {
     expect(
       resolveChatPanelTabDisplayTitle(
-        tab("cloud-org", "Manage ORG"),
+        tab("organization", "Manage ORG"),
         null,
         labels
       )

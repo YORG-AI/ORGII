@@ -29,7 +29,13 @@ import { getCloudEndpoint } from "./config";
 const log = createLogger("Org2CloudRealtime");
 const PRESENCE_TRACK_TIMEOUT_MS = 5_000;
 const PRESENCE_TRACK_RETRY_MS = 1_000;
+/** Ceiling for the presence-track retry backoff: a persistent server-side
+ * rejection (RLS/policy) must idle near this cadence, not spin at 1 Hz. */
+const PRESENCE_TRACK_RETRY_MAX_MS = 30_000;
 const BROADCAST_RETRY_MS = 1_000;
+/** Same ceiling rationale as presence-track: persistent broadcast failure
+ * (rate limit, policy) idles near this cadence instead of spinning at 1 Hz. */
+const BROADCAST_RETRY_MAX_MS = 30_000;
 const MAX_PENDING_BROADCASTS = 100;
 // Supabase Realtime's self-hosted/default client guard allows five Presence
 // calls per WebSocket connection in a rolling 30-second window. This is
@@ -94,10 +100,17 @@ export interface Org2CloudPresenceOptions {
     event: string,
     payload: Record<string, unknown>
   ) => void;
+  /**
+   * Fired on subscription status edges, like `Org2CloudSubscribeOptions.
+   * onStatus`. When the backend broadcasts change signals on this channel
+   * (0005), callers use the true-edge for missed-signal recovery — the same
+   * role the dedicated signal channel's edge played on legacy backends.
+   */
+  readonly onStatus?: (subscribed: boolean) => void;
 }
 
 export interface Org2CloudPresenceHandle {
-  /** Re-track with a payload, or untrack when no session in this org is open. */
+  /** Re-track with a payload, or publish an explicit idle view when no session is open. */
   update(payload: Record<string, unknown> | null): void;
   /** Fire-and-forget broadcast to every other peer on this channel. */
   send(event: string, payload: Record<string, unknown>): void;
@@ -135,7 +148,16 @@ export function createOrg2CloudRealtimeConnection(
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
-      realtime: { params: { eventsPerSecond: 5 } },
+      realtime: {
+        params: { eventsPerSecond: 5 },
+        // realtime-js defaults to a FIXED [1s,2s,5s,10s]+flat-10s schedule,
+        // which phase-locks every client's reconnect after a shared outage;
+        // the random spread staggers the fleet's rejoin (and therefore the
+        // SUBSCRIBED-edge recovery reads) across a few seconds.
+        reconnectAfterMs: (tries: number) =>
+          ([1_000, 2_000, 5_000, 10_000][tries - 1] ?? 10_000) +
+          Math.floor(Math.random() * 3_000),
+      },
     }
   );
   client.realtime.setAuth(accessToken);
@@ -245,14 +267,29 @@ export function createOrg2CloudRealtimeConnection(
         leave: () => undefined,
       };
     }
-    const { scope, key, payload, onSync, onBroadcast } = options;
+    const { scope, key, payload, onSync, onBroadcast, onStatus } = options;
     // Private: presence roster + broadcast nudges are org-scoped, gated by the
     // RLS policy on realtime.messages for topic `presence:<scope>` (setAuth
     // carries the JWT the authorization check needs).
+    //
+    // CONTRACT: unlike postgres channels, the presence topic CANNOT carry a
+    // connection-local sequence suffix — peers only see each other when they
+    // join the exact same topic, and the RLS policy authorizes that exact
+    // topic string. joinPresence therefore must not be called again for a
+    // scope whose previous handle has not finished leaving ON THE SAME
+    // CONNECTION; the one production caller (useOrg2CloudRealtime) satisfies
+    // this by rebuilding the whole connection on every user/endpoint/org
+    // change instead of rejoining in place.
     const channel = client.channel(`presence:${scope}`, {
       config: { private: true, presence: { key } },
     });
     let latestPayload: Record<string, unknown> | null = payload;
+    // Keep enough identity metadata to publish an explicit "online, not
+    // viewing" state. Repeated untrack -> track cycles on a private channel
+    // can leave peers holding the previous meta even after untrack resolves
+    // `ok`; replacing the meta is both observable and matches org Presence's
+    // online/viewing dual purpose.
+    let lastTrackedPayload: Record<string, unknown> | null = payload;
     let subscribed = false;
     let published = false;
     let desiredTrackVersion = 1;
@@ -265,12 +302,17 @@ export function createOrg2CloudRealtimeConnection(
     >();
     let broadcasting = false;
     let broadcastRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let broadcastFailureStreak = 0;
     const scheduleBroadcastRetry = () => {
       if (!subscribed || broadcastRetryTimer !== null) return;
+      const delay = Math.min(
+        BROADCAST_RETRY_MS * 2 ** Math.min(broadcastFailureStreak, 10),
+        BROADCAST_RETRY_MAX_MS
+      );
       broadcastRetryTimer = setTimeout(() => {
         broadcastRetryTimer = null;
         void flushPendingBroadcasts();
-      }, BROADCAST_RETRY_MS);
+      }, delay);
     };
     const flushPendingBroadcasts = async (): Promise<void> => {
       if (!subscribed || broadcasting || pendingBroadcasts.size === 0) return;
@@ -292,13 +334,18 @@ export function createOrg2CloudRealtimeConnection(
               log.warn(
                 `broadcast ${frame.event} failed for ${scope}: ${String(result)}`
               );
+              // Schedule BEFORE bumping the streak: the first retry stays at
+              // the fast base delay; only consecutive failures back off.
               scheduleBroadcastRetry();
+              broadcastFailureStreak += 1;
               return;
             }
             pendingBroadcasts.delete(id);
+            broadcastFailureStreak = 0;
           } catch (error) {
             log.warn(`broadcast ${frame.event} failed for ${scope}:`, error);
             scheduleBroadcastRetry();
+            broadcastFailureStreak += 1;
             return;
           }
         }
@@ -306,12 +353,20 @@ export function createOrg2CloudRealtimeConnection(
         broadcasting = false;
       }
     };
+    let trackFailureStreak = 0;
     const scheduleTrackRetry = () => {
       if (!subscribed || retryTimer !== null) return;
+      // Exponential backoff, capped: transient blips retry fast, a
+      // persistently rejected track (bad policy/token) settles at the
+      // ceiling instead of retrying at 1 Hz for the channel's lifetime.
+      const delay = Math.min(
+        PRESENCE_TRACK_RETRY_MS * 2 ** Math.min(trackFailureStreak, 10),
+        PRESENCE_TRACK_RETRY_MAX_MS
+      );
       retryTimer = setTimeout(() => {
         retryTimer = null;
         void flushLatestPayload();
-      }, PRESENCE_TRACK_RETRY_MS);
+      }, delay);
     };
     const flushLatestPayload = async (): Promise<void> => {
       if (!subscribed || tracking) return;
@@ -323,22 +378,28 @@ export function createOrg2CloudRealtimeConnection(
         while (subscribed && appliedTrackVersion < desiredTrackVersion) {
           const version = desiredTrackVersion;
           const nextPayload = latestPayload;
-          // Listening on an inactive org is intentionally untracked. If no
-          // presence was published, applying null is a local no-op and must
-          // not consume one of the five server calls.
+          // Listening before this client has published a view is intentionally
+          // untracked. Applying null is then a local no-op and must not consume
+          // one of the five server calls.
           if (nextPayload === null && !published) {
             appliedTrackVersion = version;
             continue;
           }
+          const wirePayload =
+            nextPayload === null
+              ? {
+                  ...(lastTrackedPayload ?? {}),
+                  viewingSessionId: null,
+                  updatedAt: Date.now(),
+                }
+              : nextPayload;
           try {
             const result = await schedulePresenceCall(async () => {
               if (!subscribed) return "ok" as const;
               let timeout: ReturnType<typeof setTimeout> | undefined;
               try {
                 return await Promise.race([
-                  nextPayload === null
-                    ? channel.untrack()
-                    : channel.track(nextPayload),
+                  channel.track(wirePayload),
                   new Promise<"timed out">((resolve) => {
                     timeout = setTimeout(
                       () => resolve("timed out"),
@@ -353,17 +414,23 @@ export function createOrg2CloudRealtimeConnection(
             if (result !== "ok") {
               throw new Error(`presence call returned ${String(result)}`);
             }
-            published = nextPayload !== null;
+            published = true;
+            lastTrackedPayload = wirePayload;
             appliedTrackVersion = version;
+            trackFailureStreak = 0;
           } catch (error) {
             log.warn(`presence track failed for ${scope}:`, error);
             if (desiredTrackVersion > version) {
               // A newer payload is already waiting. Retire only this failed
               // attempt and continue immediately with the current truth.
+              trackFailureStreak += 1;
               appliedTrackVersion = version;
               continue;
             }
+            // Schedule BEFORE bumping the streak: the first retry stays at
+            // the fast base delay; only consecutive failures back off.
             scheduleTrackRetry();
+            trackFailureStreak += 1;
             return;
           }
         }
@@ -406,6 +473,10 @@ export function createOrg2CloudRealtimeConnection(
       if (status === "SUBSCRIBED") {
         subscribed = true;
         published = false;
+        // A fresh SUBSCRIBED edge means the transport recovered; retry fast
+        // again instead of inheriting the previous failure streak's ceiling.
+        trackFailureStreak = 0;
+        broadcastFailureStreak = 0;
         if (wasEverTimedOut) {
           log.info(`presence channel ${scope} recovered (SUBSCRIBED)`);
         }
@@ -423,6 +494,7 @@ export function createOrg2CloudRealtimeConnection(
         subscribed = false;
         published = false;
       }
+      onStatus?.(status === "SUBSCRIBED");
     });
     channels.add(channel);
     return {

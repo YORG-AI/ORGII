@@ -62,10 +62,13 @@ export interface ChatPanelProps {
     variant?: "default" | "fullScreen";
     centerFullScreenContent?: boolean;
     composerHeaderContent?: ReactNode;
+    pinnedActionsContent?: ReactNode;
     footerSlot?: ReactNode;
     innerClassName?: string;
     leadingActionSlot?: ReactNode;
     hideRepoLine?: boolean;
+    hideWorkItemAttachmentControl?: boolean;
+    includeHumanSession?: boolean;
     onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
     hidePresenceButton?: boolean;
     initialContent?: string;

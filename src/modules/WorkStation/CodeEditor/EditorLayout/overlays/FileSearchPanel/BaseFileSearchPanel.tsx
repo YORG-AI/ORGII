@@ -13,6 +13,7 @@ import type { FileSearchResult } from "@/src/hooks/workStation/useCodeEditor";
 import { Loader2, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import FileTypeIcon from "@src/components/FileTypeIcon";
@@ -21,6 +22,9 @@ import { useListNavigation } from "@src/hooks/keyboard/useListNavigation";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SearchInput } from "../../../Panels/shared";
+
+const FILE_SEARCH_ROW_HEIGHT = 57;
+const FILE_SEARCH_MAX_HEIGHT = 400;
 
 // ============================================
 // Types
@@ -108,6 +112,7 @@ export const BaseFileSearchPanel: React.FC<BaseFileSearchPanelProps> = memo(
       searchResults.length
     );
     const inputRef = React.useRef<HTMLInputElement>(null);
+    const virtuosoRef = React.useRef<VirtuosoHandle>(null);
 
     // Reset selectedIndex when results change (getDerivedStateFromProps pattern)
     if (prevResultsLength !== searchResults.length) {
@@ -133,34 +138,43 @@ export const BaseFileSearchPanel: React.FC<BaseFileSearchPanelProps> = memo(
     );
 
     // Convert results to ListItem format for useListNavigation
-    const listItems = useMemo(
-      () =>
-        searchResults.map((result) => ({
-          ...result,
-          // Only file items are selectable
-          _isFile: result.type === "file",
-        })),
-      [searchResults]
-    );
+    const listItems = useMemo(() => {
+      if (!visible) return [];
+      return searchResults.map((result) => ({
+        ...result,
+        // Only file items are selectable
+        _isFile: result.type === "file",
+      }));
+    }, [searchResults, visible]);
 
     // Use unified list navigation hook
-    const { handleKeyDown: _handleKeyDown, scrollContainerRef } =
-      useListNavigation({
-        items: listItems,
-        selectedIndex: currentSelectedIndex,
-        onSelectedIndexChange: setSelectedIndex,
-        onSelect: (item) => {
-          if (item._isFile) {
-            onFileSelect(item.path as string);
-            onClose();
-          }
-        },
-        onClose,
-        isItemSelectable: (item) => item._isFile === true,
-        enableAutoScroll: true,
-        enableGlobalListener: visible,
-        inputRef,
+    const { handleKeyDown: _handleKeyDown } = useListNavigation({
+      items: listItems,
+      selectedIndex: currentSelectedIndex,
+      onSelectedIndexChange: setSelectedIndex,
+      onSelect: (item) => {
+        if (item._isFile) {
+          onFileSelect(item.path as string);
+          onClose();
+        }
+      },
+      onClose,
+      isItemSelectable: (item) => item._isFile === true,
+      // Virtual rows outside the viewport do not have DOM nodes for the
+      // generic querySelector-based auto-scroll. Drive Virtuoso directly.
+      enableAutoScroll: false,
+      enableGlobalListener: visible,
+      inputRef,
+    });
+
+    useEffect(() => {
+      if (!visible) return;
+      if (currentSelectedIndex < 0) return;
+      virtuosoRef.current?.scrollIntoView({
+        index: currentSelectedIndex,
+        behavior: "auto",
       });
+    }, [currentSelectedIndex, visible]);
 
     // Focus input when panel opens
     useEffect(() => {
@@ -225,62 +239,72 @@ export const BaseFileSearchPanel: React.FC<BaseFileSearchPanelProps> = memo(
           )}
 
           {/* Results list */}
-          <div
-            ref={scrollContainerRef}
-            className="max-h-[400px] overflow-y-auto scrollbar-hide"
-          >
+          <div className="max-h-[400px] overflow-hidden">
             {searchResults.length > 0 ? (
-              searchResults.map((result, index) => {
-                const isSelected = index === currentSelectedIndex;
-                const relativePath = getRelativePath(result.path, repoPath);
-                const directory = getDirectoryPath(relativePath);
+              <Virtuoso
+                ref={virtuosoRef}
+                className="scrollbar-hide"
+                style={{
+                  height: Math.min(
+                    FILE_SEARCH_MAX_HEIGHT,
+                    searchResults.length * FILE_SEARCH_ROW_HEIGHT
+                  ),
+                }}
+                data={searchResults}
+                computeItemKey={(_index, result) => result.path}
+                fixedItemHeight={FILE_SEARCH_ROW_HEIGHT}
+                overscan={FILE_SEARCH_ROW_HEIGHT * 6}
+                itemContent={(index, result) => {
+                  const isSelected = index === currentSelectedIndex;
+                  const relativePath = getRelativePath(result.path, repoPath);
+                  const directory = getDirectoryPath(relativePath);
 
-                return (
-                  <div
-                    key={result.path}
-                    data-spotlight-item-index={index}
-                    className={`flex cursor-pointer items-center gap-3 border-b border-border-2 px-4 py-3 transition-colors last:border-0 ${
-                      isSelected ? "bg-fill-1" : "hover:bg-fill-3"
-                    }`}
-                    onClick={() => handleResultClick(result)}
-                    onMouseEnter={() => setSelectedIndex(index)}
-                    onMouseLeave={() => setSelectedIndex(-1)}
-                  >
-                    {/* Icon */}
-                    {result.type === "folder" ? (
-                      <FolderIcon
-                        width={16}
-                        height={16}
-                        className="flex-shrink-0"
-                      />
-                    ) : (
-                      <FileTypeIcon
-                        fileName={result.filename}
-                        size="medium"
-                        className="flex-shrink-0"
-                      />
-                    )}
+                  return (
+                    <div
+                      data-spotlight-item-index={index}
+                      className={`flex h-[57px] cursor-pointer items-center gap-3 border-b border-border-2 px-4 transition-colors ${
+                        isSelected ? "bg-fill-1" : "hover:bg-fill-3"
+                      }`}
+                      onClick={() => handleResultClick(result)}
+                      onMouseEnter={() => setSelectedIndex(index)}
+                      onMouseLeave={() => setSelectedIndex(-1)}
+                    >
+                      {result.type === "folder" ? (
+                        <FolderIcon
+                          width={16}
+                          height={16}
+                          className="flex-shrink-0"
+                        />
+                      ) : (
+                        <FileTypeIcon
+                          fileName={result.filename}
+                          size="medium"
+                          className="flex-shrink-0"
+                        />
+                      )}
 
-                    {/* File info */}
-                    <div className="min-w-0 flex-1">
-                      <div
-                        className={`truncate text-[13px] ${
-                          isSelected ? "font-medium text-text-1" : "text-text-2"
-                        }`}
-                        title={result.filename}
-                      >
-                        {result.filename}
-                      </div>
-                      <div
-                        className="truncate text-[11px] text-text-4"
-                        title={directory}
-                      >
-                        {directory}
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`truncate text-[13px] ${
+                            isSelected
+                              ? "font-medium text-text-1"
+                              : "text-text-2"
+                          }`}
+                          title={result.filename}
+                        >
+                          {result.filename}
+                        </div>
+                        <div
+                          className="truncate text-[11px] text-text-4"
+                          title={directory}
+                        >
+                          {directory}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })
+                  );
+                }}
+              />
             ) : searchQuery.trim() && !loading ? (
               <Placeholder
                 variant="no-results"

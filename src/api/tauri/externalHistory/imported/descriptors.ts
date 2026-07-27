@@ -50,7 +50,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Codex App",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "claude_code",

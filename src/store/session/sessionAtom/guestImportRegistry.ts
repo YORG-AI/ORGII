@@ -19,6 +19,13 @@ const GUEST_IMPORT_REGISTRY_STORAGE_KEY = "orgii:guestShareImports:v1";
 
 const MAX_REGISTRY_ENTRIES = 100;
 
+const SessionSourceDisplayMetadataSchema = z.object({
+  cliAgentType: z.string().optional(),
+  agentDisplayName: z.string().optional(),
+  agentDefinitionId: z.string().optional(),
+  model: z.string().optional(),
+});
+
 const GuestImportedFromSchema = z.object({
   orgId: z.string(),
   sourceSessionId: z.string(),
@@ -30,7 +37,9 @@ const GuestImportedFromSchema = z.object({
   frozenCount: z.number().optional(),
   tailHash: z.string().optional(),
   ownerDisplayName: z.string().optional(),
+  ownerAvatarUrl: z.string().optional(),
   externalHistorySource: z.string().optional(),
+  sourceDisplay: SessionSourceDisplayMetadataSchema.optional(),
   importedAt: z.string().optional(),
   shareToken: z.string(),
   shareEndpointUrl: z.string().optional(),

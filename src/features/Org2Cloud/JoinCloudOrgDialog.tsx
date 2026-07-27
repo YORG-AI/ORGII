@@ -5,10 +5,9 @@
  *
  * The pending atom itself is the dialog state: it stays set while the
  * confirmation is open and is consumed (cleared) exactly once on dismiss or
- * successful join. Signed-out users get a sign-in CTA that routes to the
- * Settings sign-in card; the pending invite SURVIVES that detour — when the
- * user returns to the Workstation surface, the dialog re-opens with the
- * same code (in-memory only, so an app restart drops it).
+ * successful join. Signed-out users get the same system-browser sign-in CTA
+ * as Settings; the pending invite survives the browser handoff and the dialog
+ * switches back to its confirm action when the auth callback returns.
  *
  * The plaintext code never leaves this device: only its sha256 goes to
  * `accept_invite` (same code model as invite creation).
@@ -22,19 +21,19 @@ import { useLocation } from "react-router-dom";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
-import { useAppNavigation } from "@src/hooks/navigation";
 
-import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
-import { ensureFreshSession } from "./org2CloudClient";
+import { refreshOrg2CloudAuthForAction } from "./org2CloudAuthAction";
+import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { acceptCloudInvite } from "./org2CloudManagementClient";
 import { cloudManagementErrorMessage } from "./org2CloudOrgManagement";
 import { useRefetchOrg2CloudOrgs } from "./org2CloudOrgsAtom";
 import { org2CloudPendingInviteAtom } from "./org2CloudPendingInviteAtom";
 import { ensureProjectOrgForCloudOrg } from "./org2CloudProjectOrgAlias";
+import { useOrg2CloudSignIn } from "./useOrg2CloudSignIn";
 
 const JoinCloudOrgDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
-  const { goToSettings } = useAppNavigation();
+  const openCloudSignIn = useOrg2CloudSignIn();
   const location = useLocation();
   const [pending, setPending] = useAtom(org2CloudPendingInviteAtom);
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
@@ -46,9 +45,7 @@ const JoinCloudOrgDialog: React.FC = () => {
   const codeSuffix = pending?.inviteCode.slice(-4) ?? "";
   // SidebarSelector keeps every sidebar (and this dialog) mounted across
   // routes, so gate visibility on the Workstation surface — NOT the pending
-  // atom alone. The sign-in CTA detours to the Settings sign-in card; hiding
-  // here (while `pending` survives) keeps the modal from covering it, then
-  // re-opens the dialog once the user is back on the Workstation.
+  // atom alone.
   const onWorkstation = location.pathname.startsWith(
     ROUTES.workStation.base.path
   );
@@ -59,12 +56,6 @@ const JoinCloudOrgDialog: React.FC = () => {
     setError(null);
   }, [setPending]);
 
-  // Sign-in detour: keep the pending invite so the dialog re-opens once the
-  // user is back on the Workstation surface after signing in.
-  const handleOpenSettings = useCallback(() => {
-    goToSettings({ section: "collaboration" });
-  }, [goToSettings]);
-
   const handleJoin = useCallback(async () => {
     if (!pending || joining) return;
     const current = auth;
@@ -72,9 +63,15 @@ const JoinCloudOrgDialog: React.FC = () => {
     setJoining(true);
     setError(null);
     try {
-      const fresh = await ensureFreshSession(current);
-      if (!fresh) throw new Error(t("cloud.orgPanel.loadError"));
-      commitRefreshedAuth(setAuth, current, fresh);
+      const refreshed = await refreshOrg2CloudAuthForAction(current, setAuth);
+      if (refreshed.status === "expired") {
+        throw new Error(t("cloud.sessionExpired"));
+      }
+      if (refreshed.status === "superseded") return;
+      if (refreshed.status === "unavailable") {
+        throw new Error(t("cloud.orgPanel.loadError"));
+      }
+      const fresh = refreshed.auth;
       const result = await acceptCloudInvite(
         fresh.accessToken,
         pending.inviteCode
@@ -160,10 +157,10 @@ const JoinCloudOrgDialog: React.FC = () => {
             <Button
               htmlType="button"
               variant="primary"
-              onClick={handleOpenSettings}
+              onClick={openCloudSignIn}
               data-testid="cloud-join-org-sign-in"
             >
-              {t("cloud.orgManagement.join.openSettings")}
+              {t("cloud.signIn")}
             </Button>
           )}
         </div>

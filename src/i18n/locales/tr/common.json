@@ -961,7 +961,6 @@
     "addCssVariables": "Projenize CSS değişkenleri ekleyin",
     "loadingAccountStatus": "Hesap durumu yükleniyor...",
     "noRepositorySelected": "Depo seçilmedi",
-    "selectRepositoryFromHome": "Açmak için ana sayfadan bir depo seçin.",
     "noWorkspaceExplorerTitle": "Açık Workspace yok",
     "noWorkspaceExplorerSubtitle": "Dosyaları görüntülemek için Workspace aç",
     "cannotFindRepo": "{{repoName}} bulunamıyor",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Önizleme kullanılamıyor",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Açmak için çalışma alanınızdan bir depo seçin."
   },
   "inbox": {
     "searchPlaceholder": "Mesajlarda ara...",
@@ -1152,8 +1152,6 @@
       "tryVerifyUrl": "URL’nin doğru olduğunu doğrulayın",
       "tryAgainLater": "Daha sonra tekrar deneyin"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git sync actions"
@@ -1246,6 +1244,43 @@
         "closed": "Kapalı",
         "completed": "Tamamlandı",
         "notPlanned": "Planlanmadı"
+      },
+      "activity": {
+        "opened": "bu issue kaydını açtı",
+        "commented": "yorum yaptı",
+        "timelineItemCount_one": "{{count}} zaman çizelgesi öğesi",
+        "timelineItemCount_other": "{{count}} zaman çizelgesi öğesi",
+        "noDescription": "Açıklama sağlanmadı.",
+        "assigned": "şu kullanıcıyı atadı:",
+        "assignedIssue": "bu issue kaydını atadı",
+        "unassigned": "şu kullanıcının atamasını kaldırdı:",
+        "removedAssignee": "bir atananı kaldırdı",
+        "added": "ekledi:",
+        "removed": "kaldırdı:",
+        "label": "bir etiket",
+        "milestoned": "bu issue kaydını {{milestone}} kilometre taşına ekledi",
+        "demilestoned": "bu issue kaydını {{milestone}} kilometre taşından kaldırdı",
+        "closedViaCommit": "bu issue kaydını {{commit}} commit'i ile kapattı",
+        "closed": "bu issue kaydını kapattı",
+        "reopened": "bu issue kaydını yeniden açtı",
+        "renamedTo": "bu issue kaydının adını şu şekilde değiştirdi:",
+        "renamed": "bu issue kaydının adını değiştirdi",
+        "locked": "bu konuşmayı kilitledi",
+        "lockedAs": "bu konuşmayı {{reason}} nedeniyle kilitledi",
+        "unlocked": "bu konuşmanın kilidini açtı",
+        "crossReferencedFrom": "bu issue kaydına şuradan referans verdi:",
+        "crossReferenced": "bu issue kaydına çapraz referans verdi",
+        "referencedInCommit": "bu issue kaydına {{commit}} commit'inde referans verdi",
+        "referencedInACommit": "bu issue kaydına bir commit'te referans verdi",
+        "connected": "bu issue kaydını bağladı",
+        "disconnected": "bu issue kaydının bağlantısını kaldırdı",
+        "markedAsDuplicate": "bu issue kaydını yinelenen olarak işaretledi",
+        "unmarkedAsDuplicate": "yinelenen işaretini kaldırdı",
+        "pinned": "bu issue kaydını sabitledi",
+        "unpinned": "bu issue kaydının sabitlemesini kaldırdı",
+        "transferred": "bu issue kaydını aktardı",
+        "convertedToDiscussion": "bu issue kaydını tartışmaya dönüştürdü",
+        "mentioned": "bu issue kaydından bahsetti"
       }
     }
   },
@@ -1703,7 +1738,6 @@
     "ramCurrentSession": "Geçerli oturum",
     "ramChatRenderedTree": "Chat render ağacı",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start kenar çubuğu",
     "ramSessionSidebar": "Session kenar çubuğu",
     "ramSecondLevelSidebars": "İkinci seviye kenar çubukları",
     "ramSettingsSidebar": "Settings kenar çubuğu",
@@ -2138,20 +2172,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

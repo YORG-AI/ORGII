@@ -975,7 +975,6 @@
     "addCssVariables": "向项目添加 CSS 变量",
     "loadingAccountStatus": "正在加载账户状态...",
     "noRepositorySelected": "未选择仓库",
-    "selectRepositoryFromHome": "请从首页选择一个仓库以打开。",
     "noWorkspaceExplorerTitle": "未打开 Workspace",
     "noWorkspaceExplorerSubtitle": "打开工作区以查看文件",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1006,7 +1005,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "预览不可用",
-    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。"
+    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。",
+    "selectRepositoryFromWorkspace": "请从工作区选择一个仓库以打开。"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1169,8 +1169,6 @@
       "tryVerifyUrl": "确认网址是否正确",
       "tryAgainLater": "稍后再试"
     },
-    "selectRepoFromHome": "请从首页选择一个仓库",
-    "cloneRepoAgain": "请从首页重新克隆仓库",
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git 同步操作"
@@ -1264,6 +1262,43 @@
         "closed": "已关闭",
         "completed": "已完成",
         "notPlanned": "未计划"
+      },
+      "activity": {
+        "opened": "打开了此 issue",
+        "commented": "发表了评论",
+        "timelineItemCount_one": "{{count}} 个时间线项目",
+        "timelineItemCount_other": "{{count}} 个时间线项目",
+        "noDescription": "未提供描述。",
+        "assigned": "指派了：",
+        "assignedIssue": "指派了此 issue",
+        "unassigned": "取消指派了：",
+        "removedAssignee": "移除了一名受理人",
+        "added": "添加了：",
+        "removed": "移除了：",
+        "label": "一个标签",
+        "milestoned": "将此 issue 添加到里程碑 {{milestone}}",
+        "demilestoned": "将此 issue 从里程碑 {{milestone}} 中移除",
+        "closedViaCommit": "通过提交 {{commit}} 关闭了此 issue",
+        "closed": "关闭了此 issue",
+        "reopened": "重新打开了此 issue",
+        "renamedTo": "将此 issue 重命名为",
+        "renamed": "重命名了此 issue",
+        "locked": "锁定了此对话",
+        "lockedAs": "因 {{reason}} 锁定了此对话",
+        "unlocked": "解锁了此对话",
+        "crossReferencedFrom": "从以下位置引用了此 issue：",
+        "crossReferenced": "交叉引用了此 issue",
+        "referencedInCommit": "在提交 {{commit}} 中引用了此 issue",
+        "referencedInACommit": "在一次提交中引用了此 issue",
+        "connected": "关联了此 issue",
+        "disconnected": "取消关联了此 issue",
+        "markedAsDuplicate": "将此 issue 标记为重复",
+        "unmarkedAsDuplicate": "移除了重复标记",
+        "pinned": "置顶了此 issue",
+        "unpinned": "取消置顶了此 issue",
+        "transferred": "转移了此 issue",
+        "convertedToDiscussion": "将此 issue 转换为讨论",
+        "mentioned": "提及了此 issue"
       }
     }
   },
@@ -1723,7 +1758,6 @@
     "ramCurrentSession": "当前会话",
     "ramChatRenderedTree": "Chat 渲染树",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start 侧栏",
     "ramSessionSidebar": "Session 侧栏",
     "ramSecondLevelSidebars": "二级侧栏",
     "ramSettingsSidebar": "Settings 侧栏",
@@ -2184,20 +2218,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "拖放文件以上传",
-    "dropFileToChat": "拖放文件以添加到聊天",
-    "dropFolderToAdd": "拖放文件夹以添加仓库",
-    "releaseToAddFiles": "释放以将文件添加到您的 Session",
-    "releaseToAddFileToChat": "释放以将文件添加到聊天（类似 ⌘L）",
-    "releaseToOpenFolder": "释放以打开文件夹",
-    "folderDetected": "检测到文件夹",
-    "openSpotlightToAdd": "打开 Spotlight 以将此文件夹添加为仓库",
-    "openSpotlight": "打开 Spotlight",
-    "addedToChat": "已将 \"{{name}}\" 添加到聊天",
-    "couldNotExtractPath": "无法从拖放中提取文件路径",
-    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径",
-    "dropFilesHere": "将文件拖放到这里",
-    "dragFilesFromIde": "从 VS Code 拖动文件或标签页以添加到聊天"
+    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径"
   },
   "contextList": {
     "task": "任务",

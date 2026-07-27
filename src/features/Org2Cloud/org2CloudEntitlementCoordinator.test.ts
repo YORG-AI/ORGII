@@ -1,6 +1,8 @@
 import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
+
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
 import { getEntitlementState } from "./org2CloudClient";
 import {
@@ -8,6 +10,7 @@ import {
   __ENTITLEMENT_COORDINATOR_INTERNALS,
   refreshOrgEntitlement,
   resetOrgEntitlementCoordinator,
+  seedOrgEntitlement,
 } from "./org2CloudEntitlementCoordinator";
 
 vi.mock("./org2CloudClient", () => ({
@@ -124,5 +127,46 @@ describe("refreshOrgEntitlement", () => {
     resetOrgEntitlementCoordinator(store);
     await vi.advanceTimersByTimeAsync(ENTITLEMENT_REFRESH_TTL_MS * 2);
     expect(getEntitlementStateMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("seedOrgEntitlement", () => {
+  let store: ReturnType<typeof createStore>;
+  const token = async () => "jwt-1";
+
+  beforeEach(() => {
+    store = createStore();
+    store.set(org2CloudSharingFloorAtom, {});
+    getEntitlementStateMock.mockReset();
+    __ENTITLEMENT_COORDINATOR_INTERNALS.resetForStore(store);
+  });
+
+  it("writes the floor mirror without any RPC", () => {
+    seedOrgEntitlement(store, "corg-1", {
+      plan: "pro",
+      status: "active",
+      orgSharingFloor: COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
+    });
+    expect(store.get(org2CloudSharingFloorAtom)).toEqual({
+      "corg-1": COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
+    });
+    expect(getEntitlementStateMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults a missing floor to off", () => {
+    seedOrgEntitlement(store, "corg-1", { plan: "free", status: "active" });
+    expect(store.get(org2CloudSharingFloorAtom)).toEqual({
+      "corg-1": COLLAB_SESSION_ACCESS_MODE.OFF,
+    });
+  });
+
+  it("stamps the TTL window so an immediate refresh is coalesced", async () => {
+    seedOrgEntitlement(store, "corg-1", {
+      plan: "pro",
+      status: "active",
+      orgSharingFloor: COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
+    });
+    await refreshOrgEntitlement(store, "corg-1", token);
+    expect(getEntitlementStateMock).not.toHaveBeenCalled();
   });
 });

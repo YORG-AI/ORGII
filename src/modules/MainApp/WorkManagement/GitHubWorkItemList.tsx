@@ -1,15 +1,67 @@
 import {
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleDot,
   Loader2,
-  Plus,
   RefreshCw,
+  SquarePen,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import Button from "@src/components/Button";
+import { SearchInput } from "@src/components/SearchInput";
 import { PAGE_ICON_BUTTON } from "@src/components/SettingsTable/SettingsTablePagination";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { DETAIL_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+
+export const GITHUB_WORK_ITEMS_SINGLE_ROW_MIN_WIDTH = 650;
+
+export function shouldUseSingleRowGitHubWorkItemsHeader(
+  containerWidth: number
+): boolean {
+  return containerWidth >= GITHUB_WORK_ITEMS_SINGLE_ROW_MIN_WIDTH;
+}
+
+export function GitHubWorkItemTableSurface({
+  children,
+}: {
+  children: ReactNode;
+}): ReactNode {
+  return (
+    <div
+      className={`${DETAIL_PANEL_WIDTH_TOKENS.headerWidth} flex min-h-0 flex-1 flex-col`}
+      data-testid="github-work-items-table-surface"
+    >
+      {children}
+    </div>
+  );
+}
+
+export function GitHubWorkItemSearch({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (value: string) => void;
+}): ReactNode {
+  return (
+    <SearchInput
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      ariaLabel={placeholder}
+      variant="panel"
+      surface="transparent"
+      hideChevron
+      showClearButton
+      inputBoxClassName="flex-1"
+      className="min-w-0 flex-1"
+    />
+  );
+}
 
 export function GitHubWorkItemToolbarActions({
   refreshLabel,
@@ -28,19 +80,6 @@ export function GitHubWorkItemToolbarActions({
 }): ReactNode {
   return (
     <>
-      {createAction ? (
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          icon={<Plus size={13} />}
-          iconOnly
-          className="h-7 w-7"
-          aria-label={createAction.label}
-          onClick={createAction.onClick}
-          disabled={createAction.disabled}
-        />
-      ) : null}
       <Button
         htmlType="button"
         variant="tertiary"
@@ -53,6 +92,19 @@ export function GitHubWorkItemToolbarActions({
         aria-label={refreshLabel}
         onClick={onRefresh}
       />
+      {createAction ? (
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          icon={<SquarePen size={14} strokeWidth={2} />}
+          iconOnly
+          className="h-7 w-7"
+          aria-label={createAction.label}
+          onClick={createAction.onClick}
+          disabled={createAction.disabled}
+        />
+      ) : null}
     </>
   );
 }
@@ -74,6 +126,18 @@ export function GitHubWorkItemStateTabs({
   const tabItems: TabPillItem[] = tabs.map((tab) => ({
     key: tab.key,
     label: tab.label,
+    icon:
+      tab.key === "open" ? (
+        <span className="flex items-center text-success-6" title={tab.label}>
+          <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
+          <span className="sr-only">{tab.label}</span>
+        </span>
+      ) : (
+        <span className="text-purple-6 flex items-center" title={tab.label}>
+          <CheckCircle2 size={14} strokeWidth={1.8} aria-hidden="true" />
+          <span className="sr-only">{tab.label}</span>
+        </span>
+      ),
     dataTestId: `github-work-items-state-${tab.key}`,
   }));
 
@@ -84,6 +148,7 @@ export function GitHubWorkItemStateTabs({
       onChange={onChange}
       variant="pill"
       color="fill"
+      iconOnly
       fillWidth={false}
       size="small"
       buttonStyle

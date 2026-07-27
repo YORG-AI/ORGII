@@ -34,6 +34,7 @@ interface CategoryPickerProps {
   currentAgentOrgId?: string;
   currentCategory: DispatchCategory;
   currentCliAgentType?: CliAgentType;
+  includeHumanSession: boolean;
   modelPickerStyle: string;
   onClose: () => void;
   onSelect: (selection: AgentSelection) => void;
@@ -65,11 +66,13 @@ interface SessionCreatorChatPanelViewProps {
   heroIcon: React.ReactNode;
   hidePresenceButton: boolean;
   hideRepoLine: boolean;
+  hideWorkItemAttachmentControl: boolean;
   innerClassName?: string;
   isCategorySelectorOpen: boolean;
   isCliTuiMode: boolean;
   isFullScreenVariant: boolean;
   isLoading: boolean;
+  hideSessionSetupControls: boolean;
   isOrgMembersPanelOpen: boolean;
   isWingmanMode: boolean;
   leadingActionSlot?: React.ReactNode;
@@ -84,6 +87,7 @@ interface SessionCreatorChatPanelViewProps {
   orgMembersPanelProps?: React.ComponentProps<
     typeof SessionCreatorOrgMembersPanel
   >;
+  pinnedActionsContent?: React.ReactNode;
   categoryPickerProps: CategoryPickerProps;
   screenPickerProps?: React.ComponentProps<typeof ScreenPickerModal>;
   sessionInfoProps: React.ComponentProps<typeof SessionInfoLine>;
@@ -113,11 +117,13 @@ const SessionCreatorChatPanelView: React.FC<
   heroIcon,
   hidePresenceButton,
   hideRepoLine,
+  hideWorkItemAttachmentControl,
   innerClassName,
   isCategorySelectorOpen,
   isCliTuiMode,
   isFullScreenVariant,
   isLoading,
+  hideSessionSetupControls,
   isOrgMembersPanelOpen,
   isWingmanMode,
   leadingActionSlot,
@@ -128,6 +134,7 @@ const SessionCreatorChatPanelView: React.FC<
   onShareScreen,
   onToggleOrgMembers,
   orgMembersPanelProps,
+  pinnedActionsContent,
   categoryPickerProps,
   screenPickerProps,
   sessionInfoProps,
@@ -166,11 +173,13 @@ const SessionCreatorChatPanelView: React.FC<
       </div>
     </div>
   );
-  const composerHeader = composerHeaderContent ? (
+  const tuiComposerHeader = composerHeaderContent ? (
     <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
       {composerHeaderContent}
     </div>
   ) : null;
+  const editorHeaderContent =
+    composerHeaderContent ?? editorAreaProps.headerContent;
   const browserElementRowContent = useMemo(
     () =>
       browserElementScrollNav.showAddToConversation ? (
@@ -216,7 +225,7 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
-                {composerHeader}
+                {tuiComposerHeader}
                 <div className="rounded-xl bg-chat-container p-3">
                   <button
                     type="button"
@@ -267,8 +276,10 @@ const SessionCreatorChatPanelView: React.FC<
                 }`}
               >
                 {compactHeader}
-                {composerHeader}
-                <EditorArea {...editorAreaProps} />
+                <EditorArea
+                  {...editorAreaProps}
+                  headerContent={editorHeaderContent}
+                />
                 {!hideRepoLine && headerLayout !== "compact" && (
                   <div className="session-creator-chat-panel-fullscreen-repo-row px-1 pb-2 pt-3">
                     {repoPills}
@@ -278,7 +289,7 @@ const SessionCreatorChatPanelView: React.FC<
             </>
           )}
 
-          {showMissingGitAlert && (
+          {!hideSessionSetupControls && showMissingGitAlert && (
             <div
               className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
             >
@@ -288,58 +299,65 @@ const SessionCreatorChatPanelView: React.FC<
             </div>
           )}
 
-          <div
-            className={`mx-auto flex w-full items-center ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-          >
-            <PinnedActionsBar
-              composerInputRef={composerInputRef}
-              manageButtonPlacement="after-leading"
-              managePanelAlign="left"
-              leadingContent={
-                <>
-                  {browserElementRowContent}
-                  {leadingActionSlot}
-                  {cliLaunchModeSwitch}
-                  {cliLaunchModeSwitch && (
-                    <div
-                      aria-hidden
-                      className="mx-1 h-4 w-px shrink-0 bg-border-2"
-                    />
-                  )}
-                  <WorkItemAttachmentControl
-                    currentWorkItemContext={workItemContext}
-                    panelHostRef={workItemPanelHostRef}
-                    repoPath={sessionInfoProps.repoPath}
-                    onWorkItemContextChange={onAttachedWorkItemContextChange}
-                  />
-                  {orgMembersPanelProps && (
-                    <Button
-                      variant="secondary"
-                      appearance="outline"
-                      size="small"
-                      shape="round"
-                      icon={<Network size={14} strokeWidth={1.75} />}
-                      title={t("creator.orgMembers.configButton")}
-                      aria-label={t("creator.orgMembers.configButton")}
-                      aria-expanded={isOrgMembersPanelOpen}
-                      aria-controls="session-creator-org-members-panel"
-                      onClick={onToggleOrgMembers}
-                      className={
-                        isOrgMembersPanelOpen
-                          ? "shrink-0 !bg-fill-1 !text-primary-6"
-                          : "shrink-0"
-                      }
-                      data-testid="session-creator-org-members-toggle"
-                    >
-                      {t("creator.orgMembers.configButton")}
-                    </Button>
-                  )}
-                </>
-              }
-            />
-          </div>
+          {!hideSessionSetupControls && (
+            <div
+              className={`mx-auto flex w-full items-center ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+            >
+              <PinnedActionsBar
+                composerInputRef={composerInputRef}
+                manageButtonPlacement="before-actions"
+                managePanelAlign="left"
+                trailingContent={pinnedActionsContent}
+                leadingContent={
+                  <>
+                    {browserElementRowContent}
+                    {leadingActionSlot}
+                    {cliLaunchModeSwitch}
+                    {cliLaunchModeSwitch && (
+                      <div
+                        aria-hidden
+                        className="mx-1 h-4 w-px shrink-0 bg-border-2"
+                      />
+                    )}
+                    {!hideWorkItemAttachmentControl && (
+                      <WorkItemAttachmentControl
+                        currentWorkItemContext={workItemContext}
+                        panelHostRef={workItemPanelHostRef}
+                        repoPath={sessionInfoProps.repoPath}
+                        onWorkItemContextChange={
+                          onAttachedWorkItemContextChange
+                        }
+                      />
+                    )}
+                    {orgMembersPanelProps && (
+                      <Button
+                        variant="secondary"
+                        appearance="outline"
+                        size="small"
+                        shape="round"
+                        icon={<Network size={14} strokeWidth={1.75} />}
+                        title={t("creator.orgMembers.configButton")}
+                        aria-label={t("creator.orgMembers.configButton")}
+                        aria-expanded={isOrgMembersPanelOpen}
+                        aria-controls="session-creator-org-members-panel"
+                        onClick={onToggleOrgMembers}
+                        className={
+                          isOrgMembersPanelOpen
+                            ? "shrink-0 !bg-fill-1 !text-primary-6"
+                            : "shrink-0"
+                        }
+                        data-testid="session-creator-org-members-toggle"
+                      >
+                        {t("creator.orgMembers.configButton")}
+                      </Button>
+                    )}
+                  </>
+                }
+              />
+            </div>
+          )}
 
-          {cliVersionAlert && (
+          {!hideSessionSetupControls && cliVersionAlert && (
             <div
               className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
             >
@@ -363,18 +381,22 @@ const SessionCreatorChatPanelView: React.FC<
             </div>
           )}
 
-          <div
-            ref={workItemPanelHostRef}
-            className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-          />
-
-          {orgMembersPanelProps && isOrgMembersPanelOpen && (
-            <div id="session-creator-org-members-panel">
-              <SessionCreatorOrgMembersPanel {...orgMembersPanelProps} />
-            </div>
+          {!hideSessionSetupControls && (
+            <div
+              ref={workItemPanelHostRef}
+              className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+            />
           )}
 
-          {!hidePresenceButton && (
+          {!hideSessionSetupControls &&
+            orgMembersPanelProps &&
+            isOrgMembersPanelOpen && (
+              <div id="session-creator-org-members-panel">
+                <SessionCreatorOrgMembersPanel {...orgMembersPanelProps} />
+              </div>
+            )}
+
+          {!hideSessionSetupControls && !hidePresenceButton && (
             <div className="flex w-full items-center justify-center gap-2 pt-1">
               <PresenceMenuButton
                 variant="detailed"
@@ -382,22 +404,25 @@ const SessionCreatorChatPanelView: React.FC<
               />
             </div>
           )}
-          {footerSlot}
+          {!hideSessionSetupControls && footerSlot}
         </div>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="hidden"
-        data-testid="chat-file-upload-input"
-        onChange={onFileUpload}
-        accept="*/*"
-      />
+      {!hideSessionSetupControls && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          data-testid="chat-file-upload-input"
+          onChange={onFileUpload}
+          accept="*/*"
+        />
+      )}
 
       {categoryPickerProps.modelPickerStyle === "dropdown" ? (
         <DispatchCategoryDropdown
+          includeHumanSession={categoryPickerProps.includeHumanSession}
           isOpen={isCategorySelectorOpen}
           onClose={categoryPickerProps.onClose}
           onSelect={categoryPickerProps.onSelect}
@@ -411,6 +436,7 @@ const SessionCreatorChatPanelView: React.FC<
         />
       ) : (
         <DispatchCategoryPalette
+          includeHumanSession={categoryPickerProps.includeHumanSession}
           isOpen={isCategorySelectorOpen}
           onClose={categoryPickerProps.onClose}
           onSelect={categoryPickerProps.onSelect}

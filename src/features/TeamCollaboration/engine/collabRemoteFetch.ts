@@ -24,7 +24,10 @@ import { computeSegmentHash } from "../sync/collabGzip";
  * kind of local session the assembled events land in.
  */
 export interface RemoteSessionFetchOptions {
-  client: Pick<CollabSyncBackendClient, "getSessionEventSegments">;
+  client: Pick<
+    CollabSyncBackendClient,
+    "getSessionEventSegments" | "streamSessionEventSegments"
+  >;
   orgId: string;
   remoteSession: RemoteTeammateSessionMetadata;
   /**
@@ -57,6 +60,21 @@ export function throwIfAborted(signal: AbortSignal | undefined): void {
   }
 }
 
+export async function validateSegmentIntegrity(
+  segment: SessionEventSegmentRecord
+): Promise<void> {
+  if (segment.events.length !== segment.eventCount) {
+    throw new SegmentIntegrityError(segment.seq, segment.isTail, "event_count");
+  }
+  if ((await computeSegmentHash(segment.events)) !== segment.segmentHash) {
+    throw new SegmentIntegrityError(
+      segment.seq,
+      segment.isTail,
+      "content_hash"
+    );
+  }
+}
+
 export async function fetchAndAssembleSegments(
   options: RemoteSessionFetchOptions,
   afterSeq: number,
@@ -80,20 +98,7 @@ export async function fetchAndAssembleSegments(
   // structural only — a payload whose decoded events disagree with its own
   // eventCount/segmentHash must fail closed, not splice into local history.
   for (const segment of snapshot.segments) {
-    if (segment.events.length !== segment.eventCount) {
-      throw new SegmentIntegrityError(
-        segment.seq,
-        segment.isTail,
-        "event_count"
-      );
-    }
-    if ((await computeSegmentHash(segment.events)) !== segment.segmentHash) {
-      throw new SegmentIntegrityError(
-        segment.seq,
-        segment.isTail,
-        "content_hash"
-      );
-    }
+    await validateSegmentIntegrity(segment);
   }
 
   const frozen: SessionEventSegmentRecord[] = snapshot.segments

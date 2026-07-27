@@ -9,7 +9,7 @@ import {
   claudeCodeHistoryStat,
 } from "../sources/claudeCode";
 import { clineHistoryChunks } from "../sources/cline";
-import { codexAppChunks } from "../sources/codexApp";
+import { codexAppChunks, codexAppInitialWindow } from "../sources/codexApp";
 import { cursorCliHistoryChunks } from "../sources/cursorCli";
 import { mimoCodeHistoryChunks } from "../sources/mimoCode";
 import { ompHistoryChunks } from "../sources/omp";
@@ -93,7 +93,9 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     ...descriptorFor("codex_app"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("codex_app", sessionId),
-    loadPreviewChunks: codexAppChunks,
+    async loadPreviewChunks(sessionId) {
+      return (await codexAppInitialWindow(sessionId)).chunks;
+    },
     loadFullTranscriptChunks: codexAppChunks,
   },
   {

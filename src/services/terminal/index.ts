@@ -12,7 +12,5 @@ export {
   flushPendingWrites,
   loadPersistedBuffers,
   persistTerminalBuffer,
-  startAutoSave,
-  stopAutoSave,
 } from "./bufferPersistence";
 export type { PersistedBuffer } from "./bufferPersistence";

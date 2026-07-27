@@ -8,8 +8,15 @@ import type { SlashItem } from "@src/types/extensions";
 
 import { collectAddressableThreads } from "./addressComments";
 import type { AddressCommentScope } from "./addressComments";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "./org2CloudAuthAtom";
 import { sessionCommentsKey } from "./org2CloudCommentsBus";
-import { org2CloudSessionCommentsAtom } from "./org2CloudSessionCommentsAtom";
+import {
+  org2CloudSessionCommentsAtom,
+  sessionCommentsEntryForIdentity,
+} from "./org2CloudSessionCommentsAtom";
 import { useSessionCommentTarget } from "./sessionCommentTarget";
 import { useOwnedCloudCommentAgentRun } from "./useOwnedCloudCommentAgentRun";
 
@@ -39,6 +46,8 @@ export function useAddressCommentsSlashCommand(
 ): AddressCommentsSlashCommand {
   const { t } = useTranslation("navigation");
   const sessions = useAtomValue(sessionsAtom);
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const commentEntries = useAtomValue(org2CloudSessionCommentsAtom);
 
   const session = useMemo(
@@ -50,9 +59,13 @@ export function useAddressCommentsSlashCommand(
     [sessions, sessionId]
   );
   const target = useSessionCommentTarget(session);
-  const commentEntry = target
+  const storedCommentEntry = target
     ? commentEntries[sessionCommentsKey(target.orgId, target.sessionId)]
     : undefined;
+  const commentEntry = sessionCommentsEntryForIdentity(
+    storedCommentEntry,
+    authIdentityKey
+  );
 
   const threads = useMemo<AddressCommentsThreadOption[]>(() => {
     if (!target) return [];

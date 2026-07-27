@@ -10,7 +10,9 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 
 import {
   buildCloudSessionThreads,
-  collectThreadedLocalSessionIds,
+  collectCloudFlatListExcludedSessionIds,
+  collectCurrentDeviceCloudSessionIds,
+  collectCurrentDeviceSessionsToHydrate,
   isCloudThreadRowDisabled,
 } from "./cloudSessionThreads";
 
@@ -24,6 +26,14 @@ vi.mock("@src/components/ModelIcon", () => ({
     agentType?: string;
     modelName?: string;
   }) => createElement("i", { "data-model-icon": modelName ?? agentType ?? "" }),
+}));
+
+vi.mock("@src/config/agentIcons", () => ({
+  resolveAgentIcon: () => (props: { size?: number }) =>
+    createElement("i", {
+      "data-agent-icon": "stub",
+      "data-size": props.size,
+    }),
 }));
 
 const ORG = "11111111-1111-1111-1111-111111111111";
@@ -173,24 +183,24 @@ describe("buildCloudSessionThreads", () => {
     expect(threads[0].descendants).toHaveLength(1);
   });
 
-  it("flags rows whose bare id is a local session as isMine", () => {
+  it("excludes this device's local rows but keeps same-user rows from another device", () => {
     const rows = [
-      makeRow("root-1", { ownerUserId: USER_B }),
-      makeRow("root-2", { ownerUserId: USER_B }),
-      // The viewer's fork under root-2 — its thread stays (teammate root).
-      fork("fork-mine", "root-2", "root-2"),
+      makeRow("local-session"),
+      makeRow("other-device-session"),
+      makeRow("teammate-session", { ownerUserId: USER_B }),
     ];
     const threads = buildCloudSessionThreads(rows, {
-      localOwnSessionIds: new Set(["fork-mine"]),
+      localOwnSessionIds: new Set(["local-session"]),
       viewerUserId: USER_A,
     });
-    const withMine = threads.find((thread) => thread.rootKey === "root-2");
-    const theirs = threads.find((thread) => thread.rootKey === "root-1");
-    expect(withMine?.descendants[0]?.isMine).toBe(true);
-    expect(theirs?.root?.isMine).toBe(false);
+
+    expect(threads.map((thread) => thread.rootKey).sort()).toEqual([
+      "other-device-session",
+      "teammate-session",
+    ]);
   });
 
-  it("does not treat a teammate row as mine when a shared local history has the same id", () => {
+  it("keeps a teammate row when a shared local history has the same id", () => {
     const threads = buildCloudSessionThreads(
       [makeRow("shared-codex-id", { ownerUserId: USER_B })],
       {
@@ -200,12 +210,9 @@ describe("buildCloudSessionThreads", () => {
     );
 
     expect(threads).toHaveLength(1);
-    expect(threads[0].root.isMine).toBe(false);
   });
 
-  it("drops threads whose every row is the viewer's own (solo shared session)", () => {
-    // TEAM section = collaboration context: a solo shared session with no
-    // teammate activity stays in the flat local list, not the team section.
+  it("drops a solo cloud row backed by this device's local session", () => {
     const rows = [
       makeRow("solo-mine"),
       makeRow("teammate-root", { ownerUserId: USER_B }),
@@ -215,11 +222,9 @@ describe("buildCloudSessionThreads", () => {
       viewerUserId: USER_A,
     });
     expect(threads.map((thread) => thread.rootKey)).toEqual(["teammate-root"]);
-    // And therefore nothing is excluded from the flat local list.
-    expect(collectThreadedLocalSessionIds(threads)).toEqual(new Set<string>());
   });
 
-  it("keeps the viewer's own root once a teammate forked it", () => {
+  it("omits a local root and promotes its teammate fork as a remote orphan", () => {
     const rows = [
       makeRow("root-mine"),
       fork("fork-theirs", "root-mine", "root-mine", { ownerUserId: USER_B }),
@@ -229,14 +234,19 @@ describe("buildCloudSessionThreads", () => {
       viewerUserId: USER_A,
     });
     expect(threads).toHaveLength(1);
-    expect(threads[0].root?.isMine).toBe(true);
-    expect(threads[0].descendants[0]?.row.ownerUserId).toBe(USER_B);
+    expect(threads[0].root.bareSessionId).toBe("fork-theirs");
+    expect(threads[0].root.row.ownerUserId).toBe(USER_B);
+    expect(threads[0].root.isOrphan).toBe(true);
+    expect(threads[0].descendants).toEqual([]);
   });
 
-  it("uses the bare session id even when the row id carries org/user prefixes", () => {
+  it("uses canonical sourceSessionId instead of parsing the cloud row id", () => {
     const rows = [
       fork("fork-1", "root-1", "root-1"),
-      makeRow("root-1", { ownerUserId: USER_B }),
+      makeRow("root-1", {
+        id: "opaque-cloud-row-id",
+        ownerUserId: USER_B,
+      }),
     ];
     const threads = buildCloudSessionThreads(rows);
     expect(threads).toHaveLength(1);
@@ -244,73 +254,120 @@ describe("buildCloudSessionThreads", () => {
   });
 });
 
-describe("collectThreadedLocalSessionIds", () => {
-  it("collects only isMine rows from the given threads", () => {
-    const threads = buildCloudSessionThreads(
-      [
-        // Teammate root keeps the thread in the team section; the viewer's
-        // fork under it renders threaded and is excluded from the flat list.
-        makeRow("root-1", { ownerUserId: USER_B }),
-        fork("fork-1", "root-1", "root-1"),
-        makeRow("root-2", { ownerUserId: USER_B }),
-      ],
+describe("collectCurrentDeviceCloudSessionIds", () => {
+  it("retains pushed sessions that are outside the paginated local roster", () => {
+    const ids = collectCurrentDeviceCloudSessionIds(
+      ORG,
+      [{ session_id: "currently-loaded" }],
       {
-        localOwnSessionIds: new Set(["fork-1"]),
-        viewerUserId: USER_A,
+        [`${ORG}:older:metadata-only`]: true,
+        "other-org:not-local": true,
+      },
+      {
+        [`${ORG}:older-replay`]: {
+          orgId: ORG,
+          sessionId: "older-replay",
+        },
+        "other-org:other-replay": {
+          orgId: "other-org",
+          sessionId: "other-replay",
+        },
       }
     );
-    expect(collectThreadedLocalSessionIds(threads)).toEqual(
-      new Set(["fork-1"])
-    );
-  });
 
-  it("keeps own sessions in the flat list when a member filter drops their thread", () => {
-    // Viewer (USER_A) forked USER_B's root-2; the member filter shows only
-    // USER_B's root-1 thread. root-2's thread (which carries the viewer's
-    // fork) is filtered out of the team section, so the fork must NOT be in
-    // the exclusion set — otherwise it would vanish from BOTH lists.
-    const rows = [
-      makeRow("root-1", { ownerUserId: USER_B }),
-      makeRow("root-2", {
-        ownerUserId: "cccccccc-cccc-cccc-cccc-cccccccccccc",
-      }),
-      fork("fork-mine", "root-2", "root-2"),
-    ];
-    const filteredThreads = buildCloudSessionThreads(rows, {
-      memberFilter: USER_B,
-      localOwnSessionIds: new Set(["fork-mine"]),
-      viewerUserId: USER_A,
-    });
-    expect(collectThreadedLocalSessionIds(filteredThreads)).toEqual(
-      new Set<string>()
-    );
-    // Without the filter the fork renders in the team section and IS
-    // excluded from the flat list.
-    const allThreads = buildCloudSessionThreads(rows, {
-      localOwnSessionIds: new Set(["fork-mine"]),
-      viewerUserId: USER_A,
-    });
-    expect(collectThreadedLocalSessionIds(allThreads)).toEqual(
-      new Set(["fork-mine"])
+    expect(ids).toEqual(
+      new Set(["currently-loaded", "older:metadata-only", "older-replay"])
     );
   });
 });
 
+describe("collectCurrentDeviceSessionsToHydrate", () => {
+  it("hydrates only missing rows within the visible My Conversations page", () => {
+    const rows = [
+      makeRow("loaded"),
+      makeRow("missing-1"),
+      makeRow("teammate", { ownerUserId: USER_B }),
+      makeRow("missing-2"),
+      makeRow("outside-page"),
+    ];
+
+    expect(
+      collectCurrentDeviceSessionsToHydrate(
+        rows,
+        USER_A,
+        new Set(["loaded", "missing-1", "missing-2", "outside-page"]),
+        new Set(["loaded"]),
+        3
+      )
+    ).toEqual(["missing-1", "missing-2"]);
+  });
+
+  it("ignores same-user rows originating on another device", () => {
+    expect(
+      collectCurrentDeviceSessionsToHydrate(
+        [makeRow("other-device")],
+        USER_A,
+        new Set(["local-only"]),
+        new Set(),
+        10
+      )
+    ).toEqual([]);
+  });
+});
+
+describe("collectCloudFlatListExcludedSessionIds", () => {
+  it("keeps writable current-device sessions in My Sessions", () => {
+    expect(
+      collectCloudFlatListExcludedSessionIds(
+        [{ session_id: "local-session" }],
+        ORG
+      )
+    ).toEqual(new Set());
+  });
+
+  it("keeps teammate replay caches out of My Sessions when their Team row is filtered out", () => {
+    const importedSession = {
+      session_id: "imported-cache-1",
+      importedFrom: {
+        orgId: ORG,
+        sourceSessionId: "shared-by-teammate",
+      },
+    };
+
+    expect(
+      collectCloudFlatListExcludedSessionIds([importedSession], ORG)
+    ).toEqual(new Set(["imported-cache-1"]));
+  });
+
+  it("does not hide replay caches belonging to a different org", () => {
+    const importedSession = {
+      session_id: "other-org-cache",
+      importedFrom: {
+        orgId: "other-org",
+        sourceSessionId: "shared-by-teammate",
+      },
+    };
+
+    expect(
+      collectCloudFlatListExcludedSessionIds([importedSession], ORG)
+    ).toEqual(new Set());
+  });
+});
+
 describe("isCloudThreadRowDisabled", () => {
-  it("never disables isMine rows, even without published segments", () => {
+  it("disables an unpublished same-user row from another device", () => {
     const threads = buildCloudSessionThreads(
       [
-        // Teammate root keeps the thread visible; the viewer's unpublished
-        // fork must still be clickable (routes to the LOCAL session).
-        makeRow("root-1", { ownerUserId: USER_B }),
-        fork("fork-mine", "root-1", "root-1", { eventsEpoch: undefined }),
+        makeRow("other-device-session", {
+          eventsEpoch: undefined,
+        }),
       ],
       {
-        localOwnSessionIds: new Set(["fork-mine"]),
+        localOwnSessionIds: new Set(["local-session"]),
         viewerUserId: USER_A,
       }
     );
-    expect(isCloudThreadRowDisabled(threads[0].descendants[0])).toBe(false);
+    expect(isCloudThreadRowDisabled(threads[0].root)).toBe(true);
   });
 
   it("disables teammate rows without published segments only", () => {
@@ -340,7 +397,6 @@ function renderForkParent(item: NavigationMenuItem): string {
       onRowMouseEnter: vi.fn(),
       onRowActionClick: vi.fn(),
       onToggleSubmenu: vi.fn(),
-      compactRows: true,
     })
   );
 }
@@ -374,7 +430,7 @@ describe("cloud teammate hover card", () => {
       createElement(CloudSessionHoverCardContent, {
         row: makeRow("s1", {
           title: "Fix realtime flow",
-          repoScopeKey: "yorgai/org2",
+          repoScopeKey: "org2ai/org2",
           branch: "feat/org2-cloud-auth",
           lastActivityAt: "2026-07-10T12:00:00Z",
           cliAgentType: "claude_code_cli",
@@ -395,7 +451,11 @@ describe("cloud teammate hover card", () => {
     expect(markup).toContain("forked from @");
     expect(markup).toContain("org2");
     expect(markup).toContain("feat/org2-cloud-auth");
+    expect(markup).toContain("sessions:history.detail.internal");
     // Owner agent/model row (pushed with the metadata since 2026-07-11).
+    expect(markup).toContain(
+      'text-text-1"><i data-agent-icon="stub" data-size="13"'
+    );
     expect(markup).toContain("Claude Code CLI");
     expect(markup).toContain("claude-sonnet-5");
   });
@@ -410,5 +470,35 @@ describe("cloud teammate hover card", () => {
 
     expect(markup).toContain('data-testid="cloud-session-watchers"');
     expect(markup).toContain("Bob, Carol");
+  });
+
+  it("renders a localized external origin with its source app", () => {
+    const markup = renderToStaticMarkup(
+      createElement(CloudSessionHoverCardContent, {
+        row: makeRow("s1", {
+          origin: { kind: "external_history", source: "codex_app" },
+        }),
+      })
+    );
+
+    expect(markup).toContain("sessions:history.detail.external");
+    expect(markup).toContain("Codex App");
+    expect(markup).not.toContain("External session");
+  });
+
+  it("shows the canonical shared session id as a copyable hover-card row", () => {
+    const sessionId = "agentsession-12345678-1234-1234-1234-123456789abc";
+    const markup = renderToStaticMarkup(
+      createElement(CloudSessionHoverCardContent, {
+        row: makeRow(sessionId),
+      })
+    );
+
+    expect(markup).toContain("sessions:history.detail.sessionId");
+    expect(markup).toContain(`title="${sessionId}"`);
+    expect(markup).toContain("agentses…56789abc");
+    expect(markup).toContain(
+      'aria-label="common:actions.copy sessions:history.detail.sessionId"'
+    );
   });
 });

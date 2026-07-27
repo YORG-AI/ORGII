@@ -77,6 +77,12 @@ export interface WizardData {
   /** Authentication method: "api_key" (default) or "oauth" */
   auth_method?: "api_key" | "oauth";
   protocol?: ProviderProtocol;
+  /**
+   * Transient wizard-only endpoint identity. Some providers expose distinct
+   * credential types behind the same protocol URL, so the URL alone cannot
+   * always reconstruct which endpoint card the user selected.
+   */
+  selected_endpoint_id?: string;
   // Extracted values from LLM extraction (Auto-Extract mode)
   extracted_api_key?: string;
   extracted_base_url?: string;

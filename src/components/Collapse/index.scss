@@ -43,7 +43,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     user-select: none;
     transition: all 0.2s ease;
 

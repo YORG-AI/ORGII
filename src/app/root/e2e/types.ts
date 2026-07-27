@@ -861,6 +861,12 @@ export interface E2EHelpers {
     orgs: Array<{ orgId: string; name: string; role: string }>;
   }) => Promise<Result<{ count: number }>>;
   cloudListOrgs: () => Promise<Result<{ orgs: Json[] }>>;
+  cloudInspectMemberRoster: (opts: { orgId: string }) => Promise<
+    Result<{
+      rosterVersion: number;
+      members: Json[] | null;
+    }>
+  >;
   cloudInspectRosterState: () => Promise<
     Result<{
       orgs: Json[];

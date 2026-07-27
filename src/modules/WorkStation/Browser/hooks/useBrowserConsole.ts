@@ -12,6 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const log = createLogger("useBrowserConsole");
 
@@ -76,6 +77,8 @@ export interface UseBrowserConsoleReturn {
   clearEntries: () => void;
   /** Clear entries for all sessions */
   clearAllEntries: () => void;
+  /** Release cached entries for one closed session */
+  clearSessionEntries: (sessionId: string) => void;
   /** Add a manual entry (for testing) */
   addEntry: (level: LogLevel, message: string, stack?: string) => void;
   /** Manually trigger a poll */
@@ -114,10 +117,9 @@ export function useBrowserConsole(
 
   // Current session's entries (state)
   const [entries, setEntries] = useState<ConsoleEntry[]>([]);
+  const pollGenerationRef = useRef(0);
 
   const entryIdCounter = useRef(0);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   // Generate unique ID
   const generateId = useCallback(() => {
     entryIdCounter.current += 1;
@@ -200,14 +202,27 @@ export function useBrowserConsole(
   // Clear entries for current session
   const clearEntries = useCallback(() => {
     if (!sessionId) return;
+    pollGenerationRef.current += 1;
     updateSessionEntries(sessionId, []);
   }, [sessionId, updateSessionEntries]);
 
   // Clear entries for all sessions
   const clearAllEntries = useCallback(() => {
+    pollGenerationRef.current += 1;
     cacheRef.current.clear();
     setEntries([]);
   }, []);
+
+  const clearSessionEntries = useCallback(
+    (closedSessionId: string) => {
+      cacheRef.current.delete(closedSessionId);
+      if (closedSessionId === sessionId) {
+        pollGenerationRef.current += 1;
+        setEntries([]);
+      }
+    },
+    [sessionId]
+  );
 
   // Truncate message if too long
   const truncateMessage = useCallback(
@@ -235,7 +250,8 @@ export function useBrowserConsole(
 
   // Poll for console logs from webview
   const pollNow = useCallback(async () => {
-    if (!webviewLabel || !sessionId) return;
+    if (!enabled || !webviewLabel || !sessionId) return;
+    const generation = pollGenerationRef.current;
 
     try {
       const rustEntries = await invoke<RustConsoleEntry[]>(
@@ -243,7 +259,11 @@ export function useBrowserConsole(
         { label: webviewLabel }
       );
 
-      if (rustEntries && rustEntries.length > 0) {
+      if (
+        generation === pollGenerationRef.current &&
+        rustEntries &&
+        rustEntries.length > 0
+      ) {
         const cache = getSessionCache(sessionId);
 
         // Rate limit: only process up to maxEntriesPerPoll
@@ -323,6 +343,7 @@ export function useBrowserConsole(
   }, [
     webviewLabel,
     sessionId,
+    enabled,
     generateId,
     maxEntries,
     maxEntriesPerPoll,
@@ -333,29 +354,32 @@ export function useBrowserConsole(
     updateSessionEntries,
   ]);
 
+  useEffect(() => {
+    const generation = ++pollGenerationRef.current;
+    if (!enabled) {
+      cacheRef.current.clear();
+      setEntries([]);
+    }
+    return () => {
+      if (generation === pollGenerationRef.current) {
+        pollGenerationRef.current += 1;
+      }
+    };
+  }, [enabled, sessionId, webviewLabel]);
+
   // Start/stop polling
   useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+    if (
+      !enabled ||
+      !webviewLabel ||
+      !sessionId ||
+      pollInterval <= 0 ||
+      typeof document === "undefined"
+    ) {
       return;
     }
 
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
+    return startVisibilityAwarePoller(document, pollNow, pollInterval);
   }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
 
   // Compute counts from current entries
@@ -377,6 +401,7 @@ export function useBrowserConsole(
     warningCount,
     clearEntries,
     clearAllEntries,
+    clearSessionEntries,
     addEntry,
     pollNow,
     setWebviewLabel,

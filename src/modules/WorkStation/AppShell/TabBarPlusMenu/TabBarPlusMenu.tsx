@@ -1,34 +1,20 @@
 /**
  * TabBarPlusMenu
  *
- * Trailing `+` button for the unified workstation tab bar. Opens a tiny
- * palette with quick-action items. The item list is shared with the empty-pool
- * Launchpad (`WorkStationStartPage`) through `useWorkStationLaunchActions`, so
- * the `+` menu and the Launchpad always offer the same actions and icons.
- *
- * Each action adds (or activates) a tab in `mainPane` — or, for the Browser
- * entries, reveals the Browser host — and `AppShell` swaps in the matching
- * host content.
- *
- * Keyboard: ⌘T (`new_tab`) opens whichever instance of this menu is currently
- * mounted. The global keydown listener dispatches `workstation-new-tab` from
- * any `/orgii/workstation*` route (see `useTabShortcuts`); we listen for it
- * here so the shortcut is owned exclusively by the `+` menu.
+ * Trailing `+` button for the unified workstation tab bar. The action model is
+ * shared with the empty-pool Launchpad through `useWorkStationLaunchActions`,
+ * while the extracted item renderer keeps this coordinator focused on menu
+ * state and repository diff data.
  */
 import { Plus } from "lucide-react";
 import React, { memo, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import Dropdown from "@src/components/Dropdown";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import {
-  KEYBOARD_SHORTCUT_VARIANT,
-  KeyboardShortcut,
-} from "@src/components/KeyboardShortcut";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
@@ -40,15 +26,12 @@ import {
   type WorkStationLaunchActionId,
   useWorkStationLaunchActions,
 } from "../useWorkStationLaunchActions";
+import { TabBarPlusMenuItems } from "./TabBarPlusMenuItems";
 
 const WORKSTATION_NEW_TAB_EVENT = "workstation-new-tab";
 
 export type TabBarPlusMenuItem = WorkStationLaunchActionId;
 
-/**
- * Full launcher palette — kept identical to the Launchpad list. Callers may
- * pass a narrower `items` list (e.g. a Browser-only surface).
- */
 const DEFAULT_ITEMS: readonly TabBarPlusMenuItem[] = LAUNCHPAD_ACTION_IDS;
 
 export interface TabBarPlusMenuProps {
@@ -66,64 +49,29 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
   const [menuVisible, setMenuVisible] = useState(false);
 
   // ⌘T (`new_tab`) is exclusively bound to opening this menu. Only one
-  // TabBarPlusMenu is mounted at a time per surface, so there is no
-  // double-fire.
+  // TabBarPlusMenu is mounted at a time per surface, so there is no double-fire.
   useEffect(() => {
     const handler = () => setMenuVisible((open) => !open);
     window.addEventListener(WORKSTATION_NEW_TAB_EVENT, handler);
-    return () => {
-      window.removeEventListener(WORKSTATION_NEW_TAB_EVENT, handler);
-    };
+    return () => window.removeEventListener(WORKSTATION_NEW_TAB_EVENT, handler);
   }, []);
-
-  const triggerLabel = t("workstation.plusMenu.title");
 
   const visibleActions = useMemo(
     () => actions.filter((action) => items.includes(action.id)),
     [actions, items]
   );
-
+  const triggerLabel = t("workstation.plusMenu.title");
   const droplist = (
     <div
       className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.wideMenuClass}`}
     >
       <div className={DROPDOWN_CLASSES.itemsColumn}>
-        {visibleActions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <button
-              key={action.id}
-              type="button"
-              onClick={() => {
-                action.onClick();
-                setMenuVisible(false);
-              }}
-              className={DROPDOWN_CLASSES.menuActionItem}
-            >
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                <Icon size={HEADER_ICON_SIZE.sm} />
-                <span className="min-w-0 truncate">{action.label}</span>
-                {action.id === "sourceControl" &&
-                (additions > 0 || deletions > 0) ? (
-                  <DiffStatsBadge
-                    additions={additions}
-                    deletions={deletions}
-                    variant="plain"
-                    size="xs"
-                    reserveValueWidth={false}
-                    className="shrink-0"
-                  />
-                ) : null}
-              </span>
-              {action.shortcut ? (
-                <KeyboardShortcut
-                  shortcut={action.shortcut}
-                  variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
-                />
-              ) : null}
-            </button>
-          );
-        })}
+        <TabBarPlusMenuItems
+          actions={visibleActions}
+          additions={additions}
+          deletions={deletions}
+          onActionComplete={() => setMenuVisible(false)}
+        />
       </div>
     </div>
   );
@@ -157,5 +105,4 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
 };
 
 export const TabBarPlusMenu = memo(TabBarPlusMenuComponent);
-
 TabBarPlusMenu.displayName = "TabBarPlusMenu";

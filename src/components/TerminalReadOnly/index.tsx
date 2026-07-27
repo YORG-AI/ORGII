@@ -113,7 +113,7 @@ const TerminalReadOnly: React.FC<TerminalReadOnlyProps> = ({
         }
       }
     }
-  }, [appendOutput, events]);
+  }, [agentSessionId, appendOutput, events]);
 
   return (
     <div className="h-full w-full overflow-hidden">

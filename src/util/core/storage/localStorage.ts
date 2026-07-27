@@ -19,8 +19,44 @@ const log = createLogger("localStorageCache");
 // ============================================
 
 const cache = new Map<string, string | null>();
+const MAX_CACHE_ENTRIES = 256;
+const MAX_CACHE_BYTES = 4 * 1024 * 1024;
+const MAX_SINGLE_CACHE_VALUE_BYTES = 1024 * 1024;
+let cacheBytes = 0;
 let isPreloaded = false;
 let preloadPromise: Promise<void> | null = null;
+
+function estimatedEntryBytes(key: string, value: string | null): number {
+  return (key.length + (value?.length ?? 0)) * 2;
+}
+
+function deleteCacheEntry(key: string): void {
+  const existing = cache.get(key);
+  if (!cache.has(key)) return;
+  cacheBytes -= estimatedEntryBytes(key, existing ?? null);
+  cache.delete(key);
+}
+
+function cacheValue(key: string, value: string | null): void {
+  deleteCacheEntry(key);
+  const bytes = estimatedEntryBytes(key, value);
+  if (bytes > MAX_SINGLE_CACHE_VALUE_BYTES) return;
+
+  cache.set(key, value);
+  cacheBytes += bytes;
+  while (cache.size > MAX_CACHE_ENTRIES || cacheBytes > MAX_CACHE_BYTES) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey === undefined) break;
+    deleteCacheEntry(oldestKey);
+  }
+}
+
+function touchCacheEntry(key: string): string | null {
+  const value = cache.get(key) ?? null;
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+}
 
 // Keys that should be preloaded at startup (most accessed)
 const PRIORITY_KEYS = [
@@ -67,13 +103,13 @@ const PRIORITY_KEYS = [
 export function getCached(key: string): string | null {
   // Fast path: return from cache
   if (cache.has(key)) {
-    return cache.get(key) ?? null;
+    return touchCacheEntry(key);
   }
 
   // Slow path: read from localStorage and cache
   try {
     const value = localStorage.getItem(key);
-    cache.set(key, value);
+    cacheValue(key, value);
     return value;
   } catch {
     return null;
@@ -98,7 +134,7 @@ export function getCachedJSON<T>(key: string, defaultValue: T): T {
  * Set a value in both cache and localStorage (write-through)
  */
 export function setCached(key: string, value: string): void {
-  cache.set(key, value);
+  cacheValue(key, value);
   try {
     localStorage.setItem(key, value);
   } catch (error) {
@@ -117,7 +153,7 @@ export function setCachedJSON<T>(key: string, value: T): void {
  * Remove a value from both cache and localStorage
  */
 export function removeCached(key: string): void {
-  cache.delete(key);
+  deleteCacheEntry(key);
   try {
     localStorage.removeItem(key);
   } catch (error) {
@@ -152,9 +188,9 @@ export function preloadCache(): Promise<void> {
       for (const key of PRIORITY_KEYS) {
         try {
           const value = localStorage.getItem(key);
-          cache.set(key, value);
+          cacheValue(key, value);
         } catch {
-          cache.set(key, null);
+          cacheValue(key, null);
         }
       }
 
@@ -180,9 +216,9 @@ export function preloadKeys(keys: string[]): void {
   for (const key of keys) {
     if (!cache.has(key)) {
       try {
-        cache.set(key, localStorage.getItem(key));
+        cacheValue(key, localStorage.getItem(key));
       } catch {
-        cache.set(key, null);
+        cacheValue(key, null);
       }
     }
   }
@@ -230,11 +266,13 @@ export function getCachedNumber(
  */
 export function getCacheStats(): {
   size: number;
+  bytes: number;
   keys: string[];
   isPreloaded: boolean;
 } {
   return {
     size: cache.size,
+    bytes: cacheBytes,
     keys: Array.from(cache.keys()),
     isPreloaded,
   };
@@ -245,6 +283,7 @@ export function getCacheStats(): {
  */
 export function clearCache(): void {
   cache.clear();
+  cacheBytes = 0;
   isPreloaded = false;
   preloadPromise = null;
 }

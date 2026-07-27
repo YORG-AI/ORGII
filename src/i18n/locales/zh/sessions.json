@@ -5,6 +5,20 @@
     "decision": "{{tokenCount}} Token 决策",
     "tooltip": "估算的工具归因。方法：{{method}}。输入：{{inputBytes}} bytes。输出：{{outputBytes}} bytes。决策：{{decisionTokens}} Token。上下文：{{contextTokens}} Token。Follow-up：{{followupTokens}} Token。相关 LLM cache read：{{cacheReadTokens}} Token。相关 LLM cache write：{{cacheWriteTokens}} Token。"
   },
+  "humanSession": {
+    "titlePlaceholder": "标题（可选）",
+    "createPlaceholder": "添加第一条记录… 输入 / 使用技能，或输入 @ 提及会话。",
+    "createAction": "创建工作记录",
+    "appendLabel": "新记录",
+    "entryLabel": "工作记录条目",
+    "appendPlaceholder": "追加记录… 输入 / 使用技能，输入 @ 提及会话，或将会话拖到此处。",
+    "appendAction": "追加记录",
+    "loading": "正在加载工作记录",
+    "updated": "更新于 {{date}}",
+    "createFailed": "无法创建工作记录",
+    "loadFailed": "无法加载工作记录",
+    "appendFailed": "无法追加记录"
+  },
   "history": {
     "untitledSession": "未命名 Session",
     "prStatus": {
@@ -19,6 +33,8 @@
       "created": "创建时间",
       "updated": "更新时间",
       "lastUpdated": "最后更新",
+      "external": "外部",
+      "internal": "内部",
       "rounds": "轮次",
       "roundCount_one": "{{count}} 轮",
       "roundCount_other": "{{count}} 轮",
@@ -128,9 +144,10 @@
         "default": "默认",
         "manual": "手动",
         "60s": "每 60 秒",
-        "5m": "每 5 分钟",
-        "1h": "每小时",
-        "1d": "每天"
+        "120s": "每 120 秒",
+        "10m": "每 10 分钟",
+        "30m": "每 30 分钟",
+        "1h": "每小时"
       },
       "openFolder": "打开文件夹",
       "tabs": {
@@ -1349,6 +1366,8 @@
     "terminalSummary": {
       "command_one": "{{count}} 个命令",
       "command_other": "{{count}} 个命令",
+      "mcp_one": "{{count}} 次 MCP 调用",
+      "mcp_other": "{{count}} 次 MCP 调用",
       "wait_one": "{{count}} 次等待",
       "wait_other": "{{count}} 次等待",
       "check_one": "{{count}} 次检查",
@@ -2098,6 +2117,7 @@
     "contextMenu": {
       "filesAndFolders": "文件和文件夹",
       "agentSession": "Agent 会话",
+      "session": "会话",
       "workItems": "工作项",
       "back": "返回",
       "recent": "最近使用",
@@ -2110,9 +2130,9 @@
       "commands": "命令",
       "mode": "模式",
       "models": "模型",
-      "skills": "Skills",
-      "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "skills": "技能",
+      "workspaceSkills": "工作区技能",
+      "userSkills": "用户技能"
     },
     "diffMenu": {
       "gitActions": "GIT 操作",
@@ -2132,7 +2152,10 @@
     "categoryLabel": "会话类别",
     "categoryTemplate": "选择 {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "内置 Agent",
+    "builtIns": "内置功能",
+    "humanSession": {
+      "name": "工作记录"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "自定义 Agent",
     "agentOrgs": "Agent 团队",

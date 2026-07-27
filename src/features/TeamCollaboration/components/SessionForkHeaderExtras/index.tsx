@@ -64,6 +64,16 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
       }
       return;
     }
+    // The fork is created while the active ChatPanel tab is still bound to
+    // the read-only imported replay. `openSession` updates WorkStation/session
+    // atoms, but it does not retarget that tab; without this replacement the
+    // sidebar selects the new fork while the chat/header keep rendering the
+    // parent. Parent navigation below already uses the same two-step contract.
+    openOrReplaceSessionTab({
+      sessionId: outcome.localSessionId,
+      sessionName: outcome.name,
+      repoPath: outcome.repoPath,
+    });
     openSession(outcome.localSessionId, outcome.name, outcome.repoPath);
   };
 

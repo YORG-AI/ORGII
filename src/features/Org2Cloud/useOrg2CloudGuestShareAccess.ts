@@ -4,8 +4,9 @@
  * A guest import is deliberately durable so it survives session-list reloads,
  * but the durable replay must not outlive the share token that authorized it.
  * Guests cannot subscribe to the source org's private Realtime channels, so
- * the active replay is revalidated on a short cadence and all guest imports
- * are checked on focus / a low-frequency fallback cadence.
+ * capabilities are revalidated on concrete lifecycle events: import registry
+ * changes, opening a guest replay, and focus/visibility recovery. There is no
+ * periodic permission polling.
  */
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -14,6 +15,7 @@ import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
 import { createLogger } from "@src/hooks/logger";
 import {
+  activeChatPanelTabAtom,
   chatPanelTabsAtom,
   closeChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -21,23 +23,31 @@ import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { removeSession } from "@src/store/session/sessionAtom/mutations";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
 import type { Session } from "@src/store/session/sessionAtom/types";
-import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 
 import { classifyCloudShareResolveError } from "./cloudShareImportModel";
-import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
+import {
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "./org2CloudAuthAtom";
 import { ensureFreshSession } from "./org2CloudClient";
-import { resolvePersistedCloudShareEndpoint } from "./org2CloudShareEndpoint";
+import {
+  requireCloudShareAuthEndpoint,
+  resolvePersistedCloudShareEndpoint,
+} from "./org2CloudShareEndpoint";
 import { resolveCloudSessionShare } from "./org2CloudSharesClient";
 
 const log = createLogger("Org2CloudGuestShareAccess");
-
-const ACTIVE_REVALIDATE_MS = 5_000;
-const ALL_REVALIDATE_MS = 60_000;
 
 interface GuestShareCapability {
   sessionId: string;
   shareToken: string;
   shareEndpointUrl?: string;
+}
+
+interface GuestShareValidationFlight {
+  signal?: AbortSignal;
+  promise: Promise<void>;
 }
 
 export function guestShareCapabilities(
@@ -68,7 +78,9 @@ export function useOrg2CloudGuestShareAccess(): void {
   const auth = useAtomValue(org2CloudAuthAtom);
   const setAuth = useSetAtom(org2CloudAuthAtom);
   const sessions = useAtomValue(sessionsAtom) as Session[];
-  const activeSessionId = useAtomValue(activeSessionIdAtom) ?? "";
+  const activeTab = useAtomValue(activeChatPanelTabAtom);
+  const activeSessionId =
+    activeTab?.type === "session" ? (activeTab.sessionId ?? "") : "";
   const store = useStore();
 
   const capabilities = useMemo(
@@ -78,11 +90,17 @@ export function useOrg2CloudGuestShareAccess(): void {
   const capabilitiesRef = useRef(capabilities);
   const authRef = useRef(auth);
   const activeSessionIdRef = useRef(activeSessionId);
-  const validationInFlightRef = useRef(false);
+  const validationInFlightRef = useRef<GuestShareValidationFlight | null>(null);
 
-  capabilitiesRef.current = capabilities;
-  authRef.current = auth;
-  activeSessionIdRef.current = activeSessionId;
+  useEffect(() => {
+    capabilitiesRef.current = capabilities;
+  }, [capabilities]);
+  useEffect(() => {
+    authRef.current = auth;
+  }, [auth]);
+  useEffect(() => {
+    activeSessionIdRef.current = activeSessionId;
+  }, [activeSessionId]);
 
   const evictCapability = useCallback(
     (revoked: GuestShareCapability) => {
@@ -130,10 +148,11 @@ export function useOrg2CloudGuestShareAccess(): void {
   );
 
   const validate = useCallback(
-    async (scope: "active" | "all", signal?: AbortSignal): Promise<void> => {
-      if (validationInFlightRef.current) return;
+    async (scope: "active" | "all", signal?: AbortSignal): Promise<boolean> => {
+      const activeFlight = validationInFlightRef.current;
+      if (activeFlight && !activeFlight.signal?.aborted) return false;
       const currentAuth = authRef.current;
-      if (!currentAuth) return;
+      if (!currentAuth) return false;
 
       const currentCapabilities = capabilitiesRef.current;
       const targets =
@@ -142,10 +161,13 @@ export function useOrg2CloudGuestShareAccess(): void {
           : currentCapabilities.filter(
               (entry) => entry.sessionId === activeSessionIdRef.current
             );
-      if (targets.length === 0) return;
+      if (targets.length === 0) return false;
 
-      validationInFlightRef.current = true;
-      try {
+      const flight: GuestShareValidationFlight = {
+        signal,
+        promise: Promise.resolve(),
+      };
+      flight.promise = (async () => {
         const fresh = await ensureFreshSession(currentAuth, {
           onRefreshRejected: () =>
             setAuth((latest) => (latest === currentAuth ? null : latest)),
@@ -158,8 +180,9 @@ export function useOrg2CloudGuestShareAccess(): void {
         for (const capability of targets) {
           if (signal?.aborted) return;
           try {
-            const endpoint = resolvePersistedCloudShareEndpoint(
-              capability.shareEndpointUrl
+            const endpoint = requireCloudShareAuthEndpoint(
+              resolvePersistedCloudShareEndpoint(capability.shareEndpointUrl),
+              fresh.supabaseUrl
             );
             await resolveCloudSessionShare(
               fresh.accessToken,
@@ -173,9 +196,14 @@ export function useOrg2CloudGuestShareAccess(): void {
             }
           }
         }
-      } finally {
-        validationInFlightRef.current = false;
-      }
+      })().finally(() => {
+        if (validationInFlightRef.current === flight) {
+          validationInFlightRef.current = null;
+        }
+      });
+      validationInFlightRef.current = flight;
+      await flight.promise;
+      return true;
     },
     [evictCapability, setAuth]
   );
@@ -186,29 +214,43 @@ export function useOrg2CloudGuestShareAccess(): void {
         `${entry.sessionId}\u001f${entry.shareEndpointUrl ?? ""}\u001f${entry.shareToken}`
     )
     .join("\u001e");
-  const isAuthenticated = auth !== null;
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
 
   useEffect(() => {
-    if (!isAuthenticated || capabilities.length === 0) return undefined;
+    if (!authIdentityKey || capabilities.length === 0) return undefined;
     const abortController = new AbortController();
-    const runAll = () => void validate("all", abortController.signal);
-    const runActive = () => void validate("active", abortController.signal);
+    const isVisible = () => document.visibilityState !== "hidden";
+    const runAll = () => {
+      if (!isVisible()) return;
+      void validate("all", abortController.signal);
+    };
     const onVisibilityChange = () => {
-      if (document.visibilityState === "visible") runAll();
+      if (isVisible()) runAll();
     };
 
     runAll();
-    const activeTimer = window.setInterval(runActive, ACTIVE_REVALIDATE_MS);
-    const allTimer = window.setInterval(runAll, ALL_REVALIDATE_MS);
     window.addEventListener("focus", runAll);
     document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
       abortController.abort();
-      window.clearInterval(activeTimer);
-      window.clearInterval(allTimer);
       window.removeEventListener("focus", runAll);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [capabilityKey, capabilities.length, isAuthenticated, validate]);
+  }, [authIdentityKey, capabilityKey, capabilities.length, validate]);
+
+  useEffect(() => {
+    if (!authIdentityKey || !activeSessionId || capabilities.length === 0) {
+      return undefined;
+    }
+    const abortController = new AbortController();
+    void validate("active", abortController.signal);
+    return () => abortController.abort();
+  }, [
+    activeSessionId,
+    authIdentityKey,
+    capabilityKey,
+    capabilities.length,
+    validate,
+  ]);
 }

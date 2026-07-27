@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Build the primary app and instance 2 concurrently on Windows.
+ * Build the primary app and instance 2 concurrently on Windows or macOS.
  *
- * The two Tauri identities cannot share Cargo's final `org2.exe` artifact
+ * The two Tauri identities cannot share Cargo's final executable/app bundle
  * while linking. Give each build a persistent target directory instead, so
  * both links can run at once and retain their own incremental caches.
  *
@@ -135,7 +135,22 @@ function copyResult(source, destination) {
   fs.copyFileSync(source, destination);
 }
 
+function copyAppResult(source, destination) {
+  if (!fs.existsSync(source)) {
+    throw new Error(`Expected app bundle missing: ${source}`);
+  }
+  if (path.resolve(source) === path.resolve(destination)) return;
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.rmSync(destination, { recursive: true, force: true });
+  fs.cpSync(source, destination, { recursive: true });
+}
+
 async function main() {
+  if (!["win32", "darwin"].includes(process.platform)) {
+    throw new Error(
+      `Dual local app builds are not configured for ${process.platform}`
+    );
+  }
   const startedAt = Date.now();
   seedInstanceTarget();
   runFrontendBuild();
@@ -153,11 +168,37 @@ async function main() {
     process.exit(failed.code);
   }
 
-  const primaryExe = path.join(primaryTarget, profileDir, "org2.exe");
-  const instance2Exe = path.join(instance2Target, profileDir, "org2.exe");
-  copyResult(primaryExe, path.join(canonicalDir, "org2.exe"));
-  copyResult(primaryExe, path.join(canonicalDir, "org2-main.exe"));
-  copyResult(instance2Exe, path.join(canonicalDir, "org2-instance2.exe"));
+  let primaryOutput;
+  let instance2Output;
+  if (process.platform === "darwin") {
+    const canonicalAppsDir = path.join(canonicalDir, "bundle", "macos");
+    primaryOutput = path.join(
+      primaryTarget,
+      profileDir,
+      "bundle",
+      "macos",
+      "ORG2.app"
+    );
+    instance2Output = path.join(
+      instance2Target,
+      profileDir,
+      "bundle",
+      "macos",
+      "ORG2 Instance 2.app"
+    );
+    copyAppResult(
+      instance2Output,
+      path.join(canonicalAppsDir, "ORG2 Instance 2.app")
+    );
+  } else {
+    const primaryExe = path.join(primaryTarget, profileDir, "org2.exe");
+    const instance2Exe = path.join(instance2Target, profileDir, "org2.exe");
+    primaryOutput = path.join(canonicalDir, "org2-main.exe");
+    instance2Output = path.join(canonicalDir, "org2-instance2.exe");
+    copyResult(primaryExe, path.join(canonicalDir, "org2.exe"));
+    copyResult(primaryExe, primaryOutput);
+    copyResult(instance2Exe, instance2Output);
+  }
 
   console.log(
     `\x1b[32m[build-fast-dual] Built both identities in ${(
@@ -166,8 +207,14 @@ async function main() {
     ).toFixed(1)}s\x1b[0m`
   );
   console.log(`  profile:   ${profileDir}, ${jobsPerBuild} jobs per identity`);
-  console.log(`  main:      ${path.join(canonicalDir, "org2-main.exe")}`);
-  console.log(`  instance2: ${path.join(canonicalDir, "org2-instance2.exe")}`);
+  console.log(`  main:      ${primaryOutput}`);
+  console.log(
+    `  instance2: ${
+      process.platform === "darwin"
+        ? path.join(canonicalDir, "bundle", "macos", "ORG2 Instance 2.app")
+        : instance2Output
+    }`
+  );
 }
 
 main().catch((error) => {

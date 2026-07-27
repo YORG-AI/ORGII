@@ -1,9 +1,7 @@
 use crate::error::GitApiError;
 #[cfg(windows)]
 use crate::extractors::has_windows_users_prefix;
-use crate::extractors::{
-    is_path_within_roots, validate_file_path, validate_path,
-};
+use crate::extractors::{is_path_within_roots, validate_file_path, validate_path};
 
 #[test]
 fn test_path_traversal_detection() {

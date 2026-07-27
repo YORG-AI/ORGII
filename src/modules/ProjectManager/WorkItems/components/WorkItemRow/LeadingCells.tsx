@@ -44,6 +44,11 @@ export function LeadingCells({
     !!currentExternalStatusOption &&
     !!externalStatusOptions?.length &&
     !!onExternalStatusChange;
+  const displayedStatus = canUseExternalStatusDropdown
+    ? externalStatusValue
+    : status;
+  const useIconOnlyStatusTrigger =
+    isGitHubIssueStatus || displayedStatus === "backlog";
 
   return (
     <div className="grid shrink-0 grid-cols-[1.75rem_auto_5.5rem_auto] items-center gap-1">
@@ -85,7 +90,7 @@ export function LeadingCells({
       </div>
 
       <RowPropertyDropdown
-        value={canUseExternalStatusDropdown ? externalStatusValue : status}
+        value={displayedStatus}
         label={statusLabel}
         icon={currentExternalStatusOption?.icon ?? statusOption?.icon}
         iconColor={currentExternalStatusOption?.color ?? statusOption?.color}
@@ -110,17 +115,9 @@ export function LeadingCells({
           statusDisabled ||
           (!canUseExternalStatusDropdown && !onStatusChange)
         }
-        triggerVariant={
-          (canUseExternalStatusDropdown ? externalStatusValue : status) ===
-          "backlog"
-            ? "iconOnly"
-            : "pill"
-        }
+        triggerVariant={useIconOnlyStatusTrigger ? "iconOnly" : "pill"}
         maxWidthClassName={
-          (canUseExternalStatusDropdown ? externalStatusValue : status) ===
-          "backlog"
-            ? "w-7 max-w-7"
-            : "max-w-[150px]"
+          useIconOnlyStatusTrigger ? "w-7 max-w-7" : "max-w-[150px]"
         }
         dataTestId={`work-item-status-${shortId}`}
       />

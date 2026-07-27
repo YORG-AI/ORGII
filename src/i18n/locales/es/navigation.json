@@ -61,15 +61,9 @@
     "startSession": "Iniciar sesión",
     "sessions": "Session",
     "selectProject": "Seleccionar Project",
-    "startPage": "Página de inicio",
     "inbox": "Bandeja de entrada",
     "login": "Iniciar sesión",
     "setup": "Configuración",
-    "devJourney": "Dev Journey",
-    "devRecord": "Registro de desarrollo",
-    "gitDashboard": "Panel Git",
-    "devActivity": "Actividad Dev",
-    "usageHistory": "Historial de uso",
     "tokenMarket": "Mercado de Token",
     "taskMarket": "Mercado de tareas",
     "channels": "Canales",
@@ -85,20 +79,8 @@
     "ideaArea": "Área de Ideas",
     "changelog": "Registro de cambios"
   },
-  "appGrid": {
-    "customizeGrid": "Personalizar cuadrícula",
-    "horizontalGap": "Espaciado horizontal",
-    "verticalGap": "Espaciado vertical",
-    "resetToDefault": "Restablecer valores predeterminados"
-  },
-  "greetings": {
-    "morning": "Buenos días",
-    "afternoon": "Buenas tardes",
-    "evening": "Buenas noches"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Inicio",
       "workstation": "Workstation",
       "manage": "Gestionar",
       "core": "Núcleo",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Agregar nuevo",
       "collapseAll": "Contraer todo",
-      "markAllRead": "Marcar todo como leído",
-      "openHome": "Abrir inicio",
-      "openWorkstation": "Abrir Workstation"
+      "markAllRead": "Marcar todo como leído"
     },
     "search": {
       "folders": "Buscar en el espacio de trabajo...",
@@ -360,15 +340,6 @@
       "projects": "Proyectos"
     }
   },
-  "changelog": {
-    "title": "Registro de cambios",
-    "subtitle": "Actualizaciones del producto",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Detalles",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Cambiar de ORG",
     "addOrg": "Añadir ORG",
@@ -436,7 +407,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Iniciar sesión",
     "signOut": "Cerrar sesión",
+    "signedInAs": "Sesión iniciada como {{name}}",
     "signedInToast": "Sesión iniciada en ORG2 Cloud",
+    "sessionExpired": "Tu sesión de ORG2 Cloud ha caducado. Inicia sesión de nuevo para continuar.",
     "recommendedBadge": "Recomendado",
     "recommendedDesc": "Compartición de sesiones gestionada, almacenamiento de repeticiones, permisos de equipo y enlaces seguros. Sin configuración de Supabase. ORG2 gestiona por ti Auth, migraciones de base de datos, políticas RLS, facturación, retención, cuotas y actualizaciones del backend",
     "customEndpoint": {
@@ -476,13 +449,15 @@
       "retentionUpgrade": "Esta sesión está fuera de la ventana de repetición de tu plan — mejora el plan para verla",
       "importError": "No se pudo importar la sesión",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Acerca de mí"
     },
     "sidebar": {
       "teamSessions": "Sesiones del equipo",
       "mySessions": "Mis sesiones",
       "memberFilter": "Filtrar por miembro",
       "sessionFilter": "Filtrar sesiones",
+      "copyId": "Copiar ID",
       "directlySharedWithMe": "Compartidas directamente conmigo",
       "everyone": "Todos",
       "forkedFrom": "bifurcada de @{{name}}",
@@ -615,7 +590,8 @@
         "inviteInvalid": "Este código de invitación no es válido.",
         "inviteRevoked": "Esta invitación fue revocada.",
         "inviteExpired": "Esta invitación caducó.",
-        "inviteExhausted": "Esta invitación no tiene usos restantes."
+        "inviteExhausted": "Esta invitación no tiene usos restantes.",
+        "network": "No se pudo conectar al servicio en la nube. Comprueba la red e inténtalo de nuevo."
       }
     },
     "syncLevel": {

@@ -18,7 +18,10 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ChatBubbleCopyButton } from "@src/components/ChatBubble";
+import {
+  CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS,
+  ChatBubbleCopyButton,
+} from "@src/components/ChatBubble";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import { readPillText } from "@src/config/pillTokens";
 import { REPO_SETUP_PROMPT_MARKER } from "@src/config/repoSetupMarker";
@@ -95,6 +98,8 @@ function extractPrPillCards(text: string): SessionLinkCardData[] {
 interface UserChatItemProps {
   chatItem: OptimizedChatItem;
   onEditSubmit?: (newText: string, imageDataUrls?: string[]) => void;
+  /** Extra actions rendered in the message's copy / restore / edit toolbar. */
+  toolbarActions?: React.ReactNode;
   /**
    * Restore the session to this message's checkpoint WITHOUT re-sending it
    * (Cursor-style restore). When provided, a restore button is shown next to
@@ -176,13 +181,13 @@ CachedFileChip.displayName = "CachedFileChip";
 /**
  * Layout-only; border/hover/focus ring added per-row below.
  *
- * Uses a NAMED group (`group/msg`) so the hover toolbar reveals only when its
- * own bubble is hovered. An unnamed `group` here would also match any ancestor
- * carrying a bare `group` class (e.g. the WorkStation AppShell), which made
- * every message's toolbar reveal whenever the mouse was anywhere in the pane.
+ * The wrapping message row uses a NAMED group (`group/msg`) so the timestamp
+ * toolbar reveals only for its own message. An unnamed `group` would also
+ * match bare-group ancestors (e.g. the WorkStation AppShell), revealing every
+ * message toolbar whenever the mouse was anywhere in the pane.
  */
 const DISPLAY_CONTAINER_BASE =
-  "group/msg relative w-fit max-w-[min(600px,100%)] rounded-2xl bg-fill-2 px-3 py-2 transition-colors hover:bg-fill-3";
+  "relative w-fit max-w-[min(600px,100%)] rounded-2xl bg-fill-2 px-3 py-2 transition-colors hover:bg-fill-3";
 
 // ============================================
 // Component
@@ -191,6 +196,7 @@ const DISPLAY_CONTAINER_BASE =
 const UserChatItem = ({
   chatItem,
   onEditSubmit,
+  toolbarActions,
   onRestoreCheckpoint,
 }: UserChatItemProps) => {
   const { t, i18n } = useTranslation("sessions");
@@ -382,41 +388,6 @@ const UserChatItem = ({
         data-testid="chat-message-user-editable"
         onClick={isEditableDisplay ? handleEditClick : undefined}
       >
-        {fullContent && (
-          <div className="absolute right-full top-1/2 z-10 mr-1 -translate-y-1/2 translate-x-2 opacity-0 transition-[opacity,transform] duration-150 ease-out focus-within:translate-x-0 focus-within:opacity-100 group-hover/msg:translate-x-0 group-hover/msg:opacity-100 motion-reduce:translate-x-0 motion-reduce:transition-none">
-            <div className="flex items-center gap-1 px-1 py-0.5">
-              <ChatBubbleCopyButton content={fullContent} placement="toolbar" />
-              {isEditableDisplay && onRestoreCheckpoint && (
-                <button
-                  type="button"
-                  data-testid="chat-message-restore-checkpoint"
-                  title={t("chat.restoreCheckpoint", "Restore checkpoint")}
-                  className="flex cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0.5 text-text-3 hover:text-danger-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-6/30"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRestoreCheckpoint();
-                  }}
-                >
-                  <Undo2 size={15} strokeWidth={1.75} />
-                </button>
-              )}
-              {isEditableDisplay && (
-                <button
-                  type="button"
-                  data-testid="chat-message-user-edit-button"
-                  className="flex cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0.5 text-text-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditClick();
-                  }}
-                >
-                  <PencilLine size={14} strokeWidth={1.75} />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="flex min-w-0 flex-1 flex-col gap-[6px]">
           {isRepoSetup ? (
             <div className="flex items-center gap-2 py-0.5">
@@ -500,8 +471,46 @@ const UserChatItem = ({
           )}
         </div>
       </div>
-      {timestampLabel && (
-        <div className="mt-1 px-1 text-[11px] leading-none text-text-3">
+      {(timestampLabel || fullContent || toolbarActions) && (
+        <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
+          {(fullContent || toolbarActions) && (
+            <div className="absolute right-full top-1/2 mr-1 flex -translate-y-1/2 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover/msg:opacity-100">
+              {fullContent && (
+                <ChatBubbleCopyButton
+                  content={fullContent}
+                  placement="toolbar"
+                />
+              )}
+              {isEditableDisplay && onRestoreCheckpoint && (
+                <button
+                  type="button"
+                  data-testid="chat-message-restore-checkpoint"
+                  title={t("chat.restoreCheckpoint", "Restore checkpoint")}
+                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-danger-6`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRestoreCheckpoint();
+                  }}
+                >
+                  <Undo2 size={15} strokeWidth={1.75} />
+                </button>
+              )}
+              {isEditableDisplay && (
+                <button
+                  type="button"
+                  data-testid="chat-message-user-edit-button"
+                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEditClick();
+                  }}
+                >
+                  <PencilLine size={14} strokeWidth={1.75} />
+                </button>
+              )}
+              {toolbarActions}
+            </div>
+          )}
           {timestampLabel}
         </div>
       )}
@@ -518,7 +527,11 @@ const UserChatItem = ({
     </>
   );
 
-  return <div className="flex w-full flex-col items-end pl-24">{display}</div>;
+  return (
+    <div className="group/msg flex w-full flex-col items-end pl-24">
+      {display}
+    </div>
+  );
 };
 
 export default memo(UserChatItem);

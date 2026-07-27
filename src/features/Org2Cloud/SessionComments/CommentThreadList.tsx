@@ -77,6 +77,8 @@ export interface CommentThreadListProps {
   composerDisabled?: boolean;
   composerDisabledReason?: string;
   composerPlaceholder?: string;
+  /** Optional top-level composer cancel action (inline panels use it to close). */
+  onComposerCancel?: () => void;
   emptyLabel?: string;
   /**
    * Resolves with the created row when the caller's add path returns it
@@ -565,6 +567,7 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
   composerDisabled = false,
   composerDisabledReason,
   composerPlaceholder,
+  onComposerCancel,
   emptyLabel,
   onAdd,
   onEdit,
@@ -610,6 +613,7 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
       disabled={composerDisabled}
       allowAgentMention={Boolean(requestAgent && context?.canRunAgent)}
       onSubmit={submitTopLevel}
+      onCancel={onComposerCancel}
       testId="session-comment-composer"
     />
   ) : null;

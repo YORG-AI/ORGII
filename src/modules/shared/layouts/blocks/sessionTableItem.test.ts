@@ -1,7 +1,10 @@
 import { isValidElement } from "react";
 
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { KanbanTask } from "@src/features/KanbanBoard";
+import { SESSION_STATUS_DOT_COLOR } from "@src/util/session/sessionStatusDot";
 
+import { truncateSessionOwnerLabel } from "./SessionTable";
 import { mapKanbanTaskToSessionTableItem } from "./sessionTableItem";
 
 function makeTask(): KanbanTask {
@@ -21,6 +24,31 @@ function makeTask(): KanbanTask {
 }
 
 describe("mapKanbanTaskToSessionTableItem", () => {
+  it.each([
+    ["todo", undefined, undefined, SESSION_STATUS_DOT_COLOR.working],
+    ["in_progress", undefined, undefined, SESSION_STATUS_DOT_COLOR.working],
+    ["blocking", undefined, undefined, SESSION_STATUS_DOT_COLOR.asking],
+    ["turn_finished", true, undefined, SESSION_STATUS_DOT_COLOR.unread],
+    ["turn_finished", false, undefined, SESSION_STATUS_DOT_COLOR.default],
+    ["turn_finished", false, "failed", SESSION_STATUS_DOT_COLOR.failed],
+    ["archived", false, "archived", SESSION_STATUS_DOT_COLOR.archived],
+  ] as const)(
+    "uses the sidebar status-dot color for %s",
+    (status, isUnread, resultStatus, expectedColor) => {
+      const item = mapKanbanTaskToSessionTableItem({
+        task: {
+          ...makeTask(),
+          status: status as KanbanTask["status"],
+          isUnread,
+          resultStatus,
+        },
+        statusLabel: status,
+      });
+
+      expect(item.statusColor).toBe(expectedColor);
+    }
+  );
+
   it("truncates workspace labels after 15 characters", () => {
     const item = mapKanbanTaskToSessionTableItem({
       task: {
@@ -68,5 +96,85 @@ describe("mapKanbanTaskToSessionTableItem", () => {
     });
 
     expect(item.impactLabel).toBeUndefined();
+  });
+
+  it("maps the organization creator name into the owner column", () => {
+    const item = mapKanbanTaskToSessionTableItem({
+      task: {
+        id: "session-org",
+        title: "Review release",
+        status: "in_progress",
+        createdBy: { id: "user-1", name: "Ada Lovelace" },
+      },
+      statusLabel: "In progress",
+    });
+
+    expect(item.ownerLabel).toBe("Ada Lovelace");
+  });
+
+  it("disables rows whose projected task has no open action", () => {
+    const item = mapKanbanTaskToSessionTableItem({
+      task: { ...makeTask(), canOpen: false },
+      statusLabel: "In progress",
+    });
+
+    expect(item.disabled).toBe(true);
+  });
+
+  it("passes a List-owned row action through to the shared table item", () => {
+    const rowAction = "Take over";
+    const item = mapKanbanTaskToSessionTableItem({
+      task: makeTask(),
+      statusLabel: "In progress",
+      rowAction,
+    });
+
+    expect(item.rowAction).toBe(rowAction);
+  });
+
+  it("uses text-1 for both the agent and model icons", () => {
+    const item = mapKanbanTaskToSessionTableItem({
+      task: {
+        ...makeTask(),
+        cliAgentType: "codex",
+        modelName: "gpt-5.6-sol",
+      },
+      statusLabel: "In progress",
+    });
+
+    expect(isValidElement(item.agentIcon)).toBe(true);
+    expect(isValidElement(item.modelIcon)).toBe(true);
+    if (
+      !isValidElement<{ className?: string }>(item.agentIcon) ||
+      !isValidElement<{ className?: string }>(item.modelIcon)
+    ) {
+      throw new Error("missing agent or model icon");
+    }
+    expect(item.agentIcon.props.className).toBe("text-text-1");
+    expect(item.modelIcon.props.className).toBe("text-text-1");
+  });
+
+  it("uses the canonical task icon without a second identity projection", () => {
+    const item = mapKanbanTaskToSessionTableItem({
+      task: {
+        ...makeTask(),
+        agentIconId: "network",
+        cliAgentType: "opencode",
+      },
+      statusLabel: "In progress",
+    });
+
+    expect(isValidElement(item.agentIcon)).toBe(true);
+    if (!isValidElement(item.agentIcon)) {
+      throw new Error("missing agent icon");
+    }
+    expect(item.agentIcon.type).toBe(resolveAgentIcon("network"));
+  });
+});
+
+describe("truncateSessionOwnerLabel", () => {
+  it("limits string owner names to 12 Unicode characters", () => {
+    expect(truncateSessionOwnerLabel("abcdefghijklmnop")).toBe("abcdefghijkl…");
+    expect(truncateSessionOwnerLabel("你好世界")).toBe("你好世界");
   });
 });

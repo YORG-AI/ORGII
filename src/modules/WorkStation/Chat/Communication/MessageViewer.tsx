@@ -1,4 +1,3 @@
-import { useAtomValue } from "jotai";
 import { ChevronsUpDown } from "lucide-react";
 import React, {
   useCallback,
@@ -17,8 +16,8 @@ import {
   derivePlanApprovalViewState,
   isPlanDisplayEvent,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import type { SessionReplayPlaceholderMode } from "@src/modules/WorkStation/shared";
-import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
 
 import { isEmailBubbleEvent } from "./EmailMessageBubble";
 import { EmptyState } from "./EmptyState";
@@ -137,7 +136,6 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     setViewMode?.("todo");
   }, [setViewMode]);
   const { t } = useTranslation(["common", "sessions"]);
-  const approvalMap = useAtomValue(pendingPlanApprovalsAtom);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const loadMoreScrollAnchorRef = useRef<{
     scrollTop: number;
@@ -238,6 +236,17 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     return null;
   }, [messages, viewMode]);
 
+  const selectedPlanMessage =
+    viewMode === "preview" && previewSelectedPlan && selectedMessage?.event
+      ? isPlanDisplayEvent(selectedMessage.event)
+        ? selectedMessage
+        : null
+      : null;
+  const activePlanMessage =
+    controlledActivePlanMessage ?? selectedPlanMessage ?? latestPlanMessage;
+  const pendingPlan = usePendingPlanApproval(
+    activePlanMessage?.event.sessionId
+  );
   const canRenderDurableAgentOrgBoard =
     viewMode === "todo" && agentOrgTasks !== undefined;
 
@@ -257,20 +266,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     );
   }
 
-  const selectedPlanMessage =
-    viewMode === "preview" && previewSelectedPlan && selectedMessage?.event
-      ? isPlanDisplayEvent(selectedMessage.event)
-        ? selectedMessage
-        : null
-      : null;
-
-  const activePlanMessage =
-    controlledActivePlanMessage ?? selectedPlanMessage ?? latestPlanMessage;
-
   if (viewMode === "preview" && activePlanMessage) {
-    const pendingPlan = approvalMap.get(
-      activePlanMessage.event.sessionId
-    )?.current;
     const plan = getPlanDocViewModel(activePlanMessage.event, pendingPlan);
     const statusView = getPlanDocStatusViewModel(
       activePlanMessage.event,

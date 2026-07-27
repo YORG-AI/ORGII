@@ -24,7 +24,10 @@ export {
   buildCodexReauthPath,
   buildIntegrationsPath,
   CODEX_REAUTH_RETURN_TO_STATE_KEY,
+  filterDevModeIntegrationItems,
+  getDevOnlyIntegrationRedirect,
   INTEGRATIONS_CATEGORIES,
+  isIntegrationCategoryAvailable,
   parseCodexReauthIntent,
   parseIntegrationsPath,
 } from "./mainAppPaths/integrations";
@@ -59,10 +62,9 @@ export type {
 
 export {
   classifySettingsRouteRoot,
-  deriveRouteCacheKey,
   SETTINGS_ROUTE_ROOT,
-} from "./mainAppPaths/routeCache";
-export type { SettingsRouteRoot } from "./mainAppPaths/routeCache";
+} from "./mainAppPaths/settingsRouteRoot";
+export type { SettingsRouteRoot } from "./mainAppPaths/settingsRouteRoot";
 
 export {
   buildWizardPath,

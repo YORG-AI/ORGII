@@ -91,7 +91,6 @@ export function useDecorateSessionRowActions({
             label: expanded
               ? tCommon("sessions:sidebar.hideSubagents", "Hide subagents")
               : tCommon("sessions:sidebar.showSubagents", "Show subagents"),
-            active: expanded,
             onClick: () => handleToggleSubagentExpansion(item.id),
           });
         }

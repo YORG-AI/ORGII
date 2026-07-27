@@ -14,6 +14,7 @@ import {
 import type { EngineFixture } from "./org2CloudSyncEngine.testUtils";
 
 const {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   DATA_CHANGED_DEBOUNCE_MS,
   ORG2_CLOUD_ENDPOINT_OVERRIDE_STORAGE_KEY,
   ORG2_CLOUD_EXPECTED_SCHEMA_VERSION,
@@ -25,6 +26,7 @@ const {
   org2CloudOrgsAtom,
   org2CloudRepoScopesAtom,
   org2CloudSyncEnabledAtom,
+  sidebarActiveCloudOrgIdAtom,
   Org2CloudProjectsError,
   Org2CloudSyncEngine,
   Org2CloudSyncError,
@@ -41,6 +43,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   beforeEach(() => {
     fixture = createEngineFixture();
     ({ store, client, projectsClient, bridge, engine } = fixture);
+    documentStub.visibilityState = "visible";
   });
 
   afterEach(() => {
@@ -64,6 +67,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   }
 
   it("drives the ProjectSyncChannel per org: full listing first, cursor delta after", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     projectsClient.listOrgCollabState.mockResolvedValue({
       serverTime: "2026-07-01T12:00:00.000Z",
       projects: [
@@ -102,17 +106,31 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(store.get(org2CloudCollabStateCursorsAtom)).toEqual({
       "corg-1": "2026-07-01T11:59:58.000Z",
     });
-    // … and the SECOND pass pulls the delta behind it.
-    // Inbound planes run at most once per INBOUND_FALLBACK_INTERVAL_MS per
-    // pass cycle (realtime is the primary trigger); hop the clock past the
-    // window so this pass includes the inbound pull.
-    vi.setSystemTime(Date.now() + 5 * 60_000 + 1);
-    await engine.runSyncPass();
+    // … and the next concrete Realtime invalidation (past the burst share
+    // window) pulls the delta behind it.
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    await engine.invalidateOrgInboundAndWait("corg-1");
     expect(projectsClient.listOrgCollabState).toHaveBeenLastCalledWith(
       "jwt-1",
       "corg-1",
       "2026-07-01T11:59:58.000Z"
     );
+  });
+
+  it("never polls inactive projects and pulls only after an explicit invalidation", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, null);
+    await engine.runSyncPass();
+    projectsClient.listOrgCollabState.mockClear();
+    client.getOrgRepoScopes.mockClear();
+
+    vi.setSystemTime(Date.now() + 24 * 60 * 60_000);
+    await engine.runSyncPass();
+    expect(projectsClient.listOrgCollabState).not.toHaveBeenCalled();
+    expect(client.getOrgRepoScopes).not.toHaveBeenCalled();
+
+    await engine.invalidateOrgInboundAndWait("corg-1");
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(client.getOrgRepoScopes).not.toHaveBeenCalled();
   });
 
   it("scopes Realtime pulls to one org, preserves delta cursors, and skips the outbox probe", async () => {
@@ -122,6 +140,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     ]);
 
     await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
 
@@ -136,8 +155,52 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
   });
 
+  it("defers hidden Realtime work and consumes it once on visibility regain", async () => {
+    await engine.runSyncPass();
+    projectsClient.listOrgCollabState.mockClear();
+    // Ignore the engine.start() zero-delay bootstrap; this assertion targets
+    // only the explicit hidden Realtime invalidation below.
+    vi.clearAllTimers();
+    documentStub.visibilityState = "hidden";
+
+    engine.invalidateOrgInbound("corg-1");
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    expect(projectsClient.listOrgCollabState).not.toHaveBeenCalled();
+
+    documentStub.visibilityState = "visible";
+    documentStub.dispatchEvent(new Event("visibilitychange"));
+    await engine.runSyncPassAndWaitForDrain();
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not create a recurring sync pass while idle", async () => {
+    await vi.advanceTimersByTimeAsync(0);
+    await engine.runSyncPassAndWaitForDrain();
+    const passesBefore = engine.startedPassCount;
+
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60_000);
+
+    expect(engine.startedPassCount).toBe(passesBefore);
+  });
+
+  it("does not feed a Realtime inbound nudge back into session uploads", async () => {
+    await engine.runSyncPass();
+    client.upsertSessionMetadata.mockClear();
+    client.appendSessionEvents.mockClear();
+    client.rewriteSessionEvents.mockClear();
+    engine.invalidatePushedMetadataHash("corg-1", "session-1");
+
+    await engine.invalidateOrgInboundAndWait("corg-1");
+
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(client.appendSessionEvents).not.toHaveBeenCalled();
+    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
+  });
+
   it("applies snake_case tombstones from Realtime-scoped project pulls", async () => {
     await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     bridge.applyRemote.mockClear();
     bridge.drainOutbox.mockClear();
@@ -179,6 +242,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
 
   it("uses a full listing only for reconnect recovery", async () => {
     await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
 
     await engine.invalidateOrgInboundAndWait("corg-1", { full: true });
@@ -192,6 +256,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
 
   it("resumeOrgAndWait runs exactly one serialized pass (no dirty follow-up)", async () => {
     await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     const passesBefore = engine.startedPassCount;
 
@@ -200,6 +265,67 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(engine.startedPassCount - passesBefore).toBe(1);
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledWith(
+      "jwt-1",
+      "corg-1",
+      undefined
+    );
+  });
+
+  it("collapses a signal-recovery listing burst to one network pull per org", async () => {
+    await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    projectsClient.listOrgCollabState.mockClear();
+
+    // Real-machine burst: the SUBSCRIBED-edge full recovery, the entitlement
+    // resume and the delta nudge all land within a second.
+    await engine.invalidateOrgInboundAndWait("corg-1", {
+      full: true,
+      pushSessions: true,
+    });
+    await engine.resumeOrgAndWait("corg-1");
+    await engine.invalidateOrgInboundAndWait("corg-1");
+
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledWith(
+      "jwt-1",
+      "corg-1",
+      undefined
+    );
+    // The burst's one listing still anchored the delta cursor.
+    expect(store.get(org2CloudCollabStateCursorsAtom)).toEqual({
+      "corg-1": "2026-07-01T11:59:58.000Z",
+    });
+
+    // No invalidation intent was dropped: the next spaced trigger issues a
+    // REAL delta pull behind the anchored cursor.
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    projectsClient.listOrgCollabState.mockClear();
+    await engine.invalidateOrgInboundAndWait("corg-1");
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledWith(
+      "jwt-1",
+      "corg-1",
+      "2026-07-01T11:59:58.000Z"
+    );
+  });
+
+  it("never satisfies a full-recovery request with a cached delta listing", async () => {
+    await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
+    projectsClient.listOrgCollabState.mockClear();
+
+    // Delta pull first …
+    await engine.invalidateOrgInboundAndWait("corg-1");
+    expect(projectsClient.listOrgCollabState).toHaveBeenLastCalledWith(
+      "jwt-1",
+      "corg-1",
+      "2026-07-01T11:59:58.000Z"
+    );
+    // … then a full recovery inside the window: absence can only be proven
+    // against the complete state, so the delta must NOT be shared.
+    await engine.invalidateOrgInboundAndWait("corg-1", { full: true });
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(2);
+    expect(projectsClient.listOrgCollabState).toHaveBeenLastCalledWith(
       "jwt-1",
       "corg-1",
       undefined
@@ -217,6 +343,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   });
 
   it("keeps project tombstones draining while session replay is over quota", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     client.rewriteSessionEvents.mockRejectedValue(
       new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
     );
@@ -233,6 +360,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     // schedules and drains the independent projects/work-items control plane.
     await vi.advanceTimersByTimeAsync(0);
     await engine.runSyncPassAndWaitForDrain();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     client.rewriteSessionEvents.mockClear();
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
@@ -282,6 +410,29 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(projectsClient.listOrgCollabState).not.toHaveBeenCalled();
   });
 
+  it("releases every per-org cache when membership disappears", async () => {
+    const aliasMock = vi.mocked(ensureProjectOrgForCloudOrg);
+    await engine.runSyncPass();
+    aliasMock.mockClear();
+    client.getOrgRepoScopes.mockClear();
+    projectsClient.listOrgCollabState.mockClear();
+
+    const originalOrgs = store.get(org2CloudOrgsAtom);
+    store.set(org2CloudOrgsAtom, []);
+    await engine.runSyncPass();
+    store.set(org2CloudOrgsAtom, originalOrgs);
+    engine.reconcileRoster();
+    await engine.runSyncPassAndWaitForDrain();
+
+    expect(aliasMock).toHaveBeenCalledTimes(1);
+    expect(client.getOrgRepoScopes).toHaveBeenCalledTimes(1);
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledWith(
+      "jwt-1",
+      "corg-1",
+      undefined
+    );
+  });
+
   it("pushes drained outbox rows through the cloud upsert RPCs and acks the version", async () => {
     bridge.drainOutbox
       .mockResolvedValueOnce([
@@ -321,6 +472,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
   });
 
   it("backs off + toasts when ORG2_SYNC_DISABLED surfaces through the channel's PUSH path", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     // The listing RPC the engine awaits directly is UNGATED (0013: only
     // assert_org_member), so the entitlement gate can only fire inside the
     // channel's per-row pushes — which ack failures instead of throwing.
@@ -369,10 +521,12 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
     expect(messageMock.warning).toHaveBeenCalledTimes(1);
 
-    // A quiet backend cannot strand the org forever: the bounded cooldown
-    // expires even when no Realtime entitlement signal arrives.
+    // A concrete local-data event after the cooldown retries the durable
+    // outbox; elapsed wall-clock time alone never starts a poll.
     vi.setSystemTime(Date.now() + ORG_BACKOFF_COOLDOWN_MS);
-    await engine.runSyncPass();
+    emitDataChanged();
+    await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    await engine.runSyncPassAndWaitForDrain();
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
   });
@@ -398,14 +552,20 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     );
     await engine.runSyncPass();
 
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
     await engine.invalidateOrgInboundAndWait("corg-1");
 
     expect(projectsClient.listOrgCollabState).toHaveBeenCalled();
-    // This org never completed its startup inbound cycle before backoff, so
-    // the overdue safety pass also retries its durable outbox.
-    expect(bridge.drainOutbox).toHaveBeenCalled();
+    expect(bridge.drainOutbox).not.toHaveBeenCalled();
+
+    // The invalidation cleared entitlement backoff; the next concrete local
+    // data event can therefore drain the outbox immediately.
+    emitDataChanged();
+    await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
+    await engine.runSyncPassAndWaitForDrain();
+    expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
   });
 
   it("holds the collab-state cursor when the channel cycle fails", async () => {
@@ -417,13 +577,14 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(messageMock.warning).not.toHaveBeenCalled();
   });
 
-  it("drains the projects plane promptly on orgii-data-changed, without the 5-min fallback", async () => {
+  it("drains the projects plane promptly on orgii-data-changed", async () => {
     await engine.runSyncPass(); // consumes the start-up inbound pull
     // start() also owns an independent 0 ms bootstrap timer. Drain it before
     // the event assertion so it cannot overlap the debounce callback and turn
     // that callback into a fire-and-forget dirty pass under full-suite load.
     await vi.advanceTimersByTimeAsync(0);
     await engine.runSyncPassAndWaitForDrain();
+    await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
     projectsClient.listOrgCollabState.mockClear();
     bridge.drainOutbox.mockClear();
 
@@ -432,7 +593,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     expect(bridge.drainOutbox).not.toHaveBeenCalled();
 
     // A local mutation emits orgii-data-changed → debounced pass drains the
-    // outbox now instead of waiting INBOUND_FALLBACK_INTERVAL_MS.
+    // outbox without needing a later unrelated lifecycle event.
     emitDataChanged();
     expect(bridge.drainOutbox).not.toHaveBeenCalled(); // debounce coalesces
     await vi.advanceTimersByTimeAsync(DATA_CHANGED_DEBOUNCE_MS);
@@ -502,6 +663,7 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
     engine.start(store);
     try {
       await engine.runSyncPass();
+      await vi.advanceTimersByTimeAsync(COLLAB_LISTING_SHARE_WINDOW_MS);
       projectsClient.listOrgCollabState.mockClear();
       bridge.drainOutbox.mockClear();
 
@@ -531,6 +693,23 @@ describe("Org2CloudSyncEngine project and endpoint synchronization", () => {
 
     expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
     expect(bridge.drainOutbox).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds a persistent project failure to one frontend retry", async () => {
+    projectsClient.listOrgCollabState.mockRejectedValue(
+      new TypeError("still offline")
+    );
+
+    await engine.runSyncPass();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(PROJECT_PUSH_RETRY_DELAY_MS);
+    await engine.runSyncPassAndWaitForDrain();
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(10 * PROJECT_PUSH_RETRY_DELAY_MS);
+    expect(projectsClient.listOrgCollabState).toHaveBeenCalledTimes(2);
   });
 
   it("bounds the remote-apply echo emission to one extra cheap pass", async () => {

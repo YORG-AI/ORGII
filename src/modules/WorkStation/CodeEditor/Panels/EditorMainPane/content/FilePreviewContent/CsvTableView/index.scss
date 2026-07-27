@@ -55,7 +55,7 @@
     }
 
     &--sortable {
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
       user-select: none;
       transition: background-color 0.1s;
 
@@ -125,7 +125,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 300px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     border-right: 1px solid var(--color-border-1);
     transition: background-color 0.1s;
 

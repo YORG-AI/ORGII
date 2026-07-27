@@ -1,0 +1,27 @@
+# Example orgtrack loader plugin — a no-code source over the generic
+# Anthropic/Claude-style JSONL reader.
+#
+# Install by copying this directory under ~/.orgtrack/plugins/<name>/, or point
+# $ORGTRACK_PLUGIN_PATH at a directory that contains it, then:
+#   orgtrack plugins list
+#   orgtrack list --source my_agent
+#   orgtrack show my_agent-<id>
+
+[plugin]
+id     = "my_agent"            # stable source id: [a-z0-9_]
+label  = "My Agent"           # shown in `orgtrack sources`
+kind   = "loader"             # only "loader" today
+format = "anthropic-jsonl"    # reuse the built-in JSONL reader (no code)
+
+[loader]
+# Session ids are `<session_prefix><source-relative-path>`. Keep it unique.
+session_prefix = "my_agent-"
+parser_version = 1
+# Directories to scan (recursively) for *.jsonl transcripts.
+# `~` and ${ENV_VAR} expand. All existing roots are scanned.
+roots = [
+  "~/.my-agent/sessions",
+  "${XDG_STATE_HOME}/my-agent/sessions",
+]
+# Skip nested `subagents/` dirs (replay internals) when true.
+exclude_subagent_dirs = false

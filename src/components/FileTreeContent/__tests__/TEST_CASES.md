@@ -37,25 +37,25 @@
 
 ## Edge Cases
 
-| #   | Scenario                                     | Steps                                               | Expected Result                                                           |
-| --- | -------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
-| 1   | Empty tree                                   | Render with `treeData=[]`                           | Empty message placeholder is shown                                        |
-| 2   | Empty tree + active filter                   | Render with `treeData=[]`, `filterQuery="abc"`      | "No results" placeholder is shown                                         |
-| 3   | Single file                                  | Render with one file                                | File appears, no crash                                                    |
-| 4   | Very deep nesting                            | 10+ levels of expanded directories                  | Tree renders without layout overflow; depth indentation is correct        |
-| 5   | Rename with empty input                      | Rename input → Enter with blank value               | Rename cancels; no dispatch called                                        |
-| 6   | Rename with unchanged value                  | Type same name → Enter                              | Rename cancels; no dispatch called                                        |
-| 7   | New item cancel via Escape                   | NewItemInput → Escape                               | Input closes without dispatching                                          |
-| 8   | New item cancel via blur with empty value    | NewItemInput → click outside with empty input       | Input closes without dispatching                                          |
-| 9   | New item confirm via blur with value         | NewItemInput → type name → click outside            | File/folder created                                                       |
-| 10  | revealPath already visible                   | File is already in viewport                         | Scroll position is preserved (no scroll)                                  |
-| 11  | revealPath in collapsed directory            | `revealPath` points to a file under a collapsed dir | Poll retries until directory is expanded; then scrolls                    |
-| 12  | WorkStation not visible (different viewMode) | `viewModeAtom` is not `"workStation"`               | `useRevealPath` skips scrolling to prevent layout shifts                  |
-| 13  | Rapid F2 presses in rename                   | Press F2 multiple times                             | Selection cycles through basename → full → extension → basename correctly |
-| 14  | File without extension in rename             | Open rename for file like `.gitignore`              | Selects full name (no extension cycle)                                    |
-| 15  | Simultaneous right-clicks                    | Right-click rapidly on multiple nodes               | Only one context menu shown at a time; previous closes                    |
-| 16  | repoPath is null                             | Render with `repoPath={null}`                       | No context menu; no git status lookup; tree renders normally              |
-| 17  | isMultiRoot with nested dirs                 | Multi-root tree with 2 roots, each with children    | Both root headers render; children nest correctly below each root         |
+| #   | Scenario                                  | Steps                                               | Expected Result                                                           |
+| --- | ----------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------- |
+| 1   | Empty tree                                | Render with `treeData=[]`                           | Empty message placeholder is shown                                        |
+| 2   | Empty tree + active filter                | Render with `treeData=[]`, `filterQuery="abc"`      | "No results" placeholder is shown                                         |
+| 3   | Single file                               | Render with one file                                | File appears, no crash                                                    |
+| 4   | Very deep nesting                         | 10+ levels of expanded directories                  | Tree renders without layout overflow; depth indentation is correct        |
+| 5   | Rename with empty input                   | Rename input → Enter with blank value               | Rename cancels; no dispatch called                                        |
+| 6   | Rename with unchanged value               | Type same name → Enter                              | Rename cancels; no dispatch called                                        |
+| 7   | New item cancel via Escape                | NewItemInput → Escape                               | Input closes without dispatching                                          |
+| 8   | New item cancel via blur with empty value | NewItemInput → click outside with empty input       | Input closes without dispatching                                          |
+| 9   | New item confirm via blur with value      | NewItemInput → type name → click outside            | File/folder created                                                       |
+| 10  | revealPath already visible                | File is already in viewport                         | Scroll position is preserved (no scroll)                                  |
+| 11  | revealPath in collapsed directory         | `revealPath` points to a file under a collapsed dir | Poll retries until directory is expanded; then scrolls                    |
+| 12  | Workbench route branch unmounted          | Navigate to a standalone route                      | File tree and reveal hook unmount; no hidden scroll side effect           |
+| 13  | Rapid F2 presses in rename                | Press F2 multiple times                             | Selection cycles through basename → full → extension → basename correctly |
+| 14  | File without extension in rename          | Open rename for file like `.gitignore`              | Selects full name (no extension cycle)                                    |
+| 15  | Simultaneous right-clicks                 | Right-click rapidly on multiple nodes               | Only one context menu shown at a time; previous closes                    |
+| 16  | repoPath is null                          | Render with `repoPath={null}`                       | No context menu; no git status lookup; tree renders normally              |
+| 17  | isMultiRoot with nested dirs              | Multi-root tree with 2 roots, each with children    | Both root headers render; children nest correctly below each root         |
 
 ---
 

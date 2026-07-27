@@ -1,10 +1,13 @@
-/** Live-viewer avatars for the open session, rendered in the ChatHistory pagination toolbar. */
+/** Live-viewer avatars for the open session's published header. */
 import { useAtomValue } from "jotai";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Tooltip from "@src/components/Tooltip";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   type Org2CloudPresenceEntry,
@@ -12,7 +15,10 @@ import {
   resolveCloudSessionRefs,
   viewersForSession,
 } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
-import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import {
+  org2CloudRemoteSessionsAtom,
+  remoteSessionsEntryForIdentity,
+} from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import {
   cloudOrgIdsForSession,
   sessionOrgTagsAtom,
@@ -32,7 +38,9 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
 }) => {
   const { t } = useTranslation("navigation");
   const presenceMap = useAtomValue(org2CloudPresenceAtom);
-  const selfUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const selfUserId = auth?.userId ?? null;
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
   const sessions = useAtomValue(sessionsAtom) as Session[];
   const sessionOrgTags = useAtomValue(sessionOrgTagsAtom);
@@ -44,10 +52,17 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
       (candidate) => candidate.session_id === sessionId
     );
     if (!session) return [];
+    // Same identity-filtered active-org read as Slice C in
+    // useOrg2CloudRealtime: presence refs below are gated to the active org
+    // anyway, and the filter keeps another account's cached rows out of the
+    // resolution path during a sign-out/switch commit.
     const refs = resolveCloudSessionRefs(
       session,
       cloudOrgIdsForSession(sessionOrgTags, session.session_id),
-      Object.values(remoteSessions).flatMap((entry) => entry.rows),
+      remoteSessionsEntryForIdentity(
+        remoteSessions[activeCloudOrgId],
+        authIdentityKey
+      )?.rows ?? [],
       selfUserId
     );
     const byUser = new Map<string, Org2CloudPresenceEntry>();
@@ -67,6 +82,7 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
     presenceMap,
     remoteSessions,
     activeCloudOrgId,
+    authIdentityKey,
     selfUserId,
     sessionId,
     sessionOrgTags,
@@ -92,7 +108,7 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
       <span
         data-testid="session-viewers-indicator"
         aria-label={fullRoster}
-        className="ml-1 inline-flex flex-shrink-0 items-center -space-x-1"
+        className="mx-1 inline-flex flex-shrink-0 items-center -space-x-1"
       >
         {viewers.slice(0, MAX_AVATARS).map((viewer) => (
           <span

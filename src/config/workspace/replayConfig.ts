@@ -5,8 +5,10 @@
  * Separate file to avoid circular dependencies.
  */
 
-/** Playback speed multipliers shown in replay UI (max 2x). */
-export const REPLAY_SPEED_OPTIONS = [0.25, 0.5, 1, 2] as const;
+/** Playback speed multipliers shown in replay UI (max 6x). */
+export const REPLAY_SPEED_OPTIONS = [0.25, 0.5, 1, 2, 4, 6] as const;
+
+export type ReplaySpeed = (typeof REPLAY_SPEED_OPTIONS)[number];
 
 /** Default playback speed for session simulator and Dev Journey replay bars. */
 export const DEFAULT_REPLAY_SPEED = 1;

@@ -330,6 +330,7 @@ export interface WorkItemDetailTabData {
   dataPath?: string;
   workItemId: string;
   workItemName: string;
+  workItemStatus?: string;
   /** Unsaved changes transferred from the inline detail panel */
   pendingUpdates?: Record<string, unknown>;
 }

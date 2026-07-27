@@ -117,24 +117,42 @@ export function useWorkItemContentState(
 
   // --- Description editor ---
 
-  const [resolvedDescription, setResolvedDescription] = useState<string | null>(
-    null
-  );
   const rawDescription =
     workItem.spec || workItem.session_metadata?.file_change_summary || "";
+  const [resolvedDescriptionState, setResolvedDescriptionState] = useState<{
+    source: string;
+    value: string;
+  } | null>(null);
+  const resolvedDescription =
+    resolvedDescriptionState?.source === rawDescription
+      ? resolvedDescriptionState.value
+      : null;
 
   useEffect(() => {
     let cancelled = false;
     if (projectSlug && rawDescription) {
       resolveImagePathsForDisplay(rawDescription, projectSlug)
         .then((resolved) => {
-          if (!cancelled) setResolvedDescription(resolved);
+          if (!cancelled) {
+            setResolvedDescriptionState({
+              source: rawDescription,
+              value: resolved,
+            });
+          }
         })
         .catch(() => {
-          if (!cancelled) setResolvedDescription(rawDescription);
+          if (!cancelled) {
+            setResolvedDescriptionState({
+              source: rawDescription,
+              value: rawDescription,
+            });
+          }
         });
     } else {
-      setResolvedDescription(rawDescription);
+      setResolvedDescriptionState({
+        source: rawDescription,
+        value: rawDescription,
+      });
     }
     return () => {
       cancelled = true;
@@ -143,7 +161,7 @@ export function useWorkItemContentState(
 
   // --- Timeline ---
 
-  const { timelineEntries, formatRelativeTime } = useWorkItemTimeline({
+  const { timelineEntries } = useWorkItemTimeline({
     workItem,
     teamMembers,
   });
@@ -229,7 +247,6 @@ export function useWorkItemContentState(
     resolvedDescription,
     rawDescription,
     timelineEntries,
-    formatRelativeTime,
     handleTitleChange,
     handleDescriptionChange,
     handleTodosChange,

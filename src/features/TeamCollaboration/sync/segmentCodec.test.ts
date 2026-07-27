@@ -5,7 +5,9 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { computeSegmentHash } from "./collabGzip";
 import {
   decodeSegmentEvents,
+  decodeSegmentEventsFromBytes,
   mapSegmentsBounded,
+  toFrozenSegmentStorage,
   toFrozenSegmentWire,
   toTailWire,
 } from "./segmentCodec";
@@ -27,6 +29,18 @@ describe("segmentCodec", () => {
     expect(wire.eventCount).toBe(2);
     expect(wire.segmentHash).toBe(await computeSegmentHash(events));
     expect(await decodeSegmentEvents(wire.payloadGz)).toEqual(events);
+  });
+
+  it("builds a raw-gzip storage payload that round-trips and matches the inline hash", async () => {
+    const events = [makeEvent("e1"), makeEvent("e2")];
+    const stored = await toFrozenSegmentStorage({ seq: 3, events });
+
+    expect(stored.seq).toBe(3);
+    expect(stored.eventCount).toBe(2);
+    expect(stored.segmentHash).toBe(await computeSegmentHash(events));
+    expect(await decodeSegmentEventsFromBytes(stored.bytes)).toEqual(events);
+    const wire = await toFrozenSegmentWire({ seq: 3, events });
+    expect(stored.segmentHash).toBe(wire.segmentHash);
   });
 
   it("builds a tail wire payload without a seq", async () => {

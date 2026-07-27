@@ -4,8 +4,8 @@ import { useCallback } from "react";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   openCreateTargetInChatPanelStartPageAtom,
+  openOrganizationInChatPanelTabAtom,
   openProjectInChatPanelTabAtom,
-  openProjectOrgInChatPanelTabAtom,
   openWorkItemInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { SESSION_SIDEBAR_PAGE_SIZE } from "@src/store/session";
@@ -132,7 +132,7 @@ export function useProjectsMenuItemClick<
   // tabs. Creator actions target the singleton Launchpad instead.
   const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
   const openProjectTab = useSetAtom(openProjectInChatPanelTabAtom);
-  const openProjectOrgTab = useSetAtom(openProjectOrgInChatPanelTabAtom);
+  const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const openCreateTargetInStartPage = useSetAtom(
     openCreateTargetInChatPanelStartPageAtom
   );
@@ -195,11 +195,17 @@ export function useProjectsMenuItemClick<
         if (!localOrg) return;
         activateMyStationRouteForProjectsContent();
         setProjectsSelectedMenuItemId(item.id);
-        openProjectOrgTab({
-          orgId: localOrg.id,
-          orgName: localOrg.name,
-          orgScope: STORY_ORG_SCOPE.PROJECT_ORG,
-          orgSyncProvider: localOrg.sync_provider,
+        openOrganizationTab({
+          organization: {
+            kind: "local",
+            projectOrg: {
+              orgId: localOrg.id,
+              orgName: localOrg.name,
+              orgScope: STORY_ORG_SCOPE.PROJECT_ORG,
+              orgSyncProvider: localOrg.sync_provider,
+            },
+          },
+          title: localOrg.name,
         });
         return;
       }
@@ -282,7 +288,7 @@ export function useProjectsMenuItemClick<
       loadProjectsLinearOrgWorkItems,
       linkedSessionIds,
       openCreateTargetInStartPage,
-      openProjectOrgTab,
+      openOrganizationTab,
       openProjectTab,
       openProjectsLinearOrg,
       openProjectsLinearWorkItem,

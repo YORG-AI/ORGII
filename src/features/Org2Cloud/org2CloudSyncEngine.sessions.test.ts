@@ -22,9 +22,14 @@ import {
 import type { EngineFixture } from "./org2CloudSyncEngine.testUtils";
 
 const {
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
+  ORG_BACKOFF_COOLDOWN_MS,
   PERSONAL_EXCLUDED_TOKEN,
+  SESSION_PUSH_RETRY_BASE_MS,
+  SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
   Org2CloudSyncEngine,
   Org2CloudSyncError,
+  chatPanelSelectedCloudOrgAtom,
   cloudOrgToken,
   getImportedHistorySourceBySessionId,
   org2CloudAccessSettingsAtom,
@@ -34,6 +39,7 @@ const {
   org2CloudRepoScopesAtom,
   org2CloudSharingFloorAtom,
   org2CloudSyncEnabledAtom,
+  sidebarActiveCloudOrgIdAtom,
   sessionOrgTagsAtom,
   sessionsAtom,
 } = engineTestDeps;
@@ -203,6 +209,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
       "corg-personal": "full_replay",
       "corg-team": "full_replay",
     });
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-team");
 
     await engine.runSyncPass();
 
@@ -300,6 +307,98 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
   });
 
+  it("publishes a large rewrite in bounded resumable segment batches", async () => {
+    const oversizedPayload = "x".repeat(260 * 1024);
+    const events = Array.from(
+      { length: SESSION_SEGMENT_UPLOAD_BATCH_SIZE + 1 },
+      (_, index) =>
+        ({
+          ...makeEvent(`large-${index}`),
+          payload: `${index}:${oversizedPayload}`,
+        }) as unknown as SessionEvent
+    );
+    eventStoreMock.getPersistedEvents.mockResolvedValue(events);
+
+    await engine.runSyncPass();
+
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    const [, rewrite] = client.rewriteSessionEvents.mock.calls[0];
+    expect(rewrite.frozenSegments).toHaveLength(
+      SESSION_SEGMENT_UPLOAD_BATCH_SIZE
+    );
+    expect(rewrite.tail).toBeNull();
+    expect(rewrite.totalCount).toBe(SESSION_SEGMENT_UPLOAD_BATCH_SIZE);
+
+    expect(client.appendSessionEvents).toHaveBeenCalledTimes(1);
+    const [, append] = client.appendSessionEvents.mock.calls[0];
+    expect(append.expectedFrozenSeq).toBe(SESSION_SEGMENT_UPLOAD_BATCH_SIZE);
+    expect(append.newFrozenSegments).toHaveLength(1);
+    expect(append.totalCount).toBe(events.length);
+
+    expect(
+      store.get(org2CloudPushCursorsAtom)["corg-1:session-1"]
+    ).toMatchObject({
+      epoch: 1,
+      frozenSeq: SESSION_SEGMENT_UPLOAD_BATCH_SIZE + 1,
+      pushedCount: events.length,
+      frozenEventCount: events.length,
+    });
+  });
+
+  it("backs off a failed large upload and resumes from its committed batch", async () => {
+    const oversizedPayload = "y".repeat(260 * 1024);
+    const events = Array.from(
+      { length: SESSION_SEGMENT_UPLOAD_BATCH_SIZE + 2 },
+      (_, index) =>
+        ({
+          ...makeEvent(`resume-${index}`),
+          payload: `${index}:${oversizedPayload}`,
+        }) as unknown as SessionEvent
+    );
+    eventStoreMock.getPersistedEvents.mockResolvedValue(events);
+    client.appendSessionEvents.mockRejectedValueOnce(
+      new Org2CloudSyncError(
+        "canceling statement due to statement timeout",
+        500
+      )
+    );
+
+    await engine.runSyncPass();
+
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    expect(client.appendSessionEvents).toHaveBeenCalledTimes(1);
+    expect(
+      store.get(org2CloudPushCursorsAtom)["corg-1:session-1"]
+    ).toMatchObject({
+      frozenSeq: SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
+      pushedCount: SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
+      frozenEventCount: SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
+      tailHash: null,
+    });
+    expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(1);
+
+    await engine.runSyncPass();
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    expect(client.appendSessionEvents).toHaveBeenCalledTimes(1);
+    // The retry gate runs before loadPushEvents, so the large transcript is
+    // not reparsed or rehashed during the cooldown.
+    expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + SESSION_PUSH_RETRY_BASE_MS + 1);
+    await engine.runSyncPass();
+
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    expect(client.appendSessionEvents).toHaveBeenCalledTimes(2);
+    expect(
+      store.get(org2CloudPushCursorsAtom)["corg-1:session-1"]
+    ).toMatchObject({
+      frozenSeq: SESSION_SEGMENT_UPLOAD_BATCH_SIZE + 2,
+      pushedCount: events.length,
+      frozenEventCount: events.length,
+    });
+    expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(2);
+  });
+
   it("does nothing when the push state is unchanged", async () => {
     await engine.runSyncPass();
     client.rewriteSessionEvents.mockClear();
@@ -381,6 +480,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
   });
 
   it("backs off the org and toasts once on ORG2_QUOTA_EXCEEDED", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
     client.rewriteSessionEvents.mockRejectedValue(
       new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
     );
@@ -397,6 +497,103 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
     expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
     expect(messageMock.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not publish sessions for an inactive org", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, null);
+    client.upsertSessionMetadata.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+
+    await engine.runSyncPass();
+    expect(messageMock.warning).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats the visible management org as active for retry and toast policy", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, null);
+    store.set(chatPanelSelectedCloudOrgAtom, { orgId: "corg-1" });
+    client.upsertSessionMetadata.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+
+    await engine.runSyncPass();
+
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+    expect(messageMock.warning).toHaveBeenCalledWith(
+      "navigation:cloud.sync.quotaExceededToast"
+    );
+  });
+
+  it("starts publishing and warns when an inactive org becomes active", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, null);
+    client.upsertSessionMetadata.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+
+    await engine.runSyncPass();
+    expect(messageMock.warning).not.toHaveBeenCalled();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+
+    client.upsertSessionMetadata.mockClear();
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(Date.now() + ORG_BACKOFF_COOLDOWN_MS + 1);
+    await engine.runSyncPass();
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not repeat the active-org toast on automatic cooldown retries", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
+    client.upsertSessionMetadata.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + ORG_BACKOFF_COOLDOWN_MS + 1);
+    await engine.runSyncPass();
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+
+    await engine.resumeOrgAndWait("corg-1");
+    expect(messageMock.warning).toHaveBeenCalledTimes(2);
+  });
+
+  it("evicts the backoff episode when an org membership is removed", async () => {
+    store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
+    client.upsertSessionMetadata.mockRejectedValue(
+      new Org2CloudSyncError("ORG2_QUOTA_EXCEEDED", 403)
+    );
+    const originalOrgs = store.get(org2CloudOrgsAtom);
+
+    await engine.runSyncPass();
+    expect(messageMock.warning).toHaveBeenCalledTimes(1);
+
+    store.set(org2CloudOrgsAtom, []);
+    await engine.runSyncPass();
+    store.set(org2CloudOrgsAtom, originalOrgs);
+    await engine.runSyncPass();
+
+    expect(messageMock.warning).toHaveBeenCalledTimes(2);
+  });
+
+  it("evicts per-session acceleration state when a local session disappears", async () => {
+    await engine.runSyncPass();
+    client.upsertSessionMetadata.mockClear();
+
+    store.set(sessionsAtom, []);
+    await engine.runSyncPass();
+    store.set(sessionsAtom, [SESSION]);
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
   });
 
   it("skips orgs without local scopes or with sync disabled", async () => {
@@ -517,6 +714,24 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.getOrgRepoScopes).toHaveBeenCalledTimes(1);
   });
 
+  it("hydrates and publishes the session plane only for the active org", async () => {
+    store.set(org2CloudOrgsAtom, [
+      { orgId: "corg-1", name: "Active Team", role: "member" },
+      { orgId: "corg-2", name: "Inactive Team", role: "member" },
+    ]);
+    store.set(org2CloudRepoScopesAtom, {
+      "corg-1": [SCOPE_KEY],
+      "corg-2": [SCOPE_KEY],
+    });
+
+    await engine.runSyncPass();
+
+    expect(client.listOrgSessions).toHaveBeenCalledTimes(1);
+    expect(client.listOrgSessions).toHaveBeenCalledWith("jwt-1", "corg-1");
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(client.upsertSessionMetadata.mock.calls[0][1]).toBe("corg-1");
+  });
+
   // --- Access ladder (§13.4) ------------------------------------------------
 
   it("a scope-matched session is NOT uploaded with no org minimum or session override", async () => {
@@ -543,11 +758,109 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(loadFullTranscriptChunks).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
     expect(client.upsertSessionMetadata.mock.calls[0][3].accessMode).toBe(
       "full_replay"
     );
     expect(loadFullTranscriptChunks).toHaveBeenCalledWith("cursoride-thread-1");
+  });
+
+  it("waits for a quiet window before normalizing a changing external replay", async () => {
+    const source = getImportedHistorySourceBySessionId("cursoride-thread-1");
+    const loadFullTranscriptChunks = vi
+      .spyOn(source!, "loadFullTranscriptChunks")
+      .mockResolvedValue([] as never);
+    store.set(sessionsAtom, [
+      { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
+    ]);
+    notifySessionEvents("cursoride-thread-1");
+
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(loadFullTranscriptChunks).not.toHaveBeenCalled();
+    expect(processChunksRustMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(loadFullTranscriptChunks).toHaveBeenCalledTimes(1);
+  });
+
+  it("seeds unchanged external replay state from the server after restart", async () => {
+    const sessionId = "cursoride-thread-1";
+    const source = getImportedHistorySourceBySessionId(sessionId);
+    const loadFullTranscriptChunks = vi
+      .spyOn(source!, "loadFullTranscriptChunks")
+      .mockResolvedValue([{ id: "cursor-chunk" }] as never);
+    processChunksRustMock.mockResolvedValue([makeEvent("cursor-event")]);
+    store.set(sessionsAtom, [
+      { ...SESSION, session_id: sessionId, orgId: "personal-org" },
+    ]);
+
+    await engine.runSyncPass();
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+
+    const metadata = client.upsertSessionMetadata.mock.calls[0][3];
+    const cursor = store.get(org2CloudPushCursorsAtom)[`corg-1:${sessionId}`];
+    expect(cursor).toBeDefined();
+
+    engine.stop();
+    client.listOrgSessions.mockResolvedValue({
+      serverTime: "2026-07-01T12:01:00.000Z",
+      sessions: [
+        {
+          ...metadata,
+          eventsEpoch: cursor.epoch,
+          eventsFrozenSeq: cursor.frozenSeq,
+          eventsCount: cursor.pushedCount,
+          eventsTailHash: cursor.tailHash ?? undefined,
+        },
+      ],
+    });
+    client.upsertSessionMetadata.mockClear();
+    client.rewriteSessionEvents.mockClear();
+    client.appendSessionEvents.mockClear();
+    loadFullTranscriptChunks.mockClear();
+    processChunksRustMock.mockClear();
+
+    engine = new Org2CloudSyncEngine(client, projectsClient, bridge);
+    engine.start(store);
+    await engine.runSyncPass();
+
+    expect(client.listOrgSessions).toHaveBeenCalledWith("jwt-1", "corg-1");
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(loadFullTranscriptChunks).not.toHaveBeenCalled();
+    expect(processChunksRustMock).not.toHaveBeenCalled();
+    expect(client.rewriteSessionEvents).not.toHaveBeenCalled();
+    expect(client.appendSessionEvents).not.toHaveBeenCalled();
+
+    store.set(sessionsAtom, [
+      {
+        ...SESSION,
+        session_id: sessionId,
+        orgId: "personal-org",
+        updated_at: "2026-07-01T12:02:00.000Z",
+      },
+    ]);
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+    expect(loadFullTranscriptChunks).not.toHaveBeenCalled();
+    expect(processChunksRustMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
+    await engine.runSyncPass();
+    expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
+    expect(loadFullTranscriptChunks).toHaveBeenCalledTimes(1);
+    expect(processChunksRustMock).toHaveBeenCalledTimes(1);
   });
 
   it("the floor still lifts imported history the user explicitly shared", async () => {
@@ -566,6 +879,11 @@ describe("Org2CloudSyncEngine session publishing", () => {
       { ...SESSION, session_id: "cursoride-thread-1", orgId: "personal-org" },
     ]);
 
+    await engine.runSyncPass();
+
+    expect(client.upsertSessionMetadata).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS + 1);
     await engine.runSyncPass();
 
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
@@ -647,7 +965,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     });
   });
 
-  it("prepares a multi-org session once per pass (single read + hash)", async () => {
+  it("publishes a multi-tagged session only to the active org", async () => {
     store.set(org2CloudOrgsAtom, [
       { orgId: "corg-1", name: "Cloud Team", role: "member" },
       { orgId: "corg-2", name: "Other Team", role: "member" },
@@ -676,7 +994,8 @@ describe("Org2CloudSyncEngine session publishing", () => {
 
     await engine.runSyncPass();
 
-    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(2);
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
+    expect(client.rewriteSessionEvents.mock.calls[0][1].orgId).toBe("corg-1");
     expect(eventStoreMock.getPersistedEvents).toHaveBeenCalledTimes(1);
   });
 

@@ -988,7 +988,6 @@
     "addCssVariables": "Add CSS variables to your project",
     "loadingAccountStatus": "Loading account status...",
     "noRepositorySelected": "No Repo Selected",
-    "selectRepositoryFromHome": "Please select a repo from the home page to open.",
     "noWorkspaceExplorerTitle": "No workspace open",
     "noWorkspaceExplorerSubtitle": "Open workspace to view file",
     "cannotFindRepo": "Cannot find {{repoName}}",
@@ -1019,7 +1018,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Preview unavailable",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Please select a repo from your workspace to open."
   },
   "inbox": {
     "searchPlaceholder": "Search messages...",
@@ -1181,8 +1181,6 @@
       "tryVerifyUrl": "Verifying the URL is correct",
       "tryAgainLater": "Trying again later"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git sync actions"
@@ -1343,6 +1341,43 @@
         "closed": "Closed",
         "completed": "Completed",
         "notPlanned": "Not planned"
+      },
+      "activity": {
+        "opened": "opened this issue",
+        "commented": "commented",
+        "timelineItemCount_one": "{{count}} timeline item",
+        "timelineItemCount_other": "{{count}} timeline items",
+        "noDescription": "No description provided.",
+        "assigned": "assigned",
+        "assignedIssue": "assigned this issue",
+        "unassigned": "unassigned",
+        "removedAssignee": "removed an assignee",
+        "added": "added",
+        "removed": "removed",
+        "label": "a label",
+        "milestoned": "added this issue to milestone {{milestone}}",
+        "demilestoned": "removed this issue from milestone {{milestone}}",
+        "closedViaCommit": "closed this issue via commit {{commit}}",
+        "closed": "closed this issue",
+        "reopened": "reopened this issue",
+        "renamedTo": "renamed this issue to",
+        "renamed": "renamed this issue",
+        "locked": "locked this conversation",
+        "lockedAs": "locked this conversation as {{reason}}",
+        "unlocked": "unlocked this conversation",
+        "crossReferencedFrom": "referenced this issue from",
+        "crossReferenced": "cross-referenced this issue",
+        "referencedInCommit": "referenced this issue in commit {{commit}}",
+        "referencedInACommit": "referenced this issue in a commit",
+        "connected": "linked this issue",
+        "disconnected": "unlinked this issue",
+        "markedAsDuplicate": "marked this issue as a duplicate",
+        "unmarkedAsDuplicate": "removed the duplicate marking",
+        "pinned": "pinned this issue",
+        "unpinned": "unpinned this issue",
+        "transferred": "transferred this issue",
+        "convertedToDiscussion": "converted this issue to a discussion",
+        "mentioned": "mentioned this issue"
       },
       "authRequired": {
         "title": "Connect GitHub",
@@ -1808,7 +1843,6 @@
     "ramCurrentSession": "Current session",
     "ramChatRenderedTree": "Chat rendered tree",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start sidebar",
     "ramSessionSidebar": "Session sidebar",
     "ramSecondLevelSidebars": "Second-level sidebars",
     "ramSettingsSidebar": "Settings sidebar",
@@ -2304,20 +2338,7 @@
     "loadFailed": "Failed to load image: {{fileName}}"
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

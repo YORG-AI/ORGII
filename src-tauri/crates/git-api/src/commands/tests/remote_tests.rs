@@ -18,27 +18,29 @@ fn list_remotes_uses_repository_metadata_without_git_cli() {
     {
         let repository = git2::Repository::init(&repo_path).expect("initialize test repository");
         repository
-            .remote("origin", "git@github.com:yorgai/ORGII.git")
+            .remote("origin", "git@github.com:org2ai/ORGII.git")
             .expect("add origin");
         let mut config = repository.config().expect("open repository config");
         config
             .set_str(
                 "remote.origin.pushurl",
-                "https://github.com/yorgai/ORGII.git",
+                "https://github.com/org2ai/ORGII.git",
             )
             .expect("set push URL");
     }
+    let nested_path = repo_path.join("src-tauri/crates/example");
+    std::fs::create_dir_all(&nested_path).expect("create nested workspace");
 
-    let remotes = crate::commands::remote::list_remotes(&repo_path).expect("list remotes");
+    let remotes = crate::commands::remote::list_remotes(&nested_path).expect("list remotes");
     assert_eq!(remotes.len(), 1);
     assert_eq!(remotes[0].name, "origin");
     assert_eq!(
         remotes[0].fetch_url.as_deref(),
-        Some("git@github.com:yorgai/ORGII.git")
+        Some("git@github.com:org2ai/ORGII.git")
     );
     assert_eq!(
         remotes[0].push_url.as_deref(),
-        Some("https://github.com/yorgai/ORGII.git")
+        Some("https://github.com/org2ai/ORGII.git")
     );
 
     let _ = std::fs::remove_dir_all(&repo_path);

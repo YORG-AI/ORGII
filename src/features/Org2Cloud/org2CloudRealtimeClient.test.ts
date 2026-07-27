@@ -81,6 +81,24 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
   });
 
+  it("surfaces presence-channel subscription edges through onStatus", () => {
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const edges: boolean[] = [];
+    conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+      onStatus: (subscribed) => edges.push(subscribed),
+    });
+    const channel = createdChannels.at(-1);
+    channel?.emitStatus("SUBSCRIBED");
+    channel?.emitStatus("CHANNEL_ERROR");
+    channel?.emitStatus("SUBSCRIBED");
+    channel?.emitStatus("CLOSED");
+    expect(edges).toEqual([true, false, true, false]);
+  });
+
   it("authorizes the socket with the access token before joining (RLS private-channel requirement)", () => {
     createOrg2CloudRealtimeConnection("token-abc");
     expect(setAuthMock).toHaveBeenCalledWith("token-abc");
@@ -158,7 +176,7 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     });
   });
 
-  it("does not track inactive orgs and untracks only after a published view", async () => {
+  it("does not track before a view and publishes an explicit idle view on close", async () => {
     const conn = createOrg2CloudRealtimeConnection("token-abc");
     const handle = conn.joinPresence({
       scope: "org:org-123",
@@ -177,7 +195,11 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
     await vi.waitFor(() => expect(channel?.track).toHaveBeenCalledTimes(1));
 
     handle.update(null);
-    await vi.waitFor(() => expect(channel?.untrack).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(channel?.track).toHaveBeenCalledTimes(2));
+    expect(channel?.untrack).not.toHaveBeenCalled();
+    expect(channel?.track.mock.calls.at(-1)?.[0]).toMatchObject({
+      viewingSessionId: null,
+    });
   });
 
   it("queues broadcasts sent while the private channel is reconnecting", async () => {
@@ -221,6 +243,104 @@ describe("createOrg2CloudRealtimeConnection presence privacy", () => {
 
     await vi.advanceTimersByTimeAsync(1_000);
     expect(channel?.send).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("backs off persistently failing broadcasts instead of retrying at 1 Hz", async () => {
+    vi.useFakeTimers();
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const handle = conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+    });
+    const channel = createdChannels.at(-1);
+    channel?.send.mockResolvedValue("timed out");
+    channel?.emitStatus("SUBSCRIBED");
+
+    handle.send("comments-changed", { sessionId: "session-1" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(channel?.send).toHaveBeenCalledTimes(1);
+
+    // Retry #1 fires at the 1s base delay …
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.send).toHaveBeenCalledTimes(2);
+    // … retry #2 doubles to 2s …
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.send).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.send).toHaveBeenCalledTimes(3);
+    // … retry #3 doubles again to 4s.
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(channel?.send).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(channel?.send).toHaveBeenCalledTimes(4);
+
+    // A persistent failure settles at the 30s ceiling, never beyond it.
+    for (let index = 0; index < 10; index += 1) {
+      await vi.advanceTimersByTimeAsync(30_000);
+    }
+    const settledCalls = channel?.send.mock.calls.length ?? 0;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(channel?.send.mock.calls.length).toBe(settledCalls + 1);
+    vi.useRealTimers();
+  });
+
+  it("resets the broadcast backoff once a send succeeds", async () => {
+    vi.useFakeTimers();
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    const handle = conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: null,
+      onSync: () => undefined,
+    });
+    const channel = createdChannels.at(-1);
+    channel?.send
+      .mockResolvedValueOnce("timed out")
+      .mockResolvedValueOnce("timed out")
+      .mockResolvedValueOnce("ok");
+    channel?.emitStatus("SUBSCRIBED");
+
+    handle.send("comments-changed", { sessionId: "session-1" });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(1_000); // retry #1 (fails)
+    await vi.advanceTimersByTimeAsync(2_000); // retry #2 (succeeds)
+    expect(channel?.send).toHaveBeenCalledTimes(3);
+
+    // The streak reset means a NEW failure retries at the base delay again.
+    channel?.send.mockResolvedValueOnce("timed out");
+    handle.send("comments-changed", { sessionId: "session-2" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(channel?.send).toHaveBeenCalledTimes(4);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.send).toHaveBeenCalledTimes(5);
+    vi.useRealTimers();
+  });
+
+  it("backs off persistently failing presence tracks instead of retrying at 1 Hz", async () => {
+    vi.useFakeTimers();
+    const conn = createOrg2CloudRealtimeConnection("token-abc");
+    conn.joinPresence({
+      scope: "org:org-123",
+      key: "user-9",
+      payload: { viewingSessionId: "session-1" },
+      onSync: () => undefined,
+    });
+    const channel = createdChannels.at(-1);
+    channel?.track.mockResolvedValue("timed out");
+    channel?.emitStatus("SUBSCRIBED");
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(channel?.track).toHaveBeenCalledTimes(1);
+    // Retry #1 at the 1s base delay, retry #2 doubled to 2s.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.track).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.track).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(channel?.track).toHaveBeenCalledTimes(3);
     vi.useRealTimers();
   });
 

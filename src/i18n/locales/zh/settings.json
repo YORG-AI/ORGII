@@ -139,10 +139,13 @@
       "helveticaNeue": "Helvetica Neue 风格"
     },
     "uiScale": "界面缩放",
+    "preferences": "偏好设置",
+    "usePointerCursors": "使用指针光标",
+    "usePointerCursorsDesc": "悬停在交互元素上时将光标更改为指针",
     "timezoneAuto": "自动（浏览器）",
     "timezoneSearchPlaceholder": "搜索附近城市",
     "sendOnEnter": "Enter 发送消息",
-    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送",
+    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 与 Ctrl/Cmd+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送",
     "language": "语言",
     "languageSearchPlaceholder": "搜索语言...",
     "languageNames": {
@@ -799,8 +802,6 @@
   },
   "update": {
     "title": "App 更新",
-    "autoUpdate": "自动更新",
-    "autoUpdateDesc": "自动下载更新，并在安装和重新启动 ORGII 前询问",
     "channel": "更新通道",
     "channelDesc": "Beta 通道会先于正式版收到预发布版本。切换回正式版不会降级，将在下一个正式版本发布时生效",
     "channelStable": "正式版",
@@ -810,7 +811,6 @@
     "installConfirmTitle": "更新已准备好安装",
     "installConfirmDesc": "版本 {{version}} 已下载。安装并重新启动 ORGII 前，请保存正在进行的工作。",
     "installAndRestart": "安装并重新启动",
-    "autoDownloadUpdates": "以后自动下载更新",
     "skipVersion": "跳过此版本"
   },
   "monitor": {
@@ -1027,7 +1027,7 @@
     "decryptEffect": "打字机效果",
     "decryptEffectDesc": "Agent 消息逐字显示",
     "sendOnEnter": "Enter 发送消息",
-    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送"
+    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 与 Ctrl/Cmd+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送"
   },
   "languageServers": {
     "languageServersDesc": "管理用于自动补全、诊断和代码智能的 LSP 服务器",

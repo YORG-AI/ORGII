@@ -26,7 +26,9 @@ const GIT_CREDENTIAL_FILL_TIMEOUT: Duration = Duration::from_millis(1_200);
 /// where New Session can already select a registered checkout even though
 /// `git.exe` is not installed yet.
 pub fn list_remotes(repo_path: &Path) -> Result<Vec<GitRemoteInfo>, String> {
-    let repository = git2::Repository::open(repo_path).map_err(|error| {
+    // A selected workspace may be a package/subfolder rather than the Git
+    // root. Match `git -C <folder>` semantics by discovering upward.
+    let repository = git2::Repository::discover(repo_path).map_err(|error| {
         format!(
             "Not a git repository at {}: {}",
             repo_path.display(),

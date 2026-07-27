@@ -38,6 +38,7 @@ import {
 import type { DropdownOption } from "@src/components/Dropdown/types";
 import { useDropdownKeyboard } from "@src/components/Dropdown/useDropdownKeyboard";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { getDropdownPanelStyle } from "@src/hooks/dropdown/dropdownPanelStyle";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
@@ -81,6 +82,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       onFocus,
       onBlur,
       prefix,
+      showTriggerIcon = true,
       placement = SELECT_DEFAULTS.placement,
       dropdownAlign,
       dropdownMinWidth,
@@ -263,7 +265,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           );
         }
         const displayLabel = selected.triggerLabel ?? selected.label;
-        if (!selected.icon) {
+        if (!showTriggerIcon || !selected.icon) {
           return <span className="select-value">{displayLabel}</span>;
         }
         return (
@@ -311,27 +313,27 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
     }, [dropdownWidthMode, panelPosition.width]);
 
     // ---- Panel position style ----
-    const panelPositionStyle = useMemo(() => {
-      const pos = panelPosition;
-      return {
-        ...(pos.top !== undefined
-          ? { top: `${pos.top}px` }
-          : { bottom: `${pos.bottom}px` }),
-        ...(pos.right !== undefined
-          ? { right: `${pos.right}px` }
-          : { left: `${pos.left}px` }),
+    // The engine owns flip side, viewport clamping, and the available-height
+    // cap; width is layered on top because Select has its own width modes.
+    const panelPositionStyle = useMemo(
+      () => ({
+        ...getDropdownPanelStyle(panelPosition, {
+          widthMode: "none",
+          maxHeightCap: DROPDOWN_PANEL.maxHeight,
+        }),
         ...panelWidthStyle,
         ...(dropdownWidth ? { width: `${dropdownWidth}px` } : {}),
         ...(dropdownMinWidth ? { minWidth: `${dropdownMinWidth}px` } : {}),
         ...(panelZIndex !== undefined ? { zIndex: panelZIndex } : {}),
-      };
-    }, [
-      panelPosition,
-      panelWidthStyle,
-      dropdownWidth,
-      dropdownMinWidth,
-      panelZIndex,
-    ]);
+      }),
+      [
+        panelPosition,
+        panelWidthStyle,
+        dropdownWidth,
+        dropdownMinWidth,
+        panelZIndex,
+      ]
+    );
 
     return (
       <div ref={ref} style={style}>

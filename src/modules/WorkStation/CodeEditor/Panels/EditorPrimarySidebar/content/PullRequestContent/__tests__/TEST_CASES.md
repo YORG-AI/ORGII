@@ -5,6 +5,9 @@ sidebar's Pull-request view, plus its empty / create / loading / error states.
 Visual-only polish task — data flow, status parsing, click-to-open, the commit
 list, and the create/empty states are unchanged.
 
+The shared GitHub timeline coverage also applies to PR descriptions,
+conversation comments, submitted review bodies, and inline review threads.
+
 ## Preconditions
 
 - A repo is open in the WorkStation Code Editor.
@@ -49,6 +52,15 @@ list, and the create/empty states are unchanged.
 | 2   | GitHub re-auth needed | API throws `GitHubReAuthError`.        | Body shows the "Connect a GitHub account…" message; no crash.                   |
 | 3   | Generic fetch failure | API rejects with an Error.             | `Placeholder variant="error"` with the error message as subtitle.               |
 | 4   | Create PR failure     | `onCreatePr` returns a non-auth error. | Inline warning alert with the error text (unchanged).                           |
+
+## Conversation timeline
+
+| #   | Scenario                        | Steps                                                    | Expected Result                                                                                                            |
+| --- | ------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Long PR description             | Open a PR whose description is taller than 15 lines      | Description starts as a 15-line preview with an always-visible control; expand/collapse toggles the full rendered Markdown |
+| 2   | Long comment or review body     | Open Conversation with a body taller than 15 lines       | Each body truncates with a visible control and expands independently without changing adjacent timeline cards              |
+| 3   | Long inline review-thread reply | Expand Review comments and open a reply over 15 lines    | Reply uses the same 15-line preview and always-visible expand/collapse control                                             |
+| 4   | Conversation container styling  | Open a PR with description, comments, and review threads | Timeline and review-thread cards use the Settings container background, rounded border, and no shadow                      |
 
 ## Accessibility
 

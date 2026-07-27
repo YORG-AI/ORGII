@@ -67,7 +67,7 @@ export function customFoldGutter(): Extension {
         width: var(--cm-icon-size, 14px);
         height: 100%;
         line-height: 1;
-        cursor: pointer;
+        cursor: var(--interactive-cursor, default);
         user-select: none;
         transform: translateY(${translateY});
       `;
@@ -94,7 +94,7 @@ export function foldPlaceholderTheme(): Extension {
       backgroundColor: "var(--color-fill-1) !important",
       border: "1px solid var(--color-border-2) !important",
       borderRadius: "var(--cm-border-radius-small, 2px) !important",
-      cursor: "pointer !important",
+      cursor: "var(--interactive-cursor, default) !important",
       userSelect: "none !important",
       verticalAlign: "middle !important",
       lineHeight: "1 !important",

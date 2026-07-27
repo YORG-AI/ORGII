@@ -961,7 +961,6 @@
     "addCssVariables": "Добавьте CSS-переменные в проект",
     "loadingAccountStatus": "Загрузка статуса аккаунта...",
     "noRepositorySelected": "Репо не выбран",
-    "selectRepositoryFromHome": "Выберите репо на главной странице, чтобы открыть его.",
     "noWorkspaceExplorerTitle": "Workspace не открыт",
     "noWorkspaceExplorerSubtitle": "Откройте workspace, чтобы просмотреть файлы",
     "cannotFindRepo": "Не удалось найти {{repoName}}",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Предпросмотр недоступен",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Выберите репозиторий из рабочего пространства, чтобы открыть его."
   },
   "inbox": {
     "searchPlaceholder": "Поиск сообщений...",
@@ -1151,8 +1151,6 @@
       "tryVerifyUrl": "Проверить правильность URL",
       "tryAgainLater": "Повторить позже"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Действия Git sync"
@@ -1245,6 +1243,45 @@
         "closed": "Закрыто",
         "completed": "Завершено",
         "notPlanned": "Не запланировано"
+      },
+      "activity": {
+        "opened": "открыл(а) этот issue",
+        "commented": "оставил(а) комментарий",
+        "timelineItemCount_one": "{{count}} событие на шкале времени",
+        "timelineItemCount_few": "{{count}} события на шкале времени",
+        "timelineItemCount_many": "{{count}} событий на шкале времени",
+        "timelineItemCount_other": "{{count}} событий на шкале времени",
+        "noDescription": "Описание не указано.",
+        "assigned": "назначил(а)",
+        "assignedIssue": "назначил(а) этот issue",
+        "unassigned": "снял(а) назначение с",
+        "removedAssignee": "удалил(а) исполнителя",
+        "added": "добавил(а)",
+        "removed": "удалил(а)",
+        "label": "метку",
+        "milestoned": "добавил(а) этот issue в этап {{milestone}}",
+        "demilestoned": "удалил(а) этот issue из этапа {{milestone}}",
+        "closedViaCommit": "закрыл(а) этот issue коммитом {{commit}}",
+        "closed": "закрыл(а) этот issue",
+        "reopened": "повторно открыл(а) этот issue",
+        "renamedTo": "переименовал(а) этот issue в",
+        "renamed": "переименовал(а) этот issue",
+        "locked": "заблокировал(а) это обсуждение",
+        "lockedAs": "заблокировал(а) это обсуждение по причине: {{reason}}",
+        "unlocked": "разблокировал(а) это обсуждение",
+        "crossReferencedFrom": "сослался(-ась) на этот issue из",
+        "crossReferenced": "создал(а) перекрёстную ссылку на этот issue",
+        "referencedInCommit": "сослался(-ась) на этот issue в коммите {{commit}}",
+        "referencedInACommit": "сослался(-ась) на этот issue в коммите",
+        "connected": "связал(а) этот issue",
+        "disconnected": "отвязал(а) этот issue",
+        "markedAsDuplicate": "отметил(а) этот issue как дубликат",
+        "unmarkedAsDuplicate": "удалил(а) отметку дубликата",
+        "pinned": "закрепил(а) этот issue",
+        "unpinned": "открепил(а) этот issue",
+        "transferred": "перенёс(ла) этот issue",
+        "convertedToDiscussion": "преобразовал(а) этот issue в обсуждение",
+        "mentioned": "упомянул(а) этот issue"
       }
     }
   },
@@ -1698,7 +1735,6 @@
     "ramCurrentSession": "Текущая сессия",
     "ramChatRenderedTree": "Отрендеренное дерево Chat",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Боковая панель Start",
     "ramSessionSidebar": "Боковая панель Session",
     "ramSecondLevelSidebars": "Боковые панели второго уровня",
     "ramSettingsSidebar": "Боковая панель Settings",
@@ -2135,20 +2171,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

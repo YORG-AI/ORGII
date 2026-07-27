@@ -24,9 +24,9 @@ import {
   WorkItemContent,
   WorkItemProperties,
 } from "@src/modules/ProjectManager/WorkItems/components";
+import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import { useWorkItemOrchestrator } from "@src/modules/ProjectManager/WorkItems/hooks";
 import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
-import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { closeWorkItemChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -36,10 +36,10 @@ import {
   chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
-import type { WorkItem } from "@src/types/core/workItem";
+import { WORK_ITEM_STATUS, type WorkItem } from "@src/types/core/workItem";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
-import ChatView from "../ChatView";
+import SessionContentView from "../SessionContentView";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
@@ -50,6 +50,7 @@ const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
 interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
   onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
+  onClose?: () => void;
 }
 
 function toStandaloneFrontmatter(
@@ -170,6 +171,7 @@ function toWorkItemPartialUpdate(
 export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   selectedWorkItem,
   onUpdateWorkItem,
+  onClose,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
   const closeWorkItemTab = useSetAtom(closeWorkItemChatPanelTabAtom);
@@ -411,6 +413,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       : undefined;
   const isGitHubSyncedProject =
     projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const selectedWorkItemStatus =
+    selectedWorkItem.workItem.workItemStatus ??
+    selectedWorkItem.workItem.status;
+  const isGitHubWorkItem =
+    isGitHubSyncedProject ||
+    selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
   const projectSelectionReadonly =
     Boolean(selectedWorkItem.projectSlug) &&
     (projectSyncAdapterId === undefined || isGitHubSyncedProject);
@@ -503,30 +512,41 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
 
   const headerContent = useMemo(
     () => (
-      <ProjectManagerBreadcrumb
-        segments={[
-          { label: selectedWorkItem.projectName },
-          {
-            label: selectedWorkItem.shortId
-              ? `${selectedWorkItem.shortId} · ${selectedWorkItem.workItem.name}`
-              : selectedWorkItem.workItem.name,
-            icon: isGitHubSyncedProject ? (
-              <IntegrationIcon
-                type={STORY_SYNC_ADAPTER.GITHUB}
-                size={HEADER_ICON_SIZE.sm}
-              />
-            ) : (
-              <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
-            ),
-          },
-        ]}
+      <WorkItemDetailHeaderBreadcrumb
+        workItem={selectedWorkItem.workItem}
+        breadcrumbProjectName={selectedWorkItem.projectName}
+        breadcrumbIcon={
+          isGitHubSyncedProject ? (
+            <IntegrationIcon
+              type={STORY_SYNC_ADAPTER.GITHUB}
+              size={HEADER_ICON_SIZE.sm}
+            />
+          ) : (
+            <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          )
+        }
+        shortId={selectedWorkItem.shortId}
+        onClose={onClose}
+        onTitleChange={
+          !isGitHubWorkItem &&
+          (!selectedWorkItem.projectSlug || projectSyncAdapterId !== undefined)
+            ? (title) => void handleUpdateWorkItem({ name: title })
+            : undefined
+        }
+        t={t}
       />
     ),
     [
       selectedWorkItem.projectName,
       selectedWorkItem.shortId,
-      selectedWorkItem.workItem.name,
+      selectedWorkItem.workItem,
+      selectedWorkItem.projectSlug,
       isGitHubSyncedProject,
+      isGitHubWorkItem,
+      projectSyncAdapterId,
+      handleUpdateWorkItem,
+      onClose,
+      t,
     ]
   );
 
@@ -577,7 +597,6 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             repoPath={repoPath}
             projectSlug={selectedWorkItem.projectSlug}
             shortId={selectedWorkItem.shortId}
-            titleVisible
             onStartAgent={handleStartAgent}
             isStartingAgent={isStartingAgent}
             onCancelAgent={handleCancelAgent}
@@ -640,7 +659,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <ChatView
+            <SessionContentView
               sessionId={floatingSessionId}
               secondary
               surfaceBgClass="bg-chat-pane"

@@ -33,13 +33,19 @@ import { stripCopyEventNamespace } from "../../TeamCollaboration/copyEventId";
 import { getSessionForkedFrom } from "../../TeamCollaboration/forkSession";
 import { collectAddressableThreads } from "../addressComments";
 import { addressRunActiveAtom } from "../addressCommentsRun";
-import { org2CloudAuthAtom } from "../org2CloudAuthAtom";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "../org2CloudAuthAtom";
 import type {
   CloudCommentResolution,
   CloudSessionComment,
 } from "../org2CloudCommentsClient";
 import { org2CloudOrgsAtom } from "../org2CloudOrgsAtom";
-import { org2CloudRemoteSessionsAtom } from "../org2CloudRemoteSessionsAtom";
+import {
+  org2CloudRemoteSessionsAtom,
+  remoteSessionsEntryForIdentity,
+} from "../org2CloudRemoteSessionsAtom";
 import {
   type AddCommentInput,
   type CloudSessionCommentsFetchState,
@@ -54,6 +60,40 @@ import {
 import { useOwnedCloudCommentAgentRun } from "../useOwnedCloudCommentAgentRun";
 
 const CLOUD_ADMIN_ROLES = new Set(["owner", "admin"]);
+const RUST_NATIVE_TRANSIENT_USER_EVENT_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+interface CommentAnchorEventIdentity {
+  id: string;
+  source?: string;
+}
+
+/**
+ * Build the local-render id -> durable cloud-anchor id projection once per
+ * transcript. Rust-native live broadcasts briefly expose a bare message UUID,
+ * while the persisted event uploaded to cloud is `user-message-${uuid}`.
+ * Imports/forks additionally namespace that durable id with their local
+ * session id. Comments must use the durable source-plane spelling in all
+ * three states or a thread posted during the live turn disappears on reload
+ * and cannot be seen by an imported replay.
+ */
+export function buildCloudCommentSourceEventIdMap(
+  session: Pick<Session, "session_id" | "category">,
+  events: readonly CommentAnchorEventIdentity[]
+): ReadonlyMap<string, string> {
+  const result = new Map<string, string>();
+  for (const event of events) {
+    const bareEventId = stripCopyEventNamespace(session.session_id, event.id);
+    const sourceEventId =
+      session.category === "rust_agent" &&
+      event.source === "user" &&
+      RUST_NATIVE_TRANSIENT_USER_EVENT_ID.test(bareEventId)
+        ? `user-message-${bareEventId}`
+        : bareEventId;
+    result.set(event.id, sourceEventId);
+  }
+  return result;
+}
 
 /**
  * Replay-stream event ids per LOCAL session id, registered by every mounted
@@ -149,8 +189,14 @@ export function useSessionCommentViewer(target: SessionCommentTarget | null): {
     const role = target
       ? cloudOrgs.find((org) => org.orgId === target.orgId)?.role
       : undefined;
+    // Identity-filtered like every other remote-sessions read: a stale row
+    // from a previous account must not decide anchor capability (fail-open
+    // covers the filtered-out case).
     const row = target
-      ? remoteEntries[target.orgId]?.rows.find(
+      ? remoteSessionsEntryForIdentity(
+          remoteEntries[target.orgId],
+          auth ? org2CloudAuthIdentityKey(auth) : null
+        )?.rows.find(
           (candidate) => candidate.sourceSessionId === target.sessionId
         )
       : undefined;
@@ -176,7 +222,7 @@ export interface SessionCommentsProviderProps {
    * set. Only the ids are read, and only for cloud targets — ordinary
    * sessions never pay the id-set build.
    */
-  events: readonly { id: string }[] | null;
+  events: readonly CommentAnchorEventIdentity[] | null;
   /**
    * False when the rendered transcript is NOT this session's own stream
    * (agent-org group-chat view merges member-session events, whose ids can
@@ -201,12 +247,20 @@ export const SessionCommentsProvider: React.FC<
   // time.
   const originSessionId =
     session && getSessionForkedFrom(session) ? localSessionId : null;
+  const sourceEventIdByLocalId = useMemo(
+    () =>
+      target && session && events
+        ? buildCloudCommentSourceEventIdMap(session, events)
+        : null,
+    [target, session, events]
+  );
   const toSourceEventId = useCallback(
     (eventId: string) =>
-      localSessionId
+      sourceEventIdByLocalId?.get(eventId) ??
+      (localSessionId
         ? stripCopyEventNamespace(localSessionId, eventId)
-        : eventId,
-    [localSessionId]
+        : eventId),
+    [sourceEventIdByLocalId, localSessionId]
   );
   const presentEventIds = useMemo<ReadonlySet<string> | null>(
     () =>

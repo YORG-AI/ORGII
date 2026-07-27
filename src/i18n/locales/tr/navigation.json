@@ -61,15 +61,9 @@
     "startSession": "Oturum başlat",
     "sessions": "Session",
     "selectProject": "Project Seç",
-    "startPage": "Başlangıç Sayfası",
     "inbox": "Gelen Kutusu",
     "login": "Giriş",
     "setup": "Kurulum",
-    "devJourney": "Dev Journey",
-    "devRecord": "Geliştirme Kaydı",
-    "gitDashboard": "Git Panosu",
-    "devActivity": "Dev Etkinliği",
-    "usageHistory": "Kullanım Geçmişi",
     "tokenMarket": "Token Pazarı",
     "taskMarket": "Görev Pazarı",
     "channels": "Kanallar",
@@ -85,20 +79,8 @@
     "ideaArea": "Fikir Alanı",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Izgarayı Özelleştir",
-    "horizontalGap": "Yatay Boşluk",
-    "verticalGap": "Dikey Boşluk",
-    "resetToDefault": "Varsayılana Sıfırla"
-  },
-  "greetings": {
-    "morning": "Günaydın",
-    "afternoon": "İyi günler",
-    "evening": "İyi akşamlar"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Ana Sayfa",
       "workstation": "Workstation",
       "manage": "Yönet",
       "core": "Çekirdek",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Yeni Ekle",
       "collapseAll": "Tümünü daralt",
-      "markAllRead": "Tümünü okundu olarak işaretle",
-      "openHome": "Home’u aç",
-      "openWorkstation": "Workstation’ı aç"
+      "markAllRead": "Tümünü okundu olarak işaretle"
     },
     "search": {
       "folders": "Çalışma alanında ara...",
@@ -358,15 +338,6 @@
       "projects": "Projeler"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Ürün güncellemeleri",
-    "commitCount": "{{count}} commit",
-    "commitCount_one": "{{count}} commit",
-    "details": "Ayrıntılar",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG değiştir",
     "addOrg": "ORG ekle",
@@ -434,7 +405,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
+    "signedInAs": "{{name}} olarak giriş yapıldı",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "ORG2 Cloud oturumunuzun süresi doldu. Devam etmek için yeniden giriş yapın.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
@@ -474,13 +447,15 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Hakkımda"
     },
     "sidebar": {
       "teamSessions": "Ekip oturumları",
       "mySessions": "Oturumlarım",
       "memberFilter": "Üyeye göre filtrele",
       "sessionFilter": "Oturumları filtrele",
+      "copyId": "ID'yi kopyala",
       "directlySharedWithMe": "Doğrudan benimle paylaşılanlar",
       "everyone": "Herkes",
       "forkedFrom": "@{{name}} oturumundan çatallandı",
@@ -613,7 +588,8 @@
         "inviteInvalid": "Bu davet kodu geçerli değil.",
         "inviteRevoked": "Bu davet iptal edilmiş.",
         "inviteExpired": "Bu davetin süresi dolmuş.",
-        "inviteExhausted": "Bu davetin kullanım hakkı kalmamış."
+        "inviteExhausted": "Bu davetin kullanım hakkı kalmamış.",
+        "network": "Bulut hizmetine bağlanılamadı. Ağınızı kontrol edip yeniden deneyin."
       }
     },
     "syncLevel": {

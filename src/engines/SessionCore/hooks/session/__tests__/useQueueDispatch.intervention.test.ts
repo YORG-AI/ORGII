@@ -177,6 +177,7 @@ describe("useQueueDispatch Agent Org intervention", () => {
         sessionId: SESSION_ID,
         content: "queued worker follow-up",
         turnIntentId: "turn-intent-queued-1",
+        turnIntentSource: "force_send",
       })
     );
     expect(mocks.append.mock.invocationCallOrder[0]).toBeLessThan(

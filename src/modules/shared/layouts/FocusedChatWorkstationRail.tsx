@@ -349,6 +349,7 @@ export function FocusedChatWorkstationRail() {
   return (
     <div className="pointer-events-none absolute right-1 top-[88px] z-20 hidden xl:flex">
       <div
+        data-workstation-pane-control
         className={`pointer-events-auto flex transition-all ${EDITOR_TAB_CANVAS_BG_CLASS} ${
           collapsed
             ? "flex-col items-center rounded-xl border-[1px] border-border-1 p-1"

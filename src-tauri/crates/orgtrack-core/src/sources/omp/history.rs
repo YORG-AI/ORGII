@@ -18,7 +18,7 @@ fn config() -> AnthropicJsonlSource {
         provider_slug: "omp",
         display_name: "OMP",
         parser_version: 1,
-        candidate_roots: omp_history_candidate_paths,
+        candidate_roots: omp_history_candidate_paths(),
         exclude_subagent_dirs: false,
     }
 }

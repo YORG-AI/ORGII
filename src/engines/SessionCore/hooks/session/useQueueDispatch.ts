@@ -236,6 +236,7 @@ export function useQueueDispatch(): void {
             imageDataUrls,
             clientMessageId: `queued:${sessionId}:${msg.id}`,
             turnIntentId: msg.turnIntentId,
+            turnIntentSource: msg.priority === "now" ? "force_send" : "queue",
           });
           // Backend accepted the message — confirm the turn as running.
           confirmTurnRunning(sessionId);

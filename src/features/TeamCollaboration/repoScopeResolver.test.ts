@@ -4,11 +4,13 @@ import { getGitRemotes } from "@src/api/http/git/remotes";
 import { resolveGitHubRepoNetworkIdentityLocal } from "@src/api/tauri/github";
 
 import {
+  MAX_RESOLVER_CACHE_ENTRIES,
   clearShareableScopeKeyCache,
   peekMatchingOrgRepoScope,
   peekShareableScopeKey,
   resolveLocalCheckoutForScopeKey,
   resolveMatchingOrgRepoScope,
+  resolveRepoNetworkScopeKey,
   resolveShareableScopeKey,
   resolveShareableScopeKeys,
   subscribeShareableScopeKeys,
@@ -197,10 +199,10 @@ describe("resolveLocalCheckoutForScopeKey (fork relay: scope key → local path)
   it("matches differently named GitHub forks through their common source", async () => {
     networkIdentityMock.mockImplementation(async (fullName) => ({
       full_name: fullName,
-      source_full_name: "yorgai/ORG2",
+      source_full_name: "org2ai/ORG2",
     }));
     const resolve = resolverFor({
-      "C:\\Repos\\ORGII": ["github.com/yorgai/org2"],
+      "C:\\Repos\\ORGII": ["github.com/org2ai/org2"],
     });
 
     await expect(
@@ -210,7 +212,7 @@ describe("resolveLocalCheckoutForScopeKey (fork relay: scope key → local path)
         resolve
       )
     ).resolves.toBe("C:\\Repos\\ORGII");
-    expect(networkIdentityMock).toHaveBeenCalledWith("yorgai/org2");
+    expect(networkIdentityMock).toHaveBeenCalledWith("org2ai/org2");
     expect(networkIdentityMock).toHaveBeenCalledWith("vantanode/org2");
   });
 
@@ -277,18 +279,18 @@ describe("GitHub fork-network org scope matching", () => {
   it("returns the original wire scope after canonical upstreams match", async () => {
     networkIdentityMock.mockImplementation(async (fullName) => ({
       full_name: fullName,
-      source_full_name: "yorgai/ORG2",
+      source_full_name: "org2ai/ORG2",
     }));
 
     await expect(
       resolveMatchingOrgRepoScope(
-        ["github.com/yorgai/org2"],
+        ["github.com/org2ai/org2"],
         ["github.com/vantanode/org2"]
       )
     ).resolves.toBe("github.com/vantanode/org2");
     expect(
       peekMatchingOrgRepoScope(
-        ["github.com/yorgai/org2"],
+        ["github.com/org2ai/org2"],
         ["github.com/vantanode/org2"]
       )
     ).toBe("github.com/vantanode/org2");
@@ -305,5 +307,24 @@ describe("GitHub fork-network org scope matching", () => {
         ["github.com/acme/two"]
       )
     ).resolves.toBeNull();
+  });
+
+  it("bounds the long-lived GitHub network cache with LRU eviction", async () => {
+    networkIdentityMock.mockClear();
+    networkIdentityMock.mockImplementation(async (fullName) => ({
+      full_name: fullName,
+      source_full_name: fullName,
+    }));
+    for (let index = 0; index <= MAX_RESOLVER_CACHE_ENTRIES; index += 1) {
+      await resolveRepoNetworkScopeKey(`github.com/acme/repo-${index}`);
+    }
+    expect(networkIdentityMock).toHaveBeenCalledTimes(
+      MAX_RESOLVER_CACHE_ENTRIES + 1
+    );
+
+    await resolveRepoNetworkScopeKey("github.com/acme/repo-0");
+    expect(networkIdentityMock).toHaveBeenCalledTimes(
+      MAX_RESOLVER_CACHE_ENTRIES + 2
+    );
   });
 });

@@ -16,6 +16,7 @@ import {
   DEBOUNCE_DELAYS,
   useDebouncedCallback,
 } from "@src/hooks/perf/useDebouncedCallback";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const log = createLogger("useWebviewDOMTree");
 
@@ -296,16 +297,16 @@ export function useWebviewDOMTree(
   useEffect(() => {
     if (!enabled || !webviewLabel || pollInterval <= 0) return;
 
-    let cancelled = false;
+    let active = true;
 
     const tick = async () => {
-      if (cancelled) return;
+      if (!active) return;
       if (inFlightRef.current) return;
       try {
         const dirty = await invoke<boolean>("check_webview_dom_dirty", {
           label: webviewLabel,
         });
-        if (cancelled) return;
+        if (!active) return;
         if (dirty) {
           await refresh();
         }
@@ -315,10 +316,14 @@ export function useWebviewDOMTree(
       }
     };
 
-    const interval = setInterval(tick, pollInterval);
+    const stopPolling = startVisibilityAwarePoller(
+      document,
+      tick,
+      pollInterval
+    );
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      active = false;
+      stopPolling();
     };
   }, [enabled, webviewLabel, pollInterval, refresh]);
 

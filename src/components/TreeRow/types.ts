@@ -90,6 +90,12 @@ export interface TreeRowBaseProps {
   showIndentGuides?: boolean;
   /** Show parent directory path after filename (for flat list views) */
   showPathHint?: boolean;
+  /**
+   * Render the native `title` tooltip (full path) on the name.
+   * Set to false when the row is wrapped in its own hover card, so the two
+   * tooltips don't stack. (default: true)
+   */
+  showNativeTitle?: boolean;
 }
 
 export interface GitStatusBadgeProps {

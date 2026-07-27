@@ -138,4 +138,34 @@ describe("work item history timeline", () => {
       "updated the description",
     ]);
   });
+
+  it("orders activity chronologically like the shared issue timeline", () => {
+    const entries = buildWorkItemTimelineEntries(
+      workItemWithTimeline({
+        comments: [
+          {
+            id: "comment-early",
+            author: "Ada",
+            content: "First comment",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+        ],
+        history: [
+          {
+            id: "history-late",
+            action: WORK_ITEM_HISTORY_ACTION.UPDATED,
+            timestamp: "2026-01-02T00:00:00Z",
+            actorName: "Grace",
+            summary: "Updated later",
+          },
+        ],
+      }),
+      translate
+    );
+
+    expect(entries.map((entry) => entry.id)).toEqual([
+      "comment-early",
+      "history-late",
+    ]);
+  });
 });

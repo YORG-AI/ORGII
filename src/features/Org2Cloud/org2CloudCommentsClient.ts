@@ -24,6 +24,7 @@
 import { z } from "zod/v4";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 /** RPC-enforced body bound (0014 SIZE note) — mirrored in composers. */
 export const CLOUD_COMMENT_MAX_BODY_LENGTH = 4000;
@@ -83,7 +84,7 @@ async function callCommentRpc(
   body: Record<string, unknown>
 ): Promise<unknown> {
   const endpoint = getCloudEndpoint();
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",
@@ -186,6 +187,12 @@ const ListCommentsResultSchema = z.object({
   comments: z.array(CloudSessionCommentWireSchema).default([]),
   /** Viewer-derived server capability; false for imports, forks and members. */
   viewerOwnsSession: z.boolean().default(false),
+  /** 0004 delta anchor; absent on pre-delta backends. */
+  serverTime: z
+    .string()
+    .nullish()
+    .transform((value) => value ?? undefined)
+    .optional(),
 });
 
 const EditCommentResultSchema = z.object({
@@ -340,17 +347,68 @@ export async function resolveSessionComment(
 export interface SessionCommentsListing {
   comments: CloudSessionComment[];
   viewerOwnsSession: boolean;
+  /** 0004 delta anchor for the caller's next `since`; absent pre-delta. */
+  serverTime?: string;
+  /** The `since` the server actually honored; undefined ⇒ full listing. */
+  appliedSince?: string;
 }
 
+/** supabaseUrl set of backends that rejected the p_since signature (pre-0004). */
+const commentsDeltaUnsupportedEndpoints = new Set<string>();
+
+function isCommentsDeltaSignatureUnsupported(error: unknown): boolean {
+  return (
+    error instanceof Org2CloudCommentError &&
+    error.status === 404 &&
+    /could not find the function/i.test(error.message)
+  );
+}
+
+export const __SESSION_COMMENTS_DELTA_INTERNALS = {
+  resetDeltaSupport: () => commentsDeltaUnsupportedEndpoints.clear(),
+};
+
 /**
- * Full thread list for one readable session, `created_at` asc (no
- * pagination — the 500-row cap bounds the response). Tombstones included.
+ * Thread list for one readable session, `created_at` asc (no pagination —
+ * the 500-row cap bounds the response). Tombstones included. With
+ * `options.since` a 0004 backend returns only rows stamped at or past it
+ * (`appliedSince` echoes the honored cursor); a pre-0004 backend rejects the
+ * signature once per endpoint and every listing degrades to full. Callers
+ * MUST treat `appliedSince === undefined` as a full listing regardless of
+ * what they requested.
  */
 export async function listSessionComments(
   accessToken: string,
   orgId: string,
-  sessionId: string
+  sessionId: string,
+  options?: { since?: string }
 ): Promise<SessionCommentsListing> {
+  const endpointUrl = getCloudEndpoint().supabaseUrl;
+  const since =
+    options?.since !== undefined &&
+    !commentsDeltaUnsupportedEndpoints.has(endpointUrl)
+      ? options.since
+      : undefined;
+  if (since !== undefined) {
+    try {
+      const payload = await callCommentRpc(
+        "cloud_list_session_comments",
+        accessToken,
+        {
+          p_org_id: orgId,
+          p_session_id: sessionId,
+          p_since: since,
+        }
+      );
+      return {
+        ...ListCommentsResultSchema.parse(payload),
+        appliedSince: since,
+      };
+    } catch (error) {
+      if (!isCommentsDeltaSignatureUnsupported(error)) throw error;
+      commentsDeltaUnsupportedEndpoints.add(endpointUrl);
+    }
+  }
   const payload = await callCommentRpc(
     "cloud_list_session_comments",
     accessToken,

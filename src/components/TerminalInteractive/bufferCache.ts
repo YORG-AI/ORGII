@@ -13,6 +13,10 @@ import {
 
 /** Maximum number of terminal buffers to cache (prevents memory leaks) */
 const MAX_CACHE_SIZE = 10;
+/** Maximum retained UTF-16 bytes for a single terminal buffer. */
+const MAX_BUFFER_BYTES = 1 * 1024 * 1024;
+/** Maximum retained UTF-16 bytes across all terminal buffers. */
+const MAX_CACHE_BYTES = 8 * 1024 * 1024;
 
 /** Track whether cache has been hydrated from disk */
 let isHydrated = false;
@@ -28,6 +32,46 @@ let isHydrated = false;
  * - On set: evict first entry if at capacity
  */
 const terminalBufferCache = new Map<string, string>();
+let terminalBufferCacheBytes = 0;
+
+function estimateStringBytes(value: string): number {
+  return value.length * 2;
+}
+
+function truncateBufferForCache(buffer: string): string {
+  const maxChars = Math.floor(MAX_BUFFER_BYTES / 2);
+  return buffer.length <= maxChars ? buffer : buffer.slice(-maxChars);
+}
+
+function removeCacheEntry(sessionId: string): boolean {
+  const existing = terminalBufferCache.get(sessionId);
+  if (existing === undefined) return false;
+
+  terminalBufferCache.delete(sessionId);
+  terminalBufferCacheBytes -= estimateStringBytes(existing);
+  return true;
+}
+
+function evictOldestEntry(): boolean {
+  const oldestKey = terminalBufferCache.keys().next().value;
+  return oldestKey === undefined ? false : removeCacheEntry(oldestKey);
+}
+
+function insertBoundedEntry(sessionId: string, buffer: string): void {
+  const boundedBuffer = truncateBufferForCache(buffer);
+  removeCacheEntry(sessionId);
+
+  while (
+    terminalBufferCache.size >= MAX_CACHE_SIZE ||
+    terminalBufferCacheBytes + estimateStringBytes(boundedBuffer) >
+      MAX_CACHE_BYTES
+  ) {
+    if (!evictOldestEntry()) break;
+  }
+
+  terminalBufferCache.set(sessionId, boundedBuffer);
+  terminalBufferCacheBytes += estimateStringBytes(boundedBuffer);
+}
 
 /**
  * Hydrate the in-memory cache from persisted disk storage.
@@ -43,9 +87,7 @@ export function hydrateFromPersistence(
 
   // Load persisted buffers into the in-memory cache
   for (const [sessionId, buffer] of persistedBuffers) {
-    // Don't exceed max cache size
-    if (terminalBufferCache.size >= MAX_CACHE_SIZE) break;
-    terminalBufferCache.set(sessionId, buffer.serialized);
+    insertBoundedEntry(sessionId, buffer.serialized);
   }
 }
 
@@ -77,31 +119,18 @@ export function hasNonEmptyTerminalBuffer(sessionId: string): boolean {
  * Set a terminal buffer with LRU eviction
  */
 export function setTerminalBuffer(sessionId: string, buffer: string): void {
-  // If key exists, delete it first (will be re-added at end)
-  if (terminalBufferCache.has(sessionId)) {
-    terminalBufferCache.delete(sessionId);
-  }
-
-  // Evict oldest entry if at capacity
-  if (terminalBufferCache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = terminalBufferCache.keys().next().value;
-    if (oldestKey !== undefined) {
-      terminalBufferCache.delete(oldestKey);
-    }
-  }
-
-  // Add new entry at end (most recent)
-  terminalBufferCache.set(sessionId, buffer);
+  const boundedBuffer = truncateBufferForCache(buffer);
+  insertBoundedEntry(sessionId, boundedBuffer);
 
   // Mirror to disk (debounced 2 s) so buffers survive app restarts.
-  persistTerminalBuffer(sessionId, buffer);
+  persistTerminalBuffer(sessionId, boundedBuffer);
 }
 
 /**
  * Delete a terminal buffer from cache
  */
 export function deleteTerminalBuffer(sessionId: string): void {
-  terminalBufferCache.delete(sessionId);
+  removeCacheEntry(sessionId);
 }
 
 /**
@@ -109,7 +138,7 @@ export function deleteTerminalBuffer(sessionId: string): void {
  * Call this when user explicitly closes a terminal session.
  */
 export function clearTerminalBufferCache(sessionId: string): void {
-  terminalBufferCache.delete(sessionId);
+  removeCacheEntry(sessionId);
 }
 
 /**
@@ -125,12 +154,8 @@ export function getTerminalBufferCacheSize(): number {
 }
 
 export function getTerminalBufferCacheStats(): TerminalBufferCacheStats {
-  let bytes = 0;
-  for (const buffer of terminalBufferCache.values()) {
-    bytes += buffer.length * 2;
-  }
   return {
     entries: terminalBufferCache.size,
-    bytes,
+    bytes: terminalBufferCacheBytes,
   };
 }

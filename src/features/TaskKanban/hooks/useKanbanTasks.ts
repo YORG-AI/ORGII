@@ -13,8 +13,10 @@
  * than the selected window.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 
+import { useCloudOrgRemoteSessions } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom, visitedSessionsAtom } from "@src/store/session";
 import {
   kanbanReplayBoundsAtom,
@@ -33,6 +35,13 @@ import type {
 } from "../config";
 import { KANBAN_COLUMNS, getTimeFilterCutoff } from "../config";
 import type { KanbanTask } from "../types";
+import { useKanbanNowTick } from "./useKanbanNowTick";
+import {
+  resolveKanbanTaskCreator,
+  sessionMatchesKanbanOrgScope,
+  useKanbanOrgScope,
+} from "./useKanbanOrgScope";
+import { buildCloudRemoteKanbanProjection } from "./useKanbanTasks/cloudRemoteToKanbanTask";
 import { createReplayEvents } from "./useKanbanTasks/replayEvents";
 import { applyReplayCursor } from "./useKanbanTasks/replayProjection";
 import { sessionToKanbanTask } from "./useKanbanTasks/sessionToKanbanTask";
@@ -55,12 +64,16 @@ export interface UseKanbanTasksOptions {
    * specific Agent Team run without forking the hook.
    */
   sessionIdFilter?: ReadonlySet<string>;
+  /** Follow the organization selected in the Workstation sidebar. */
+  followSidebarOrgScope?: boolean;
 }
 
 export interface UseKanbanTasksReturn {
   tasks: KanbanTask[];
   allTasks: KanbanTask[];
   groupedTasks: Map<AgentKanbanColumnId, KanbanTask[]>;
+  cloudOrgId: string | null;
+  remoteSessionsByTaskId: ReadonlyMap<string, RemoteTeammateSessionMetadata>;
 }
 
 // ============================================
@@ -78,8 +91,14 @@ export function useKanbanTasks(
     timeFilter = "12h",
     autoArchiveTtl = "24h",
     sessionIdFilter,
+    followSidebarOrgScope = true,
   } = options;
   const sessions = useAtomValue(sessionsAtom);
+  const orgScope = useKanbanOrgScope(sessions, followSidebarOrgScope);
+  // Team-scoped embeds already provide an explicit local session allowlist;
+  // the global cloud roster must not leak into those narrower boards.
+  const cloudOrgId = sessionIdFilter ? null : (orgScope?.cloudOrgId ?? null);
+  const { rows: cloudRemoteSessions } = useCloudOrgRemoteSessions(cloudOrgId);
   const visitedSessions = useAtomValue(visitedSessionsAtom);
   const manualArchivedSessionIds = useAtomValue(
     kanbanManualArchivedSessionsAtom
@@ -89,16 +108,9 @@ export function useKanbanTasks(
   const setReplayBounds = useSetAtom(kanbanReplayBoundsAtom);
   const setReplayEvents = useSetAtom(kanbanReplayEventsAtom);
 
-  // "Now" tick — owned by an interval rather than read inline so the
-  // memo stays pure (React's hooks-purity rule rejects `Date.now()` in
-  // a useMemo body). 30s granularity is plenty for a board view; the
-  // right edge also advances whenever a session actually moves, which
-  // is the path that matters in practice.
-  const [nowTick, setNowTick] = useState<number>(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 30_000);
-    return () => clearInterval(id);
-  }, []);
+  // 30s is enough for time-window boundaries. The owner pauses while hidden,
+  // refreshes once on return, and never overlaps timers.
+  const nowTick = useKanbanNowTick();
 
   const visibleSessions = useMemo(
     () =>
@@ -110,10 +122,11 @@ export function useKanbanTasks(
         sessions.filter(
           (session) =>
             isPrimarySessionListSession(session) &&
-            (!sessionIdFilter || sessionIdFilter.has(session.session_id))
+            (!sessionIdFilter || sessionIdFilter.has(session.session_id)) &&
+            sessionMatchesKanbanOrgScope(session, orgScope)
         )
       ),
-    [sessions, sessionIdFilter]
+    [orgScope, sessions, sessionIdFilter]
   );
   const { impactBySessionId } = useSessionImpact(visibleSessions);
 
@@ -135,6 +148,7 @@ export function useKanbanTasks(
         task: {
           ...task,
           impact: impactBySessionId.get(session.session_id),
+          createdBy: resolveKanbanTaskCreator(session, orgScope),
         },
       };
     });
@@ -145,11 +159,45 @@ export function useKanbanTasks(
     autoArchiveTtl,
     nowTick,
     impactBySessionId,
+    orgScope,
   ]);
 
-  const sessionTasks = useMemo(
+  const localTasks = useMemo(
     () => sessionPairs.map((pair) => pair.task),
     [sessionPairs]
+  );
+  const cloudProjection = useMemo(
+    () =>
+      cloudOrgId
+        ? buildCloudRemoteKanbanProjection(
+            cloudRemoteSessions,
+            visibleSessions,
+            {
+              orgId: cloudOrgId,
+              viewerUserId: orgScope?.cloudViewerUserId,
+              autoArchiveTtl,
+              nowMs: nowTick,
+            }
+          )
+        : {
+            tasks: [] as KanbanTask[],
+            remoteSessionsByTaskId: new Map<
+              string,
+              RemoteTeammateSessionMetadata
+            >(),
+          },
+    [
+      autoArchiveTtl,
+      cloudOrgId,
+      cloudRemoteSessions,
+      nowTick,
+      orgScope?.cloudViewerUserId,
+      visibleSessions,
+    ]
+  );
+  const allTasks = useMemo(
+    () => [...localTasks, ...cloudProjection.tasks],
+    [cloudProjection.tasks, localTasks]
   );
 
   // Right edge tracks the latest session activity so the bar's "now"
@@ -157,10 +205,10 @@ export function useKanbanTasks(
   // below so an empty board still advances.
   const latestSessionTs = useMemo(
     () =>
-      sessionTasks
+      allTasks
         .map((task) => getTaskTimestamp(task))
         .reduce((acc, ts) => Math.max(acc, ts), 0),
-    [sessionTasks]
+    [allTasks]
   );
 
   // Time-filter window is the bar's [start, end]. Recomputed whenever
@@ -198,6 +246,12 @@ export function useKanbanTasks(
     const { start } = bounds;
     return sessionPairs.filter((pair) => getTaskTimestamp(pair.task) >= start);
   }, [sessionPairs, bounds]);
+  const windowedRemoteTasks = useMemo(() => {
+    const { start } = bounds;
+    return cloudProjection.tasks.filter(
+      (task) => getTaskTimestamp(task) >= start
+    );
+  }, [bounds, cloudProjection.tasks]);
 
   // Event timeline (created + terminal moments) for the bar's marker
   // dots. Sourced from the time-windowed set so the bar's tick density
@@ -217,8 +271,13 @@ export function useKanbanTasks(
         recentSessionTasks.push(task);
       }
     }
+    for (const task of windowedRemoteTasks) {
+      if (!inReplay || getTaskTimestamp(task) <= replayCursor) {
+        recentSessionTasks.push(task);
+      }
+    }
     return recentSessionTasks;
-  }, [windowedPairs, replayMode, replayCursor]);
+  }, [windowedPairs, windowedRemoteTasks, replayMode, replayCursor]);
   const groupedTasks = useMemo(() => {
     const grouped = new Map<AgentKanbanColumnId, KanbanTask[]>();
     KANBAN_COLUMNS.forEach((column) => grouped.set(column.id, []));
@@ -243,5 +302,11 @@ export function useKanbanTasks(
     return grouped;
   }, [tasks]);
 
-  return { tasks, allTasks: sessionTasks, groupedTasks };
+  return {
+    tasks,
+    allTasks,
+    groupedTasks,
+    cloudOrgId,
+    remoteSessionsByTaskId: cloudProjection.remoteSessionsByTaskId,
+  };
 }

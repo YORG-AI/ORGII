@@ -5,15 +5,11 @@
   "windows": [
     "main",
     "add-context-window",
-    "new-project-window",
     "exist-project-window",
     "new-project-workflow-window",
     "add-workitem-window",
-    "mode-selection-window-*",
-    "workspace-*",
     "ui-agent-window",
     "browser-*",
-    "tab-*",
     "shell-*",
     "app-window-*"
   ],

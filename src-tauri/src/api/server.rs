@@ -305,6 +305,12 @@ pub async fn start_server(
                 ),
             ),
         )
+        // Durable provenance data is already in the bounded filesystem spool;
+        // this authenticated empty POST only wakes its demand-driven drainer.
+        .route(
+            super::agent_status_ingest::PROVENANCE_READY_ROUTE,
+            axum::routing::post(super::agent_status_ingest::handle_provenance_ready),
+        )
         // Native Hermes lifecycle callbacks. Authentication and status
         // fanout reuse the shared hook-ingest pipeline.
         .merge(super::hermes_hook::router())

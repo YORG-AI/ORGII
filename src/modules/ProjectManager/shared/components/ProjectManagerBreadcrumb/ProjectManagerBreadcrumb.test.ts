@@ -33,6 +33,22 @@ describe("ProjectManagerBreadcrumb", () => {
     expect(markup).toContain('role="button"');
   });
 
+  it("keeps a fill-width segment untruncated", () => {
+    const leafLabel = "GitHub issue title ".repeat(4).trim();
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectManagerBreadcrumb, {
+        segments: [
+          { label: "ORGII issues", onClick: vi.fn() },
+          { label: leafLabel, fillAvailableWidth: true },
+        ],
+      })
+    );
+
+    expect(markup).toContain(leafLabel);
+    expect(markup).not.toContain("GitHub issue title GitHub issue tit…");
+    expect(markup).toContain("flex-1");
+  });
+
   it("keeps labels containing slashes as one display segment", () => {
     const markup = renderToStaticMarkup(
       React.createElement(ProjectManagerBreadcrumb, {
@@ -41,6 +57,28 @@ describe("ProjectManagerBreadcrumb", () => {
     );
 
     expect(markup).toContain(">Research/Planning</span>");
+  });
+
+  it("renders custom segment content while retaining the full label metadata", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectManagerBreadcrumb, {
+        segments: [
+          { label: "Project" },
+          {
+            label: "WI-0001 · Original title",
+            content: React.createElement("input", {
+              "aria-label": "Rename",
+              value: "Original title",
+              readOnly: true,
+            }),
+          },
+        ],
+      })
+    );
+
+    expect(markup).toContain('aria-label="Rename"');
+    expect(markup).toContain('value="Original title"');
+    expect(markup).toContain('title="WI-0001 · Original title"');
   });
 
   it("renders a supplied identity icon only on the first segment", () => {

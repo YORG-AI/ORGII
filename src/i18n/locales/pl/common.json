@@ -961,7 +961,6 @@
     "addCssVariables": "Dodaj zmienne CSS do swojego projektu",
     "loadingAccountStatus": "Ładowanie statusu konta...",
     "noRepositorySelected": "Nie wybrano Repo",
-    "selectRepositoryFromHome": "Wybierz Repo ze strony głównej, aby otworzyć.",
     "noWorkspaceExplorerTitle": "Brak otwartego Workspace",
     "noWorkspaceExplorerSubtitle": "Otwórz Workspace, aby wyświetlić pliki",
     "cannotFindRepo": "Nie można znaleźć {{repoName}}",
@@ -992,7 +991,8 @@
     "scanningFileExtensions": "Skanowanie rozszerzeń plików...",
     "startBrowsingMarket": "Rozpocznij przeglądanie marketplace",
     "previewUnavailable": "Podgląd niedostępny",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Wybierz repozytorium z obszaru roboczego, aby je otworzyć."
   },
   "inbox": {
     "searchPlaceholder": "Szukaj wiadomości...",
@@ -1151,8 +1151,6 @@
       "tryVerifyUrl": "Zweryfikować poprawność URL",
       "tryAgainLater": "Spróbować ponownie później"
     },
-    "selectRepoFromHome": "Wybierz Repo ze strony głównej",
-    "cloneRepoAgain": "Sklonuj Repo ponownie ze strony głównej",
     "unsavedChangesTitle": "Niezapisane zmiany",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Akcje synchronizacji Git"
@@ -1245,6 +1243,45 @@
         "closed": "Zamknięte",
         "completed": "Ukończone",
         "notPlanned": "Nieplanowane"
+      },
+      "activity": {
+        "opened": "otworzył(a) to issue",
+        "commented": "dodał(a) komentarz",
+        "timelineItemCount_one": "{{count}} element osi czasu",
+        "timelineItemCount_few": "{{count}} elementy osi czasu",
+        "timelineItemCount_many": "{{count}} elementów osi czasu",
+        "timelineItemCount_other": "{{count}} elementów osi czasu",
+        "noDescription": "Nie podano opisu.",
+        "assigned": "przypisał(a)",
+        "assignedIssue": "przypisał(a) to issue",
+        "unassigned": "cofnął/cofnęła przypisanie użytkownika",
+        "removedAssignee": "usunął/usunęła osobę przypisaną",
+        "added": "dodał(a)",
+        "removed": "usunął/usunęła",
+        "label": "etykietę",
+        "milestoned": "dodał(a) to issue do kamienia milowego {{milestone}}",
+        "demilestoned": "usunął/usunęła to issue z kamienia milowego {{milestone}}",
+        "closedViaCommit": "zamknął/zamknęła to issue commitem {{commit}}",
+        "closed": "zamknął/zamknęła to issue",
+        "reopened": "ponownie otworzył(a) to issue",
+        "renamedTo": "zmienił(a) nazwę tego issue na",
+        "renamed": "zmienił(a) nazwę tego issue",
+        "locked": "zablokował(a) tę rozmowę",
+        "lockedAs": "zablokował(a) tę rozmowę z powodu: {{reason}}",
+        "unlocked": "odblokował(a) tę rozmowę",
+        "crossReferencedFrom": "odwołał(a) się do tego issue z",
+        "crossReferenced": "utworzył(a) odwołanie krzyżowe do tego issue",
+        "referencedInCommit": "odwołał(a) się do tego issue w commicie {{commit}}",
+        "referencedInACommit": "odwołał(a) się do tego issue w commicie",
+        "connected": "powiązał(a) to issue",
+        "disconnected": "usunął/usunęła powiązanie tego issue",
+        "markedAsDuplicate": "oznaczył(a) to issue jako duplikat",
+        "unmarkedAsDuplicate": "usunął/usunęła oznaczenie duplikatu",
+        "pinned": "przypiął/przypięła to issue",
+        "unpinned": "odpiął/odpięła to issue",
+        "transferred": "przeniósł/przeniosła to issue",
+        "convertedToDiscussion": "przekształcił(a) to issue w dyskusję",
+        "mentioned": "wspomniał(a) o tym issue"
       }
     }
   },
@@ -1698,7 +1735,6 @@
     "ramCurrentSession": "Bieżąca sesja",
     "ramChatRenderedTree": "Renderowane drzewo Chat",
     "ramSessionStore": "Store sesji",
-    "ramStartSidebar": "Pasek boczny Start",
     "ramSessionSidebar": "Pasek boczny Session",
     "ramSecondLevelSidebars": "Paski boczne drugiego poziomu",
     "ramSettingsSidebar": "Pasek boczny Settings",
@@ -2135,20 +2171,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Upuść pliki do przesłania",
-    "dropFileToChat": "Upuść plik, aby dodać do czatu",
-    "dropFolderToAdd": "Upuść folder, aby dodać Repo",
-    "releaseToAddFiles": "Zwolnij, aby dodać pliki do swojej sesji",
-    "releaseToAddFileToChat": "Zwolnij, aby dodać plik do czatu (jak ⌘L)",
-    "releaseToOpenFolder": "Zwolnij, aby otworzyć folder",
-    "folderDetected": "Wykryto folder",
-    "openSpotlightToAdd": "Otwórz Spotlight, aby dodać ten folder jako Repo",
-    "openSpotlight": "Otwórz Spotlight",
-    "addedToChat": "Dodano \"{{name}}\" do czatu",
-    "couldNotExtractPath": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu",
-    "couldNotExtractPathFromItem": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu",
-    "dropFilesHere": "Upuść pliki tutaj",
-    "dragFilesFromIde": "Przeciągnij pliki lub karty z VS Code, aby dodać je do czatu"
+    "couldNotExtractPathFromItem": "Nie udało się wyodrębnić ścieżki pliku z upuszczonego elementu"
   },
   "contextList": {
     "task": "Zadanie",

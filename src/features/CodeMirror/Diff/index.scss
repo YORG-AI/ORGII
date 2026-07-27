@@ -240,7 +240,7 @@
       border-radius: 4px;
       padding: 2px 6px;
       font-size: 11px;
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
 
       &:hover {
         background: var(--color-fill-3);

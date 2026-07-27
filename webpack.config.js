@@ -621,12 +621,6 @@ module.exports = (env, argv) => {
         },
       },
     },
-    ignoreWarnings: [
-      {
-        module: /keepalive-for-react/,
-        message: /export 'Activity'/,
-      },
-    ],
     performance: {
       hints: false,
     },

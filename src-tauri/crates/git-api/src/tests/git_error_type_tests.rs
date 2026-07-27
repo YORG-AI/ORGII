@@ -22,6 +22,19 @@ fn from_git_error_not_a_git_repo() {
 }
 
 #[test]
+fn from_git_error_not_a_git_repo_is_case_insensitive() {
+    let err = GitApiError::from_git_error(
+        "Not a git repository at /Users/me/repo/.claude/worktrees/deleted-agent",
+    );
+    assert!(
+        matches!(&err, GitApiError::NotAGitRepo { .. }),
+        "Expected NotAGitRepo, got {:?}",
+        err
+    );
+    assert_eq!(err.status_code(), StatusCode::NOT_FOUND);
+}
+
+#[test]
 fn from_git_error_non_fast_forward_rejected() {
     let err = GitApiError::from_git_error("error: failed to push some refs\nhint: Updates were rejected because the remote contains work that you do not have locally.");
     // "rejected" keyword triggers NonFastForward

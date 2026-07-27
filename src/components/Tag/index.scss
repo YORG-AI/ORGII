@@ -46,7 +46,7 @@
     border: none;
     background: transparent;
     font-size: 12px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     opacity: 0.6;
     transition: opacity 0.2s ease;
     color: inherit;
@@ -160,7 +160,7 @@
 
   // Checkable variant
   &-checkable {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     user-select: none;
 
     .tag-body {

@@ -24,6 +24,11 @@ impl EventStore {
         self.id_index.get(id).map(|&idx| &self.events[idx])
     }
 
+    /// Current insertion-order position for incremental snapshot ordering.
+    pub fn event_position(&self, id: &str) -> Option<usize> {
+        self.id_index.get(id).copied()
+    }
+
     /// Update a single event by ID via a patch. O(1) lookup.
     pub fn update_by_id(&mut self, id: &str, patch: &SessionEventPatch) -> bool {
         if let Some(&idx) = self.id_index.get(id) {

@@ -6,7 +6,7 @@
  * the app mounts, unlike WorkStation actions which only register when
  * a WorkStation provider mounts.
  *
- * Called once from the AppShell or root layout.
+ * Called once from the router root layout.
  */
 import { collectAppZodActions } from "./collectAppActions";
 import { zodActionRegistry } from "./schema/zodRegistry";

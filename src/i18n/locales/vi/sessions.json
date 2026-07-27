@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token quyết định",
     "tooltip": "Phân bổ công cụ ước tính. Phương pháp: {{method}}. Đầu vào: {{inputBytes}} bytes. Đầu ra: {{outputBytes}} bytes. Quyết định: {{decisionTokens}} Token. Ngữ cảnh: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. LLM cache read liên quan: {{cacheReadTokens}} Token. LLM cache write liên quan: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Tiêu đề (không bắt buộc)"
+  },
   "history": {
     "untitledSession": "Session chưa đặt tên",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Ngày tạo",
       "updated": "Đã cập nhật",
       "lastUpdated": "Cập nhật lần cuối",
+      "external": "Bên ngoài",
+      "internal": "Nội bộ",
       "rounds": "Lượt",
       "roundCount_one": "{{count}} lượt",
       "roundCount_other": "{{count}} lượt",
@@ -124,9 +129,10 @@
         "default": "Mặc định",
         "manual": "Thủ công",
         "60s": "Mỗi 60 giây",
-        "5m": "Mỗi 5 phút",
-        "1h": "Hàng giờ",
-        "1d": "Hàng ngày"
+        "120s": "Mỗi 120 giây",
+        "10m": "Mỗi 10 phút",
+        "30m": "Mỗi 30 phút",
+        "1h": "Hàng giờ"
       },
       "openFolder": "Mở thư mục",
       "tabs": {
@@ -1312,6 +1318,8 @@
     "terminalSummary": {
       "command_one": "{{count}} lệnh",
       "command_other": "{{count}} lệnh",
+      "mcp_one": "{{count}} lệnh gọi MCP",
+      "mcp_other": "{{count}} lệnh gọi MCP",
       "wait_one": "{{count}} lần chờ",
       "wait_other": "{{count}} lần chờ",
       "check_one": "{{count}} lần kiểm tra",
@@ -2089,7 +2097,10 @@
     "categoryLabel": "Danh mục phiên",
     "categoryTemplate": "Chọn {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Agent tích hợp",
+    "builtIns": "Tích hợp sẵn",
+    "humanSession": {
+      "name": "Nhật ký công việc"
+    },
     "cliAgents": "Agent CLI",
     "customAgents": "Agent tùy chỉnh",
     "agentOrgs": "Nhóm Agent",

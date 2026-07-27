@@ -23,16 +23,11 @@ function defaultDiagnosticsEndpoint() {
   return `${protocolPart}://${workerHost}/${pathSegments.join("/")}`;
 }
 
-function readPackageVersion() {
-  const packagePath = path.join(__dirname, "..", "..", "package.json");
-  const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
-  return typeof packageJson.version === "string" && packageJson.version.length > 0
-    ? packageJson.version
-    : undefined;
-}
-
 function readLocalDiagnosticsToken() {
-  const localAuthPath = path.join(__dirname, "diagnostics-auth-parts.local.cjs");
+  const localAuthPath = path.join(
+    __dirname,
+    "diagnostics-auth-parts.local.cjs"
+  );
   if (!fs.existsSync(localAuthPath)) {
     return undefined;
   }
@@ -44,21 +39,23 @@ function readLocalDiagnosticsToken() {
   return token.length > 0 ? token : undefined;
 }
 
-function applyDefaultDiagnosticsEndpoint(env) {
-  if (!env.ORGII_DIAGNOSTICS_ENDPOINT) {
-    env.ORGII_DIAGNOSTICS_ENDPOINT = defaultDiagnosticsEndpoint();
-  }
+function applyDefaultDiagnosticsEndpoint(
+  env,
+  loadLocalToken = readLocalDiagnosticsToken
+) {
   if (!env.ORGII_DIAGNOSTICS_TOKEN) {
-    const token = readLocalDiagnosticsToken();
+    const token = loadLocalToken();
     if (token) {
       env.ORGII_DIAGNOSTICS_TOKEN = token;
     }
   }
-  if (!env.ORGII_APP_VERSION) {
-    const appVersion = readPackageVersion();
-    if (appVersion) {
-      env.ORGII_APP_VERSION = appVersion;
-    }
+  // The default worker requires authentication. Local builds without a token
+  // must keep diagnostics queued on-device instead of anonymously posting to
+  // the production endpoint and surfacing a guaranteed 401 at startup.
+  // An explicitly supplied endpoint remains valid for self-hosted collectors
+  // that intentionally accept unauthenticated requests.
+  if (!env.ORGII_DIAGNOSTICS_ENDPOINT && env.ORGII_DIAGNOSTICS_TOKEN) {
+    env.ORGII_DIAGNOSTICS_ENDPOINT = defaultDiagnosticsEndpoint();
   }
   return env;
 }
@@ -67,5 +64,4 @@ module.exports = {
   applyDefaultDiagnosticsEndpoint,
   defaultDiagnosticsEndpoint,
   readLocalDiagnosticsToken,
-  readPackageVersion,
 };

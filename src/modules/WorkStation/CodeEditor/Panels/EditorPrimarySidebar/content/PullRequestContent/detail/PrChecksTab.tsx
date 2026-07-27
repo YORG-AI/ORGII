@@ -19,6 +19,7 @@ import type {
   GitHubChecksSummary,
   GitHubStatusContext,
 } from "@src/api/tauri/github";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
@@ -174,7 +175,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="mx-auto w-full max-w-[920px] px-4 py-4">
+      <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-4`}>
         <div className="mb-3 flex items-center gap-2">
           <StateIcon state={overall} />
           <span className="text-[13px] font-medium text-text-1">

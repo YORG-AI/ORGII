@@ -13,6 +13,12 @@ interface DropdownMenuSurfaceProps {
   getPopupContainer?: () => HTMLElement;
   dropdownRef: React.RefObject<HTMLDivElement | null>;
   position: DropdownPosition;
+  /**
+   * Height budget on the resolved side. Only set when the panel is actually
+   * taller than the space it has, so unconstrained panels keep their exact
+   * current layout (no `overflow` context, no scroll container).
+   */
+  maxHeight?: number;
   className: string;
   style?: React.CSSProperties;
   dropdownPosition: {
@@ -31,6 +37,7 @@ const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
   getPopupContainer,
   dropdownRef,
   position,
+  maxHeight,
   className,
   style,
   dropdownPosition,
@@ -41,6 +48,11 @@ const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
 }) => {
   if (!visible) return null;
 
+  const heightStyle: React.CSSProperties =
+    maxHeight === undefined
+      ? {}
+      : { maxHeight: `${maxHeight}px`, overflowY: "auto" };
+
   if (getPopupContainer) {
     const container = getPopupContainer();
     const dropdownContent = (
@@ -48,6 +60,7 @@ const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
         ref={dropdownRef}
         className={`fixed min-w-fit ${DROPDOWN_PANEL.zIndexClass} ${className}`}
         style={{
+          ...heightStyle,
           ...style,
           ...getPositionedOverlayVisibilityStyle(Boolean(dropdownPosition)),
           top: dropdownPosition ? `${dropdownPosition.top}px` : undefined,
@@ -67,7 +80,7 @@ const DropdownMenuSurface: React.FC<DropdownMenuSurfaceProps> = ({
     <div
       ref={dropdownRef}
       className={`pointer-events-auto absolute min-w-fit ${DROPDOWN_PANEL.zIndexClass} ${getPositionClasses(position)} ${className}`}
-      style={style}
+      style={{ ...heightStyle, ...style }}
       onMouseEnter={trigger === "hover" ? onMouseEnter : undefined}
       onMouseLeave={trigger === "hover" ? onMouseLeave : undefined}
     >

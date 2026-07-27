@@ -22,7 +22,7 @@ import {
  * Check if current path should bypass auth check
  */
 function isPublicPath(pathname: string): boolean {
-  // Login page itself (now inside AppShell at /orgii/app/login)
+  // Standalone login route.
   if (pathname === AUTH_ROUTES.login.path) return true;
   // OAuth callback routes (must process auth code first)
   if (pathname.includes("/marketplace/callback")) return true;
@@ -42,7 +42,7 @@ interface AuthGuardProps {
  * Returns Navigate to redirect, or children if authenticated.
  */
 export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
-  const { isAuthenticated, logout } = useServiceAuth();
+  const { isAuthenticated, logout, refresh } = useServiceAuth();
   const location = useLocation();
   const [sessionExpired, setSessionExpired] = useAtom(sessionExpiredAtom);
 
@@ -58,6 +58,13 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
       window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     };
   }, [handleSessionExpired]);
+
+  // The bundled app and tauri:dev have different WebView origins. Re-read the
+  // shared Tauri auth store once when this app regains focus.
+  useEffect(() => {
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [refresh]);
 
   // Handle session expiration - clear auth state (no redirect, AuthGuard handles it)
   useEffect(() => {

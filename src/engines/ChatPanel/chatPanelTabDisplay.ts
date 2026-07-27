@@ -7,7 +7,7 @@ import { stripPillReferences } from "@src/util/session/stripPillReferences";
 export interface ChatPanelTabDisplayLabels {
   launchpad: string;
   runtime: string;
-  cloudOrg: string;
+  organization: string;
   workManagement: {
     kanban: string;
     projects: string;
@@ -63,11 +63,10 @@ export function resolveChatPanelTabDisplayTitle(
     case "workspace":
       // The workspace name is stamped onto the tab at open time.
       return tab.title;
-    case "cloud-org":
-      return labels.cloudOrg;
+    case "organization":
+      return tab.title || labels.organization;
     case "work-item":
     case "project":
-    case "project-org":
     case "explore":
       // Each of these tabs stamps its entity / surface name onto `tab.title`
       // at open time, so the stored title is the correct pill label.
