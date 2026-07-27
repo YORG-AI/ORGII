@@ -6,9 +6,8 @@
  * fence with a slim toolbar (resize handle, open-in-browser, close).
  *
  * Security: sandbox="allow-scripts" only — no allow-same-origin, no
- * allow-forms, no allow-popups-to-escape-sandbox. The injected postMessage
- * eval listener is intentionally omitted here (no canvas:eval needed for
- * static previews). External URLs are never loaded.
+ * allow-forms, no allow-popups-to-escape-sandbox. No eval bridge is injected
+ * into the document. External URLs are never loaded.
  */
 import { ExternalLink, Maximize2, Minimize2, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
