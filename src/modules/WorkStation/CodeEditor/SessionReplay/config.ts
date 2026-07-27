@@ -17,9 +17,11 @@ import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
 import {
+  convertShellSearchOperation,
   convertToExploreOperation,
   convertToFileOperation,
   convertToShellOperation,
+  isShellSearchEvent,
 } from "./converters";
 import { isExplorePanelTool } from "./converters/exploreTypeResolver";
 import {
@@ -146,7 +148,14 @@ export function deriveIDEState(
     } else if (subtool === APP_SUBTOOL.SHELL) {
       const shellOp = convertToShellOperation(event, isCurrent);
       if (shellOp) {
-        shellOperations.push(shellOp);
+        // A shell command that is really a grep/rg pipeline belongs in the
+        // search panel, not the terminal Commands section.
+        const searchOp = convertShellSearchOperation(shellOp);
+        if (searchOp) {
+          exploreOperations.push(searchOp);
+        } else {
+          shellOperations.push(shellOp);
+        }
       }
     } else {
       // Unclassified CODE_EDITOR tools (MCP, etc.) → Other Tools.
@@ -190,7 +199,10 @@ export function deriveIDEState(
     if (currentSubtool === APP_SUBTOOL.FILE_WRITE) {
       fileViewMode = FILE_PANEL_VIEW_MODE.WRITE;
     } else if (currentSubtool === APP_SUBTOOL.SHELL) {
-      fileViewMode = FILE_PANEL_VIEW_MODE.TERMINAL;
+      // Grep-pipeline shell commands live in the explore panel (default mode).
+      if (!isShellSearchEvent(currentEvent)) {
+        fileViewMode = FILE_PANEL_VIEW_MODE.TERMINAL;
+      }
     } else if (currentSubtool === APP_SUBTOOL.OTHER_TOOL) {
       fileViewMode = FILE_PANEL_VIEW_MODE.TOOL;
     }
