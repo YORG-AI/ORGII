@@ -3,6 +3,7 @@ import {
   Columns3,
   Gauge,
   Github,
+  Inbox,
   ListTodo,
   Plus,
   SquarePen,
@@ -21,6 +22,7 @@ import {
   PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
   PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
   RUNTIME_MENU_ITEM_ID,
+  TEAM_INBOX_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
   getDraftMenuItemId,
   getDraftPreviewText,
@@ -34,6 +36,8 @@ interface BuildPinnedMenuItemsParams {
   kanbanLabel: string;
   kanbanShortcut: string;
   runtimeLabel: string;
+  teamInboxLabel: string;
+  teamInboxUnreadCount?: number;
 }
 
 interface BuildProjectsPinnedMenuItemsParams {
@@ -51,6 +55,8 @@ export function buildPinnedMenuItems({
   kanbanLabel,
   kanbanShortcut,
   runtimeLabel,
+  teamInboxLabel,
+  teamInboxUnreadCount = 0,
 }: BuildPinnedMenuItemsParams): NavigationMenuItem[] {
   return [
     {
@@ -77,6 +83,23 @@ export function buildPinnedMenuItems({
       icon: Gauge,
       iconName: "gauge",
       dataTestId: "sidebar-runtime",
+    },
+    {
+      id: TEAM_INBOX_MENU_ITEM_ID,
+      key: TEAM_INBOX_MENU_ITEM_ID,
+      label: teamInboxLabel,
+      icon: Inbox,
+      iconName: "inbox",
+      dataTestId: "sidebar-team-inbox",
+      trailingElement:
+        teamInboxUnreadCount > 0 ? (
+          <span
+            aria-label={`${teamInboxUnreadCount} unread`}
+            className="min-w-5 rounded-full bg-primary-6 px-1.5 text-center text-xs font-medium text-white"
+          >
+            {teamInboxUnreadCount > 99 ? "99+" : teamInboxUnreadCount}
+          </span>
+        ) : undefined,
     },
     {
       id: WORK_ITEMS_MENU_ITEM_ID,

@@ -12,6 +12,7 @@ import {
 const labels: ChatPanelTabDisplayLabels = {
   launchpad: "Launchpad",
   runtime: "Runtime",
+  teamInbox: "Team Inbox",
   cloudOrg: "Manage ORG",
   workManagement: {
     kanban: "Kanban",
@@ -35,6 +36,12 @@ describe("resolveChatPanelTabDisplayTitle", () => {
     expect(resolveChatPanelTabDisplayTitle(tab("runtime"), null, labels)).toBe(
       "Runtime"
     );
+  });
+
+  it("uses the localized Team Inbox title", () => {
+    expect(
+      resolveChatPanelTabDisplayTitle(tab("team-inbox"), null, labels)
+    ).toBe("Team Inbox");
   });
 
   it("uses the active management destination as the localized tab title", () => {

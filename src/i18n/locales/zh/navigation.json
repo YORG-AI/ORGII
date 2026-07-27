@@ -528,6 +528,7 @@
     "signIn": "登录",
     "signOut": "退出登录",
     "signedInToast": "已登录 ORG2 云",
+    "sessionExpired": "ORG2 云登录已过期，请重新登录后继续。",
     "recommendedBadge": "推荐",
     "recommendedDesc": "托管式会话共享、回放存储、团队权限和安全分享链接，无需自行搭建 Supabase。ORG2 为你管理 Auth 认证、数据库迁移、RLS 策略、计费、数据保留、配额以及后端升级",
     "customEndpoint": {

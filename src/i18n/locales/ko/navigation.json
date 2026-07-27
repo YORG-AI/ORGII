@@ -435,6 +435,7 @@
     "signIn": "로그인",
     "signOut": "로그아웃",
     "signedInToast": "ORG2 클라우드에 로그인했습니다",
+    "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
     "recommendedBadge": "추천",
     "recommendedDesc": "관리형 세션 공유, 리플레이 저장, 팀 권한, 안전한 공유 링크를 제공합니다. Supabase 설정이 필요 없습니다. Auth, 데이터베이스 마이그레이션, RLS 정책, 결제, 보존 기간, 할당량, 백엔드 업그레이드는 ORG2가 관리합니다",
     "customEndpoint": {

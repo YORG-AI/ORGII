@@ -437,6 +437,7 @@
     "signIn": "Entrar",
     "signOut": "Sair",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "Sua sessão do ORG2 Cloud expirou. Entre novamente para continuar.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {

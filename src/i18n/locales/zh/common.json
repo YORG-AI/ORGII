@@ -1024,6 +1024,101 @@
     "markAllAsRead": "全部标记为已读",
     "scrollToUnread": "跳转到未读"
   },
+  "teamInbox": {
+    "title": "团队收件箱",
+    "listLabel": "团队收件箱列表",
+    "itemsLabel": "团队收件箱事项",
+    "unreadCount": "{{count}} 条未读",
+    "allRead": "已全部阅读",
+    "loadMore": "加载更多",
+    "filters": {
+      "all": "全部",
+      "mentions": "提及",
+      "assigned": "分配给我"
+    },
+    "status": {
+      "read": "已读",
+      "unread": "未读"
+    },
+    "row": {
+      "assignedSummary": "{{status}} · {{priority}}"
+    },
+    "search": {
+      "placeholder": "搜索收件箱",
+      "ariaLabel": "搜索团队收件箱"
+    },
+    "groups": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "thisWeek": "本周",
+      "earlier": "更早"
+    },
+    "empty": {
+      "title": "暂无事项",
+      "subtitle": "新的提及和分配会显示在这里。",
+      "selectTitle": "选择一个事项",
+      "selectSubtitle": "查看评论上下文或工作项详情。",
+      "mentions": {
+        "title": "暂无提及",
+        "subtitle": "当同事在评论中 @ 你时，会显示在这里。"
+      },
+      "assigned": {
+        "title": "暂无分配给你的事项",
+        "subtitle": "分配给你的工作项会显示在这里。"
+      },
+      "noResults": {
+        "title": "无匹配结果",
+        "subtitle": "没有与「{{query}}」匹配的事项。"
+      }
+    },
+    "loading": "正在加载团队收件箱…",
+    "loadMore": "加载更多",
+    "errors": {
+      "loadTitle": "无法加载团队收件箱",
+      "load": "无法加载团队收件箱",
+      "refresh": "无法刷新团队收件箱",
+      "markRead": "标记已读失败，请重试。",
+      "markUnread": "标记未读失败，请重试。",
+      "markAllRead": "全部标记已读失败，请重试。"
+    },
+    "detail": {
+      "assignedSubtitle": "分配给你的工作项",
+      "mentionSubtitle": "评论中提及了你",
+      "mentionedYou": "提及了你"
+    },
+    "actions": {
+      "markRead": "标记已读",
+      "markUnread": "标记未读",
+      "openWorkItem": "打开工作项",
+      "openSession": "打开会话"
+    },
+    "fields": {
+      "status": "状态",
+      "priority": "优先级",
+      "assignee": "负责人",
+      "workItemId": "工作项 ID",
+      "session": "会话",
+      "comments": "评论数",
+      "threadId": "话题 ID",
+      "commentId": "评论 ID"
+    },
+    "workItemStatus": {
+      "backlog": "待办池",
+      "todo": "待办",
+      "in_progress": "进行中",
+      "in_review": "审核中",
+      "blocked": "受阻",
+      "done": "已完成",
+      "cancelled": "已取消"
+    },
+    "priority": {
+      "none": "无优先级",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    }
+  },
   "placeholderTypes": {
     "mcpServer": "MCP 服务器",
     "connection": "连接",

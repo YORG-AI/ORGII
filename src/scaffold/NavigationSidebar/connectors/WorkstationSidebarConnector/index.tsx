@@ -11,6 +11,8 @@ import { useMoveToOrgDialog } from "@src/features/TeamCollaboration/components/M
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
+import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
@@ -24,13 +26,13 @@ import {
   openOrReplaceSessionInChatPanelTabAtom,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
+  openTeamInboxInChatPanelTabAtom,
   openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { repoMapAtom } from "@src/store/repo";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
-  loadSidebarSessionById,
   loadSidebarSessions,
   markAllSessionsVisited,
   promoteActiveSessionCreatorDraftAtom,
@@ -79,6 +81,7 @@ import {
   KANBAN_MENU_ITEM_ID,
   NEW_SESSION_MENU_ITEM_ID,
   RUNTIME_MENU_ITEM_ID,
+  TEAM_INBOX_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
@@ -129,10 +132,8 @@ import {
 import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
 import type { WorkstationSidebarKey } from "./types";
 import { useProjectsMenuItemClick } from "./useProjectsMenuItemClick";
-import {
-  buildCloudOrgSelectorValue,
-  useSidebarOrgScope,
-} from "./useSidebarOrgScope";
+import { useSidebarOrgScope } from "./useSidebarOrgScope";
+import { useWorkstationSidebarReveal } from "./useWorkstationSidebarReveal";
 import {
   buildWorkItemsSidebarMenuItems,
   resolveWorkItemsSidebarMenuItemId,
@@ -152,6 +153,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const sessions = useAtomValue(sessionsAtom);
+  useTeamInboxDataSource();
+  const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
   const sessionSidebarRevealRequest = useAtomValue(
     sessionSidebarRevealRequestAtom
@@ -197,6 +200,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     openCreateTargetInChatPanelStartPageAtom
   );
   const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
+  const openTeamInboxTab = useSetAtom(openTeamInboxInChatPanelTabAtom);
   const closeAndDestroyChatPanelTab = useSetAtom(
     closeAndDestroyChatPanelTabAtom
   );
@@ -277,39 +281,20 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const [projectsCollapsedSectionIds, setProjectsCollapsedSectionIds] =
     useState<Set<string>>(() => new Set());
-  const activatedRevealRequestIdRef = React.useRef<number | null>(null);
-  const activeSessionSidebarRevealRequest =
-    sessionSidebarRevealRequest?.sessionId === activeSessionId
-      ? sessionSidebarRevealRequest
-      : null;
-  useEffect(() => {
-    if (!sessionSidebarRevealRequest) {
-      activatedRevealRequestIdRef.current = null;
-      return;
-    }
-    if (sessionSidebarRevealRequest.sessionId === activeSessionId) {
-      activatedRevealRequestIdRef.current =
-        sessionSidebarRevealRequest.requestId;
-      return;
-    }
-    if (
-      activatedRevealRequestIdRef.current ===
-      sessionSidebarRevealRequest.requestId
-    ) {
-      clearSessionSidebarReveal(sessionSidebarRevealRequest.requestId);
-      activatedRevealRequestIdRef.current = null;
-    }
-  }, [activeSessionId, clearSessionSidebarReveal, sessionSidebarRevealRequest]);
-  const revealedSessionIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (activeSessionSidebarRevealRequest?.sessionId) {
-      ids.add(activeSessionSidebarRevealRequest.sessionId);
-    }
-    if (activeSessionSidebarRevealRequest?.parentSessionId) {
-      ids.add(activeSessionSidebarRevealRequest.parentSessionId);
-    }
-    return ids;
-  }, [activeSessionSidebarRevealRequest]);
+  const {
+    activeRequest: activeSessionSidebarRevealRequest,
+    revealedSessionIds,
+  } = useWorkstationSidebarReveal({
+    activeSessionId,
+    request: sessionSidebarRevealRequest,
+    clearRequest: clearSessionSidebarReveal,
+    setSidebarCollapsed,
+    setActiveSidebarKey,
+    setWorkItemsOpen,
+    setSelectedOrgId,
+    setSidebarSearchQueries,
+    setExpandedSubagentParentIds,
+  });
 
   const untitledSession = t("sidebar.defaults.untitledSession");
   const newSessionLabel = t("labels.newSession");
@@ -319,6 +304,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const createWorkItemLabel = tProjects("workItems.createWorkItem");
   const workItemsLabel = t("labels.workItems");
   const runtimeLabel = tSessions("chat.startPage.tabs.runtime");
+  const teamInboxLabel = t("labels.teamInbox", {
+    defaultValue: "Team Inbox",
+  });
   const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
   const addOrgLabel = t("collaboration.addOrg");
   const manageOrgLabel = t("collaboration.manageOrg");
@@ -437,6 +425,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     kanbanLabel: tSessions("simulator.tabs.kanban"),
     newSessionLabel,
     runtimeLabel,
+    teamInboxLabel,
+    teamInboxUnreadCount,
     workItemDestinations: workItemsSidebarMenuItems,
     t,
   });
@@ -449,60 +439,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     () => [...cloudMenuItems, ...sessionSidebarMenuItems],
     [cloudMenuItems, sessionSidebarMenuItems]
   );
-  useEffect(() => {
-    if (!sessionSidebarRevealRequest) return;
-
-    setSidebarCollapsed(false);
-    const parentSessionId =
-      sessionSidebarRevealRequest.parentSessionId ??
-      sessionSidebarRevealRequest.sessionId;
-    const revealFrame = window.requestAnimationFrame(() => {
-      setActiveSidebarKey("workstation");
-      setWorkItemsOpen(false);
-      if (sessionSidebarRevealRequest.cloudOrgId) {
-        setSelectedOrgId(
-          buildCloudOrgSelectorValue(sessionSidebarRevealRequest.cloudOrgId)
-        );
-      }
-      setSidebarSearchQueries((currentQueries) =>
-        currentQueries.workstation
-          ? { ...currentQueries, workstation: "" }
-          : currentQueries
-      );
-      if (sessionSidebarRevealRequest.parentSessionId) {
-        setExpandedSubagentParentIds((previousIds) => {
-          if (previousIds.has(parentSessionId)) return previousIds;
-          const nextIds = new Set(previousIds);
-          nextIds.add(parentSessionId);
-          return nextIds;
-        });
-      }
-    });
-
-    const sessionIds = new Set([
-      parentSessionId,
-      sessionSidebarRevealRequest.sessionId,
-    ]);
-    for (const sessionId of sessionIds) {
-      void loadSidebarSessionById(sessionId)
-        .then((session) => {
-          if (!session) {
-            logger.warn(
-              `Unable to hydrate sidebar row for session ${sessionId}`
-            );
-          }
-        })
-        .catch((error: unknown) => {
-          logger.warn(
-            `Failed to hydrate sidebar row for session ${sessionId}:`,
-            error
-          );
-        });
-    }
-
-    return () => window.cancelAnimationFrame(revealFrame);
-  }, [sessionSidebarRevealRequest, setSelectedOrgId, setSidebarCollapsed]);
-
   const revealedSectionId = useMemo(
     () =>
       activeSessionSidebarRevealRequest
@@ -845,6 +781,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
         openRuntimeTab(runtimeLabel);
         return;
       }
+      if (item.id === TEAM_INBOX_MENU_ITEM_ID) {
+        openTeamInboxTab(teamInboxLabel);
+        return;
+      }
       if (isChatTerminalSidebarItem(item.id)) {
         activateChatPanelTab(getChatTerminalTabId(item.id));
         return;
@@ -877,7 +817,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
       handleProjectsMenuItemClick,
       handleOpenInNewTab,
       openRuntimeTab,
+      openTeamInboxTab,
       runtimeLabel,
+      teamInboxLabel,
       sessionMap,
       workItemsContentVisible,
     ]

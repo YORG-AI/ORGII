@@ -40,6 +40,9 @@ const WorkspaceExplorePanelView = React.lazy(
   () => import("../panels/WorkspaceExplorePanelView")
 );
 const RuntimePanelView = React.lazy(() => import("../panels/RuntimePanelView"));
+const TeamInboxView = React.lazy(
+  () => import("@src/modules/MainApp/TeamInbox")
+);
 
 export interface ChatPanelSurfaceRendererProps {
   tab: ChatPanelTab;
@@ -112,6 +115,14 @@ export function ExploreSurfaceRenderer(): React.ReactNode {
   return (
     <Suspense fallback={null}>
       <WorkspaceExplorePanelView />
+    </Suspense>
+  );
+}
+
+export function TeamInboxSurfaceRenderer(): React.ReactNode {
+  return (
+    <Suspense fallback={null}>
+      <TeamInboxView />
     </Suspense>
   );
 }
