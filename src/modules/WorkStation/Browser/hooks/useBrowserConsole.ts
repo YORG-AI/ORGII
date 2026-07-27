@@ -217,10 +217,11 @@ export function useBrowserConsole(
     (closedSessionId: string) => {
       cacheRef.current.delete(closedSessionId);
       if (closedSessionId === sessionId) {
+        pollCoordinator.supersede();
         setEntries([]);
       }
     },
-    [sessionId]
+    [pollCoordinator, sessionId]
   );
 
   // Truncate message if too long
