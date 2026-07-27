@@ -108,17 +108,7 @@ describe("browser diagnostics lifecycle", () => {
     act(() => {
       poll = latest!.pollNow();
     });
-    act(() => {
-      root.render(
-        createElement(Harness, {
-          enabled: false,
-          sessionId: "session-1",
-          webviewLabel: "browser-session-1",
-          pollInterval: 0,
-          onValue: capture,
-        })
-      );
-    });
+    act(() => latest!.clearSessionEntries("session-1"));
     expect(latest!.entries).toEqual([]);
 
     await act(async () => {
@@ -182,17 +172,7 @@ describe("browser diagnostics lifecycle", () => {
     act(() => {
       poll = latest!.pollNow();
     });
-    act(() => {
-      root.render(
-        createElement(Harness, {
-          enabled: false,
-          sessionId: "session-1",
-          webviewLabel: "browser-session-1",
-          pollInterval: 0,
-          onValue: capture,
-        })
-      );
-    });
+    act(() => latest!.clearSessionEntries("session-1"));
 
     await act(async () => {
       request.resolve([
