@@ -2,9 +2,9 @@ import React, { memo, useCallback } from "react";
 
 import type { FileChange, FileChangeStatus } from "@src/api/http/project";
 import Button from "@src/components/Button";
+import FilePathBreadcrumb from "@src/components/FilePathBreadcrumb";
 
 import DiffSummary from "./DiffSummary";
-import FilePathBreadcrumb from "./FilePathBreadcrumb";
 
 const STATUS_CONFIG: Record<
   FileChangeStatus,

@@ -17,6 +17,7 @@ import { sourceControlFilterModeAtom } from "@src/store/workstation/codeEditor/s
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import { createAnimationFrameScheduler } from "./animationFrameScheduler";
 import { CODE_EDITOR_TOUR_TARGETS } from "./codeEditorTourConfig";
 
 type CodeEditorTourTarget =
@@ -261,18 +262,22 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
   useEffect(() => {
     if (!open) return;
 
-    const frameId = window.requestAnimationFrame(updateTargetRect);
-    const retryId = window.setTimeout(updateTargetRect, 220);
-    const lateRetryId = window.setTimeout(updateTargetRect, 520);
-    window.addEventListener("resize", updateTargetRect);
-    window.addEventListener("scroll", updateTargetRect, true);
+    const scheduler = createAnimationFrameScheduler(updateTargetRect, {
+      requestFrame: window.requestAnimationFrame.bind(window),
+      cancelFrame: window.cancelAnimationFrame.bind(window),
+    });
+    const retryId = window.setTimeout(scheduler.schedule, 220);
+    const lateRetryId = window.setTimeout(scheduler.schedule, 520);
+    scheduler.schedule();
+    window.addEventListener("resize", scheduler.schedule);
+    window.addEventListener("scroll", scheduler.schedule, true);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      scheduler.cancel();
       window.clearTimeout(retryId);
       window.clearTimeout(lateRetryId);
-      window.removeEventListener("resize", updateTargetRect);
-      window.removeEventListener("scroll", updateTargetRect, true);
+      window.removeEventListener("resize", scheduler.schedule);
+      window.removeEventListener("scroll", scheduler.schedule, true);
     };
   }, [open, updateTargetRect]);
 

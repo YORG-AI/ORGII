@@ -83,6 +83,12 @@ export async function createOrg(
   return result;
 }
 
+export async function deleteOrg(orgId: string): Promise<void> {
+  await invoke("project_delete_org", { orgId });
+  invalidateCache("__project_orgs__");
+  invalidateCache("__projects__");
+}
+
 export async function configureOrgGitFolderSync(
   request: ConfigureProjectOrgGitFolderSyncRequest
 ): Promise<ProjectOrg> {

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 
+import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
 import { configureIdeServerForIdentifier } from "@src/config/ideServer";
 import { applyHostDesktopWindowChromeRadius } from "@src/config/windowChromeRadius";
 import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
@@ -149,6 +150,15 @@ async function initializeApp() {
   // Runtime identity must be known before loading App: several API modules
   // derive local HTTP/WebSocket constants at module evaluation time.
   await initializeRuntimeInstanceIdentity();
+  // Tauri dev and bundled WebViews have different origins. Hydrate the shared
+  // app-data auth store before App imports initialize auth atoms and guards.
+  try {
+    await initializeSharedServiceAuthStorage();
+  } catch (error) {
+    // Fall back to this origin's local session if the store is unavailable.
+    // A focus event retries synchronization after React mounts.
+    log.warn("[Init] Shared auth storage unavailable:", error);
+  }
   const appModulePromise = import("@src/App");
 
   // Clear stale opened repos from previous app session (main window only)

@@ -99,7 +99,7 @@ const EMPTY_STATE: AppMemorySnapshotState = {
 
 let state = EMPTY_STATE;
 let activeConsumers = 0;
-let intervalId: ReturnType<typeof setInterval> | null = null;
+let timeoutId: ReturnType<typeof setTimeout> | null = null;
 let inFlight: Promise<AppMemorySnapshotV1 | null> | null = null;
 const listeners = new Set<() => void>();
 
@@ -149,26 +149,47 @@ export function refreshAppMemorySnapshot(): Promise<AppMemorySnapshotV1 | null> 
   return inFlight;
 }
 
+function clearScheduledRefresh(): void {
+  if (timeoutId === null) return;
+  clearTimeout(timeoutId);
+  timeoutId = null;
+}
+
+async function refreshAndSchedule(): Promise<void> {
+  clearScheduledRefresh();
+  if (
+    activeConsumers === 0 ||
+    typeof document === "undefined" ||
+    document.visibilityState !== "visible"
+  ) {
+    return;
+  }
+
+  await refreshAppMemorySnapshot();
+  if (activeConsumers > 0 && document.visibilityState === "visible") {
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      void refreshAndSchedule();
+    }, POLL_INTERVAL_MS);
+  }
+}
+
 function handleVisibilityChange(): void {
   if (document.visibilityState === "visible" && activeConsumers > 0) {
-    void refreshAppMemorySnapshot();
+    void refreshAndSchedule();
+  } else {
+    clearScheduledRefresh();
   }
 }
 
 function startPolling(): void {
-  if (intervalId !== null || typeof document === "undefined") return;
+  if (typeof document === "undefined") return;
   document.addEventListener("visibilitychange", handleVisibilityChange);
-  intervalId = setInterval(() => {
-    void refreshAppMemorySnapshot();
-  }, POLL_INTERVAL_MS);
-  void refreshAppMemorySnapshot();
+  void refreshAndSchedule();
 }
 
 function stopPolling(): void {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
+  clearScheduledRefresh();
   if (typeof document !== "undefined") {
     document.removeEventListener("visibilitychange", handleVisibilityChange);
   }

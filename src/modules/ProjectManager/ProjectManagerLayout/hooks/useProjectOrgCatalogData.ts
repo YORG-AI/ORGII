@@ -206,6 +206,11 @@ export function useProjectOrgCatalogData(orgId: string) {
     return result;
   }, [orgId, reload]);
 
+  const handleDeleteOrg = useCallback(async () => {
+    await projectApi.deleteOrg(orgId);
+    setCatalog(EMPTY_PROJECT_ORG_CATALOG);
+  }, [orgId, setCatalog]);
+
   const isGitFolderSynced =
     org?.sync_provider === PROJECT_ORG_SYNC_PROVIDER.GIT_FOLDER;
 
@@ -223,6 +228,7 @@ export function useProjectOrgCatalogData(orgId: string) {
     handleUpdateLabels,
     handleConfigureGitFolder,
     handleSyncGitFolder,
+    handleDeleteOrg,
     reload,
   };
 }

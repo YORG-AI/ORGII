@@ -187,6 +187,28 @@ export const isTerminalActivityEvent = (event: SessionEvent): boolean => {
   return isTerminalCommandEvent(event);
 };
 
+/**
+ * MCP tool calls arrive in several wire shapes across agent providers:
+ * - canonical `mcp_tool` events;
+ * - Rust bridge names (`mcp__server__tool`, `mcp_server_tool`);
+ * - provider namespaces (`codex_app__read_thread_terminal`);
+ * - legacy events carrying an explicit `args.server` field.
+ */
+export const isMcpToolEvent = (event: SessionEvent): boolean => {
+  const functionName = event.functionName.toLowerCase();
+  return (
+    getUiCanonical(event) === "mcp_tool" ||
+    functionName.startsWith("mcp_") ||
+    functionName.includes("__") ||
+    typeof event.args?.server === "string"
+  );
+};
+
+/** Activity that belongs in the collapsible command/MCP stack. */
+export const isCommandGroupActivityEvent = (event: SessionEvent): boolean => {
+  return isTerminalActivityEvent(event) || isMcpToolEvent(event);
+};
+
 /** A shell command that can anchor a Terminal activity group. */
 export const isTerminalCommandEvent = (event: SessionEvent): boolean => {
   if (getUiCanonical(event) !== "run_shell") return false;

@@ -61,15 +61,9 @@
     "startSession": "Начать сессию",
     "sessions": "Session",
     "selectProject": "Выбрать Project",
-    "startPage": "Главная страница",
     "inbox": "Входящие",
     "login": "Вход",
     "setup": "Настройка",
-    "devJourney": "Dev Journey",
-    "devRecord": "Журнал разработки",
-    "gitDashboard": "Git Панель",
-    "devActivity": "Dev Активность",
-    "usageHistory": "История использования",
     "tokenMarket": "Token маркет",
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
@@ -85,20 +79,8 @@
     "ideaArea": "Пространство идей",
     "changelog": "Журнал изменений"
   },
-  "appGrid": {
-    "customizeGrid": "Настроить сетку",
-    "horizontalGap": "Горизонтальный интервал",
-    "verticalGap": "Вертикальный интервал",
-    "resetToDefault": "Сбросить по умолчанию"
-  },
-  "greetings": {
-    "morning": "Доброе утро",
-    "afternoon": "Добрый день",
-    "evening": "Добрый вечер"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Главная",
       "workstation": "Workstation",
       "manage": "Управление",
       "core": "Ядро",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Добавить новое",
       "collapseAll": "Свернуть все",
-      "markAllRead": "Отметить все как прочитанные",
-      "openHome": "Открыть Home",
-      "openWorkstation": "Открыть Workstation"
+      "markAllRead": "Отметить все как прочитанные"
     },
     "search": {
       "folders": "Искать в рабочей области...",
@@ -358,15 +338,6 @@
       "projects": "Проекты"
     }
   },
-  "changelog": {
-    "title": "Журнал изменений",
-    "subtitle": "Обновления продукта",
-    "commitCount": "{{count}} коммитов",
-    "commitCount_one": "{{count}} коммит",
-    "details": "Подробности",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Сменить ORG",
     "addOrg": "Добавить ORG",
@@ -475,7 +446,8 @@
       "retentionUpgrade": "Эта сессия вне окна реплея вашего плана — обновите план, чтобы её открыть",
       "importError": "Не удалось импортировать сессию",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Обо мне"
     },
     "sidebar": {
       "teamSessions": "Сессии команды",
@@ -492,7 +464,8 @@
       "viewerOverflow": "и ещё {{count}} смотрят",
       "memberViewing": "смотрит: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Копировать ID"
     },
     "sync": {
       "quotaExceededToast": "Синхронизация ORG2 Cloud приостановлена: квота плана этой организации исчерпана",
@@ -614,7 +587,8 @@
         "inviteInvalid": "Этот код приглашения недействителен.",
         "inviteRevoked": "Это приглашение отозвано.",
         "inviteExpired": "Срок действия приглашения истёк.",
-        "inviteExhausted": "У этого приглашения не осталось использований."
+        "inviteExhausted": "У этого приглашения не осталось использований.",
+        "network": "Не удалось подключиться к облачному сервису. Проверьте сеть и повторите попытку."
       }
     },
     "syncLevel": {
@@ -723,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Выполнен вход как {{name}}"
   }
 }

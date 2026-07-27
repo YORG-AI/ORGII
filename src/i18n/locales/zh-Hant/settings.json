@@ -163,7 +163,7 @@
     "timezoneAuto": "自動（瀏覽器）",
     "timezoneSearchPlaceholder": "搜索附近城市",
     "sendOnEnter": "Enter 發送消息",
-    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送",
+    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 與 Ctrl/Cmd+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送",
     "language": "語言",
     "languageSearchPlaceholder": "搜索語言...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "我在電腦前。你可以隨時向我提出澄清問題，執行任何破壞性操作前請先讓我確認",
     "presenceGuidanceInvisibleDefault": "我在附近但顯示為離線。預設自主執行；只有高風險操作或重大重構才通知我，其他問題請彙總成一段摘要，不要逐個詢問",
     "presenceGuidanceAwayDefault": "我暫時不在電腦前。不要等我回覆；根據現有資訊做出最佳判斷，完成能完成的事項，並留下簡明總結和待我回來處理的問題",
-    "followSystem": "跟隨系統"
+    "followSystem": "跟隨系統",
+    "preferences": "偏好設定",
+    "usePointerCursors": "使用指標游標",
+    "usePointerCursorsDesc": "將游標移至互動元素上時變更為指標"
   },
   "background": {
     "title": "背景",
@@ -820,8 +823,6 @@
   },
   "update": {
     "title": "App 更新",
-    "autoUpdate": "自動更新",
-    "autoUpdateDesc": "自動下載更新，並在安裝和重新啓動 ORGII 前詢問",
     "channel": "更新通道",
     "channelDesc": "Beta 通道會先於正式版收到預發布版本。切換回正式版不會降級，將在下一個正式版本發布時生效",
     "channelStable": "正式版",
@@ -831,7 +832,6 @@
     "installConfirmTitle": "更新已準備好安裝",
     "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作。",
     "installAndRestart": "安裝並重新啓動",
-    "autoDownloadUpdates": "以後自動下載更新",
     "skipVersion": "跳過此版本"
   },
   "monitor": {
@@ -1040,7 +1040,7 @@
     "decryptEffect": "解密效果",
     "decryptEffectDesc": "爲 Agent 消息啓用解密動畫效果",
     "sendOnEnter": "Enter 發送消息",
-    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送"
+    "sendOnEnterDesc": "啟用後 Enter 發送，Shift+Enter 與 Ctrl/Cmd+Enter 換行；關閉後 Ctrl/Cmd+Enter 發送"
   },
   "languageServers": {
     "languageServersDesc": "管理用於自動補全、診斷和代碼智能的 LSP 服務器",

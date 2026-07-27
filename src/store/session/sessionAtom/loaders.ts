@@ -7,10 +7,11 @@
  *    used by panels that want a single flat list across all categories
  *    (Chat history panel, Simulator panel, useSessionManager).
  *
- *  - `loadSidebarSessions()` / `loadMoreCategory()` — sidebar-specific
- *    paginated loaders. Native categories fetch one top-N page; imported
- *    sources fetch lightweight, independent date-bucket pages from ORGII's
- *    cache so a busy Today bucket cannot hide Yesterday.
+ *  - `loadSessionRoster()` / `loadMoreCategory()` — the shared incremental
+ *    roster consumed by Sidebar and every session Kanban mode. Native
+ *    categories fetch one top-N page; imported sources fetch lightweight,
+ *    independent date-bucket pages from ORGII's cache so a busy Today bucket
+ *    cannot hide Yesterday.
  */
 import {
   type ImportedHistorySource,
@@ -64,32 +65,23 @@ import type { Session, SessionStatus } from "./types";
 const log = createLogger("SessionAtom");
 
 const getStore = () => getInstrumentedStore();
-type SessionStore = ReturnType<typeof getStore>;
-
 const BULK_CACHE_DURATION_MS = 5 * 60 * 1000;
 const DEFAULT_FLAT_LIST_PAGE_SIZE = 200;
-interface SidebarLoadFlight {
-  scopeKey: string;
-  promise: Promise<void>;
-}
-const sidebarLoadInFlightByStore = new WeakMap<
-  SessionStore,
-  SidebarLoadFlight
+const exactSessionBatchLoadsByStore = new WeakMap<
+  object,
+  Map<string, Promise<Session[]>>
 >();
 
-interface FlatLoadFlight {
-  scopeKey: string;
-  forceRefresh: boolean;
-  generation: number;
-  promise: Promise<void>;
+function exactSessionBatchLoadsForStore(
+  store: object
+): Map<string, Promise<Session[]>> {
+  let loads = exactSessionBatchLoadsByStore.get(store);
+  if (!loads) {
+    loads = new Map();
+    exactSessionBatchLoadsByStore.set(store, loads);
+  }
+  return loads;
 }
-
-interface FlatLoadState {
-  generation: number;
-  flight?: FlatLoadFlight;
-}
-
-const flatLoadStateByStore = new WeakMap<SessionStore, FlatLoadState>();
 
 interface LoadSessionsOptions {
   repoPath?: string;
@@ -109,39 +101,9 @@ function loadSessionsCacheSignature(options?: LoadSessionsOptions): string {
     options?.projectSlug ?? "",
     options?.workItemId ?? "",
     options?.status ?? "",
-    options?.limit ?? DEFAULT_FLAT_LIST_PAGE_SIZE,
-    options?.offset ?? 0,
+    options?.limit ?? "",
+    options?.offset ?? "",
   ].join("\u001f");
-}
-
-interface FlatLoadScope {
-  cacheSignature: string;
-  disabledSources: string[];
-  includeExternalHistory: boolean;
-  scopeKey: string;
-}
-
-function getFlatLoadScope(
-  store: SessionStore,
-  options?: LoadSessionsOptions
-): FlatLoadScope {
-  const disabledSources = Object.entries(store.get(dataSourceConfigAtom))
-    .filter(([, config]) => config?.enabled === false)
-    .map(([sourceId]) => sourceId)
-    .sort();
-  const includeExternalHistory = store.get(externalSessionsEnabledAtom);
-  const filterSignature = loadSessionsCacheSignature(options);
-  const scopeKey = JSON.stringify([
-    filterSignature,
-    includeExternalHistory,
-    disabledSources,
-  ]);
-  return {
-    cacheSignature: scopeKey,
-    disabledSources,
-    includeExternalHistory,
-    scopeKey,
-  };
 }
 
 function mergeSessions(
@@ -266,6 +228,8 @@ function importedHistoryPageResult(
         is_active: row.isActive ?? false,
         background: false,
         repoPath: row.repoPath,
+        repoRootPath: row.repoRootPath,
+        repoRemoteUrls: row.repoRemoteUrls,
         storagePath: row.storagePath,
         agentIconId: source.iconId,
         agentDisplayName: source.displayName,
@@ -350,13 +314,24 @@ function mergeDateBucketPagination(
   return next;
 }
 
-async function performFlatSessionLoad(
-  store: SessionStore,
-  state: FlatLoadState,
-  generation: number,
-  scope: FlatLoadScope,
-  options?: LoadSessionsOptions
-): Promise<void> {
+export const loadSessions = async (options?: LoadSessionsOptions) => {
+  const store = getStore();
+  const { forceRefresh = false } = options || {};
+  const cacheSignature = loadSessionsCacheSignature(options);
+
+  const lastLoaded = store.get(sessionFlatListLastLoadedBySignatureAtom)[
+    cacheSignature
+  ];
+  const now = Date.now();
+
+  if (
+    !forceRefresh &&
+    lastLoaded &&
+    now - lastLoaded < BULK_CACHE_DURATION_MS
+  ) {
+    return;
+  }
+
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
 
@@ -380,14 +355,18 @@ async function performFlatSessionLoad(
           }
         : undefined;
 
+    const disabledSources = Object.entries(store.get(dataSourceConfigAtom))
+      .filter(([, cfg]) => cfg?.enabled === false)
+      .map(([sourceId]) => sourceId);
+
     const response = await sessionAggregateList({
       ...filter,
       limit: filter?.limit ?? DEFAULT_FLAT_LIST_PAGE_SIZE,
-      includeExternalHistory: scope.includeExternalHistory,
+      includeExternalHistory: store.get(externalSessionsEnabledAtom),
       sortBy: filter?.sortBy ?? "updated_at",
       sortOrder: filter?.sortOrder ?? "desc",
       disabledExternalHistorySources:
-        scope.disabledSources.length > 0 ? scope.disabledSources : undefined,
+        disabledSources.length > 0 ? disabledSources : undefined,
     });
 
     const fetched: Session[] = mergeGuestImportedSessions(
@@ -398,94 +377,20 @@ async function performFlatSessionLoad(
       (sessionB.updated_at || "").localeCompare(sessionA.updated_at || "")
     );
 
-    if (state.generation !== generation) return;
-
     store.set(sessionsAtom, fetched);
     persistSessions(fetched);
     store.set(sessionFlatListLastLoadedBySignatureAtom, (prev) => ({
       ...prev,
-      [scope.cacheSignature]: Date.now(),
+      [cacheSignature]: now,
     }));
   } catch (error) {
-    if (state.generation !== generation) return;
     log.error("[SessionAtom] Failed to load sessions:", error);
     store.set(
       sessionErrorAtom,
       error instanceof Error ? error.message : "Failed to load sessions"
     );
   } finally {
-    if (state.generation === generation) {
-      store.set(sessionLoadingAtom, false);
-    }
-  }
-}
-
-/**
- * Coordinate flat-list requests across every hook instance using this store.
- *
- * Equal scopes share one request. A stronger forced refresh or changed scope
- * supersedes the current generation, waits for it to release the IPC slot,
- * and then performs one trailing request. Superseded responses never write.
- */
-export const loadSessions = async (
-  options?: LoadSessionsOptions
-): Promise<void> => {
-  const store = getStore();
-  const forceRefresh = options?.forceRefresh ?? false;
-  const scope = getFlatLoadScope(store, options);
-  const lastLoaded = store.get(sessionFlatListLastLoadedBySignatureAtom)[
-    scope.cacheSignature
-  ];
-
-  if (
-    !forceRefresh &&
-    lastLoaded &&
-    Date.now() - lastLoaded < BULK_CACHE_DURATION_MS
-  ) {
-    return;
-  }
-
-  let state = flatLoadStateByStore.get(store);
-  if (!state) {
-    state = { generation: 0 };
-    flatLoadStateByStore.set(store, state);
-  }
-
-  const current = state.flight;
-  if (current) {
-    const currentSatisfiesRequest =
-      current.scopeKey === scope.scopeKey &&
-      (!forceRefresh || current.forceRefresh);
-    if (currentSatisfiesRequest) return current.promise;
-
-    // Fence the old response immediately, before waiting for its IPC call.
-    state.generation += 1;
-    await current.promise;
-    return loadSessions(options);
-  }
-
-  const generation = state.generation + 1;
-  state.generation = generation;
-  const promise = performFlatSessionLoad(
-    store,
-    state,
-    generation,
-    scope,
-    options
-  );
-  state.flight = {
-    scopeKey: scope.scopeKey,
-    forceRefresh,
-    generation,
-    promise,
-  };
-
-  try {
-    await promise;
-  } finally {
-    if (state.flight?.promise === promise) {
-      state.flight = undefined;
-    }
+    store.set(sessionLoadingAtom, false);
   }
 };
 
@@ -496,7 +401,7 @@ interface FetchPageResult {
 }
 
 async function fetchAggregatePage(
-  wireCategory: "cli" | "agent",
+  wireCategory: "cli" | "agent" | "human",
   offset: number,
   pageSize: number
 ): Promise<FetchPageResult> {
@@ -534,6 +439,8 @@ async function loadCategoryPage(
       return fetchAggregatePage("cli", offset, pageSize);
     case "rust_agent":
       return fetchAggregatePage("agent", offset, pageSize);
+    case "human_session":
+      return fetchAggregatePage("human", offset, pageSize);
   }
 }
 
@@ -557,26 +464,26 @@ function replaceFirstPageForCategory(
   return mergeSessions(prev, incoming);
 }
 
-function getSidebarLoadScopeKey(store: SessionStore, pageSize: number): string {
-  const configuredSources = Object.entries(store.get(dataSourceConfigAtom))
-    .map(([sourceId, config]) => [sourceId, config?.enabled !== false] as const)
-    .sort(([sourceA], [sourceB]) => sourceA.localeCompare(sourceB));
-  return JSON.stringify([
-    pageSize,
-    store.get(externalSessionsEnabledAtom),
-    configuredSources,
-  ]);
+interface SidebarLoadOptions {
+  pageSize?: number;
+  forceRefresh?: boolean;
 }
 
-async function performSidebarSessionsLoad(
-  store: SessionStore,
-  options?: {
-    pageSize?: number;
-    forceRefresh?: boolean;
-  }
-): Promise<void> {
+const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
+  const store = getStore();
   const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  const { forceRefresh = false } = options ?? {};
+
+  const lastLoaded = store.get(sessionLastLoadedAtom);
   const now = Date.now();
+
+  if (
+    !forceRefresh &&
+    lastLoaded &&
+    now - lastLoaded < BULK_CACHE_DURATION_MS
+  ) {
+    return;
+  }
 
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
@@ -672,86 +579,149 @@ async function performSidebarSessionsLoad(
   persistSessions(merged);
   store.set(sessionLastLoadedAtom, now);
   store.set(sessionLoadingAtom, false);
+};
+
+function mergeSidebarLoadOptions(
+  current: SidebarLoadOptions | null,
+  requested: SidebarLoadOptions
+): SidebarLoadOptions {
+  return {
+    pageSize: Math.max(
+      current?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE,
+      requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE
+    ),
+    forceRefresh:
+      (current?.forceRefresh ?? false) || (requested.forceRefresh ?? false),
+  };
+}
+
+function sidebarLoadCovers(
+  active: SidebarLoadOptions | null,
+  requested: SidebarLoadOptions
+): boolean {
+  if (!active) return false;
+  const activePageSize = active.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  const requestedPageSize = requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
+  return (
+    activePageSize >= requestedPageSize &&
+    ((active.forceRefresh ?? false) || !(requested.forceRefresh ?? false))
+  );
 }
 
 /**
- * Share one sidebar refresh between concurrent consumers.
- *
- * Mount, search, auto-scan, and manual refresh can all request the same initial
- * pages in one interaction. The first request starts immediately; later
- * callers await it instead of duplicating the two aggregate queries and the
- * external-history batch.
+ * Build a single-flight coordinator around the sidebar read. Kept as a small
+ * injectable unit so queue coverage, escalation, and failure recovery can be
+ * tested without exercising every session provider.
  */
-export const loadSidebarSessions = async (options?: {
-  pageSize?: number;
-  forceRefresh?: boolean;
-}): Promise<void> => {
-  const store = getStore();
-  const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
-  const lastLoaded = store.get(sessionLastLoadedAtom);
-  if (
-    !options?.forceRefresh &&
-    lastLoaded &&
-    Date.now() - lastLoaded < BULK_CACHE_DURATION_MS
-  ) {
-    return;
-  }
+function createSidebarLoadCoordinator(
+  load: (options?: SidebarLoadOptions) => Promise<void>
+): (options?: SidebarLoadOptions) => Promise<void> {
+  let inFlight: Promise<void> | null = null;
+  let active: SidebarLoadOptions | null = null;
+  let pending: SidebarLoadOptions | null = null;
 
-  const inFlight = sidebarLoadInFlightByStore.get(store);
-  const scopeKey = getSidebarLoadScopeKey(store, pageSize);
-  if (inFlight) {
-    if (inFlight.scopeKey === scopeKey) return inFlight.promise;
-    try {
-      await inFlight.promise;
-    } catch {
-      // The caller targets a newer scope and still deserves its own attempt.
+  return (options: SidebarLoadOptions = {}): Promise<void> => {
+    if (inFlight && sidebarLoadCovers(active, options)) {
+      return inFlight;
     }
-    return loadSidebarSessions(options);
-  }
+    pending = mergeSidebarLoadOptions(pending, options);
+    if (inFlight) return inFlight;
 
-  const pass = performSidebarSessionsLoad(store, options);
-  sidebarLoadInFlightByStore.set(store, { scopeKey, promise: pass });
-  try {
-    await pass;
-  } finally {
-    if (sidebarLoadInFlightByStore.get(store)?.promise === pass) {
-      sidebarLoadInFlightByStore.delete(store);
-    }
-  }
-};
+    const run = async () => {
+      while (pending) {
+        const next = pending;
+        pending = null;
+        active = next;
+        await load(next);
+      }
+    };
+    inFlight = run().finally(() => {
+      active = null;
+      inFlight = null;
+    });
+    return inFlight;
+  };
+}
 
 /**
- * Hydrate one canonical session row for sidebar deep-link navigation.
+ * One process-wide session-roster loader. Overlapping mounts/refreshes join the
+ * active read; a stronger request (forced or larger page) is merged into one
+ * follow-up pass instead of starting a parallel category fan-out.
+ */
+export const loadSessionRoster = createSidebarLoadCoordinator(
+  performSidebarSessionLoad
+);
+
+/**
+ * Compatibility alias for callers outside the roster surfaces. New Sidebar
+ * and Kanban code should use `loadSessionRoster` so ownership is unambiguous.
+ */
+export const loadSidebarSessions = loadSessionRoster;
+
+/**
+ * Hydrate canonical session rows by exact id.
  *
  * Normal sidebar loading is intentionally paginated per source/date bucket.
- * A file-history link may target a much older session, so walking those pages
- * would be both slow and nondeterministic. The aggregate API resolves the exact
- * canonical ID and this function merges only that authoritative row.
+ * Deep links and cloud-scoped My Conversations can target much older rows, so
+ * walking pages would be slow and nondeterministic. The aggregate API resolves
+ * the exact ids in one bounded batch and merges only authoritative rows.
  */
+export function loadSidebarSessionsByIds(
+  sessionIds: readonly string[]
+): Promise<Session[]> {
+  const normalizedSessionIds = [
+    ...new Set(sessionIds.map((sessionId) => sessionId.trim()).filter(Boolean)),
+  ];
+  if (normalizedSessionIds.length === 0) return Promise.resolve([]);
+
+  const store = getStore();
+  const exactSessionBatchLoads = exactSessionBatchLoadsForStore(store);
+  // React effects and deep-link reveals can converge on the same exact rows.
+  // Share that batch while it is active; entries are removed on settlement so
+  // this coordinator cannot grow over the app lifetime.
+  const requestKey = JSON.stringify([...normalizedSessionIds].sort());
+  const existing = exactSessionBatchLoads.get(requestKey);
+  if (existing) return existing;
+
+  const request = (async (): Promise<Session[]> => {
+    const response = await sessionAggregateList({
+      sessionIds: normalizedSessionIds,
+      includeExternalHistory: store.get(externalSessionsEnabledAtom),
+      limit: normalizedSessionIds.length,
+    });
+    const requestedIds = new Set(normalizedSessionIds);
+    const loaded = toFrontendSessions(response.sessions).filter((candidate) =>
+      requestedIds.has(candidate.session_id)
+    );
+    if (loaded.length === 0) return [];
+
+    store.set(sessionsAtom, (previous) => mergeSessions(previous, loaded));
+    persistSessions(store.get(sessionsAtom));
+    return loaded;
+  })();
+  const trackedRequest = request.finally(() => {
+    if (exactSessionBatchLoads.get(requestKey) === trackedRequest) {
+      exactSessionBatchLoads.delete(requestKey);
+    }
+  });
+  exactSessionBatchLoads.set(requestKey, trackedRequest);
+  return trackedRequest;
+}
+
 export const loadSidebarSessionById = async (
   sessionId: string
 ): Promise<Session | null> => {
   const normalizedSessionId = sessionId.trim();
   if (!normalizedSessionId) return null;
 
-  const store = getStore();
   // Do not return an existing atom row before resolving the canonical record.
   // Transcript activation can insert a lightweight row first; imported
   // subagent rows in particular need the provider cache's parentSessionId so
   // the sidebar can place them beneath the root session deterministically.
-  const response = await sessionAggregateList({
-    sessionIds: [normalizedSessionId],
-    includeExternalHistory: store.get(externalSessionsEnabledAtom),
-    limit: 1,
-  });
-  const session = toFrontendSessions(response.sessions).find(
-    (candidate) => candidate.session_id === normalizedSessionId
+  const loaded = await loadSidebarSessionsByIds([normalizedSessionId]);
+  return (
+    loaded.find((session) => session.session_id === normalizedSessionId) ?? null
   );
-  if (!session) return null;
-
-  store.set(sessionsAtom, (previous) => mergeSessions(previous, [session]));
-  persistSessions(store.get(sessionsAtom));
-  return session;
 };
 
 export const loadMoreCategory = async (
@@ -787,6 +757,7 @@ export const loadMoreCategory = async (
 };
 
 export const __TESTS_ONLY = {
+  createSidebarLoadCoordinator,
   mergeSessions,
   replaceExternalHistorySourceFirstPage,
 };

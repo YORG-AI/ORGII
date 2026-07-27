@@ -92,11 +92,18 @@ const syncChatPanelTabNavigationAtom = atom(
       return;
     }
 
-    if (tab.type === "cloud-org" && tab.cloudOrg) {
-      set(chatPanelNavigateAtom, {
-        kind: CHAT_PANEL_SURFACE_KIND.CLOUD_ORG,
-        cloudOrg: tab.cloudOrg,
-      });
+    if (tab.type === "organization" && tab.organization) {
+      if (tab.organization.kind === "cloud") {
+        set(chatPanelNavigateAtom, {
+          kind: CHAT_PANEL_SURFACE_KIND.CLOUD_ORG,
+          cloudOrg: tab.organization.cloudOrg,
+        });
+      } else {
+        set(chatPanelNavigateAtom, {
+          kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
+          projectOrg: tab.organization.projectOrg,
+        });
+      }
       set(jumpToSessionAtom, null);
       return;
     }
@@ -118,15 +125,6 @@ const syncChatPanelTabNavigationAtom = atom(
       set(chatPanelNavigateAtom, {
         kind: CHAT_PANEL_SURFACE_KIND.PROJECT,
         project: tab.project,
-      });
-      set(jumpToSessionAtom, null);
-      return;
-    }
-
-    if (tab.type === "project-org" && tab.projectOrg) {
-      set(chatPanelNavigateAtom, {
-        kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
-        projectOrg: tab.projectOrg,
       });
       set(jumpToSessionAtom, null);
       return;
@@ -225,10 +223,9 @@ export const activateChatPanelTabAtom = atom(
       tab.type === "runtime" ||
       tab.type === "work-management" ||
       tab.type === "workspace" ||
-      tab.type === "cloud-org" ||
+      tab.type === "organization" ||
       tab.type === "work-item" ||
       tab.type === "project" ||
-      tab.type === "project-org" ||
       tab.type === "explore"
     ) {
       // Surface state for these tabs is fully driven by

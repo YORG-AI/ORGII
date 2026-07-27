@@ -89,6 +89,9 @@ importers:
       '@emotion/is-prop-valid':
         specifier: ^1.4.0
         version: 1.4.0
+      '@fabianlars/tauri-plugin-oauth':
+        specifier: ^2.0.0
+        version: 2.0.0
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
@@ -248,12 +251,6 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      keepalive-for-react:
-        specifier: 4.0.3
-        version: 4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      keepalive-for-react-router:
-        specifier: 1.0.1
-        version: 1.0.1(keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-router-dom@6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6)
       lodash:
         specifier: ^4.17.21
         version: 4.17.23
@@ -1629,6 +1626,9 @@ packages:
       '@noble/hashes':
         optional: true
 
+  '@fabianlars/tauri-plugin-oauth@2.0.0':
+    resolution: {integrity: sha512-I1s08ZXrsFuYfNWusAcpLyiCfr5TCvaBrRuKfTG+XQrcaqnAcwjdWH0U5J9QWuMDLwCUMnVxdobtMJzPR8raxQ==}
+
   '@floating-ui/core@1.8.0':
     resolution: {integrity: sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==}
 
@@ -2334,6 +2334,9 @@ packages:
 
   '@tauri-apps/api@2.10.1':
     resolution: {integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==}
+
+  '@tauri-apps/api@2.11.1':
+    resolution: {integrity: sha512-M2FPuYND2m+wh5hfW9ZpSdxMPdEJovPBWwoHJmwUpysTYNHaOkVFN419m/K0LIgjb/7KU2vBgsUepJWugQCvAA==}
 
   '@tauri-apps/cli-darwin-arm64@2.10.1':
     resolution: {integrity: sha512-Z2OjCXiZ+fbYZy7PmP3WRnOpM9+Fy+oonKDEmUE6MwN4IGaYqgceTjwHucc/kEEYZos5GICve35f7ZiizgqEnQ==}
@@ -5440,20 +5443,6 @@ packages:
     resolution: {integrity: sha512-cjHooZUmIAUmDsHBN+1n8LaZdpmbj03LtYeYPyuYB7OuloiaeaV6N4LcfjcnHVzGWjVQmKrxxTrpDcmSzEZQwQ==}
     hasBin: true
 
-  keepalive-for-react-router@1.0.1:
-    resolution: {integrity: sha512-OxfBdjIZoVdrbOegaIZZ/1Ra2JPNVgnaPPMmS0A5obuIjvlplJyJ6KYhJsYbeiSoViJNWIvi30imO0nb/y0Oig==}
-    peerDependencies:
-      keepalive-for-react: workspace:^
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-      react-router-dom: '>=6.0.0'
-
-  keepalive-for-react@4.0.3:
-    resolution: {integrity: sha512-tN4Dt+ohlMDw4ycp1HWtJmoJR6G01AurSToKOJIuUwDV8xSGcUwcsshNnfncocx2J1aoDv5IYttmXInuuWuwGw==}
-    peerDependencies:
-      react: '>=16.8.0'
-      react-dom: '>=16.8.0'
-
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
 
@@ -5480,6 +5469,7 @@ packages:
 
   libsql@0.5.22:
     resolution: {integrity: sha512-NscWthMQt7fpU8lqd7LXMvT9pi+KhhmTHAJWUB/Lj6MWa0MKFv0F2V4C6WKKpjCVZl0VwcDz4nOI3CyaT1DDiA==}
+    cpu: [x64, arm64, wasm32, arm]
     os: [darwin, linux, win32]
 
   lie@3.3.0:
@@ -9597,6 +9587,10 @@ snapshots:
 
   '@exodus/bytes@1.15.1': {}
 
+  '@fabianlars/tauri-plugin-oauth@2.0.0':
+    dependencies:
+      '@tauri-apps/api': 2.10.1
+
   '@floating-ui/core@1.8.0':
     dependencies:
       '@floating-ui/utils': 0.2.12
@@ -10265,6 +10259,8 @@ snapshots:
   '@tanstack/virtual-core@3.13.22': {}
 
   '@tauri-apps/api@2.10.1': {}
+
+  '@tauri-apps/api@2.11.1': {}
 
   '@tauri-apps/cli-darwin-arm64@2.10.1':
     optional: true
@@ -13773,18 +13769,6 @@ snapshots:
   katex@0.16.38:
     dependencies:
       commander: 8.3.0
-
-  keepalive-for-react-router@1.0.1(keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react-dom@19.2.6(react@19.2.6))(react-router-dom@6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6))(react@19.2.6):
-    dependencies:
-      keepalive-for-react: 4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
-      react-router-dom: 6.30.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-
-  keepalive-for-react@4.0.3(react-dom@19.2.6(react@19.2.6))(react@19.2.6):
-    dependencies:
-      react: 19.2.6
-      react-dom: 19.2.6(react@19.2.6)
 
   keyv@4.5.4:
     dependencies:

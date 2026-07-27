@@ -108,6 +108,7 @@ export function buildPinnedMenuItems({
       icon: ListTodo,
       iconName: "list-todo",
       children: workItemDestinations,
+      disclosureFollowsLabel: true,
       dataTestId: "sidebar-toggle-work-items",
     },
   ];

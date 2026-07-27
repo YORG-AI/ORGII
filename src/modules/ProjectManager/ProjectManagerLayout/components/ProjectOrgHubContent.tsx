@@ -36,6 +36,7 @@ export interface ProjectOrgHubContentProps {
   onCreateWorkItem: () => void;
   onExpandWorkItemToTab: ExpandWorkItemToTabHandler;
   onOpenLinearProjects?: (selection?: LinearProjectSelection) => void;
+  onOrgDeleted?: (orgId: string) => void | Promise<void>;
 }
 
 export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
@@ -51,6 +52,7 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
   onCreateWorkItem,
   onExpandWorkItemToTab,
   onOpenLinearProjects,
+  onOrgDeleted,
 }) => {
   const catalog = useProjectOrgCatalogData(orgId);
 
@@ -79,9 +81,6 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
       <ProjectOrgSurfacePillSwitch
         orgView={orgView}
         onOrgViewChange={onOrgViewChange}
-        variant="simple"
-        color="default"
-        size="large"
       />
     ),
     [orgView, onOrgViewChange]
@@ -95,6 +94,11 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
   const contentOrgSurfaceControls = renderSurfaceControlsInline
     ? undefined
     : orgSurfaceControls;
+
+  const handleDeleteOrg = React.useCallback(async () => {
+    await catalog.handleDeleteOrg();
+    await onOrgDeleted?.(orgId);
+  }, [catalog, onOrgDeleted, orgId]);
 
   const body = useMemo(() => {
     if (orgView === PROJECT_ORG_SURFACE_VIEW.PROJECTS) {
@@ -162,14 +166,13 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
         <ProjectOrgSettingsPane
           org={catalog.org}
           projectCount={catalog.projects.length}
-          members={catalog.members}
           labels={catalog.labels}
           folderPath={catalog.folderPath}
           onFolderPathChange={catalog.setFolderPath}
           onConfigureGitFolder={catalog.handleConfigureGitFolder}
           onSyncGitFolder={catalog.handleSyncGitFolder}
-          onUpdateMembers={catalog.handleUpdateMembers}
           onUpdateLabels={catalog.handleUpdateLabels}
+          onDeleteOrg={handleDeleteOrg}
         />
       );
     }
@@ -183,6 +186,7 @@ export const ProjectOrgHubContent: React.FC<ProjectOrgHubContentProps> = ({
     onOpenLinearProjects,
     onSelectProject,
     contentOrgSurfaceControls,
+    handleDeleteOrg,
     orgView,
     resolvedBreadcrumbSegments,
     scopedOrgId,

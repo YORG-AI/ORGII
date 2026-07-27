@@ -61,15 +61,9 @@
     "startSession": "Bắt đầu phiên",
     "sessions": "Các Session",
     "selectProject": "Chọn Project",
-    "startPage": "Trang bắt đầu",
     "inbox": "Hộp thư đến",
     "login": "Đăng nhập",
     "setup": "Thiết lập",
-    "devJourney": "Dev Journey",
-    "devRecord": "Hồ sơ phát triển",
-    "gitDashboard": "Bảng điều khiển Git",
-    "devActivity": "Hoạt động Dev",
-    "usageHistory": "Lịch sử sử dụng",
     "tokenMarket": "Thị trường Token",
     "taskMarket": "Thị trường nhiệm vụ",
     "channels": "Kênh",
@@ -85,20 +79,8 @@
     "ideaArea": "Khu vực ý tưởng",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Tùy chỉnh lưới",
-    "horizontalGap": "Khoảng cách ngang",
-    "verticalGap": "Khoảng cách dọc",
-    "resetToDefault": "Đặt lại mặc định"
-  },
-  "greetings": {
-    "morning": "Chào buổi sáng",
-    "afternoon": "Chào buổi chiều",
-    "evening": "Chào buổi tối"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Trang chủ",
       "workstation": "Workstation",
       "manage": "Quản lý",
       "core": "Lõi",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Thêm mới",
       "collapseAll": "Thu gọn tất cả",
-      "markAllRead": "Đánh dấu tất cả đã đọc",
-      "openHome": "Mở Home",
-      "openWorkstation": "Mở Workstation"
+      "markAllRead": "Đánh dấu tất cả đã đọc"
     },
     "search": {
       "folders": "Tìm kiếm Workspace...",
@@ -358,15 +338,6 @@
       "projects": "Dự án"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Cập nhật sản phẩm",
-    "commitCount": "{{count}} commit",
-    "commitCount_one": "{{count}} commit",
-    "details": "Chi tiết",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Chuyển ORG",
     "addOrg": "Thêm ORG",
@@ -475,7 +446,8 @@
       "retentionUpgrade": "Phiên này nằm ngoài cửa sổ phát lại của gói — nâng cấp để xem",
       "importError": "Không nhập được phiên",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Giới thiệu về tôi"
     },
     "sidebar": {
       "teamSessions": "Phiên của nhóm",
@@ -492,7 +464,8 @@
       "viewerOverflow": "và {{count}} người khác đang xem",
       "memberViewing": "đang xem: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Sao chép ID"
     },
     "sync": {
       "quotaExceededToast": "Đồng bộ ORG2 Cloud tạm dừng: tổ chức này đã vượt hạn mức của gói",
@@ -614,7 +587,8 @@
         "inviteInvalid": "Mã mời không hợp lệ.",
         "inviteRevoked": "Lời mời đã bị thu hồi.",
         "inviteExpired": "Lời mời đã hết hạn.",
-        "inviteExhausted": "Lời mời đã hết số lần dùng."
+        "inviteExhausted": "Lời mời đã hết số lần dùng.",
+        "network": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại."
       }
     },
     "syncLevel": {
@@ -723,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Đã đăng nhập: {{name}}"
   }
 }

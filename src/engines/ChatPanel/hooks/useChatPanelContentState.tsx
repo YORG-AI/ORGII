@@ -18,7 +18,6 @@ interface UseChatPanelContentStateOptions {
   selectedProjectOrg: ChatPanelSelectedProjectOrg | null;
   selectedWorkItem: ChatPanelSelectedWorkItem | null;
   selectedWorkspace: ChatPanelSelectedWorkspace | null;
-  viewMode: string;
 }
 
 export interface ChatPanelContentState {
@@ -45,7 +44,6 @@ export function useChatPanelContentState({
   selectedProjectOrg,
   selectedWorkItem,
   selectedWorkspace,
-  viewMode,
 }: UseChatPanelContentStateOptions): ChatPanelContentState {
   const showBenchmarkSessionGroupContent =
     active && contentMode === CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP;
@@ -114,7 +112,7 @@ export function useChatPanelContentState({
     showCloudOrgContent ||
     showWorkspaceOverviewContent ||
     showExplicitNonSessionContent ||
-    (active && (showSessionContent || viewMode === "workStation"));
+    active;
 
   return {
     showBenchmarkSessionGroupContent,

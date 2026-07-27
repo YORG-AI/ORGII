@@ -51,6 +51,10 @@ export function handleComplete(
   sessionId: string,
   ctx: EventHandlerContext
 ): void {
+  log.info(
+    `[agent:complete] handling for ${sessionId} ` +
+      `(statusHandler=${ctx.onStatusChangeRef.current ? "wired" : "MISSING"})`
+  );
   resetAllStreamingState(ctx);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);

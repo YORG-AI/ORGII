@@ -35,6 +35,20 @@ async fn persist_direct_user_intervention(
         .map_err(|err| format!("Agent Org intervention worker failed: {err}"))?
 }
 
+pub(super) fn should_divert_to_mid_turn_steering(
+    source: TurnIntentBridgeSource,
+    is_resume: bool,
+    content: &str,
+    images: Option<&[String]>,
+    is_turn_processing: bool,
+) -> bool {
+    matches!(source, TurnIntentBridgeSource::UserSubmit)
+        && !is_resume
+        && !content.trim().is_empty()
+        && images.map(|items| items.is_empty()).unwrap_or(true)
+        && is_turn_processing
+}
+
 /// Implementation of agent_send_message.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn send_message_impl(
@@ -206,12 +220,13 @@ pub(crate) async fn send_message_impl(
     // the steering queue. A maintenance job (manual compaction) occupies the
     // worker without a turn loop, so a message diverted here during one would
     // wait forever.
-    if matches!(source, TurnIntentBridgeSource::UserSubmit)
-        && !is_resume
-        && !content.trim().is_empty()
-        && images.as_ref().map(|v| v.is_empty()).unwrap_or(true)
-        && session_handle.scheduler.is_turn_processing()
-    {
+    if should_divert_to_mid_turn_steering(
+        source,
+        is_resume,
+        &content,
+        images.as_deref(),
+        session_handle.scheduler.is_turn_processing(),
+    ) {
         // Steering mutates an already-running member turn, so intervention is
         // part of accepting the control action. If the durable takeover row
         // cannot be written, do not inject a message that Wake may race.

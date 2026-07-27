@@ -142,7 +142,7 @@
     "timezoneAuto": "Auto (Browser)",
     "timezoneSearchPlaceholder": "Search closest cities",
     "sendOnEnter": "Send messages with Enter",
-    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends",
+    "sendOnEnterDesc": "When enabled, Enter sends; Shift+Enter and Ctrl/Cmd+Enter insert a new line. When disabled, Ctrl/Cmd+Enter sends",
     "language": "Language",
     "languageSearchPlaceholder": "Search languages...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "I am at the keyboard. Feel free to ask me clarifying questions at any time and confirm any destructive actions with me before running them",
     "presenceGuidanceInvisibleDefault": "I am around but appearing offline. Default to autonomous execution and only notify me for high-risk actions or significant refactoring work; batch any other questions into a single summary instead of asking one by one",
     "presenceGuidanceAwayDefault": "I am away from the keyboard. Do not block on me — make the best decision you can with the information you have, finish what you can finish, and leave a concise summary of what happened and any open questions for when I return",
-    "followSystem": "Follow system"
+    "followSystem": "Follow system",
+    "preferences": "Preferences",
+    "usePointerCursors": "Use pointer cursors",
+    "usePointerCursorsDesc": "Change the cursor to a pointer when hovering over interactive elements"
   },
   "background": {
     "title": "Background",
@@ -820,8 +823,6 @@
   },
   "update": {
     "title": "App Update",
-    "autoUpdate": "Automatic updates",
-    "autoUpdateDesc": "Download updates automatically and ask before installing and restarting ORGII",
     "channel": "Update channel",
     "channelDesc": "Beta receives prerelease builds ahead of the stable release. Switching back to Stable never downgrades — it takes effect at the next stable release",
     "channelStable": "Stable",
@@ -831,7 +832,6 @@
     "installConfirmTitle": "Update ready to install",
     "installConfirmDesc": "Version {{version}} has been downloaded. Save any ongoing work before installing and restarting ORGII.",
     "installAndRestart": "Install and restart",
-    "autoDownloadUpdates": "Automatically download future updates",
     "skipVersion": "Skip this version"
   },
   "monitor": {
@@ -1048,7 +1048,7 @@
     "decryptEffect": "Typewriter Effect",
     "decryptEffectDesc": "Reveal Agent messages character by character",
     "sendOnEnter": "Send messages with Enter",
-    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends"
+    "sendOnEnterDesc": "When enabled, Enter sends; Shift+Enter and Ctrl/Cmd+Enter insert a new line. When disabled, Ctrl/Cmd+Enter sends"
   },
   "languageServers": {
     "languageServersDesc": "Manage LSP servers for autocomplete, diagnostics, and code intelligence",

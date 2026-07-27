@@ -6,9 +6,8 @@ rust-version = "1.85.0"
 
 # Centralised native-window helpers: macOS traffic-light positioning and
 # liquid-glass material,
-# Windows rounded-corner DWM tweaks, and the
-# "Open New Window" / "Recreate main window" flows used by the Tauri menu
-# and the in-app "Open in new window" affordance.
+# Windows rounded-corner DWM tweaks, and the "Recreate main window" flow used
+# by the Tauri menu and tray.
 #
 # Lives in its own crate so leaf crates (currently `browser`) can call
 # `app_window::set_traffic_light_position` / `apply_host_desktop_window_chrome`
@@ -22,19 +21,10 @@ rust-version = "1.85.0"
 name = "app_window"
 
 [dependencies]
-# Shared serde defaults (`default_true`) so we don't redefine the helper
-# locally — see `docs/rust-backend/modularization-plan--0504.md`
-# (latent crate-root path leaks).
-app_utils = { path = "../app-utils" }
 perf_utils = { path = "../perf-utils" }
 
-serde = { version = "1.0", features = ["derive"] }
 tauri = { workspace = true }
 tracing = "0.1"
-
-# `create_window` parses the supplied URL string into `url::Url` before
-# handing it to Tauri's `WebviewUrl::External`.
-url = "2"
 
 # macOS-specific native-window plumbing
 [target.'cfg(target_os = "macos")'.dependencies]

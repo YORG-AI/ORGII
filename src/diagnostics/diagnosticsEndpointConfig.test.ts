@@ -4,18 +4,18 @@ const require = createRequire(import.meta.url);
 const { applyDefaultDiagnosticsEndpoint, defaultDiagnosticsEndpoint } =
   require("../../scripts/tauri/diagnostics-endpoint.cjs") as {
     applyDefaultDiagnosticsEndpoint: (
-      env: Record<string, string | undefined>
+      env: Record<string, string | undefined>,
+      loadLocalToken?: () => string | undefined
     ) => Record<string, string | undefined>;
     defaultDiagnosticsEndpoint: () => string;
   };
 
 describe("diagnostics build environment", () => {
   it("keeps local diagnostics offline when no upload credentials exist", () => {
-    const env = applyDefaultDiagnosticsEndpoint({});
+    const env = applyDefaultDiagnosticsEndpoint({}, () => undefined);
 
     expect(env.ORGII_DIAGNOSTICS_ENDPOINT).toBeUndefined();
     expect(env.ORGII_DIAGNOSTICS_TOKEN).toBeUndefined();
-    expect(env.ORGII_APP_VERSION).toBeTruthy();
   });
 
   it("adds the default endpoint when an upload token is supplied", () => {

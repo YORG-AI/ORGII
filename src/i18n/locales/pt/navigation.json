@@ -61,15 +61,9 @@
     "startSession": "Iniciar sessão",
     "sessions": "Sessões",
     "selectProject": "Selecionar História",
-    "startPage": "Página Inicial",
     "inbox": "Caixa de Entrada",
     "login": "Entrar",
     "setup": "Configurar",
-    "devJourney": "Jornada de Dev",
-    "devRecord": "Registro de Dev",
-    "gitDashboard": "Painel do Git",
-    "devActivity": "Atividade de Dev",
-    "usageHistory": "Histórico de Uso",
     "tokenMarket": "Mercado de Tokens",
     "taskMarket": "Mercado de Tarefas",
     "channels": "Canais",
@@ -85,20 +79,8 @@
     "ideaArea": "Área de Ideias",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Personalizar Grade",
-    "horizontalGap": "Espaço Horizontal",
-    "verticalGap": "Espaço Vertical",
-    "resetToDefault": "Restaurar Padrão"
-  },
-  "greetings": {
-    "morning": "Bom dia",
-    "afternoon": "Boa tarde",
-    "evening": "Boa noite"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Início",
       "workstation": "Workstation",
       "manage": "Gerenciar",
       "core": "Núcleo",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Adicionar",
       "collapseAll": "Recolher tudo",
-      "markAllRead": "Marcar tudo como lido",
-      "openHome": "Abrir início",
-      "openWorkstation": "Abrir Workstation"
+      "markAllRead": "Marcar tudo como lido"
     },
     "search": {
       "folders": "Pesquisar no Workspace...",
@@ -360,15 +340,6 @@
       "projects": "Projetos"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Atualizações do produto",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Detalhes",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Trocar de ORG",
     "addOrg": "Adicionar ORG",
@@ -477,7 +448,8 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Sobre mim"
     },
     "sidebar": {
       "teamSessions": "Sessões da equipe",
@@ -494,7 +466,8 @@
       "viewerOverflow": "e mais {{count}} visualizando",
       "memberViewing": "vendo: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Copiar ID"
     },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
@@ -616,7 +589,8 @@
         "inviteInvalid": "Este código de convite não é válido.",
         "inviteRevoked": "Este convite foi revogado.",
         "inviteExpired": "Este convite expirou.",
-        "inviteExhausted": "Este convite não tem mais usos."
+        "inviteExhausted": "Este convite não tem mais usos.",
+        "network": "Não foi possível conectar ao serviço de nuvem. Verifique a rede e tente novamente."
       }
     },
     "syncLevel": {
@@ -725,6 +699,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Sessão iniciada como {{name}}"
   }
 }

@@ -163,4 +163,72 @@ describe("session published-header breadcrumbs", () => {
       /flex min-w-0 flex-1 items-center gap-0\.5[^"]* px-1/
     );
   });
+
+  it("shows an imported session owner after the session name", () => {
+    const session = {
+      session_id: "imported-session-1",
+      name: "Optimize session sidebar loading",
+      category: "external_history",
+      importedFrom: {
+        orgId: "org-1",
+        sourceSessionId: "remote-session-1",
+        ownerMemberId: "member-1",
+        ownerDisplayName: "  Ada Lovelace-Smith  ",
+        epoch: 1,
+        seq: 2,
+        count: 3,
+      },
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain("Optimize session sidebar loading");
+    expect(markup).toContain("h-4 w-px shrink-0 bg-border-2");
+    expect(markup).toContain(">Ada Lovela...</span>");
+    expect(markup).toContain(
+      'title="Optimize session sidebar loading | Ada Lovelace-Smith"'
+    );
+  });
+
+  it("keeps a ten-character imported owner name unchanged", () => {
+    const session = {
+      session_id: "imported-session-2",
+      name: "Review session",
+      importedFrom: {
+        ownerDisplayName: "1234567890",
+      },
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain(">1234567890</span>");
+    expect(markup).not.toContain("1234567890...");
+  });
+
+  it("keeps the owner suffix out of personal session headers", () => {
+    const session = {
+      session_id: "personal-session-1",
+      name: "Personal session",
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain("Personal session");
+    expect(markup).not.toContain("h-4 w-px shrink-0 bg-border-2");
+  });
 });

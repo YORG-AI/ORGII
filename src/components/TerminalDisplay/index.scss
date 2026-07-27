@@ -62,7 +62,7 @@
     border-radius: 9999px;
     background: var(--color-text-2);
     color: #fff;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: opacity 0.2s;
 
     &:hover {

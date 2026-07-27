@@ -9,7 +9,15 @@ export function routeSessionChannelEvent(
   refs: Pick<SessionSyncRefs, "handlerRef">,
   logger: Logger
 ): void {
-  if (!refs.handlerRef.current) return;
+  if (!refs.handlerRef.current) {
+    logger.rateLimited(
+      "session-channel-no-handler",
+      30_000,
+      "dropped a delivered session channel frame: no handler mounted",
+      raw.slice(0, 200)
+    );
+    return;
+  }
   try {
     const parsed = parseRawSessionEvent(raw) as RawSessionEvent;
     refs.handlerRef.current.handleEvent(parsed);

@@ -18,6 +18,8 @@ import {
 } from "./tokens";
 
 export interface SectionContainerProps {
+  /** Stable selector for rendered tests and external UI drivers. */
+  dataTestId?: string;
   /** Container content */
   children: React.ReactNode;
   /** Optional sub-section title above the card */
@@ -35,9 +37,17 @@ export interface SectionContainerProps {
 }
 
 const SectionContainer: React.FC<SectionContainerProps> = memo(
-  ({ children, title, titleSlot, className = "", padding = "none" }) => {
+  ({
+    children,
+    title,
+    titleSlot,
+    dataTestId,
+    className = "",
+    padding = "none",
+  }) => {
     const card = (
       <div
+        data-testid={dataTestId}
         className={`${SECTION_CONTAINER_CLASSES} ${SECTION_PADDING[padding]} ${className}`.trim()}
       >
         {children}

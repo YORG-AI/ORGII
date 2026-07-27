@@ -24,6 +24,7 @@ import {
   type CloudOrgMember,
   ensureFreshSession,
 } from "@src/features/Org2Cloud/org2CloudClient";
+import { broadcastOrgControlChangedToPeers } from "@src/features/Org2Cloud/org2CloudControlBus";
 import {
   type CreatedCloudInvite,
   createCloudInvite,
@@ -50,7 +51,7 @@ import {
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { setMemberSharingFloor } from "@src/features/Org2Cloud/org2CloudSyncClient";
 import { createLogger } from "@src/hooks/logger";
-import { closeCloudOrgManagementChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { closeOrganizationChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { getInviteExpiresAt } from "@src/store/collaboration/inviteDefaults";
 import {
   COLLAB_SESSION_ACCESS_MODE,
@@ -87,7 +88,7 @@ export function useCloudOrgManagement({
   const { t } = useTranslation("navigation");
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const closeCloudOrgManagementTab = useSetAtom(
-    closeCloudOrgManagementChatPanelTabAtom
+    closeOrganizationChatPanelTabAtom
   );
   const refetchOrgs = useRefetchOrg2CloudOrgs();
   const rosterVersionByOrg = useAtomValue(org2CloudRosterVersionAtom);
@@ -417,6 +418,7 @@ export function useCloudOrgManagement({
       try {
         const token = await getFreshToken();
         await renameCloudOrg(token, orgId, name);
+        broadcastOrgControlChangedToPeers(orgId, "roster");
         // Selector + panel header read from org2CloudOrgsAtom.
         await refetchOrgs({
           until: (orgs) =>

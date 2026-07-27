@@ -285,13 +285,24 @@ pub async fn es_unload_turn_body(
 ) -> Result<usize, String> {
     let lookup_sid = session_id.clone();
     let lookup_turn_id = turn_id.clone();
-    let turn = tokio::task::spawn_blocking(move || sqlite_cache::load_turn_index(&lookup_sid))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?
+    let persisted_turn =
+        tokio::task::spawn_blocking(move || sqlite_cache::load_turn_index(&lookup_sid))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|summary| summary.turn_id == lookup_turn_id);
+    let turn = match persisted_turn {
+        Some(turn) => turn,
+        None => crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
+            session_id.clone(),
+            Some(vec![turn_id.clone()]),
+        )
+        .await?
         .into_iter()
-        .find(|summary| summary.turn_id == lookup_turn_id)
-        .ok_or_else(|| format!("turn not found: {turn_id}"))?;
+        .next()
+        .ok_or_else(|| format!("turn not found: {turn_id}"))?,
+    };
 
     let placeholder = make_turn_placeholder_event(&session_id, &turn);
     let removed = state.with_store_mut(&session_id, |store| {

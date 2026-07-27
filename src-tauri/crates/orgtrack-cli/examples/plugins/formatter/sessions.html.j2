@@ -1,0 +1,30 @@
+{#- Reference orgtrack formatter template (minijinja).
+    Renders `list`/`search` sessions as an HTML table; falls back for other
+    commands. See plugin.toml for the per-command context shape. -#}
+{%- if command == "list" %}
+<table class="orgtrack-sessions">
+  <thead><tr><th>Tool</th><th>Session</th><th>Model</th><th>Tokens</th><th>Files</th></tr></thead>
+  <tbody>
+  {%- for s in sessions %}
+    <tr>
+      <td>{{ s.source }}</td>
+      <td>{{ s.name }}</td>
+      <td>{{ s.model or "-" }}</td>
+      <td>{{ s.totalTokens }}</td>
+      <td>{{ s.filesChanged }}</td>
+    </tr>
+  {%- endfor %}
+  </tbody>
+</table>
+<p>{{ total }} sessions</p>
+{%- elif command == "usage" %}
+<h2>Usage</h2>
+<ul>
+  <li>sessions: {{ summary.sessionCount }}</li>
+  <li>tokens: {{ summary.realTotalTokens }}</li>
+  <li>cost: ${{ "%.2f"|format(summary.costUsd) }}</li>
+</ul>
+{%- else %}
+<h2>Session {{ sessionId }}</h2>
+<p>{{ chunks|length }} chunks</p>
+{%- endif %}

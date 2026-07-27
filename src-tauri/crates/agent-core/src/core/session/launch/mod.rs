@@ -139,6 +139,8 @@ pub(crate) struct AgentRunLaunchResult {
     pub created_at: String,
     pub workspace_path: Option<String>,
     pub worktree_path: Option<String>,
+    pub worktree_branch: Option<String>,
+    pub base_ref: Option<String>,
     pub agent_org_id: Option<String>,
     pub agent_org_run_id: Option<String>,
     pub org_id: String,
@@ -440,6 +442,29 @@ pub(crate) async fn launch_rust_agent_run(
         .clone()
         .unwrap_or_else(|| derive_name(None, &request.content));
 
+    // Existing worktrees can be validated before a session id exists. Do it
+    // before creating any DB/org records so an invalid or cross-repo path can
+    // never surface as a briefly successful background launch.
+    let registered_existing_worktree = if let Some(path) = existing_worktree_path.as_deref() {
+        let repo = std::path::PathBuf::from(&workspace_path);
+        let path = std::path::PathBuf::from(path);
+        Some(
+            tokio::task::spawn_blocking(move || {
+                git::worktree::validate_existing_worktree(&repo, &path)
+            })
+            .await
+            .map_err(|err| format!("worktree validation task failed: {err}"))??,
+        )
+    } else {
+        None
+    };
+    let existing_worktree_path = registered_existing_worktree
+        .as_ref()
+        .map(|entry| entry.path.clone());
+    let existing_worktree_branch = registered_existing_worktree
+        .as_ref()
+        .map(|entry| entry.branch.clone());
+
     let create_result = crate::state::commands::session::create::create_session_impl(
         None,
         workspace_path.clone(),
@@ -571,7 +596,7 @@ pub(crate) async fn launch_rust_agent_run(
         let app_handle_for_background = state.app_handle.clone();
 
         tokio::spawn(async move {
-            let prepared_worktree_path = match prepare_rust_agent_workspace_for_launch(
+            let prepared_workspace = match prepare_rust_agent_workspace_for_launch(
                 &session_id_for_background,
                 &workspace_path_for_background,
                 branch_for_background.as_deref(),
@@ -606,7 +631,8 @@ pub(crate) async fn launch_rust_agent_run(
                 return;
             }
 
-            let workspace_path_for_send = prepared_worktree_path
+            let workspace_path_for_send = prepared_workspace
+                .worktree_path
                 .clone()
                 .unwrap_or_else(|| workspace_path_for_background.clone());
             // Title generation runs concurrently — it must not delay the
@@ -666,6 +692,8 @@ pub(crate) async fn launch_rust_agent_run(
             created_at,
             workspace_path: Some(workspace_path).filter(|path| !path.is_empty()),
             worktree_path: existing_worktree_path,
+            worktree_branch: existing_worktree_branch,
+            base_ref: None,
             agent_org_id,
             agent_org_run_id,
             org_id: request.org_context.org_id.clone(),
@@ -677,7 +705,7 @@ pub(crate) async fn launch_rust_agent_run(
         });
     }
 
-    let worktree_path = match prepare_rust_agent_workspace_for_launch(
+    let prepared_workspace = match prepare_rust_agent_workspace_for_launch(
         &session_id,
         &workspace_path,
         branch.as_deref(),
@@ -709,7 +737,8 @@ pub(crate) async fn launch_rust_agent_run(
     if has_initial_content {
         let state_for_send = state.clone();
         let session_id_for_send = session_id.clone();
-        let workspace_path_for_send = worktree_path
+        let workspace_path_for_send = prepared_workspace
+            .worktree_path
             .clone()
             .unwrap_or_else(|| workspace_path.clone());
         let content_for_send = request.content.clone();
@@ -788,7 +817,9 @@ pub(crate) async fn launch_rust_agent_run(
         },
         created_at,
         workspace_path: Some(workspace_path).filter(|path| !path.is_empty()),
-        worktree_path,
+        worktree_path: prepared_workspace.worktree_path,
+        worktree_branch: prepared_workspace.worktree_branch,
+        base_ref: prepared_workspace.base_ref,
         agent_org_id,
         agent_org_run_id,
         org_id: request.org_context.org_id,

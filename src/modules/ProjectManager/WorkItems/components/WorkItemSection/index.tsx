@@ -13,13 +13,16 @@ interface WorkItemSectionProps {
   status?: string;
   statusConfig: DropdownOption;
   count: number;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   defaultExpanded?: boolean;
+  expanded?: boolean;
   label?: React.ReactNode;
   addButtonTitle?: string;
   onAddItem?: () => void;
   compact?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
+  /** The virtualizer owns stickiness and row spacing in this mode. */
+  virtualizedHeader?: boolean;
 }
 
 const WorkItemSection: React.FC<WorkItemSectionProps> = ({
@@ -27,14 +30,17 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
   count,
   children,
   defaultExpanded = true,
+  expanded,
   label,
   addButtonTitle,
   onAddItem,
   compact = false,
   onExpandedChange,
+  virtualizedHeader = false,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
+  const isExpanded = expanded ?? internalExpanded;
   const sectionLabel =
     label ?? t(`workItems.statusLabels.${statusConfig.value}`);
   const addTitle =
@@ -44,18 +50,28 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
     });
   const toggleExpanded = () => {
     const nextExpanded = !isExpanded;
-    setIsExpanded(nextExpanded);
+    if (expanded === undefined) {
+      setInternalExpanded(nextExpanded);
+    }
     onExpandedChange?.(nextExpanded);
   };
   return (
     <div
-      className={`${compact ? "mb-2 px-0" : "mb-3 px-2 first:pt-2"} flex flex-col gap-1`}
+      className={`${
+        virtualizedHeader
+          ? compact
+            ? "px-0"
+            : "px-2 pt-2"
+          : compact
+            ? "mb-2 px-0"
+            : "mb-3 px-2 first:pt-2"
+      } flex flex-col gap-1`}
     >
       <div
         role="button"
         tabIndex={0}
         aria-expanded={isExpanded}
-        className={`group sticky top-0 z-10 flex w-full cursor-pointer items-center gap-1 rounded-lg border-[0.5px] border-border-1 text-left transition-colors ${compact ? "h-8 bg-fill-2 px-1.5 hover:bg-fill-3" : "h-9 bg-workstation-bg px-2 hover:bg-surface-hover"}`}
+        className={`group ${virtualizedHeader ? "" : "sticky top-0 z-10"} flex w-full cursor-pointer items-center gap-1 rounded-lg border-[0.5px] border-border-1 text-left transition-colors ${compact ? "h-8 bg-fill-2 px-1.5 hover:bg-fill-3" : "h-9 bg-workstation-bg px-2 hover:bg-surface-hover"}`}
         onClick={toggleExpanded}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -115,7 +131,9 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
           </Tooltip>
         )}
       </div>
-      {isExpanded && <div className="flex flex-col gap-1">{children}</div>}
+      {!virtualizedHeader && isExpanded && (
+        <div className="flex flex-col gap-1">{children}</div>
+      )}
     </div>
   );
 };

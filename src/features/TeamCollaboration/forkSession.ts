@@ -206,7 +206,8 @@ export async function resolveForkWorkspacePath(
     if (repo.path) candidates.push(repo.path);
   }
   for (const session of store.get(sessionsAtom) as Session[]) {
-    if (session.repoPath) candidates.push(session.repoPath);
+    const candidate = session.repoRootPath ?? session.repoPath;
+    if (candidate) candidates.push(candidate);
   }
 
   // Repo/session atoms may retain another machine's absolute path after a

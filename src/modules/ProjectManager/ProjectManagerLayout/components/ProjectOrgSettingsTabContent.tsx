@@ -34,14 +34,13 @@ export const ProjectOrgSettingsTabContent: React.FC<
       <ProjectOrgSettingsPane
         org={catalog.org}
         projectCount={catalog.projects.length}
-        members={catalog.members}
         labels={catalog.labels}
         folderPath={catalog.folderPath}
         onFolderPathChange={catalog.setFolderPath}
         onConfigureGitFolder={catalog.handleConfigureGitFolder}
         onSyncGitFolder={catalog.handleSyncGitFolder}
-        onUpdateMembers={catalog.handleUpdateMembers}
         onUpdateLabels={catalog.handleUpdateLabels}
+        onDeleteOrg={catalog.handleDeleteOrg}
       />
     </div>
   );

@@ -1,5 +1,4 @@
-import { getViewModeForRoute } from "@src/config/routeViewModeConfig";
-import { ROUTES } from "@src/config/routes";
+import { ROUTES, isWorkbenchPath } from "@src/config/routes";
 import type { StationMode } from "@src/store/ui/simulatorAtom";
 import type {
   WorkStationTab,
@@ -9,8 +8,16 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 const getStore = () => getInstrumentedStore();
 
+function isWorkbenchRoute() {
+  return isWorkbenchPath(window.location.pathname);
+}
+
 function isWorkStationRoute() {
-  return getViewModeForRoute(window.location.pathname) === "workStation";
+  const pathname = window.location.pathname;
+  return (
+    pathname === ROUTES.workStation.base.path ||
+    pathname.startsWith(`${ROUTES.workStation.base.path}/`)
+  );
 }
 
 function isCodeEditorRoute() {
@@ -107,7 +114,7 @@ export const WorkStationViewService = {
    * the underlying workbench was showing, without a "previous mode" round-trip.
    */
   async toggleChatPanelMaximized(): Promise<boolean> {
-    if (!isWorkStationRoute()) return false;
+    if (!isWorkbenchRoute()) return false;
 
     const [{ toggleChatPanelMaximizedAtom }] = await Promise.all([
       import("@src/store/ui/chatPanelAtom"),
@@ -119,7 +126,7 @@ export const WorkStationViewService = {
   },
 
   async showWorkStation(): Promise<boolean> {
-    if (!isWorkStationRoute()) return false;
+    if (!isWorkbenchRoute()) return false;
 
     const [
       { stationModeAtom },
@@ -180,14 +187,14 @@ export const WorkStationViewService = {
 
     await unmaximizeChatPanel();
     store.set(activeStationChatVisibleAtom, mode, true);
-    if (!isWorkStationRoute()) {
+    if (!isWorkbenchRoute()) {
       dispatchNavigate(ROUTES.workStation.base.path);
     }
     return true;
   },
 
   async toggleStationMode(): Promise<boolean> {
-    if (!isWorkStationRoute()) return false;
+    if (!isWorkbenchRoute()) return false;
 
     const { stationModeAtom } = await import("@src/store/ui/simulatorAtom");
 
@@ -199,7 +206,7 @@ export const WorkStationViewService = {
   },
 
   async toggleWorkstationSidebar(): Promise<boolean> {
-    if (!isWorkStationRoute()) return false;
+    if (!isWorkbenchRoute()) return false;
 
     const [
       { activeStatusBarCallbacksAtom },
@@ -355,7 +362,7 @@ export const WorkStationViewService = {
     ]);
 
     if (
-      isWorkStationRoute() &&
+      isWorkbenchRoute() &&
       store.get(stationModeAtom) === "agent-station" &&
       !options?.forceCodeEditorSurface
     ) {

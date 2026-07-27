@@ -271,18 +271,15 @@ dependencies = [
 name = "app_window"
 version = "0.1.0"
 dependencies = [
- "app_utils",
  "base64 0.22.1",
  "dispatch2",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
  "perf_utils",
- "serde",
  "tauri",
  "tauri-plugin-liquid-glass",
  "tracing",
- "url",
  "windows 0.61.3",
 ]
 
@@ -4436,6 +4433,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "memo-map"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38d1115007560874e373613744c6fba374c17688327a71c1476d1a5954cc857b"
+
+[[package]]
 name = "memoffset"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4458,6 +4461,16 @@ checksum = "f7c44f8e672c00fe5308fa235f821cb4198414e1c77935c1ab6948d3fd78550e"
 dependencies = [
  "mime",
  "unicase",
+]
+
+[[package]]
+name = "minijinja"
+version = "2.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb3d648e68cea56d9858d535ee28f9538404e2dd8cb08ed0bd05dca379477f39"
+dependencies = [
+ "memo-map",
+ "serde",
 ]
 
 [[package]]
@@ -5243,6 +5256,7 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-liquid-glass",
  "tauri-plugin-notification",
+ "tauri-plugin-oauth",
  "tauri-plugin-opener",
  "tauri-plugin-process",
  "tauri-plugin-shell",
@@ -5273,6 +5287,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "orgtrack_cli"
+version = "0.1.0"
+dependencies = [
+ "core_types",
+ "minijinja",
+ "orgtrack_core",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "toml 0.8.2",
+]
+
+[[package]]
 name = "orgtrack_core"
 version = "0.1.0"
 dependencies = [
@@ -5280,6 +5309,7 @@ dependencies = [
  "chrono",
  "core_types",
  "dirs",
+ "git2",
  "orgtrack_protocol",
  "orgtrack_sync",
  "prost",
@@ -8336,6 +8366,21 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.18",
  "time",
+ "url",
+]
+
+[[package]]
+name = "tauri-plugin-oauth"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eda564acdb23185caf700f89dd6e5d4540225d6a991516b2cad0cbcf27e4dcd3"
+dependencies = [
+ "httparse",
+ "log",
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 1.0.69",
  "url",
 ]
 

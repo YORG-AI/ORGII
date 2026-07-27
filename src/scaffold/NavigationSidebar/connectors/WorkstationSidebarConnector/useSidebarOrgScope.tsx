@@ -22,6 +22,10 @@ import {
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { org2CloudRepoScopesAtom } from "@src/features/Org2Cloud/org2CloudSyncAtoms";
+import {
+  buildOrgSelectorEntries,
+  resolveProjectOrgScopeId,
+} from "@src/features/Organizations/orgSelectorEntries";
 import { collectScopeMatchedImportedSessionIds } from "@src/features/TeamCollaboration/importedSessionScopeMatch";
 import { useShareableScopeKeyVersion } from "@src/features/TeamCollaboration/repoScopeResolver";
 import {
@@ -35,10 +39,6 @@ import { DEFAULT_SESSION_ORG_ID, type Session } from "@src/store/session";
 
 import { sidebarSelectedOrgIdAtom } from "../sidebarOrgScopeAtom";
 import { buildSessionOrgFilterIds } from "../useSessionMenuItems/orgFilter";
-import {
-  buildOrgSelectorEntries,
-  resolveProjectOrgScopeId,
-} from "./orgSelectorEntries";
 
 const logger = createLogger("WorkstationSidebar");
 
@@ -118,6 +118,19 @@ export function useSidebarOrgScope({
     () => resolveProjectOrgScopeId(activeOrgId, projectOrgs),
     [activeOrgId, projectOrgs]
   );
+  const activeLocalOrg = useMemo(() => {
+    if (
+      activeOrgId === DEFAULT_SESSION_ORG_ID ||
+      parseCloudOrgSelectorValue(activeOrgId)
+    ) {
+      return null;
+    }
+    return (
+      projectOrgs.find(
+        (org) => org.id === activeProjectOrgId && !org.external_org_id
+      ) ?? null
+    );
+  }, [activeOrgId, activeProjectOrgId, projectOrgs]);
 
   useEffect(() => {
     if (
@@ -141,6 +154,18 @@ export function useSidebarOrgScope({
     return cloudOrgs.find((org) => org.orgId === cloudOrgId) ?? null;
   }, [activeOrgId, cloudOrgs]);
   const manageableCloudOrg = activeCloudOrg ?? cloudOrgs[0] ?? null;
+  const manageableLocalOrg = useMemo(() => {
+    if (activeLocalOrg) return activeLocalOrg;
+    const cloudOrgIds = new Set(cloudOrgs.map((org) => org.orgId));
+    return (
+      projectOrgs.find(
+        (org) =>
+          org.id !== DEFAULT_SESSION_ORG_ID &&
+          !org.external_org_id &&
+          !cloudOrgIds.has(org.id)
+      ) ?? null
+    );
+  }, [activeLocalOrg, cloudOrgs, projectOrgs]);
   const activeCloudOrgId = activeCloudOrg?.orgId ?? null;
 
   const setSidebarActiveCloudOrgId = useSetAtom(sidebarActiveCloudOrgIdAtom);
@@ -212,6 +237,7 @@ export function useSidebarOrgScope({
     cloudTaggedSessionIds,
     handleCloudSessionFilterChange,
     manageableCloudOrg,
+    manageableLocalOrg,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,

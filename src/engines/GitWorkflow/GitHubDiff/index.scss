@@ -334,7 +334,7 @@
   border-bottom: 1px solid var(--diff-divider);
   color: var(--color-text-3);
   font-size: 12px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s ease;
 
   &:hover {

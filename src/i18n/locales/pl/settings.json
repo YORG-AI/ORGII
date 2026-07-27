@@ -163,7 +163,7 @@
     "timezoneAuto": "Auto (przeglądarka)",
     "timezoneSearchPlaceholder": "Szukaj najbliższych miast",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
     "language": "Język",
     "languageSearchPlaceholder": "Szukaj języków...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Jestem przy klawiaturze. Możesz w każdej chwili zadawać pytania doprecyzowujące i potwierdzać ze mną działania destrukcyjne przed ich uruchomieniem",
     "presenceGuidanceInvisibleDefault": "Jestem w pobliżu, ale widoczny jako offline. Domyślnie działaj autonomicznie i powiadamiaj mnie tylko o działaniach wysokiego ryzyka lub dużych refaktoryzacjach; pozostałe pytania zbierz w jednym podsumowaniu zamiast zadawać je pojedynczo",
     "presenceGuidanceAwayDefault": "Jestem z dala od klawiatury. Nie blokuj się, czekając na mnie; podejmij najlepszą decyzję na podstawie dostępnych informacji, dokończ co się da i zostaw krótkie podsumowanie oraz otwarte pytania na mój powrót",
-    "followSystem": "Zgodnie z systemem"
+    "followSystem": "Zgodnie z systemem",
+    "preferences": "Preferencje",
+    "usePointerCursors": "Używaj kursora wskazującego",
+    "usePointerCursorsDesc": "Zmieniaj kursor na wskazujący po najechaniu na elementy interaktywne"
   },
   "background": {
     "title": "Tło",
@@ -1032,7 +1035,7 @@
     "decryptEffect": "Efekt deszyfrowania",
     "decryptEffectDesc": "Włącz animację deszyfrowania dla wiadomości Agent",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "Zarządzaj serwerami LSP dla autouzupełniania, diagnostyki i inteligencji kodu",

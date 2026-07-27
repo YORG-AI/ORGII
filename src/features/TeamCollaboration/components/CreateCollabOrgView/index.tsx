@@ -29,7 +29,7 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 import SelectionGrid from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
-import { openCloudOrgManagementInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { openOrganizationInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 const LOCAL_SOURCE = "local";
 // Managed ORG2 Cloud org (create_org / accept_invite against the managed
@@ -71,9 +71,7 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const openCloudSignIn = useOrg2CloudSignIn();
-  const openCloudOrgManagementTab = useSetAtom(
-    openCloudOrgManagementInChatPanelTabAtom
-  );
+  const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
 
   const sourceOptions = useMemo<SelectionGridOption<CreateOrgSource>[]>(
     () => [
@@ -173,8 +171,8 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       Message.success(t("navigation:cloud.orgManagement.create.createdToast"));
       // Land straight in the org management panel (invites, members, repo
       // scopes) instead of a dead-end success screen.
-      openCloudOrgManagementTab({
-        cloudOrg: { orgId },
+      openOrganizationTab({
+        organization: { kind: "cloud", cloudOrg: { orgId } },
         title: t("navigation:collaboration.manageOrg"),
       });
       return;
@@ -212,7 +210,7 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
     inviteInput,
     mode,
     onCancel,
-    openCloudOrgManagementTab,
+    openOrganizationTab,
     orgName,
     refetchCloudOrgs,
     setCloudAuth,

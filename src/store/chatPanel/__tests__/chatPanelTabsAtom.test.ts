@@ -47,7 +47,7 @@ async function loadChatPanelTabAtoms() {
     closeProjectOrgChatPanelTabsAtom,
     closeWorkItemChatPanelTabAtom,
     normalizePersistedChatPanelTabsState,
-    openCloudOrgManagementInChatPanelTabAtom,
+    openOrganizationInChatPanelTabAtom,
     openCreateTargetInChatPanelStartPageAtom,
     openWorkManagementChatPanelTabAtom,
     openOrFocusChatPanelStartPageTabAtom,
@@ -56,7 +56,6 @@ async function loadChatPanelTabAtoms() {
     openOrFocusSessionInChatPanelTabAtom,
     openOrReplaceSessionInChatPanelTabAtom,
     openProjectInChatPanelTabAtom,
-    openProjectOrgInChatPanelTabAtom,
     openSessionInNewChatTabAtom,
     openWorkItemInChatPanelTabAtom,
     prevChatPanelTabAtom,
@@ -115,7 +114,7 @@ async function loadChatPanelTabAtoms() {
     kanbanReplaySpeedAtom,
     kanbanSelectedTaskIdAtom,
     normalizePersistedChatPanelTabsState,
-    openCloudOrgManagementInChatPanelTabAtom,
+    openOrganizationInChatPanelTabAtom,
     openCreateTargetInChatPanelStartPageAtom,
     openWorkManagementChatPanelTabAtom,
     openOrFocusChatPanelStartPageTabAtom,
@@ -124,7 +123,6 @@ async function loadChatPanelTabAtoms() {
     openOrFocusSessionInChatPanelTabAtom,
     openOrReplaceSessionInChatPanelTabAtom,
     openProjectInChatPanelTabAtom,
-    openProjectOrgInChatPanelTabAtom,
     WORK_MANAGEMENT_SECTION,
     WORK_MANAGEMENT_PROJECTS_VIEW,
     workManagementCreatorVisibleAtom,
@@ -436,15 +434,20 @@ describe("closeProjectOrgChatPanelTabsAtom", () => {
       chatPanelTabsAtom,
       closeProjectOrgChatPanelTabsAtom,
       openProjectInChatPanelTabAtom,
-      openProjectOrgInChatPanelTabAtom,
+      openOrganizationInChatPanelTabAtom,
       openWorkItemInChatPanelTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
 
-    store.set(openProjectOrgInChatPanelTabAtom, {
-      orgId: "revoked-org",
-      orgName: "Revoked Team",
-      orgScope: "project_org",
+    store.set(openOrganizationInChatPanelTabAtom, {
+      organization: {
+        kind: "local",
+        projectOrg: {
+          orgId: "revoked-org",
+          orgName: "Revoked Team",
+          orgScope: "project_org",
+        },
+      },
     });
     store.set(openProjectInChatPanelTabAtom, {
       project: { id: "revoked-project", name: "Revoked Project" },
@@ -479,7 +482,8 @@ describe("closeProjectOrgChatPanelTabsAtom", () => {
         (tab) =>
           tab.workItem?.orgId === "revoked-org" ||
           tab.project?.orgId === "revoked-org" ||
-          tab.projectOrg?.orgId === "revoked-org"
+          (tab.organization?.kind === "local" &&
+            tab.organization.projectOrg.orgId === "revoked-org")
       )
     ).toBe(false);
     expect(tabs.some((tab) => tab.workItem?.shortId === "LIVE-1")).toBe(true);
@@ -859,27 +863,27 @@ describe("ChatPanel navigation tabs", () => {
       activeChatPanelSurfaceAtom,
       CHAT_PANEL_SURFACE_KIND,
       chatPanelTabsAtom,
-      openCloudOrgManagementInChatPanelTabAtom,
+      openOrganizationInChatPanelTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
     const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
-    const managementTabId = store.set(
-      openCloudOrgManagementInChatPanelTabAtom,
-      {
-        cloudOrg: { orgId: "org-a" },
-        title: "Manage ORG",
-      }
-    );
+    const managementTabId = store.set(openOrganizationInChatPanelTabAtom, {
+      organization: { kind: "cloud", cloudOrg: { orgId: "org-a" } },
+      title: "Manage ORG",
+    });
 
     expect(store.get(chatPanelTabsAtom)).toMatchObject({
       activeTabId: managementTabId,
       tabs: expect.arrayContaining([
         expect.objectContaining({
           id: managementTabId,
-          type: "cloud-org",
+          type: "organization",
           title: "Manage ORG",
-          cloudOrg: { orgId: "org-a" },
+          organization: {
+            kind: "cloud",
+            cloudOrg: { orgId: "org-a" },
+          },
         }),
       ]),
     });
@@ -888,22 +892,36 @@ describe("ChatPanel navigation tabs", () => {
       cloudOrg: { orgId: "org-a" },
     });
 
-    const switchedTabId = store.set(openCloudOrgManagementInChatPanelTabAtom, {
-      cloudOrg: { orgId: "org-b" },
+    const switchedTabId = store.set(openOrganizationInChatPanelTabAtom, {
+      organization: {
+        kind: "local",
+        projectOrg: {
+          orgId: "local-b",
+          orgName: "Local B",
+          orgScope: "project_org",
+        },
+      },
       title: "Manage ORG",
     });
     expect(switchedTabId).toBe(managementTabId);
     expect(
       store
         .get(chatPanelTabsAtom)
-        .tabs.filter((tab) => tab.type === "cloud-org")
-    ).toEqual([expect.objectContaining({ cloudOrg: { orgId: "org-b" } })]);
+        .tabs.filter((tab) => tab.type === "organization")
+    ).toEqual([
+      expect.objectContaining({
+        organization: {
+          kind: "local",
+          projectOrg: expect.objectContaining({ orgId: "local-b" }),
+        },
+      }),
+    ]);
 
     store.set(activateChatPanelTabAtom, launchpadTabId);
     store.set(activateChatPanelTabAtom, managementTabId);
     expect(store.get(activeChatPanelSurfaceAtom)).toEqual({
-      kind: CHAT_PANEL_SURFACE_KIND.CLOUD_ORG,
-      cloudOrg: { orgId: "org-b" },
+      kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
+      projectOrg: expect.objectContaining({ orgId: "local-b" }),
     });
   });
 
@@ -1006,6 +1024,47 @@ describe("ChatPanel navigation tabs", () => {
     expect(normalized?.activeTabId).toBe("start-b");
   });
 
+  it("migrates cloud and local org tabs into the active shared organization tab", async () => {
+    const { normalizePersistedChatPanelTabsState } =
+      await loadChatPanelTabAtoms();
+
+    const normalized = normalizePersistedChatPanelTabsState({
+      activeTabId: "local-org",
+      tabs: [
+        {
+          id: "cloud-org",
+          type: "cloud-org",
+          title: "Manage ORG",
+          cloudOrg: { orgId: "cloud-a" },
+        },
+        {
+          id: "local-org",
+          type: "project-org",
+          title: "Local A",
+          projectOrg: {
+            orgId: "local-a",
+            orgName: "Local A",
+            orgScope: "project_org",
+          },
+        },
+      ],
+    });
+
+    expect(normalized).toMatchObject({
+      activeTabId: "chat-organization-management",
+      tabs: [
+        {
+          id: "chat-organization-management",
+          type: "organization",
+          organization: {
+            kind: "local",
+            projectOrg: { orgId: "local-a" },
+          },
+        },
+      ],
+    });
+  });
+
   it("keeps one persisted management tab per sidebar section", async () => {
     const { normalizePersistedChatPanelTabsState, WORK_MANAGEMENT_SECTION } =
       await loadChatPanelTabAtoms();
@@ -1064,6 +1123,28 @@ describe("ChatPanel navigation tabs", () => {
       normalized?.tabs.filter((tab) => tab.type === "runtime")
     ).toHaveLength(1);
     expect(normalized?.activeTabId).toBe("runtime-b");
+  });
+
+  it("drops retired persisted surface types", async () => {
+    const { normalizePersistedChatPanelTabsState } =
+      await loadChatPanelTabAtoms();
+
+    expect(
+      normalizePersistedChatPanelTabsState({
+        activeTabId: "retired-changelog",
+        tabs: [
+          { id: "start", type: "start-page", title: "Launchpad" },
+          {
+            id: "retired-changelog",
+            type: "changelog",
+            title: "Changelog",
+          },
+        ],
+      })
+    ).toEqual({
+      activeTabId: "start",
+      tabs: [{ id: "start", type: "start-page", title: "Launchpad" }],
+    });
   });
 
   it("migrates persisted legacy Launchpad tabs to the start page", async () => {

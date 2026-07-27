@@ -1,6 +1,6 @@
 # Performance Guard — Uncommitted Runtime Batch
 
-**Scope:** changed polling, listeners, caches, queues, scans, request coordinators, webviews, session lifecycles, and streaming finality on `junyu/rpc-performance-closure`.
+**Scope:** changed polling, listeners, caches, queues, scans, request coordinators, webviews, session lifecycles, and streaming finality on `junyu/rpc-performance-closure`, after merging `origin/develop@82dc871e`.
 **Date:** 2026-07-27
 
 ## Lifecycle matrix
@@ -21,7 +21,7 @@
 | --- | --- | --- | --- | --- |
 | Background work | fix | Proposal countdown previously rendered at animation-frame cadence; GitHub star fallback retained a focus listener after success; hidden webviews could retain layout work. | Countdown now updates at most once per second and pauses hidden; confirmation clears fallback/listener state; layout work is visibility gated. | Changed frontend suite includes GitHub focus regression and webview visibility/layout tests; 214/214 passed. |
 | Background work | keep | Existing visible inline-webview URL polling owns one startup timeout and one interval, cleared on hidden/unmount/destroy. | Kept as navigation-state fallback; no overlap is introduced by this batch. | Visibility and native-layout lifecycle tests passed. |
-| Memory | fix | File indexes, RPC validation diagnostics, browser webviews, repo/project coordinators, and durable queue state are app/session lifetime structures. | File index uses bounded keyed cache + generation invalidation; RPC diagnostics cap at 200; browser retains at most two navigable webviews; queue subscription is `WeakMap<Store, ...>` owned. | File-index coalescing/invalidation/recovery tests, RPC bound tests, browser retention tests, and queue persistence tests passed. |
+| Memory | fix | File indexes, RPC validation diagnostics, browser webviews, repo/project coordinators, and durable queue state are app/session lifetime structures. | File index uses a four-entry cap, 32 MiB per-index cap, 64 MiB total cap, single-flight sharing, and generation invalidation; RPC diagnostics cap at 200; browser retains at most two navigable webviews; queue subscription is `WeakMap<Store, ...>` owned. | File-index coalescing/invalidation/recovery/oversize tests, RPC bound tests, browser retention tests, and queue persistence tests passed. |
 | Scope/isolation | fix | Team Inbox page completion captured an old receipt map; repo/file/project requests can finish after invalidation. | Latest receipt ref is applied at commit; identity-complete keys and generation guards reject stale writes. | Team Inbox identity tests, project cache/purge tests, repo coordination tests, file-index invalidation tests, and sidebar loader stale-result tests passed. |
 | Rendering/hot path | fix | Agent proposal countdown previously woke the full creator tree at about 60 FPS; ChatView lifecycle logic was duplicated inline. | Timer cadence is one second and hidden-paused; session side effects have one lifecycle owner. | ESLint/TypeScript passed; affected hook and state suites passed. |
 | I/O and scans | fix | Concurrent file searches, repo loads, external-history rescans, benchmark loads, and project refreshes could duplicate work or accept stale results. | Equivalent work is single-flight; scans run in blocking Rust context; mutation/invalidation generations fence old completions. | Rust search tests and changed frontend coordinator/rescan tests passed. |
@@ -31,8 +31,11 @@
 
 - Changed frontend ESLint: passed.
 - TypeScript typecheck: passed.
+- Post-merge focused frontend regression: 17 files, 118 tests passed.
 - Changed frontend tests: 33 files, 214 tests passed.
 - Rust workspace all-target check: passed.
+- Post-merge `org2` library suite: 994 passed, 1 ignored.
+- Search library suite: 52 passed.
 - Affected Rust library tests: passed, including 3,081 `agent_core`, 508 `project_management`, 51 `search`, and 5 `transport` tests.
 - Changed Rust files `rustfmt --check`: passed.
 - `git diff --check`: passed.

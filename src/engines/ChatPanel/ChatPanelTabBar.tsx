@@ -95,15 +95,13 @@ import {
   chatPanelTabsAtom,
   closeAndDestroyChatPanelTabAtom,
   closeOtherChatPanelTabsAtom,
-  nextChatPanelTabAtom,
-  prevChatPanelTabAtom,
   reorderChatPanelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { terminalSessionsAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { sessionByIdAtom } from "@src/store/session";
 import { moveSessionTabAtom } from "@src/store/session/sessionTabPlacementAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
-import { isWindows } from "@src/util/platform/tauri";
+import { isMacOS } from "@src/util/platform/tauri";
 
 import ChatPanelTabContextMenu from "./ChatPanelTabContextMenu";
 import { resolveChatPanelTabDisplayTitle } from "./chatPanelTabDisplay";
@@ -113,9 +111,9 @@ import {
   CHAT_PANEL_HEADER_NO_DRAG_STYLE,
 } from "./header";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+export { useChatPanelTabShortcuts } from "./hooks/useChatPanelTabShortcuts";
 
-const isMac = !isWindows();
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const TERMINAL_AGENT_STATUS_DOT_CLASS = {
   [TERMINAL_AGENT_STATUS.STARTING]: "bg-warning-6",
@@ -188,7 +186,7 @@ const TabPill = memo(function TabPill({
     launchpad: t("navigation:routes.launchpad"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
     teamInbox: t("navigation:labels.teamInbox", "Team Inbox"),
-    cloudOrg: t("navigation:collaboration.manageOrg"),
+    organization: t("navigation:collaboration.manageOrg"),
     workManagement: {
       kanban: t("sessions:simulator.tabs.kanban"),
       projects: t("navigation:labels.projects"),
@@ -246,7 +244,7 @@ const TabPill = memo(function TabPill({
         className={`shrink-0 ${iconColorClass}`}
       />
     );
-  } else if (tab.type === "cloud-org") {
+  } else if (tab.type === "organization") {
     icon = (
       <Settings2
         size={16}
@@ -393,7 +391,7 @@ export function PlusMenuContent({
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
-  const MOD = isMac ? "⌘" : "Ctrl";
+  const MOD = isMacOS() ? "⌘" : "Ctrl";
 
   // "New session" and "Launchpad" now open the same singleton start page, so
   // only the Launchpad entry is kept. It carries the ⌘N hint since that
@@ -511,87 +509,6 @@ export function ChatPanelPlusMenu({
       </span>
     </Dropdown>
   );
-}
-
-// ─── Keyboard shortcuts hook ──────────────────────────────────────────────────
-
-export interface UseChatPanelTabShortcutsOptions {
-  onNewSession: () => void;
-  onNewTerminal: () => void;
-  /** Ref to the outermost chat panel container for focus-scoped keyboard handling */
-  containerRef?: React.RefObject<HTMLElement | null>;
-}
-
-/**
- * Chat-panel-scoped tab shortcuts (⌘W / ⌘] / ⌘[ / ⌘N) plus the global
- * "create-chat-tab" event. Mounted by ChatPanel unconditionally so the
- * shortcuts work even when the visual tab strip is not rendered.
- */
-export function useChatPanelTabShortcuts({
-  onNewSession,
-  onNewTerminal,
-  containerRef,
-}: UseChatPanelTabShortcutsOptions): void {
-  const state = useAtomValue(chatPanelTabsAtom);
-  const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
-  const nextTab = useSetAtom(nextChatPanelTabAtom);
-  const prevTab = useSetAtom(prevChatPanelTabAtom);
-
-  const tabsRef = useRef(state);
-  useEffect(() => {
-    tabsRef.current = state;
-  }, [state]);
-
-  const handleKeyDown = useCallback(
-    (evt: KeyboardEvent) => {
-      if (
-        containerRef?.current &&
-        !containerRef.current.contains(document.activeElement)
-      )
-        return;
-
-      const mod = isMac ? evt.metaKey : evt.ctrlKey;
-      if (!mod) return;
-
-      if (evt.key === "w" && !evt.shiftKey) {
-        const active = tabsRef.current.tabs.find(
-          (tab) => tab.id === tabsRef.current.activeTabId
-        );
-        if (active) {
-          evt.preventDefault();
-          void closeTab(active.id);
-        }
-        return;
-      }
-      if (evt.key === "]") {
-        evt.preventDefault();
-        nextTab();
-        return;
-      }
-      if (evt.key === "[") {
-        evt.preventDefault();
-        prevTab();
-        return;
-      }
-      if (evt.key === "n" && !evt.shiftKey) {
-        evt.preventDefault();
-        onNewSession();
-        return;
-      }
-    },
-    [closeTab, nextTab, onNewSession, prevTab, containerRef]
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
-
-  useEffect(() => {
-    const handler = () => onNewTerminal();
-    window.addEventListener("create-chat-tab", handler);
-    return () => window.removeEventListener("create-chat-tab", handler);
-  }, [onNewTerminal]);
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────

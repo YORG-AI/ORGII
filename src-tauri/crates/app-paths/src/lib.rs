@@ -1101,12 +1101,8 @@ mod tests {
             Some(Path::new(r"C:\Users\me\AppData\Local")),
         );
 
-        assert!(candidates.contains(&PathBuf::from(
-            r"C:\Program Files\Git\cmd\git.exe"
-        )));
-        assert!(candidates.contains(&PathBuf::from(
-            r"C:\Program Files\Git\bin\git.exe"
-        )));
+        assert!(candidates.contains(&PathBuf::from(r"C:\Program Files\Git\cmd\git.exe")));
+        assert!(candidates.contains(&PathBuf::from(r"C:\Program Files\Git\bin\git.exe")));
         assert!(candidates.contains(&PathBuf::from(
             r"C:\Users\me\AppData\Local\Programs\Git\cmd\git.exe"
         )));

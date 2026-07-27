@@ -10,7 +10,7 @@
  * a no-op.
  */
 import { useAtomValue } from "jotai";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { gitApi } from "@src/api/http/git";
 import { useGitStatus } from "@src/contexts/git";
@@ -20,9 +20,10 @@ import {
   gitAutoFetchAtom,
   gitAutoFetchIntervalAtom,
 } from "@src/store/ui/editorSettingsAtom";
-import { startVisibilityAwarePoll } from "@src/util/core/visibilityAwarePoll";
 
 const MIN_INTERVAL_MS = 30_000;
+const MAX_BACKOFF_MS = 30 * 60_000;
+const BUSY_RETRY_MS = 1_000;
 const DEFAULT_REMOTE_NAME = "origin";
 const logger = createLogger("GitAutoFetch");
 
@@ -33,15 +34,42 @@ export function useGitAutoFetch(): void {
   const selectedRepo = useAtomValue(selectedRepoAtom);
   const { forceRefresh, hasActiveRepo } = useGitStatus();
 
+  const activeFetchKeyRef = useRef<string | null>(null);
   const repoPath = selectedRepo?.path || selectedRepo?.fs_uri;
 
   useEffect(() => {
     if (!autoFetch || !hasActiveRepo || !selectedRepoId || !repoPath) return;
 
     let cancelled = false;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    const fetchKey = `${selectedRepoId}:${repoPath}`;
     const intervalMs = Math.max(intervalSeconds * 1000, MIN_INTERVAL_MS);
+    let nextDelayMs = intervalMs;
+
+    const clearTimer = () => {
+      if (timerId !== null) {
+        clearTimeout(timerId);
+        timerId = null;
+      }
+    };
+
+    const schedule = (delayMs: number) => {
+      clearTimer();
+      if (cancelled || document.visibilityState !== "visible") return;
+      timerId = setTimeout(() => {
+        timerId = null;
+        void tick();
+      }, delayMs);
+    };
 
     const tick = async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      if (activeFetchKeyRef.current !== null) {
+        schedule(BUSY_RETRY_MS);
+        return;
+      }
+
+      activeFetchKeyRef.current = fetchKey;
       try {
         await gitApi.gitFetch({
           repo_id: selectedRepoId,
@@ -52,19 +80,36 @@ export function useGitAutoFetch(): void {
         if (!cancelled) {
           await forceRefresh();
         }
+        nextDelayMs = intervalMs;
       } catch (error) {
         logger.warn("background fetch failed:", error);
+        nextDelayMs = Math.min(
+          Math.max(intervalMs, nextDelayMs * 2),
+          MAX_BACKOFF_MS
+        );
+      } finally {
+        if (activeFetchKeyRef.current === fetchKey) {
+          activeFetchKeyRef.current = null;
+        }
+        schedule(nextDelayMs);
       }
     };
 
-    const poll = startVisibilityAwarePoll({
-      intervalMs,
-      runImmediately: true,
-      task: tick,
-    });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        nextDelayMs = intervalMs;
+        void tick();
+      } else {
+        clearTimer();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    void tick();
     return () => {
       cancelled = true;
-      poll.stop();
+      clearTimer();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [
     autoFetch,

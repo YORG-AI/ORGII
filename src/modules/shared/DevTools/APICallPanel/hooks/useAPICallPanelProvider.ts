@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 import {
   clearApiCalls,
   disableApiTracking,
@@ -67,6 +68,13 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     visibleRef.current = visible;
   }, [visible]);
 
+  const isPanelForeground = useCallback(
+    () =>
+      typeof document === "undefined" ||
+      (!document.hidden && document.hasFocus()),
+    []
+  );
+
   // ============================================
   // Methods
   // ============================================
@@ -75,29 +83,35 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
    * Update API calls list
    */
   const updateApiCalls = useCallback(() => {
+    if (!visibleRef.current || !isPanelForeground()) return;
     const calls = getApiCalls();
     setApiCalls(calls);
     setHotspots(getApiCallHotspots());
     setTimerHotspots(getTimerHotspots());
     setPushHotspots(getPushHotspots());
-  }, []);
+  }, [isPanelForeground]);
 
-  const openPanel = useCallback(() => {
+  const resetPanelData = useCallback(() => {
     clearApiCalls();
     setApiCalls([]);
     setHotspots([]);
     setTimerHotspots([]);
     setPushHotspots([]);
+  }, []);
+
+  const openPanel = useCallback(() => {
+    resetPanelData();
     enableApiTracking();
     visibleRef.current = true;
     setVisible(true);
-  }, []);
+  }, [resetPanelData]);
 
   const closePanel = useCallback(() => {
-    disableApiTracking();
     visibleRef.current = false;
     setVisible(false);
-  }, []);
+    disableApiTracking();
+    resetPanelData();
+  }, [resetPanelData]);
 
   /**
    * Toggle panel visibility
@@ -114,12 +128,8 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
    * Handle clear all operations
    */
   const handleClear = useCallback(() => {
-    clearApiCalls();
-    setApiCalls([]);
-    setHotspots([]);
-    setTimerHotspots([]);
-    setPushHotspots([]);
-  }, []);
+    resetPanelData();
+  }, [resetPanelData]);
 
   /**
    * Handle close panel
@@ -141,7 +151,7 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
 
     // Listen for API call updates when panel is visible
     const handleApiCallUpdated = () => {
-      if (!visibleRef.current) return;
+      if (!visibleRef.current || !isPanelForeground()) return;
       updateApiCalls();
     };
 
@@ -150,28 +160,25 @@ export function useAPICallPanelProvider(): UseAPICallPanelProviderReturn {
     return () => {
       window.removeEventListener("toggle-panel-api-call", handleToggle);
       window.removeEventListener("api-call-updated", handleApiCallUpdated);
+      visibleRef.current = false;
       disableApiTracking();
+      clearApiCalls();
     };
-  }, [togglePanel, updateApiCalls]);
+  }, [isPanelForeground, togglePanel, updateApiCalls]);
 
   // Update calls when becoming visible
   useEffect(() => {
-    if (visible) {
-      // Schedule state updates asynchronously to avoid synchronous setState in effect
-      const timeoutId = setTimeout(() => {
-        updateApiCalls();
-      }, 0);
+    if (!visible || typeof document === "undefined") return;
 
-      // Keep the visible panel fresh without adding a high-frequency devtools loop.
-      const interval = setInterval(() => {
-        updateApiCalls();
-      }, 1000);
-
-      return () => {
-        clearTimeout(timeoutId);
-        clearInterval(interval);
-      };
-    }
+    return startVisibilityAwarePoller(
+      document,
+      async () => updateApiCalls(),
+      1000,
+      {
+        pauseWhenUnfocused: true,
+        focusSource: window,
+      }
+    );
   }, [visible, updateApiCalls]);
 
   return {

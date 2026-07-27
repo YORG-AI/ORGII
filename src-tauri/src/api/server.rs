@@ -305,6 +305,12 @@ pub async fn start_server(
                 ),
             ),
         )
+        // Durable provenance data is already in the bounded filesystem spool;
+        // this authenticated empty POST only wakes its demand-driven drainer.
+        .route(
+            super::agent_status_ingest::PROVENANCE_READY_ROUTE,
+            axum::routing::post(super::agent_status_ingest::handle_provenance_ready),
+        )
         // Interactive tool-approval long-poll: a managed Claude Code
         // `PermissionRequest` hook parks here until the user answers the
         // desktop PermissionCard (see api::agent_approval_ingest). Same

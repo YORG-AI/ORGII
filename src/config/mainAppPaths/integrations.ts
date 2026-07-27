@@ -32,6 +32,33 @@ export const INTEGRATIONS_CATEGORIES: readonly IntegrationsCategorySegment[] = [
   "devtools",
 ] as const;
 
+const DEV_ONLY_INTEGRATION_CATEGORIES: ReadonlySet<IntegrationsCategorySegment> =
+  new Set(["tools"]);
+
+/** Whether a Settings integration category may be exposed in the current mode. */
+export function isIntegrationCategoryAvailable(
+  category: string | null | undefined,
+  devModeEnabled: boolean
+): boolean {
+  return (
+    category == null ||
+    devModeEnabled ||
+    !DEV_ONLY_INTEGRATION_CATEGORIES.has(
+      category as IntegrationsCategorySegment
+    )
+  );
+}
+
+/** Remove dev-only integration items from mixed Settings navigation lists. */
+export function filterDevModeIntegrationItems<T extends string>(
+  items: readonly T[],
+  devModeEnabled: boolean
+): T[] {
+  return items.filter((item) =>
+    isIntegrationCategoryAvailable(item, devModeEnabled)
+  );
+}
+
 /**
  * Compound Integration categories use descriptive public URL slugs while
  * keeping their camel-cased internal routing keys.
@@ -127,4 +154,14 @@ export function parseIntegrationsPath(pathname: string): {
       ? (normalizedCategory as IntegrationsCategorySegment)
       : null;
   return { category };
+}
+
+/** Redirect target for a dev-only Settings integration route, if blocked. */
+export function getDevOnlyIntegrationRedirect(
+  pathname: string,
+  devModeEnabled: boolean
+): string | null {
+  const { category } = parseIntegrationsPath(pathname);
+  if (isIntegrationCategoryAvailable(category, devModeEnabled)) return null;
+  return buildIntegrationsPath();
 }

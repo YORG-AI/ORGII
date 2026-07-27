@@ -45,5 +45,9 @@ describe("UsageStatCards", () => {
     expect(markup).not.toContain("104,816,660");
     expect(markup).not.toContain("$82.3210");
     expect(markup).not.toContain("usage.cards.requests: 884");
+    expect(markup).toContain("text-xs text-text-2");
+    expect(markup).toContain("text-xl font-semibold text-text-1");
+    expect(markup).toContain("text-base font-semibold text-text-1");
+    expect(markup).toContain("text-xs font-medium text-text-3");
   });
 });

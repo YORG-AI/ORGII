@@ -26,16 +26,17 @@ struct CachedIndex {
     entries: Arc<[FileEntry]>,
     indexed_at: Instant,
     last_accessed_at: Instant,
+    estimated_bytes: usize,
 }
 
 #[derive(Default)]
 struct BuildFlight {
-    result: Mutex<Option<Result<(), String>>>,
+    result: Mutex<Option<Result<Option<Arc<[FileEntry]>>, String>>>,
     completed: Condvar,
 }
 
 impl BuildFlight {
-    fn wait(&self) -> Result<(), String> {
+    fn wait(&self) -> Result<Option<Arc<[FileEntry]>>, String> {
         let mut result = self.result.lock().unwrap();
         while result.is_none() {
             result = self.completed.wait(result).unwrap();
@@ -43,7 +44,7 @@ impl BuildFlight {
         result.clone().unwrap()
     }
 
-    fn finish(&self, result: Result<(), String>) {
+    fn finish(&self, result: Result<Option<Arc<[FileEntry]>>, String>) {
         *self.result.lock().unwrap() = Some(result);
         self.completed.notify_all();
     }
@@ -90,14 +91,23 @@ pub(super) struct FilePathIndexCache {
     state: Mutex<CacheState>,
     safety_ttl: Duration,
     max_cached_indexes: usize,
+    max_single_index_bytes: usize,
+    max_total_bytes: usize,
 }
 
 impl FilePathIndexCache {
-    pub(super) fn new(safety_ttl: Duration, max_cached_indexes: usize) -> Self {
+    pub(super) fn new(
+        safety_ttl: Duration,
+        max_cached_indexes: usize,
+        max_single_index_bytes: usize,
+        max_total_bytes: usize,
+    ) -> Self {
         Self {
             state: Mutex::new(CacheState::default()),
             safety_ttl,
             max_cached_indexes,
+            max_single_index_bytes,
+            max_total_bytes,
         }
     }
 
@@ -153,7 +163,9 @@ impl FilePathIndexCache {
             match action {
                 CacheAction::Return(entries) => return Ok(entries),
                 CacheAction::Wait(flight) => {
-                    flight.wait()?;
+                    if let Some(entries) = flight.wait()? {
+                        return Ok(entries);
+                    }
                 }
                 CacheAction::Build { flight, generation } => {
                     let build_result = catch_unwind(AssertUnwindSafe(&build));
@@ -166,37 +178,41 @@ impl FilePathIndexCache {
                         }
                     };
 
-                    let accepted = {
-                        let mut state = self.state.lock().unwrap();
-                        let Some(slot) = state.slots.get_mut(&key) else {
-                            flight.finish(Ok(()));
-                            continue;
+                    let accepted =
+                        {
+                            let mut state = self.state.lock().unwrap();
+                            let Some(slot) = state.slots.get_mut(&key) else {
+                                flight.finish(Ok(None));
+                                continue;
+                            };
+
+                            let owns_flight = slot
+                                .in_flight
+                                .as_ref()
+                                .is_some_and(|current| Arc::ptr_eq(current, &flight));
+                            if owns_flight {
+                                slot.in_flight = None;
+                            }
+
+                            if owns_flight && slot.generation == generation {
+                                let now = Instant::now();
+                                let estimated_bytes = estimate_file_index_bytes(&entries);
+                                slot.cached = (estimated_bytes <= self.max_single_index_bytes)
+                                    .then(|| CachedIndex {
+                                        entries: Arc::clone(&entries),
+                                        indexed_at: now,
+                                        last_accessed_at: now,
+                                        estimated_bytes,
+                                    });
+                                slot.last_accessed_at = now;
+                                self.prune_locked(&mut state);
+                                true
+                            } else {
+                                false
+                            }
                         };
 
-                        let owns_flight = slot
-                            .in_flight
-                            .as_ref()
-                            .is_some_and(|current| Arc::ptr_eq(current, &flight));
-                        if owns_flight {
-                            slot.in_flight = None;
-                        }
-
-                        if owns_flight && slot.generation == generation {
-                            let now = Instant::now();
-                            slot.cached = Some(CachedIndex {
-                                entries: Arc::clone(&entries),
-                                indexed_at: now,
-                                last_accessed_at: now,
-                            });
-                            slot.last_accessed_at = now;
-                            self.prune_locked(&mut state);
-                            true
-                        } else {
-                            false
-                        }
-                    };
-
-                    flight.finish(Ok(()));
+                    flight.finish(Ok(accepted.then(|| Arc::clone(&entries))));
                     if accepted {
                         return Ok(entries);
                     }
@@ -257,12 +273,19 @@ impl FilePathIndexCache {
                     .is_some_and(|cached| cached.indexed_at.elapsed() < self.safety_ttl)
         });
 
+        let mut total_bytes = state
+            .slots
+            .values()
+            .filter_map(|slot| slot.cached.as_ref())
+            .map(|cached| cached.estimated_bytes)
+            .sum::<usize>();
         while state
             .slots
             .values()
             .filter(|slot| slot.cached.is_some())
             .count()
             > self.max_cached_indexes
+            || total_bytes > self.max_total_bytes
         {
             let Some(oldest_key) = state
                 .slots
@@ -273,9 +296,24 @@ impl FilePathIndexCache {
             else {
                 break;
             };
-            state.slots.remove(&oldest_key);
+            if let Some(removed) = state.slots.remove(&oldest_key) {
+                total_bytes = total_bytes.saturating_sub(
+                    removed
+                        .cached
+                        .map(|cached| cached.estimated_bytes)
+                        .unwrap_or_default(),
+                );
+            }
         }
     }
+}
+
+fn estimate_file_index_bytes(entries: &[FileEntry]) -> usize {
+    std::mem::size_of_val(entries)
+        + entries
+            .iter()
+            .map(|entry| entry.path.len() + entry.filename.len())
+            .sum::<usize>()
 }
 
 #[cfg(test)]
@@ -295,7 +333,12 @@ mod tests {
 
     #[test]
     fn equivalent_concurrent_requests_share_one_build() {
-        let cache = Arc::new(FilePathIndexCache::new(Duration::from_secs(60), 4));
+        let cache = Arc::new(FilePathIndexCache::new(
+            Duration::from_secs(60),
+            4,
+            usize::MAX,
+            usize::MAX,
+        ));
         let build_count = Arc::new(AtomicUsize::new(0));
         let start = Arc::new(Barrier::new(8));
 
@@ -325,7 +368,12 @@ mod tests {
 
     #[test]
     fn invalidation_discards_an_in_flight_generation() {
-        let cache = Arc::new(FilePathIndexCache::new(Duration::from_secs(60), 4));
+        let cache = Arc::new(FilePathIndexCache::new(
+            Duration::from_secs(60),
+            4,
+            usize::MAX,
+            usize::MAX,
+        ));
         let build_count = Arc::new(AtomicUsize::new(0));
         let first_started = Arc::new(Barrier::new(2));
         let resume_first = Arc::new(Barrier::new(2));
@@ -359,7 +407,7 @@ mod tests {
 
     #[test]
     fn exclusion_policy_is_part_of_the_cache_key() {
-        let cache = FilePathIndexCache::new(Duration::from_secs(60), 4);
+        let cache = FilePathIndexCache::new(Duration::from_secs(60), 4, usize::MAX, usize::MAX);
         let build_count = AtomicUsize::new(0);
 
         cache
@@ -380,7 +428,7 @@ mod tests {
 
     #[test]
     fn failed_owner_releases_waiters_and_allows_recovery() {
-        let cache = FilePathIndexCache::new(Duration::from_secs(60), 4);
+        let cache = FilePathIndexCache::new(Duration::from_secs(60), 4, usize::MAX, usize::MAX);
         let failed = cache.get_or_build("/repo", &[], || panic!("boom"));
         assert!(failed.is_err());
 
@@ -388,5 +436,43 @@ mod tests {
             .get_or_build("/repo", &[], || vec![entry("recovered")])
             .unwrap();
         assert_eq!(recovered[0].filename, "recovered");
+    }
+
+    #[test]
+    fn oversized_index_is_shared_with_waiters_but_not_retained() {
+        let cache = Arc::new(FilePathIndexCache::new(Duration::from_secs(60), 4, 1, 1));
+        let build_count = Arc::new(AtomicUsize::new(0));
+        let start = Arc::new(Barrier::new(2));
+
+        let threads: Vec<_> = (0..2)
+            .map(|_| {
+                let cache = Arc::clone(&cache);
+                let build_count = Arc::clone(&build_count);
+                let start = Arc::clone(&start);
+                thread::spawn(move || {
+                    start.wait();
+                    cache
+                        .get_or_build("/repo", &[], || {
+                            build_count.fetch_add(1, Ordering::SeqCst);
+                            thread::sleep(Duration::from_millis(40));
+                            vec![entry("large")]
+                        })
+                        .unwrap()
+                })
+            })
+            .collect();
+
+        for handle in threads {
+            assert_eq!(handle.join().unwrap().len(), 1);
+        }
+        assert_eq!(build_count.load(Ordering::SeqCst), 1);
+
+        cache
+            .get_or_build("/repo", &[], || {
+                build_count.fetch_add(1, Ordering::SeqCst);
+                vec![entry("large")]
+            })
+            .unwrap();
+        assert_eq!(build_count.load(Ordering::SeqCst), 2);
     }
 }

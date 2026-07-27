@@ -13,6 +13,11 @@ import {
   storeHostedUserId,
 } from "@src/config/serviceAuth";
 
+import {
+  SUPABASE_AUTH_STORAGE_KEY,
+  sharedServiceAuthStorage,
+} from "./sharedAuthStorage";
+
 interface TokenResponse {
   access_token: string;
   refresh_token?: string;
@@ -44,9 +49,12 @@ export function getSupabaseAuthClient(): SupabaseClient {
         auth: {
           flowType: "pkce",
           persistSession: true,
-          autoRefreshToken: true,
+          // useServiceAuth owns refresh timing. Keeping Supabase's internal
+          // ticker off avoids a shared-file read every 30 seconds while idle.
+          autoRefreshToken: false,
           detectSessionInUrl: false,
-          storageKey: "orgii.supabase.auth",
+          storageKey: SUPABASE_AUTH_STORAGE_KEY,
+          storage: sharedServiceAuthStorage,
         },
       }
     );

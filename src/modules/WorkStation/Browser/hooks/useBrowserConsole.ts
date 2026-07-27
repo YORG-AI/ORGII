@@ -78,6 +78,8 @@ export interface UseBrowserConsoleReturn {
   clearEntries: () => void;
   /** Clear entries for all sessions */
   clearAllEntries: () => void;
+  /** Release cached entries for one closed session */
+  clearSessionEntries: (sessionId: string) => void;
   /** Add a manual entry (for testing) */
   addEntry: (level: LogLevel, message: string, stack?: string) => void;
   /** Manually trigger a poll */
@@ -210,6 +212,16 @@ export function useBrowserConsole(
     cacheRef.current.clear();
     setEntries([]);
   }, []);
+
+  const clearSessionEntries = useCallback(
+    (closedSessionId: string) => {
+      cacheRef.current.delete(closedSessionId);
+      if (closedSessionId === sessionId) {
+        setEntries([]);
+      }
+    },
+    [sessionId]
+  );
 
   // Truncate message if too long
   const truncateMessage = useCallback(
@@ -383,6 +395,7 @@ export function useBrowserConsole(
     warningCount,
     clearEntries,
     clearAllEntries,
+    clearSessionEntries,
     addEntry,
     pollNow,
     setWebviewLabel,

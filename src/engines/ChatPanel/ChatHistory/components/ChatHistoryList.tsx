@@ -6,6 +6,16 @@
  * under the 600-line limit.
  *
  * Receives all data and callbacks as props — no atom reads here.
+ *
+ * Co-located sibling modules (split out to keep this file under the
+ * 600-line limit; prefixed to stay collision-safe with concurrent refactors
+ * elsewhere in this directory):
+ * - `ChatHistoryListTypes.ts` — the public imperative handle, the props
+ *   contract, and the small view-model interfaces used below.
+ * - `ChatHistoryListEquality.ts` — the `React.memo` prop comparator.
+ * - `ChatHistoryListLayout.ts` — scroll/row-group/active-pin pure helpers.
+ * - `ChatHistoryListActiveGroupReporter.ts` — the scroll-driven active
+ *   group index/pin reporter hook.
  */
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, {
@@ -18,451 +28,37 @@ import React, {
 } from "react";
 
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  PlanningFooter,
-  type PlanningFooterMode,
-} from "@src/engines/ChatPanel/blocks/primitives";
-import {
-  LLM_USAGE_ARGS_KEY,
-  TOOL_USAGE_ARGS_KEY,
-} from "@src/engines/SessionCore/core/types";
+import { PlanningFooter } from "@src/engines/ChatPanel/blocks/primitives";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
-import {
-  CHAT_FOOTER_SPACER,
-  getChatContentBottomDistance,
-} from "../config/chatFooterSpacer";
 import { getUnloadedTurnMeta } from "../hooks/useChatGroups";
 import { GroupItemRenderer } from "../renderers";
-import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
+import { useChatHistoryListActiveGroupReporter } from "./ChatHistoryListActiveGroupReporter";
+import { sameChatHistoryListProps } from "./ChatHistoryListEquality";
+import {
+  EMPTY_ROW_GROUP_META,
+  buildRowGroupMeta,
+  isScrolledToContentBottom,
+  resolveActiveGroupPinState,
+  resolveVisibleGroupIndices,
+} from "./ChatHistoryListLayout";
+import type {
+  ChatHistoryListProps,
+  RowGroupMeta,
+  VirtualGroup,
+} from "./ChatHistoryListTypes";
+
+// Re-exported so existing importers (hooks, tests) that reach these via
+// "./ChatHistoryList" keep working unchanged after the split above.
+export type { ChatHistoryListHandle } from "./ChatHistoryListTypes";
+export { resolveActiveGroupPinState, resolveVisibleGroupIndices };
 
 const STATIC_RENDER_ITEM_LIMIT = 24;
-const AT_BOTTOM_EPSILON_PX = 4;
 
 export function shouldUseStaticChatHistoryRendering(
-  renderModeItemCount: number
+  itemCount: number
 ): boolean {
-  return renderModeItemCount <= STATIC_RENDER_ITEM_LIMIT;
-}
-
-function isScrolledToContentBottom(params: {
-  element: HTMLElement;
-  footerSpacerHeight: number;
-  bottomInset: number;
-}): boolean {
-  return (
-    getChatContentBottomDistance({
-      scrollTop: params.element.scrollTop,
-      scrollHeight: params.element.scrollHeight,
-      clientHeight: params.element.clientHeight,
-      footerSpacerHeight: params.footerSpacerHeight,
-      bottomInset: params.bottomInset,
-    }) <= AT_BOTTOM_EPSILON_PX
-  );
-}
-
-function sameNumberArray(
-  left: readonly number[],
-  right: readonly number[]
-): boolean {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
-}
-
-function sameNullableNumberArray(
-  left: readonly (number | null)[],
-  right: readonly (number | null)[]
-): boolean {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
-}
-
-function sameNullableStringArray(
-  left: readonly (string | null)[],
-  right: readonly (string | null)[]
-): boolean {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-  return left.every((value, index) => value === right[index]);
-}
-
-type EventSummary = NonNullable<OptimizedChatItem["event"]>;
-
-const RESULT_RENDER_KEYS = [
-  "type",
-  "message",
-  "content",
-  "observation",
-  "success",
-  "failure",
-  "error",
-  "images",
-  "call_id",
-  "output",
-  "stdout",
-  "stderr",
-  "interleaved_output",
-  "interleavedOutput",
-  "diff",
-  "diffString",
-  "segments",
-  "filePaths",
-  "linesAdded",
-  "linesRemoved",
-  "status",
-] as const;
-
-const ARG_RENDER_KEYS = [
-  "command",
-  "streamOutput",
-  "streamContent",
-  "title",
-  "action",
-  "content",
-  "path",
-  "file_path",
-  "target_file",
-  "patch_text",
-  "old_str",
-  "old_string",
-  "old_content",
-  "new_str",
-  "new_string",
-  "new_content",
-  "subagentSessionId",
-  TOOL_USAGE_ARGS_KEY,
-  LLM_USAGE_ARGS_KEY,
-] as const;
-
-function sameRecordKeys(
-  left: Record<string, unknown> | undefined,
-  right: Record<string, unknown> | undefined,
-  keys: readonly string[]
-): boolean {
-  if (left === right) return true;
-  if (!left || !right) return false;
-  return keys.every((key) => left[key] === right[key]);
-}
-
-function sameEventSummary(
-  left: EventSummary | undefined,
-  right: EventSummary | undefined
-): boolean {
-  if (left === right) return true;
-  if (!left || !right) return false;
-  return (
-    left.id === right.id &&
-    left.actionType === right.actionType &&
-    left.functionName === right.functionName &&
-    left.uiCanonical === right.uiCanonical &&
-    left.displayText === right.displayText &&
-    left.displayStatus === right.displayStatus &&
-    left.displayVariant === right.displayVariant &&
-    left.activityStatus === right.activityStatus &&
-    left.shellPid === right.shellPid &&
-    left.shellProcessStatus === right.shellProcessStatus &&
-    left.shellExitCode === right.shellExitCode &&
-    left.shellLogPath === right.shellLogPath &&
-    left.extracted === right.extracted &&
-    left.payloadRefs === right.payloadRefs &&
-    sameRecordKeys(left.result, right.result, RESULT_RENDER_KEYS) &&
-    sameRecordKeys(left.args, right.args, ARG_RENDER_KEYS)
-  );
-}
-
-function sameEventList(
-  left: readonly EventSummary[] | undefined,
-  right: readonly EventSummary[] | undefined
-): boolean {
-  if (left === right) return true;
-  if (!left || !right) return false;
-  if (left.length !== right.length) return false;
-  return left.every((leftEvent, index) =>
-    sameEventSummary(leftEvent, right[index])
-  );
-}
-
-interface RowGroupMeta {
-  lastAssistantFlatIndex: number | null;
-  isLastItemInGroup: boolean;
-  isLastGroup: boolean;
-}
-
-function buildRowGroupMeta(
-  groupCounts: readonly number[],
-  lastAssistantFlatIndexPerItem: readonly (number | null)[]
-): RowGroupMeta[] {
-  const result: RowGroupMeta[] = [];
-  let flatIndex = 0;
-  const lastGroupIndex = groupCounts.length - 1;
-  for (let groupIndex = 0; groupIndex < groupCounts.length; groupIndex++) {
-    const groupCount = groupCounts[groupIndex];
-    const groupEndFlatIndex = flatIndex + groupCount - 1;
-    const isLastGroup = groupIndex === lastGroupIndex;
-    for (let itemOffset = 0; itemOffset < groupCount; itemOffset++) {
-      result[flatIndex] = {
-        lastAssistantFlatIndex:
-          lastAssistantFlatIndexPerItem[flatIndex] ?? null,
-        isLastItemInGroup: flatIndex === groupEndFlatIndex,
-        isLastGroup,
-      };
-      flatIndex++;
-    }
-  }
-  return result;
-}
-
-const EMPTY_ROW_GROUP_META: RowGroupMeta = {
-  lastAssistantFlatIndex: null,
-  isLastItemInGroup: false,
-  isLastGroup: false,
-};
-
-function sameFlatItems(
-  left: readonly OptimizedChatItem[],
-  right: readonly OptimizedChatItem[]
-): boolean {
-  if (left === right) return true;
-  if (left.length !== right.length) return false;
-  return left.every((leftItem, index) => {
-    const rightItem = right[index];
-    return (
-      rightItem !== undefined &&
-      leftItem.chunk_id === rightItem.chunk_id &&
-      leftItem.type === rightItem.type &&
-      leftItem.consolidatedParts === rightItem.consolidatedParts &&
-      leftItem.structuralOnly === rightItem.structuralOnly &&
-      sameEventSummary(leftItem.event, rightItem.event) &&
-      sameEventList(leftItem.readFileEvents, rightItem.readFileEvents) &&
-      sameEventList(
-        leftItem.activityStackGroup?.events,
-        rightItem.activityStackGroup?.events
-      ) &&
-      sameEventList(
-        leftItem.actionSummaryItems?.map((item) => item.event),
-        rightItem.actionSummaryItems?.map((item) => item.event)
-      )
-    );
-  });
-}
-
-function sameChatHistoryListProps(
-  previous: ChatHistoryListProps,
-  next: ChatHistoryListProps
-): boolean {
-  const sameFooterSpacer =
-    Math.abs(previous.footerSpacerHeight - next.footerSpacerHeight) <
-    CHAT_FOOTER_SPACER.UPDATE_THRESHOLD_PX;
-  const checks: Array<[string, boolean]> = [
-    ["flatItems", sameFlatItems(previous.flatItems, next.flatItems)],
-    ["groupCounts", sameNumberArray(previous.groupCounts, next.groupCounts)],
-    ["turnIds", sameNullableStringArray(previous.turnIds, next.turnIds)],
-    ["totalFlatItems", previous.totalFlatItems === next.totalFlatItems],
-    [
-      "renderModeItemCount",
-      previous.renderModeItemCount === next.renderModeItemCount,
-    ],
-    [
-      "lastAssistantFlatIndexPerItem",
-      sameNullableNumberArray(
-        previous.lastAssistantFlatIndexPerItem,
-        next.lastAssistantFlatIndexPerItem
-      ),
-    ],
-    [
-      "codeBlockContainerWidth",
-      previous.codeBlockContainerWidth === next.codeBlockContainerWidth,
-    ],
-    ["footerSpacerHeight", sameFooterSpacer],
-    ["bottomInset", previous.bottomInset === next.bottomInset],
-    [
-      "planningIndicatorCount",
-      previous.planningIndicatorCount === next.planningIndicatorCount,
-    ],
-    [
-      "planningVariantIndex",
-      previous.planningVariantIndex === next.planningVariantIndex,
-    ],
-    [
-      "planningFooterMode",
-      previous.planningFooterMode === next.planningFooterMode,
-    ],
-    ["virtualListRef", previous.virtualListRef === next.virtualListRef],
-    [
-      "virtualListDataKey",
-      previous.virtualListDataKey === next.virtualListDataKey,
-    ],
-    [
-      "getIsWpGeneWorking",
-      previous.getIsWpGeneWorking === next.getIsWpGeneWorking,
-    ],
-    ["getIsExploring", previous.getIsExploring === next.getIsExploring],
-    [
-      "renderGroupHeader",
-      previous.renderGroupHeader === next.renderGroupHeader,
-    ],
-    [
-      "onAtBottomStateChange",
-      previous.onAtBottomStateChange === next.onAtBottomStateChange,
-    ],
-    ["onRangeChanged", previous.onRangeChanged === next.onRangeChanged],
-    [
-      "onActiveGroupIndexChange",
-      previous.onActiveGroupIndexChange === next.onActiveGroupIndexChange,
-    ],
-    [
-      "hideActiveGroupHeader",
-      previous.hideActiveGroupHeader === next.hideActiveGroupHeader,
-    ],
-    ["onEndReached", previous.onEndReached === next.onEndReached],
-    ["onRegenerate", previous.onRegenerate === next.onRegenerate],
-    ["onSubmit", previous.onSubmit === next.onSubmit],
-    ["onSkip", previous.onSkip === next.onSkip],
-    [
-      "onEditUserMessage",
-      previous.onEditUserMessage === next.onEditUserMessage,
-    ],
-    [
-      "virtualScrollerRef",
-      previous.virtualScrollerRef === next.virtualScrollerRef,
-    ],
-    [
-      "staticScrollerRef",
-      previous.staticScrollerRef === next.staticScrollerRef,
-    ],
-    [
-      "newEventDividerLabel",
-      previous.newEventDividerLabel === next.newEventDividerLabel,
-    ],
-  ];
-  return checks.every(([, same]) => same);
-}
-
-export interface ChatHistoryListHandle {
-  scrollToIndex: (options: {
-    index: number;
-    behavior?: ScrollBehavior;
-    align?: "start" | "center" | "end" | "auto";
-  }) => void;
-  scrollToGroup: (options: {
-    groupIndex: number;
-    behavior?: ScrollBehavior;
-  }) => void;
-}
-
-interface ChatHistoryListProps {
-  flatItems: OptimizedChatItem[];
-  groupCounts: number[];
-  turnIds: (string | null)[];
-  totalFlatItems: number;
-  /**
-   * Collapse-independent item count used to choose the scroll renderer.
-   * Keeping this stable across a turn toggle prevents replacing the scroll root
-   * when the visible item count crosses the static-render threshold.
-   */
-  renderModeItemCount: number;
-  lastAssistantFlatIndexPerItem: (number | null)[];
-  codeBlockContainerWidth: number;
-  footerSpacerHeight: number;
-  bottomInset: number;
-  planningIndicatorCount: number;
-  planningVariantIndex: number;
-  planningFooterMode: PlanningFooterMode;
-  virtualListRef: React.RefObject<ChatHistoryListHandle | null>;
-  virtualListDataKey: string;
-  /**
-   * Stable getter returning whether work-product generation is active.
-   * Implemented as a function so Virtuoso item callbacks can read the
-   * live value without the ref being read during React's render phase.
-   */
-  getIsWpGeneWorking: () => boolean;
-  /**
-   * Stable getter returning whether the agent is in "exploring" mode.
-   * Same rationale as `getIsWpGeneWorking`.
-   */
-  getIsExploring: () => boolean;
-  renderGroupHeader: (
-    groupIndex: number,
-    renderPart?: GroupHeaderRenderPart
-  ) => React.ReactNode;
-  onAtBottomStateChange: (atBottom: boolean) => void;
-  onRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
-  onActiveGroupIndexChange?: (
-    groupIndex: number,
-    pinned: boolean,
-    visibleGroupIndices: number[]
-  ) => void;
-  /** Hide the in-list copy of the active header when a separate pinned header is rendered. */
-  hideActiveGroupHeader?: boolean;
-  onEndReached: () => void;
-  onRegenerate?: (groupIndex: number) => void;
-  onSubmit: (eventId: string, answers: Record<string, string>) => void;
-  onSkip: (eventId: string) => void;
-  onEditUserMessage?: (
-    header: OptimizedChatItem,
-    text: string,
-    images?: string[]
-  ) => void;
-  virtualScrollerRef: React.MutableRefObject<HTMLDivElement | null>;
-  /**
-   * Ref that receives the static-path scroll container (used only when
-   * a page has no body items and Virtuoso is not mounted).
-   * Allows useChatScrollPin to fall back to scrolling this element on
-   * session switches instead of silently failing.
-   */
-  staticScrollerRef?: React.MutableRefObject<HTMLDivElement | null>;
-  /**
-   * When set, `GroupItemRenderer` paints a `NewEventDivider` with this
-   * label above each group's last item. Subagent panes opt in so the
-   * freshest event in every turn is signposted. `null` / undefined
-   * keeps the divider off (default for the main chat panel).
-   */
-  newEventDividerLabel?: string | null;
-}
-
-interface VirtualGroup {
-  groupIndex: number;
-  startFlatIndex: number;
-  itemCount: number;
-}
-
-interface GroupPinMetrics {
-  groupIndex: number;
-  top: number;
-}
-
-interface GroupViewportMetrics extends GroupPinMetrics {
-  bottom: number;
-}
-
-export function resolveVisibleGroupIndices(
-  groups: readonly GroupViewportMetrics[],
-  viewportHeight: number
-): number[] {
-  return groups
-    .filter((group) => group.top < viewportHeight && group.bottom > 0)
-    .map((group) => group.groupIndex);
-}
-
-export function resolveActiveGroupPinState(
-  groups: readonly GroupPinMetrics[]
-): { groupIndex: number; pinned: boolean } {
-  let activeGroupIndex = 0;
-  let activeTop = Number.NEGATIVE_INFINITY;
-
-  for (const group of groups) {
-    if (group.top <= 0 && group.top >= activeTop) {
-      activeTop = group.top;
-      activeGroupIndex = group.groupIndex;
-    }
-  }
-
-  return {
-    groupIndex: activeGroupIndex,
-    pinned: Number.isFinite(activeTop) && activeTop < 0,
-  };
+  return itemCount <= STATIC_RENDER_ITEM_LIMIT;
 }
 
 // memo: parent (`ChatHistory/index.tsx`) re-renders on every chat event
@@ -476,7 +72,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItems,
     groupCounts,
     turnIds,
-    renderModeItemCount,
+    totalFlatItems,
     lastAssistantFlatIndexPerItem,
     codeBlockContainerWidth,
     footerSpacerHeight,
@@ -529,6 +125,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       adjusted[adjusted.length - 1] += 1;
       return adjusted;
     }, [hasPlanningItem, groupCounts]);
+    const effectiveTotalFlatItems = totalFlatItems + (hasPlanningItem ? 1 : 0);
     const virtualGroups = useMemo<VirtualGroup[]>(() => {
       let startFlatIndex = 0;
       return effectiveGroupCounts.map((itemCount, groupIndex) => {
@@ -699,13 +296,9 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       return result;
     }, [flatItems]);
 
-    // Select the scroll implementation from the collapse-independent source
-    // size. A turn toggle can shrink the visible list from dozens of items to
-    // one; switching renderers at that point would unmount the scroll root and
-    // produce a second layout/scroll correction after the collapse itself.
-    // Planning is an ephemeral footer and must not influence this choice.
-    const useStaticRendering =
-      shouldUseStaticChatHistoryRendering(renderModeItemCount);
+    const useStaticRendering = shouldUseStaticChatHistoryRendering(
+      effectiveTotalFlatItems
+    );
 
     const staticGroups = useMemo(() => {
       if (!useStaticRendering) return [];
@@ -789,129 +382,15 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       ]
     );
 
-    const lastReportedGroupStateRef = useRef<{
-      groupIndex: number;
-      pinned: boolean;
-      visibleGroupIndices: number[];
-    } | null>(null);
-    const reportActiveGroupIndex = useCallback(
-      (scrollRoot: HTMLDivElement) => {
-        const groupElements = Array.from(
-          scrollRoot.querySelectorAll<HTMLElement>("[data-chat-group-index]")
-        );
-        if (!onActiveGroupIndexChange && !hideActiveGroupHeader) {
-          for (const groupElement of groupElements) {
-            const headerElement = groupElement.querySelector<HTMLElement>(
-              "[data-chat-group-header]"
-            );
-            if (!headerElement) continue;
-            headerElement.style.visibility = "";
-            headerElement.removeAttribute("aria-hidden");
-          }
-          return;
-        }
-
-        const rootRect = scrollRoot.getBoundingClientRect();
-        const groupMetrics = groupElements.flatMap((groupElement) => {
-          const groupIndex = Number(groupElement.dataset.chatGroupIndex);
-          if (!Number.isFinite(groupIndex)) return [];
-          const groupRect = groupElement.getBoundingClientRect();
-          return [
-            {
-              groupIndex,
-              top: groupRect.top - rootRect.top,
-              bottom: groupRect.bottom - rootRect.top,
-            },
-          ];
-        });
-        const pinState = resolveActiveGroupPinState(groupMetrics);
-        const visibleGroupIndices = resolveVisibleGroupIndices(
-          groupMetrics,
-          rootRect.height
-        );
-        for (const groupElement of groupElements) {
-          const groupIndex = Number(groupElement.dataset.chatGroupIndex);
-          const headerElement = groupElement.querySelector<HTMLElement>(
-            "[data-chat-group-header]"
-          );
-          if (!headerElement) continue;
-          const hideOriginal =
-            hideActiveGroupHeader &&
-            pinState.pinned &&
-            groupIndex === pinState.groupIndex;
-          headerElement.style.visibility = hideOriginal ? "hidden" : "";
-          headerElement.toggleAttribute("aria-hidden", hideOriginal);
-        }
-        const previousState = lastReportedGroupStateRef.current;
-        const visibleGroupsChanged =
-          previousState?.visibleGroupIndices.length !==
-            visibleGroupIndices.length ||
-          !previousState?.visibleGroupIndices.every(
-            (groupIndex, index) => groupIndex === visibleGroupIndices[index]
-          );
-        if (
-          previousState?.groupIndex !== pinState.groupIndex ||
-          previousState?.pinned !== pinState.pinned ||
-          visibleGroupsChanged
-        ) {
-          lastReportedGroupStateRef.current = {
-            groupIndex: pinState.groupIndex,
-            pinned: pinState.pinned,
-            visibleGroupIndices,
-          };
-          onActiveGroupIndexChange?.(
-            pinState.groupIndex,
-            pinState.pinned,
-            visibleGroupIndices
-          );
-        }
-      },
-      [hideActiveGroupHeader, onActiveGroupIndexChange]
-    );
-
-    // Coalesce scroll-driven active-group recomputes to one per animation
-    // frame. `reportActiveGroupIndex` runs a querySelectorAll, a
-    // getBoundingClientRect per group, and header style writes; calling it
-    // synchronously on every scroll event (60–120Hz during momentum) forced a
-    // read→write→read layout thrash on the scroll tick. Batching into a rAF
-    // keeps those reads/writes off the scroll handler.
-    const activeGroupFrameRef = useRef<number | null>(null);
-    const scheduleReportActiveGroupIndex = useCallback(
-      (scrollRoot: HTMLDivElement) => {
-        if (activeGroupFrameRef.current !== null) return;
-        activeGroupFrameRef.current = window.requestAnimationFrame(() => {
-          activeGroupFrameRef.current = null;
-          reportActiveGroupIndex(scrollRoot);
-        });
-      },
-      [reportActiveGroupIndex]
-    );
-    useEffect(
-      () => () => {
-        if (activeGroupFrameRef.current !== null) {
-          window.cancelAnimationFrame(activeGroupFrameRef.current);
-          activeGroupFrameRef.current = null;
-        }
-      },
-      []
-    );
-
-    useEffect(() => {
-      lastReportedGroupStateRef.current = null;
-      const frameId = window.requestAnimationFrame(() => {
-        const scrollRoot = useStaticRendering
-          ? staticScrollerRef?.current
-          : virtualScrollerRef.current;
-        if (scrollRoot) reportActiveGroupIndex(scrollRoot);
+    const { scheduleReportActiveGroupIndex } =
+      useChatHistoryListActiveGroupReporter({
+        staticScrollerRef,
+        virtualScrollerRef,
+        useStaticRendering,
+        virtualListDataKey,
+        hideActiveGroupHeader,
+        onActiveGroupIndexChange,
       });
-      return () => window.cancelAnimationFrame(frameId);
-    }, [
-      reportActiveGroupIndex,
-      staticScrollerRef,
-      useStaticRendering,
-      virtualListDataKey,
-      virtualScrollerRef,
-    ]);
 
     if (useStaticRendering) {
       return (

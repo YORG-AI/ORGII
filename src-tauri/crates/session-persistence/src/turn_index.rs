@@ -103,29 +103,16 @@ struct UserMessageRow {
     images: Option<String>,
 }
 
-fn load_index_rows(conn: &Connection, session_id: &str) -> SqliteResult<Vec<IndexEventRow>> {
-    let mut stmt = conn.prepare_cached(
-        "SELECT id, function_name, args_json, result_json, content, created_at, history_sequence AS order_sequence
-         FROM events
-         WHERE session_id = ?1
-         ORDER BY history_sequence ASC, created_at ASC, id ASC",
-    )?;
-
-    let rows = stmt
-        .query_map([session_id], |row| {
-            Ok(IndexEventRow {
-                id: row.get(0)?,
-                function_name: row.get(1)?,
-                args_json: row.get(2)?,
-                result_json: row.get(3)?,
-                content: row.get(4)?,
-                created_at: row.get(5)?,
-                order_sequence: row.get(6)?,
-            })
-        })?
-        .collect::<SqliteResult<Vec<_>>>()?;
-
-    Ok(rows)
+fn index_event_row(row: &rusqlite::Row<'_>) -> SqliteResult<IndexEventRow> {
+    Ok(IndexEventRow {
+        id: row.get(0)?,
+        function_name: row.get(1)?,
+        args_json: row.get(2)?,
+        result_json: row.get(3)?,
+        content: row.get(4)?,
+        created_at: row.get(5)?,
+        order_sequence: row.get(6)?,
+    })
 }
 
 fn event_state(conn: &Connection, session_id: &str) -> SqliteResult<(i64, Option<i64>)> {
@@ -402,11 +389,22 @@ fn max_timestamp(left: &str, right: &str) -> String {
     }
 }
 
-fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) -> Vec<TurnDraft> {
-    let mut drafts: Vec<TurnDraft> = Vec::new();
-    let mut current: Option<TurnDraft> = None;
+struct TurnDraftBuilder<'a> {
+    stale_intent_ids: &'a StaleIntentIds,
+    drafts: Vec<TurnDraft>,
+    current: Option<TurnDraft>,
+}
 
-    for row in rows {
+impl<'a> TurnDraftBuilder<'a> {
+    fn new(stale_intent_ids: &'a StaleIntentIds) -> Self {
+        Self {
+            stale_intent_ids,
+            drafts: Vec::new(),
+            current: None,
+        }
+    }
+
+    fn push(&mut self, row: &IndexEventRow) {
         if is_user_message(row) {
             let row_intent_id = turn_intent_id_for_row(row);
 
@@ -414,8 +412,8 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
             // a durable round (Stale = invalidated). Drop the row entirely
             // so the indexer does not paint a phantom turn.
             if let Some(ref intent_id) = row_intent_id {
-                if stale_intent_ids.contains(intent_id) {
-                    continue;
+                if self.stale_intent_ids.contains(intent_id) {
+                    return;
                 }
             }
 
@@ -424,22 +422,22 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
             // first; the durable backend row arrives later with the same
             // id). Adds the new event id so user_event_ids tracks both,
             // but does not open a new round.
-            if let (Some(intent_id), Some(turn)) = (row_intent_id.as_ref(), current.as_mut()) {
+            if let (Some(intent_id), Some(turn)) = (row_intent_id.as_ref(), self.current.as_mut()) {
                 if turn.turn_intent_id.as_ref() == Some(intent_id) {
                     turn.user_event_ids.push(row.id.clone());
                     turn.event_count += 1;
                     turn.ended_at = Some(max_timestamp(&turn.started_at, &row.created_at));
-                    continue;
+                    return;
                 }
             }
 
-            if let Some(mut completed) = current.take() {
+            if let Some(mut completed) = self.current.take() {
                 completed.end_sequence = Some(row.order_sequence);
                 completed.next_turn_id = Some(row.id.clone());
-                drafts.push(completed);
+                self.drafts.push(completed);
             }
 
-            current = Some(TurnDraft {
+            self.current = Some(TurnDraft {
                 turn_id: row.id.clone(),
                 start_sequence: row.order_sequence,
                 end_sequence: None,
@@ -453,10 +451,10 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
                 turn_intent_id: row_intent_id,
                 metadata_accumulator: TurnMetadataAccumulator::new(),
             });
-            continue;
+            return;
         }
 
-        if let Some(ref mut turn) = current {
+        if let Some(ref mut turn) = self.current {
             turn.ended_at = Some(max_timestamp(&turn.started_at, &row.created_at));
             turn.event_count += 1;
             turn.body_event_count += 1;
@@ -469,11 +467,44 @@ fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) 
         }
     }
 
-    if let Some(turn) = current {
-        drafts.push(turn);
+    fn finish(mut self) -> Vec<TurnDraft> {
+        if let Some(turn) = self.current.take() {
+            self.drafts.push(turn);
+        }
+        materialized_turn_drafts(self.drafts)
     }
+}
 
-    materialized_turn_drafts(drafts)
+#[cfg(test)]
+fn build_turn_drafts(rows: &[IndexEventRow], stale_intent_ids: &StaleIntentIds) -> Vec<TurnDraft> {
+    let mut builder = TurnDraftBuilder::new(stale_intent_ids);
+    for row in rows {
+        builder.push(row);
+    }
+    builder.finish()
+}
+
+/// Aggregate directly from SQLite's cursor so a GiB-scale transcript is
+/// never retained as a second in-memory vector during index construction.
+fn stream_turn_drafts(
+    conn: &Connection,
+    session_id: &str,
+    stale_intent_ids: &StaleIntentIds,
+) -> SqliteResult<Vec<TurnDraft>> {
+    let mut stmt = conn.prepare_cached(
+        "SELECT id, function_name, args_json, result_json, content, created_at,
+                history_sequence AS order_sequence
+         FROM events
+         WHERE session_id = ?1
+         ORDER BY history_sequence ASC, created_at ASC, id ASC",
+    )?;
+    let rows = stmt.query_map([session_id], index_event_row)?;
+    let mut builder = TurnDraftBuilder::new(stale_intent_ids);
+    for row in rows {
+        let row = row?;
+        builder.push(&row);
+    }
+    Ok(builder.finish())
 }
 
 fn materialized_turn_drafts(drafts: Vec<TurnDraft>) -> Vec<TurnDraft> {
@@ -532,14 +563,13 @@ fn rebuild_turn_index_inner(session_id: &str) -> SqliteResult<Vec<CachedTurnSumm
     let conn = get_connection()?;
     backfill_missing_user_events(&conn, session_id)?;
     normalize_session_sequences(&conn, session_id)?;
-    let rows = load_index_rows(&conn, session_id)?;
     // Consult the lifecycle store so the indexer can drop rows whose
     // intent was retired before it ran (Stale). Read failure
     // falls back to an empty set, which preserves the legacy behaviour of
     // building rounds purely from events.
     let stale_intent_ids = load_stale_intent_ids(session_id);
     let intent_status_overlay = load_intent_status_overlay(session_id);
-    let drafts = build_turn_drafts(&rows, &stale_intent_ids);
+    let drafts = stream_turn_drafts(&conn, session_id, &stale_intent_ids)?;
     let (event_count, max_sequence) = event_state(&conn, session_id)?;
     let rebuilt_at = Utc::now().to_rfc3339();
 

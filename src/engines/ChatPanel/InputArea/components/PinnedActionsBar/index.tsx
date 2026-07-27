@@ -110,7 +110,7 @@ export interface PinnedActionsBarProps {
   workspacePaths?: string[];
   leadingContent?: React.ReactNode;
   trailingContent?: React.ReactNode;
-  manageButtonPlacement?: "after-actions" | "after-leading";
+  manageButtonPlacement?: "after-actions" | "after-leading" | "before-actions";
   managePanelAlign?: "left" | "right";
 }
 
@@ -352,7 +352,19 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
 
     return (
       <div className="relative flex min-w-0 flex-1 items-center gap-1">
-        {manageButtonPlacement === "after-leading" ? (
+        {manageButtonPlacement === "before-actions" ? (
+          <>
+            <div className="flex shrink-0 items-center gap-1">
+              {leadingContent}
+              {trailingContent}
+            </div>
+            <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-2" />
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
+              {manageButton}
+              {actionPills}
+            </div>
+          </>
+        ) : manageButtonPlacement === "after-leading" ? (
           <>
             <div className="flex shrink-0 items-center gap-1">
               {leadingContent}
@@ -362,6 +374,7 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
               <div aria-hidden className="mx-1 h-4 w-px shrink-0 bg-border-2" />
             )}
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
+              {trailingContent}
               {actionPills}
             </div>
           </>

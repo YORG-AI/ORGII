@@ -17,11 +17,9 @@ import { useCallback, useEffect, useRef } from "react";
 import { createLogger } from "@src/hooks/logger";
 
 import {
-  commitRefreshedAuth,
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
-import { ensureFreshSession } from "./org2CloudClient";
 import {
   broadcastCommentsChangedToPeers,
   org2CloudCommentsSignalAtom,
@@ -34,72 +32,74 @@ import {
   addSessionComment,
   deleteSessionComment,
   editSessionComment,
-  isOrg2CommentErrorCode,
   listSessionComments,
   resolveSessionComment,
 } from "./org2CloudCommentsClient";
+import {
+  EMPTY_ENTRY,
+  decideSessionCommentsFetch,
+  insertComment,
+  mergeDeltaSessionComments,
+  mergeFullSessionComments,
+  patchComment,
+  sessionCommentsDeltaSince,
+  sessionCommentsEntryForIdentity,
+  sessionCommentsErrorRetryDelayMs,
+  shouldEvictSessionCommentsOnError,
+  writeSessionCommentsEntry,
+} from "./org2CloudSessionCommentsAtom.commentTransforms";
+import {
+  activeForceTokenByKey,
+  completedForceTokenByKey,
+  dropPendingForce,
+  pendingForceRefetchKeys,
+  pendingForceTokenByKey,
+  rememberCompletedForceToken,
+} from "./org2CloudSessionCommentsAtom.forceTokenTracker";
+import { useCloudFreshAccessToken } from "./org2CloudSessionCommentsAtom.freshToken";
+import type {
+  AddCommentInput,
+  CloudSessionCommentsEntry,
+  UseSessionCommentsResult,
+} from "./org2CloudSessionCommentsAtom.types";
+
+// Re-exports: preserve this module's public import path for symbols that
+// now live in the sibling modules above (types / pure transforms /
+// shared auth composition) — every existing importer keeps working
+// unchanged.
+export type {
+  AddCommentInput,
+  CloudSessionCommentsEntry,
+  CloudSessionCommentsFetchState,
+  CommentThread,
+  GroupedCommentThreads,
+  SessionCommentsFetchDecision,
+  UseSessionCommentsResult,
+} from "./org2CloudSessionCommentsAtom.types";
+export {
+  MAX_SESSION_COMMENT_CACHE_ENTRIES,
+  SESSION_COMMENTS_DELTA_OVERLAP_MS,
+  SESSION_COMMENTS_ERROR_RETRY_MS,
+  SESSION_COMMENTS_ERROR_RETRY_MAX_MS,
+  sessionCommentsDeltaSince,
+  sessionCommentsErrorRetryDelayMs,
+  countLiveComments,
+  decideSessionCommentsFetch,
+  getThreadResolution,
+  groupCommentThreads,
+  insertComment,
+  isThreadResolved,
+  mergeDeltaSessionComments,
+  mergeFullSessionComments,
+  mergePresentEventIdEntries,
+  patchComment,
+  sessionCommentsEntryForIdentity,
+  shouldEvictSessionCommentsOnError,
+  writeSessionCommentsEntry,
+} from "./org2CloudSessionCommentsAtom.commentTransforms";
+export { useCloudFreshAccessToken } from "./org2CloudSessionCommentsAtom.freshToken";
 
 const log = createLogger("Org2CloudSessionComments");
-
-const SESSION_COMMENTS_TTL_MS = 30_000;
-export const MAX_SESSION_COMMENT_CACHE_ENTRIES = 128;
-
-/**
- * A transient listing failure (network blip, or the session row sitting in
- * a momentary engine retract/re-upsert window) must not pin `state:"error"`
- * for the full TTL: an error entry becomes re-claimable after this window,
- * and a mounted consumer arms one deferred retry to actually re-run it.
- */
-export const SESSION_COMMENTS_ERROR_RETRY_MS = 10_000;
-
-export type CloudSessionCommentsFetchState =
-  | "idle"
-  | "loading"
-  | "ready"
-  | "error";
-
-export interface CloudSessionCommentsEntry {
-  /** Prevents cached bodies from crossing an account or endpoint switch. */
-  identityKey?: string;
-  comments: CloudSessionComment[];
-  /** Server-derived permission for spending this session owner's local model. */
-  viewerOwnsSession: boolean;
-  state: CloudSessionCommentsFetchState;
-  /** Last fetch failure (diagnostics only — UI keys on `state`). */
-  errorMessage?: string;
-  /** Epoch ms of the last completed fetch attempt (0 ⇒ never fetched). */
-  fetchedAt: number;
-}
-
-const EMPTY_ENTRY: CloudSessionCommentsEntry = {
-  comments: [],
-  viewerOwnsSession: false,
-  state: "idle",
-  fetchedAt: 0,
-};
-
-export function sessionCommentsEntryForIdentity(
-  entry: CloudSessionCommentsEntry | undefined,
-  identityKey: string | null
-): CloudSessionCommentsEntry | undefined {
-  return identityKey && entry?.identityKey === identityKey ? entry : undefined;
-}
-
-export function writeSessionCommentsEntry(
-  entries: Record<string, CloudSessionCommentsEntry>,
-  key: string,
-  entry: CloudSessionCommentsEntry
-): Record<string, CloudSessionCommentsEntry> {
-  const next = { ...entries };
-  delete next[key];
-  next[key] = entry;
-  const keys = Object.keys(next);
-  while (keys.length > MAX_SESSION_COMMENT_CACHE_ENTRIES) {
-    const oldest = keys.shift();
-    if (oldest) delete next[oldest];
-  }
-  return next;
-}
 
 export const org2CloudSessionCommentsAtom = atom<
   Record<string, CloudSessionCommentsEntry>
@@ -107,281 +107,8 @@ export const org2CloudSessionCommentsAtom = atom<
 org2CloudSessionCommentsAtom.debugLabel = "org2CloudSessionCommentsAtom";
 
 // ---------------------------------------------------------------------------
-// Pure list transforms (unit-tested; no IO)
-// ---------------------------------------------------------------------------
-
-function compareComments(
-  left: CloudSessionComment,
-  right: CloudSessionComment
-): number {
-  if (left.createdAt !== right.createdAt) {
-    return left.createdAt < right.createdAt ? -1 : 1;
-  }
-  // Deterministic tiebreak, mirroring the server's `order by created_at, id`.
-  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
-}
-
-/** Insert (or replace by id) keeping the server's (createdAt, id) order. */
-export function insertComment(
-  comments: readonly CloudSessionComment[],
-  comment: CloudSessionComment
-): CloudSessionComment[] {
-  const next = comments.filter((existing) => existing.id !== comment.id);
-  next.push(comment);
-  next.sort(compareComments);
-  return next;
-}
-
-/** Shallow-patch one comment by id (no-op when the id is unknown). */
-export function patchComment(
-  comments: readonly CloudSessionComment[],
-  commentId: string,
-  patch: Partial<CloudSessionComment>
-): CloudSessionComment[] {
-  return comments.map((comment) =>
-    comment.id === commentId ? { ...comment, ...patch } : comment
-  );
-}
-
-export type SessionCommentsFetchDecision = "claim" | "skip" | "queue_force";
-
-/**
- * The atomic-claim decision, extracted pure so the force-vs-in-flight race
- * is testable: a FORCED refresh that lands while a fetch is in flight must
- * never be silently dropped — its intent is queued and replayed once the running fetch
- * settles. Non-forced calls behind an in-flight fetch or a fresh TTL stay
- * plain skips.
- */
-export function decideSessionCommentsFetch(
-  entry: CloudSessionCommentsEntry | undefined,
-  force: boolean,
-  now: number
-): SessionCommentsFetchDecision {
-  if (entry?.state === "loading") return force ? "queue_force" : "skip";
-  const freshnessWindowMs =
-    entry?.state === "error"
-      ? SESSION_COMMENTS_ERROR_RETRY_MS
-      : SESSION_COMMENTS_TTL_MS;
-  const fresh =
-    entry !== undefined &&
-    entry.state !== "idle" &&
-    now - entry.fetchedAt <= freshnessWindowMs;
-  if (fresh && !force) return "skip";
-  return "claim";
-}
-
-/**
- * Errors meaning the viewer may no longer SEE this session's comments at
- * all (visibility flip to 'restricted', revoked grant, deleted session).
- * The cached entry must then be EVICTED, not merely flagged 'error': the
- * atom is app-lifetime, and keeping thread bodies readable after the
- * server said FORBIDDEN would defeat the 0002 visibility mirror for
- * already-cached data. Transient failures (network, auth refresh) keep
- * the cache — going blank on a blip would be worse than stale.
- */
-export function shouldEvictSessionCommentsOnError(error: unknown): boolean {
-  return (
-    isOrg2CommentErrorCode(error, "ORG2_FORBIDDEN") ||
-    isOrg2CommentErrorCode(error, "ORG2_SESSION_NOT_FOUND")
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Thread grouping (pure; unit-tested)
-// ---------------------------------------------------------------------------
-
-export interface CommentThread {
-  top: CloudSessionComment;
-  /** Direct replies, (createdAt, id) asc. Flat: replies never nest. */
-  replies: CloudSessionComment[];
-}
-
-export interface GroupedCommentThreads {
-  /** Threads anchored to a PRESENT event id, keyed by that id. */
-  byEventId: Map<string, CommentThread[]>;
-  /** Unanchored session-level notes. */
-  sessionLevel: CommentThread[];
-  /**
-   * Threads whose anchor event no longer exists in the local replay stream
-   * (owner-side epoch rewrite dropped it). Rendered in an "earlier version"
-   * bucket — never crash, never silently vanish.
-   */
-  orphaned: CommentThread[];
-}
-
-function isLiveComment(comment: CloudSessionComment): boolean {
-  return !comment.deletedAt;
-}
-
-/**
- * Group a session's flat comment list into render-ready threads.
- *
- * - Tombstoned members stay IN their thread (rendered as "comment deleted")
- *   so reply chains keep their anchor; a thread whose every member is a
- *   tombstone is dropped entirely (nothing left to show).
- * - Replies whose parent is missing from the list are dropped defensively
- *   (the server's flat-thread + cascade invariants make this unreachable,
- *   but a stale cache must not crash the transcript).
- * - `presentEventIds === null` means "presence unknown" — anchored threads
- *   then classify as present (`byEventId`), never as orphans.
- */
-export function groupCommentThreads(
-  comments: readonly CloudSessionComment[],
-  presentEventIds: ReadonlySet<string> | null
-): GroupedCommentThreads {
-  const ordered = [...comments].sort(compareComments);
-
-  const threadsById = new Map<string, CommentThread>();
-  const topLevels: CommentThread[] = [];
-  for (const comment of ordered) {
-    if (comment.parentId) continue;
-    const thread: CommentThread = { top: comment, replies: [] };
-    threadsById.set(comment.id, thread);
-    topLevels.push(thread);
-  }
-  for (const comment of ordered) {
-    if (!comment.parentId) continue;
-    threadsById.get(comment.parentId)?.replies.push(comment);
-  }
-
-  const byEventId = new Map<string, CommentThread[]>();
-  const sessionLevel: CommentThread[] = [];
-  const orphaned: CommentThread[] = [];
-  for (const thread of topLevels) {
-    const hasLiveMember =
-      isLiveComment(thread.top) || thread.replies.some(isLiveComment);
-    if (!hasLiveMember) continue;
-
-    const anchor = thread.top.eventId;
-    if (!anchor) {
-      sessionLevel.push(thread);
-    } else if (presentEventIds === null || presentEventIds.has(anchor)) {
-      const bucket = byEventId.get(anchor);
-      if (bucket) {
-        bucket.push(thread);
-      } else {
-        byEventId.set(anchor, [thread]);
-      }
-    } else {
-      orphaned.push(thread);
-    }
-  }
-
-  return { byEventId, sessionLevel, orphaned };
-}
-
-/**
- * Union of the per-provider replay-stream id sets registered for ONE
- * session (`sessionCommentPresentEventIdsAtom` is keyed session → provider
- * instance → id set, so two panes showing the SAME session never clobber
- * each other's entry and closing one pane cannot blank the other's orphan
- * bucket). `null` = no provider currently publishes — presence UNKNOWN,
- * and `groupCommentThreads` then never classifies orphans.
- */
-export function mergePresentEventIdEntries(
-  entries: Record<string, ReadonlySet<string>> | undefined
-): ReadonlySet<string> | null {
-  if (!entries) return null;
-  const sets = Object.values(entries);
-  if (sets.length === 0) return null;
-  if (sets.length === 1) return sets[0];
-  const merged = new Set<string>();
-  for (const set of sets) {
-    for (const id of set) merged.add(id);
-  }
-  return merged;
-}
-
-/** Resolve state lives on the thread head (design: thread-level state). */
-export function isThreadResolved(thread: CommentThread): boolean {
-  return Boolean(thread.top.resolvedAt);
-}
-
-export function getThreadResolution(
-  thread: CommentThread
-): CloudCommentResolution | null {
-  if (!thread.top.resolvedAt) return null;
-  return thread.top.resolution ?? "resolved";
-}
-
-/** Live (non-tombstone) comments across the given threads — badge counts. */
-export function countLiveComments(threads: readonly CommentThread[]): number {
-  let count = 0;
-  for (const thread of threads) {
-    if (isLiveComment(thread.top)) count++;
-    for (const reply of thread.replies) {
-      if (isLiveComment(reply)) count++;
-    }
-  }
-  return count;
-}
-
-// ---------------------------------------------------------------------------
-// Shared auth composition
-// ---------------------------------------------------------------------------
-
-/**
- * The `ensureFreshSession` + `commitRefreshedAuth` composition as ONE
- * stable callback: a fresh JWT per RPC batch, committed compare-and-set so
- * a signed-out auth atom is never resurrected. This is the blessed
- * React-side variant of the idiom, shared by `useSessionComments` and the
- * task surfaces (`SessionCommentsContext`'s create/reopen/reset wrappers);
- * the headless runner carries its own store-backed copy inside
- * `buildDefaultCommentTaskRunnerDeps`. Reads auth through a ref so the
- * token-refresh write inside a batch never retriggers the callers' effects
- * (org2CloudRemoteSessionsAtom idiom).
- */
-export function useCloudFreshAccessToken(): () => Promise<string> {
-  const [auth, setAuth] = useAtom(org2CloudAuthAtom);
-  const authRef = useRef(auth);
-  useEffect(() => {
-    authRef.current = auth;
-  }, [auth]);
-
-  return useCallback(async (): Promise<string> => {
-    const current = authRef.current;
-    if (!current) throw new Error("not signed in to ORG2 Cloud");
-    const fresh = await ensureFreshSession(current);
-    if (!fresh) throw new Error("token refresh failed");
-    commitRefreshedAuth(setAuth, current, fresh);
-    return fresh.accessToken;
-  }, [setAuth]);
-}
-
-// ---------------------------------------------------------------------------
 // The hook
 // ---------------------------------------------------------------------------
-
-export interface AddCommentInput {
-  body: string;
-  eventId?: string;
-  parentId?: string;
-}
-
-export interface UseSessionCommentsResult {
-  comments: CloudSessionComment[];
-  viewerOwnsSession: boolean;
-  state: CloudSessionCommentsFetchState;
-  /** Refetch now, ignoring the TTL. */
-  refresh: () => void;
-  /**
-   * Local-only insert of a server-shaped comment row — the complete RPC
-   * returns its `agent_report` reply byte-identical to a list entry
-   * (add/list parity rule), so the runner bridge inserts it without a
-   * refetch. No RPC fires; the next TTL refetch reconciles regardless.
-   */
-  insertLocalComment: (comment: CloudSessionComment) => void;
-  /** Resolves with the created comment (already inserted); rejects on
-   *  failure so composers can keep the draft (design §4 non-goals). */
-  addComment: (input: AddCommentInput) => Promise<CloudSessionComment>;
-  editComment: (commentId: string, body: string) => Promise<void>;
-  deleteComment: (commentId: string) => Promise<void>;
-  resolveComment: (
-    commentId: string,
-    resolved: boolean,
-    resolution?: CloudCommentResolution
-  ) => Promise<void>;
-}
 
 /**
  * Comments for `(orgId, sessionId)` (either null ⇒ no cloud comment target —
@@ -391,35 +118,12 @@ export interface UseSessionCommentsResult {
  * fetch CLAIM happens inside one atom updater (decide-and-mark against live
  * store state), so two instances mounting in the same commit cannot both
  * fire the list RPC — a render-snapshot guard would.
+ *
+ * The force-refetch de-dup state (in-flight claims, signal tokens) lives in
+ * `org2CloudSessionCommentsAtom.forceTokenTracker.ts` — module-level because
+ * the atom entry above is shared across every mounted hook instance for the
+ * same key, so the de-dup state must be too.
  */
-/**
- * Keys whose in-flight fetch swallowed a FORCED refresh: replayed with one
- * more forced fetch the moment the running fetch settles (module-level —
- * the atom entry is shared across hook instances, so the queue must be
- * too). A Set, so N dropped forces replay as ONE refetch.
- */
-const pendingForceRefetchKeys = new Set<string>();
-/** Signal-aware force dedup shared across hook instances. The same Realtime
- * generation may be observed by header and transcript subscribers; it must
- * produce one request, not one sequential request per subscriber. */
-const activeForceTokenByKey = new Map<string, string>();
-const pendingForceTokenByKey = new Map<string, string>();
-const completedForceTokenByKey = new Map<string, string>();
-const COMPLETED_FORCE_TOKEN_CACHE_MAX = 500;
-
-function rememberCompletedForceToken(key: string, token: string): void {
-  completedForceTokenByKey.delete(key);
-  completedForceTokenByKey.set(key, token);
-  if (completedForceTokenByKey.size <= COMPLETED_FORCE_TOKEN_CACHE_MAX) return;
-  const oldestKey = completedForceTokenByKey.keys().next().value;
-  if (oldestKey !== undefined) completedForceTokenByKey.delete(oldestKey);
-}
-
-function dropPendingForce(key: string): void {
-  pendingForceTokenByKey.delete(key);
-  pendingForceRefetchKeys.delete(key);
-}
-
 export function useSessionComments(
   orgId: string | null,
   sessionId: string | null,
@@ -468,6 +172,7 @@ export function useSessionComments(
         let claimed = false;
         let queuedForce = false;
         let knownIdsAtStart = new Set<string>();
+        let anchorAtStart: string | undefined;
         setEntries((previous) => {
           const stored = previous[targetKey];
           const entry =
@@ -485,6 +190,7 @@ export function useSessionComments(
           knownIdsAtStart = new Set(
             (entry?.comments ?? []).map((comment) => comment.id)
           );
+          anchorAtStart = entry?.lastServerTime;
           return writeSessionCommentsEntry(previous, targetKey, {
             ...(entry ?? EMPTY_ENTRY),
             identityKey: requestIdentityKey,
@@ -512,10 +218,19 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          const { comments, viewerOwnsSession } = await listSessionComments(
+          // Force paths (manual refresh, session-signal tokens, the
+          // SUBSCRIBED-edge recovery) stay FULL listings — a full snapshot
+          // is the only read that reconciles the stamp-free un-resolve.
+          // TTL/org-signal refetches pull the delta behind the stored anchor.
+          const since =
+            !force && anchorAtStart !== undefined
+              ? sessionCommentsDeltaSince(anchorAtStart)
+              : undefined;
+          const listing = await listSessionComments(
             accessToken,
             targetOrgId,
-            targetSessionId
+            targetSessionId,
+            since !== undefined ? { since } : undefined
           );
           const latestAfterFetch = authRef.current;
           if (
@@ -525,12 +240,10 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          // MERGE, not wholesale-replace: preserve ONLY rows that appeared
-          // locally AFTER the fetch was claimed (optimistic adds the server
-          // snapshot predates — their id is not in knownIdsAtStart). A row
-          // that WAS known at start but is missing from the response was
-          // deleted server-side (e.g. GDPR erasure) and is dropped — merging
-          // it back would make it immortal.
+          // MERGE, not wholesale-replace — see mergeFullSessionComments /
+          // mergeDeltaSessionComments for the two paths' invariants. The
+          // fallback-aware `appliedSince` (not the requested `since`) picks
+          // the path: a pre-delta backend answers every request in full.
           setEntries((previous) => {
             const latestAuth = authRef.current;
             if (
@@ -540,25 +253,26 @@ export function useSessionComments(
               return previous;
             }
             const stored = previous[targetKey];
-            const existing =
-              stored?.identityKey === requestIdentityKey ? stored.comments : [];
-            const fetchedIds = new Set(comments.map((comment) => comment.id));
-            const merged = existing
-              .filter(
-                (comment) =>
-                  !fetchedIds.has(comment.id) &&
-                  !knownIdsAtStart.has(comment.id)
-              )
-              .reduce(
-                (list, comment) => insertComment(list, comment),
-                comments
-              );
+            const sameIdentity = stored?.identityKey === requestIdentityKey;
+            const existing = sameIdentity ? stored.comments : [];
+            const merged =
+              listing.appliedSince !== undefined
+                ? mergeDeltaSessionComments(existing, listing.comments)
+                : mergeFullSessionComments(
+                    existing,
+                    listing.comments,
+                    knownIdsAtStart
+                  );
+            const lastServerTime =
+              listing.serverTime ??
+              (sameIdentity ? stored.lastServerTime : undefined);
             return writeSessionCommentsEntry(previous, targetKey, {
               identityKey: requestIdentityKey,
               comments: merged,
-              viewerOwnsSession,
+              viewerOwnsSession: listing.viewerOwnsSession,
               state: "ready",
               fetchedAt: Date.now(),
+              ...(lastServerTime !== undefined ? { lastServerTime } : {}),
             });
           });
         } catch (error) {
@@ -570,25 +284,35 @@ export function useSessionComments(
             dropPendingForce(requestKey);
             return;
           }
-          log.warn("cloud_list_session_comments failed:", error);
+          log.warn(
+            `cloud_list_session_comments failed for ${targetKey}:`,
+            error
+          );
           // Visibility revocation EVICTS the cached bodies (0002 invariant
           // 5 for already-cached data); transient failures keep them.
           const evict = shouldEvictSessionCommentsOnError(error);
           const errorMessage =
             error instanceof Error ? error.message : String(error);
-          setEntries((previous) =>
-            writeSessionCommentsEntry(previous, targetKey, {
-              ...(evict
-                ? EMPTY_ENTRY
-                : previous[targetKey]?.identityKey === requestIdentityKey
-                  ? previous[targetKey]
-                  : EMPTY_ENTRY),
+          setEntries((previous) => {
+            const stored = previous[targetKey];
+            const sameIdentity = stored?.identityKey === requestIdentityKey;
+            const retained = !evict && sameIdentity ? stored : undefined;
+            // Eviction protects cached BODIES, not the failure bookkeeping:
+            // resetting the counter on evict-class errors (e.g. a session
+            // that is not on the server) would turn the exponential retry
+            // back into a flat loop against a persistently failing target.
+            const priorFailures = sameIdentity
+              ? (stored?.consecutiveFailures ?? 0)
+              : 0;
+            return writeSessionCommentsEntry(previous, targetKey, {
+              ...(retained ?? EMPTY_ENTRY),
               identityKey: requestIdentityKey,
               state: "error",
               errorMessage,
+              consecutiveFailures: priorFailures + 1,
               fetchedAt: Date.now(),
-            })
-          );
+            });
+          });
         } finally {
           if (forceToken) {
             if (activeForceTokenByKey.get(requestKey) === forceToken) {
@@ -630,16 +354,26 @@ export function useSessionComments(
 
   // Error retry: one deferred re-run per error result while a consumer is
   // mounted (the entry's fetchedAt changes on every attempt, re-arming the
-  // effect). Not a recurring timer — it exists only while an error shows.
+  // effect). Not a recurring timer — it exists only while an error shows, and
+  // consecutive failures widen the delay exponentially.
   const entryFetchedAt = entry.fetchedAt;
+  const entryConsecutiveFailures = entry.consecutiveFailures ?? 1;
   useEffect(() => {
     if (!orgId || !sessionId || !signedIn) return undefined;
     if (entryState !== "error") return undefined;
     const timer = setTimeout(() => {
       void fetchComments(orgId, sessionId, {});
-    }, SESSION_COMMENTS_ERROR_RETRY_MS);
+    }, sessionCommentsErrorRetryDelayMs(entryConsecutiveFailures));
     return () => clearTimeout(timer);
-  }, [orgId, sessionId, signedIn, entryState, entryFetchedAt, fetchComments]);
+  }, [
+    orgId,
+    sessionId,
+    signedIn,
+    entryState,
+    entryFetchedAt,
+    entryConsecutiveFailures,
+    fetchComments,
+  ]);
 
   // --- Realtime nudge (comments bus): a peer's comment/task mutation
   // broadcast bumps this counter — force-refetch immediately so the open
@@ -676,7 +410,7 @@ export function useSessionComments(
       return;
     }
     // org_change_signals carries unrelated projects, sessions, scopes, and
-    // comments. Let the existing TTL gate this coarse fallback instead of forcing
+    // comments. Let the existing TTL gate this coarse event instead of forcing
     // every open session to list comments for every org-level write.
     void fetchComments(orgId, sessionId);
   }, [

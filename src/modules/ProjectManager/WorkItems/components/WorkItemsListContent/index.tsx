@@ -1,7 +1,10 @@
 import type React from "react";
-import { type FC, type ReactNode, useMemo } from "react";
+import { type FC, type ReactNode, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import VirtualizedGroupedList, {
+  type VirtualizedGroup,
+} from "@src/modules/ProjectManager/shared/components/VirtualizedGroupedList";
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { DropdownOption, Person } from "@src/types/core/shared";
@@ -52,7 +55,6 @@ interface WorkItemsListContentProps {
   /** Render project cells read-only (cross-project Work Items page). */
   disableProjectEdit?: boolean;
   compactRows?: boolean;
-  scrollMode?: "internal" | "page";
   showEmptySections?: boolean;
   defaultCollapsedStatuses?: readonly string[];
   renderSectionPlaceholder?: (status: string) => ReactNode | undefined;
@@ -60,6 +62,20 @@ interface WorkItemsListContentProps {
 }
 
 const EMPTY_CHECKED_WORK_ITEM_IDS = new Set<string>();
+
+interface SectionPlaceholderRow {
+  kind: "section-placeholder";
+  status: string;
+  content: ReactNode;
+}
+
+type WorkItemVirtualRow = WorkItemExtended | SectionPlaceholderRow;
+
+function isSectionPlaceholder(
+  row: WorkItemVirtualRow
+): row is SectionPlaceholderRow {
+  return "kind" in row && row.kind === "section-placeholder";
+}
 
 const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
   groupedWorkItems,
@@ -88,7 +104,6 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
   collapseAllSignal = 0,
   disableProjectEdit = false,
   compactRows = false,
-  scrollMode = "internal",
   showEmptySections = false,
   defaultCollapsedStatuses = [],
   renderSectionPlaceholder,
@@ -102,21 +117,51 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
     [checkedWorkItemIds, hasControlledCheckboxes]
   );
 
-  const rootClassName =
-    scrollMode === "page"
-      ? "flex flex-col"
-      : "flex h-full min-h-0 flex-col overflow-hidden";
-  const bodyClassName =
-    scrollMode === "page"
-      ? "overflow-visible"
-      : "min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide";
   const shouldRenderSections =
     groupedWorkItems.length > 0 &&
     (filteredWorkItems.length > 0 || showEmptySections);
 
+  const virtualGroups = useMemo(
+    () =>
+      groupedWorkItems.map((group) => {
+        const placeholder = renderSectionPlaceholder?.(group.status);
+        return {
+          key: group.status,
+          group,
+          items: placeholder
+            ? ([
+                {
+                  kind: "section-placeholder",
+                  status: group.status,
+                  content: placeholder,
+                },
+              ] satisfies SectionPlaceholderRow[])
+            : (group.items as readonly WorkItemVirtualRow[]),
+        };
+      }),
+    [groupedWorkItems, renderSectionPlaceholder]
+  );
+
+  const defaultGroupExpanded = useCallback(
+    (
+      virtualGroup: VirtualizedGroup<
+        WorkItemGroup<WorkItemExtended>,
+        WorkItemVirtualRow
+      >
+    ) => {
+      const { group } = virtualGroup;
+      return (
+        collapseAllSignal === 0 &&
+        group.status !== "deleted" &&
+        !defaultCollapsedStatuses.includes(group.status)
+      );
+    },
+    [collapseAllSignal, defaultCollapsedStatuses]
+  );
+
   return (
-    <div className={rootClassName}>
-      <div className={bodyClassName}>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {!shouldRenderSections ? (
           workItems.length === 0 ? (
             (emptyListPlaceholder ?? (
@@ -149,23 +194,25 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
             ))
           )
         ) : (
-          <div className={`flex flex-col ${compactRows ? "pb-2" : "pb-3"}`}>
-            {groupedWorkItems.map((group) => {
+          <VirtualizedGroupedList
+            key={collapseAllSignal}
+            className={compactRows ? "pb-2" : "pb-3"}
+            testId="work-items-virtual-list"
+            groups={virtualGroups}
+            defaultExpanded={defaultGroupExpanded}
+            getItemKey={(row) =>
+              isSectionPlaceholder(row)
+                ? `placeholder:${row.status}`
+                : row.session_id
+            }
+            renderGroupHeader={(group, expanded, onExpandedChange) => {
               const isDeletedGroup = group.status === "deleted";
-              const sectionPlaceholder = renderSectionPlaceholder?.(
-                group.status
-              );
               return (
                 <WorkItemSection
-                  key={`${group.status}:${collapseAllSignal}`}
                   status={group.status}
                   statusConfig={group.config}
                   count={group.items.length}
-                  defaultExpanded={
-                    !isDeletedGroup &&
-                    !defaultCollapsedStatuses.includes(group.status) &&
-                    collapseAllSignal === 0
-                  }
+                  expanded={expanded}
                   label={
                     isDeletedGroup ? t("workItems.deleteBin.title") : undefined
                   }
@@ -177,55 +224,60 @@ const WorkItemsListContent: FC<WorkItemsListContentProps> = ({
                       : undefined
                   }
                   compact={compactRows}
-                  onExpandedChange={(expanded) =>
-                    onSectionExpandedChange?.(group.status, expanded)
-                  }
-                >
-                  {sectionPlaceholder ??
-                    group.items.map((workItem) => (
-                      <WorkItemRow
-                        key={workItem.session_id}
-                        workItem={workItem}
-                        isSelected={selectedWorkItemId === workItem.session_id}
-                        onSelect={onSelectWorkItem}
-                        onUpdate={onUpdateWorkItem}
-                        onDelete={onDeleteWorkItem}
-                        onRestore={onRestoreWorkItem}
-                        readonly={readonly}
-                        compact={compactRows}
-                        availableMembers={availableMembers}
-                        availableProjects={availableProjects}
-                        availableMilestones={availableMilestones}
-                        availableLabels={availableLabels}
-                        isChecked={
-                          hasControlledCheckboxes
-                            ? checkedWorkItemIds.has(workItem.session_id)
-                            : undefined
-                        }
-                        onCheckedChange={onCheckedChange}
-                        workItemPrefix={workItemPrefix}
-                        showCheckboxes={
-                          showCheckboxesOnAllRows && !isDeletedGroup
-                        }
-                        externalStatusValue={getExternalStatusValue?.(workItem)}
-                        externalStatusOptions={externalStatusOptions}
-                        onExternalStatusChange={
-                          onExternalStatusChange
-                            ? (statusId) =>
-                                onExternalStatusChange(
-                                  workItem.session_id,
-                                  statusId
-                                )
-                            : undefined
-                        }
-                        statusDisabled={statusDisabled || isDeletedGroup}
-                        disableProjectEdit={disableProjectEdit}
-                      />
-                    ))}
-                </WorkItemSection>
+                  onExpandedChange={(nextExpanded) => {
+                    onExpandedChange(nextExpanded);
+                    onSectionExpandedChange?.(group.status, nextExpanded);
+                  }}
+                  virtualizedHeader
+                />
               );
-            })}
-          </div>
+            }}
+            renderItem={(row, group, isLastInGroup) => {
+              const isDeletedGroup = group.status === "deleted";
+              const rowClassName = `${compactRows ? "px-0" : "px-2"} ${
+                isLastInGroup ? (compactRows ? "pb-2" : "pb-3") : "pb-1"
+              }`;
+              if (isSectionPlaceholder(row)) {
+                return <div className={rowClassName}>{row.content}</div>;
+              }
+              return (
+                <div className={rowClassName}>
+                  <WorkItemRow
+                    workItem={row}
+                    isSelected={selectedWorkItemId === row.session_id}
+                    onSelect={onSelectWorkItem}
+                    onUpdate={onUpdateWorkItem}
+                    onDelete={onDeleteWorkItem}
+                    onRestore={onRestoreWorkItem}
+                    readonly={readonly}
+                    compact={compactRows}
+                    availableMembers={availableMembers}
+                    availableProjects={availableProjects}
+                    availableMilestones={availableMilestones}
+                    availableLabels={availableLabels}
+                    isChecked={
+                      hasControlledCheckboxes
+                        ? checkedWorkItemIds.has(row.session_id)
+                        : undefined
+                    }
+                    onCheckedChange={onCheckedChange}
+                    workItemPrefix={workItemPrefix}
+                    showCheckboxes={showCheckboxesOnAllRows && !isDeletedGroup}
+                    externalStatusValue={getExternalStatusValue?.(row)}
+                    externalStatusOptions={externalStatusOptions}
+                    onExternalStatusChange={
+                      onExternalStatusChange
+                        ? (statusId) =>
+                            onExternalStatusChange(row.session_id, statusId)
+                        : undefined
+                    }
+                    statusDisabled={statusDisabled || isDeletedGroup}
+                    disableProjectEdit={disableProjectEdit}
+                  />
+                </div>
+              );
+            }}
+          />
         )}
       </div>
     </div>

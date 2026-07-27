@@ -9,7 +9,6 @@ import {
   buildIntegrationsPath,
   buildWizardPath,
 } from "@src/config/mainAppPaths";
-import { useRouteViewMode } from "@src/config/routeViewModeConfig";
 import {
   CHAT_WIDTH_CSS_VAR,
   clampChatWidth,
@@ -28,7 +27,7 @@ import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAg
 import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
-  closeCloudOrgManagementChatPanelTabAtom,
+  closeOrganizationChatPanelTabAtom,
   closeProjectOrgChatPanelTabsAtom,
   openRuntimeInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
@@ -60,6 +59,7 @@ import {
   toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
+import { isHumanSession } from "@src/util/session/sessionDispatch";
 
 import { useReloadSession } from "./ChatHistory/hooks/useReloadSession";
 import { ChatPanelContent } from "./ChatPanelContent";
@@ -103,9 +103,11 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const shouldOffsetHeaderForCollapsedSidebar =
       useShouldOffsetChatPanelHeader({ position, useExternalWidth });
     const navigate = useNavigate();
-    const viewMode = useRouteViewMode();
     const { currentSessionId, currentSession, panelTitle } = usePanelTitle();
     const activeSession = currentSession ?? undefined;
+    const humanSessionActive =
+      currentSession?.category === "human_session" ||
+      isHumanSession(currentSessionId);
     const handleReloadSession = useReloadSession(currentSessionId ?? null);
 
     const [contentMode, setContentMode] = useAtom(chatPanelContentModeAtom);
@@ -127,9 +129,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const selectedCloudOrg = useAtomValue(chatPanelSelectedCloudOrgAtom);
     const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
     const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
-    const closeCloudOrgManagementTab = useSetAtom(
-      closeCloudOrgManagementChatPanelTabAtom
-    );
+    const closeOrganizationTab = useSetAtom(closeOrganizationChatPanelTabAtom);
     const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
     const exploreOpen = useAtomValue(chatPanelExploreOpenAtom);
     const createProjectContext = useAtomValue(
@@ -149,7 +149,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const isChatFocus = useAtomValue(chatPanelMaximizedAtom);
     const syncActiveTabState = useSetAtom(syncActiveChatPanelTabStateAtom);
     const toggleChatFocus = useSetAtom(toggleChatPanelMaximizedAtom);
-    const showChatFocusToggle = viewMode === "workStation";
+    const showChatFocusToggle = true;
     const rawChatWidth = useAtomValue(chatWidthAtom);
     const viewportWidth = useViewportWidth();
     const chatMaxWidth = getChatMaxWidth(viewportWidth);
@@ -172,14 +172,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         cloudOrgsLoaded &&
         !cloudOrgs.some((org) => org.orgId === selectedCloudOrg.orgId)
       ) {
-        closeCloudOrgManagementTab();
+        closeOrganizationTab();
       }
-    }, [
-      closeCloudOrgManagementTab,
-      cloudOrgs,
-      cloudOrgsLoaded,
-      selectedCloudOrg,
-    ]);
+    }, [closeOrganizationTab, cloudOrgs, cloudOrgsLoaded, selectedCloudOrg]);
 
     // `project_orgs` is a durable local mirror, not an authorization source.
     // Once the managed-cloud roster is authoritative, close any cached detail
@@ -364,7 +359,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       selectedProjectOrg,
       selectedWorkItem,
       selectedWorkspace,
-      viewMode,
     });
 
     const setSelectedProject = useSetAtom(chatPanelSelectedProjectAtom);
@@ -521,6 +515,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           contentState.showSessionContent && !isStandaloneToolTabActive
         }
         showCloudShareSettings={showCloudShareSettings}
+        showTranscriptActions={!humanSessionActive}
         showTuiModeToggle={showTuiModeToggle}
         tuiMode={tuiMode}
         handleTuiModeToggle={handleTuiModeToggle}

@@ -110,7 +110,7 @@ describe("ChatPanelTabBar", () => {
     expect(markup).not.toContain("max-w-none");
   });
 
-  it("offers Runtime in the new-tab menu", () => {
+  it("offers the supported creation surfaces in the new-tab menu", () => {
     const markup = renderToStaticMarkup(
       createElement(PlusMenuContent, {
         onOpenLaunchpad: vi.fn(),

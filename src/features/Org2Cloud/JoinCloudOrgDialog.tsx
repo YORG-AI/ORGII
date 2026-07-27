@@ -7,7 +7,7 @@
  * confirmation is open and is consumed (cleared) exactly once on dismiss or
  * successful join. Signed-out users get the same system-browser sign-in CTA
  * as Settings; the pending invite survives the browser handoff and the dialog
- * switches back to its confirm action when the auth deep link returns.
+ * switches back to its confirm action when the auth callback returns.
  *
  * The plaintext code never leaves this device: only its sha256 goes to
  * `accept_invite` (same code model as invite creation).

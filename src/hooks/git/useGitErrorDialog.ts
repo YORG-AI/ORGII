@@ -22,8 +22,8 @@ import {
 } from "@src/store/ui/workStationAtom";
 import {
   createGitLogTab,
-  openTab,
-  workstationLayoutAtom,
+  openWorkstationTabAtom,
+  presentedWorkstationWorkspaceKeyAtom,
 } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
@@ -237,8 +237,8 @@ export function useGitErrorDialog(
 
     const store = getInstrumentedStore();
     const errorInfo = buildGitErrorInfo(options);
+    const workspace = store.get(presentedWorkstationWorkspaceKeyAtom);
 
-    // Create the git log tab
     const tab = createGitLogTab(
       errorInfo.operation,
       errorInfo.errorMessage,
@@ -246,11 +246,9 @@ export function useGitErrorDialog(
       errorInfo.timestamp
     );
 
-    const layout = store.get(workstationLayoutAtom);
-    if (!layout) return;
-    store.set(workstationLayoutAtom, {
-      ...layout,
-      mainPane: openTab(layout.mainPane, tab),
+    store.set(openWorkstationTabAtom, {
+      workspace,
+      tab,
     });
   }, []);
 
@@ -351,13 +349,11 @@ export async function showGitErrorAndHandle(
         errorInfo.timestamp
       );
 
-      const layout = store.get(workstationLayoutAtom);
-      if (layout) {
-        store.set(workstationLayoutAtom, {
-          ...layout,
-          mainPane: openTab(layout.mainPane, tab),
-        });
-      }
+      const workspace = store.get(presentedWorkstationWorkspaceKeyAtom);
+      store.set(openWorkstationTabAtom, {
+        workspace,
+        tab,
+      });
       break;
     }
 

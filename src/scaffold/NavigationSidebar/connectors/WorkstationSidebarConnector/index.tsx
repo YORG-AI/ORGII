@@ -1,146 +1,60 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { ChevronLeft, Search } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { Search } from "lucide-react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { ROUTES } from "@src/config/routes";
-import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSessionShareDialog/useCloudSessionShareDialog";
-import { useCloudSyncLevelDialog } from "@src/features/Org2Cloud/CloudSyncLevelDialog/useCloudSyncLevelDialog";
-import { useMoveToOrgDialog } from "@src/features/TeamCollaboration/components/MoveToOrgDialog/useMoveToOrgDialog";
-import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
-import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
-import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
-import {
-  activateChatPanelTabAtom,
-  activeChatPanelTabAtom,
-  activeWorkManagementSectionAtom,
-  closeAndDestroyChatPanelTabAtom,
-  openCloudOrgManagementInChatPanelTabAtom,
-  openCreateTargetInChatPanelStartPageAtom,
-  openOrFocusChatPanelStartPageTabAtom,
-  openOrReplaceSessionInChatPanelTabAtom,
-  openRuntimeInChatPanelTabAtom,
-  openSessionInNewChatTabAtom,
-  openTeamInboxInChatPanelTabAtom,
-  openWorkManagementChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
-import { repoMapAtom } from "@src/store/repo";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
-  loadSidebarSessions,
-  markAllSessionsVisited,
+  loadSessionRoster,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
+  sessionPaginationAtom,
   sessionsAtom,
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
-import { openSessionInWorkstationAtom } from "@src/store/session/sessionTabPlacementAtom";
-import {
-  CHAT_PANEL_CREATE_TARGET,
-  CHAT_PANEL_SURFACE_KIND,
-  activeStationChatVisibleAtom,
-  chatPanelContentModeAtom,
-  chatPanelCreateTargetAtom,
-  chatPanelNavigateAtom,
-  chatPanelSelectedProjectAtom,
-  chatPanelSelectedWorkItemAtom,
-} from "@src/store/ui/chatPanelAtom";
 import {
   clearSessionSidebarRevealAtom,
   sessionSidebarRevealRequestAtom,
   sidebarCollapsedAtom,
 } from "@src/store/ui/sidebarAtom";
-import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
-import {
-  WORK_MANAGEMENT_PROJECTS_VIEW,
-  WORK_MANAGEMENT_SECTION,
-  type WorkManagementSection,
-  workManagementProjectsViewAtom,
-} from "@src/store/workstation";
-import {
-  getChatPanelTabIdFromTuiSessionId,
-  isChatPanelTuiSessionId,
-  toChatPanelTuiSessionId,
-} from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
-import { SidebarBottomBar, SidebarHeaderNavButton } from "../../blocks";
+import { SidebarBottomBar, SidebarMenuSearchInput } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
-import SidebarOrgSelector from "../SidebarOrgSelector";
-import {
-  COLLAB_ADD_ORG_MENU_ITEM_ID,
-  KANBAN_MENU_ITEM_ID,
-  NEW_SESSION_MENU_ITEM_ID,
-  RUNTIME_MENU_ITEM_ID,
-  TEAM_INBOX_MENU_ITEM_ID,
-  WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
-  WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
-  WORK_ITEMS_MENU_ITEM_ID,
-  WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
-  getDraftIdFromMenuItemId,
-  isWorkManagementMenuItemId,
-} from "../sidebarConnectorUtils";
-import {
-  sidebarGroupByAtom,
-  sidebarIncludeExternalAtom,
-} from "../sidebarGroupByAtom";
-import { useProjectsWorkItemMenuItems } from "../useProjectsWorkItemMenuItems";
-import { useRenameSessionModal } from "../useRenameSessionModal";
-import { useSessionMenuItems } from "../useSessionMenuItems";
-import { useWorkstationSidebarContextMenu } from "../useWorkstationSidebarContextMenu";
-import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
-import {
-  DEFAULT_COLLAPSED_SECTION_IDS,
-  buildRepoPathToName,
-  findSidebarSectionIdForMenuItem,
-  getAllSectionIds,
-  sortSessionsByActivity,
-} from "../workstationSidebarData";
+import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
-import { useSidebarBottomRightActions } from "./bottomActions";
-import { buildCloudScopedMenuItems } from "./cloudScopedMenuItems";
-import { useCloudSessionsSection } from "./cloudSessionsSection";
-import {
-  useRenderProjectsMenuItemWrapper,
-  useRenderSessionMenuItemWrapper,
-  useRenderWorkstationMenuItemWrapper,
-} from "./menuItemWrappers";
-import { resolveSelectedMenuItemIds } from "./menuSelection";
-import { useSessionEntryActions } from "./sessionEntryActions";
-import { useDecorateSessionRowActions } from "./sessionRowActions";
-import { useWorkstationSidebarMemory } from "./sidebarMemory";
-import {
-  getChatTerminalTabId,
-  isChatTerminalSidebarItem,
-  useChatPanelTuiSidebarSessions,
-  usePinnedMenuItems,
-  useSessionSidebarMenuItems,
-} from "./sidebarMenuCollections";
-import {
-  rescanSidebarSessions,
-  useSidebarSessionRefreshEffects,
-} from "./sidebarSessionRefresh";
+import { useWorkstationSidebarBottomActions } from "./sidebarConnector.bottomActions";
+import { useWorkstationSidebarChatPanelAtoms } from "./sidebarConnector.chatPanelAtoms";
+import { useWorkstationSidebarChrome } from "./sidebarConnector.chrome";
+import { useWorkstationSidebarCloudMenuData } from "./sidebarConnector.cloudMenuData";
+import { buildWorkstationSidebarLabels } from "./sidebarConnector.labels";
+import { useWorkstationSidebarMenuDecoration } from "./sidebarConnector.menuDecoration";
+import { useWorkstationSidebarPinnedAndRevealData } from "./sidebarConnector.pinnedAndRevealData";
+import { useWorkstationSidebarRevealNavigationEffects } from "./sidebarConnector.revealNavigationEffects";
+import { useWorkstationSidebarRevealRequestState } from "./sidebarConnector.revealRequestState";
+import { useWorkstationSidebarScopeAndPagination } from "./sidebarConnector.scopeAndPagination";
+import { useWorkstationSidebarSelectionAndNavigation } from "./sidebarConnector.selectionAndNavigation";
+import { useWorkstationSidebarSessionAndProjectMenuItems } from "./sidebarConnector.sessionAndProjectMenuItems";
+import { useWorkstationSidebarSessionInteractionHandlers } from "./sidebarConnector.sessionInteractionHandlers";
 import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
 import type { WorkstationSidebarKey } from "./types";
-import { useProjectsMenuItemClick } from "./useProjectsMenuItemClick";
-import { useSidebarOrgScope } from "./useSidebarOrgScope";
-import { useWorkstationSidebarReveal } from "./useWorkstationSidebarReveal";
-import {
-  buildWorkItemsSidebarMenuItems,
-  resolveWorkItemsSidebarMenuItemId,
-} from "./workItemsSidebarMenuItems";
 
-const logger = createLogger("WorkstationSidebar");
-
+/**
+ * Workstation sidebar coordinator. The bulk of this connector's state,
+ * effects, and derived data live in sibling `sidebarConnector.*` modules
+ * (see each file's own header comment) — this component wires them
+ * together in the same order they used to run inline and renders the
+ * result. `cloudSessionsSection.tsx` supplies the cloud "Team sessions"
+ * data consumed here via `sidebarConnector.cloudMenuData`.
+ */
 export const WorkstationSidebarConnector: React.FC = () => {
   const { t } = useTranslation("navigation");
   const { t: tProjects } = useTranslation("projects");
@@ -156,6 +70,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   useTeamInboxDataSource();
   const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
   const sessionsLoading = useAtomValue(sessionLoadingAtom);
+  const sessionPagination = useAtomValue(sessionPaginationAtom);
   const sessionSidebarRevealRequest = useAtomValue(
     sessionSidebarRevealRequestAtom
   );
@@ -170,40 +85,32 @@ export const WorkstationSidebarConnector: React.FC = () => {
     promoteActiveSessionCreatorDraftAtom
   );
   const deleteSessionCreatorDraft = useSetAtom(deleteSessionCreatorDraftAtom);
-  const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
-  const chatPanelContentMode = useAtomValue(chatPanelContentModeAtom);
-  const chatPanelCreateTarget = useAtomValue(chatPanelCreateTargetAtom);
-  const chatPanelSelectedWorkItem = useAtomValue(chatPanelSelectedWorkItemAtom);
-  const chatPanelSelectedProject = useAtomValue(chatPanelSelectedProjectAtom);
-  const setChatPanelCreateTarget = useSetAtom(chatPanelCreateTargetAtom);
-  const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
-  const setStationChatVisible = useSetAtom(activeStationChatVisibleAtom);
-  const setStationMode = useSetAtom(stationModeAtom);
-  const activeWorkManagementSection = useAtomValue(
-    activeWorkManagementSectionAtom
-  );
-  const [workManagementProjectsView, setWorkManagementProjectsView] = useAtom(
-    workManagementProjectsViewAtom
-  );
-  const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
-  const openCloudOrgManagementTab = useSetAtom(
-    openCloudOrgManagementInChatPanelTabAtom
-  );
-  const openSessionInNewChatTab = useSetAtom(openSessionInNewChatTabAtom);
-  const openSessionInWorkstation = useSetAtom(openSessionInWorkstationAtom);
-  const openOrReplaceSessionInChatPanelTab = useSetAtom(
-    openOrReplaceSessionInChatPanelTabAtom
-  );
-  const activateChatPanelTab = useSetAtom(activateChatPanelTabAtom);
-  const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
-  const openCreateTargetInStartPage = useSetAtom(
-    openCreateTargetInChatPanelStartPageAtom
-  );
-  const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
-  const openTeamInboxTab = useSetAtom(openTeamInboxInChatPanelTabAtom);
-  const closeAndDestroyChatPanelTab = useSetAtom(
-    closeAndDestroyChatPanelTabAtom
-  );
+
+  const {
+    chatPanelContentMode,
+    chatPanelCreateTarget,
+    chatPanelSelectedWorkItem,
+    chatPanelSelectedProject,
+    setChatPanelCreateTarget,
+    navigateChatPanel,
+    setStationChatVisible,
+    setStationMode,
+    activeWorkManagementSection,
+    workManagementProjectsView,
+    setWorkManagementProjectsView,
+    openWorkManagementTab,
+    openOrganizationTab,
+    openSessionInNewChatTab,
+    openSessionInWorkstation,
+    openOrReplaceSessionInChatPanelTab,
+    activateChatPanelTab,
+    openStartPageTab,
+    openCreateTargetInStartPage,
+    openRuntimeTab,
+    openTeamInboxTab,
+    closeAndDestroyChatPanelTab,
+  } = useWorkstationSidebarChatPanelAtoms();
+
   const { openSession } = useSessionView();
   const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
   const { goToNewSession, navigateTo } = useAppNavigation();
@@ -234,20 +141,14 @@ export const WorkstationSidebarConnector: React.FC = () => {
         [activeSidebarSearchKey]: value,
       }));
       if (activeSidebarSearchKey === "workstation") {
-        void loadSidebarSessions();
+        void loadSessionRoster();
       }
     },
     [activeSidebarSearchKey]
   );
 
-  useSidebarSessionRefreshEffects();
-
-  const chatPanelTuiSessions = useChatPanelTuiSidebarSessions();
-  const sortedSessions = useMemo(
-    () => sortSessionsByActivity([...chatPanelTuiSessions, ...sessions]),
-    [chatPanelTuiSessions, sessions]
-  );
   const {
+    sortedSessions,
     activeCloudOrgId,
     activeOrgId,
     activeProjectOrgId,
@@ -255,18 +156,27 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudTaggedSessionIds,
     handleCloudSessionFilterChange,
     manageableCloudOrg,
+    manageableLocalOrg,
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
     setSelectedOrgId,
-  } = useSidebarOrgScope({ sortedSessions });
-  const repoMap = useAtomValue(repoMapAtom);
-  const repoPathToName = useMemo(() => buildRepoPathToName(repoMap), [repoMap]);
+    repoPathToName,
+    groupByMode,
+    setGroupByMode,
+    includeExternal,
+    setIncludeExternal,
+    cloudMyPaginationScopeKey,
+    cloudMySessionsVisibleCount,
+    setCloudMyPagination,
+    resetCloudMyPagination,
+    cloudSignedInIdentity,
+    handleCloudSignIn,
+  } = useWorkstationSidebarScopeAndPagination({
+    sessions,
+    workstationSearchQuery: sidebarSearchQueries.workstation,
+  });
 
-  const [groupByMode, setGroupByMode] = useAtom(sidebarGroupByAtom);
-  const [includeExternal, setIncludeExternal] = useAtom(
-    sidebarIncludeExternalAtom
-  );
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Map<string, number>
   >(new Map());
@@ -281,73 +191,54 @@ export const WorkstationSidebarConnector: React.FC = () => {
   );
   const [projectsCollapsedSectionIds, setProjectsCollapsedSectionIds] =
     useState<Set<string>>(() => new Set());
-  const {
-    activeRequest: activeSessionSidebarRevealRequest,
-    revealedSessionIds,
-  } = useWorkstationSidebarReveal({
-    activeSessionId,
-    request: sessionSidebarRevealRequest,
-    clearRequest: clearSessionSidebarReveal,
-    setSidebarCollapsed,
-    setActiveSidebarKey,
-    setWorkItemsOpen,
-    setSelectedOrgId,
-    setSidebarSearchQueries,
-    setExpandedSubagentParentIds,
-  });
 
-  const untitledSession = t("sidebar.defaults.untitledSession");
-  const newSessionLabel = t("labels.newSession");
-  const pinFolderLabel = tCommon("sessions:chat.pinSession", "Pin");
-  const unpinFolderLabel = tCommon("sessions:chat.unpinSession", "Unpin");
-  const createProjectLabel = tProjects("projects.createProject");
-  const createWorkItemLabel = tProjects("workItems.createWorkItem");
-  const workItemsLabel = t("labels.workItems");
-  const runtimeLabel = tSessions("chat.startPage.tabs.runtime");
-  const teamInboxLabel = t("labels.teamInbox", {
-    defaultValue: "Team Inbox",
-  });
-  const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
-  const addOrgLabel = t("collaboration.addOrg");
-  const manageOrgLabel = t("collaboration.manageOrg");
-  const searchPlaceholder =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? t("sidebar.search.projects")
-      : t("sidebar.search.sessions");
-  const noSearchResultsTitle = t("sidebar.empty.noSearchResults");
+  const { activeSessionSidebarRevealRequest, revealedSessionIds } =
+    useWorkstationSidebarRevealRequestState({
+      sessionSidebarRevealRequest,
+      activeSessionId,
+      clearSessionSidebarReveal,
+    });
+
+  const {
+    untitledSession,
+    newSessionLabel,
+    pinFolderLabel,
+    unpinFolderLabel,
+    createProjectLabel,
+    createWorkItemLabel,
+    workItemsLabel,
+    runtimeLabel,
+    teamInboxLabel,
+    importGithubIssuesLabel,
+    addOrgLabel,
+    manageOrgLabel,
+    searchPlaceholder,
+    noSearchResultsTitle,
+  } = buildWorkstationSidebarLabels({ t, tProjects, tSessions, tCommon });
+
   const {
     cloudMenuItems,
-    cloudThreadedLocalSessionIds,
     selectedCloudMenuItemId,
-    handleCloudRemoteItemClick,
+    handleCloudSessionItemClick,
+    resetCloudTeamPagination,
     handleCloudRemoteItemRemove,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
-  } = useCloudSessionsSection({
-    orgId: activeCloudOrgId,
+    sessionListExcludedIds,
+    cloudScopedExtraSessionIds,
+  } = useWorkstationSidebarCloudMenuData({
+    activeCloudOrgId,
     sessions,
-    filter: cloudSessionFilter,
+    cloudSessionFilter,
     activeSessionId,
-    revealedMenuItemId:
-      activeSessionSidebarRevealRequest?.cloudOrgId === activeCloudOrgId
-        ? activeSessionSidebarRevealRequest.sidebarItemId
-        : undefined,
-    onFilterChange: handleCloudSessionFilterChange,
+    cloudMySessionsVisibleCount,
+    revealedCloudOrgId: activeSessionSidebarRevealRequest?.cloudOrgId,
+    revealedSidebarItemId: activeSessionSidebarRevealRequest?.sidebarItemId,
+    handleCloudSessionFilterChange,
+    personalHiddenCloudTaggedIds,
+    cloudTaggedSessionIds,
   });
-
-  // Threaded position wins: mine-rows shown inside a fork thread leave the
-  // flat local list (sessionMap keeps them for click routing).
-  const sessionListExcludedIds = useMemo(() => {
-    if (!personalHiddenCloudTaggedIds) return cloudThreadedLocalSessionIds;
-    if (cloudThreadedLocalSessionIds.size === 0) {
-      return personalHiddenCloudTaggedIds;
-    }
-    return new Set([
-      ...cloudThreadedLocalSessionIds,
-      ...personalHiddenCloudTaggedIds,
-    ]);
-  }, [cloudThreadedLocalSessionIds, personalHiddenCloudTaggedIds]);
 
   const {
     menuItems,
@@ -355,175 +246,122 @@ export const WorkstationSidebarConnector: React.FC = () => {
     subagentParentIds,
     isLoadMoreId,
     getLoadMoreGroupId,
-  } = useSessionMenuItems({
+    projectsWorkItemMenuItems,
+    projectsProjectMap,
+    projectsWorkItemMap,
+    projectsLinearWorkItemMap,
+    projectsLocalOrgMap,
+    projectsLinearOrgMap,
+    projectsWorkItemsLoading,
+    projectsLinkedSessionIds,
+    getProjectsLoadMoreGroupId,
+    loadProjectsLinearOrgWorkItems,
+    toChatPanelProject,
+    toChatPanelWorkItem,
+    openProjectsLinearOrg,
+    openProjectsLinearWorkItem,
+  } = useWorkstationSidebarSessionAndProjectMenuItems({
     sortedSessions,
     visitedSessions,
     repoPathToName,
     groupByMode,
     untitledSession,
-    searchQuery: sidebarSearchQueries.workstation,
-    selectedOrgIds: sessionFilterOrgIds,
-    extraSessionIds: cloudTaggedSessionIds,
-    excludedSessionIds: sessionListExcludedIds,
+    workstationSearchQuery: sidebarSearchQueries.workstation,
+    sessionFilterOrgIds,
+    cloudScopedExtraSessionIds,
+    sessionListExcludedIds,
     includeExternal,
     groupVisibleCounts,
+    activeCloudOrgId,
     expandedSubagentParentIds,
     revealedSessionIds,
+    activeSidebarKey,
+    workItemsContentVisible,
+    projectsGroupVisibleCounts,
+    projectsSearchQuery: sidebarSearchQueries.projects,
+    activeProjectOrgId,
   });
+
   const {
-    menuItems: projectsWorkItemMenuItems,
-    projectMap: projectsProjectMap,
-    workItemMap: projectsWorkItemMap,
-    linearWorkItemMap: projectsLinearWorkItemMap,
-    localOrgMap: projectsLocalOrgMap,
-    linearOrgMap: projectsLinearOrgMap,
-    loading: projectsWorkItemsLoading,
-    linkedSessionIds: projectsLinkedSessionIds,
-    getLoadMoreGroupId: getProjectsLoadMoreGroupId,
-    loadLinearOrgWorkItems: loadProjectsLinearOrgWorkItems,
-    toChatPanelProject,
-    toChatPanelWorkItem,
-    openLinearOrg: openProjectsLinearOrg,
-    openLinearWorkItem: openProjectsLinearWorkItem,
-  } = useProjectsWorkItemMenuItems({
-    enabled: activeSidebarKey === "projects" || workItemsContentVisible,
-    groupVisibleCounts: projectsGroupVisibleCounts,
-    searchQuery: sidebarSearchQueries.projects,
-    selectedOrgId: activeProjectOrgId,
-  });
-
-  const rename = useRenameSessionModal();
-  const activeChatPanelTab = useAtomValue(activeChatPanelTabAtom);
-  const benchmarkBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
-  const activeChatPanelTuiSessionId =
-    activeChatPanelTab?.type === "terminal"
-      ? toChatPanelTuiSessionId(activeChatPanelTab.id)
-      : "";
-  const highlightedSessionId = activeChatPanelTuiSessionId
-    ? activeChatPanelTuiSessionId
-    : benchmarkBatchStatus?.items.some(
-          (item) => item.sessionId === activeSessionId
-        )
-      ? benchmarkBatchStatus.masterSessionId
-      : activeSessionId;
-
-  const workItemsSidebarMenuItems = useMemo(
-    () =>
-      buildWorkItemsSidebarMenuItems({
-        projects: t("labels.projects"),
-        githubIssues: tSessions("kanban.sidebar.githubIssues"),
-        githubPrs: tSessions("kanban.sidebar.githubPrs"),
-      }),
-    [t, tSessions]
-  );
-
-  const { pinnedMenuItems } = usePinnedMenuItems({
-    activeSidebarKey: projectsSidebarVisible ? "projects" : activeSidebarKey,
+    rename,
+    activeChatPanelTab,
+    highlightedSessionId,
+    pinnedMenuItems,
+    sessionSidebarMenuItems,
+    loadedCloudMySessionRowCount,
+    revealCandidateMenuItems,
+  } = useWorkstationSidebarPinnedAndRevealData({
+    activeSessionId,
+    cloudMenuItems,
+    menuItems,
+    sessionCreatorDrafts,
+    projectsSidebarVisible,
+    activeSidebarKey,
     createProjectLabel,
     createWorkItemLabel,
     importGithubIssuesLabel,
-    kanbanLabel: tSessions("simulator.tabs.kanban"),
     newSessionLabel,
     runtimeLabel,
     teamInboxLabel,
     teamInboxUnreadCount,
-    workItemDestinations: workItemsSidebarMenuItems,
     t,
+    tSessions,
   });
-  const sessionSidebarMenuItems = useSessionSidebarMenuItems({
-    menuItems,
+
+  useWorkstationSidebarRevealNavigationEffects({
+    sessionSidebarRevealRequest,
+    setSidebarCollapsed,
+    setActiveSidebarKey,
+    setWorkItemsOpen,
+    setSelectedOrgId,
+    setSidebarSearchQueries,
+    setExpandedSubagentParentIds,
+    activeSessionSidebarRevealRequest,
+    revealCandidateMenuItems,
+    setCollapsedSectionIds,
+  });
+
+  const {
+    resetWorkManagementStateForProjectsContent,
+    projectsSidebarMenuItems,
+    selectedMenuItemId,
+    resolvedCollapsedSectionIds,
+    resolvedOnCollapsedSectionIdsChange,
+    activateMyStationRouteForProjectsContent,
+    activateMyStationRouteForProjectTabContent,
+    handleGoToNewSession,
+  } = useWorkstationSidebarSelectionAndNavigation({
+    setStationMode,
+    setStationChatVisible,
+    openStartPageTab,
+    t,
+    projectsWorkItemMenuItems,
+    activeSessionCreatorDraftId,
+    highlightedSessionId,
+    activeSidebarKey,
+    activeChatPanelTabType: activeChatPanelTab?.type ?? null,
+    chatPanelContentMode,
+    chatPanelCreateTarget,
+    chatPanelSelectedProject,
+    chatPanelSelectedWorkItem,
+    projectsSelectedMenuItemId,
     sessionCreatorDrafts,
-    t,
-  });
-  const revealCandidateMenuItems = useMemo(
-    () => [...cloudMenuItems, ...sessionSidebarMenuItems],
-    [cloudMenuItems, sessionSidebarMenuItems]
-  );
-  const revealedSectionId = useMemo(
-    () =>
-      activeSessionSidebarRevealRequest
-        ? findSidebarSectionIdForMenuItem(
-            revealCandidateMenuItems,
-            activeSessionSidebarRevealRequest.sidebarItemId ??
-              activeSessionSidebarRevealRequest.sessionId
-          )
-        : null,
-    [activeSessionSidebarRevealRequest, revealCandidateMenuItems]
-  );
-  useEffect(() => {
-    if (!revealedSectionId) return;
-    const revealFrame = window.requestAnimationFrame(() => {
-      setCollapsedSectionIds((previousIds) => {
-        if (!previousIds.has(revealedSectionId)) return previousIds;
-        const nextIds = new Set(previousIds);
-        nextIds.delete(revealedSectionId);
-        return nextIds;
-      });
-    });
-    return () => window.cancelAnimationFrame(revealFrame);
-  }, [revealedSectionId]);
-  const resetWorkManagementStateForProjectsContent = useCallback(() => {
-    const stationMode: StationMode = "my-station";
-    setStationMode(stationMode);
-    setStationChatVisible(stationMode, true);
-    openStartPageTab({ title: t("routes.launchpad") });
-  }, [openStartPageTab, setStationChatVisible, setStationMode, t]);
-
-  const projectsSidebarMenuItems = projectsWorkItemMenuItems;
-  const { selectedMenuItemId: baseSelectedMenuItemId } =
-    resolveSelectedMenuItemIds({
-      activeSessionCreatorDraftId,
-      activeSessionId: highlightedSessionId,
-      activeSidebarKey,
-      activeChatPanelTabType: activeChatPanelTab?.type ?? null,
-      chatPanelContentMode,
-      chatPanelCreateTarget,
-      chatPanelSelectedProject,
-      chatPanelSelectedWorkItem,
-      projectsSelectedMenuItemId,
-      sessionCreatorDrafts,
-    });
-  const selectedMenuItemId =
-    workItemsContentVisible && projectsSelectedMenuItemId
-      ? projectsSelectedMenuItemId
-      : activeSidebarKey === "workstation" &&
-          activeChatPanelTab?.type === "work-management"
-        ? resolveWorkItemsSidebarMenuItemId({
-            homeTab: activeWorkManagementSection,
-            projectsView: workManagementProjectsView,
-          })
-        : baseSelectedMenuItemId;
-  const resolvedCollapsedSectionIds =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? projectsCollapsedSectionIds
-      : collapsedSectionIds;
-  const resolvedSetCollapsedSectionIds =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? setProjectsCollapsedSectionIds
-      : setCollapsedSectionIds;
-
-  const activateMyStationRouteForProjectsContent = useCallback(() => {
-    const targetRoute = ROUTES.workStation.code.path;
-    resetWorkManagementStateForProjectsContent();
-    if (location.pathname !== targetRoute) navigate(targetRoute);
-  }, [location.pathname, navigate, resetWorkManagementStateForProjectsContent]);
-
-  const activateMyStationRouteForProjectTabContent = useCallback(() => {
-    const stationMode: StationMode = "my-station";
-    const targetRoute = ROUTES.workStation.code.path;
-    setStationMode(stationMode);
-    setStationChatVisible(stationMode, true);
-    if (location.pathname !== targetRoute) navigate(targetRoute);
-  }, [location.pathname, navigate, setStationChatVisible, setStationMode]);
-
-  const openNewChatTab = useCallback(() => {
-    openStartPageTab({ title: t("routes.launchpad") });
-  }, [openStartPageTab, t]);
-
-  const { handleGoToNewSession } = useSessionEntryActions({
+    workItemsContentVisible,
+    activeWorkManagementSection,
+    workManagementProjectsView,
+    setGroupVisibleCounts,
+    collapsedSectionIds,
+    groupByMode,
+    resetCloudTeamPagination,
+    resetCloudMyPagination,
+    setCollapsedSectionIds,
+    setProjectsGroupVisibleCounts,
+    projectsCollapsedSectionIds,
+    setProjectsCollapsedSectionIds,
+    location,
+    navigate,
     goToNewSession,
     navigateChatPanel,
-    openNewChatTab,
     setChatPanelCreateTarget,
   });
 
@@ -532,381 +370,159 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleExportMarkdown,
     handleMenuItemClick,
     handleTogglePin,
-  } = useWorkstationSidebarHandlers({
+    handleOpenInNewTab,
+    handleOpenInMyStation,
+    handleOpenLinkedWorkItemSession,
+    handleToggleSubagentExpansion,
+  } = useWorkstationSidebarSessionInteractionHandlers({
+    handleCloudSessionItemClick,
+    cloudMySessionsVisibleCount,
+    cloudMyPaginationScopeKey,
+    setCloudMyPagination,
+    loadedCloudMySessionRowCount,
+    sessionPagination,
     activeSessionId,
     sessionMap,
     isLoadMoreId,
     getLoadMoreGroupId,
     sessionRouteLabel: t("routes.session"),
-    goToNewSession: handleGoToNewSession,
+    handleGoToNewSession,
     navigateTo,
     openSession,
     promoteActiveSessionCreatorDraft,
     setGroupVisibleCounts,
     tCommon,
-    onOpenChatPanelTab: activateChatPanelTab,
-    onOpenSessionChatPanelTab: openOrReplaceSessionInChatPanelTab,
-    onCloseChatPanelTab: closeAndDestroyChatPanelTab,
-    onCloudRemoteItemClick: handleCloudRemoteItemClick,
+    activateChatPanelTab,
+    openOrReplaceSessionInChatPanelTab,
+    closeAndDestroyChatPanelTab,
+    activateMyStationRouteForProjectTabContent,
+    navigateChatPanel,
+    openSessionInNewChatTab,
+    openSessionInWorkstation,
+    setExpandedSubagentParentIds,
   });
-  const handleOpenInNewTab = useCallback(
-    (sessionId: string) => {
-      activateMyStationRouteForProjectTabContent();
-      navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
-      if (isChatPanelTuiSessionId(sessionId)) {
-        const tabId = getChatPanelTabIdFromTuiSessionId(sessionId);
-        if (tabId) activateChatPanelTab(tabId);
-        return;
-      }
-      const session = sessionMap.get(sessionId);
-      openSessionInNewChatTab({
-        sessionId,
-        sessionName: session?.name,
-        repoPath: session?.repoPath,
-      });
-    },
-    [
-      activateChatPanelTab,
-      activateMyStationRouteForProjectTabContent,
-      navigateChatPanel,
-      openSessionInNewChatTab,
-      sessionMap,
-    ]
-  );
-  const handleOpenInMyStation = useCallback(
-    (sessionId: string) => {
-      const session = sessionMap.get(sessionId);
-      if (!session) return;
-      activateMyStationRouteForProjectTabContent();
-      openSessionInWorkstation({
-        sessionId,
-        title: session.name,
-      });
-    },
-    [
-      activateMyStationRouteForProjectTabContent,
-      openSessionInWorkstation,
-      sessionMap,
-    ]
-  );
 
-  const handleOpenLinkedWorkItemSession = useCallback(
-    (item: NavigationMenuItem) => {
-      if (sessionMap.has(item.id)) {
-        handleMenuItemClick(item.key, item);
-        return;
-      }
-      activateMyStationRouteForProjectTabContent();
-      openSessionInWorkstation({
-        sessionId: item.id,
-        title: item.label,
-      });
-    },
-    [
-      activateMyStationRouteForProjectTabContent,
-      handleMenuItemClick,
-      openSessionInWorkstation,
-      sessionMap,
-    ]
-  );
-
-  const handleToggleSubagentExpansion = useCallback((sessionId: string) => {
-    setExpandedSubagentParentIds((previousIds) => {
-      const nextIds = new Set(previousIds);
-      if (nextIds.has(sessionId)) {
-        nextIds.delete(sessionId);
-      } else {
-        nextIds.add(sessionId);
-      }
-      return nextIds;
-    });
-  }, []);
-
-  const moveToOrg = useMoveToOrgDialog();
-  const cloudSyncLevel = useCloudSyncLevelDialog();
-  const cloudShare = useCloudSessionShareDialog();
-  const handleMenuItemContextMenu = useWorkstationSidebarContextMenu({
+  const {
+    moveToOrg,
+    cloudSyncLevel,
+    cloudShare,
+    handleMenuItemContextMenu,
+    sidebarMenuItems,
+    handleProjectsMenuItemClick,
+  } = useWorkstationSidebarMenuDecoration({
     sessionMap,
     rename,
     handleDeleteSession,
-    handleDeleteDraft: deleteSessionCreatorDraft,
+    deleteSessionCreatorDraft,
     handleExportMarkdown,
     handleOpenInNewTab,
     handleOpenInMyStation,
     handleTogglePin,
-    isMoveEligible: moveToOrg.isMoveEligible,
-    handleOpenMoveToOrg: moveToOrg.openMoveToOrg,
-    moveToOrgLabel: t("cloud.moveToOrg.menuItem"),
-    isCloudSyncLevelEligible: cloudSyncLevel.isSyncLevelEligible,
-    handleOpenCloudSyncLevel: cloudSyncLevel.openSyncLevel,
-    cloudSyncLevelLabel: t("cloud.syncLevel.menuItem"),
-    isCloudShareEligible: cloudShare.isCloudShareEligible,
-    handleOpenCloudShare: cloudShare.openCloudShare,
-    cloudShareLabel: t("cloud.share.menuItem"),
-    handleCloudRemoteItemRemove,
-    tCommon,
-  });
-
-  const decorateSessionRowActions = useDecorateSessionRowActions({
-    activeSessionMoreMenuId,
-    deleteSessionCreatorDraft,
-    handleMenuItemContextMenu,
-    handleTogglePin,
     handleToggleSubagentExpansion,
+    handleCloudRemoteItemRemove,
+    t,
+    tCommon,
+    activeSessionMoreMenuId,
     expandedSubagentParentIds,
-    pinLabel: pinFolderLabel,
-    sessionMap,
+    pinFolderLabel,
+    unpinFolderLabel,
     setActiveSessionMoreMenuId,
     subagentParentIds,
-    tCommon,
-    unpinLabel: unpinFolderLabel,
-  });
-  const decoratedSessionSidebarMenuItems = useMemo(
-    () =>
-      buildCloudScopedMenuItems({
-        cloudMenuItems,
-        // Cloud rows already carry Replay/Fork actions, so only local rows
-        // use the regular session action decoration.
-        sessionMenuItems: decorateSessionRowActions(sessionSidebarMenuItems),
-        mySessionsLabel: t("cloud.sidebar.mySessions"),
-      }),
-    [cloudMenuItems, decorateSessionRowActions, sessionSidebarMenuItems, t]
-  );
-  const sidebarMenuItems =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? projectsSidebarMenuItems
-      : decoratedSessionSidebarMenuItems;
-  const handleProjectsMenuItemClick = useProjectsMenuItemClick({
+    cloudMenuItems,
+    sessionSidebarMenuItems,
+    cloudMySessionsVisibleCount,
+    activeSidebarKey,
+    workItemsContentVisible,
+    projectsSidebarMenuItems,
     activateMyStationRouteForProjectTabContent,
     activateMyStationRouteForProjectsContent,
     getProjectsLoadMoreGroupId,
     loadProjectsLinearOrgWorkItems,
     openProjectsLinearOrg,
-    openProjectsLinearWorkItem: openProjectsLinearWorkItem,
+    openProjectsLinearWorkItem,
     projectsLinearOrgMap,
     projectsLinearWorkItemMap,
     projectsLocalOrgMap,
     projectsProjectMap,
     projectsWorkItemMap,
-    linkedSessionIds: projectsLinkedSessionIds,
-    openLinkedSession: handleOpenLinkedWorkItemSession,
+    projectsLinkedSessionIds,
+    handleOpenLinkedWorkItemSession,
     resetWorkManagementStateForProjectsContent,
     setProjectsGroupVisibleCounts,
     setProjectsSelectedMenuItemId,
     toChatPanelProject,
     toChatPanelWorkItem,
   });
-  const handleOpenSpotlight = useCallback(() => {
-    setSpotlightOpen(true);
-  }, [setSpotlightOpen]);
-  const handleAddOrgFromSelector = useCallback(() => {
-    resetWorkManagementStateForProjectsContent();
-    setProjectsSelectedMenuItemId(COLLAB_ADD_ORG_MENU_ITEM_ID);
-    openCreateTargetInStartPage({
-      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-      title: t("routes.launchpad"),
-    });
-  }, [
-    openCreateTargetInStartPage,
+
+  const {
+    handleOpenSpotlight,
+    handleSubmenuOpenChange,
+    sidebarLayerHeader,
+    sidebarOrgSelector,
+    resolvedMenuItemClick,
+    resolvedMenuItemContextMenu,
+    resolvedRenderMenuItemWrapper,
+  } = useWorkstationSidebarChrome({
+    setWorkItemsOpen,
+    handleSidebarLayerChange,
+    projectsSidebarVisible,
+    workItemsLabel,
+    activeOrgId,
+    orgSelectorOptions,
+    addOrgLabel,
+    cloudSignedInIdentity,
+    manageOrgLabel,
+    handleCloudSignIn,
+    activeSidebarKey,
+    workItemsContentVisible,
+    handleMenuItemContextMenu,
     resetWorkManagementStateForProjectsContent,
     setProjectsSelectedMenuItemId,
+    openCreateTargetInStartPage,
     t,
-  ]);
-  // UX decision (scope vs. panel): picking an org in the selector ONLY
-  // switches the sidebar scope — it never navigates the chat panel. The
-  // dropdown's explicit management action remains available from any scope.
-  const handleOrgSelectorChange = useCallback(
-    (orgId: string) => {
-      // Picking an org ONLY switches the sidebar scope. A cloud scope shows
-      // the org's local sessions (stamped org id or explicit cloud tag) plus
-      // the fork-threaded "Team sessions" section (useCloudSessionsSection).
-      setSelectedOrgId(orgId);
-    },
-    [setSelectedOrgId]
-  );
-  const handleManageOrg = useCallback(() => {
-    if (!manageableCloudOrg) return;
-    resetWorkManagementStateForProjectsContent();
-    openCloudOrgManagementTab({
-      cloudOrg: { orgId: manageableCloudOrg.orgId },
-      title: t("collaboration.manageOrg"),
-    });
-  }, [
+    setSelectedOrgId,
+    activeCloudOrgId,
     manageableCloudOrg,
-    openCloudOrgManagementTab,
-    resetWorkManagementStateForProjectsContent,
-    t,
-  ]);
-  const renderSessionMenuItemWrapper =
-    useRenderSessionMenuItemWrapper(sessionMap);
-  const renderWorkstationMenuItemWrapper = useRenderWorkstationMenuItemWrapper({
+    manageableLocalOrg,
+    openOrganizationTab,
+    sessionMap,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
-    renderSessionMenuItemWrapper,
-  });
-  const renderProjectsMenuItemWrapper = useRenderProjectsMenuItemWrapper({
     projectsLinearWorkItemMap,
     projectsWorkItemMap,
+    tSessions,
+    setWorkManagementProjectsView,
+    openWorkManagementTab,
+    openRuntimeTab,
+    runtimeLabel,
+    openTeamInboxTab,
+    teamInboxLabel,
+    activateChatPanelTab,
+    handleMenuItemClick,
+    handleProjectsMenuItemClick,
+    handleOpenInNewTab,
   });
 
-  const handleWorkManagementMenuItemClick = useCallback(
-    (_key: string, item: NavigationMenuItem) => {
-      let section: WorkManagementSection = WORK_MANAGEMENT_SECTION.KANBAN;
-      let title = tSessions("simulator.tabs.kanban");
-      if (item.id === WORK_ITEMS_PROJECTS_MENU_ITEM_ID) {
-        setWorkManagementProjectsView(WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS);
-        section = WORK_MANAGEMENT_SECTION.PROJECTS;
-        title = t("labels.projects");
-      } else if (item.id === WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID) {
-        section = WORK_MANAGEMENT_SECTION.GITHUB_ISSUES;
-        title = tSessions("kanban.sidebar.githubIssues");
-      } else if (item.id === WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID) {
-        section = WORK_MANAGEMENT_SECTION.GITHUB_PRS;
-        title = tSessions("kanban.sidebar.githubPrs");
-      } else if (item.id !== KANBAN_MENU_ITEM_ID) {
-        return;
-      }
-      openWorkManagementTab({ section, title });
-    },
-    [openWorkManagementTab, setWorkManagementProjectsView, t, tSessions]
-  );
-
-  const handleSessionMenuItemClick = useCallback(
-    (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
-      if (isWorkManagementMenuItemId(item.id)) {
-        handleWorkManagementMenuItemClick(key, item);
-        return;
-      }
-      if (item.id === RUNTIME_MENU_ITEM_ID) {
-        openRuntimeTab(runtimeLabel);
-        return;
-      }
-      if (item.id === TEAM_INBOX_MENU_ITEM_ID) {
-        openTeamInboxTab(teamInboxLabel);
-        return;
-      }
-      if (isChatTerminalSidebarItem(item.id)) {
-        activateChatPanelTab(getChatTerminalTabId(item.id));
-        return;
-      }
-      // "New conversation" (and draft sessions) are session actions even while
-      // the Work Items submenu is expanded. Route them to the session handler
-      // — which focuses the Launchpad Work tab — before the projects reroute
-      // below, which would otherwise swallow the click.
-      if (
-        item.id === NEW_SESSION_MENU_ITEM_ID ||
-        getDraftIdFromMenuItemId(item.id)
-      ) {
-        handleMenuItemClick(key, item);
-        return;
-      }
-      if (workItemsContentVisible) {
-        handleProjectsMenuItemClick(key, item);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && sessionMap.has(item.id)) {
-        handleOpenInNewTab(item.id);
-        return;
-      }
-      handleMenuItemClick(key, item);
-    },
-    [
-      activateChatPanelTab,
-      handleMenuItemClick,
-      handleWorkManagementMenuItemClick,
-      handleProjectsMenuItemClick,
-      handleOpenInNewTab,
-      openRuntimeTab,
-      openTeamInboxTab,
-      runtimeLabel,
-      teamInboxLabel,
-      sessionMap,
+  const { isLoading, sidebarBottomRightActions, resolvedSelectedMenuItemId } =
+    useWorkstationSidebarBottomActions({
+      sidebarMenuItems,
+      resolvedOnCollapsedSectionIdsChange,
+      sessions,
       workItemsContentVisible,
-    ]
-  );
-
-  const handleBackToSessionSidebar = useCallback(() => {
-    setWorkItemsOpen(false);
-    handleSidebarLayerChange("workstation");
-  }, [handleSidebarLayerChange]);
-
-  const handleSubmenuOpenChange = useCallback((key: string, open: boolean) => {
-    // Opening the legacy submenu is the transition into the dedicated Work
-    // Items layer. Once entered, that layer owns its lifecycle: unmounting
-    // the parent submenu may report `open=false`, but only the visible Back
-    // action should navigate the user out again.
-    if (key === WORK_ITEMS_MENU_ITEM_ID && open) setWorkItemsOpen(true);
-  }, []);
-
-  const sidebarLayerHeader = !projectsSidebarVisible ? null : (
-    <div className="shrink-0 px-3">
-      <SidebarHeaderNavButton
-        icon={ChevronLeft}
-        label={workItemsLabel}
-        onClick={handleBackToSessionSidebar}
-      />
-    </div>
-  );
-
-  const resolvedMenuItemClick =
-    activeSidebarKey === "projects"
-      ? handleProjectsMenuItemClick
-      : handleSessionMenuItemClick;
-
-  const resolvedMenuItemContextMenu =
-    activeSidebarKey === "workstation" && !workItemsContentVisible
-      ? handleMenuItemContextMenu
-      : undefined;
-  const resolvedRenderMenuItemWrapper =
-    activeSidebarKey === "projects" || workItemsContentVisible
-      ? renderProjectsMenuItemWrapper
-      : renderWorkstationMenuItemWrapper;
-  const allSectionIds = useMemo(
-    () => getAllSectionIds(sidebarMenuItems),
-    [sidebarMenuItems]
-  );
-  const handleCollapseAll = useCallback(() => {
-    setCollapsedSectionIds(new Set(allSectionIds));
-  }, [allSectionIds]);
-  const handleMarkAllRead = useCallback(() => {
-    markAllSessionsVisited(sessions.map((session) => session.session_id));
-  }, [sessions]);
-  const handleRefreshSessions = useCallback(() => {
-    void rescanSidebarSessions().catch((error) => {
-      logger.warn("Failed to rescan sidebar sessions:", error);
+      activeSidebarKey,
+      projectsWorkItemsLoading,
+      projectsSidebarMenuItems,
+      sessionsLoading,
+      groupByMode,
+      includeExternal,
+      setGroupByMode,
+      setIncludeExternal,
+      selectedCloudMenuItemId,
+      selectedMenuItemId,
+      activeSessionId,
+      collapsedSectionIds,
+      pinnedMenuItems,
     });
-  }, []);
-  const isLoading =
-    workItemsContentVisible || activeSidebarKey === "projects"
-      ? projectsWorkItemsLoading && projectsSidebarMenuItems.length === 0
-      : sessionsLoading && sessions.length === 0;
-  const sidebarBottomRightActions = useSidebarBottomRightActions({
-    activeSidebarKey: workItemsContentVisible ? "projects" : activeSidebarKey,
-    groupByMode,
-    includeExternal,
-    handleCollapseAll,
-    handleMarkAllRead,
-    handleRefreshSessions,
-    setGroupByMode,
-    setIncludeExternal,
-  });
-
-  const resolvedSelectedMenuItemId =
-    activeSidebarKey === "workstation" && selectedCloudMenuItemId
-      ? selectedCloudMenuItemId
-      : selectedMenuItemId;
-
-  useWorkstationSidebarMemory({
-    activeSessionId,
-    activeSidebarKey,
-    allSectionIds,
-    collapsedSectionIds,
-    groupByMode,
-    pinnedMenuItems,
-    selectedMenuItemId: resolvedSelectedMenuItemId,
-    sidebarMenuItems,
-    tabCount: 0,
-  });
 
   return (
     <>
@@ -921,8 +537,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
         onSubmenuOpenChange={handleSubmenuOpenChange}
         onMenuItemContextMenu={resolvedMenuItemContextMenu}
         renderMenuItemWrapper={resolvedRenderMenuItemWrapper}
-        preListContent={sidebarLayerHeader}
-        compactRows
+        preListContent={
+          <>
+            <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
+            {sidebarLayerHeader}
+          </>
+        }
         onAddNew={handleOpenSpotlight}
         addIcon={Search}
         addLabel={tCommon("actions.search")}
@@ -940,19 +560,17 @@ export const WorkstationSidebarConnector: React.FC = () => {
           onChange: handleSidebarSearchChange,
           placeholder: searchPlaceholder,
           noResultsTitle: noSearchResultsTitle,
+          showInput: false,
         }}
         listTopPadding={!workItemsContentVisible}
         bottomContent={
           <SidebarBottomBar
             leftContent={
-              <SidebarOrgSelector
-                value={activeOrgId}
-                options={orgSelectorOptions}
-                addOrgLabel={addOrgLabel}
-                manageLabel={manageOrgLabel}
-                onChange={handleOrgSelectorChange}
-                onAddOrg={handleAddOrgFromSelector}
-                onManageOrg={manageableCloudOrg ? handleManageOrg : undefined}
+              <SidebarMenuSearchInput
+                value={sidebarSearchQueries[activeSidebarSearchKey]}
+                onChange={handleSidebarSearchChange}
+                placeholder={searchPlaceholder}
+                compact
               />
             }
             rightActions={sidebarBottomRightActions}
@@ -962,7 +580,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
         isLoading={isLoading}
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
-        onCollapsedSectionsChange={resolvedSetCollapsedSectionIds}
+        onCollapsedSectionsChange={resolvedOnCollapsedSectionIdsChange}
         revealMenuItemRequest={
           activeSessionSidebarRevealRequest
             ? {

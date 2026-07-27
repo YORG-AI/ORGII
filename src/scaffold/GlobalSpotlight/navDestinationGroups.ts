@@ -49,6 +49,7 @@ function dest(
     labelKey?: string;
     descriptionSuffixKey?: string;
     searchable?: boolean;
+    devOnly?: boolean;
   } = {}
 ): NavDestination {
   return {
@@ -62,6 +63,7 @@ function dest(
     labelKey: opts.labelKey,
     descriptionSuffixKey: opts.descriptionSuffixKey,
     searchable: opts.searchable,
+    devOnly: opts.devOnly,
   };
 }
 
@@ -97,7 +99,7 @@ export const INTEGRATIONS: NavDestination[] = [
     "nav-int-tools",
     buildIntegrationsPath({ category: "tools" }),
     "integrations",
-    { keywords: ["tools", "capabilities"] }
+    { keywords: ["tools", "capabilities"], devOnly: true }
   ),
   dest(
     "nav-int-skills-mcps-plugins",

@@ -32,47 +32,6 @@ pub fn bucket_duration_ms(duration_ms: f64) -> &'static str {
     }
 }
 
-pub fn bucket_ram_mb(megabytes: f64) -> &'static str {
-    if !megabytes.is_finite() || megabytes <= 0.0 {
-        return UNKNOWN_BUCKET;
-    }
-    let gigabytes = megabytes / 1024.0;
-    if gigabytes < 1.0 {
-        "lt_1gb"
-    } else if gigabytes < 2.0 {
-        "1_2gb"
-    } else if gigabytes < 4.0 {
-        "2_4gb"
-    } else if gigabytes < 8.0 {
-        "4_8gb"
-    } else if gigabytes < 16.0 {
-        "8_16gb"
-    } else if gigabytes < 32.0 {
-        "16_32gb"
-    } else if gigabytes < 64.0 {
-        "32_64gb"
-    } else {
-        "64gb_plus"
-    }
-}
-
-pub fn bucket_cpu_percent(percent: f64) -> &'static str {
-    if !percent.is_finite() || percent < 0.0 {
-        return UNKNOWN_BUCKET;
-    }
-    if percent < 5.0 {
-        "lt_5pct"
-    } else if percent < 15.0 {
-        "5_15pct"
-    } else if percent < 30.0 {
-        "15_30pct"
-    } else if percent < 60.0 {
-        "30_60pct"
-    } else {
-        "60pct_plus"
-    }
-}
-
 pub fn sanitize_snapshot(
     snapshot: DiagnosticsUsageSnapshot,
     configured_level: DiagnosticsLevel,

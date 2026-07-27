@@ -71,6 +71,8 @@ export interface UseBrowserNetworkLogsReturn {
   clearEntries: () => void;
   /** Clear entries for all sessions */
   clearAllEntries: () => void;
+  /** Release cached entries for one closed session */
+  clearSessionEntries: (sessionId: string) => void;
   /** Manually trigger a poll */
   pollNow: () => Promise<void>;
   /** Set the webview label to poll */
@@ -162,6 +164,16 @@ export function useBrowserNetworkLogs(
     cacheRef.current.clear();
     setEntries([]);
   }, []);
+
+  const clearSessionEntries = useCallback(
+    (closedSessionId: string) => {
+      cacheRef.current.delete(closedSessionId);
+      if (closedSessionId === sessionId) {
+        setEntries([]);
+      }
+    },
+    [sessionId]
+  );
 
   // Poll for network logs from webview
   const pollNow = useCallback(async () => {
@@ -256,6 +268,7 @@ export function useBrowserNetworkLogs(
     errorCount,
     clearEntries,
     clearAllEntries,
+    clearSessionEntries,
     pollNow,
     setWebviewLabel,
     setSessionId,

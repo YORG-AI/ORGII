@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token 判断",
     "tooltip": "推定ツール属性。方法: {{method}}。入力: {{inputBytes}} bytes。出力: {{outputBytes}} bytes。判断: {{decisionTokens}} Token。コンテキスト: {{contextTokens}} Token。Follow-up: {{followupTokens}} Token。関連 LLM cache read: {{cacheReadTokens}} Token。関連 LLM cache write: {{cacheWriteTokens}} Token。"
   },
+  "humanSession": {
+    "titlePlaceholder": "タイトル（任意）"
+  },
   "history": {
     "untitledSession": "無題のSession",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "作成日時",
       "updated": "更新日時",
       "lastUpdated": "最終更新",
+      "external": "外部",
+      "internal": "内部",
       "rounds": "ラウンド",
       "roundCount_one": "{{count}} ラウンド",
       "roundCount_other": "{{count}} ラウンド",
@@ -124,9 +129,10 @@
         "default": "デフォルト",
         "manual": "手動",
         "60s": "60秒ごと",
-        "5m": "5分ごと",
-        "1h": "1時間ごと",
-        "1d": "毎日"
+        "120s": "120秒ごと",
+        "10m": "10分ごと",
+        "30m": "30分ごと",
+        "1h": "1時間ごと"
       },
       "openFolder": "フォルダを開く",
       "tabs": {
@@ -1314,6 +1320,8 @@
     "terminalSummary": {
       "command_one": "{{count}} 件のコマンド",
       "command_other": "{{count}} 件のコマンド",
+      "mcp_one": "{{count}} 件の MCP 呼び出し",
+      "mcp_other": "{{count}} 件の MCP 呼び出し",
       "wait_one": "{{count}} 件の待機",
       "wait_other": "{{count}} 件の待機",
       "check_one": "{{count}} 件の確認",
@@ -2091,7 +2099,10 @@
     "categoryLabel": "セッションカテゴリ",
     "categoryTemplate": "{category} を選択",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "組み込み Agent",
+    "builtIns": "組み込み",
+    "humanSession": {
+      "name": "作業ログ"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "カスタム Agent",
     "agentOrgs": "Agent チーム",

@@ -71,9 +71,17 @@ struct FileEntry {
 /// cadence and does not create background work by itself.
 const CACHE_SAFETY_TTL: Duration = Duration::from_secs(60 * 60);
 const MAX_CACHED_FILE_INDEXES: usize = 4;
+const MAX_FILE_INDEX_BYTES: usize = 32 * 1024 * 1024;
+const MAX_FILE_INDEX_CACHE_BYTES: usize = 64 * 1024 * 1024;
 
-static FILE_INDEX_CACHE: LazyLock<FilePathIndexCache> =
-    LazyLock::new(|| FilePathIndexCache::new(CACHE_SAFETY_TTL, MAX_CACHED_FILE_INDEXES));
+static FILE_INDEX_CACHE: LazyLock<FilePathIndexCache> = LazyLock::new(|| {
+    FilePathIndexCache::new(
+        CACHE_SAFETY_TTL,
+        MAX_CACHED_FILE_INDEXES,
+        MAX_FILE_INDEX_BYTES,
+        MAX_FILE_INDEX_CACHE_BYTES,
+    )
+});
 
 const DEFAULT_EXCLUDED_DIRS: &[&str] = &[
     "node_modules",

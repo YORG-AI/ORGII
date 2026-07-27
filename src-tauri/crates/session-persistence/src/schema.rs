@@ -199,6 +199,21 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
         .ok();
 
     // ============================================
+    // Human session note entries
+    // ============================================
+
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS human_session_entries (
+            id         TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE CASCADE,
+            body       TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_human_session_entries_session
+            ON human_session_entries(session_id, created_at);",
+    )?;
+
+    // ============================================
     // Per-round token usage tracking
     // ============================================
 
@@ -497,6 +512,42 @@ mod tests {
         assert!(index_exists(&conn, "idx_stool_session_turn"));
         assert!(index_exists(&conn, "idx_stool_session_call"));
         assert!(index_exists(&conn, "idx_stool_session_iteration"));
+    }
+
+    #[test]
+    fn init_session_tables_creates_human_session_entry_schema() {
+        let conn = Connection::open_in_memory().expect("open in-memory sqlite");
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             CREATE TABLE agent_sessions (session_id TEXT PRIMARY KEY);",
+        )
+        .expect("create canonical session parent");
+        init_session_tables(&conn).expect("init session schema");
+
+        assert!(table_exists(&conn, "human_session_entries"));
+        assert!(index_exists(&conn, "idx_human_session_entries_session"));
+
+        conn.execute("INSERT INTO agent_sessions VALUES ('humansession-1')", [])
+            .expect("insert Human session parent");
+        conn.execute(
+            "INSERT INTO human_session_entries
+             (id, session_id, body, created_at)
+             VALUES ('entry-1', 'humansession-1', 'done', 'now')",
+            [],
+        )
+        .expect("insert Human entry");
+
+        conn.execute(
+            "DELETE FROM agent_sessions WHERE session_id='humansession-1'",
+            [],
+        )
+        .expect("delete Human session parent");
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM human_session_entries", [], |row| {
+                row.get(0)
+            })
+            .expect("count cascaded rows");
+        assert_eq!(count, 0, "entries should cascade with their Human session");
     }
 
     fn trigger_exists(conn: &Connection, trigger_name: &str) -> bool {

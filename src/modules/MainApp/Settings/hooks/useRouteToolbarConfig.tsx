@@ -7,14 +7,7 @@
  * - Integrations add action atom (callback to dispatch add actions)
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Check,
-  Folder,
-  Network,
-  Pencil,
-  RefreshCw,
-  UserPlus,
-} from "lucide-react";
+import { Network, RefreshCw, UserPlus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -31,18 +24,12 @@ import {
   parseCoreSettingsItem,
   parseSettingsTopTab,
 } from "@src/config/mainAppPaths";
-import { ROUTE_PATHS } from "@src/config/routePaths";
 import { ROUTES } from "@src/config/routes";
 import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
-import { appGridEditModeAtom } from "@src/store/ui/appGridAtom";
 import {
   dispatchIntegrationsAddAtom,
   integrationsToolbarAtom,
 } from "@src/store/ui/integrationsToolbarAtom";
-import {
-  addWorkspaceInitialStageAtom,
-  repoSelectorOpenAtom,
-} from "@src/store/ui/overlayAtom";
 import type {
   RouteToolbarButton,
   RouteToolbarConfig,
@@ -77,20 +64,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
       settingsToolbar.onRefresh ?? noop,
       settingsToolbar.loading ?? false
     );
-
-  const appGridEditMode = useAtomValue(appGridEditModeAtom);
-  const setAppGridEditMode = useSetAtom(appGridEditModeAtom);
-  const setRepoSelectorOpen = useSetAtom(repoSelectorOpenAtom);
-  const setAddWorkspaceInitialStage = useSetAtom(addWorkspaceInitialStageAtom);
-
-  const openAddWorkspace = useCallback(() => {
-    setAddWorkspaceInitialStage("add-workspace-existing");
-    setRepoSelectorOpen(true);
-  }, [setAddWorkspaceInitialStage, setRepoSelectorOpen]);
-
-  const toggleAppGridEditing = useCallback(() => {
-    setAppGridEditMode((current) => !current);
-  }, [setAppGridEditMode]);
 
   const openAgentAdd = useCallback(() => {
     const agentsPath = buildAgentOrgsPath({ tab: "agents" });
@@ -201,29 +174,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
       };
     }
 
-    if (pathname.startsWith(ROUTE_PATHS.startPage)) {
-      return {
-        ellipsisItems: [
-          {
-            id: "customize-grid",
-            label: appGridEditMode
-              ? t("common:actions.done")
-              : t("navigation:appGrid.customizeGrid"),
-            icon: appGridEditMode ? Check : Pencil,
-            onClick: toggleAppGridEditing,
-          },
-        ],
-        plusDropdownItems: [
-          {
-            id: "add-workspace",
-            label: t("common:actions.addWorkspace"),
-            icon: Folder,
-            onClick: openAddWorkspace,
-          },
-        ],
-      };
-    }
-
     return null;
   }, [
     pathname,
@@ -239,9 +189,6 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
     integrationsToolbar,
     integrationsRefreshClick,
     integrationsSpinClass,
-    appGridEditMode,
-    openAddWorkspace,
-    toggleAppGridEditing,
     t,
   ]);
 }

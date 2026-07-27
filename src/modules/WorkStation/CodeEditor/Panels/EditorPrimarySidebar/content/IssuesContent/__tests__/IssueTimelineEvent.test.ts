@@ -1,10 +1,23 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
 
 import { IssueTimelineEventRow } from "../IssueTimelineEvent";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, fallback?: string | Record<string, unknown>) =>
+      typeof fallback === "string"
+        ? fallback
+        : typeof fallback?.defaultValue === "string"
+          ? fallback.defaultValue.replace(/{{(\w+)}}/g, (_, name: string) =>
+              String(fallback[name] ?? "")
+            )
+          : key,
+  }),
+}));
 
 function timelineItem(
   overrides: Partial<GitHubIssueTimelineItem>
@@ -58,7 +71,7 @@ describe("IssueTimelineEventRow", () => {
           source: {
             number: 460,
             title: "fix(chat): refresh question status after answer",
-            html_url: "https://github.com/yorgai/ORG2/pull/460",
+            html_url: "https://github.com/org2ai/ORG2/pull/460",
             state: "open",
             is_pull_request: true,
           },
@@ -68,12 +81,31 @@ describe("IssueTimelineEventRow", () => {
 
     expect(markup).toContain("referenced this issue from");
     expect(markup).toContain("#460");
-    expect(markup).toContain('href="https://github.com/yorgai/ORG2/pull/460"');
+    expect(markup).toContain('href="https://github.com/org2ai/ORG2/pull/460"');
     expect(markup).toContain("fix(chat): refresh question status after answer");
     expect(markup).toContain('class="lucide lucide-git-pull-request');
     expect(markup).toContain("max-w-full");
     expect(markup).toContain("overflow-hidden");
     expect(markup).toContain("min-w-0 truncate");
+  });
+
+  it("shows only the new title for rename events", () => {
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineEventRow, {
+        item: timelineItem({
+          event: "renamed",
+          rename: {
+            from: "Old issue title",
+            to: "New issue title",
+          },
+        }),
+      })
+    );
+
+    expect(markup).toContain("renamed this issue to");
+    expect(markup).toContain("New issue title");
+    expect(markup).not.toContain("Old issue title");
+    expect(markup).not.toContain("renamed this issue from");
   });
 
   it("keeps future event types visible through a readable fallback", () => {

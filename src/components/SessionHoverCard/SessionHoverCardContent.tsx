@@ -22,8 +22,6 @@ import {
   getOrgtrackSessionSummary,
 } from "@src/api/tauri/lineage";
 import { isHostedKey } from "@src/api/tauri/session";
-import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
-import { formatAgentType } from "@src/assets/providers";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import TaskImpactLine from "@src/features/KanbanBoard/components/TaskImpactLine";
@@ -44,10 +42,13 @@ import {
 import { formatBranchLabel } from "@src/util/git/branchLabel";
 import { basename } from "@src/util/path";
 import {
-  getDispatchCategory,
   isCliSession,
-  resolveSessionIconId,
+  isHumanSession,
 } from "@src/util/session/sessionDispatch";
+import {
+  type SessionDisplayMetadata,
+  resolveSessionDisplayMetadata,
+} from "@src/util/session/sessionDisplayMetadata";
 import { formatDuration } from "@src/util/time/formatDuration";
 
 import { HoverCardPanel, HoverCardRow } from "./HoverCardBase";
@@ -149,35 +150,14 @@ function handleRevealPath(path: string): void {
   });
 }
 
-function getAgentSessionInfo(session: {
-  session_id: string;
-  cliAgentType?: CliAgentType | null;
-  agentDisplayName?: string;
-  agentIconId?: string;
-}): AgentSessionInfo {
-  const category = getDispatchCategory(session.session_id);
-
-  if (session.cliAgentType) {
-    return {
-      icon: <ModelIcon agentType={session.cliAgentType} size={13} />,
-      label: formatAgentType(session.cliAgentType),
-    };
-  }
-
-  if (category === "cursor_ide") {
-    return {
-      icon: <ModelIcon agentType={CLI_AGENT.CURSOR} size={13} />,
-      label: session.agentDisplayName || "Cursor IDE",
-    };
-  }
-
-  const iconId =
-    session.agentIconId || resolveSessionIconId(session.session_id);
-  const AgentIcon = resolveAgentIcon(iconId);
+function getAgentSessionInfo(
+  display: SessionDisplayMetadata
+): AgentSessionInfo {
+  const AgentIcon = resolveAgentIcon(display.agentIconId);
 
   return {
     icon: <AgentIcon size={13} strokeWidth={1.75} />,
-    label: session.agentDisplayName || "Agent",
+    label: display.agentLabel,
     textClassName: "text-text-1",
   };
 }
@@ -186,6 +166,14 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
   memo(({ sessionId }) => {
     const { t, i18n } = useTranslation(["sessions", "common"]);
     const session = useAtomValue(sessionByIdAtom(sessionId));
+    const humanSession = isHumanSession(sessionId);
+    const sessionDisplay = useMemo(
+      () =>
+        session
+          ? resolveSessionDisplayMetadata({ kind: "local", session })
+          : null,
+      [session]
+    );
     const workspaceGitStatusMap = useAtomValue(workspaceGitStatusMapAtom);
     const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
     const { currentBranch: activeWorkspaceBranch } = useRepoSelection({
@@ -312,7 +300,16 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
     }, [boundCliIdState, sessionId]);
 
     const lastModel: LastModelSelection | null = useMemo(() => {
+      if (humanSession) return null;
       if (!session) return creatorDefaultLastModel;
+      if (session.importedFrom) {
+        return sessionDisplay?.modelName
+          ? {
+              model: sessionDisplay.modelName,
+              cliAgentType: sessionDisplay.cliAgentType,
+            }
+          : null;
+      }
       const keySource = session.keySource ?? creatorDefaultLastModel?.keySource;
       const hosted = isHostedKey(keySource);
       return {
@@ -330,12 +327,12 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
         selectedAccountId:
           session.accountId ?? creatorDefaultLastModel?.selectedAccountId,
       };
-    }, [session, creatorDefaultLastModel]);
+    }, [creatorDefaultLastModel, humanSession, session, sessionDisplay]);
 
-    const { label: modelLabel, title: modelTitle } = useResolvedModelLabel(
-      lastModel,
-      []
-    );
+    const { label: resolvedModelLabel, title: resolvedModelTitle } =
+      useResolvedModelLabel(lastModel, []);
+    const modelLabel = humanSession ? null : resolvedModelLabel;
+    const modelTitle = humanSession ? null : resolvedModelTitle;
 
     const impactTask = useMemo<KanbanTask | null>(() => {
       if (!session) return null;
@@ -395,6 +392,9 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
     }, [orgtrackSummary, session]);
 
     if (!session) return null;
+    const resolvedSessionDisplay =
+      sessionDisplay ??
+      resolveSessionDisplayMetadata({ kind: "local", session });
 
     const handleCopyUnderlyingId = (value: string): void => {
       void copyText(value)
@@ -436,8 +436,9 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
         : "");
     const modelIconName =
       lastModel?.listingModel || lastModel?.model || undefined;
-    const modelIconAgent = lastModel?.listingModelType || undefined;
-    const agentSessionInfo = getAgentSessionInfo(session);
+    const modelIconAgent =
+      lastModel?.listingModelType || resolvedSessionDisplay.cliAgentType;
+    const agentSessionInfo = getAgentSessionInfo(resolvedSessionDisplay);
     // Native-transcript sessions must not claim sessions.db: show the CLI
     // store file when resolved, else a plain "CLI native store" label.
     const isNativeTranscript = transcriptLocation?.native === true;
@@ -466,17 +467,6 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
 
     return (
       <HoverCardPanel title={session.name || session.session_id}>
-        {(repoName || branchLabel) && (
-          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
-            <div className="truncate text-text-2">
-              {repoName && <span>{repoName}</span>}
-              {repoName && branchLabel && (
-                <span className="mx-1 text-text-4">·</span>
-              )}
-              {branchLabel && <span>{branchLabel}</span>}
-            </div>
-          </HoverCardRow>
-        )}
         <HoverCardRow
           icon={agentSessionInfo.icon}
           iconClassName={agentSessionInfo.textClassName}
@@ -509,6 +499,17 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             )}
           </div>
         </HoverCardRow>
+        {(repoName || branchLabel) && (
+          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
+            <div className="truncate text-text-2">
+              {repoName && <span>{repoName}</span>}
+              {repoName && branchLabel && (
+                <span className="mx-1 text-text-4">·</span>
+              )}
+              {branchLabel && <span>{branchLabel}</span>}
+            </div>
+          </HoverCardRow>
+        )}
         {repoPath && (
           <HoverCardRow icon={<Folder size={13} strokeWidth={1.75} />}>
             <button
@@ -551,9 +552,7 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                 {t("history.detail.sessionId")}
               </span>
               <span className="mx-1 text-text-4">·</span>
-              <span className="font-mono">
-                {formatCompactSessionId(underlyingSessionId)}
-              </span>
+              <span>{formatCompactSessionId(underlyingSessionId)}</span>
               {copiedForSessionId === sessionId && (
                 <Check
                   size={12}

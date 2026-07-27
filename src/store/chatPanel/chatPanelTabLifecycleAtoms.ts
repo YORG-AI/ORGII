@@ -91,22 +91,19 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 });
 closeChatPanelTabAtom.debugLabel = "closeChatPanelTab";
 
-/** Close the singleton org-management tab, or clear a legacy bare surface. */
-export const closeCloudOrgManagementChatPanelTabAtom = atom(
-  null,
-  (get, set) => {
-    const tab = get(chatPanelTabsAtom).tabs.find(
-      (candidate) => candidate.type === "cloud-org"
-    );
-    if (tab) {
-      set(closeChatPanelTabAtom, tab.id);
-      return;
-    }
-    set(chatPanelSelectedCloudOrgAtom, null);
+/** Close the singleton organization tab, or clear its legacy surface mirrors. */
+export const closeOrganizationChatPanelTabAtom = atom(null, (get, set) => {
+  const tab = get(chatPanelTabsAtom).tabs.find(
+    (candidate) => candidate.type === "organization"
+  );
+  if (tab) {
+    set(closeChatPanelTabAtom, tab.id);
+    return;
   }
-);
-closeCloudOrgManagementChatPanelTabAtom.debugLabel =
-  "closeCloudOrgManagementChatPanelTab";
+  set(chatPanelSelectedCloudOrgAtom, null);
+  set(chatPanelSelectedProjectOrgAtom, null);
+});
+closeOrganizationChatPanelTabAtom.debugLabel = "closeOrganizationChatPanelTab";
 
 /**
  * Close the tab that owns a deleted Work Item. Remote item tombstones and
@@ -155,10 +152,8 @@ export const closeProjectOrgChatPanelTabsAtom = atom(
         if (tab.type === "project") {
           return Boolean(tab.project?.orgId && revoked.has(tab.project.orgId));
         }
-        if (tab.type === "project-org") {
-          return Boolean(
-            tab.projectOrg?.orgId && revoked.has(tab.projectOrg.orgId)
-          );
+        if (tab.type === "organization" && tab.organization?.kind === "local") {
+          return Boolean(revoked.has(tab.organization.projectOrg.orgId));
         }
         return false;
       })

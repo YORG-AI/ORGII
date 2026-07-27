@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOrgSelectorEntries,
   resolveProjectOrgScopeId,
-} from "./orgSelectorEntries";
+} from "@src/features/Organizations/orgSelectorEntries";
 
 const PERSONAL = "personal-org";
 

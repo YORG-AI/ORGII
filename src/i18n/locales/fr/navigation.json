@@ -61,15 +61,9 @@
     "startSession": "Nouvelle session",
     "sessions": "Sessions",
     "selectProject": "Choisir une project",
-    "startPage": "Page d'accueil",
     "inbox": "Boîte de réception",
     "login": "Connexion",
     "setup": "Configuration",
-    "devJourney": "Dev Journey",
-    "devRecord": "Journal de développement",
-    "gitDashboard": "Tableau de bord Git",
-    "devActivity": "Activité Dev",
-    "usageHistory": "Historique d'utilisation",
     "tokenMarket": "Marché Token",
     "taskMarket": "Marché des tâches",
     "channels": "Canaux",
@@ -85,20 +79,8 @@
     "ideaArea": "Espace Idées",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Personnaliser la grille",
-    "horizontalGap": "Espacement horizontal",
-    "verticalGap": "Espacement vertical",
-    "resetToDefault": "Réinitialiser par défaut"
-  },
-  "greetings": {
-    "morning": "Bonjour",
-    "afternoon": "Bon après-midi",
-    "evening": "Bonsoir"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Accueil",
       "workstation": "Workstation",
       "manage": "Gérer",
       "core": "Cœur",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Ajouter nouveau",
       "collapseAll": "Tout réduire",
-      "markAllRead": "Tout marquer comme lu",
-      "openHome": "Ouvrir l’accueil",
-      "openWorkstation": "Ouvrir le Workstation"
+      "markAllRead": "Tout marquer comme lu"
     },
     "search": {
       "folders": "Rechercher dans l’espace de travail...",
@@ -360,15 +340,6 @@
       "projects": "Projets"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Mises à jour produit",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Détails",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Changer d’ORG",
     "addOrg": "Ajouter une ORG",
@@ -477,7 +448,8 @@
       "retentionUpgrade": "Cette session est hors de la fenêtre de replay de votre forfait — mettez à niveau pour la voir",
       "importError": "Impossible d'importer la session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "À propos de moi"
     },
     "sidebar": {
       "teamSessions": "Sessions d'équipe",
@@ -494,7 +466,8 @@
       "viewerOverflow": "et {{count}} autres spectateurs",
       "memberViewing": "regarde : {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "Copier l’ID"
     },
     "sync": {
       "quotaExceededToast": "Synchro ORG2 Cloud en pause : le quota du forfait de cette organisation est dépassé",
@@ -616,7 +589,8 @@
         "inviteInvalid": "Ce code d'invitation n'est pas valide.",
         "inviteRevoked": "Cette invitation a été révoquée.",
         "inviteExpired": "Cette invitation a expiré.",
-        "inviteExhausted": "Cette invitation n'a plus d'utilisations."
+        "inviteExhausted": "Cette invitation n'a plus d'utilisations.",
+        "network": "Connexion au service cloud impossible. Vérifiez le réseau et réessayez."
       }
     },
     "syncLevel": {
@@ -725,6 +699,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "Connecté en tant que {{name}}"
   }
 }

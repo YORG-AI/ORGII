@@ -49,7 +49,7 @@ pub fn reconcile_native_session_mirror() -> Result<(), String> {
     }
 
     let native = super::aggregation::list_all_sessions(Some(&super::types::SessionFilter {
-        category: Some("cli,agent,os".to_string()),
+        category: Some("cli,agent,os,human".to_string()),
         include_external_history: Some(false),
         ..Default::default()
     }))?;
@@ -128,7 +128,9 @@ pub fn upsert_rust_agent_session(session_id: &str) -> Result<(), String> {
 fn aggregate_to_core_session(record: &SessionAggregateRecord) -> SessionRecord {
     let source = match record.category {
         SessionCategory::Cli => SOURCE_ORGII_CLI_SESSIONS,
-        SessionCategory::Agent | SessionCategory::Os => SOURCE_ORGII_RUST_AGENTS,
+        SessionCategory::Agent | SessionCategory::Os | SessionCategory::Human => {
+            SOURCE_ORGII_RUST_AGENTS
+        }
     };
     SessionRecord {
         schema_version: ORGTRACK_SCHEMA_VERSION,
@@ -174,6 +176,7 @@ fn dispatch_category_for(category: SessionCategory) -> &'static str {
     match category {
         SessionCategory::Cli => "cli_agent",
         SessionCategory::Agent | SessionCategory::Os => "rust_agent",
+        SessionCategory::Human => "human_session",
     }
 }
 
@@ -189,6 +192,6 @@ fn rust_agent_type_for(record: &SessionAggregateRecord) -> Option<String> {
                 Some("custom".to_string())
             }
         }
-        SessionCategory::Cli => None,
+        SessionCategory::Cli | SessionCategory::Human => None,
     }
 }

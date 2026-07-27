@@ -52,6 +52,7 @@ export interface SessionHeaderActionsMenuProps {
   moveTarget: "chat-panel" | "workstation";
   paginationEnabled: boolean;
   showCloudShareSettings: boolean;
+  showTranscriptActions?: boolean;
   tokenUsageVisible: boolean;
   toggleHeaderActionsMenu: () => void;
   triggerTestId: string;
@@ -85,6 +86,7 @@ export const SessionHeaderActionsMenu: React.FC<
   moveTarget,
   paginationEnabled,
   showCloudShareSettings,
+  showTranscriptActions = true,
   tokenUsageVisible,
   toggleHeaderActionsMenu,
   triggerTestId,
@@ -123,15 +125,19 @@ export const SessionHeaderActionsMenu: React.FC<
               zIndex: 9999,
             }}
           >
-            <DropdownItem
-              role="menuitem"
-              fullWidth
-              tabIndex={0}
-              onClick={handleOpenSearch}
-              icon={<Search size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />}
-            >
-              {t("chat.findInChat")}
-            </DropdownItem>
+            {showTranscriptActions && (
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
+                onClick={handleOpenSearch}
+                icon={
+                  <Search size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                }
+              >
+                {t("chat.findInChat")}
+              </DropdownItem>
+            )}
             <DropdownItem
               role="menuitem"
               fullWidth
@@ -174,35 +180,44 @@ export const SessionHeaderActionsMenu: React.FC<
                     defaultValue: "Move to Chat Panel",
                   })}
             </DropdownItem>
-            <DropdownItem
-              role="menuitem"
-              fullWidth
-              tabIndex={0}
-              onClick={handleCopyEventJson}
-              disabled={eventsLength === 0}
-              icon={
-                <Clipboard size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
-              }
-            >
-              {copyEventJsonLabel === "copied"
-                ? t("chat.copyEventJsonCopied")
-                : copyEventJsonLabel === "failed"
-                  ? t("chat.copyEventJsonFailed")
-                  : t("chat.copyEventJson")}
-            </DropdownItem>
-            <DropdownItem
-              role="menuitem"
-              fullWidth
-              tabIndex={0}
-              onClick={handleOpenRawTranscript}
-              disabled={!currentSessionId}
-              dataTestId="view-raw-session-transcript"
-              icon={<Braces size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />}
-            >
-              {t("chat.rawTranscript.menuItem", {
-                defaultValue: "View raw transcript",
-              })}
-            </DropdownItem>
+            {showTranscriptActions && (
+              <>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleCopyEventJson}
+                  disabled={eventsLength === 0}
+                  icon={
+                    <Clipboard
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={1.75}
+                    />
+                  }
+                >
+                  {copyEventJsonLabel === "copied"
+                    ? t("chat.copyEventJsonCopied")
+                    : copyEventJsonLabel === "failed"
+                      ? t("chat.copyEventJsonFailed")
+                      : t("chat.copyEventJson")}
+                </DropdownItem>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleOpenRawTranscript}
+                  disabled={!currentSessionId}
+                  dataTestId="view-raw-session-transcript"
+                  icon={
+                    <Braces size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                  }
+                >
+                  {t("chat.rawTranscript.menuItem", {
+                    defaultValue: "View raw transcript",
+                  })}
+                </DropdownItem>
+              </>
+            )}
             <DropdownItem
               role="menuitem"
               fullWidth
@@ -228,61 +243,65 @@ export const SessionHeaderActionsMenu: React.FC<
                 {t("navigation:cloud.share.menuItem")}
               </DropdownItem>
             )}
-            <DropdownItem
-              role="menuitem"
-              fullWidth
-              tabIndex={0}
-              onClick={handleOpenExportSessionJson}
-              disabled={!activeSessionExists}
-              icon={
-                <FolderOutput
-                  size={DROPDOWN_ITEM.iconSize}
-                  strokeWidth={1.75}
-                />
-              }
-            >
-              {t("chat.importExport.exportAction")}
-            </DropdownItem>
-            <div className="my-1 border-t border-solid border-border-2" />
-            <div
-              className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-            >
-              <span className="flex-1 truncate">
-                {t("chat.showTokenUsage")}
-              </span>
-              <Switch
-                checked={tokenUsageVisible}
-                onChange={handleTokenUsageVisibleToggle}
-                size="small"
-                ariaLabel={t("chat.showTokenUsage")}
-              />
-            </div>
-            <div
-              className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-            >
-              <span className="flex-1 truncate">
-                {t("common:pagination.title")}
-              </span>
-              <Switch
-                checked={paginationEnabled}
-                onChange={handlePaginationToggle}
-                size="small"
-                ariaLabel={t("common:pagination.title")}
-              />
-            </div>
-            <div
-              className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-            >
-              <span className="flex-1 truncate">
-                {t("chat.compactDisplayMode")}
-              </span>
-              <Switch
-                checked={displayMode === "compact"}
-                onChange={handleCompactDisplayModeToggle}
-                size="small"
-                ariaLabel={t("chat.compactDisplayMode")}
-              />
-            </div>
+            {showTranscriptActions && (
+              <>
+                <DropdownItem
+                  role="menuitem"
+                  fullWidth
+                  tabIndex={0}
+                  onClick={handleOpenExportSessionJson}
+                  disabled={!activeSessionExists}
+                  icon={
+                    <FolderOutput
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={1.75}
+                    />
+                  }
+                >
+                  {t("chat.importExport.exportAction")}
+                </DropdownItem>
+                <div className="my-1 border-t border-solid border-border-2" />
+                <div
+                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                >
+                  <span className="flex-1 truncate">
+                    {t("chat.showTokenUsage")}
+                  </span>
+                  <Switch
+                    checked={tokenUsageVisible}
+                    onChange={handleTokenUsageVisibleToggle}
+                    size="small"
+                    ariaLabel={t("chat.showTokenUsage")}
+                  />
+                </div>
+                <div
+                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                >
+                  <span className="flex-1 truncate">
+                    {t("common:pagination.title")}
+                  </span>
+                  <Switch
+                    checked={paginationEnabled}
+                    onChange={handlePaginationToggle}
+                    size="small"
+                    ariaLabel={t("common:pagination.title")}
+                  />
+                </div>
+                <div
+                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                >
+                  <span className="flex-1 truncate">
+                    {t("chat.compactDisplayMode")}
+                  </span>
+                  <Switch
+                    checked={displayMode === "compact"}
+                    onChange={handleCompactDisplayModeToggle}
+                    size="small"
+                    ariaLabel={t("chat.compactDisplayMode")}
+                  />
+                </div>
+              </>
+            )}
           </div>,
           document.body
         )}

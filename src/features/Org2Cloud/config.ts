@@ -165,10 +165,12 @@ export function getCloudEndpoint(): CloudEndpoint {
   return { ...override, isOfficial: false };
 }
 
-/** Build the browser login URL with the desktop deep-link return target. */
-export function buildOrg2CloudLoginUrl(): string {
+/** Build the browser login URL with the current desktop return target. */
+export function buildOrg2CloudLoginUrl(
+  returnTo: string = ORG2_CLOUD_AUTH_CALLBACK_URL
+): string {
   const url = new URL("/login", getCloudEndpoint().webOrigin);
-  url.searchParams.set("return_to", ORG2_CLOUD_AUTH_CALLBACK_URL);
+  url.searchParams.set("return_to", returnTo);
   return url.toString();
 }
 

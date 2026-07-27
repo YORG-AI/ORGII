@@ -163,7 +163,7 @@
     "timezoneAuto": "Tự động (Trình duyệt)",
     "timezoneSearchPlaceholder": "Tìm kiếm thành phố gần nhất",
     "sendOnEnter": "Gửi tin nhắn bằng Enter",
-    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi",
+    "sendOnEnterDesc": "Khi bật, Enter gửi; Shift+Enter và Ctrl/Cmd+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi",
     "language": "Ngôn ngữ",
     "languageSearchPlaceholder": "Tìm kiếm ngôn ngữ...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Tôi đang ở bàn phím. Bạn có thể hỏi tôi để làm rõ bất cứ lúc nào và xác nhận với tôi trước khi chạy bất kỳ hành động phá hủy nào",
     "presenceGuidanceInvisibleDefault": "Tôi đang ở gần nhưng hiển thị ngoại tuyến. Mặc định hãy tự chủ thực hiện và chỉ báo cho tôi khi có hành động rủi ro cao hoặc tái cấu trúc lớn; gom các câu hỏi khác vào một bản tóm tắt thay vì hỏi từng câu",
     "presenceGuidanceAwayDefault": "Tôi đang rời bàn phím. Đừng chờ tôi; hãy đưa ra quyết định tốt nhất với thông tin hiện có, hoàn thành những gì có thể và để lại bản tóm tắt ngắn gọn về những gì đã xảy ra cùng các câu hỏi còn mở khi tôi quay lại",
-    "followSystem": "Theo hệ thống"
+    "followSystem": "Theo hệ thống",
+    "preferences": "Tùy chọn",
+    "usePointerCursors": "Sử dụng con trỏ dạng bàn tay",
+    "usePointerCursorsDesc": "Đổi con trỏ sang dạng bàn tay khi di chuột qua các phần tử tương tác"
   },
   "background": {
     "title": "Hình nền",
@@ -1029,7 +1032,7 @@
     "decryptEffect": "Hiệu ứng Decrypt",
     "decryptEffectDesc": "Bật hiệu ứng Decrypt cho tin nhắn Agent",
     "sendOnEnter": "Gửi tin nhắn bằng Enter",
-    "sendOnEnterDesc": "Khi bật, Enter gửi và Shift+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi"
+    "sendOnEnterDesc": "Khi bật, Enter gửi; Shift+Enter và Ctrl/Cmd+Enter chèn dòng mới. Khi tắt, Ctrl/Cmd+Enter gửi"
   },
   "languageServers": {
     "languageServersDesc": "Quản lý máy chủ LSP cho tự động hoàn thành, chẩn đoán và trí tuệ mã",

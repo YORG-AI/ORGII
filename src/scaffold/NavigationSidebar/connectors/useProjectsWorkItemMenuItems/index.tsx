@@ -1,4 +1,4 @@
-import { useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,8 +16,8 @@ import {
   STORY_ORG_SCOPE,
   createProjectLinearWorkItemsTab,
   createProjectOrgTab,
-  openTab,
-  workstationLayoutAtom,
+  openWorkstationTabAtom,
+  presentedWorkstationWorkspaceKeyAtom,
 } from "@src/store/workstation/tabs";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs/factories/project";
 
@@ -72,7 +72,8 @@ export function useProjectsWorkItemMenuItems({
   selectedOrgId,
 }: UseProjectsWorkItemMenuItemsParams): UseProjectsWorkItemMenuItemsResult {
   const { t } = useTranslation(["projects", "common", "navigation"]);
-  const setLayout = useSetAtom(workstationLayoutAtom);
+  const openWorkstationTab = useSetAtom(openWorkstationTabAtom);
+  const presentedWorkspace = useAtomValue(presentedWorkstationWorkspaceKeyAtom);
   const [localOrgs, setLocalOrgs] = useState<ProjectOrg[]>([]);
   const [localProjects, setLocalProjects] = useState<SidebarProject[]>([]);
   const [workItems, setWorkItems] = useState<SidebarWorkItem[]>([]);
@@ -428,12 +429,9 @@ export function useProjectsWorkItemMenuItems({
         PROJECT_ORG_SURFACE_VIEW.WORK_ITEMS,
         orgScope
       );
-      setLayout((layout) => ({
-        ...layout,
-        mainPane: openTab(layout.mainPane, tab),
-      }));
+      openWorkstationTab({ workspace: presentedWorkspace, tab });
     },
-    [setLayout]
+    [openWorkstationTab, presentedWorkspace]
   );
 
   const openLinearOrg = useCallback(
@@ -443,12 +441,9 @@ export function useProjectsWorkItemMenuItems({
         teamId: org.teamId,
         teamName: org.teamName,
       });
-      setLayout((layout) => ({
-        ...layout,
-        mainPane: openTab(layout.mainPane, tab),
-      }));
+      openWorkstationTab({ workspace: presentedWorkspace, tab });
     },
-    [setLayout]
+    [openWorkstationTab, presentedWorkspace]
   );
 
   const openLinearWorkItem = useCallback(
@@ -460,12 +455,9 @@ export function useProjectsWorkItemMenuItems({
         teamId: workItem.teamId,
         teamName: workItem.teamName,
       });
-      setLayout((layout) => ({
-        ...layout,
-        mainPane: openTab(layout.mainPane, tab),
-      }));
+      openWorkstationTab({ workspace: presentedWorkspace, tab });
     },
-    [setLayout]
+    [openWorkstationTab, presentedWorkspace]
   );
 
   return {

@@ -21,6 +21,7 @@ import Button from "@src/components/Button";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import TaskKanban from "@src/features/TaskKanban";
 import FactoryViewPill from "@src/features/TaskKanban/components/FactoryViewPill";
+import KanbanOrgScopeSelect from "@src/features/TaskKanban/components/KanbanOrgScopeSelect";
 import { useElementDimensions } from "@src/hooks/ui/layout";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import {
@@ -81,7 +82,7 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
 
   // Leading header control: GitHub detail "back" button, else the view-switch
   // pill. Shared by the chat-pane and WorkStation published-header slots.
-  const headerLeading = React.useMemo(() => {
+  const headerLeadingControl = React.useMemo(() => {
     if (githubDetailActive) {
       return (
         <WorkstationToolbarTooltip label={t("actions.back")}>
@@ -103,6 +104,26 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     return null;
   }, [githubDetailActive, showViewSwitch, t]);
 
+  const headerLeading = React.useMemo(() => {
+    if (!headerLeadingControl) return null;
+    return (
+      <div className="flex shrink-0 items-center gap-2">
+        {showViewSwitch ? (
+          <>
+            <KanbanOrgScopeSelect />
+            <WorkstationHeaderSectionSeparator />
+            {headerLeadingControl}
+          </>
+        ) : (
+          <>
+            {headerLeadingControl}
+            <WorkstationHeaderSectionSeparator />
+          </>
+        )}
+      </div>
+    );
+  }, [headerLeadingControl, showViewSwitch]);
+
   // WorkStation embed: publish the pane's controls into the shared 40px bar
   // (and disable the sidebar toggle) instead of rendering our own header row.
   const embeddedHeaderContent = React.useMemo(
@@ -123,12 +144,7 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
 
   const chatHeaderContent = React.useMemo(
     () => ({
-      leading: headerLeading ? (
-        <div className="flex shrink-0 items-center gap-2">
-          {headerLeading}
-          <WorkstationHeaderSectionSeparator />
-        </div>
-      ) : null,
+      leading: headerLeading,
       content: headerSlots?.content ?? null,
       trailing: headerSlots?.trailing ?? null,
       joinWithFollowingRow: headerSlots?.joinWithFollowingRow ?? false,

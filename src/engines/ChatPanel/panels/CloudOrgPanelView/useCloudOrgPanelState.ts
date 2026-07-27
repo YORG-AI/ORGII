@@ -17,8 +17,13 @@ import {
   ensureFreshSession,
   getEntitlementState,
 } from "@src/features/Org2Cloud/org2CloudClient";
+import { broadcastOrgControlChangedToPeers } from "@src/features/Org2Cloud/org2CloudControlBus";
+import { isFetchTransportError } from "@src/features/Org2Cloud/org2CloudFetchRetry";
 import { loadCloudOrgMembers } from "@src/features/Org2Cloud/org2CloudMembersCoordinator";
-import { org2CloudRosterVersionAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import {
+  org2CloudRosterRealtimeConnectedAtom,
+  org2CloudRosterVersionAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   deriveScopeQuotaView,
   parseScopeCooldownFreesAt,
@@ -43,7 +48,6 @@ import { isTauriReady } from "@src/util/platform/tauri/init";
 import type { SelectValue } from "./cloudOrgPanelTypes";
 
 const log = createLogger("CloudOrgPanelView");
-const MEMBER_ROSTER_FALLBACK_MS = 30_000;
 /** Stable reference for the identity-mismatch window (no re-render churn). */
 const NO_VISIBLE_MEMBERS: CloudOrgMember[] = [];
 
@@ -58,6 +62,9 @@ export function useCloudOrgPanelState(orgId: string) {
   const store = useStore();
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const rosterVersionByOrg = useAtomValue(org2CloudRosterVersionAtom);
+  const rosterRealtimeConnectedByOrg = useAtomValue(
+    org2CloudRosterRealtimeConnectedAtom
+  );
   const [entitlement, setEntitlement] = useState<CloudEntitlementState | null>(
     null
   );
@@ -78,7 +85,7 @@ export function useCloudOrgPanelState(orgId: string) {
   const [scopesSaved, setScopesSaved] = useState(false);
   const [scopesError, setScopesError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [membersFallbackVersion, setMembersFallbackVersion] = useState(0);
+  const [membersRecoveryVersion, setMembersRecoveryVersion] = useState(0);
 
   useTauriListen(
     "org2-cloud-billing-complete",
@@ -90,6 +97,7 @@ export function useCloudOrgPanelState(orgId: string) {
   );
 
   const rosterVersion = rosterVersionByOrg[orgId] ?? 0;
+  const rosterRealtimeConnected = rosterRealtimeConnectedByOrg[orgId] === true;
   const rosterVersionRef = useRef(rosterVersion);
   rosterVersionRef.current = rosterVersion;
   const signedIn = Boolean(auth);
@@ -139,18 +147,18 @@ export function useCloudOrgPanelState(orgId: string) {
 
   useEffect(() => {
     if (!signedIn) return undefined;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState !== "hidden") {
-        setMembersFallbackVersion((version) => version + 1);
+    const recoverWhenInteractive = () => {
+      if (document.visibilityState !== "hidden" && !rosterRealtimeConnected) {
+        setMembersRecoveryVersion((version) => version + 1);
       }
     };
-    const timer = setInterval(refreshWhenVisible, MEMBER_ROSTER_FALLBACK_MS);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    window.addEventListener("focus", recoverWhenInteractive);
+    document.addEventListener("visibilitychange", recoverWhenInteractive);
     return () => {
-      clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("focus", recoverWhenInteractive);
+      document.removeEventListener("visibilitychange", recoverWhenInteractive);
     };
-  }, [signedIn, authIdentityKey, orgId]);
+  }, [signedIn, authIdentityKey, orgId, rosterRealtimeConnected]);
 
   useEffect(() => {
     if (!signedIn) return;
@@ -232,21 +240,22 @@ export function useCloudOrgPanelState(orgId: string) {
   ]);
 
   const observedRosterVersionRef = useRef(rosterVersion);
-  const observedMembersFallbackVersionRef = useRef(membersFallbackVersion);
+  const observedMembersRecoveryVersionRef = useRef(membersRecoveryVersion);
   useEffect(() => {
     observedRosterVersionRef.current = rosterVersion;
-    observedMembersFallbackVersionRef.current = membersFallbackVersion;
+    observedMembersRecoveryVersionRef.current = membersRecoveryVersion;
     // A normal roster bump must reach the member-only fetch below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId]);
   useEffect(() => {
     if (!signedIn) return;
+    if (document.visibilityState === "hidden") return;
     const rosterChanged = observedRosterVersionRef.current !== rosterVersion;
-    const fallbackChanged =
-      observedMembersFallbackVersionRef.current !== membersFallbackVersion;
-    if (!rosterChanged && !fallbackChanged) return;
+    const recoveryRequested =
+      observedMembersRecoveryVersionRef.current !== membersRecoveryVersion;
+    if (!rosterChanged && !recoveryRequested) return;
     observedRosterVersionRef.current = rosterVersion;
-    observedMembersFallbackVersionRef.current = membersFallbackVersion;
+    observedMembersRecoveryVersionRef.current = membersRecoveryVersion;
     let cancelled = false;
     const membersRequestEpoch = ++membersRequestEpochRef.current;
     void (async () => {
@@ -258,7 +267,7 @@ export function useCloudOrgPanelState(orgId: string) {
         current,
         orgId,
         rosterVersion,
-        { force: fallbackChanged }
+        { force: recoveryRequested }
       );
       if (
         !loaded ||
@@ -283,7 +292,7 @@ export function useCloudOrgPanelState(orgId: string) {
     signedIn,
     authIdentityKey,
     rosterVersion,
-    membersFallbackVersion,
+    membersRecoveryVersion,
     setAuth,
     store,
   ]);
@@ -319,6 +328,7 @@ export function useCloudOrgPanelState(orgId: string) {
         [orgId]: draftScopes,
       }));
       setScopesSaved(true);
+      broadcastOrgControlChangedToPeers(orgId, "scopes");
       await refreshScopeState(fresh.accessToken);
     } catch (error) {
       if (isOrg2SyncErrorCode(error, "ORG2_SCOPE_COOLDOWN")) {
@@ -335,7 +345,13 @@ export function useCloudOrgPanelState(orgId: string) {
         if (freshToken) await refreshScopeState(freshToken);
         return;
       }
-      setScopesError(error instanceof Error ? error.message : String(error));
+      setScopesError(
+        isFetchTransportError(error)
+          ? t("cloud.orgManagement.errors.network")
+          : error instanceof Error
+            ? error.message
+            : String(error)
+      );
     } finally {
       setSavingScopes(false);
     }
@@ -359,13 +375,20 @@ export function useCloudOrgPanelState(orgId: string) {
       if (!fresh) throw new Error(t("cloud.orgPanel.loadError"));
       commitRefreshedAuth(setAuth, current, fresh);
       await setOrgSharingFloor(fresh.accessToken, orgId, next);
+      broadcastOrgControlChangedToPeers(orgId, "entitlement");
       await org2CloudSyncEngine.runSyncPassAndWaitForDrain();
     } catch (error) {
       setFloorByOrg((currentFloors) => ({
         ...currentFloors,
         [orgId]: previous,
       }));
-      setFloorError(error instanceof Error ? error.message : String(error));
+      setFloorError(
+        isFetchTransportError(error)
+          ? t("cloud.orgManagement.errors.network")
+          : error instanceof Error
+            ? error.message
+            : String(error)
+      );
     } finally {
       setSavingFloor(false);
     }

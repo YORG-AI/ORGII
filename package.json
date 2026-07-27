@@ -1,6 +1,6 @@
 {
   "name": "orgii",
-  "version": "1.1.24",
+  "version": "1.2.2",
   "description": "Self-evolving agentic development framework — ORGII desktop app",
   "main": "src/index.tsx",
   "scripts": {
@@ -89,6 +89,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/is-prop-valid": "^1.4.0",
+    "@fabianlars/tauri-plugin-oauth": "^2.0.0",
     "@lezer/highlight": "^1.2.3",
     "@libsql/client": "^0.17.0",
     "@replit/codemirror-indentation-markers": "^6.5.3",
@@ -142,8 +143,6 @@
     "jotai": "^2.8.2",
     "jotai-family": "^1.0.2",
     "jszip": "^3.10.1",
-    "keepalive-for-react": "4.0.3",
-    "keepalive-for-react-router": "1.0.1",
     "lodash": "^4.17.21",
     "lowlight": "^3.3.0",
     "lucide-react": "0.563.0",

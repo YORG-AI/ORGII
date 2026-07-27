@@ -61,15 +61,9 @@
     "startSession": "세션 시작",
     "sessions": "Session 목록",
     "selectProject": "Project 선택",
-    "startPage": "시작 페이지",
     "inbox": "받은 편지함",
     "login": "로그인",
     "setup": "설정",
-    "devJourney": "개발 여정",
-    "devRecord": "개발 기록",
-    "gitDashboard": "Git 대시보드",
-    "devActivity": "Dev 활동",
-    "usageHistory": "사용 내역",
     "tokenMarket": "Token 마켓",
     "taskMarket": "작업 마켓",
     "channels": "Channel",
@@ -85,20 +79,8 @@
     "ideaArea": "아이디어 공간",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "그리드 사용자 지정",
-    "horizontalGap": "수평 간격",
-    "verticalGap": "수직 간격",
-    "resetToDefault": "기본값으로 재설정"
-  },
-  "greetings": {
-    "morning": "좋은 아침입니다",
-    "afternoon": "좋은 오후입니다",
-    "evening": "좋은 저녁입니다"
-  },
   "sidebar": {
     "tabs": {
-      "build": "홈",
       "workstation": "Workstation",
       "manage": "관리",
       "core": "코어",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "새로 추가",
       "collapseAll": "모두 접기",
-      "markAllRead": "모두 읽음으로 표시",
-      "openHome": "홈 열기",
-      "openWorkstation": "Workstation 열기"
+      "markAllRead": "모두 읽음으로 표시"
     },
     "search": {
       "folders": "워크스페이스 검색...",
@@ -358,15 +338,6 @@
       "projects": "프로젝트"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "제품 업데이트",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "세부 정보",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG 전환",
     "addOrg": "ORG 추가",
@@ -475,7 +446,8 @@
       "retentionUpgrade": "이 세션은 플랜의 리플레이 기간을 벗어났습니다 — 보려면 업그레이드하세요",
       "importError": "세션을 가져오지 못했습니다",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "내 정보"
     },
     "sidebar": {
       "teamSessions": "팀 세션",
@@ -492,7 +464,8 @@
       "viewerOverflow": "외 {{count}}명이 보고 있습니다",
       "memberViewing": "보는 중: {{title}}",
       "viewerOverflow_one": "and 1 more viewer",
-      "viewerOverflow_other": "and {{count}} more viewers"
+      "viewerOverflow_other": "and {{count}} more viewers",
+      "copyId": "ID 복사"
     },
     "sync": {
       "quotaExceededToast": "ORG2 클라우드 동기화 일시 중지: 이 조직의 플랜 할당량을 초과했습니다",
@@ -614,7 +587,8 @@
         "inviteInvalid": "유효하지 않은 초대 코드입니다.",
         "inviteRevoked": "철회된 초대입니다.",
         "inviteExpired": "만료된 초대입니다.",
-        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다."
+        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다.",
+        "network": "클라우드 서비스에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요."
       }
     },
     "syncLevel": {
@@ -723,6 +697,7 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "signedInAs": "로그인 계정: {{name}}"
   }
 }

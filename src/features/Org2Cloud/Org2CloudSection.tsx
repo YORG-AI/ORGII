@@ -4,11 +4,10 @@
  * Two tabs:
  *  1. Cloud — ORG2 Cloud (managed) with the existing sign-in /
  *     sign-out control. Sign-in opens the managed cloud login page in the
- *     SYSTEM browser; the login page finishes with a redirect to
- *     `orgii://auth/callback#…`, which the OS delivers through the
- *     deep-link plugin and useDeepLinkHandler completes at the
- *     always-mounted app root — so sign-in survives this section
- *     unmounting.
+ *     SYSTEM browser; the login page finishes through an ephemeral localhost
+ *     receiver, which the OAuth plugin delivers to useDeepLinkHandler at the
+ *     always-mounted app root. Installed-app custom-scheme callbacks remain
+ *     supported for cold-start compatibility.
  *  2. Self-hosted — the custom ORG2 Cloud backend card (`CloudEndpointCard`,
  *     cloud-parity Phase C): self-hosting means deploying the SAME stack
  *     and pointing the app at it.
@@ -19,14 +18,30 @@ import {
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { useAtom, useStore } from "jotai";
-import React, { useCallback } from "react";
+import { Pencil, RefreshCw } from "lucide-react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import Input from "@src/components/Input";
+import Message from "@src/components/Message";
+import { REFRESH_ICON_TOKENS } from "@src/components/RefreshIcon/tokens";
 import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { importBundledOrg2CloudAuthForDev } from "@src/features/Org2Cloud/devBundledAuthImport";
+import {
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  ensureFreshSession,
+  updateCloudProfileDisplayName,
+} from "@src/features/Org2Cloud/org2CloudClient";
 import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
+import { createLogger } from "@src/hooks/logger";
+
+const log = createLogger("Org2CloudSection");
 
 export const COLLABORATION_TAB_KEYS = {
   CLOUD: "cloud",
@@ -40,8 +55,11 @@ interface Org2CloudSectionProps {
 const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
   activeTab = COLLABORATION_TAB_KEYS.CLOUD,
 }) => {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "common"]);
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
+  const [isRefreshingDevAuth, setIsRefreshingDevAuth] = useState(false);
+  const [renameDraft, setRenameDraft] = useState<string | null>(null);
+  const [isSavingRename, setIsSavingRename] = useState(false);
   const store = useStore();
   const signedInIdentity =
     auth?.profile?.displayName ??
@@ -51,10 +69,70 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
 
   const handleSignIn = useOrg2CloudSignIn();
 
+  const handleSaveRename = useCallback(async () => {
+    const trimmed = (renameDraft ?? "").trim();
+    if (!auth || !trimmed || trimmed.length > 64 || isSavingRename) return;
+    setIsSavingRename(true);
+    try {
+      const fresh = await ensureFreshSession(auth);
+      if (!fresh) {
+        Message.error(t("cloud.renameFailed"));
+        return;
+      }
+      commitRefreshedAuth(setAuth, auth, fresh);
+      const stored = await updateCloudProfileDisplayName(
+        fresh.accessToken,
+        trimmed
+      );
+      if (stored === null) {
+        Message.error(t("cloud.renameFailed"));
+        return;
+      }
+      setAuth((current) =>
+        current
+          ? {
+              ...current,
+              profile: { ...current.profile, displayName: stored },
+            }
+          : current
+      );
+      setRenameDraft(null);
+      Message.success(t("cloud.renameSaved"));
+    } finally {
+      setIsSavingRename(false);
+    }
+  }, [auth, isSavingRename, renameDraft, setAuth, t]);
+
   const handleSignOut = useCallback(() => {
     resetOrgEntitlementCoordinator(store);
     setAuth(null);
   }, [setAuth, store]);
+
+  const handleRefreshDevAuth = useCallback(async () => {
+    if (isRefreshingDevAuth) return;
+    setIsRefreshingDevAuth(true);
+    try {
+      const bundledAuth = await importBundledOrg2CloudAuthForDev();
+      const currentIdentity = auth ? org2CloudAuthIdentityKey(auth) : null;
+      const bundledIdentity = bundledAuth
+        ? org2CloudAuthIdentityKey(bundledAuth)
+        : null;
+      if (currentIdentity !== bundledIdentity) {
+        resetOrgEntitlementCoordinator(store);
+      }
+      setAuth(bundledAuth);
+      if (bundledAuth) {
+        Message.success(t("cloud.signedInToast"));
+      } else {
+        Message.info(t("common:errors.notFound"));
+      }
+    } catch (error: unknown) {
+      log.error("failed to refresh ORG2 Cloud auth from bundled app", error);
+      Message.error(t("common:errors.unknownError"));
+    } finally {
+      setIsRefreshingDevAuth(false);
+    }
+  }, [auth, isRefreshingDevAuth, setAuth, store, t]);
 
   if (activeTab === COLLABORATION_TAB_KEYS.SELF_HOSTED) {
     return <CloudEndpointCard />;
@@ -76,7 +154,39 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
           align="start"
         >
           <div className={SECTION_ACTION_GAP_CLASSES}>
-            {auth ? (
+            {auth && renameDraft !== null ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={renameDraft}
+                  onChange={(value) => setRenameDraft(value)}
+                  maxLength={64}
+                  autoFocus
+                  className="w-48"
+                  data-testid="org2-cloud-rename-input"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void handleSaveRename();
+                    if (event.key === "Escape") setRenameDraft(null);
+                  }}
+                />
+                <Button
+                  size="default"
+                  loading={isSavingRename}
+                  disabled={isSavingRename || !(renameDraft ?? "").trim()}
+                  onClick={() => void handleSaveRename()}
+                  data-testid="org2-cloud-rename-save"
+                >
+                  {t("common:actions.save")}
+                </Button>
+                <Button
+                  size="default"
+                  disabled={isSavingRename}
+                  onClick={() => setRenameDraft(null)}
+                  data-testid="org2-cloud-rename-cancel"
+                >
+                  {t("common:actions.cancel")}
+                </Button>
+              </div>
+            ) : auth ? (
               <div className="flex items-center gap-2">
                 <span
                   className="max-w-56 truncate text-sm text-text-2"
@@ -85,6 +195,16 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                 >
                   {t("cloud.signedInAs", { name: signedInIdentity })}
                 </span>
+                <Button
+                  size="default"
+                  iconOnly
+                  icon={<Pencil size={14} />}
+                  aria-label={t("cloud.renameDisplayName")}
+                  onClick={() =>
+                    setRenameDraft(auth.profile?.displayName ?? "")
+                  }
+                  data-testid="org2-cloud-rename"
+                />
                 <Button
                   size="default"
                   onClick={handleSignOut}
@@ -100,6 +220,26 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                 data-testid="org2-cloud-sign-in"
               >
                 {t("cloud.signIn")}
+              </Button>
+            )}
+            {process.env.NODE_ENV === "development" && (
+              <Button
+                size="default"
+                icon={
+                  <RefreshCw
+                    size={14}
+                    className={
+                      isRefreshingDevAuth ? REFRESH_ICON_TOKENS.spin : ""
+                    }
+                  />
+                }
+                loading={isRefreshingDevAuth}
+                loadingSpinIcon
+                disabled={isRefreshingDevAuth}
+                onClick={handleRefreshDevAuth}
+                data-testid="org2-cloud-refresh-dev-auth"
+              >
+                {t("common:actions.refresh")}
               </Button>
             )}
           </div>

@@ -6,8 +6,13 @@
 //!
 //! The hash-naming pattern keeps each worktree dir unique per repo path.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+use std::time::{Duration, Instant};
+
+#[cfg(unix)]
+use std::os::unix::process::CommandExt;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,6 +34,7 @@ const SETUP_WORKTREE_KEY: &str = "setup-worktree";
 const SETUP_WORKTREE_UNIX_KEY: &str = "setup-worktree-unix";
 const SETUP_WORKTREE_WINDOWS_KEY: &str = "setup-worktree-windows";
 const ROOT_WORKTREE_PATH_ENV: &str = "ROOT_WORKTREE_PATH";
+const WORKTREE_SETUP_COMMAND_TIMEOUT: Duration = Duration::from_secs(300);
 
 // ============================================
 // Types
@@ -506,6 +512,20 @@ fn run_worktree_setup_command(
     worktree_path: &Path,
     command: &str,
 ) -> Result<(), String> {
+    run_worktree_setup_command_with_timeout(
+        repo_path,
+        worktree_path,
+        command,
+        WORKTREE_SETUP_COMMAND_TIMEOUT,
+    )
+}
+
+pub(crate) fn run_worktree_setup_command_with_timeout(
+    repo_path: &Path,
+    worktree_path: &Path,
+    command: &str,
+    timeout: Duration,
+) -> Result<(), String> {
     let mut process = if cfg!(windows) {
         let mut process = Command::new("cmd");
         process.arg("/C").arg(command);
@@ -524,27 +544,92 @@ fn run_worktree_setup_command(
         process.creation_flags(super::util::CREATE_NO_WINDOW);
     }
 
-    let output = process
+    process
         .current_dir(worktree_path)
         .env(ROOT_WORKTREE_PATH_ENV, repo_path)
-        .output()
-        .map_err(|err| {
-            format!(
-                "failed to run worktree setup command {:?}: {}",
-                command, err
-            )
-        })?;
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    process.process_group(0);
+    super::util::close_inherited_fds(&mut process);
 
-    if output.status.success() {
+    let mut child = process.spawn().map_err(|err| {
+        format!(
+            "failed to run worktree setup command {:?}: {}",
+            command, err
+        )
+    })?;
+    let child_id = child.id();
+    let stdout_pipe = child.stdout.take();
+    let stderr_pipe = child.stderr.take();
+    let stdout_handle = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = stdout_pipe {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    });
+    let stderr_handle = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        if let Some(mut pipe) = stderr_pipe {
+            let _ = pipe.read_to_end(&mut bytes);
+        }
+        bytes
+    });
+
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Ok(None) => {
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(child_id as i32), libc::SIGKILL);
+                }
+                #[cfg(windows)]
+                {
+                    let mut taskkill = Command::new("taskkill");
+                    taskkill.args(["/PID", &child_id.to_string(), "/T", "/F"]);
+                    use std::os::windows::process::CommandExt;
+                    taskkill.creation_flags(super::util::CREATE_NO_WINDOW);
+                    let _ = taskkill.output();
+                }
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+                return Err(format!(
+                    "worktree setup command timed out after {}s and was terminated: {}",
+                    timeout.as_secs_f64(),
+                    command
+                ));
+            }
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stdout_handle.join();
+                let _ = stderr_handle.join();
+                return Err(format!("failed waiting for worktree setup command: {err}"));
+            }
+        }
+    };
+    let stdout = stdout_handle.join().unwrap_or_default();
+    let stderr = stderr_handle.join().unwrap_or_default();
+
+    if status.success() {
         return Ok(());
     }
 
     Err(format!(
         "worktree setup command failed: {}\nstatus: {:?}\nstdout:\n{}\nstderr:\n{}",
         command,
-        output.status.code(),
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+        status.code(),
+        String::from_utf8_lossy(&stdout),
+        String::from_utf8_lossy(&stderr)
     ))
 }
 
@@ -611,6 +696,7 @@ pub fn remove_session_worktree(
     let repo_str = repo_path.to_string_lossy().to_string();
     let wt_path = session_worktree_dir(&repo_str, session_id);
     let branch = session_branch_name(session_id);
+    let mut cleanup_errors = Vec::new();
 
     // Try git worktree remove first (handles both directory and registry)
     if wt_path.exists() {
@@ -623,37 +709,59 @@ pub fn remove_session_worktree(
                 std::fs::remove_dir_all(&wt_path)
                     .map_err(|err| format!("Failed to remove worktree dir: {}", err))?;
             }
-            let _ = run_git(repo_path, &["worktree", "prune"]);
+            match run_git(repo_path, &["worktree", "prune"]) {
+                Ok(output) if output.status.success() => {}
+                Ok(output) => cleanup_errors.push(format!(
+                    "git worktree prune failed: {}",
+                    git_stderr(&output)
+                )),
+                Err(error) => cleanup_errors.push(error),
+            }
         }
     } else {
-        let _ = run_git(repo_path, &["worktree", "prune"]);
+        match run_git(repo_path, &["worktree", "prune"]) {
+            Ok(output) if output.status.success() => {}
+            Ok(output) => cleanup_errors.push(format!(
+                "git worktree prune failed: {}",
+                git_stderr(&output)
+            )),
+            Err(error) => cleanup_errors.push(error),
+        }
     }
 
     if delete_branch {
-        let branch_check = run_git(repo_path, &["rev-parse", "--verify", &branch]);
-        if let Ok(ref output) = branch_check {
-            if output.status.success() {
+        match run_git(repo_path, &["rev-parse", "--verify", &branch]) {
+            Ok(output) if output.status.success() => {
                 let del = run_git(repo_path, &["branch", "-D", &branch]);
                 match del {
                     Ok(ref out) if out.status.success() => {
                         info!("[worktree] Deleted branch: {}", branch);
                     }
                     Ok(ref out) => {
-                        warn!(
-                            "[worktree] Failed to delete branch {}: {}",
+                        cleanup_errors.push(format!(
+                            "Failed to delete branch {}: {}",
                             branch,
                             git_stderr(out)
-                        );
+                        ));
                     }
                     Err(err) => {
-                        warn!("[worktree] Failed to delete branch {}: {}", branch, err);
+                        cleanup_errors.push(format!("Failed to delete branch {}: {}", branch, err));
                     }
                 }
             }
+            Ok(_) => {}
+            Err(error) => cleanup_errors.push(format!(
+                "Failed to verify branch {} before deletion: {}",
+                branch, error
+            )),
         }
     }
 
-    Ok(())
+    if cleanup_errors.is_empty() {
+        Ok(())
+    } else {
+        Err(cleanup_errors.join("; "))
+    }
 }
 
 /// Snapshot of a session worktree's unmerged work, used to decide whether
@@ -941,6 +1049,51 @@ pub fn list_all_worktrees(repo_path: &Path) -> Result<Vec<GeneralWorktreeEntry>,
     }
 
     Ok(parse_worktree_list_porcelain(&git_stdout(&output)))
+}
+
+/// Resolve and validate a linked worktree selected for session execution.
+/// The main checkout is deliberately rejected: callers should use local mode
+/// for it, while this function is reserved for a distinct registered checkout.
+pub fn validate_existing_worktree(
+    repo_path: &Path,
+    worktree_path: &Path,
+) -> Result<GeneralWorktreeEntry, String> {
+    let canonical_repo = repo_path
+        .canonicalize()
+        .map_err(|err| format!("Failed to resolve repo path: {err}"))?;
+    let canonical_worktree = worktree_path
+        .canonicalize()
+        .map_err(|err| format!("Failed to resolve worktree path: {err}"))?;
+    if !canonical_worktree.is_dir() {
+        return Err(format!(
+            "Worktree path is not a directory: {}",
+            canonical_worktree.display()
+        ));
+    }
+
+    let entries = list_all_worktrees(&canonical_repo)?;
+    let mut entry = entries
+        .into_iter()
+        .find(|entry| {
+            Path::new(&entry.path)
+                .canonicalize()
+                .map(|path| path == canonical_worktree)
+                .unwrap_or(false)
+        })
+        .ok_or_else(|| {
+            format!(
+                "Path is not a registered worktree for {}: {}",
+                canonical_repo.display(),
+                canonical_worktree.display()
+            )
+        })?;
+
+    if entry.is_main || canonical_repo == canonical_worktree {
+        return Err("The main checkout must use local workspace mode".to_string());
+    }
+
+    entry.path = canonical_worktree.to_string_lossy().to_string();
+    Ok(entry)
 }
 
 /// Parse the porcelain output of `git worktree list --porcelain`.

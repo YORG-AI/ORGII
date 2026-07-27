@@ -1,8 +1,11 @@
 /**
- * ToolsCategoryView — renders the content pane for tools-related integrations
- * categories: built-in tools (category="tools") or Computer Use.
+ * ToolsCategoryView — dev-only Built-in Tools content pane.
+ *
+ * This module is lazy-loaded only after the guarded `tools` route opens, so
+ * its metadata/config hooks never mount in ordinary Settings usage.
  */
-import React, { useMemo, useState } from "react";
+import { useSetAtom } from "jotai";
+import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import TabPill from "@src/components/TabPill";
@@ -11,28 +14,39 @@ import {
   DetailPanelContainer,
   InternalHeader,
 } from "@src/modules/shared/layouts/blocks";
+import { integrationsToolbarAtom } from "@src/store/ui/integrationsToolbarAtom";
 
-import ComputerUseConfig from "./BuiltInTools/Preview/DesktopToolConfig";
 import { BuiltInToolsTable } from "./BuiltInTools/Table/BuiltInToolsTable";
 import { useAgentToolMatrix } from "./BuiltInTools/useAgentToolMatrix";
-import type { UseBuiltInToolsReturn } from "./BuiltInTools/useBuiltInTools";
+import { useBuiltInTools } from "./BuiltInTools/useBuiltInTools";
 import { ToolEventPreview } from "./DevTools/ToolEventPreview";
-import type { IntegrationCategory } from "./types";
 
-export interface ToolsCategoryViewProps {
-  tools: UseBuiltInToolsReturn;
-  category: IntegrationCategory;
-}
-
-export const ToolsCategoryView: React.FC<ToolsCategoryViewProps> = ({
-  tools,
-  category,
-}) => {
+const ToolsCategoryView: React.FC = () => {
   const { t } = useTranslation("integrations");
   type BuiltinTab = "table" | "playground";
   const [builtinTab, setBuiltinTab] = useState<BuiltinTab>("table");
-
+  const tools = useBuiltInTools();
   const agentMatrix = useAgentToolMatrix();
+  const setToolbarEntry = useSetAtom(integrationsToolbarAtom);
+  const { refresh, toolsListLoading } = tools;
+
+  useEffect(() => {
+    setToolbarEntry((current) => ({
+      ...current,
+      onRefresh: refresh,
+      loading: toolsListLoading,
+    }));
+  }, [refresh, setToolbarEntry, toolsListLoading]);
+
+  useEffect(() => {
+    return () => {
+      setToolbarEntry((current) =>
+        current.onRefresh === refresh
+          ? { extraButtons: current.extraButtons }
+          : current
+      );
+    };
+  }, [refresh, setToolbarEntry]);
 
   const builtinTabs = useMemo(
     () => [
@@ -42,85 +56,47 @@ export const ToolsCategoryView: React.FC<ToolsCategoryViewProps> = ({
     [t]
   );
 
-  const computerUseTabs = useMemo(
-    () => [{ key: "desktop", label: t("builtInTools.tabDesktopControl") }],
-    [t]
+  const builtinHeader = (
+    <InternalHeader
+      noPanelHeader
+      contentPadding
+      className={DETAIL_PANEL_TOKENS.headerWidth}
+      tabs={
+        <TabPill
+          tabs={builtinTabs}
+          activeTab={builtinTab}
+          onChange={(key) => setBuiltinTab(key as BuiltinTab)}
+          variant="simple"
+          fillWidth={false}
+          size="large"
+        />
+      }
+    />
   );
 
-  // ── Built-in tools view (list + playground) ──────────────────────────────
-  if (category === "tools") {
-    const builtinHeader = (
-      <InternalHeader
-        noPanelHeader
-        contentPadding
-        className={DETAIL_PANEL_TOKENS.headerWidth}
-        tabs={
-          <TabPill
-            tabs={builtinTabs}
-            activeTab={builtinTab}
-            onChange={(key) => setBuiltinTab(key as BuiltinTab)}
-            variant="simple"
-            fillWidth={false}
-            size="large"
-          />
-        }
-      />
-    );
-
-    if (builtinTab === "playground") {
-      return (
-        <DetailPanelContainer>
-          {builtinHeader}
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
-            <div
-              className={`${DETAIL_PANEL_TOKENS.contentWidth} flex min-h-0 flex-1 flex-col`}
-            >
-              <ToolEventPreview />
-            </div>
-          </div>
-        </DetailPanelContainer>
-      );
-    }
-
+  if (builtinTab === "playground") {
     return (
       <DetailPanelContainer>
         {builtinHeader}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <BuiltInToolsTable tools={tools} agentMatrix={agentMatrix} />
-        </div>
-      </DetailPanelContainer>
-    );
-  }
-
-  // ── Computer Use (standalone sidebar tab) ────────────────────────────────
-  if (category === "computerUse") {
-    return (
-      <DetailPanelContainer>
-        <InternalHeader
-          noPanelHeader
-          contentPadding
-          className={DETAIL_PANEL_TOKENS.headerWidth}
-          tabs={
-            <TabPill
-              tabs={computerUseTabs}
-              activeTab="desktop"
-              onChange={() => {}}
-              variant="simple"
-              fillWidth={false}
-              size="large"
-            />
-          }
-        />
-        <div className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 pb-4">
           <div
-            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} flex flex-col gap-3`}
+            className={`${DETAIL_PANEL_TOKENS.contentWidth} flex min-h-0 flex-1 flex-col`}
           >
-            <ComputerUseConfig />
+            <ToolEventPreview />
           </div>
         </div>
       </DetailPanelContainer>
     );
   }
 
-  return null;
+  return (
+    <DetailPanelContainer>
+      {builtinHeader}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <BuiltInToolsTable tools={tools} agentMatrix={agentMatrix} />
+      </div>
+    </DetailPanelContainer>
+  );
 };
+
+export default ToolsCategoryView;

@@ -79,7 +79,7 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
 }) => {
   const { t } = useTranslation("integrations");
   const { registry } = useAgentCompatibility();
-  const { navigateToMainApp } = useAppNavigation();
+  const { navigateTo } = useAppNavigation();
   const agentType = agent.name as ModelType;
   const docsUrl = agent.docsUrl;
 
@@ -157,11 +157,8 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
 
   const openCredentialInIntegrations = useCallback(() => {
     const path = buildIntegrationsPath({ category: "models" });
-    navigateToMainApp(`${path}?modelsTab=my-accounts`, {
-      title: "Agents",
-      icon: "infinity",
-    });
-  }, [navigateToMainApp]);
+    navigateTo(`${path}?modelsTab=my-accounts`);
+  }, [navigateTo]);
 
   const credentialColumns = useMemo<DragTableColumn<KeyVaultAccount>[]>(
     () => [

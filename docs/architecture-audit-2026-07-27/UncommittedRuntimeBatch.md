@@ -1,6 +1,6 @@
 # Architecture Audit — Uncommitted Runtime Batch
 
-**Scope:** the uncommitted Rust and TypeScript changes on `junyu/rpc-performance-closure`, including Team Inbox, setup/sign-in, GitHub Star, message dispatch/intervention, static HTML canvas, runtime caches/coordinators, webview retention, transport bindings, and shared UI ownership.
+**Scope:** the uncommitted Rust and TypeScript changes on `junyu/rpc-performance-closure`, merged with `origin/develop@82dc871e`, including Team Inbox, setup/sign-in, GitHub Star, message dispatch/intervention, static HTML canvas, runtime caches/coordinators, webview retention, transport bindings, and shared UI ownership.
 **Date:** 2026-07-27
 **Auditor:** ORGII implementation session
 
@@ -10,6 +10,8 @@
 - ESLint over every changed frontend source file: passed.
 - Changed frontend tests: 33 files and 214 tests passed.
 - `cargo check --workspace --all-targets`: passed.
+- Post-merge `org2` library suite: 994 passed, 1 ignored; a source-cache schema initialization omission discovered by the suite was fixed and the full suite reran green.
+- Search library suite: 52 passed, including oversized-index sharing/non-retention.
 - Affected Rust library suites (`agent_core`, `integrations`, `org2`, `project_management`, `search`, and `transport`): passed.
 - `rustfmt --check` over every changed Rust file: passed.
 - Repository-wide `cargo fmt --all -- --check` remains blocked by three pre-existing formatting differences in untouched files.
@@ -83,6 +85,7 @@
 | Primary and secondary ChatView | `useChatViewSessionLifecycle` with explicit surface flags | pass |
 | Direct Rust user message and scheduled turn | durable intervention before execution | fixed |
 | CLI transport user message | accepted receipt followed by best-effort intervention API | known parity limitation; existing behavior retained |
+| Latest-develop CLI module split | receipt/status-batch contract and turn-intent finalization are preserved in the split command/runner modules | fixed and compiled |
 
 The CLI path cannot make receipt acceptance and intervention persistence atomic with its current backend command contract. This is a remaining design limitation, not silently classified as equivalent to the Rust path.
 
@@ -101,6 +104,6 @@ The CLI path cannot make receipt acceptance and intervention persistence atomic 
 
 ## Completion verdict
 
-Eight correctness or lifecycle issues found during this audit were fixed and covered by focused tests. The applicable portions of all 10 architecture layers were reviewed. The CLI intervention atomicity limitation and the dormant production transport emitter are explicitly retained risks; neither is newly introduced as a live production path by this batch.
+The initial eight correctness/lifecycle issues plus merge-regression findings were fixed and covered by focused tests. The applicable portions of all 10 architecture layers were reviewed. The CLI intervention atomicity limitation and the dormant production transport emitter are explicitly retained risks; neither is newly introduced as a live production path by this batch.
 
 **Architecture verdict: pass with the documented CLI parity limitation.**

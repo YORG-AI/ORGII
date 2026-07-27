@@ -2,7 +2,7 @@ import React, { memo } from "react";
 
 import { DETAIL_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 
-/** Shared text-free loading placeholder for chat transcript content. */
+/** Shared text-free loading placeholder for initial chat-pane content. */
 const ChatLoadingBlock: React.FC = memo(() => (
   <div
     aria-hidden="true"

@@ -111,7 +111,7 @@
           input[type="checkbox"] {
             width: 16px;
             height: 16px;
-            cursor: pointer;
+            cursor: var(--interactive-cursor, default);
             accent-color: var(--color-primary-6);
           }
         }
@@ -175,7 +175,7 @@
       color: var(--color-primary-6);
       text-decoration: underline;
       text-underline-offset: 2px;
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
     }
 
     strong {
@@ -471,7 +471,7 @@
     border-radius: 5px;
     background: transparent;
     color: var(--color-text-2);
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition:
       background-color 0.15s ease,
       color 0.15s ease;
@@ -541,7 +541,7 @@
     color: var(--color-text-2);
     font-size: 13px;
     text-align: left;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
 
     &:hover {
       background: var(--color-fill-2);
@@ -602,7 +602,7 @@
       color: white;
       font-size: 13px;
       font-weight: 500;
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
     }
   }
 }

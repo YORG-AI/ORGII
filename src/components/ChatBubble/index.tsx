@@ -109,6 +109,10 @@ interface ChatBubbleCopyButtonProps {
   placement?: "bubble-corner" | "message-corner" | "toolbar";
 }
 
+/** Shared geometry and interaction treatment for compact message actions. */
+export const CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS =
+  "inline-flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent px-1 py-0 transition-colors hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30";
+
 const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
   content,
   hoverGroupClass = "group-hover/replay-msg:opacity-100",
@@ -132,7 +136,7 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
         type="button"
         title={t("actions.copy")}
         aria-label={t("actions.copy")}
-        className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+        className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
         onClick={handleCopy}
       >
         <Copy size={14} strokeWidth={1.75} />

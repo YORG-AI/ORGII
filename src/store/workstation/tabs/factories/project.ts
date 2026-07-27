@@ -4,9 +4,18 @@
  * Tab factories for the project manager using defineTabFactory.
  */
 import { PROJECT_ORG_SYNC_PROVIDER } from "@src/api/http/project";
+import {
+  PROJECT_ORG_SURFACE_VIEW,
+  type ProjectOrgSurfaceView,
+} from "@src/types/ui/projectOrg";
 
 import { defineTabFactory } from "../tabFactory";
 import type { WorkStationTab } from "../types";
+
+export {
+  PROJECT_ORG_SURFACE_VIEW,
+  type ProjectOrgSurfaceView,
+} from "@src/types/ui/projectOrg";
 
 export const STORY_MANAGER_PROJECT_TAB_ICON = "Box";
 export const STORY_WORK_ITEMS_TAB_ICON = "ChartNoAxesGantt";
@@ -20,15 +29,6 @@ export const STORY_ORG_SCOPE = {
 
 export const STORY_PERSONAL_ORG_FILTER_ID = "personal-org";
 export const STORY_PERSONAL_ORG_NAME = "Personal Org";
-
-export const PROJECT_ORG_SURFACE_VIEW = {
-  PROJECTS: "projects",
-  WORK_ITEMS: "work-items",
-  SETTINGS: "settings",
-} as const;
-
-export type ProjectOrgSurfaceView =
-  (typeof PROJECT_ORG_SURFACE_VIEW)[keyof typeof PROJECT_ORG_SURFACE_VIEW];
 
 export type ProjectOrgScope =
   (typeof STORY_ORG_SCOPE)[keyof typeof STORY_ORG_SCOPE];

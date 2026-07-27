@@ -1,5 +1,11 @@
 import { RefreshCw } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -39,8 +45,8 @@ function StartPageQuotaCard({
   const { t: tIntegrations } = useTranslation("integrations");
 
   return (
-    <div className={`min-w-0 p-2 ${START_PAGE_QUOTA_SURFACE_CLASS}`}>
-      <div className="mb-1 flex min-w-0 items-center gap-1.5">
+    <div className={`min-w-0 p-3 ${START_PAGE_QUOTA_SURFACE_CLASS}`}>
+      <div className="mb-2 flex min-w-0 items-center gap-2">
         <ModelIcon agentType={entry.modelType} size="small" />
         <div
           className="min-w-0 flex-1"
@@ -50,15 +56,15 @@ function StartPageQuotaCard({
               : entry.accountName
           }
         >
-          <div className="truncate text-[11px] font-semibold leading-4 text-text-1">
+          <div className="truncate text-xs font-semibold leading-4 text-text-1">
             {entry.accountName}
           </div>
-          <div className="truncate text-[10px] leading-3 text-text-3">
+          <div className="truncate text-[11px] leading-4 text-text-3">
             {entry.accountPlan ?? "-"}
           </div>
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2.5">
         {entry.metrics.map((metric) => {
           const textColorClass = getQuotaTextColorClass(
             metric.remainingPercent
@@ -71,8 +77,8 @@ function StartPageQuotaCard({
             tIntegrations
           );
           return (
-            <div key={metric.key} className="space-y-0.5">
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+            <div key={metric.key} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-[11px] leading-4">
                 <span className="min-w-0 truncate text-text-3">
                   {metric.label}
                   {resetHint ? (
@@ -114,9 +120,26 @@ export function StartPageQuotaGrid({
     autoLoad: true,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const refreshRunRef = useRef(0);
+  const refreshWaitRef = useRef<{
+    timeoutId: number;
+    resolve: () => void;
+  } | null>(null);
 
-  // The dedicated Quota tab has room to show every account at once.
-  const gridClassName = "grid-cols-2";
+  useEffect(
+    () => () => {
+      refreshRunRef.current += 1;
+      const pendingWait = refreshWaitRef.current;
+      if (pendingWait) {
+        window.clearTimeout(pendingWait.timeoutId);
+        refreshWaitRef.current = null;
+        pendingWait.resolve();
+      }
+    },
+    []
+  );
+
+  const gridClassName = "grid grid-cols-1 gap-3 @[640px]/quota:grid-cols-2";
 
   const entries = useMemo(
     () => collectAccountQuotaCards(accounts, t, tIntegrations),
@@ -124,23 +147,33 @@ export function StartPageQuotaGrid({
   );
 
   const handleRefreshAll = useCallback(async () => {
+    const refreshRun = refreshRunRef.current + 1;
+    refreshRunRef.current = refreshRun;
     setRefreshing(true);
     let refreshedCount = 0;
     try {
       for (let index = 0; index < entries.length; index += 1) {
+        if (refreshRunRef.current !== refreshRun) return;
         const entry = entries[index];
         if (index > 0) {
           await new Promise<void>((resolve) => {
-            window.setTimeout(resolve, QUOTA_REFRESH_GAP_MS);
+            const timeoutId = window.setTimeout(() => {
+              refreshWaitRef.current = null;
+              resolve();
+            }, QUOTA_REFRESH_GAP_MS);
+            refreshWaitRef.current = { timeoutId, resolve };
           });
+          if (refreshRunRef.current !== refreshRun) return;
         }
         try {
           const refreshed = await refreshAccount(entry.id, true);
+          if (refreshRunRef.current !== refreshRun) return;
           if (!refreshed) {
             throw new Error("Usage refresh failed");
           }
           refreshedCount += 1;
         } catch (err) {
+          if (refreshRunRef.current !== refreshRun) return;
           const name = getAccount(entry.id)?.name || entry.accountName;
           const detail = err instanceof Error ? err.message : String(err);
           Message.error(
@@ -153,11 +186,13 @@ export function StartPageQuotaGrid({
           logger.error("[RefreshUsage] Error:", err);
         }
       }
-      if (refreshedCount > 0) {
+      if (refreshedCount > 0 && refreshRunRef.current === refreshRun) {
         await refresh();
       }
     } finally {
-      setRefreshing(false);
+      if (refreshRunRef.current === refreshRun) {
+        setRefreshing(false);
+      }
     }
   }, [entries, getAccount, refresh, refreshAccount, tIntegrations]);
 
@@ -167,12 +202,17 @@ export function StartPageQuotaGrid({
   );
 
   return (
-    <div className={`${SECTION_GAP_CLASSES} ${className ?? ""}`}>
+    <div
+      className={`${SECTION_GAP_CLASSES} @container/quota ${className ?? ""}`}
+    >
       <div
         className="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"
         data-testid="quota-refresh-controls"
       >
-        <div className="flex min-h-9 items-center justify-end">
+        <div className="flex min-h-9 items-center justify-between gap-3">
+          <h3 className={SECTION_SUBHEADING_CLASSES}>
+            {t("kanban.dataSource.views.quota")}
+          </h3>
           <Button
             htmlType="button"
             variant="tertiary"
@@ -188,20 +228,15 @@ export function StartPageQuotaGrid({
           </Button>
         </div>
       </div>
-      <h3 className={SECTION_SUBHEADING_CLASSES}>
-        {t("kanban.dataSource.views.quota")}
-      </h3>
       {entries.length === 0 ? (
         <p className="px-1 text-center text-[13px] text-text-3">
           {t("chat.startPage.quota.empty")}
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div className={`grid gap-2 ${gridClassName}`}>
-            {entries.map((entry) => (
-              <StartPageQuotaCard key={entry.id} entry={entry} />
-            ))}
-          </div>
+        <div className={gridClassName}>
+          {entries.map((entry) => (
+            <StartPageQuotaCard key={entry.id} entry={entry} />
+          ))}
         </div>
       )}
     </div>

@@ -39,9 +39,7 @@ pub use dto::{
     CliConfigShutdownRestoreReport, CliConfigTargetFileManifest, CliConfigTargetFileStatus,
     CliManagedConfigSelection,
 };
-pub use proxy::{
-    managed_proxy_port, managed_proxy_url, set_managed_proxy_port_default,
-};
+pub use proxy::{managed_proxy_port, managed_proxy_url, set_managed_proxy_port_default};
 pub use registry::{
     managed_config_availability_for_agent, managed_config_unavailable_reason_for_agent,
     managed_proxy_protocol_for_agent, CliManagedConfigAvailability, CliManagedProxyProtocol,

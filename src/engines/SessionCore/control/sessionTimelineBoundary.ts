@@ -1,7 +1,12 @@
 import { CANCEL_REASON } from "@src/api/tauri/agent";
 import {
+  type TimelineBoundaryReason,
+  shouldInterruptTimelineBoundary,
+} from "@src/engines/SessionCore/control/sessionTimelineBoundaryHelpers";
+import {
   beginTurnStopping,
   forceTurnIdle,
+  isTurnActive,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { isTimelineBoundaryClosableRuntimeEvent } from "@src/engines/SessionCore/core/runningEventGate";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
@@ -12,20 +17,22 @@ import { killAgentShellProcess } from "@src/services/terminal";
 import {
   closePostStopDispatchEpisodeAtom,
   isPendingCancelAtom,
-  isSessionActiveAtom,
   openPostStopDispatchEpisodeAtom,
-  sessionRuntimeStatusAtom,
   setSessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import { shellProcessMapAtom } from "@src/store/session/shellProcessAtom";
+import {
+  hasLiveSubagentJobs,
+  subagentJobMapAtom,
+} from "@src/store/session/subagentJobAtom";
 import { holdSessionQueueForStopAtom } from "@src/store/ui/messageQueueAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { streamingDeltaContentAtom } from "../core/atoms";
 import { discardStreamingDeltaBuffer } from "../core/atoms/streamingDeltaBuffer";
 
-export type TimelineBoundaryReason = "stop" | "force-send" | "rewind";
+export type { TimelineBoundaryReason } from "./sessionTimelineBoundaryHelpers";
 
 /**
  * Which OS shell processes a boundary terminates.
@@ -150,18 +157,17 @@ async function closeRunningEventsForTimelineBoundary(
 }
 
 function shouldInterruptForTimelineBoundary(
-  _sessionId: string,
+  sessionId: string,
   reason: TimelineBoundaryReason
 ): boolean {
-  if (reason !== "rewind") return true;
-
   const store = getInstrumentedStore();
-  const runtimeStatus = store.get(sessionRuntimeStatusAtom);
-  return (
-    store.get(isSessionActiveAtom) ||
-    runtimeStatus === "running" ||
-    runtimeStatus === "installing"
-  );
+  return shouldInterruptTimelineBoundary(reason, {
+    turnActive: isTurnActive(sessionId),
+    hasLiveSubagents: hasLiveSubagentJobs(
+      store.get(subagentJobMapAtom),
+      sessionId
+    ),
+  });
 }
 
 export function beginTimelineBoundary(

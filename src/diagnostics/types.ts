@@ -116,5 +116,4 @@ export interface DiagnosticsUsageSnapshot {
 export interface DiagnosticsServiceConfig {
   diagnosticsLevel: DiagnosticsLevel;
   offlineMode: boolean;
-  uploadIntervalHours: number;
 }

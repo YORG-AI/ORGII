@@ -7,7 +7,14 @@
  * MessageViewer's chat-side preview.
  */
 import { useAtomValue } from "jotai";
-import React, { memo, useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { DiffSectionList } from "@src/modules/WorkStation/shared";
@@ -55,7 +62,15 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
   const previousCollapseAllSignalRef = useRef(collapseAllSignal);
   const lastScrolledFocusNonceRef = useRef<number | null>(null);
   const filesKey = files
-    .map((file) => file.path)
+    .map((file) =>
+      JSON.stringify([
+        file.path,
+        file.original_path ?? "",
+        file.status,
+        file.staged,
+        file.repoRoot ?? "",
+      ])
+    )
     .sort()
     .join("|");
 
@@ -88,13 +103,15 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
     if (lastScrolledFocusNonceRef.current === focusTarget.nonce) return;
     lastScrolledFocusNonceRef.current = focusTarget.nonce;
 
-    window.requestAnimationFrame(() => {
+    const frame = window.requestAnimationFrame(() => {
       const targetRef = getSectionRef(focusedFile.path);
       targetRef?.current?.scrollIntoView({
         block: "start",
         behavior: "auto",
       });
     });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [focusedFile, focusTarget, getSectionRef, loadContentForFile]);
 
   const handleRequestContent = useCallback(
@@ -111,9 +128,14 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
     [releaseContentForFile]
   );
 
+  const sections = useMemo(
+    () => sortedFiles.map((file) => ({ key: file.id, file })),
+    [sortedFiles]
+  );
+
   return (
     <DiffSectionList
-      sections={sortedFiles.map((file) => ({ key: file.id, file }))}
+      sections={sections}
       loading={loading}
       emptyTitle={
         staged ? t("placeholders.noStagedChanges") : t("placeholders.noChanges")

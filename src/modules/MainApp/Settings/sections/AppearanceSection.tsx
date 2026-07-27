@@ -92,6 +92,9 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
   const [sidebarEdgeDepthEnabled, setSidebarEdgeDepthEnabled] = useSetting(
     "layout.sidebarEdgeDepthEnabled"
   );
+  const [usePointerCursors, setUsePointerCursors] = useSetting(
+    "general.usePointerCursors"
+  );
   const {
     globalThemeId,
     primaryColorPreset,
@@ -173,6 +176,20 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                 }))}
                 size="default"
                 style={SECTION_CONTROL_STYLE}
+              />
+            </SectionRow>
+          </SectionContainer>
+
+          <SectionContainer title={t("general.preferences")}>
+            <SectionRow
+              label={t("general.usePointerCursors")}
+              description={t("general.usePointerCursorsDesc")}
+            >
+              <Switch
+                checked={usePointerCursors}
+                onChange={setUsePointerCursors}
+                ariaLabel={t("general.usePointerCursors")}
+                dataTestId="use-pointer-cursors-switch"
               />
             </SectionRow>
           </SectionContainer>

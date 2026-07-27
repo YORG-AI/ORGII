@@ -27,6 +27,7 @@ import { getGitRemotes } from "@src/api/http/git/remotes";
 import {
   type GitHubIssue,
   type OpenPRItem,
+  getGitCredentialForRemote,
   listIssuesLocal,
   listOpenPRsLocal,
 } from "@src/api/tauri/github";
@@ -51,12 +52,15 @@ import {
 import {
   WORKTREE_GITHUB_CACHE_TTL_MS,
   createInflightRegistry,
+  evictOtherWorktreeGithubIdentities,
   getWorktreeCacheFreshness,
+  resolveWorktreeGithubCacheKey,
   resolveWorktreeRepoKey,
   writeWorktreeCacheEntry,
 } from "./worktreeSourceCache";
 
 const GITHUB_PAGE_SIZE = 30;
+const GITHUB_ENDPOINT = "github.com";
 
 /** Public load state consumed by the modal's six-state UI. */
 export type WorktreeLoadState =
@@ -70,6 +74,15 @@ export type WorktreeLoadState =
 // began before the modal was closed + reopened is joined, not duplicated.
 const githubInflight = createInflightRegistry<WorktreeGithubData>();
 const branchInflight = createInflightRegistry<Branch[] | undefined>();
+
+async function resolveGithubAuthScope(): Promise<string> {
+  const credential = await getGitCredentialForRemote(
+    `https://${GITHUB_ENDPOINT}`
+  );
+  return credential
+    ? `${GITHUB_ENDPOINT}:${credential.connection_id}:${credential.source}:${credential.username}`
+    : `${GITHUB_ENDPOINT}:anonymous`;
+}
 
 async function fetchGithubData(
   repoId: string | undefined,
@@ -167,7 +180,7 @@ export function useWorktreeSourceData({
   repoId,
   repoPath,
 }: UseWorktreeSourceDataOptions): UseWorktreeSourceDataResult {
-  const githubKey = resolveWorktreeRepoKey(repoId, repoPath);
+  const githubRepoKey = resolveWorktreeRepoKey(repoId, repoPath);
   // Branch cache is keyed by raw repoId (matching `BranchPalette` /
   // `useBranchFetch`) so both selectors share one entry; fall back to repoPath.
   const branchKey = repoId || repoPath || null;
@@ -180,13 +193,43 @@ export function useWorktreeSourceData({
   }, [githubCache]);
   const [githubPending, setGithubPending] = useState(false);
   const [githubLocalError, setGithubLocalError] = useState<string | null>(null);
+  const [githubKey, setGithubKey] = useState<string | null>(null);
+  const githubGenerationRef = useRef(0);
 
-  const githubEntry = githubKey ? githubCache.get(githubKey) : undefined;
+  const githubEntry =
+    githubKey && githubRepoKey && githubKey.endsWith(`|${githubRepoKey}`)
+      ? githubCache.get(githubKey)
+      : undefined;
 
   const loadGithub = useCallback(
     async (force: boolean) => {
-      if (!repoPath || !githubKey) return;
-      const existing = githubCacheRef.current.get(githubKey);
+      if (!repoPath || !githubRepoKey) return;
+      const generation = ++githubGenerationRef.current;
+      setGithubPending(true);
+      setGithubLocalError(null);
+
+      let authScope: string;
+      try {
+        authScope = await resolveGithubAuthScope();
+      } catch (error) {
+        if (generation !== githubGenerationRef.current) return;
+        setGithubPending(false);
+        setGithubLocalError(
+          error instanceof Error ? error.message : String(error)
+        );
+        return;
+      }
+
+      if (generation !== githubGenerationRef.current) return;
+      const requestKey = resolveWorktreeGithubCacheKey(
+        githubRepoKey,
+        authScope
+      );
+      setGithubKey(requestKey);
+      setGithubCache((prev) =>
+        evictOtherWorktreeGithubIdentities(prev, githubRepoKey, requestKey)
+      );
+      const existing = githubCacheRef.current.get(requestKey);
       if (
         !force &&
         getWorktreeCacheFreshness(
@@ -195,33 +238,44 @@ export function useWorktreeSourceData({
           WORKTREE_GITHUB_CACHE_TTL_MS
         ) === "fresh"
       ) {
+        setGithubPending(false);
         return;
       }
 
-      setGithubPending(true);
-      setGithubLocalError(null);
       try {
-        const data = await githubInflight.run(githubKey, () =>
+        const data = await githubInflight.run(requestKey, () =>
           fetchGithubData(repoId, repoPath)
         );
+        const currentAuthScope = await resolveGithubAuthScope();
+        if (
+          generation !== githubGenerationRef.current ||
+          currentAuthScope !== authScope
+        ) {
+          return;
+        }
         const hasItems = data.prs.length + data.issues.length > 0;
         const state =
           data.repoFullName === null ? "empty" : hasItems ? "ready" : "empty";
         setGithubCache((prev) =>
-          writeWorktreeCacheEntry(prev, githubKey, {
-            data,
-            state,
-            error: null,
-            fetchedAt: Date.now(),
-          })
+          writeWorktreeCacheEntry(
+            evictOtherWorktreeGithubIdentities(prev, githubRepoKey, requestKey),
+            requestKey,
+            {
+              data,
+              state,
+              error: null,
+              fetchedAt: Date.now(),
+            }
+          )
         );
       } catch (error) {
+        if (generation !== githubGenerationRef.current) return;
         const message = error instanceof Error ? error.message : String(error);
         // Stale-while-revalidate: keep the previous list on a failed refresh;
         // only record a hard error entry when there is nothing to show.
         setGithubCache((prev) => {
-          if (prev.get(githubKey)) return prev;
-          return writeWorktreeCacheEntry(prev, githubKey, {
+          if (prev.get(requestKey)) return prev;
+          return writeWorktreeCacheEntry(prev, requestKey, {
             data: { prs: [], issues: [], repoFullName: null },
             state: "error",
             error: message,
@@ -230,16 +284,21 @@ export function useWorktreeSourceData({
         });
         setGithubLocalError(message);
       } finally {
-        setGithubPending(false);
+        if (generation === githubGenerationRef.current) {
+          setGithubPending(false);
+        }
       }
     },
-    [githubKey, repoId, repoPath, setGithubCache]
+    [githubRepoKey, repoId, repoPath, setGithubCache]
   );
 
   useEffect(() => {
-    if (!open || !repoPath || !githubKey) return;
+    if (!open || !repoPath || !githubRepoKey) return;
     void loadGithub(false);
-  }, [open, githubKey, repoPath, loadGithub]);
+    return () => {
+      githubGenerationRef.current += 1;
+    };
+  }, [open, githubRepoKey, repoPath, loadGithub]);
 
   const githubState: WorktreeLoadState = !repoPath
     ? "empty"
@@ -275,6 +334,7 @@ export function useWorktreeSourceData({
   const [branchPending, setBranchPending] = useState(false);
   const [branchErrored, setBranchErrored] = useState(false);
   const [branchErrorMsg, setBranchErrorMsg] = useState<string | null>(null);
+  const branchGenerationRef = useRef(0);
 
   const branchEntry = branchKey
     ? getBranchesFromCache(branchCache, branchKey)
@@ -283,6 +343,7 @@ export function useWorktreeSourceData({
   const loadBranch = useCallback(
     async (force: boolean) => {
       if (!repoPath || !branchKey) return;
+      const generation = ++branchGenerationRef.current;
       const existing = getBranchesFromCache(branchCacheRef.current, branchKey);
       if (
         !force &&
@@ -300,6 +361,7 @@ export function useWorktreeSourceData({
         const branches = await branchInflight.run(branchKey, () =>
           fetchBranchList(repoId, repoPath)
         );
+        if (generation !== branchGenerationRef.current) return;
         if (branches === undefined) {
           // Keep any stale list; only flag an error when there is none.
           if (!getBranchesFromCache(branchCacheRef.current, branchKey)) {
@@ -315,13 +377,16 @@ export function useWorktreeSourceData({
           })
         );
       } catch (error) {
+        if (generation !== branchGenerationRef.current) return;
         const message = error instanceof Error ? error.message : String(error);
         if (!getBranchesFromCache(branchCacheRef.current, branchKey)) {
           setBranchErrored(true);
           setBranchErrorMsg(message);
         }
       } finally {
-        setBranchPending(false);
+        if (generation === branchGenerationRef.current) {
+          setBranchPending(false);
+        }
       }
     },
     [branchKey, repoId, repoPath, setBranchCache]
@@ -330,6 +395,9 @@ export function useWorktreeSourceData({
   useEffect(() => {
     if (!open || !repoPath || !branchKey) return;
     void loadBranch(false);
+    return () => {
+      branchGenerationRef.current += 1;
+    };
   }, [open, branchKey, repoPath, loadBranch]);
 
   const branchOptions = useMemo(

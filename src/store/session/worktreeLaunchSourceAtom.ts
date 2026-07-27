@@ -1,14 +1,19 @@
 /**
  * Worktree launch source atom
  *
- * Captures the source the user chose when configuring an isolated worktree
- * launch. The backend still creates the physical worktree from the session
- * id; this metadata lets the creator UI remember whether the user selected a
- * PR, issue, branch, smart suggestion, or manual name.
+ * Captures the source the user chose for a worktree launch. Fresh launches use
+ * the source's base ref to create `agent/<session>`; existing-worktree sources
+ * carry the registered checkout path to reuse. The selection is also retained
+ * for creator labels and launch-payload construction.
  */
 import { atom } from "jotai";
 
-export type WorktreeCreateSourceKind = "smart" | "github" | "branch" | "name";
+export type WorktreeCreateSourceKind =
+  | "smart"
+  | "github"
+  | "branch"
+  | "name"
+  | "worktree";
 
 export interface WorktreeLaunchSource {
   kind: WorktreeCreateSourceKind;
@@ -34,6 +39,33 @@ export interface WorktreeLaunchSource {
    * informational — the worktree is always created on `agent/<session>`.
    */
   branchNameOverride?: string;
+  /**
+   * Existing registered worktree selected from the Branch tab. When present,
+   * launch reuses this checkout instead of creating `agent/<session>`.
+   */
+  existingWorktreePath?: string;
 }
 
-export const worktreeLaunchSourceAtom = atom<WorktreeLaunchSource | null>(null);
+/**
+ * A source selection is scoped to the repository it was picked from. Keeping
+ * the scope and source in one atom prevents a repo switch from combining an
+ * old branch/SHA/worktree path with the newly selected repository.
+ */
+export interface WorktreeLaunchSelection {
+  repoKey: string;
+  source: WorktreeLaunchSource;
+}
+
+export function resolveWorktreeSelectionRepoKey(
+  repoId?: string,
+  repoPath?: string
+): string | null {
+  const id = repoId?.trim();
+  if (id) return `id:${id}`;
+  const path = repoPath?.trim().replace(/\/+$/, "");
+  return path ? `path:${path}` : null;
+}
+
+export const worktreeLaunchSelectionAtom = atom<WorktreeLaunchSelection | null>(
+  null
+);

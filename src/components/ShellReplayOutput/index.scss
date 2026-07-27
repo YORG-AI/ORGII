@@ -6,7 +6,7 @@
   --simulator-shell-font-size: 13px;
   --simulator-shell-font-family: ui-monospace, monospace;
   --simulator-shell-letter-spacing: normal;
-  --simulator-shell-line-height: 1.45;
+  --simulator-shell-line-height: 1.2;
 
   background: var(--cm-editor-background, var(--color-bg-1));
 
@@ -43,12 +43,6 @@
     font-size: var(--simulator-shell-font-size) !important;
     letter-spacing: var(--simulator-shell-letter-spacing) !important;
     line-height: var(--simulator-shell-line-height) !important;
-  }
-
-  .simulator-shell-visual-row {
-    min-height: calc(
-      var(--simulator-shell-font-size) * var(--simulator-shell-line-height)
-    );
   }
 
   .simulator-shell-loading__dots {

@@ -2,96 +2,167 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { ImportedHistorySourceId } from "./imported/descriptors";
 
-interface ActiveRescan {
-  clear: boolean;
-  promise: Promise<void>;
-  trailingClear?: Promise<void>;
+export interface ExternalHistoryScanResult {
+  changedSources: ImportedHistorySourceId[];
+  /**
+   * Whole-source cache signatures for every rescanned source, changed or not.
+   * `changedSources` only reports writes made by the rescan call itself;
+   * other surfaces sync the same backend cache between scheduler ticks, so
+   * callers compare these signatures against the ones captured at their last
+   * roster reload to detect staleness the rescan alone cannot see.
+   */
+  sourceSignatures: Record<string, string>;
 }
 
-const activeRescans = new Map<ImportedHistorySourceId, ActiveRescan>();
-
-function uniqueSources(
-  sources: readonly ImportedHistorySourceId[]
-): ImportedHistorySourceId[] {
-  return [...new Set(sources)];
+interface PendingScanWaiter {
+  resolve: (result: ExternalHistoryScanResult) => void;
+  reject: (error: unknown) => void;
 }
 
-async function invokeRescan(
+const pendingSources = new Set<ImportedHistorySourceId>();
+const pendingClearSources = new Set<ImportedHistorySourceId>();
+let pendingWaiters: PendingScanWaiter[] = [];
+let scanDrainPromise: Promise<void> | null = null;
+let activeSources: ReadonlySet<ImportedHistorySourceId> | null = null;
+let activeClearSources: ReadonlySet<ImportedHistorySourceId> | null = null;
+let activeBatchPromise: Promise<ExternalHistoryScanResult> | null = null;
+
+function normalizeScanResult(
+  result: ExternalHistoryScanResult | undefined,
+  fallbackSources: readonly ImportedHistorySourceId[]
+): ExternalHistoryScanResult {
+  // The fallback keeps older native builds and lightweight test doubles safe:
+  // if no result payload exists, assume changed and perform the downstream
+  // refresh rather than risking stale UI. A payload without signatures (older
+  // native build) degrades to signature-blind change reporting.
+  if (!result) {
+    return { changedSources: [...fallbackSources], sourceSignatures: {} };
+  }
+  return {
+    changedSources: result.changedSources ?? [...fallbackSources],
+    sourceSignatures: result.sourceSignatures ?? {},
+  };
+}
+
+function mergeScanResults(
+  results: readonly ExternalHistoryScanResult[]
+): ExternalHistoryScanResult {
+  return {
+    changedSources: [
+      ...new Set(results.flatMap(({ changedSources }) => changedSources)),
+    ],
+    sourceSignatures: Object.assign(
+      {},
+      ...results.map(({ sourceSignatures }) => sourceSignatures ?? {})
+    ) as Record<string, string>,
+  };
+}
+
+async function runScanBatch(
   sources: readonly ImportedHistorySourceId[],
-  clear: boolean
-): Promise<void> {
-  if (sources.length === 1) {
-    await invoke("external_history_rescan_source", {
-      source: sources[0],
-      clear,
-    });
-    return;
+  clearSources: ReadonlySet<ImportedHistorySourceId>
+): Promise<ExternalHistoryScanResult> {
+  const results: ExternalHistoryScanResult[] = [];
+  // Clear/rebuild is intentionally source-scoped; applying the batch command's
+  // single `clear` flag would force unrelated incremental sources to rebuild.
+  for (const source of sources) {
+    if (!clearSources.has(source)) continue;
+    results.push(
+      normalizeScanResult(
+        await invoke<ExternalHistoryScanResult>(
+          "external_history_rescan_source",
+          { source, clear: true }
+        ),
+        [source]
+      )
+    );
   }
-
-  if (!clear) {
-    await invoke("external_history_rescan_sources", {
-      sources,
-      clear: false,
-    });
-    return;
-  }
-
-  await Promise.all(
-    sources.map((source) =>
-      invoke("external_history_rescan_source", { source, clear: true })
-    )
+  const incrementalSources = sources.filter(
+    (source) => !clearSources.has(source)
   );
+  if (incrementalSources.length > 0) {
+    results.push(
+      normalizeScanResult(
+        await invoke<ExternalHistoryScanResult>(
+          "external_history_rescan_sources",
+          {
+            sources: incrementalSources,
+            clear: false,
+          }
+        ),
+        incrementalSources
+      )
+    );
+  }
+  return mergeScanResults(results);
 }
 
-/**
- * Coordinate rescans at the API ownership boundary so callers from the
- * sidebar, auto-scan hook, and Data Sources panel share the same work.
- *
- * A clear rescan cannot join an incremental rescan because it has stronger
- * semantics. It waits for the incremental pass and then runs exactly once.
- */
-async function coordinateRescan(
-  requestedSources: readonly ImportedHistorySourceId[],
-  clear: boolean
-): Promise<void> {
-  const sources = uniqueSources(requestedSources);
-  if (sources.length === 0) return;
+function startScanDrain(): void {
+  if (scanDrainPromise) return;
+  scanDrainPromise = Promise.resolve()
+    .then(async () => {
+      while (pendingSources.size > 0) {
+        const sources = [...pendingSources];
+        const clearSources = new Set(pendingClearSources);
+        const waiters = pendingWaiters;
+        pendingSources.clear();
+        pendingClearSources.clear();
+        pendingWaiters = [];
 
-  const joined = new Set<Promise<void>>();
-  const toStart: ImportedHistorySourceId[] = [];
-
-  for (const source of sources) {
-    const active = activeRescans.get(source);
-    if (!active) {
-      toStart.push(source);
-    } else if (!clear || active.clear) {
-      joined.add(active.promise);
-    } else {
-      active.trailingClear ??= active.promise
-        .catch(() => undefined)
-        .then(() => coordinateRescan([source], true));
-      joined.add(active.trailingClear);
-    }
-  }
-
-  if (toStart.length > 0) {
-    const started = invokeRescan(toStart, clear);
-    const entry: ActiveRescan = { clear, promise: started };
-    const tracked = started.finally(() => {
-      for (const source of toStart) {
-        if (activeRescans.get(source) === entry) {
-          activeRescans.delete(source);
+        activeSources = new Set(sources);
+        activeClearSources = clearSources;
+        const batch = runScanBatch(sources, clearSources);
+        activeBatchPromise = batch;
+        try {
+          const result = await batch;
+          waiters.forEach(({ resolve }) => resolve(result));
+        } catch (error) {
+          waiters.forEach(({ reject }) => reject(error));
+        } finally {
+          activeSources = null;
+          activeClearSources = null;
+          activeBatchPromise = null;
         }
       }
+    })
+    .finally(() => {
+      scanDrainPromise = null;
+      // A request can arrive between the loop's final check and this cleanup.
+      if (pendingSources.size > 0) startScanDrain();
     });
-    entry.promise = tracked;
-    for (const source of toStart) {
-      activeRescans.set(source, entry);
-    }
-    joined.add(tracked);
+}
+
+function enqueueExternalHistoryScan(
+  requestedSources: readonly ImportedHistorySourceId[],
+  clear: boolean
+): Promise<ExternalHistoryScanResult> {
+  const sources = [...new Set(requestedSources)];
+  if (sources.length === 0) {
+    return Promise.resolve({ changedSources: [], sourceSignatures: {} });
   }
 
-  await Promise.all(joined);
+  const joinsActive = sources.filter(
+    (source) =>
+      activeSources?.has(source) && (!clear || activeClearSources?.has(source))
+  );
+  const queuedSources = sources.filter(
+    (source) => !joinsActive.includes(source)
+  );
+  if (queuedSources.length === 0 && activeBatchPromise) {
+    return activeBatchPromise;
+  }
+
+  const request = new Promise<ExternalHistoryScanResult>((resolve, reject) => {
+    for (const source of queuedSources) {
+      pendingSources.add(source);
+      if (clear) pendingClearSources.add(source);
+    }
+    pendingWaiters.push({ resolve, reject });
+  });
+  startScanDrain();
+  return joinsActive.length > 0 && activeBatchPromise
+    ? Promise.all([activeBatchPromise, request]).then(mergeScanResults)
+    : request;
 }
 
 /**
@@ -111,8 +182,8 @@ async function coordinateRescan(
 export async function externalHistoryRescanSource(
   source: ImportedHistorySourceId,
   options?: { clear?: boolean }
-): Promise<void> {
-  await coordinateRescan([source], options?.clear ?? false);
+): Promise<ExternalHistoryScanResult> {
+  return enqueueExternalHistoryScan([source], options?.clear ?? false);
 }
 
 /**
@@ -123,11 +194,6 @@ export async function externalHistoryRescanSource(
  */
 export async function externalHistoryRescanSources(
   sources: readonly ImportedHistorySourceId[]
-): Promise<void> {
-  await coordinateRescan(sources, false);
+): Promise<ExternalHistoryScanResult> {
+  return enqueueExternalHistoryScan(sources, false);
 }
-
-export const __TESTS_ONLY = {
-  activeRescanCount: () => activeRescans.size,
-  reset: () => activeRescans.clear(),
-};

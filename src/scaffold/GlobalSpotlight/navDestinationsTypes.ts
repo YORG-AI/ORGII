@@ -41,4 +41,6 @@ export interface NavDestination {
   descriptionSuffixKey?: string;
   /** Whether this destination should appear in Spotlight search results. */
   searchable?: boolean;
+  /** Hide this destination unless the app's Dev Mode setting is enabled. */
+  devOnly?: boolean;
 }

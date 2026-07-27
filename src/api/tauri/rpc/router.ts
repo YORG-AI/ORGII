@@ -47,6 +47,7 @@ export const procedures = {
   mcp: p.mcp,
   flow: p.flow,
   cli: p.cli,
+  humanSession: p.humanSession,
 } as const;
 
 // ============================================================================

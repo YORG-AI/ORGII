@@ -24,7 +24,7 @@ export const ManageAgentsFooterAction: React.FC<
       void actionSystem.dispatch(ACTION_ID.APP_GO_TO_AGENT_ORGS, {}, "user");
       return;
     }
-    navigate(ROUTES.app.home.agentOrgs.path);
+    navigate(ROUTES.app.agentOrgs.path);
   }, [actionSystem, onClose, navigate]);
 
   return (

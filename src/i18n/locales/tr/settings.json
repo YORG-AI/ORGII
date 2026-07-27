@@ -163,7 +163,7 @@
     "timezoneAuto": "Otomatik (Tarayıcı)",
     "timezoneSearchPlaceholder": "En yakın şehirleri ara",
     "sendOnEnter": "Mesajları Enter ile gönder",
-    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir ve Shift+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir",
+    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir; Shift+Enter ve Ctrl/Cmd+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir",
     "language": "Dil",
     "languageSearchPlaceholder": "Dillerde ara...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Klavyenin başındayım. İstediğin zaman netleştirici sorular sorabilir ve yıkıcı işlemleri çalıştırmadan önce bana onaylatabilirsin",
     "presenceGuidanceInvisibleDefault": "Yakındayım ama çevrimdışı görünüyorum. Varsayılan olarak otonom ilerle ve yalnızca yüksek riskli işlemler ya da önemli refaktörler için beni bilgilendir; diğer soruları tek tek sormak yerine tek bir özette topla",
     "presenceGuidanceAwayDefault": "Klavyeden uzaktayım. Beni bekleyip takılma; elindeki bilgilerle en iyi kararı ver, bitirebildiklerini bitir ve döndüğümde bakmam için olanları ve açık soruları kısa bir özet olarak bırak",
-    "followSystem": "Sistemi izle"
+    "followSystem": "Sistemi izle",
+    "preferences": "Tercihler",
+    "usePointerCursors": "İşaretçi imleçleri kullan",
+    "usePointerCursorsDesc": "Etkileşimli öğelerin üzerine gelindiğinde imleci işaretçiye dönüştürür"
   },
   "background": {
     "title": "Arka Plan",
@@ -1029,7 +1032,7 @@
     "decryptEffect": "Decrypt Efekti",
     "decryptEffectDesc": "Agent mesajları için Decrypt animasyonunu etkinleştir",
     "sendOnEnter": "Mesajları Enter ile gönder",
-    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir ve Shift+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir"
+    "sendOnEnterDesc": "Etkinleştirildiğinde Enter gönderir; Shift+Enter ve Ctrl/Cmd+Enter yeni satır ekler. Devre dışıysa Ctrl/Cmd+Enter gönderir"
   },
   "languageServers": {
     "languageServersDesc": "Otomatik tamamlama, tanılama ve kod zekası için LSP sunucularını yönet",

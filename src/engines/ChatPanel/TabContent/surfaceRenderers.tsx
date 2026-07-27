@@ -78,17 +78,6 @@ export function ProjectSurfaceRenderer({
   );
 }
 
-export function ProjectOrgSurfaceRenderer({
-  tab,
-}: ChatPanelSurfaceRendererProps): React.ReactNode {
-  if (!tab.projectOrg) return null;
-  return (
-    <Suspense fallback={null}>
-      <ProjectOrgPanelView selectedProjectOrg={tab.projectOrg} />
-    </Suspense>
-  );
-}
-
 export function WorkspaceSurfaceRenderer({
   tab,
 }: ChatPanelSurfaceRendererProps): React.ReactNode {
@@ -100,13 +89,26 @@ export function WorkspaceSurfaceRenderer({
   );
 }
 
-export function CloudOrgSurfaceRenderer({
+export function OrganizationSurfaceRenderer({
   tab,
 }: ChatPanelSurfaceRendererProps): React.ReactNode {
-  if (!tab.cloudOrg) return null;
+  if (!tab.organization) return null;
+
+  if (tab.organization.kind === "local") {
+    const { projectOrg } = tab.organization;
+    return (
+      <Suspense fallback={null}>
+        <ProjectOrgPanelView
+          key={`${projectOrg.orgId}:${projectOrg.initialViewRequestId ?? "default"}`}
+          selectedProjectOrg={projectOrg}
+        />
+      </Suspense>
+    );
+  }
+
   return (
     <Suspense fallback={null}>
-      <CloudOrgPanelView selectedCloudOrg={tab.cloudOrg} />
+      <CloudOrgPanelView selectedCloudOrg={tab.organization.cloudOrg} />
     </Suspense>
   );
 }

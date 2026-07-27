@@ -61,7 +61,6 @@ import {
 } from "@src/scaffold/AppUpdater";
 import { type TimezoneOption, timezoneAtom } from "@src/store";
 import { chatAppearancePersistAtom } from "@src/store/config/configAtom";
-import { autoUpdateEnabledAtom } from "@src/store/platform/autoUpdateAtom";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { preventSleepWhileRunningAtom } from "@src/store/platform/preventSleepAtom";
 import {
@@ -144,9 +143,6 @@ const GeneralTabBody: React.FC = () => {
   }, []);
 
   const [devModeEnabled, setDevModeEnabled] = useAtom(devModeEnabledAtom);
-  const [autoUpdateEnabled, setAutoUpdateEnabled] = useAtom(
-    autoUpdateEnabledAtom
-  );
   const [updateChannelPreference, setUpdateChannelPreference] = useAtom(
     updateChannelPreferenceAtom
   );
@@ -401,12 +397,6 @@ const GeneralTabBody: React.FC = () => {
       </SectionContainer>
 
       <SectionContainer>
-        <SectionRow
-          label={t("update.autoUpdate")}
-          description={t("update.autoUpdateDesc")}
-        >
-          <Switch checked={autoUpdateEnabled} onChange={setAutoUpdateEnabled} />
-        </SectionRow>
         <SectionRow
           label={t("update.channel")}
           description={t("update.channelDesc")}

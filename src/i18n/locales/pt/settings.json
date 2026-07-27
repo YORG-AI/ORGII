@@ -163,7 +163,7 @@
     "timezoneAuto": "Automático (Navegador)",
     "timezoneSearchPlaceholder": "Pesquisar cidades próximas",
     "sendOnEnter": "Enviar mensagens com Enter",
-    "sendOnEnterDesc": "Quando ativado, Enter envia e Shift+Enter insere uma nova linha. Quando desativado, Ctrl/Cmd+Enter envia",
+    "sendOnEnterDesc": "Quando ativado, Enter envia; Shift+Enter e Ctrl/Cmd+Enter inserem uma nova linha. Quando desativado, Ctrl/Cmd+Enter envia",
     "language": "Idioma",
     "languageSearchPlaceholder": "Pesquisar idiomas...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Estou ao teclado. Podes fazer perguntas de esclarecimento a qualquer momento e confirmar comigo qualquer ação destrutiva antes de a executar",
     "presenceGuidanceInvisibleDefault": "Estou por perto, mas a aparecer offline. Por padrão, trabalha de forma autónoma e avisa-me apenas sobre ações de alto risco ou refatorações significativas; junta as outras perguntas num único resumo em vez de as fazer uma a uma",
     "presenceGuidanceAwayDefault": "Estou longe do teclado. Não fiques bloqueado à minha espera; toma a melhor decisão com a informação disponível, termina o que conseguires e deixa um resumo breve do que aconteceu e das perguntas em aberto para quando eu voltar",
-    "followSystem": "Seguir o sistema"
+    "followSystem": "Seguir o sistema",
+    "preferences": "Preferências",
+    "usePointerCursors": "Usar cursores de ponteiro",
+    "usePointerCursorsDesc": "Altera o cursor para um ponteiro ao passar sobre elementos interativos"
   },
   "background": {
     "title": "Plano de fundo",
@@ -1029,7 +1032,7 @@
     "decryptEffect": "Efeito de Decriptação",
     "decryptEffectDesc": "Habilita a animação de decriptação para mensagens do Agent",
     "sendOnEnter": "Enviar mensagens com Enter",
-    "sendOnEnterDesc": "Quando ativado, Enter envia e Shift+Enter insere uma nova linha. Quando desativado, Ctrl/Cmd+Enter envia"
+    "sendOnEnterDesc": "Quando ativado, Enter envia; Shift+Enter e Ctrl/Cmd+Enter inserem uma nova linha. Quando desativado, Ctrl/Cmd+Enter envia"
   },
   "languageServers": {
     "languageServersDesc": "Gerencie LSP servers para autocompletar, diagnósticos e inteligência de código",

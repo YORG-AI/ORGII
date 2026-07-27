@@ -1,4 +1,4 @@
-﻿{
+{
   "toasts": {
     "replyEmpty": "回复不能为空",
     "sessionNotFound": "未找到会话",
@@ -975,7 +975,6 @@
     "addCssVariables": "向项目添加 CSS 变量",
     "loadingAccountStatus": "正在加载账户状态...",
     "noRepositorySelected": "未选择仓库",
-    "selectRepositoryFromHome": "请从首页选择一个仓库以打开。",
     "noWorkspaceExplorerTitle": "未打开 Workspace",
     "noWorkspaceExplorerSubtitle": "打开工作区以查看文件",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1006,7 +1005,9 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "预览不可用",
-    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。"
+    "selectPrCommitToViewDiff": "从顶部选择一个 PR 提交来查看 diff。",
+    "selectRepositoryFromWorkspace": "请从工作区选择一个仓库以打开。",
+    "selectRepositoryFromHome": "请从首页选择一个仓库以打开。"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1023,101 +1024,6 @@
     "scrollToBottom": "滚动到底部",
     "markAllAsRead": "全部标记为已读",
     "scrollToUnread": "跳转到未读"
-  },
-  "teamInbox": {
-    "title": "团队收件箱",
-    "listLabel": "团队收件箱列表",
-    "itemsLabel": "团队收件箱事项",
-    "unreadCount": "{{count}} 条未读",
-    "allRead": "已全部阅读",
-    "loadMore": "加载更多",
-    "filters": {
-      "all": "全部",
-      "mentions": "提及",
-      "assigned": "分配给我"
-    },
-    "status": {
-      "read": "已读",
-      "unread": "未读"
-    },
-    "row": {
-      "assignedSummary": "{{status}} · {{priority}}"
-    },
-    "search": {
-      "placeholder": "搜索收件箱",
-      "ariaLabel": "搜索团队收件箱"
-    },
-    "groups": {
-      "today": "今天",
-      "yesterday": "昨天",
-      "thisWeek": "本周",
-      "earlier": "更早"
-    },
-    "empty": {
-      "title": "暂无事项",
-      "subtitle": "新的提及和分配会显示在这里。",
-      "selectTitle": "选择一个事项",
-      "selectSubtitle": "查看评论上下文或工作项详情。",
-      "mentions": {
-        "title": "暂无提及",
-        "subtitle": "当同事在评论中 @ 你时，会显示在这里。"
-      },
-      "assigned": {
-        "title": "暂无分配给你的事项",
-        "subtitle": "分配给你的工作项会显示在这里。"
-      },
-      "noResults": {
-        "title": "无匹配结果",
-        "subtitle": "没有与「{{query}}」匹配的事项。"
-      }
-    },
-    "loading": "正在加载团队收件箱…",
-    "loadMore": "加载更多",
-    "errors": {
-      "loadTitle": "无法加载团队收件箱",
-      "load": "无法加载团队收件箱",
-      "refresh": "无法刷新团队收件箱",
-      "markRead": "标记已读失败，请重试。",
-      "markUnread": "标记未读失败，请重试。",
-      "markAllRead": "全部标记已读失败，请重试。"
-    },
-    "detail": {
-      "assignedSubtitle": "分配给你的工作项",
-      "mentionSubtitle": "评论中提及了你",
-      "mentionedYou": "提及了你"
-    },
-    "actions": {
-      "markRead": "标记已读",
-      "markUnread": "标记未读",
-      "openWorkItem": "打开工作项",
-      "openSession": "打开会话"
-    },
-    "fields": {
-      "status": "状态",
-      "priority": "优先级",
-      "assignee": "负责人",
-      "workItemId": "工作项 ID",
-      "session": "会话",
-      "comments": "评论数",
-      "threadId": "话题 ID",
-      "commentId": "评论 ID"
-    },
-    "workItemStatus": {
-      "backlog": "待办池",
-      "todo": "待办",
-      "in_progress": "进行中",
-      "in_review": "审核中",
-      "blocked": "受阻",
-      "done": "已完成",
-      "cancelled": "已取消"
-    },
-    "priority": {
-      "none": "无优先级",
-      "low": "低",
-      "medium": "中",
-      "high": "高",
-      "urgent": "紧急"
-    }
   },
   "placeholderTypes": {
     "mcpServer": "MCP 服务器",
@@ -1264,11 +1170,11 @@
       "tryVerifyUrl": "确认网址是否正确",
       "tryAgainLater": "稍后再试"
     },
-    "selectRepoFromHome": "请从首页选择一个仓库",
-    "cloneRepoAgain": "请从首页重新克隆仓库",
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
-    "gitSyncMenuTitle": "Git 同步操作"
+    "gitSyncMenuTitle": "Git 同步操作",
+    "selectRepoFromHome": "请从首页选择一个仓库",
+    "cloneRepoAgain": "请从首页重新克隆仓库"
   },
   "git": {
     "loading": "正在加载 Git 状态...",
@@ -1359,6 +1265,43 @@
         "closed": "已关闭",
         "completed": "已完成",
         "notPlanned": "未计划"
+      },
+      "activity": {
+        "opened": "打开了此 issue",
+        "commented": "发表了评论",
+        "timelineItemCount_one": "{{count}} 个时间线项目",
+        "timelineItemCount_other": "{{count}} 个时间线项目",
+        "noDescription": "未提供描述。",
+        "assigned": "指派了：",
+        "assignedIssue": "指派了此 issue",
+        "unassigned": "取消指派了：",
+        "removedAssignee": "移除了一名受理人",
+        "added": "添加了：",
+        "removed": "移除了：",
+        "label": "一个标签",
+        "milestoned": "将此 issue 添加到里程碑 {{milestone}}",
+        "demilestoned": "将此 issue 从里程碑 {{milestone}} 中移除",
+        "closedViaCommit": "通过提交 {{commit}} 关闭了此 issue",
+        "closed": "关闭了此 issue",
+        "reopened": "重新打开了此 issue",
+        "renamedTo": "将此 issue 重命名为",
+        "renamed": "重命名了此 issue",
+        "locked": "锁定了此对话",
+        "lockedAs": "因 {{reason}} 锁定了此对话",
+        "unlocked": "解锁了此对话",
+        "crossReferencedFrom": "从以下位置引用了此 issue：",
+        "crossReferenced": "交叉引用了此 issue",
+        "referencedInCommit": "在提交 {{commit}} 中引用了此 issue",
+        "referencedInACommit": "在一次提交中引用了此 issue",
+        "connected": "关联了此 issue",
+        "disconnected": "取消关联了此 issue",
+        "markedAsDuplicate": "将此 issue 标记为重复",
+        "unmarkedAsDuplicate": "移除了重复标记",
+        "pinned": "置顶了此 issue",
+        "unpinned": "取消置顶了此 issue",
+        "transferred": "转移了此 issue",
+        "convertedToDiscussion": "将此 issue 转换为讨论",
+        "mentioned": "提及了此 issue"
       }
     }
   },
@@ -1818,14 +1761,14 @@
     "ramCurrentSession": "当前会话",
     "ramChatRenderedTree": "Chat 渲染树",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start 侧栏",
     "ramSessionSidebar": "Session 侧栏",
     "ramSecondLevelSidebars": "二级侧栏",
     "ramSettingsSidebar": "Settings 侧栏",
     "ramHydratedEvents": "已 hydrate 事件",
     "ramTurnBodies": "历史懒加载",
     "ramFileTrees": "文件树",
-    "ramCodeMirrors": "文件渲染"
+    "ramCodeMirrors": "文件渲染",
+    "ramStartSidebar": "Start 侧栏"
   },
   "spotlightActions": {
     "switchToLightTheme": "切换到浅色主题",
@@ -2279,6 +2222,7 @@
     }
   },
   "dragDrop": {
+    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径",
     "dropFilesToUpload": "拖放文件以上传",
     "dropFileToChat": "拖放文件以添加到聊天",
     "dropFolderToAdd": "拖放文件夹以添加仓库",
@@ -2290,7 +2234,6 @@
     "openSpotlight": "打开 Spotlight",
     "addedToChat": "已将 \"{{name}}\" 添加到聊天",
     "couldNotExtractPath": "无法从拖放中提取文件路径",
-    "couldNotExtractPathFromItem": "无法从拖放项中提取文件路径",
     "dropFilesHere": "将文件拖放到这里",
     "dragFilesFromIde": "从 VS Code 拖动文件或标签页以添加到聊天"
   },
@@ -2440,5 +2383,99 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在准备下载…",
     "downloadingAndInstalling": "正在下载并安装更新 (v{{version}})…"
+  },
+  "teamInbox": {
+    "title": "团队收件箱",
+    "listLabel": "团队收件箱列表",
+    "itemsLabel": "团队收件箱事项",
+    "unreadCount": "{{count}} 条未读",
+    "allRead": "已全部阅读",
+    "loadMore": "加载更多",
+    "filters": {
+      "all": "全部",
+      "mentions": "提及",
+      "assigned": "分配给我"
+    },
+    "status": {
+      "read": "已读",
+      "unread": "未读"
+    },
+    "row": {
+      "assignedSummary": "{{status}} · {{priority}}"
+    },
+    "search": {
+      "placeholder": "搜索收件箱",
+      "ariaLabel": "搜索团队收件箱"
+    },
+    "groups": {
+      "today": "今天",
+      "yesterday": "昨天",
+      "thisWeek": "本周",
+      "earlier": "更早"
+    },
+    "empty": {
+      "title": "暂无事项",
+      "subtitle": "新的提及和分配会显示在这里。",
+      "selectTitle": "选择一个事项",
+      "selectSubtitle": "查看评论上下文或工作项详情。",
+      "mentions": {
+        "title": "暂无提及",
+        "subtitle": "当同事在评论中 @ 你时，会显示在这里。"
+      },
+      "assigned": {
+        "title": "暂无分配给你的事项",
+        "subtitle": "分配给你的工作项会显示在这里。"
+      },
+      "noResults": {
+        "title": "无匹配结果",
+        "subtitle": "没有与「{{query}}」匹配的事项。"
+      }
+    },
+    "loading": "正在加载团队收件箱…",
+    "errors": {
+      "loadTitle": "无法加载团队收件箱",
+      "load": "无法加载团队收件箱",
+      "refresh": "无法刷新团队收件箱",
+      "markRead": "标记已读失败，请重试。",
+      "markUnread": "标记未读失败，请重试。",
+      "markAllRead": "全部标记已读失败，请重试。"
+    },
+    "detail": {
+      "assignedSubtitle": "分配给你的工作项",
+      "mentionSubtitle": "评论中提及了你",
+      "mentionedYou": "提及了你"
+    },
+    "actions": {
+      "markRead": "标记已读",
+      "markUnread": "标记未读",
+      "openWorkItem": "打开工作项",
+      "openSession": "打开会话"
+    },
+    "fields": {
+      "status": "状态",
+      "priority": "优先级",
+      "assignee": "负责人",
+      "workItemId": "工作项 ID",
+      "session": "会话",
+      "comments": "评论数",
+      "threadId": "话题 ID",
+      "commentId": "评论 ID"
+    },
+    "workItemStatus": {
+      "backlog": "待办池",
+      "todo": "待办",
+      "in_progress": "进行中",
+      "in_review": "审核中",
+      "blocked": "受阻",
+      "done": "已完成",
+      "cancelled": "已取消"
+    },
+    "priority": {
+      "none": "无优先级",
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "urgent": "紧急"
+    }
   }
 }

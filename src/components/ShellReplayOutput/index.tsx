@@ -1,5 +1,4 @@
-import { useVirtualizer } from "@tanstack/react-virtual";
-import type { CSSProperties, UIEvent } from "react";
+import type { UIEvent } from "react";
 import React, {
   memo,
   useCallback,
@@ -29,6 +28,7 @@ import {
   mergeReplayFrameWindow,
   replayWindowBounds,
   shellReplayRangeCache,
+  shellReplayRowsToText,
   shellReplayScopeKey,
 } from "@src/engines/SessionCore/replay/shellReplayRange";
 import {
@@ -101,8 +101,8 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
     foreground,
     mutedForeground,
     errorForeground,
-    terminalFontSize,
     typography,
+    typographyVariables,
   } = useTerminalSurfaceStyle();
   const scrollRef = useRef<HTMLDivElement>(null);
   const requestGuardRef = useRef(new ShellReplayRequestGuard());
@@ -130,7 +130,11 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
     ? shellReplayRangeCache.peekWindow(frameState.windowKey)
     : undefined;
   const frames = cachedWindow?.frames ?? [];
-  const visualRows = cachedWindow?.rows ?? [];
+  const visualRows = cachedWindow?.rows;
+  const replayOutput = useMemo(
+    () => shellReplayRowsToText(visualRows ?? []),
+    [visualRows]
+  );
   const loading = stateForCursor && frameState.loading;
   const hasEarlier =
     stateForCursor && frameState.earliestOffset > 0 && frames.length > 0;
@@ -300,16 +304,6 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
     }, SHELL_REPLAY_SETTLE_MS);
   }, [identity, loadRange, visibleBytes]);
 
-  const rowVirtualizer = useVirtualizer({
-    count: visualRows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: () => Math.max(18, terminalFontSize * 1.45),
-    overscan: 8,
-    getItemKey: (index) => {
-      return visualRows[index]?.key ?? index;
-    },
-  });
-
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element || !stateForCursor) return;
@@ -356,25 +350,8 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
     ]
   );
 
-  const surfaceTypographyVars = useMemo((): CSSProperties => {
-    const letterSpacing = typography.letterSpacing;
-    const letterSpacingCss =
-      typeof letterSpacing === "number"
-        ? `${letterSpacing}px`
-        : (letterSpacing ?? "normal");
-    return {
-      ["--simulator-shell-font-size" as string]: `${terminalFontSize}px`,
-      ["--simulator-shell-font-family" as string]: String(
-        typography.fontFamily ?? "monospace"
-      ),
-      ["--simulator-shell-letter-spacing" as string]: String(letterSpacingCss),
-      ["--simulator-shell-line-height" as string]: String(
-        typography.lineHeight ?? 1.45
-      ),
-    } as CSSProperties;
-  }, [terminalFontSize, typography]);
-
   const preview = stripAnsiCodes(replayState.terminalPreview);
+  const displayOutput = visualRows ? replayOutput : preview;
   const displayCommand =
     command.trim() || t("simulator.replay.ide.shell.noCommand");
   const terminalError =
@@ -391,7 +368,7 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
       ref={scrollRef}
       className={surfaceClassName}
       style={{
-        ...surfaceTypographyVars,
+        ...typographyVariables,
         ...(variant === "chat" ? { maxHeight: "min(320px, 30vh)" } : {}),
       }}
       onScroll={handleScroll}
@@ -426,46 +403,12 @@ const ShellReplayOutputComponent: React.FC<ShellReplayOutputProps> = ({
         </div>
       ) : null}
 
-      {visualRows.length > 0 ? (
-        <div
-          className="relative w-full"
-          style={{ height: rowVirtualizer.getTotalSize() }}
-        >
-          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const row = visualRows[virtualRow.index];
-            if (!row) return null;
-            return (
-              <pre
-                key={row.key}
-                ref={rowVirtualizer.measureElement}
-                data-index={virtualRow.index}
-                className="simulator-shell-plain-pre simulator-shell-visual-row absolute left-0 top-0 m-0 min-w-0 max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-                style={{
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
-              >
-                {row.spans.map((span, spanIndex) => (
-                  <span
-                    key={`${row.key}:${spanIndex}`}
-                    style={{
-                      color:
-                        span.stream === "stderr" ? errorForeground : foreground,
-                    }}
-                  >
-                    {span.text}
-                  </span>
-                ))}
-              </pre>
-            );
-          })}
-        </div>
-      ) : preview ? (
+      {displayOutput ? (
         <pre
           className="simulator-shell-plain-pre m-0 min-w-0 max-w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
           style={{ color: foreground }}
         >
-          {preview}
+          {displayOutput}
         </pre>
       ) : null}
 

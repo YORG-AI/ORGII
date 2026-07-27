@@ -1,16 +1,14 @@
 import { getVersion } from "@tauri-apps/api/app";
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import { atom, useAtom, useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import AppMark from "@src/components/AppMark";
 import Button from "@src/components/Button";
-import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
 import Modal from "@src/scaffold/ModalSystem";
-import { autoUpdateEnabledAtom } from "@src/store/platform/autoUpdateAtom";
 import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
@@ -42,6 +40,9 @@ const DOWNLOAD_PROGRESS_UPDATE_MIN_INTERVAL_MS = 250;
 const UPDATE_TOAST_DURATION_MS = 5_000;
 const UPDATE_CHECK_TIMEOUT_MS = 30_000;
 const UPDATE_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+const UPDATE_RETRY_BASE_DELAY_MS = 60_000;
+const UPDATE_RETRY_MAX_DELAY_MS = 60 * 60_000;
+const UPDATE_RETRY_JITTER_RATIO = 0.2;
 
 const CHECK_TOAST_ID = "app-update-check";
 const INSTALL_TOAST_ID = "app-update-progress";
@@ -143,6 +144,7 @@ function createCoordinator(): AppUpdaterCoordinator {
 }
 
 const coordinator = createCoordinator();
+let activeAutomaticScheduler: AppUpdaterScheduler | null = null;
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -276,6 +278,46 @@ export interface InstallAvailableAppUpdateOptions {
   silentDownload?: boolean;
 }
 
+async function prepareAvailableAppUpdate(
+  update: Update,
+  silentDownload: boolean
+): Promise<void> {
+  const progressReporter = silentDownload
+    ? undefined
+    : createProgressReporter();
+  clearSkippedUpdateVersion(update.version);
+  if (progressReporter) beginDownloadProgress();
+
+  try {
+    await coordinator.downloadAvailableUpdate(progressReporter);
+    endDownloadProgress();
+    store().set(appUpdateInstallPromptAtom, true);
+  } catch (error) {
+    if (progressReporter) endDownloadProgress();
+    throw error;
+  }
+}
+
+function showDownloadFailure(
+  error: unknown,
+  options: { automatic: boolean; retry: () => void }
+): void {
+  const errorContent = getDownloadErrorMessage(error);
+  Message.error({
+    id: INSTALL_TOAST_ID,
+    title: "Update download failed",
+    content: options.automatic
+      ? `${errorContent} ORGII will retry in the background with increasing delays.`
+      : errorContent,
+    duration: 0,
+    cancel: {
+      label: options.automatic ? "Retry now" : "Retry",
+      onClick: options.retry,
+      closeOnClick: false,
+    },
+  });
+}
+
 export async function installAvailableAppUpdate(
   options: InstallAvailableAppUpdateOptions = {}
 ): Promise<void> {
@@ -285,27 +327,13 @@ export async function installAvailableAppUpdate(
   if (!update) return;
 
   if (!confirmed) {
-    const progressReporter = silentDownload
-      ? undefined
-      : createProgressReporter();
     try {
-      clearSkippedUpdateVersion(update.version);
-      if (progressReporter) beginDownloadProgress();
-      await coordinator.downloadAvailableUpdate(progressReporter);
-      if (progressReporter) endDownloadProgress();
-      store().set(appUpdateInstallPromptAtom, true);
+      await prepareAvailableAppUpdate(update, silentDownload);
+      activeAutomaticScheduler?.resetRetry();
     } catch (error) {
-      if (progressReporter) endDownloadProgress();
-      Message.error({
-        id: INSTALL_TOAST_ID,
-        title: "Update download failed",
-        content: getDownloadErrorMessage(error),
-        duration: 0,
-        cancel: {
-          label: "Retry",
-          onClick: () => void installAvailableAppUpdate({ silentDownload }),
-          closeOnClick: false,
-        },
+      showDownloadFailure(error, {
+        automatic: false,
+        retry: () => void installAvailableAppUpdate({ silentDownload }),
       });
       log.error("Update download failed", error);
     }
@@ -341,24 +369,51 @@ export async function installAvailableAppUpdate(
   }
 }
 
-async function runAutomaticUpdate(
-  reason: AutomaticUpdateReason
+async function executeAutomaticUpdate(
+  reason: AutomaticUpdateReason,
+  scheduler: AppUpdaterScheduler
 ): Promise<void> {
+  let update: Update | null;
   try {
-    const result = await coordinator.checkForUpdate(
-      reason === "startup" || reason === "interval"
+    const cachedRetryUpdate =
+      reason === "retry" ? coordinator.getAvailableUpdate() : null;
+    update =
+      cachedRetryUpdate ??
+      (
+        await coordinator.checkForUpdate(
+          reason === "startup" || reason === "interval" || reason === "retry"
+        )
+      ).update;
+  } catch (error) {
+    log.warn(
+      `Automatic update check (${reason}) failed`,
+      getErrorMessage(error)
     );
-    if (!result.update) return;
-    if (getSkippedUpdateVersion() === result.update.version) {
-      coordinator.clearAvailableUpdate();
-      return;
-    }
+    throw error;
+  }
 
+  if (!update) {
+    return;
+  }
+  if (getSkippedUpdateVersion() === update.version) {
+    coordinator.clearAvailableUpdate();
+    return;
+  }
+
+  try {
     // Installing can terminate the app on Windows. Every automatic path only
     // prepares the package and asks the user before installing or relaunching.
-    await installAvailableAppUpdate({ silentDownload: true });
+    await prepareAvailableAppUpdate(update, true);
   } catch (error) {
-    log.warn(`Automatic update (${reason}) failed`, getErrorMessage(error));
+    showDownloadFailure(error, {
+      automatic: true,
+      retry: () => scheduler.retryNow(),
+    });
+    log.warn(
+      `Automatic update download (${reason}) failed`,
+      getErrorMessage(error)
+    );
+    throw error;
   }
 }
 
@@ -372,16 +427,12 @@ export function useIsAppUpdateInstalling(): boolean {
 
 export const AppUpdater: React.FC = () => {
   const { t } = useTranslation(["settings", "common"]);
-  const [autoUpdateEnabled, setAutoUpdateEnabled] = useAtom(
-    autoUpdateEnabledAtom
-  );
   const availableUpdate = useAtomValue(availableAppUpdateAtom);
   const downloadProgress = useAtomValue(appUpdateDownloadProgressAtom);
   const [installPromptVisible, setInstallPromptVisible] = useAtom(
     appUpdateInstallPromptAtom
   );
   const settingsLoaded = useAtomValue(settingsLoadedAtom);
-  const startupSchedulingPendingRef = useRef(true);
 
   const handleInstallLater = useCallback(() => {
     setInstallPromptVisible(false);
@@ -398,30 +449,27 @@ export const AppUpdater: React.FC = () => {
     setInstallPromptVisible(false);
   }, [setInstallPromptVisible]);
 
-  const handleAutoUpdateChange = useCallback(
-    (checked: boolean) => {
-      setAutoUpdateEnabled(checked);
-    },
-    [setAutoUpdateEnabled]
-  );
-
   useEffect(() => {
     if (!settingsLoaded) return;
-    const scheduleStartupInstall = startupSchedulingPendingRef.current;
-    startupSchedulingPendingRef.current = false;
-    if (!autoUpdateEnabled) return;
 
     const scheduler = new AppUpdaterScheduler({
-      startupDelayMs: scheduleStartupInstall ? STARTUP_CHECK_DELAY_MS : null,
+      startupDelayMs: STARTUP_CHECK_DELAY_MS,
       intervalMs: UPDATE_CHECK_INTERVAL_MS,
       foregroundDebounceMs: FOREGROUND_EVENT_DEBOUNCE_MS,
+      retryBaseDelayMs: UPDATE_RETRY_BASE_DELAY_MS,
+      retryMaxDelayMs: UPDATE_RETRY_MAX_DELAY_MS,
+      retryJitterRatio: UPDATE_RETRY_JITTER_RATIO,
     });
-    scheduler.start((reason) => {
-      void runAutomaticUpdate(reason);
-    });
-    if (!scheduleStartupInstall) void runAutomaticUpdate("foreground");
-    return () => scheduler.stop();
-  }, [autoUpdateEnabled, settingsLoaded]);
+    activeAutomaticScheduler = scheduler;
+    scheduler.start((reason) => executeAutomaticUpdate(reason, scheduler));
+
+    return () => {
+      scheduler.stop();
+      if (activeAutomaticScheduler === scheduler) {
+        activeAutomaticScheduler = null;
+      }
+    };
+  }, [settingsLoaded]);
 
   return (
     <>
@@ -482,14 +530,6 @@ export const AppUpdater: React.FC = () => {
             })}
           </p>
         </div>
-        <div className="mt-5 border-t border-border-1 pt-4">
-          <Checkbox
-            checked={autoUpdateEnabled}
-            onChange={handleAutoUpdateChange}
-          >
-            {t("update.autoDownloadUpdates")}
-          </Checkbox>
-        </div>
       </Modal>
       <DownloadProgressOrb
         progress={downloadProgress}
@@ -501,6 +541,8 @@ export const AppUpdater: React.FC = () => {
 
 /** Test-only reset for the module singleton. */
 export function resetAppUpdaterForTests(): void {
+  activeAutomaticScheduler?.stop();
+  activeAutomaticScheduler = null;
   coordinator.reset();
   store().set(appUpdateInstallPromptAtom, false);
   setDownloadProgress(EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS);

@@ -178,16 +178,16 @@ export function GitHubWorkItemsView({
         </span>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <GitHubWorkItemStateTabs
-            tabs={stateTabs}
-            activeTab={activeState}
-            onChange={handleStateChange}
-          />
           <RepoFilterPill
             options={repoOptions}
             selectedRepo={effectiveSelectedRepo}
             allReposLabel={t("chat.manageIssues.allRepositories")}
             onSelectRepo={onRepoSelect}
+          />
+          <GitHubWorkItemStateTabs
+            tabs={stateTabs}
+            activeTab={activeState}
+            onChange={handleStateChange}
           />
           {scope === GITHUB_QUERY_SCOPE.ISSUE ? (
             <IssuePersonalFilterDropdown

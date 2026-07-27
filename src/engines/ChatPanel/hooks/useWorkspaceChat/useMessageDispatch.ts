@@ -121,6 +121,7 @@ export function useMessageDispatch() {
           clientMessageId,
           turnIntentId,
           directUserIntent: true,
+          turnIntentSource: "user_submit",
         });
         // Backend accepted the message — the turn is running even if the
         // provider's running ack has not been observed yet.

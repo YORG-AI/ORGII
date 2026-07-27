@@ -241,6 +241,7 @@ export function useQueueDispatch(): void {
             clientMessageId: `queued:${sessionId}:${msg.id}`,
             turnIntentId: msg.turnIntentId,
             directUserIntent: true,
+            turnIntentSource: msg.priority === "now" ? "force_send" : "queue",
           });
           // Backend accepted the message — confirm the turn as running.
           confirmTurnRunning(sessionId);

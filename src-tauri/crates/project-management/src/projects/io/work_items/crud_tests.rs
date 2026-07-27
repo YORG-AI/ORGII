@@ -3,7 +3,8 @@
 use super::*;
 use crate::projects::io::projects::write_project;
 use crate::projects::types::{
-    LabelEntry, LabelsFile, ProjectMeta, WorkItemHistoryAction, WorkItemReadBucket,
+    LabelEntry, LabelsFile, OrchestratorConfig, ProjectMeta, WorkItemHistoryAction,
+    WorkItemReadBucket, WorkItemSchedule,
 };
 use test_helpers::test_env;
 
@@ -95,6 +96,52 @@ fn write_then_read_round_trips_core_fields() {
     assert_eq!(back.body, "## Body\n\nhello");
     assert_eq!(back.frontmatter.project.as_deref(), Some("p1"));
     assert_eq!(back.filename, "AAA-0001");
+}
+
+#[test]
+fn scheduled_candidate_read_skips_unrelated_work_item_payloads() {
+    let _sandbox = test_env::sandbox();
+    seed_project("demo", "p1");
+
+    let unrelated = work_item_fixture("w1", "AAA-0001", "Unrelated");
+    write_work_item("demo", "AAA-0001", &unrelated, "large body").expect("write unrelated");
+
+    let mut start_dated = work_item_fixture("w2", "AAA-0002", "Start dated");
+    start_dated.start_date = Some("2099-01-01".to_string());
+    start_dated.orchestrator_config = Some(OrchestratorConfig {
+        selected_account_id: Some("account-1".to_string()),
+        ..Default::default()
+    });
+    write_work_item("demo", "AAA-0002", &start_dated, "ignored body").expect("write start-dated");
+
+    let mut scheduled = work_item_fixture("w3", "AAA-0003", "One shot");
+    scheduled.schedule = Some(WorkItemSchedule {
+        at: Some("2099-01-02T03:04:05Z".to_string()),
+        cron: None,
+        enabled: true,
+        last_run: None,
+    });
+    write_work_item("demo", "AAA-0003", &scheduled, "also ignored").expect("write scheduled");
+
+    let candidates = read_scheduled_work_item_candidates().expect("read candidates");
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0].project_slug, "demo");
+    assert_eq!(candidates[0].short_id, "AAA-0002");
+    assert_eq!(
+        candidates[0]
+            .orchestrator_config
+            .as_ref()
+            .and_then(|config| config.selected_account_id.as_deref()),
+        Some("account-1")
+    );
+    assert_eq!(candidates[1].short_id, "AAA-0003");
+    assert_eq!(
+        candidates[1]
+            .schedule
+            .as_ref()
+            .and_then(|schedule| schedule.at.as_deref()),
+        Some("2099-01-02T03:04:05Z")
+    );
 }
 
 #[test]

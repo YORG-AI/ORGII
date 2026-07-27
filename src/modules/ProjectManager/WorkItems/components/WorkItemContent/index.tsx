@@ -178,7 +178,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   lockHolderName,
   onCreatePr,
 }) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const editorRef = useRef<ProjectContentEditorRef>(null);
 
   const { handleImageInsert } = useWorkItemImageInsert({
@@ -322,7 +322,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               actor={creatorName}
               action={
                 isGitHubWorkItem
-                  ? "opened this issue"
+                  ? t("common:git.issues.activity.opened", "opened this issue")
                   : t(
                       "workItems.activity.openedWorkItem",
                       "opened this work item"

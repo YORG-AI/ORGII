@@ -39,7 +39,7 @@ import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import { WORK_ITEM_STATUS, type WorkItem } from "@src/types/core/workItem";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
-import ChatView from "../ChatView";
+import SessionContentView from "../SessionContentView";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
@@ -659,7 +659,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             />
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <ChatView
+            <SessionContentView
               sessionId={floatingSessionId}
               secondary
               surfaceBgClass="bg-chat-pane"

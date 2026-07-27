@@ -1,4 +1,5 @@
 import { detectInteractionType } from "./apiTrackerInteractions";
+import { summarizeTrackedValue } from "./apiTrackerPayload";
 import { recordPushEvent } from "./apiTrackerPush";
 import {
   addApiCall,
@@ -172,6 +173,7 @@ export function trackTauriInvoke(
     .join("\n");
   const fileInfo = extractFileInfo(stack);
   const componentInfo = getComponentInfo();
+  const trackedArgs = summarizeTrackedValue(args);
 
   const apiCall: ApiCall = {
     id: requestId,
@@ -180,8 +182,8 @@ export function trackTauriInvoke(
     fullUrl: `tauri://${cmd}`,
     transport: "tauri",
     tauriCommand: cmd,
-    tauriArgs: args,
-    data: args,
+    tauriArgs: trackedArgs,
+    data: trackedArgs,
     timestamp: new Date().toISOString(),
     componentSelector: componentInfo.selector,
     componentLabel: componentInfo.label,
@@ -211,11 +213,13 @@ export function trackTauriInvokeResult(
   if (!apiCall) return;
 
   if (error) {
-    apiCall.error = error instanceof Error ? error.message : error;
+    apiCall.error = summarizeTrackedValue(
+      error instanceof Error ? error.message : error
+    );
     apiCall.status = 500;
     apiCall.statusText = "Error";
   } else {
-    apiCall.response = response;
+    apiCall.response = summarizeTrackedValue(response);
     apiCall.status = 200;
     apiCall.statusText = "OK";
   }

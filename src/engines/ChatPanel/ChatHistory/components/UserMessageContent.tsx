@@ -415,7 +415,7 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       style={{
-        cursor: isClickable ? "pointer" : "default",
+        cursor: isClickable ? "var(--interactive-cursor, default)" : "default",
         position: "relative",
         zIndex: 1,
         userSelect: "none",

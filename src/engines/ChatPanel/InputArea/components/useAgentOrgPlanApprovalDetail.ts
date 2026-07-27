@@ -17,6 +17,7 @@ interface ApprovalDetailEntry {
   snapshot: ApprovalDetailSnapshot;
   listeners: Set<() => void>;
   inFlight: Promise<void> | null;
+  bytes: number;
 }
 
 const EMPTY_SNAPSHOT: ApprovalDetailSnapshot = {
@@ -24,7 +25,45 @@ const EMPTY_SNAPSHOT: ApprovalDetailSnapshot = {
   error: null,
   loading: true,
 };
+const MAX_DETAIL_CACHE_ENTRIES = 64;
+const MAX_DETAIL_CACHE_BYTES = 8 * 1024 * 1024;
 const detailCache = new Map<string, ApprovalDetailEntry>();
+let detailCacheBytes = 0;
+
+function estimateSnapshotBytes(snapshot: ApprovalDetailSnapshot): number {
+  try {
+    return JSON.stringify(snapshot).length * 2;
+  } catch {
+    return MAX_DETAIL_CACHE_BYTES;
+  }
+}
+
+function touchEntry(entry: ApprovalDetailEntry): void {
+  detailCache.delete(entry.key);
+  detailCache.set(entry.key, entry);
+}
+
+function deleteEntry(entry: ApprovalDetailEntry): void {
+  if (!detailCache.delete(entry.key)) return;
+  detailCacheBytes = Math.max(0, detailCacheBytes - entry.bytes);
+  entry.listeners.clear();
+}
+
+function pruneDetailCache(protectedKey?: string): void {
+  while (
+    detailCache.size > MAX_DETAIL_CACHE_ENTRIES ||
+    detailCacheBytes > MAX_DETAIL_CACHE_BYTES
+  ) {
+    const candidate = [...detailCache.values()].find(
+      (entry) =>
+        entry.key !== protectedKey &&
+        entry.listeners.size === 0 &&
+        entry.inFlight === null
+    );
+    if (!candidate) return;
+    deleteEntry(candidate);
+  }
+}
 
 function approvalRevisionKey(
   approval: Pick<AgentOrgPlanApprovalSummary, "approvalId" | "planRevisionId">
@@ -34,14 +73,20 @@ function approvalRevisionKey(
 
 function getOrCreateEntry(key: string): ApprovalDetailEntry {
   const existing = detailCache.get(key);
-  if (existing) return existing;
+  if (existing) {
+    touchEntry(existing);
+    return existing;
+  }
   const entry: ApprovalDetailEntry = {
     key,
     snapshot: EMPTY_SNAPSHOT,
     listeners: new Set(),
     inFlight: null,
+    bytes: estimateSnapshotBytes(EMPTY_SNAPSHOT),
   };
   detailCache.set(key, entry);
+  detailCacheBytes += entry.bytes;
+  pruneDetailCache(key);
   return entry;
 }
 
@@ -49,8 +94,13 @@ function publish(
   entry: ApprovalDetailEntry,
   snapshot: ApprovalDetailSnapshot
 ): void {
+  detailCacheBytes -= entry.bytes;
   entry.snapshot = snapshot;
+  entry.bytes = estimateSnapshotBytes(snapshot);
+  detailCacheBytes += entry.bytes;
+  touchEntry(entry);
   for (const listener of entry.listeners) listener();
+  pruneDetailCache(entry.key);
 }
 
 async function loadDetail(
@@ -101,6 +151,7 @@ export function useAgentOrgPlanApprovalDetail(
       entry.listeners.add(listener);
       return () => {
         entry.listeners.delete(listener);
+        pruneDetailCache();
       };
     },
     [key]
@@ -147,5 +198,13 @@ export const agentOrgPlanApprovalDetailCacheTestApi = {
   reset(): void {
     for (const entry of detailCache.values()) entry.listeners.clear();
     detailCache.clear();
+    detailCacheBytes = 0;
+  },
+  stats(): { entries: number; bytes: number } {
+    return { entries: detailCache.size, bytes: detailCacheBytes };
+  },
+  limits: {
+    entries: MAX_DETAIL_CACHE_ENTRIES,
+    bytes: MAX_DETAIL_CACHE_BYTES,
   },
 };

@@ -25,6 +25,7 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 import { sha256Hex } from "./org2CloudOrgManagement";
 
 // ---------------------------------------------------------------------------
@@ -82,7 +83,7 @@ async function callShareRpc(
   endpoint: CloudEndpoint = getCloudEndpoint(),
   signal?: AbortSignal
 ): Promise<unknown> {
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",

@@ -163,7 +163,7 @@
     "timezoneAuto": "Automatisch (Browser)",
     "timezoneSearchPlaceholder": "Nächste Städte suchen",
     "sendOnEnter": "Nachrichten mit Enter senden",
-    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter und Shift+Enter fügt eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter; Shift+Enter und Ctrl/Cmd+Enter fügen eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter",
     "language": "Sprache",
     "languageSearchPlaceholder": "Sprachen suchen...",
     "languageNames": {
@@ -248,7 +248,10 @@
     "presenceGuidanceOnlineDefault": "Ich bin an der Tastatur. Du kannst mir jederzeit Rückfragen stellen und destruktive Aktionen vor der Ausführung von mir bestätigen lassen",
     "presenceGuidanceInvisibleDefault": "Ich bin in der Nähe, erscheine aber offline. Arbeite standardmäßig autonom und benachrichtige mich nur bei riskanten Aktionen oder größeren Refactorings; fasse alle anderen Fragen gesammelt zusammen, statt sie einzeln zu stellen",
     "presenceGuidanceAwayDefault": "Ich bin nicht an der Tastatur. Warte nicht auf mich, sondern triff mit den vorhandenen Informationen die beste Entscheidung, erledige alles Mögliche und hinterlasse eine knappe Zusammenfassung mit offenen Fragen für meine Rückkehr",
-    "followSystem": "System folgen"
+    "followSystem": "System folgen",
+    "preferences": "Präferenzen",
+    "usePointerCursors": "Zeiger-Cursor verwenden",
+    "usePointerCursorsDesc": "Den Cursor beim Bewegen über interaktive Elemente in einen Zeiger ändern"
   },
   "background": {
     "title": "Hintergrund",
@@ -1029,7 +1032,7 @@
     "decryptEffect": "Decrypt-Effekt",
     "decryptEffectDesc": "Decrypt-Animation für Agent-Nachrichten aktivieren",
     "sendOnEnter": "Nachrichten mit Enter senden",
-    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter und Shift+Enter fügt eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter; Shift+Enter und Ctrl/Cmd+Enter fügen eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "LSP-Server für Autovervollständigung, Diagnose und Code-Intelligenz verwalten",

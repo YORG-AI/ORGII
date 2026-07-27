@@ -57,6 +57,7 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
   ownerMemberId: z.string(),
   ownerUserId: z.string(),
   ownerDisplayName: z.string(),
+  ownerAvatarUrl: z.string().optional(),
   ownerIdentityKind: CollabIdentityKindSchema,
   sourceSessionId: z.string(),
   title: z.string(),

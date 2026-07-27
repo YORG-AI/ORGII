@@ -91,10 +91,18 @@ export function useBenchmarkAgentBatchRun() {
       return null;
     }
 
-    const isRustAgent =
-      creatorState.dispatchCategory === DISPATCH_CATEGORY.RUST_AGENT;
+    const category = creatorState.dispatchCategory;
+    if (
+      category !== DISPATCH_CATEGORY.RUST_AGENT &&
+      category !== DISPATCH_CATEGORY.CLI_AGENT
+    ) {
+      setBatchError(`Unsupported benchmark agent category: ${category}`);
+      return null;
+    }
+
+    const isRustAgent = category === DISPATCH_CATEGORY.RUST_AGENT;
     const launch: BenchmarkAgentLaunchSelection = {
-      category: creatorState.dispatchCategory,
+      category,
       workspacePath:
         workingDirectory.trim() || creatorState.source?.repoPath || undefined,
       keySource: resolvedKeys.keySource,

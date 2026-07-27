@@ -14,6 +14,7 @@ import {
   SIMULATOR_EVENT_FILTER_VALUES,
   type SimulatorEventFilterValue,
 } from "@src/engines/SessionCore/derived/simulatorEventFilters";
+import { getDropdownPanelStyle } from "@src/hooks/dropdown/dropdownPanelStyle";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
 import { simulatorEventFiltersAtom } from "@src/store/ui/simulatorAtom";
 
@@ -59,18 +60,10 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
       gap: DROPDOWN_PANEL.triggerGapTight,
     });
 
-  const panelPositionStyle = useMemo(() => {
-    const pos = panelPosition;
-    return {
-      ...(pos.top !== undefined
-        ? { top: `${pos.top}px` }
-        : { bottom: `${pos.bottom}px` }),
-      ...(pos.right !== undefined
-        ? { right: `${pos.right}px` }
-        : { left: `${pos.left}px` }),
-      ...(pos.width > 0 ? { minWidth: `${pos.width}px` } : {}),
-    };
-  }, [panelPosition]);
+  const panelPositionStyle = useMemo(
+    () => getDropdownPanelStyle(panelPosition),
+    [panelPosition]
+  );
 
   const triggerLabel = isAllEvents
     ? t("simulator.replay.filters.allEvents", "All events")
@@ -146,7 +139,7 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
         createPortal(
           <div
             ref={panelRef as React.Ref<HTMLDivElement>}
-            className={`${DROPDOWN_CLASSES.menuPanel} fixed min-w-[180px]`}
+            className={`${DROPDOWN_CLASSES.menuPanel} fixed min-w-[180px] overflow-y-auto`}
             style={panelPositionStyle}
           >
             <div

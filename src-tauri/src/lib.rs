@@ -362,6 +362,7 @@ pub fn run() {
         //   // when defining deep link schemes at runtime, you must also check `argv` here
         // }))
         .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())

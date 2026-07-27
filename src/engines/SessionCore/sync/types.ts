@@ -15,6 +15,7 @@
  * all session types through a single code path.
  */
 import type { CancelReason } from "@src/api/tauri/agent/session";
+import type { TurnIntentSource } from "@src/engines/SessionCore/control/turnIntentSource";
 import { createLogger } from "@src/hooks/logger";
 import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot";
 import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAtom";
@@ -163,6 +164,8 @@ export interface AdapterSendInput {
   turnIntentId?: string;
   /** True only for a real user-authored prompt (not resume/wake/continuation). */
   directUserIntent?: boolean;
+  /** Origin of this turn at the user-intent boundary. */
+  turnIntentSource: TurnIntentSource;
   /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * The backend runs deletion-based orphan tool-use filter instead of

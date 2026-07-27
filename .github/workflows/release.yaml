@@ -619,9 +619,9 @@ jobs:
           # Guard against regressing beta.json when an older tag is (re)built
           # after a newer one already published (e.g. a stable hotfix behind
           # the current beta). semver handles prerelease ordering correctly.
-          HIGHEST=$(npx --yes semver@7 "$NEW_VERSION" "$EXISTING_VERSION" | tail -1)
+          HIGHEST=$(pnpm dlx semver@7 "$NEW_VERSION" "$EXISTING_VERSION" | tail -1)
           if [ -z "$HIGHEST" ]; then
-            echo "semver comparison produced no output (npx failure?); refusing to guess" >&2
+            echo "semver comparison produced no output; refusing to guess" >&2
             exit 1
           fi
           if [ "$HIGHEST" != "$NEW_VERSION" ]; then

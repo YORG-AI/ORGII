@@ -17,7 +17,7 @@ export const BACKGROUND_DRAIN_INTERVAL_MS = 50;
 export const BACKGROUND_TIME_BUDGET_MS = 8;
 
 /** Backlog cap for hidden/background panes. Drop oldest data beyond this. */
-export const HIDDEN_BACKLOG_CAP = 2 * 1024 * 1024; // 2 MB
+export const HIDDEN_BACKLOG_CAP = 512 * 1024; // 512 KB
 
 /** Interactive bypass: write immediately if data arrives soon after user input. */
 export const INTERACTIVE_WINDOW_MS = 100;

@@ -36,8 +36,8 @@ import {
 } from "./snapshotCache";
 import {
   type PendingDeltaState,
+  isSnapshotActivelyStreaming,
   isSnapshotDelta,
-  isStreamingSnapshot,
 } from "./snapshotMaterialization";
 
 const SNAPSHOT_CACHE_MAX = 5;
@@ -403,7 +403,7 @@ export class SnapshotCacheManager {
   releaseSessionSnapshotIfIdle(sessionId: string): void {
     this.flushPendingSnapshot(sessionId);
     const cached = this._latestSnapshots.get(sessionId);
-    if (cached && isStreamingSnapshot(cached)) return;
+    if (cached && isSnapshotActivelyStreaming(cached)) return;
     this.releaseSessionSnapshot(sessionId);
   }
 
