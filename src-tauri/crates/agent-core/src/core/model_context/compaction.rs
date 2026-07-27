@@ -584,7 +584,10 @@ impl ContextCompactor {
             Self::estimate_messages_tokens(recent),
         );
 
-        let summary_model = config.model.as_deref().unwrap_or(model);
+        // Compaction is part of the same conversation. It must preserve both
+        // the foreground model and its provider/gateway route; config.model is
+        // legacy UI state only and must not override the live route.
+        let summary_model = model;
 
         // Fork-form first: reuse the main turn's prompt-cache prefix. The
         // fork summarizes the FULL conversation (prefix includes `recent`);

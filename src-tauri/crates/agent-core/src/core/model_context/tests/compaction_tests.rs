@@ -1402,6 +1402,80 @@ async fn compact_rejects_empty_summary() {
     );
 }
 
+#[tokio::test]
+async fn compact_side_query_ignores_config_model_override_for_route_consistency() {
+    use std::sync::Mutex;
+
+    use crate::model_context::compaction::{CompactionOutcome, CompactionState};
+    use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError};
+
+    struct CapturingProvider {
+        model: Mutex<Option<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl LLMProvider for CapturingProvider {
+        async fn chat(
+            &self,
+            _messages: &[Value],
+            _tools: Option<&[Value]>,
+            model: &str,
+            _max_tokens: u32,
+            _temperature: f32,
+        ) -> Result<LLMResponse, ProviderError> {
+            *self.model.lock().unwrap() = Some(model.to_string());
+            Ok(LLMResponse {
+                content: Some("## 当前有效规则\n同模型同路由摘要".to_string()),
+                tool_calls: vec![],
+                finish_reason: crate::providers::finish_reason::STOP.to_string(),
+                usage: std::collections::HashMap::new(),
+                reasoning_content: None,
+                blocks: Vec::new(),
+                stream_error_kind: None,
+                retry_after_ms: None,
+            })
+        }
+
+        fn default_model(&self) -> &str {
+            "test-model"
+        }
+        fn provider_name(&self) -> &str {
+            "mock"
+        }
+    }
+
+    let big = "x".repeat(400);
+    let mut history: Vec<Value> = vec![user_msg("task statement")];
+    for _ in 0..40 {
+        history.push(assistant_msg(&big));
+    }
+    let budget = ContextCompactor::estimate_messages_tokens(&history) / 2;
+    let mut config = default_config();
+    config.floor_tokens = 0;
+    config.model = Some("openai/gpt-5.4-nano:openai".to_string());
+    let provider = CapturingProvider {
+        model: Mutex::new(None),
+    };
+    let mut state = CompactionState::default();
+
+    let (_, outcome) = ContextCompactor::compact(
+        &history,
+        budget,
+        &config,
+        &mut state,
+        &provider,
+        "chatgpt/gpt-5.6-terra",
+    )
+    .await;
+
+    assert!(matches!(outcome, CompactionOutcome::Compacted { .. }));
+    assert_eq!(
+        provider.model.lock().unwrap().as_deref(),
+        Some("chatgpt/gpt-5.6-terra"),
+        "side-query compaction must keep the live routed model, not config.model"
+    );
+}
+
 // -- Fork-form summarization (prompt-cache sharing) --
 
 #[tokio::test]
