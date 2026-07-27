@@ -587,6 +587,11 @@ async fn run_peekaboo_cli_command(
     #[cfg(unix)]
     command.process_group(0);
 
+    // Suppress the console window the bundled Peekaboo CLI would otherwise
+    // flash on Windows (it is spawned without a parent console).
+    #[cfg(windows)]
+    command.creation_flags(app_platform::CREATE_NO_WINDOW);
+
     let child = command
         .spawn()
         .map_err(|err| format!("Failed to run bundled Peekaboo CLI: {}", err))?;
