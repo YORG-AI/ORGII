@@ -101,6 +101,12 @@ export interface SessionSendMessageParams {
    */
   turnIntentId?: string;
   /**
+   * True only for a real user-authored prompt. Rust-native adapters persist
+   * Agent Org intervention inside the same backend acceptance boundary; CLI
+   * adapters apply it immediately after their command accepts the rerun.
+   */
+  directUserIntent?: boolean;
+  /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * Backend runs deletion-based orphan tool-use filter.
    */

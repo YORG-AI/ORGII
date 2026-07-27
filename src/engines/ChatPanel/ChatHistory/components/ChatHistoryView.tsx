@@ -224,6 +224,15 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
       ? undefined
       : handleHeaderRestoreCheckpoint,
   });
+  const renderModeItemCount = useMemo(
+    () =>
+      displayGroupMeta.reduce(
+        (total, meta) =>
+          total + (meta.unloadedTurn?.bodyEventCount ?? meta.itemCount),
+        0
+      ),
+    [displayGroupMeta]
+  );
   const sessionInfo = useMemo(() => {
     const start = chatHistory.find(
       (event) => event.actionType === "session_start"
@@ -447,6 +456,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       groupCounts={displayGroupCounts}
                       turnIds={displayTurnIds}
                       totalFlatItems={displayTotalFlatItems}
+                      renderModeItemCount={renderModeItemCount}
                       lastAssistantFlatIndexPerItem={
                         displayLastAssistantFlatIndexPerItem
                       }

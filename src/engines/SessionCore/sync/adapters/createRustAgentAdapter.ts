@@ -408,7 +408,6 @@ export function createRustAgentAdapter(
       // Terminal event types — signal turn completion and lock out further "running" signals.
       // `agent:turn_completed` is a lifecycle terminal marker, not transcript content.
       const TERMINAL_EVENTS = new Set([
-        "agent:complete",
         "agent:turn_completed",
         "agent:error",
         "agent:stream_error_exhausted",
@@ -646,6 +645,7 @@ export function createRustAgentAdapter(
         isResume,
         clientMessageId,
         turnIntentId,
+        directUserIntent,
         sessionRepoPath,
       } = input;
       // The session row's persisted repo is the source of truth for
@@ -670,6 +670,7 @@ export function createRustAgentAdapter(
           ...(isResume ? { isResume: true } : {}),
           ...(clientMessageId ? { clientMessageId } : {}),
           ...(turnIntentId ? { turnIntentId } : {}),
+          ...(directUserIntent ? { markDirectUserIntervention: true } : {}),
         },
         sessionId
       );

@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { postStopDispatchSessionsAtom } from "@src/store/session/cliSessionStatusAtom";
 import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
 
 import {
@@ -17,15 +18,11 @@ const mocks = vi.hoisted(() => ({
   beginOptimisticTurn: vi.fn(),
   beginTurnDispatch: vi.fn(),
   dispatchMessageBySessionType: vi.fn(),
-  enterIntervention: vi.fn(),
   failOptimisticTurn: vi.fn(),
   getTurnPhase: vi.fn(),
   markTurnTerminal: vi.fn(),
   mintTurnIntentId: vi.fn(),
-}));
-
-vi.mock("@src/api/tauri/agent", () => ({
-  enterAgentOrgSessionIntervention: mocks.enterIntervention,
+  removeByIdPrefix: vi.fn(),
 }));
 
 vi.mock("@src/engines/SessionCore/control/optimisticTurnStatus", () => ({
@@ -37,6 +34,10 @@ vi.mock("@src/engines/SessionCore/control/turnLifecycle", () => ({
   beginTurnDispatch: mocks.beginTurnDispatch,
   getTurnPhase: mocks.getTurnPhase,
   markTurnTerminal: mocks.markTurnTerminal,
+}));
+
+vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
+  eventStoreProxy: { removeByIdPrefix: mocks.removeByIdPrefix },
 }));
 
 vi.mock("@src/engines/SessionCore/sync/adapters/shared/eventFactories", () => ({
@@ -77,32 +78,49 @@ function renderSubmitHook(store: ReturnType<typeof createStore>) {
 
 describe("useUserIntentSubmit Agent Org intervention", () => {
   beforeEach(() => {
-    mocks.addUserMessage.mockReset().mockResolvedValue(undefined);
+    mocks.addUserMessage.mockReset().mockResolvedValue("synthetic-user-1");
     mocks.beginOptimisticTurn.mockReset();
     mocks.beginTurnDispatch.mockReset().mockReturnValue(7);
     mocks.dispatchMessageBySessionType.mockReset().mockResolvedValue(undefined);
-    mocks.enterIntervention.mockReset().mockResolvedValue(true);
     mocks.failOptimisticTurn.mockReset();
     mocks.getTurnPhase.mockReset().mockReturnValue("idle");
     mocks.markTurnTerminal.mockReset();
     mocks.mintTurnIntentId.mockReset().mockReturnValue("turn-intent-1");
+    mocks.removeByIdPrefix.mockReset().mockResolvedValue(1);
   });
 
-  it("marks intervention after persisting the direct user event and before dispatch", async () => {
+  it("appends the direct user event before dispatching the same intent", async () => {
     const submit = renderSubmitHook(createStore());
 
     await submit({ sessionId: SESSION_ID, displayContent: "hello worker" });
 
-    expect(mocks.addUserMessage).toHaveBeenCalledOnce();
-    expect(mocks.enterIntervention).toHaveBeenCalledOnce();
-    expect(mocks.enterIntervention).toHaveBeenCalledWith(SESSION_ID);
+    expect(mocks.addUserMessage).toHaveBeenCalledWith(
+      SESSION_ID,
+      "hello worker",
+      undefined,
+      "turn-intent-1"
+    );
     expect(mocks.dispatchMessageBySessionType).toHaveBeenCalledOnce();
     expect(mocks.addUserMessage.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.enterIntervention.mock.invocationCallOrder[0]
-    );
-    expect(mocks.enterIntervention.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.dispatchMessageBySessionType.mock.invocationCallOrder[0]
     );
+  });
+
+  it("keeps a Stop episode scoped to its own session", async () => {
+    const store = createStore();
+    store.set(postStopDispatchSessionsAtom, { "session-a": true });
+    const submit = renderSubmitHook(store);
+
+    await submit({
+      sessionId: SESSION_ID,
+      displayContent: "session b message",
+    });
+
+    expect(store.get(messageQueueAtom)).toEqual([]);
+    expect(mocks.dispatchMessageBySessionType).toHaveBeenCalledOnce();
+    expect(store.get(postStopDispatchSessionsAtom)).toEqual({
+      "session-a": true,
+    });
   });
 
   it("only enqueues while the current turn is busy", async () => {
@@ -122,33 +140,23 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
         status: "queued",
       }),
     ]);
-    expect(mocks.enterIntervention).not.toHaveBeenCalled();
     expect(mocks.dispatchMessageBySessionType).not.toHaveBeenCalled();
   });
 
-  it("does not dispatch when intervention persistence fails", async () => {
+  it("removes the optimistic user event and rejects when backend dispatch fails", async () => {
     const submit = renderSubmitHook(createStore());
-    mocks.enterIntervention.mockRejectedValue(
-      new Error("intervention store unavailable")
+    mocks.dispatchMessageBySessionType.mockRejectedValue(
+      new Error("backend send unavailable")
     );
 
     await expect(
-      submit({
-        sessionId: SESSION_ID,
-        displayContent: "take over this worker",
-        swallowErrorAfterUserEventAppend: true,
-      })
-    ).resolves.toBeUndefined();
+      submit({ sessionId: SESSION_ID, displayContent: "retry me" })
+    ).rejects.toThrow("backend send unavailable");
 
     expect(mocks.addUserMessage).toHaveBeenCalledOnce();
-    expect(mocks.enterIntervention).toHaveBeenCalledOnce();
-    expect(mocks.dispatchMessageBySessionType).not.toHaveBeenCalled();
-    expect(mocks.failOptimisticTurn).toHaveBeenCalledWith(
-      SESSION_ID,
-      "dispatch"
+    expect(mocks.removeByIdPrefix).toHaveBeenCalledWith(
+      "synthetic-user-1",
+      SESSION_ID
     );
-    expect(mocks.markTurnTerminal).toHaveBeenCalledWith(SESSION_ID, "failed", {
-      generation: 7,
-    });
   });
 });

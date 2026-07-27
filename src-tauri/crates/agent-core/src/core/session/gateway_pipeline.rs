@@ -213,6 +213,7 @@ pub async fn process_gateway_message(
         .ok()
         .map(|r| crate::lifecycle::TerminalTurnSignal {
             turn_id: r.turn_id.clone(),
+            turn_intent_id: None,
             status: crate::lifecycle::TurnTerminalStatus::Completed,
             completed_at: chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         });

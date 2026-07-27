@@ -19,6 +19,14 @@ import type { SessionEventHandlerStateActions } from "@src/engines/SessionCore/s
 import { updateSessionStatus } from "@src/store/session";
 import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+const mocks = vi.hoisted(() => ({
+  getTurnIntentDispatch: vi.fn(),
+}));
+
+vi.mock("@src/engines/SessionCore/control/turnIntentDispatchLifecycle", () => ({
+  getTurnIntentDispatch: mocks.getTurnIntentDispatch,
+}));
+
 createInstrumentedStore();
 
 vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
@@ -70,6 +78,7 @@ function createActions(): SessionEventHandlerStateActions & {
 describe("session sync state callbacks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.getTurnIntentDispatch.mockReturnValue(undefined);
   });
 
   it("clears live streaming content before completed status can leave Stop UI stuck", () => {
@@ -144,7 +153,53 @@ describe("session sync state callbacks", () => {
       turnStatus: "completed",
     });
 
-    expect(markTurnTerminal).toHaveBeenCalledWith("session-1", "completed");
+    expect(markTurnTerminal).toHaveBeenCalledWith("session-1", "completed", {
+      generation: undefined,
+    });
+  });
+
+  it("passes the exact dispatched generation for an attributed terminal", () => {
+    mocks.getTurnIntentDispatch.mockReturnValue({
+      sessionId: "session-1",
+      generation: 17,
+    });
+    const callbacks = createSessionEventHandlerCallbacks(
+      "session-1",
+      createActions(),
+      vi.fn()
+    );
+
+    callbacks.onStatusChange?.("completed", undefined, {
+      turnIntentId: "intent-17",
+      turnStatus: "completed",
+    });
+
+    expect(mocks.getTurnIntentDispatch).toHaveBeenCalledWith("intent-17");
+    expect(markTurnTerminal).toHaveBeenCalledWith("session-1", "completed", {
+      generation: 17,
+    });
+  });
+
+  it("rejects a terminal intent attributed to another session", () => {
+    mocks.getTurnIntentDispatch.mockReturnValue({
+      sessionId: "session-other",
+      generation: 8,
+    });
+    const actions = createActions();
+    const callbacks = createSessionEventHandlerCallbacks(
+      "session-1",
+      actions,
+      vi.fn()
+    );
+
+    callbacks.onStatusChange?.("completed", undefined, {
+      turnIntentId: "cross-session-intent",
+    });
+
+    expect(markTurnTerminal).not.toHaveBeenCalled();
+    expect(actions.setSessionRuntimeStatus).not.toHaveBeenCalled();
+    expect(actions.setPendingCancel).not.toHaveBeenCalled();
+    expect(updateSessionStatus).not.toHaveBeenCalled();
   });
 
   it("does NOT mark the FSM terminal for intermediate status signals", () => {

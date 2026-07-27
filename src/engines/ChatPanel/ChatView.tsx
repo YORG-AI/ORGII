@@ -49,23 +49,18 @@ import { replayModeAtom } from "@src/engines/SessionCore";
 import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanApprovalViewState } from "@src/engines/SessionCore/derived/planDisplayEvents";
-import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { ForkCancelledError } from "@src/features/TeamCollaboration/forkSession";
-import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
-import { useSessionWorkspaceSync } from "@src/hooks/session/useSessionWorkspaceSync";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import {
   activeSessionIdAtom,
-  claimPipelineSessionAtom,
   loadSessions,
   sessionByIdAtom,
 } from "@src/store/session";
 import {
   isSessionActiveAtom,
   restoreToInputAtom,
-  sessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
@@ -108,6 +103,7 @@ import { useJumpToSimulatorCanvas } from "./blocks/CanvasInlineCard/useJumpToSim
 import { resolveInitialFileChanges } from "./chatViewFileChanges";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
 import { useChatViewMessageQueue } from "./hooks/useChatViewMessageQueue";
+import { useChatViewSessionLifecycle } from "./hooks/useChatViewSessionLifecycle";
 import { useFollowAgent } from "./hooks/useFollowAgent";
 import { useImportedSessionSubmitOverride } from "./hooks/useImportedSessionSubmitOverride";
 import type { SubmitOverrideInput } from "./hooks/useInputArea/types";
@@ -178,8 +174,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
   }) => {
     const { t } = useTranslation("sessions");
     const { t: tNavigation } = useTranslation("navigation");
-    const setActiveSessionId = useSetAtom(activeSessionIdAtom);
-    const claimPipelineSession = useSetAtom(claimPipelineSessionAtom);
     const store = useStore();
     const { openSession } = useSessionView();
     const rootRef = useRef<HTMLDivElement>(null);
@@ -198,44 +192,14 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const isImportedHistory = isImportedHistorySession(sessionId);
     const isReadOnlySurface = readOnly || isImportedHistory;
 
-    useEffect(() => {
-      // Imported history is immutable at its source, but it still owns the
-      // event pipeline while visible. Only explicit passive replay skips the
-      // claim. Secondary surfaces also need the canonical clear/loading
-      // transition because they do not navigate through jumpToSessionAtom.
-      if (readOnly) return;
-      if (secondary) {
-        claimPipelineSession(sessionId);
-      } else {
-        setActiveSessionId(sessionId);
-      }
-
-      // Secondary surfaces (e.g. kanban detail panel) must release the
-      // pipeline when the embedding closes, otherwise event streaming
-      // would keep running for a session no surface is showing. We
-      // only release if the pipeline is still pointing at this view's
-      // session — another surface may already have taken over.
-      // Primary (WorkStation) surfaces don't release on unmount: the
-      // pipeline atom is owned by WorkStation memory, which the bridge
-      // re-asserts whenever WorkStation is active.
-      if (!secondary) return;
-      return () => {
-        const current = store.get(activeSessionIdAtom);
-        if (current === sessionId) {
-          setActiveSessionId(null);
-        }
-      };
-    }, [
-      claimPipelineSession,
+    useChatViewSessionLifecycle({
+      sessionId,
       readOnly,
       secondary,
-      sessionId,
-      setActiveSessionId,
-      store,
-    ]);
+      isReadOnlySurface,
+      isCursorIde,
+    });
 
-    useTodoSync(isReadOnlySurface ? undefined : sessionId);
-    useFileReviewSync(sessionId, !isReadOnlySurface && !secondary);
     const currentSession = useAtomValue(sessionByIdAtom(sessionId));
     const [orgtrackSummary, setOrgtrackSummary] =
       useState<CoreSessionSummary | null>(null);
@@ -267,28 +231,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
         }),
       [currentSession, isCursorIde, isExternalHistory, orgtrackSummary]
     );
-
-    // Backend `agent_session_list_workspaces` only resolves sessions whose
-    // runtime is currently attached. Historical sessions (status
-    // `completed` / `failed` / `cancelled`) are persisted in `sessions.db`
-    // but their runtime is dropped; the workspace state will be re-built
-    // lazily by `init_session` on the next `agent_send_message`. Gate the
-    // sync on a live status so opening a finished session in ChatView
-    // doesn't fire a guaranteed `not found` snapshot pull.
-    const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
-    const isLiveStatus =
-      runtimeStatus === "running" || runtimeStatus === "installing";
-
-    useSessionWorkspaceSync({
-      sessionId,
-      // Workspace sync only runs for live agent sessions on the *primary*
-      // surface — never for read-only replay, secondary inspection,
-      // imported Cursor IDE history rows, or historical sessions whose
-      // runtime is not attached. Once the user sends a follow-up,
-      // `agent_send_message` re-inits the runtime and flips the status
-      // to "running", which lets sync resume.
-      enabled: !isReadOnlySurface && !secondary && !isCursorIde && isLiveStatus,
-    });
 
     // Every imported third-party history is immutable at its source. The
     // composer below is still interactive, but submitting it creates an

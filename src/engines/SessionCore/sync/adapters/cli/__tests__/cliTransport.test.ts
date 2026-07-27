@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   enterIntervention: vi.fn(),
   message: vi.fn(),
   registerReceipt: vi.fn(),
+  warn: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/agent", () => ({
@@ -17,6 +18,9 @@ vi.mock("@src/api/tauri/rpc", () => ({
 vi.mock("@src/hooks/cliSession/cliTurnLifecycleCoordinator", () => ({
   cliTurnLifecycleCoordinator: { registerReceipt: mocks.registerReceipt },
 }));
+vi.mock("@src/hooks/logger", () => ({
+  createLogger: () => ({ warn: mocks.warn }),
+}));
 
 describe("sendCliMessage acceptance boundary", () => {
   beforeEach(() => {
@@ -26,7 +30,7 @@ describe("sendCliMessage acceptance boundary", () => {
       turnIntentId: "intent-1",
       status: "running",
     });
-    mocks.enterIntervention.mockResolvedValue(undefined);
+    mocks.enterIntervention.mockReturnValue(new Promise(() => undefined));
   });
 
   it("resolves from the receipt without status or history reconciliation", async () => {
@@ -36,6 +40,7 @@ describe("sendCliMessage acceptance boundary", () => {
         content: "continue",
         turnIntentId: "intent-1",
         clientMessageId: "message-1",
+        directUserIntent: true,
       })
     ).resolves.toBeUndefined();
 
@@ -50,21 +55,22 @@ describe("sendCliMessage acceptance boundary", () => {
       turnIntentId: "intent-1",
       status: "running",
     });
+    expect(mocks.enterIntervention).toHaveBeenCalledWith("cliagent-worker");
   });
 
-  it("rejects when the backend command rejects", async () => {
+  it("rejects only when the backend command rejects", async () => {
     mocks.message.mockRejectedValue(new Error("ipc unavailable"));
 
     await expect(
       sendCliMessage({
         sessionId: "cliagent-worker",
         content: "retry",
-        isResume: true,
         turnIntentId: "intent-2",
         clientMessageId: "message-2",
       })
     ).rejects.toThrow("ipc unavailable");
 
     expect(mocks.registerReceipt).not.toHaveBeenCalled();
+    expect(mocks.enterIntervention).not.toHaveBeenCalled();
   });
 });

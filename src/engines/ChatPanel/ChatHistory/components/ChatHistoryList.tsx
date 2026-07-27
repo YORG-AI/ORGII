@@ -39,6 +39,12 @@ import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
 const STATIC_RENDER_ITEM_LIMIT = 24;
 const AT_BOTTOM_EPSILON_PX = 4;
 
+export function shouldUseStaticChatHistoryRendering(
+  renderModeItemCount: number
+): boolean {
+  return renderModeItemCount <= STATIC_RENDER_ITEM_LIMIT;
+}
+
 function isScrolledToContentBottom(params: {
   element: HTMLElement;
   footerSpacerHeight: number;
@@ -255,6 +261,10 @@ function sameChatHistoryListProps(
     ["turnIds", sameNullableStringArray(previous.turnIds, next.turnIds)],
     ["totalFlatItems", previous.totalFlatItems === next.totalFlatItems],
     [
+      "renderModeItemCount",
+      previous.renderModeItemCount === next.renderModeItemCount,
+    ],
+    [
       "lastAssistantFlatIndexPerItem",
       sameNullableNumberArray(
         previous.lastAssistantFlatIndexPerItem,
@@ -347,6 +357,12 @@ interface ChatHistoryListProps {
   groupCounts: number[];
   turnIds: (string | null)[];
   totalFlatItems: number;
+  /**
+   * Collapse-independent item count used to choose the scroll renderer.
+   * Keeping this stable across a turn toggle prevents replacing the scroll root
+   * when the visible item count crosses the static-render threshold.
+   */
+  renderModeItemCount: number;
   lastAssistantFlatIndexPerItem: (number | null)[];
   codeBlockContainerWidth: number;
   footerSpacerHeight: number;
@@ -460,7 +476,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItems,
     groupCounts,
     turnIds,
-    totalFlatItems,
+    renderModeItemCount,
     lastAssistantFlatIndexPerItem,
     codeBlockContainerWidth,
     footerSpacerHeight,
@@ -513,7 +529,6 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       adjusted[adjusted.length - 1] += 1;
       return adjusted;
     }, [hasPlanningItem, groupCounts]);
-    const effectiveTotalFlatItems = totalFlatItems + (hasPlanningItem ? 1 : 0);
     const virtualGroups = useMemo<VirtualGroup[]>(() => {
       let startFlatIndex = 0;
       return effectiveGroupCounts.map((itemCount, groupIndex) => {
@@ -684,8 +699,13 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       return result;
     }, [flatItems]);
 
+    // Select the scroll implementation from the collapse-independent source
+    // size. A turn toggle can shrink the visible list from dozens of items to
+    // one; switching renderers at that point would unmount the scroll root and
+    // produce a second layout/scroll correction after the collapse itself.
+    // Planning is an ephemeral footer and must not influence this choice.
     const useStaticRendering =
-      effectiveTotalFlatItems <= STATIC_RENDER_ITEM_LIMIT;
+      shouldUseStaticChatHistoryRendering(renderModeItemCount);
 
     const staticGroups = useMemo(() => {
       if (!useStaticRendering) return [];
