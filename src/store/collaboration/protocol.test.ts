@@ -32,8 +32,10 @@ describe("collaboration protocol helpers", () => {
     const withKey = RemoteTeammateSessionMetadataSchema.parse({
       ...base,
       repoScopeKey: "github.com/acme/alpha",
+      ownerAvatarUrl: "https://example.com/ada.png",
     });
     expect(withKey.repoScopeKey).toBe("github.com/acme/alpha");
+    expect(withKey.ownerAvatarUrl).toBe("https://example.com/ada.png");
 
     // Old-client rows (key absent) and null-scrubbed jsonb both parse to
     // undefined — the consumer treats them as out of every scope.

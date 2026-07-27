@@ -1,39 +1,39 @@
-import {
-  CheckCircle2,
-  ChevronLeft,
-  CircleDot,
-  ExternalLink,
-} from "lucide-react";
+import { CheckCircle2, ChevronLeft, CircleDot, Globe } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
+import type {
+  GitHubIssue,
+  GitHubIssueTimelineItem,
+} from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
 import Tag from "@src/components/Tag";
 import Textarea from "@src/components/Textarea";
+import { ISSUE_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
+import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import {
-  formatTimeAgo,
-  getLabelColorStyle,
-} from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+  ActivityTimestamp,
+  ConnectedTimelineItem,
+  MarkdownContent,
+  TimelineCard,
+  TimelineCardHeader,
+  TimelineStack,
+} from "@src/modules/shared/components/ActivityTimeline";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
-import {
-  ConnectedTimelineItem,
-  GithubMarkdown,
-  TimelineCard,
-} from "../shared/githubTimeline";
+import { IssueTimelineEventRow } from "./IssueTimelineEvent";
 
 interface IssueDetailPanelProps {
   issue: GitHubIssue;
-  comments: GitHubIssueComment[];
-  commentsLoading: boolean;
+  timeline: GitHubIssueTimelineItem[];
+  timelineLoading: boolean;
   submittingComment: boolean;
   showHeader?: boolean;
   showBackTitleHeader?: boolean;
@@ -122,8 +122,9 @@ export function IssueDetailExternalLinkButton({
       variant="tertiary"
       size="small"
       iconOnly
-      icon={<ExternalLink size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+      icon={<Globe size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
       title={title}
+      aria-label={title}
     />
   );
 }
@@ -146,11 +147,70 @@ function IssueLabelTag({
   );
 }
 
+export function IssueTimelineItems({
+  timeline,
+  timelineLoading,
+}: {
+  timeline: GitHubIssueTimelineItem[];
+  timelineLoading: boolean;
+}): React.ReactNode {
+  const { t } = useTranslation("common");
+
+  if (timelineLoading) {
+    return (
+      <ConnectedTimelineItem isLast>
+        <Placeholder
+          variant="loading"
+          placement="sidebar"
+          title={t("git.issues.loadingTimeline", "Loading activity…")}
+        />
+      </ConnectedTimelineItem>
+    );
+  }
+
+  return timeline.map((item, index) => {
+    const isLast = index === timeline.length - 1;
+    const key = `${item.event}-${item.id ?? item.created_at ?? index}-${index}`;
+
+    if (item.event !== "commented") {
+      return (
+        <ConnectedTimelineItem key={key} isLast={isLast}>
+          <IssueTimelineEventRow item={item} />
+        </ConnectedTimelineItem>
+      );
+    }
+
+    const body = item.body ?? "";
+    const actorName = item.actor?.login ?? "GitHub";
+    return (
+      <ConnectedTimelineItem key={key} isLast={isLast}>
+        <TimelineCard
+          copyBody={body}
+          header={
+            <TimelineCardHeader
+              avatar={
+                item.actor ? (
+                  <Avatar size={18} src={item.actor.avatar_url} />
+                ) : null
+              }
+              actor={actorName}
+              action={t("git.issues.activity.commented", "commented")}
+              timestamp={item.created_at}
+            />
+          }
+        >
+          <MarkdownContent body={body} />
+        </TimelineCard>
+      </ConnectedTimelineItem>
+    );
+  });
+}
+
 export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
   ({
     issue,
-    comments,
-    commentsLoading,
+    timeline,
+    timelineLoading,
     submittingComment,
     showHeader = true,
     showBackTitleHeader = false,
@@ -164,8 +224,10 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     const { t } = useTranslation("common");
     const [commentBody, setCommentBody] = useState("");
     const isOpen = issue.state === "open";
-    const stateLabel = isOpen ? "Open" : "Closed";
-    const timelineItemCount = 1 + comments.length;
+    const stateLabel = isOpen
+      ? t("git.issues.status.open")
+      : t("git.issues.status.closed");
+    const timelineItemCount = 1 + timeline.length;
     const horizontalPaddingClass =
       contentPadding === "default" ? "px-4" : "px-0";
 
@@ -187,7 +249,9 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
 
         {showBackTitleHeader ? (
           <div className={`shrink-0 ${horizontalPaddingClass}`}>
-            <div className="mx-auto flex w-full max-w-[932px] items-center gap-2 border-b border-border-1 py-2">
+            <div
+              className={`${ISSUE_PANEL_WIDTH_TOKENS.headerWidth} flex items-center gap-2 border-b border-border-1 py-2`}
+            >
               <Button
                 htmlType="button"
                 variant="tertiary"
@@ -205,7 +269,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
 
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
           <div
-            className={`mx-auto flex w-full max-w-[932px] flex-col ${horizontalPaddingClass} py-4`}
+            className={`${ISSUE_PANEL_WIDTH_TOKENS.headerWidth} flex flex-col ${horizontalPaddingClass} py-4`}
           >
             <div className="mb-4 flex min-w-0 flex-col gap-2 border-b border-border-1 pb-4">
               <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[12px] text-text-3">
@@ -222,10 +286,17 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                   <span className="font-medium text-text-2">
                     {issue.user.login}
                   </span>{" "}
-                  opened this issue {formatTimeAgo(issue.created_at)}
+                  {t("git.issues.activity.opened", "opened this issue")}{" "}
+                  <ActivityTimestamp timestamp={issue.created_at} />
                 </span>
                 <span>·</span>
-                <span>{timelineItemCount} timeline item(s)</span>
+                <span>
+                  {t("git.issues.activity.timelineItemCount", {
+                    count: timelineItemCount,
+                    defaultValue: "{{count}} timeline item",
+                    defaultValue_other: "{{count}} timeline items",
+                  })}
+                </span>
               </div>
 
               {issue.labels.length > 0 || issue.assignees.length > 0 ? (
@@ -246,72 +317,48 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
               ) : null}
             </div>
 
-            <div className="flex flex-col">
+            <TimelineStack>
               <ConnectedTimelineItem
-                isLast={comments.length === 0 && !commentsLoading}
+                isLast={timeline.length === 0 && !timelineLoading}
               >
                 <TimelineCard
                   copyBody={issue.body ?? ""}
                   header={
-                    <span className="flex min-w-0 items-center gap-2">
-                      <Avatar size={18} src={issue.user.avatar_url} />
-                      <span className="min-w-0 truncate text-[12px] text-text-3">
-                        <span className="font-medium text-text-1">
-                          {issue.user.login}
-                        </span>{" "}
-                        opened this issue {formatTimeAgo(issue.created_at)}
-                      </span>
-                    </span>
+                    <TimelineCardHeader
+                      avatar={<Avatar size={18} src={issue.user.avatar_url} />}
+                      actor={issue.user.login}
+                      action={t(
+                        "git.issues.activity.opened",
+                        "opened this issue"
+                      )}
+                      timestamp={issue.created_at}
+                    />
                   }
                 >
-                  <GithubMarkdown
+                  <MarkdownContent
                     body={issue.body ?? ""}
-                    emptyText="No description provided."
+                    emptyText={t(
+                      "git.issues.activity.noDescription",
+                      "No description provided."
+                    )}
                   />
                 </TimelineCard>
               </ConnectedTimelineItem>
 
-              {commentsLoading ? (
-                <ConnectedTimelineItem isLast>
-                  <Placeholder
-                    variant="loading"
-                    placement="sidebar"
-                    title={t("git.issues.loadingComments", "Loading comments…")}
-                  />
-                </ConnectedTimelineItem>
-              ) : (
-                comments.map((comment, index) => (
-                  <ConnectedTimelineItem
-                    key={comment.id}
-                    isLast={index === comments.length - 1}
-                  >
-                    <TimelineCard
-                      copyBody={comment.body}
-                      header={
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Avatar size={18} src={comment.user.avatar_url} />
-                          <span className="min-w-0 truncate text-[12px] text-text-3">
-                            <span className="font-medium text-text-1">
-                              {comment.user.login}
-                            </span>{" "}
-                            commented {formatTimeAgo(comment.created_at)}
-                          </span>
-                        </span>
-                      }
-                    >
-                      <GithubMarkdown body={comment.body} />
-                    </TimelineCard>
-                  </ConnectedTimelineItem>
-                ))
-              )}
-            </div>
+              <IssueTimelineItems
+                timeline={timeline}
+                timelineLoading={timelineLoading}
+              />
+            </TimelineStack>
           </div>
         </div>
 
         <div
           className={`bg-surface-1 flex-shrink-0 border-t border-border-1 ${horizontalPaddingClass} py-3`}
         >
-          <div className="mx-auto flex w-full max-w-[932px] flex-col gap-2">
+          <div
+            className={`${ISSUE_PANEL_WIDTH_TOKENS.headerWidth} flex flex-col gap-2`}
+          >
             <Textarea
               value={commentBody}
               onChange={setCommentBody}
@@ -320,16 +367,25 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                 "Leave a comment…"
               )}
               rows={3}
-              size="mini"
+              size="default"
               resize="none"
               className="min-h-[64px]"
+              data-testid="issue-comment-editor"
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+                  event.preventDefault();
+                  void handleCommentSubmit();
+                }
+              }}
             />
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex min-h-9 items-center justify-between gap-1 px-1">
               {isOpen ? (
                 <Button
                   htmlType="button"
                   variant="secondary"
-                  size="mini"
+                  appearance="outline"
+                  size="small"
+                  shape="round"
                   onClick={onCloseIssue}
                 >
                   Close issue
@@ -338,7 +394,9 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                 <Button
                   htmlType="button"
                   variant="secondary"
-                  size="mini"
+                  appearance="outline"
+                  size="small"
+                  shape="round"
                   onClick={onReopenIssue}
                 >
                   Reopen issue
@@ -347,7 +405,8 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
               <Button
                 htmlType="button"
                 variant="primary"
-                size="mini"
+                size="small"
+                shape="round"
                 loading={submittingComment}
                 disabled={!commentBody.trim() || submittingComment}
                 onClick={() => void handleCommentSubmit()}

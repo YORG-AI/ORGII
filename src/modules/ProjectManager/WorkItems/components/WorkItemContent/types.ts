@@ -78,7 +78,6 @@ export interface HistoryTabProps {
   onCommentTextChange: (text: string) => void;
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
-  formatRelativeTime: (timestamp: string) => string;
 }
 
 export interface TimelineEntry {

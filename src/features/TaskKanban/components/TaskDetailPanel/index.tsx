@@ -25,7 +25,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import ChatView from "@src/engines/ChatPanel/ChatView";
+import SessionContentView from "@src/engines/ChatPanel/SessionContentView";
 import { useChatEventReplay } from "@src/engines/ChatPanel/hooks/useChatEventReplay";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
@@ -251,7 +251,7 @@ const SessionTaskPanel: React.FC<SessionTaskPanelProps> = ({
           className="h-full"
           style={detailView === "touched" ? { display: "none" } : undefined}
         >
-          <ChatView
+          <SessionContentView
             key={sessionId}
             sessionId={sessionId}
             secondary

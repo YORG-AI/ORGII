@@ -21,6 +21,7 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 import type { AvailableCliAgent } from "../types";
 import {
@@ -167,10 +168,7 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
 
   useEffect(() => {
     if (proxyStatus?.running !== false) return;
-    const intervalId = window.setInterval(() => {
-      void loadProxyStatus();
-    }, 3000);
-    return () => window.clearInterval(intervalId);
+    return startVisibilityAwarePoller(document, loadProxyStatus, 3000);
   }, [loadProxyStatus, proxyStatus?.running]);
 
   useEffect(() => {

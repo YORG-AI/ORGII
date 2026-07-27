@@ -10,7 +10,9 @@ const GitCommitDetailContent = React.lazy(
   () =>
     import("@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/GitCommitDetailContent")
 );
-const ChatView = React.lazy(() => import("@src/engines/ChatPanel/ChatView"));
+const SessionContentView = React.lazy(
+  () => import("@src/engines/ChatPanel/SessionContentView")
+);
 
 export const STORY_MANAGER_SUSPENSE_LOADING_FALLBACK = (
   <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
@@ -132,7 +134,7 @@ function renderActiveContent({
               "linear-gradient(180deg, var(--color-bg-1) 0%, var(--color-fill-1) 100%)",
           }}
         >
-          <ChatView sessionId={chatSessionId} secondary />
+          <SessionContentView sessionId={chatSessionId} secondary />
         </div>
       </Suspense>
     );

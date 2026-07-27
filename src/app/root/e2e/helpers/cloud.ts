@@ -31,7 +31,10 @@ import { collectAddressableThreads } from "@src/features/Org2Cloud/addressCommen
 import { org2CloudSharingFloorAtom } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { Org2CloudAuthState } from "@src/features/Org2Cloud/org2CloudAuthAtom";
-import { listMyOrgs } from "@src/features/Org2Cloud/org2CloudClient";
+import {
+  listMyOrgs,
+  listOrgMembers,
+} from "@src/features/Org2Cloud/org2CloudClient";
 import {
   org2CloudCommentsSignalAtom,
   orgCommentsKey,
@@ -46,6 +49,7 @@ import {
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
   org2CloudOrgsRequestEpochAtom,
+  org2CloudRosterVersionAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import type { Org2CloudOrg } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { org2CloudPendingInviteAtom } from "@src/features/Org2Cloud/org2CloudPendingInviteAtom";
@@ -71,7 +75,7 @@ import {
 import { projectDataChangedSignalAtom } from "@src/hooks/project";
 import { RemoteTeammateSessionMetadataSchema } from "@src/store/collaboration/protocol";
 import { sessionsAtom } from "@src/store/session/sessionAtom";
-import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
+import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   chatPanelSelectedCloudOrgAtom,
   chatPanelSelectedWorkItemAtom,
@@ -208,6 +212,41 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           name: org.name,
           role: org.role,
         })),
+      };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
+  /**
+   * E2E-only roster diagnostic. Reads the rendered store's invalidation
+   * generation and the same authoritative member RPC used by the panel, but
+   * never mutates either. Returning only public roster fields keeps tokens out
+   * of failure logs.
+   */
+  const cloudInspectMemberRoster = async (opts: {
+    orgId: string;
+  }): Promise<
+    Result<{
+      rosterVersion: number;
+      members: Json[] | null;
+    }>
+  > => {
+    try {
+      const auth = store.get(org2CloudAuthAtom);
+      const members = auth
+        ? await listOrgMembers(auth.accessToken, opts.orgId)
+        : null;
+      return {
+        ok: true,
+        rosterVersion: store.get(org2CloudRosterVersionAtom)[opts.orgId] ?? 0,
+        members:
+          members?.map((member) => ({
+            userId: member.userId,
+            displayName: member.displayName ?? null,
+            role: member.role,
+            status: member.status,
+          })) ?? null,
       };
     } catch (err) {
       return asError(err);
@@ -522,7 +561,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     }>
   > => {
     try {
-      const activeSessionId = store.get(workstationActiveSessionIdAtom);
+      const activeSessionId = store.get(activeSessionIdAtom);
       const activeSession = activeSessionId
         ? store
             .get(sessionsAtom)
@@ -695,6 +734,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     cloudSeedProjectOrgAlias,
     cloudSeedOrgs,
     cloudListOrgs,
+    cloudInspectMemberRoster,
     cloudInspectRosterState,
     cloudInspectProjectState,
     cloudSeedRepoScopes,

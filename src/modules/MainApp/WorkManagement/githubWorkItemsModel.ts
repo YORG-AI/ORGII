@@ -87,6 +87,7 @@ export interface ManagedIssueItem {
   state: IssueState;
   labels: ManagedIssueLabel[];
   comments: number;
+  linkedPullRequests: number;
   updatedAt: string;
 }
 
@@ -223,6 +224,7 @@ export function mapIssueToManagedIssue(
     state: issue.state,
     labels: issue.labels,
     comments: issue.comments,
+    linkedPullRequests: issue.linked_pull_requests_count ?? 0,
     updatedAt: issue.updated_at,
   };
 }

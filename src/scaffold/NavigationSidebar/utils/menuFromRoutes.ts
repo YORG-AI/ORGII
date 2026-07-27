@@ -6,8 +6,8 @@
  */
 import type { LucideIcon } from "lucide-react";
 
+import { ICON_NAME_MAP } from "@src/config/iconMapping";
 import type { RouteInfo } from "@src/config/routes";
-import { ICON_NAME_MAP } from "@src/config/tabTypes";
 
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
 
@@ -44,6 +44,5 @@ export function routeToMenuItem(
     icon: icon as LucideIcon | string | undefined,
     iconName,
     routePath: route.path,
-    tabType: route.tabType as NavigationMenuItem["tabType"],
   };
 }

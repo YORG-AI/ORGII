@@ -30,6 +30,7 @@ interface ContainersSectionProps {
   onRefresh: () => void;
   emptyTitle: string;
   emptySubtitle?: string;
+  onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
   compact?: boolean;
 }
@@ -74,6 +75,7 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
   onRefresh,
   emptyTitle,
   emptySubtitle,
+  onOpenChange,
   defaultOpen = false,
   compact = false,
 }) => {
@@ -255,6 +257,7 @@ const ContainersSection: React.FC<ContainersSectionProps> = ({
     <CollapsibleSection
       title={containers.length > 0 ? `${title} (${containers.length})` : title}
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
       compact={compact}
       actions={
         <Button

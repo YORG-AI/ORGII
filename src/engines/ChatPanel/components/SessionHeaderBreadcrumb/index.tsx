@@ -1,6 +1,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo, useMemo } from "react";
 
+import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 import BreadcrumbFileHeader, {
   type BreadcrumbFileHeaderDisplaySegment,
 } from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
@@ -11,6 +12,15 @@ import {
   resolveAgentChildParentSessionId,
   resolveSessionHeaderBreadcrumbDisplay,
 } from "./sessionHeaderBreadcrumbDisplay";
+
+const EXTERNAL_OWNER_NAME_MAX_CHARACTERS = 10;
+
+function truncateExternalOwnerName(name: string): string {
+  const characters = Array.from(name);
+  return characters.length > EXTERNAL_OWNER_NAME_MAX_CHARACTERS
+    ? `${characters.slice(0, EXTERNAL_OWNER_NAME_MAX_CHARACTERS).join("")}...`
+    : name;
+}
 
 export interface SessionHeaderParentTarget {
   sessionId: string;
@@ -54,11 +64,33 @@ const SessionHeaderBreadcrumb: React.FC<SessionHeaderBreadcrumbProps> = memo(
         sessionId,
       ]
     );
+    const externalOwnerName = session?.importedFrom?.ownerDisplayName?.trim();
+    const externalOwnerDisplayName = externalOwnerName
+      ? truncateExternalOwnerName(externalOwnerName)
+      : undefined;
     const displaySegments = useMemo<
       BreadcrumbFileHeaderDisplaySegment[]
     >(() => {
+      const sessionNameSegment: BreadcrumbFileHeaderDisplaySegment = {
+        label: display.displayName,
+        ...(externalOwnerName && externalOwnerDisplayName
+          ? {
+              content: (
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <span>{display.displayName}</span>
+                  <WorkstationHeaderSectionSeparator />
+                  <span className="inline-block max-w-40 truncate align-middle font-normal text-text-2">
+                    {externalOwnerDisplayName}
+                  </span>
+                </span>
+              ),
+              title: `${display.fullDisplayName} | ${externalOwnerName}`,
+            }
+          : {}),
+      };
+
       if (!display.isAgentChildSession) {
-        return [{ label: display.displayName }];
+        return [sessionNameSegment];
       }
 
       return [
@@ -84,9 +116,16 @@ const SessionHeaderBreadcrumb: React.FC<SessionHeaderBreadcrumbProps> = memo(
               },
             ]
           : []),
-        { label: display.displayName },
+        sessionNameSegment,
       ];
-    }, [display, onParentSessionClick, parentSession, parentSessionId]);
+    }, [
+      display,
+      externalOwnerDisplayName,
+      externalOwnerName,
+      onParentSessionClick,
+      parentSession,
+      parentSessionId,
+    ]);
 
     return (
       <BreadcrumbFileHeader

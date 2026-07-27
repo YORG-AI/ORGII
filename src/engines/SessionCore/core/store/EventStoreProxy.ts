@@ -22,6 +22,7 @@
  * which are fed from the derived snapshot pushed by Rust.
  */
 import { rpc } from "@src/api/tauri/rpc";
+import { TURN_WINDOW_RECENT_BODY_COUNT } from "@src/engines/SessionCore/turns/turnWindowConfig";
 import { createLogger } from "@src/hooks/logger";
 
 import type { EventPayloadBody, SessionEvent } from "../types";
@@ -41,10 +42,14 @@ export type {
   Snapshot,
   SnapshotDelta,
   SnapshotEnvelope,
+  SnapshotEventMembership,
   SnapshotPayload,
   StreamingSnapshot,
 } from "./EventStoreProxyTypes";
-export { isStreamingSnapshot } from "./snapshotMaterialization";
+export {
+  isSnapshotActivelyStreaming,
+  isStreamingSnapshot,
+} from "./snapshotMaterialization";
 
 const log = createLogger("EventStoreProxy");
 
@@ -361,6 +366,24 @@ class EventStoreProxyImpl {
     }) as Promise<SessionEvent[]>;
   }
 
+  /**
+   * Persist one bounded event batch directly to SQLite without materializing
+   * the session in the Rust/JS in-memory stores. Large cloud replays use this
+   * while downloading, then hydrate only the initial turn window.
+   */
+  async persistEventsBatch(
+    events: SessionEvent[],
+    sessionId: string
+  ): Promise<number> {
+    if (events.length === 0) return 0;
+    return rpc.sessionCore.cache.appendImportedEvents({ sessionId, events });
+  }
+
+  /** Publish a page-streamed replay with one final metadata/index pass. */
+  async finalizePersistedImport(sessionId: string): Promise<number> {
+    return rpc.sessionCore.cache.finalizeImportedEvents({ sessionId });
+  }
+
   // =========================================================================
   // SQLite Bridge
   // =========================================================================
@@ -377,7 +400,7 @@ class EventStoreProxyImpl {
   ): Promise<number> {
     return rpc.sessionCore.eventStore.loadInitialTurnWindow({
       sessionId,
-      recentTurnCount,
+      recentTurnCount: recentTurnCount ?? TURN_WINDOW_RECENT_BODY_COUNT,
     });
   }
 

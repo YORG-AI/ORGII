@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import TabPill from "@src/components/TabPill";
+import OrganizationTabSwitch from "@src/components/OrganizationTabSwitch";
 import type { TabPillItem } from "@src/components/TabPill";
 import {
   PROJECT_ORG_SURFACE_VIEW,
@@ -11,20 +11,13 @@ import {
 export interface ProjectOrgSurfacePillSwitchProps {
   orgView: ProjectOrgSurfaceView;
   onOrgViewChange: (view: ProjectOrgSurfaceView) => void;
-  variant?: "pill" | "simple";
-  color?: "default" | "fill";
+  className?: string;
   size?: "small" | "large";
 }
 
 export const ProjectOrgSurfacePillSwitch: React.FC<
   ProjectOrgSurfacePillSwitchProps
-> = ({
-  orgView,
-  onOrgViewChange,
-  variant = "pill",
-  color = "fill",
-  size = "small",
-}) => {
+> = ({ orgView, onOrgViewChange, className, size = "small" }) => {
   const { t } = useTranslation("projects");
   const { t: tCommon } = useTranslation("common");
 
@@ -47,13 +40,11 @@ export const ProjectOrgSurfacePillSwitch: React.FC<
   );
 
   return (
-    <TabPill
+    <OrganizationTabSwitch
       tabs={surfaceTabs}
       activeTab={orgView}
       onChange={(key) => onOrgViewChange(key as ProjectOrgSurfaceView)}
-      variant={variant}
-      color={color}
-      fillWidth={false}
+      className={className}
       size={size}
     />
   );

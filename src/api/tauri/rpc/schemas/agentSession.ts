@@ -348,8 +348,67 @@ export const AgentStatusInfoSchema = z.object({
   sessionIds: z.array(z.string()),
 }) as z.ZodType<AgentStatusInfo, AgentStatusInfo>;
 
+const SessionLaunchParamsSchema = z
+  .object({
+    category: z.enum(["rust_agent", "cli_agent"]),
+    content: z.string(),
+    workspacePath: z.string().optional(),
+    keySource: z.string().optional(),
+    accountId: z.string().optional(),
+    model: z.string().optional(),
+    nativeHarnessType: z.string().optional(),
+    platform: z.string().optional(),
+    branch: z.string().optional(),
+    worktreeBaseRef: z.string().optional(),
+    hostedToken: z.string().optional(),
+    tier: z.string().optional(),
+    name: z.string().optional(),
+    background: z.boolean().optional(),
+    images: z.array(z.string()).optional(),
+    ideContext: z.unknown().optional(),
+    agentDefinitionId: z.string().optional(),
+    agentOrgId: z.string().optional(),
+    agentOrgMemberOverrides: z.record(z.string(), z.unknown()).optional(),
+    applyAgentOrgMemberOverridesForFuture: z.boolean().optional(),
+    isolate: z.boolean().optional(),
+    mode: z.string().optional(),
+    orgId: z.string().optional(),
+    projectId: z.string().optional(),
+    projectName: z.string().optional(),
+    workItemId: z.string().optional(),
+    agentRole: z.string().optional(),
+    worktreePath: z.string().optional(),
+    projectSlug: z.string().optional(),
+    parentSessionId: z.string().optional(),
+    additionalDirectories: z.array(z.string()).optional(),
+  })
+  .strict()
+  .superRefine((params, context) => {
+    if ((params.isolate || params.worktreePath) && !params.workspacePath) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Worktree mode requires workspacePath",
+        path: ["workspacePath"],
+      });
+    }
+    if (params.isolate && params.worktreePath) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "isolate and worktreePath are mutually exclusive",
+        path: ["worktreePath"],
+      });
+    }
+    if (params.worktreeBaseRef && !params.isolate) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "worktreeBaseRef requires isolate=true",
+        path: ["worktreeBaseRef"],
+      });
+    }
+  });
+
 export const SessionLaunchInput = z.object({
-  params: z.record(z.string(), z.unknown()),
+  params: SessionLaunchParamsSchema,
 });
 
 export const SessionLaunchResultSchema = z
@@ -375,6 +434,8 @@ export const SessionLaunchResultSchema = z
     workItemId: z.string().nullable().optional(),
     agentRole: z.string().nullable().optional(),
     worktreePath: z.string().nullable().optional(),
+    worktreeBranch: z.string().nullable().optional(),
+    baseRef: z.string().nullable().optional(),
   })
   .catchall(z.unknown());
 

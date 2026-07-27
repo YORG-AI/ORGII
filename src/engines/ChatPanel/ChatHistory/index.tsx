@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
 import { useChatSessionId } from "../ChatSessionContext";
@@ -71,6 +72,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const rawCursorIdeTurnSummaries = useAtomValue(
     cursorIdeTurnSummariesAtomFamily(activeId ?? "")
   );
+  const activeSession = useAtomValue(sessionByIdAtom(activeId ?? ""));
   const isCursorIde = activeId ? isCursorIdeSession(activeId) : false;
   const cursorIdeTurnSummaries = isCursorIde ? rawCursorIdeTurnSummaries : [];
   const handleReloadSession = useReloadSession(activeId);
@@ -101,6 +103,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     isAgentWorking,
     isCursorIde,
     planningIndicatorCount,
+    sessionStatus: activeSession?.status,
     sessionLoadStatus: historyState.sessionLoadStatus,
     turnPaginationEnabled,
   });
@@ -121,6 +124,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     virtualListRef: historyState.virtualListRef,
   });
   const emptyState = useChatEmptyState({
+    activeSessionId: activeId,
     sessionLoadStatus: historyState.sessionLoadStatus,
     optimizedLen: historyState.chatHistory.length,
   });

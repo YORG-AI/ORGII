@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token Entscheidung",
     "tooltip": "Geschätzte Tool-Zuordnung. Methode: {{method}}. Eingabe: {{inputBytes}} bytes. Ausgabe: {{outputBytes}} bytes. Entscheidung: {{decisionTokens}} Token. Kontext: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Zugehöriger LLM cache read: {{cacheReadTokens}} Token. Zugehöriger LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Titel (optional)"
+  },
   "history": {
     "untitledSession": "Unbenannte Session",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Erstellt",
       "updated": "Aktualisiert",
       "lastUpdated": "Zuletzt aktualisiert",
+      "external": "Extern",
+      "internal": "Intern",
       "rounds": "Runden",
       "roundCount_one": "{{count}} Runde",
       "roundCount_other": "{{count}} Runden",
@@ -123,10 +128,11 @@
       "freq": {
         "default": "Standard",
         "manual": "Manuell",
-        "60s": "Alle 60s",
-        "5m": "Alle 5 Min",
-        "1h": "Stündlich",
-        "1d": "Täglich"
+        "60s": "Alle 60 Sek.",
+        "120s": "Alle 120 Sek.",
+        "10m": "Alle 10 Min.",
+        "30m": "Alle 30 Min.",
+        "1h": "Stündlich"
       },
       "openFolder": "Ordner öffnen",
       "tabs": {
@@ -1313,6 +1319,8 @@
     "terminalSummary": {
       "command_one": "{{count}} Befehl",
       "command_other": "{{count}} Befehle",
+      "mcp_one": "{{count}} MCP-Aufruf",
+      "mcp_other": "{{count}} MCP-Aufrufe",
       "wait_one": "{{count}} Wartevorgang",
       "wait_other": "{{count}} Wartevorgänge",
       "check_one": "{{count}} Prüfung",
@@ -2090,7 +2098,10 @@
     "categoryLabel": "Sitzungskategorie",
     "categoryTemplate": "{category} auswählen",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Integrierte Agents",
+    "builtIns": "Integriert",
+    "humanSession": {
+      "name": "Arbeitsprotokoll"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Benutzerdefinierte Agents",
     "agentOrgs": "Agent-Teams",

@@ -14,13 +14,14 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
 import { useReloadSession } from "@src/engines/ChatPanel/ChatHistory/hooks/useReloadSession";
-import ChatView from "@src/engines/ChatPanel/ChatView";
+import SessionContentView from "@src/engines/ChatPanel/SessionContentView";
 import { SessionHeaderActionsMenu } from "@src/engines/ChatPanel/components/SessionHeaderActionsMenu";
 import SessionHeaderBreadcrumb from "@src/engines/ChatPanel/components/SessionHeaderBreadcrumb";
 import { useSessionRawTranscript } from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog/useSessionRawTranscript";
 import SessionRawTranscriptView from "@src/engines/ChatPanel/components/SessionRawTranscriptView";
 import { useSessionActionModals } from "@src/engines/ChatPanel/hooks/useSessionActionModals";
 import { useSessionHeaderActions } from "@src/engines/ChatPanel/hooks/useSessionHeaderActions";
+import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import { sessionByIdAtom } from "@src/store/session";
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
@@ -28,6 +29,7 @@ import {
   moveSessionTabAtom,
   retargetWorkstationSessionTabAtom,
 } from "@src/store/session/sessionTabPlacementAtom";
+import { isHumanSession } from "@src/util/session/sessionDispatch";
 
 import type { UnifiedTabContentProps } from "../types";
 
@@ -51,9 +53,14 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
       mode: "gui",
       sessionId,
     });
-    const sessionViewMode =
-      sessionViewState.sessionId === sessionId ? sessionViewState.mode : "gui";
     const session = useAtomValue(sessionByIdAtom(sessionId));
+    const humanSession =
+      session?.category === "human_session" || isHumanSession(sessionId);
+    const sessionViewMode = humanSession
+      ? "gui"
+      : sessionViewState.sessionId === sessionId
+        ? sessionViewState.mode
+        : "gui";
     const transcript = useSessionRawTranscript(
       sessionId || null,
       sessionViewMode === "raw"
@@ -127,19 +134,23 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             fallbackName={sessionName}
             onParentSessionClick={handleSessionContinuation}
           />
-          <span
-            className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
-            aria-hidden
-          />
-          <TabPill
-            activeTab={sessionViewMode}
-            tabs={sessionViewTabs}
-            onChange={handleSessionViewChange}
-            variant="pill"
-            color="fill"
-            fillWidth={false}
-            size="small"
-          />
+          {!humanSession && (
+            <>
+              <span
+                className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
+                aria-hidden
+              />
+              <TabPill
+                activeTab={sessionViewMode}
+                tabs={sessionViewTabs}
+                onChange={handleSessionViewChange}
+                variant="pill"
+                color="fill"
+                fillWidth={false}
+                size="small"
+              />
+            </>
+          )}
         </div>
       ),
       [
@@ -150,12 +161,14 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         sessionName,
         sessionViewMode,
         sessionViewTabs,
+        humanSession,
       ]
     );
     const refreshLabel = t("common:actions.refresh", "Refresh");
     const copyLabel = t("common:actions.copy", "Copy");
     const headerTrailing = (
       <div className="flex shrink-0 items-center gap-px">
+        <SessionViewersIndicator sessionId={sessionId || null} />
         {sessionViewMode === "raw" ? (
           <>
             <Button
@@ -215,6 +228,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
           moveTarget="chat-panel"
           paginationEnabled={headerActions.paginationEnabled}
           showCloudShareSettings={sessionActions.showCloudShareSettings}
+          showTranscriptActions={!humanSession}
           tokenUsageVisible={headerActions.tokenUsageVisible}
           toggleHeaderActionsMenu={headerActions.toggleHeaderActionsMenu}
           triggerTestId="workstation-session-header-more-button"
@@ -246,7 +260,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             sessionViewMode === "gui" ? "flex" : "hidden"
           }`}
         >
-          <ChatView
+          <SessionContentView
             sessionId={sessionId}
             secondary
             displayMode={headerActions.displayMode}
@@ -255,7 +269,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             turnPaginationEnabled={headerActions.paginationEnabled}
           />
         </div>
-        {sessionViewMode === "raw" ? (
+        {!humanSession && sessionViewMode === "raw" ? (
           <SessionRawTranscriptView
             sessionId={sessionId}
             transcript={transcript}

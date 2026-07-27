@@ -8,7 +8,7 @@ import { rescanSidebarSessions } from "./sidebarSessionRefresh";
 
 const mocks = vi.hoisted(() => ({
   externalHistoryRescanSources: vi.fn(),
-  loadSidebarSessions: vi.fn(),
+  loadSessionRoster: vi.fn(),
   store: undefined as ReturnType<typeof createStore> | undefined,
 }));
 
@@ -18,7 +18,7 @@ vi.mock("@src/api/tauri/externalHistory", async (importOriginal) => ({
 }));
 
 vi.mock("@src/store/session", () => ({
-  loadSidebarSessions: mocks.loadSidebarSessions,
+  loadSessionRoster: mocks.loadSessionRoster,
 }));
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
@@ -32,7 +32,7 @@ describe("rescanSidebarSessions", () => {
   beforeEach(() => {
     mocks.store = createStore();
     mocks.externalHistoryRescanSources.mockReset().mockResolvedValue(undefined);
-    mocks.loadSidebarSessions.mockReset().mockResolvedValue(undefined);
+    mocks.loadSessionRoster.mockReset().mockResolvedValue(undefined);
   });
 
   it("rescans every enabled external source before reloading the sidebar", async () => {
@@ -48,17 +48,33 @@ describe("rescanSidebarSessions", () => {
     expect(mocks.externalHistoryRescanSources).toHaveBeenCalledWith(
       expectedSources
     );
-    expect(mocks.loadSidebarSessions).toHaveBeenCalledWith({
+    expect(mocks.loadSessionRoster).toHaveBeenCalledWith({
       forceRefresh: true,
     });
     expect(
       mocks.externalHistoryRescanSources.mock.invocationCallOrder[0]
-    ).toBeLessThan(mocks.loadSidebarSessions.mock.invocationCallOrder[0]);
+    ).toBeLessThan(mocks.loadSessionRoster.mock.invocationCallOrder[0]);
     expect(
       mocks.store?.get(dataSourceConfigAtom).warp.lastScannedAt
     ).toBeNull();
     expect(
       mocks.store?.get(dataSourceConfigAtom).codex_app.lastScannedAt
     ).toEqual(expect.any(Number));
+  });
+
+  it("reloads even when the rescan reports no changes of its own", async () => {
+    // Other surfaces sync the same backend cache between explicit refreshes
+    // (e.g. a continuation demotion during a foreign sync), so a manual
+    // rescan must reload unconditionally rather than trust changedSources.
+    mocks.externalHistoryRescanSources.mockResolvedValue({
+      changedSources: [],
+      sourceSignatures: { codex_app: "1:2026-07-24T05:43:08Z:1" },
+    });
+
+    await rescanSidebarSessions();
+
+    expect(mocks.loadSessionRoster).toHaveBeenCalledWith({
+      forceRefresh: true,
+    });
   });
 });

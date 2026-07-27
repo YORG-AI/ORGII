@@ -12,6 +12,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 #[cfg(unix)]
@@ -20,6 +21,19 @@ use std::os::unix::fs::PermissionsExt;
 /// User home directory with a deterministic fallback to the system temp dir.
 pub fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(std::env::temp_dir)
+}
+
+/// User-home root scanned for histories created by external agent apps.
+///
+/// Production falls back to the real user home. Multi-instance development
+/// launchers may set `ORGII_EXTERNAL_HISTORY_HOME` so a secondary profile
+/// does not discover and publish the primary profile's external histories
+/// under a different cloud identity.
+pub fn external_history_home_dir() -> PathBuf {
+    std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(home_dir)
 }
 
 /// Application data root: `~/.orgii/`.
@@ -328,12 +342,30 @@ pub fn file_history_dir(session_id: &str) -> PathBuf {
     file_history_root().join(session_id)
 }
 
+// Git for Windows can take longer than 750 ms to cold-start while Defender or
+// a concurrent build is busy. Treating that transient delay as "Git missing"
+// blocks every repo-backed flow even though the executable is installed and
+// the real operation would have succeeded. Probe generously once, then reuse
+// the successful path for the lifetime of the process.
+#[cfg(windows)]
+const SYSTEM_GIT_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+#[cfg(not(windows))]
 const SYSTEM_GIT_PROBE_TIMEOUT: Duration = Duration::from_millis(750);
 
+static RESOLVED_SYSTEM_GIT: OnceLock<PathBuf> = OnceLock::new();
+
 pub fn system_git_executable() -> Option<PathBuf> {
-    system_git_candidate_paths()
+    if let Some(path) = RESOLVED_SYSTEM_GIT.get() {
+        return Some(path.clone());
+    }
+
+    let resolved = system_git_candidate_paths()
         .into_iter()
-        .find(|path| git_version_succeeds(path))
+        .find(|path| git_version_succeeds(path));
+    if let Some(path) = resolved.as_ref() {
+        let _ = RESOLVED_SYSTEM_GIT.set(path.clone());
+    }
+    resolved
 }
 
 pub fn system_git_candidate_paths() -> Vec<PathBuf> {
@@ -351,12 +383,44 @@ pub fn system_git_candidate_paths() -> Vec<PathBuf> {
         }
     }
 
+    #[cfg(windows)]
+    {
+        let program_files_roots = ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"]
+            .into_iter()
+            .filter_map(std::env::var_os)
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
+        let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+        paths.extend(windows_git_candidate_paths(
+            &program_files_roots,
+            local_app_data.as_deref(),
+        ));
+    }
+
     #[cfg(target_os = "macos")]
     {
         paths.push(PathBuf::from("/usr/bin/git"));
     }
 
     dedupe_paths(paths)
+}
+
+#[cfg(windows)]
+fn windows_git_candidate_paths(
+    program_files_roots: &[PathBuf],
+    local_app_data: Option<&Path>,
+) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    for root in program_files_roots {
+        paths.push(root.join("Git").join("cmd").join("git.exe"));
+        paths.push(root.join("Git").join("bin").join("git.exe"));
+    }
+    if let Some(root) = local_app_data {
+        let git_root = root.join("Programs").join("Git");
+        paths.push(git_root.join("cmd").join("git.exe"));
+        paths.push(git_root.join("bin").join("git.exe"));
+    }
+    paths
 }
 
 fn git_binary_name() -> &'static str {
@@ -1024,5 +1088,23 @@ mod tests {
         assert!(dir.exists());
         assert!(dir.is_dir());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_git_candidates_do_not_depend_on_inherited_path() {
+        let candidates = windows_git_candidate_paths(
+            &[
+                PathBuf::from(r"C:\Program Files"),
+                PathBuf::from(r"C:\Program Files (x86)"),
+            ],
+            Some(Path::new(r"C:\Users\me\AppData\Local")),
+        );
+
+        assert!(candidates.contains(&PathBuf::from(r"C:\Program Files\Git\cmd\git.exe")));
+        assert!(candidates.contains(&PathBuf::from(r"C:\Program Files\Git\bin\git.exe")));
+        assert!(candidates.contains(&PathBuf::from(
+            r"C:\Users\me\AppData\Local\Programs\Git\cmd\git.exe"
+        )));
     }
 }

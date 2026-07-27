@@ -29,48 +29,108 @@ pub(crate) fn has_windows_users_prefix(path_str: &str) -> bool {
     bytes.len() >= 9 && bytes[0].is_ascii_alphabetic() && bytes.get(1..9) == Some(br":\Users\")
 }
 
+/// Remove platform-specific canonicalization syntax before comparing paths.
+fn clean_path(path: &StdPath) -> PathBuf {
+    let raw = path.to_string_lossy();
+    PathBuf::from(strip_extended_length_prefix(&raw))
+}
+
+#[cfg(windows)]
+fn path_starts_with(path: &StdPath, root: &StdPath) -> bool {
+    let mut path_components = path.components();
+    for root_component in root.components() {
+        let Some(path_component) = path_components.next() else {
+            return false;
+        };
+        if !path_component
+            .as_os_str()
+            .to_string_lossy()
+            .eq_ignore_ascii_case(&root_component.as_os_str().to_string_lossy())
+        {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(not(windows))]
+fn path_starts_with(path: &StdPath, root: &StdPath) -> bool {
+    path.starts_with(root)
+}
+
+/// Component-aware containment check for user-authorized repository roots.
+/// String-prefix checks are deliberately avoided: a root such as
+/// `C:\repo` must not authorize its sibling `C:\repo-private`.
+pub(crate) fn is_path_within_roots(path: &StdPath, roots: &[PathBuf]) -> bool {
+    let clean = clean_path(path);
+    roots.iter().any(|root| {
+        let clean_root = clean_path(root);
+        path_starts_with(&clean, &clean_root)
+    })
+}
+
+#[cfg(not(test))]
+fn registered_repo_roots() -> Vec<PathBuf> {
+    git::repos::repo_db::list_repos()
+        .unwrap_or_default()
+        .into_iter()
+        .map(|repo| PathBuf::from(repo.path))
+        .collect()
+}
+
+// Unit tests exercise the authorization boundary through
+// `is_path_within_roots` without opening or creating the user's sessions DB.
+#[cfg(test)]
+fn registered_repo_roots() -> Vec<PathBuf> {
+    Vec::new()
+}
+
 /// Check whether `path` falls under a user-accessible directory.
 ///
 /// Platform rules:
 /// - **Unix:** Must be under `/Users`, `/home`, `/tmp`, or macOS temp dirs.
 /// - **Windows:** Must be under `<drive>:\Users` or the system temp directory.
-/// - **All:** The user's home dir and `std::env::temp_dir()` are always allowed.
+/// - **All:** Home, temp, and user-registered repo roots are allowed.
 fn is_path_allowed(path: &StdPath) -> bool {
-    let raw = path.to_string_lossy();
-    let clean = strip_extended_length_prefix(&raw);
-
-    let mut allowed: Vec<String> = Vec::new();
+    let mut allowed: Vec<PathBuf> = Vec::new();
 
     if let Some(home) = dirs::home_dir() {
-        let home_str = home.to_string_lossy().to_string();
-        allowed.push(strip_extended_length_prefix(&home_str).to_string());
+        allowed.push(home);
     }
 
-    let temp = std::env::temp_dir();
-    let temp_str = temp.to_string_lossy().to_string();
-    allowed.push(strip_extended_length_prefix(&temp_str).to_string());
+    allowed.push(std::env::temp_dir());
 
     #[cfg(unix)]
     {
         allowed.extend([
-            "/Users".to_string(),
-            "/home".to_string(),
-            "/tmp".to_string(),
-            "/private/tmp".to_string(),
-            "/private/var".to_string(),
-            "/var/folders".to_string(),
+            PathBuf::from("/Users"),
+            PathBuf::from("/home"),
+            PathBuf::from("/tmp"),
+            PathBuf::from("/private/tmp"),
+            PathBuf::from("/private/var"),
+            PathBuf::from("/var/folders"),
         ]);
     }
 
     #[cfg(windows)]
     {
+        let raw = path.to_string_lossy();
+        let clean = strip_extended_length_prefix(&raw);
         // Allow <drive>:\Users (e.g. C:\Users, D:\Users)
         if has_windows_users_prefix(clean) {
             return true;
         }
     }
 
-    allowed.iter().any(|base| clean.starts_with(base.as_str()))
+    if is_path_within_roots(path, &allowed) {
+        return true;
+    }
+
+    // A repo explicitly added by the user is also an authorized filesystem
+    // boundary. This is what permits normal Windows layouts such as
+    // C:\Repos\ORGII without broadly allowing the whole drive.
+    let registered_roots = registered_repo_roots();
+    is_path_within_roots(path, &registered_roots)
 }
 
 /// Validate that a path is safe and allowed

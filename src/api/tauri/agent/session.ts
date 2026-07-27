@@ -450,7 +450,7 @@ export async function getAgentStatus(): Promise<AgentStatusInfo> {
 // ============================================
 
 export interface SessionLaunchParams {
-  category: string;
+  category: "rust_agent" | "cli_agent";
   content: string;
   workspacePath?: string;
   keySource?: string;
@@ -459,6 +459,8 @@ export interface SessionLaunchParams {
   nativeHarnessType?: NativeHarnessType;
   platform?: CliAgentType;
   branch?: string;
+  /** Git base ref used only when creating a fresh isolated worktree. */
+  worktreeBaseRef?: string;
   hostedToken?: string;
   tier?: string;
   name?: string;
@@ -514,13 +516,17 @@ export interface SessionLaunchResult {
   workItemId?: string | null;
   agentRole?: string | null;
   worktreePath?: string | null;
+  /** Actual branch checked out in the worktree (for example `agent/<id>`). */
+  worktreeBranch?: string | null;
+  /** Base ref used to create the isolated worktree. */
+  baseRef?: string | null;
 }
 
 export async function sessionLaunch(
   params: SessionLaunchParams
 ): Promise<SessionLaunchResult> {
   return rpc.agentSession.sessionLaunch({
-    params: params as unknown as Record<string, unknown>,
+    params,
   }) as Promise<SessionLaunchResult>;
 }
 

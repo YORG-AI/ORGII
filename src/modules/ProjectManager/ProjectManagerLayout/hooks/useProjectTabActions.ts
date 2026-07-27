@@ -360,7 +360,8 @@ export function useProjectTabActions({
       projectSlug: string | undefined,
       workItemId: string,
       workItemName: string,
-      pendingUpdates?: Record<string, unknown>
+      pendingUpdates?: Record<string, unknown>,
+      workItemStatus?: string
     ) => {
       openTab(
         createWorkItemDetailTab(
@@ -370,7 +371,8 @@ export function useProjectTabActions({
           workItemName,
           projectSlug,
           pendingUpdates,
-          activeTab?.id
+          activeTab?.id,
+          workItemStatus
         )
       );
     },

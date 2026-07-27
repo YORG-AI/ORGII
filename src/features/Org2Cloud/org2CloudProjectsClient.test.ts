@@ -7,7 +7,9 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
 } from "./config";
 import {
+  COLLAB_LISTING_PAGE_SIZE,
   Org2CloudProjectsError,
+  __COLLAB_LISTING_INTERNALS,
   acquireWorkItemLock,
   allocateWorkItemShortId,
   createCloudProjectSyncClient,
@@ -49,6 +51,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   fetchMock.mockReset();
+  __COLLAB_LISTING_INTERNALS.resetPaginationSupport();
 });
 
 describe("org2CloudProjectsClient headers", () => {
@@ -220,7 +223,7 @@ describe("cloud_acquire_work_item_lock / cloud_release_work_item_lock", () => {
 });
 
 describe("cloud_list_org_collab_state", () => {
-  it("parses the delta and aliases updatedByUserId to updatedByMemberId", async () => {
+  it("parses the delta and aliases cloud wire keys to channel keys", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         serverTime: "2026-07-06T00:00:00.000Z",
@@ -231,24 +234,33 @@ describe("cloud_list_org_collab_state", () => {
           {
             id: "w-1",
             version: 5,
-            updatedByUserId: "u-3",
-            deletedAt: "2026-07-05T00:00:00.000Z",
+            updated_by_user_id: "u-3",
+            deleted_at: "2026-07-05T00:00:00.000Z",
           },
         ],
       })
     );
     const state = await listOrgCollabState("jwt-1", "org-1");
-    expect(lastBody()).toEqual({ p_org_id: "org-1", since: null });
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      since: null,
+      p_limit: COLLAB_LISTING_PAGE_SIZE,
+      p_cursor_updated_at: null,
+      p_cursor_kind: null,
+      p_cursor_id: null,
+    });
     expect(state.serverTime).toBe("2026-07-06T00:00:00.000Z");
-    // The channel (and Rust apply) read the self-hosted updatedByMemberId
-    // key; the cloud value is kept alongside it verbatim.
+    // The channel (and Rust apply) read the self-hosted updatedByMemberId /
+    // deletedAt keys; cloud values are kept alongside them verbatim.
     expect(state.projects[0]).toMatchObject({
       updatedByMemberId: "u-2",
       updatedByUserId: "u-2",
     });
     expect(state.workItems[0]).toMatchObject({
       updatedByMemberId: "u-3",
+      updated_by_user_id: "u-3",
       deletedAt: "2026-07-05T00:00:00.000Z",
+      deleted_at: "2026-07-05T00:00:00.000Z",
     });
   });
 
@@ -265,6 +277,122 @@ describe("cloud_list_org_collab_state", () => {
     });
     expect(state.projects).toEqual([]);
     expect(state.workItems).toEqual([]);
+  });
+});
+
+describe("cloud_list_org_collab_state pagination (0004)", () => {
+  it("walks keyset pages on a full listing and reunites both row kinds", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          serverTime: "2026-07-23T00:00:00.000Z",
+          projects: [{ id: "p-1", version: 1 }],
+          workItems: [{ id: "w-1", version: 1 }],
+          nextCursor: {
+            updatedAt: "2026-07-22T00:00:00.000Z",
+            kind: "workItem",
+            id: "w-1",
+          },
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          serverTime: "2026-07-23T00:00:01.000Z",
+          projects: [],
+          workItems: [{ id: "w-2", version: 3 }],
+        })
+      );
+    const state = await listOrgCollabState("jwt-1", "org-1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      since: null,
+      p_limit: COLLAB_LISTING_PAGE_SIZE,
+      p_cursor_updated_at: "2026-07-22T00:00:00.000Z",
+      p_cursor_kind: "workItem",
+      p_cursor_id: "w-1",
+    });
+    expect(state.projects.map((row) => row.id)).toEqual(["p-1"]);
+    expect(state.workItems.map((row) => row.id)).toEqual(["w-1", "w-2"]);
+    expect(state.serverTime).toBe("2026-07-23T00:00:01.000Z");
+  });
+
+  it("falls back to the legacy call on PGRST202 and remembers the endpoint", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            code: "PGRST202",
+            message:
+              "Could not find the function org2_cloud.cloud_list_org_collab_state(p_cursor_id, p_cursor_kind, p_cursor_updated_at, p_limit, p_org_id, since) in the schema cache",
+          },
+          404
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ projects: [{ id: "p-1" }], workItems: [] })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ projects: [{ id: "p-1" }], workItems: [] })
+      );
+    const state = await listOrgCollabState("jwt-1", "org-1");
+    expect(state.projects.map((row) => row.id)).toEqual(["p-1"]);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", since: null });
+    await listOrgCollabState("jwt-1", "org-1");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", since: null });
+  });
+
+  it("keeps delta pulls single-shot with the legacy body", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ projects: [], workItems: [] })
+    );
+    await listOrgCollabState("jwt-1", "org-1", "2026-07-01T00:00:00.000Z");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      since: "2026-07-01T00:00:00.000Z",
+    });
+  });
+
+  it("treats a malformed nextCursor as the final page", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        projects: [{ id: "p-1" }],
+        workItems: [],
+        nextCursor: { updatedAt: "2026-07-22T00:00:00.000Z" },
+      })
+    );
+    const state = await listOrgCollabState("jwt-1", "org-1");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(state.projects.map((row) => row.id)).toEqual(["p-1"]);
+  });
+
+  it("stops a runaway walk at the page cap", async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        projects: [{ id: "p-1" }],
+        workItems: [],
+        nextCursor: {
+          updatedAt: "2026-07-22T00:00:00.000Z",
+          kind: "project",
+          id: "p-1",
+        },
+      })
+    );
+    const state = await listOrgCollabState("jwt-1", "org-1");
+    expect(fetchMock).toHaveBeenCalledTimes(50);
+    expect(state.projects).toHaveLength(50);
+  });
+
+  it("propagates a non-signature error without falling back", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "ORG2_MEMBER_REQUIRED" }, 403)
+    );
+    await expect(listOrgCollabState("jwt-1", "org-1")).rejects.toSatisfy(
+      (error) => isOrg2ProjectsErrorCode(error, "ORG2_MEMBER_REQUIRED")
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

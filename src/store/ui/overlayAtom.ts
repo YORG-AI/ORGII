@@ -5,7 +5,6 @@ import { isMacOS } from "@src/util/platform/tauri";
 import { activeOverlayCountAtom } from "./overlayLayerAtom";
 import { stationModeAtom } from "./simulatorAtom";
 import { spotlightOpenAtom } from "./uiAtom";
-import { viewModeAtom } from "./viewModeAtom";
 
 // ============================================
 // Modal & Overlay Visibility Tracking Atoms
@@ -68,7 +67,7 @@ export const locationSelectorOpenAtom = atom<boolean>(false);
 locationSelectorOpenAtom.debugLabel = "locationSelectorOpenAtom";
 
 /**
- * Blocks shared native webviews for app-wide overlays and non-WorkStation views.
+ * Blocks shared native webviews for app-wide overlays.
  * Station-mode-specific blocking is layered by webviewBlockedAtom for legacy
  * My Station owners; the shared Browser singleton uses this atom directly so
  * Agent Station can host the same native browser without recreating it.
@@ -84,17 +83,13 @@ export const webviewOverlayBlockedAtom = atom((get) => {
   const isToolbarDropdownOpen = get(toolbarDropdownOpenAtom);
   const isSpotlightOpen = get(spotlightOpenAtom);
 
-  const viewMode = get(viewModeAtom);
-  const isNotInCodeView = viewMode !== "workStation";
-
   return (
     hasNativeBlockingOverlay ||
     hasGlobalError ||
     isComponentIssueModalOpen ||
     isQuitConfirmationModalOpen ||
     isToolbarDropdownOpen ||
-    isSpotlightOpen ||
-    isNotInCodeView
+    isSpotlightOpen
   );
 });
 webviewOverlayBlockedAtom.debugLabel = "webviewOverlayBlockedAtom";

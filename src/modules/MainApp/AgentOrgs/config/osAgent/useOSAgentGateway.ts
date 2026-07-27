@@ -4,7 +4,7 @@
  * Manages gateway status polling and start/stop actions.
  * Polls every 10s when loaded so live connection status stays fresh.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   getGatewayStatus,
@@ -12,6 +12,7 @@ import {
   stopGateway,
 } from "@src/api/tauri/agent";
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 import type { GatewayStatusInfo } from "./types";
 
@@ -32,31 +33,24 @@ export function useOSAgentGateway(loaded: boolean): UseOSAgentGatewayReturn {
     null
   );
   const [gatewayLoading, setGatewayLoading] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const refreshGatewayStatus = useCallback(() => {
-    getGatewayStatus()
-      .then((status) =>
-        setGatewayStatus(status as unknown as GatewayStatusInfo)
-      )
-      .catch((err) => {
-        log.warn("Failed to fetch OS agent gateway status:", err);
-        setGatewayStatus(null);
-      });
+  const refreshGatewayStatus = useCallback(async () => {
+    try {
+      const status = await getGatewayStatus();
+      setGatewayStatus(status as unknown as GatewayStatusInfo);
+    } catch (err) {
+      log.warn("Failed to fetch OS agent gateway status:", err);
+      setGatewayStatus(null);
+    }
   }, []);
 
   useEffect(() => {
     if (!loaded) return;
 
-    refreshGatewayStatus();
-    pollRef.current = setInterval(refreshGatewayStatus, POLL_INTERVAL_MS);
-
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
+    return startVisibilityAwarePoller(
+      document,
+      refreshGatewayStatus,
+      POLL_INTERVAL_MS
+    );
   }, [loaded, refreshGatewayStatus]);
 
   const handleStartGateway = useCallback(async () => {

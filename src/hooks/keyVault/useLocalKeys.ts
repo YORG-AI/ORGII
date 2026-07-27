@@ -54,6 +54,8 @@ export interface UseLocalKeysReturn {
   keysByAgentType: Map<ModelType, KeyInfo>;
   /** Loading state */
   loading: boolean;
+  /** Whether the initial key-store load has settled at least once. */
+  hasLoaded: boolean;
   /** Error message */
   error: string | null;
   /** Reload keys from the store */
@@ -84,6 +86,7 @@ export function useLocalKeys(
   // State
   const [allKeys, setAllKeys] = useState<KeyInfo[]>(getSharedLocalKeys);
   const [loading, setLoading] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Track in-flight validations to prevent duplicates
@@ -121,6 +124,7 @@ export function useLocalKeys(
       setError(message);
       log.error("Failed to load keys:", err);
     } finally {
+      setHasLoaded(true);
       setLoading(false);
     }
   }, []);
@@ -395,6 +399,7 @@ export function useLocalKeys(
     allKeys,
     keysByAgentType,
     loading,
+    hasLoaded,
     error,
     refreshAgents,
     saveKey: saveKeyFn,

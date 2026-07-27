@@ -7,7 +7,6 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED, setAuthSkipped } from "@src/config/serviceAuth";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import {
   clearAuthStateCompletely,
   useServiceAuth,
@@ -321,70 +320,32 @@ const LoginPage: React.FC = () => {
   // Show authenticated options if user has a valid session
   if (showAccountOptions && isAuthenticated) {
     return (
-      <>
-        {/* Global styles to hide toolbar elements when in login-page mode */}
-        <style nonce={CODEMIRROR_STYLE_NONCE}>{`
-          body.login-page-mode .tab-bar {
-            display: none !important;
-          }
-          body.login-page-mode [data-toolbar-section="view-mode-switch"] {
-            display: none !important;
-          }
-          body.login-page-mode [data-toolbar-section="right-actions"] {
-            display: none !important;
-          }
-          body.login-page-mode [data-toolbar-section="sidebar-toggle"] {
-            display: none !important;
-          }
-        `}</style>
-
-        <OnboardingLayout
-          variant="contained"
-          bodyClass="login-page-mode"
-          leftContent={
-            <AuthenticatedForm
-              isLoading={isLoading}
-              onContinue={handleContinue}
-              onSwitchAccount={handleSwitchAccount}
-            />
-          }
-        />
-      </>
+      <OnboardingLayout
+        variant="contained"
+        leftContent={
+          <AuthenticatedForm
+            isLoading={isLoading}
+            onContinue={handleContinue}
+            onSwitchAccount={handleSwitchAccount}
+          />
+        }
+      />
     );
   }
 
   return (
-    <>
-      {/* Global styles to hide toolbar elements when in login-page mode */}
-      <style nonce={CODEMIRROR_STYLE_NONCE}>{`
-        body.login-page-mode .tab-bar {
-          display: none !important;
-        }
-        body.login-page-mode [data-toolbar-section="view-mode-switch"] {
-          display: none !important;
-        }
-        body.login-page-mode [data-toolbar-section="right-actions"] {
-          display: none !important;
-        }
-        body.login-page-mode [data-toolbar-section="sidebar-toggle"] {
-          display: none !important;
-        }
-      `}</style>
-
-      <OnboardingLayout
-        variant="contained"
-        bodyClass="login-page-mode"
-        leftContent={
-          <LoginForm
-            isLoading={isLoading}
-            sessionExpired={sessionExpired}
-            callbackError={callbackError}
-            onLogin={handleLogin}
-            onSkip={handleSkip}
-          />
-        }
-      />
-    </>
+    <OnboardingLayout
+      variant="contained"
+      leftContent={
+        <LoginForm
+          isLoading={isLoading}
+          sessionExpired={sessionExpired}
+          callbackError={callbackError}
+          onLogin={handleLogin}
+          onSkip={handleSkip}
+        />
+      }
+    />
   );
 };
 

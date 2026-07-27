@@ -87,6 +87,8 @@ export interface WorkItemsPageProps {
   onProjectViewChange?: (view: ProjectDetailSurfaceView) => void;
   /** Called when the resolved project slug is known, so the layout can persist it to the tab */
   onProjectSlugResolved?: (slug: string) => void;
+  /** Navigate back to the Projects index from the breadcrumb. */
+  onOpenProjects?: () => void;
   /** Callback to open the "New Project" modal */
   onCreateProject?: () => void;
   /** Callback to open a "New Work Item" tab */
@@ -101,15 +103,14 @@ export interface WorkItemsPageProps {
   onSetUnsaved?: (unsaved: boolean) => void;
   /** Notify parent tab system when the project title changes */
   onProjectNameUpdated?: (projectName: string) => void;
-  /** Navigate to the repo-level Projects list. */
-  onOpenProjects?: () => void;
   /** Navigate to repo-level settings (Projects > Settings tab) */
   onOpenRepoSettings?: () => void;
   /** Open a work item in its own dedicated tab (carries unsaved changes) */
   onExpandWorkItemToTab?: (
     workItemId: string,
     workItemName: string,
-    pendingUpdates?: Record<string, unknown>
+    pendingUpdates?: Record<string, unknown>,
+    workItemStatus?: string
   ) => void;
   /** Notify parent tab system when the embedded work item title changes */
   onEmbeddedWorkItemNameUpdated?: (workItemName: string) => void;
@@ -145,12 +146,12 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   projectView = PROJECT_DETAIL_SURFACE_VIEW.WORK_ITEMS,
   onProjectViewChange,
   onProjectSlugResolved,
+  onOpenProjects,
   onCreateProject,
   onCreateWorkItem,
   onProjectDeleted,
   onSetUnsaved,
   onProjectNameUpdated,
-  onOpenProjects,
   onOpenRepoSettings,
   onExpandWorkItemToTab,
   onEmbeddedWorkItemNameUpdated,
@@ -421,6 +422,10 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       onExpandWorkItemToTab={onExpandWorkItemToTab}
       breadcrumbProjectName={headerTitle}
       breadcrumbIcon={projectIdentityIcon}
+      titleEditable={
+        projectSyncAdapterId !== undefined &&
+        projectSyncAdapterId !== STORY_SYNC_ADAPTER.GITHUB
+      }
       propertiesOpen={workItemPropertiesOpen}
       onToggleProperties={() => setWorkItemPropertiesOpen((prev) => !prev)}
       publishHeaderToWorkstation={tabBarActionsInStationTabBar && isActive}
@@ -607,7 +612,6 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
           onOpenProjects={onOpenProjects}
           activeTab={state.activeTab}
           leadingControls={projectSurfaceControls}
-          onTabChange={handleHeaderTabChange}
           statusFilter={isWorkItemsSurface ? state.statusFilter : undefined}
           onStatusFilterChange={
             isWorkItemsSurface

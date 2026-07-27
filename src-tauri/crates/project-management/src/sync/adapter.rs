@@ -268,6 +268,17 @@ pub trait SyncAdapter: Send + Sync {
     /// stored in `projects.sync_kind`.
     fn name(&self) -> &'static str;
 
+    /// Return the local, user-facing work-item identifier that should be
+    /// used for an externally-owned item, when the remote system already
+    /// has the canonical identifier users recognize.
+    ///
+    /// Most adapters keep the default and let the project allocate its own
+    /// short id. GitHub overrides this with the issue number so an imported
+    /// `#42` does not gain a second identifier such as `ORG-0042`.
+    fn preferred_work_item_short_id(&self, _external_id: &str) -> Option<String> {
+        None
+    }
+
     /// Push one outbox row. The worker calls this on the blocking pool
     /// guard already, so adapters are free to `.await` without further
     /// thread-management.

@@ -6,7 +6,7 @@
  * configuration detail UI inside WorkStation `agent-config` tabs.
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -24,28 +24,27 @@ import {
 import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
 import { useWizardParam } from "@src/hooks/navigation";
-import CliClientsTable from "@src/modules/MainApp/Integrations/KeyVault/CliClients/Table/CliClientsTable";
 import { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
-import { CliDisclaimer } from "@src/modules/MainApp/Integrations/Tables/TrademarkDisclaimer";
 import {
   DETAIL_PANEL_TOKENS,
   InternalHeader,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
-import AgentWizard from "@src/scaffold/WizardSystem/variants/Agent/AgentWizard";
-import AgentTeamWizard from "@src/scaffold/WizardSystem/variants/AgentOrg/AgentTeamWizard";
 import { reposAtom } from "@src/store/repo/atoms";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
-import AgentsTable from "./Table/AgentsTable";
-import InlineExternalAgentsImport from "./Table/InlineExternalAgentsImport";
-import OrgsTable from "./Table/OrgsTable";
+import { AgentOrgsTableContent } from "./AgentOrgsTableContent";
+import { AgentOrgsWizardContent } from "./AgentOrgsWizardContent";
 import { useAgentDefinitions } from "./hooks/useAgentDefinitions";
+import { useAgentOrgsDirectory } from "./hooks/useAgentOrgsDirectory";
+import {
+  resolveAgentOrgsTableTab,
+  resolveLegacyAgentOrgsRedirect,
+} from "./model";
 import { builtInAgentsAtom } from "./store/builtInAgentsAtom";
 import type { AgentDefinition, OrgMember } from "./types";
 
 const logger = createLogger("AgentOrgs");
-const AGENT_ORGS_CHANGED_EVENT = "orgii-agent-orgs-changed";
 
 const TABLE_TABS: Array<{
   key: AgentOrgsTabSegment;
@@ -61,10 +60,6 @@ const TABLE_TABS: Array<{
   { key: "clis", labelKey: "agentOrgs.tableTabs.clis", defaultLabel: "CLIs" },
 ];
 
-function isTableTab(tab: AgentOrgsTabSegment): tab is AgentOrgsTabSegment {
-  return tab === "agents" || tab === "orgs" || tab === "clis";
-}
-
 const AgentOrgsPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -76,7 +71,7 @@ const AgentOrgsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    if (location.pathname.includes("/settings/org")) {
+    if (resolveLegacyAgentOrgsRedirect(location.pathname)) {
       navigate(
         `${buildAgentOrgsPath({ tab: "orgs" })}${location.search}${location.hash}`,
         { replace: true }
@@ -85,7 +80,7 @@ const AgentOrgsPage: React.FC = () => {
   }, [location.pathname, location.search, location.hash, navigate]);
 
   const activeTab: AgentOrgsTabSegment = parsed.tab;
-  const activeTableTab = isTableTab(activeTab) ? activeTab : "agents";
+  const activeTableTab = resolveAgentOrgsTableTab(activeTab);
 
   const builtInAgents = useAtomValue(builtInAgentsAtom);
   const repos = useAtomValue(reposAtom);
@@ -130,43 +125,7 @@ const AgentOrgsPage: React.FC = () => {
   const orgEditId = wizard === WIZARD_IDS.ORG_EDIT ? entityId : null;
   const agentWizardMode = wizard === WIZARD_IDS.AGENT_ADD;
 
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
-  const [orgsLoading, setOrgsLoading] = useState(true);
-
-  const loadOrgs = useCallback(async () => {
-    const result = await rpc.agentOrgs.orgs.list();
-    return result;
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadOrgs()
-      .then((result) => {
-        if (!cancelled) setOrgs(result);
-      })
-      .catch(() => {
-        if (!cancelled) setOrgs([]);
-      })
-      .finally(() => {
-        if (!cancelled) setOrgsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadOrgs]);
-
-  useEffect(() => {
-    const handleOrgsChanged = () => {
-      void loadOrgs()
-        .then(setOrgs)
-        .catch(() => setOrgs([]));
-    };
-
-    window.addEventListener(AGENT_ORGS_CHANGED_EVENT, handleOrgsChanged);
-    return () => {
-      window.removeEventListener(AGENT_ORGS_CHANGED_EVENT, handleOrgsChanged);
-    };
-  }, [loadOrgs]);
+  const { orgs, setOrgs, orgsLoading, loadOrgs } = useAgentOrgsDirectory();
 
   const editingOrg = useMemo<OrgMember | undefined>(
     () => (orgEditId ? orgs.find((org) => org.id === orgEditId) : undefined),
@@ -206,7 +165,7 @@ const AgentOrgsPage: React.FC = () => {
         );
       }
     },
-    [orgs, loadOrgs, closeWizard, t]
+    [orgs, loadOrgs, setOrgs, closeWizard, t]
   );
 
   const handleOrgDelete = useCallback(
@@ -241,7 +200,7 @@ const AgentOrgsPage: React.FC = () => {
         );
       }
     },
-    [orgs, loadOrgs, t]
+    [orgs, loadOrgs, setOrgs, t]
   );
 
   const handleAgentAdd = useCallback(() => {
@@ -307,76 +266,18 @@ const AgentOrgsPage: React.FC = () => {
     navigate(buildAgentOrgsPath({ tab: tab as AgentOrgsTabSegment }));
   };
 
-  const renderWizardContent = () => {
-    if (teamWizardMode) {
-      return (
-        <AgentTeamWizard
-          key={editingOrg?.id ?? "new"}
-          onSave={handleTeamWizardSave}
-          onCancel={closeWizard}
-          initialOrg={editingOrg}
-          customAgents={customAgents}
-          onAgentCreate={handleAgentWizardSave}
-        />
-      );
-    }
-
-    if (agentWizardMode) {
-      return (
-        <AgentWizard onSave={handleAgentWizardSave} onCancel={closeWizard} />
-      );
-    }
-
-    return null;
-  };
-
-  const renderTableContent = () => {
-    if (activeTableTab === "orgs") {
-      return (
-        <OrgsTable
-          orgs={orgs}
-          loading={orgsLoading}
-          onAddOrg={handleOrgAdd}
-          onDeleteOrg={handleOrgDelete}
-        />
-      );
-    }
-
-    if (activeTableTab === "clis") {
-      return (
-        <div className="flex flex-col gap-3">
-          <CliClientsTable
-            agents={cliAgentControls.agents}
-            accounts={accounts}
-            loading={cliAgentControls.loading}
-            error={cliAgentControls.error}
-            fetchAgents={cliAgentControls.fetchAgents}
-            onAdd={handleKeyAdd}
-            cliAgents={cliAgentControls}
-          />
-          <CliDisclaimer />
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex flex-col gap-3">
-        <AgentsTable
-          builtInAgents={builtInAgents}
-          customAgents={customAgents}
-          loading={agentDefsLoading}
-          onAddAgent={handleAgentAdd}
-          onDeleteAgent={handleAgentDelete}
-        />
-        <InlineExternalAgentsImport
-          cursorRepos={cursorRepos}
-          onAfterImport={handleAgentImportRefresh}
-        />
-      </div>
-    );
-  };
-
-  const wizardContent = renderWizardContent();
+  const wizardContent =
+    teamWizardMode || agentWizardMode ? (
+      <AgentOrgsWizardContent
+        teamWizardMode={teamWizardMode}
+        agentWizardMode={agentWizardMode}
+        editingOrg={editingOrg}
+        customAgents={customAgents}
+        onTeamSave={handleTeamWizardSave}
+        onAgentSave={handleAgentWizardSave}
+        onCancel={closeWizard}
+      />
+    ) : null;
 
   if (wizardContent) {
     return (
@@ -405,7 +306,23 @@ const AgentOrgsPage: React.FC = () => {
       />
       <ScrollPreservation className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
         <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
-          {renderTableContent()}
+          <AgentOrgsTableContent
+            activeTab={activeTableTab as "agents" | "orgs" | "clis"}
+            orgs={orgs}
+            orgsLoading={orgsLoading}
+            builtInAgents={builtInAgents}
+            customAgents={customAgents}
+            agentDefsLoading={agentDefsLoading}
+            cursorRepos={cursorRepos}
+            accounts={accounts}
+            cliAgentControls={cliAgentControls}
+            onAddOrg={handleOrgAdd}
+            onDeleteOrg={handleOrgDelete}
+            onAddAgent={handleAgentAdd}
+            onDeleteAgent={handleAgentDelete}
+            onAgentImportRefresh={handleAgentImportRefresh}
+            onAddKey={handleKeyAdd}
+          />
         </div>
       </ScrollPreservation>
     </div>

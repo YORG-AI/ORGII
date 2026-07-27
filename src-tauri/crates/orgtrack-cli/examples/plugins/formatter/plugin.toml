@@ -1,0 +1,23 @@
+# Example orgtrack formatter plugin: a no-code custom output format.
+#
+# A formatter renders a command's result JSON through a sandboxed template
+# (minijinja) — the template runs no code and gets no fs/network access, so no
+# trust is needed. Select it with its id:
+#   orgtrack list  --format sessions_html
+#   orgtrack usage --format sessions_html
+#   orgtrack show <id> --format sessions_html
+#
+# The template context depends on the command:
+#   list/search : { command:"list",  sessions:[<row>], total:<n> }
+#   usage       : { command:"usage", summary:{...}, sessions:[...], trends:[...] }
+#   show        : { command:"show",  sessionId:"...", chunks:[...] }
+# (Row/summary/chunk fields are the same camelCase shapes as `--format json`.)
+
+[plugin]
+id     = "sessions_html"
+label  = "Sessions as HTML"
+kind   = "formatter"
+format = "template"
+
+[formatter]
+template = "sessions.html.j2"

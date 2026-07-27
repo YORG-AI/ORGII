@@ -21,13 +21,19 @@ import {
   acquireCloudWorkItemLock,
   releaseCloudWorkItemLock,
 } from "@src/features/Org2Cloud/cloudWorkItemLock";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   ensureCloudMemberNames,
   org2CloudMemberNamesAtom,
   resolveCloudMemberName,
 } from "@src/features/Org2Cloud/org2CloudMemberNamesAtom";
-import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import {
+  org2CloudOrgsAtom,
+  org2CloudRosterVersionAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   isCloudOrgMembershipPending,
   resolveCloudOrgForProjectOrg,
@@ -262,17 +268,24 @@ export function useWorkItemCollabLock(
   const localMemberId = cloudOrgId ? cloudAuth?.userId : undefined;
 
   const memberNames = useAtomValue(org2CloudMemberNamesAtom);
+  const rosterVersionByOrg = useAtomValue(org2CloudRosterVersionAtom);
+  const rosterVersion = cloudOrgId ? (rosterVersionByOrg[cloudOrgId] ?? 0) : 0;
   const lockedByMemberId = executionLock?.lockedByMemberId;
 
   useEffect(() => {
     if (!cloudOrgId || !lockedByMemberId) return;
     if (lockedByMemberId === localMemberId) return;
     void ensureCloudMemberNames(cloudOrgId);
-  }, [cloudOrgId, lockedByMemberId, localMemberId]);
+  }, [cloudOrgId, lockedByMemberId, localMemberId, rosterVersion]);
 
   const holderDisplayName =
     cloudOrgId && lockedByMemberId
-      ? resolveCloudMemberName(memberNames, cloudOrgId, lockedByMemberId)
+      ? resolveCloudMemberName(
+          memberNames,
+          cloudOrgId,
+          lockedByMemberId,
+          cloudAuth ? org2CloudAuthIdentityKey(cloudAuth) : undefined
+        )
       : null;
 
   const holder = useMemo(

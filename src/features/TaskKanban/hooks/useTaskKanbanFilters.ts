@@ -1,47 +1,20 @@
-import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
-import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import type { KanbanTask } from "@src/features/KanbanBoard";
-import { type Session, sessionMapAtom } from "@src/store/session";
-import {
-  getDispatchCategory,
-  getExternalHistorySourceId,
-} from "@src/util/session/sessionDispatch";
 
 import type { KanbanAgentTypeFilter, KanbanSidebarFilter } from "../config";
 import {
-  EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
   KANBAN_COLUMNS,
   KANBAN_SIDEBAR_FILTER,
 } from "../config";
 
-function matchesAgentTypeFilter(
-  session: Session | undefined,
-  sessionId: string | undefined,
+export function taskMatchesKanbanAgentTypeFilter(
+  task: KanbanTask,
   filter: KanbanAgentTypeFilter
 ): boolean {
   if (filter === KANBAN_AGENT_TYPE_FILTER.ALL) return true;
-  if (!sessionId) return false;
-
-  const category = getDispatchCategory(sessionId);
-  if (filter === KANBAN_AGENT_TYPE_FILTER.CURSOR_APP) {
-    return category === DISPATCH_CATEGORY.CURSOR_IDE;
-  }
-
-  if (category === DISPATCH_CATEGORY.RUST_AGENT) {
-    return session?.agentDefinitionId === filter;
-  }
-
-  if (category === DISPATCH_CATEGORY.EXTERNAL_HISTORY) {
-    const sourceId = getExternalHistorySourceId(sessionId);
-    return sourceId
-      ? EXTERNAL_HISTORY_FILTER_BY_SOURCE[sourceId] === filter
-      : false;
-  }
-
-  return session?.cliAgentType === filter;
+  return task.agentTypeFilter === filter;
 }
 
 export interface UseTaskKanbanFiltersOptions {
@@ -71,7 +44,6 @@ export function useTaskKanbanFilters({
   selectedTaskId,
   fileSearchQuery,
 }: UseTaskKanbanFiltersOptions) {
-  const sessionMap = useAtomValue(sessionMapAtom);
   const normalizedFileQuery = normalizeFileSearchQuery(fileSearchQuery);
   const fileSearchActive = normalizedFileQuery.length > 0;
   const fileSearchTextByTaskId = useMemo(() => {
@@ -92,12 +64,7 @@ export function useTaskKanbanFilters({
         }
 
         if (agentTypeFilter !== KANBAN_AGENT_TYPE_FILTER.ALL) {
-          const session = task.session_id
-            ? sessionMap.get(task.session_id)
-            : undefined;
-          if (
-            !matchesAgentTypeFilter(session, task.session_id, agentTypeFilter)
-          ) {
+          if (!taskMatchesKanbanAgentTypeFilter(task, agentTypeFilter)) {
             return false;
           }
         }
@@ -117,7 +84,6 @@ export function useTaskKanbanFilters({
     fileSearchActive,
     fileSearchTextByTaskId,
     normalizedFileQuery,
-    sessionMap,
     sidebarFilter,
   ]);
 
@@ -148,7 +114,6 @@ export function useTaskKanbanFilters({
   }, [diaryTasks, selectedTaskId, tasks, visibleTasks]);
 
   return {
-    sessionMap,
     visibleTasks,
     visibleDiaryTasks,
     visibleColumns,

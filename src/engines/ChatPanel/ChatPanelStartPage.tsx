@@ -280,7 +280,9 @@ export function ChatPanelStartPage({
         className="shrink-0 bg-chat-pane"
         data-testid="chat-panel-start-page-tabs"
       >
-        <div className="mx-auto flex h-14 w-full max-w-[932px] items-center justify-center gap-3 px-4 pt-1">
+        <div
+          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-14 items-center justify-center gap-3 px-4 pt-1`}
+        >
           <TabPill
             activeTab={activeView}
             tabs={[

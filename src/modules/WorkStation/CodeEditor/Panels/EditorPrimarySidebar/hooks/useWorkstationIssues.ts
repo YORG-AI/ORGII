@@ -22,10 +22,11 @@ import {
   addIssueComment,
   closeIssue,
   createIssue,
-  fetchIssueComments,
+  fetchIssueTimeline,
   fetchIssues,
   fetchRepoCollaborators,
   fetchRepoLabels,
+  issueCommentToTimelineItem,
   reopenIssue,
   updateIssue,
 } from "@src/services/git/operations/githubIssues";
@@ -425,34 +426,46 @@ export function useWorkstationIssues({
   const selectIssue = useCallback(
     (issue: GitHubIssue | null) => {
       if (!issue) {
-        setSelectedState((prev) => ({ ...prev, issue: null, comments: [] }));
+        setSelectedState((prev) => ({ ...prev, issue: null, timeline: [] }));
         return;
       }
       setSelectedState((prev) => ({
         ...prev,
         issue,
-        comments: [],
-        commentsLoading: true,
+        timeline: [],
+        timelineLoading: true,
       }));
 
-      if (!resolvedRemoteUrl) return;
+      if (!resolvedRemoteUrl) {
+        setSelectedState((prev) =>
+          prev.issue?.number === issue.number
+            ? { ...prev, timelineLoading: false }
+            : prev
+        );
+        return;
+      }
       void (async () => {
-        const result = await fetchIssueComments({
+        const result = await fetchIssueTimeline({
           remoteUrl: resolvedRemoteUrl,
           issueNumber: issue.number,
         });
         if (!mountedRef.current) return;
         if (result.data) {
-          setSelectedState((prev) => ({
-            ...prev,
-            comments: result.data!,
-            commentsLoading: false,
-          }));
+          setSelectedState((prev) =>
+            prev.issue?.number === issue.number
+              ? {
+                  ...prev,
+                  timeline: result.data!,
+                  timelineLoading: false,
+                }
+              : prev
+          );
         } else {
-          setSelectedState((prev) => ({
-            ...prev,
-            commentsLoading: false,
-          }));
+          setSelectedState((prev) =>
+            prev.issue?.number === issue.number
+              ? { ...prev, timelineLoading: false }
+              : prev
+          );
         }
       })();
     },
@@ -565,7 +578,10 @@ export function useWorkstationIssues({
       if (result.data) {
         setSelectedState((prev) => ({
           ...prev,
-          comments: [...prev.comments, result.data!],
+          timeline: [
+            ...prev.timeline,
+            issueCommentToTimelineItem(result.data!),
+          ],
           submittingComment: false,
         }));
         setListState((prev) => ({
@@ -601,9 +617,9 @@ export function useWorkstationIssues({
       });
       setSelectedState({
         issue: null,
-        comments: [],
+        timeline: [],
         loading: false,
-        commentsLoading: false,
+        timelineLoading: false,
         error: null,
         submittingComment: false,
       });
@@ -663,8 +679,8 @@ export function useWorkstationIssues({
     setSearchQuery: handleSetSearchQuery,
     selectedIssue: selectedState.issue,
     selectIssue,
-    comments: selectedState.comments,
-    commentsLoading: selectedState.commentsLoading,
+    timeline: selectedState.timeline,
+    timelineLoading: selectedState.timelineLoading,
     submittingComment: selectedState.submittingComment,
     handleCreateIssue,
     handleUpdateIssue,

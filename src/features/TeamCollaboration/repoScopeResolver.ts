@@ -21,8 +21,13 @@
 import { useSyncExternalStore } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
+import { resolveGitHubRepoNetworkIdentityLocal } from "@src/api/tauri/github";
 
-import { isLocalRepoPath, normalizeRepoScopeKey } from "./collabSyncUtils";
+import {
+  isLocalRepoPath,
+  normalizeRepoScopeKey,
+  pickMatchingOrgScope,
+} from "./collabSyncUtils";
 
 // ============================================================================
 // Shareable scope keys (git-remote-only sharing)
@@ -37,10 +42,39 @@ import { isLocalRepoPath, normalizeRepoScopeKey } from "./collabSyncUtils";
  * dialog gating, repo picker) so one resolution serves every consumer.
  * Machine-global truth for the lifetime of the app run — a repo gaining a
  * remote is picked up after restart (or a `clearShareableScopeKeyCache` in
- * tests).
+ * tests). Both resolver caches use a bounded LRU so a long-running renderer
+ * cannot retain every repository it has ever encountered.
  */
+export const MAX_RESOLVER_CACHE_ENTRIES = 256;
 const shareableScopeKeyCache = new Map<string, string[] | null>();
 const shareableScopeKeyInFlight = new Map<string, Promise<string[] | null>>();
+
+interface RepoNetworkScopeCacheEntry {
+  value: string | null;
+  expiresAt: number;
+}
+
+const repoNetworkScopeCache = new Map<string, RepoNetworkScopeCacheEntry>();
+const repoNetworkScopeInFlight = new Map<string, Promise<string | null>>();
+const NETWORK_LOOKUP_FAILURE_TTL_MS = 30_000;
+
+function readLruEntry<K, V>(cache: Map<K, V>, key: K): V | undefined {
+  const value = cache.get(key);
+  if (value === undefined) return undefined;
+  cache.delete(key);
+  cache.set(key, value);
+  return value;
+}
+
+function writeLruEntry<K, V>(cache: Map<K, V>, key: K, value: V): void {
+  cache.delete(key);
+  cache.set(key, value);
+  while (cache.size > MAX_RESOLVER_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value as K | undefined;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+}
 
 type ShareableScopeKeyListener = (
   repoPath: string,
@@ -94,7 +128,7 @@ export function peekShareableScopeKeys(
   const normalizedInput = normalizeRepoScopeKey(input);
   if (!normalizedInput) return null;
   if (!isLocalRepoPath(normalizedInput)) return [normalizedInput];
-  return shareableScopeKeyCache.get(normalizedInput);
+  return readLruEntry(shareableScopeKeyCache, normalizedInput);
 }
 
 /**
@@ -111,6 +145,22 @@ export function peekShareableScopeKey(
 }
 
 /**
+ * Normalize a persisted set of raw Git remotes into the same scope-key shape
+ * as the live checkout resolver. Imported-history callers use this pure path
+ * so grouping old sessions never probes their historical working folders.
+ */
+export function shareableScopeKeysFromRemoteUrls(
+  remoteUrls: readonly string[] | null | undefined
+): string[] | null {
+  const keys: string[] = [];
+  for (const remoteUrl of remoteUrls ?? []) {
+    const key = normalizeRepoScopeKey(remoteUrl);
+    if (key && !keys.includes(key)) keys.push(key);
+  }
+  return keys.length > 0 ? keys : null;
+}
+
+/**
  * The git-remote-only resolver (design §8.3): returns the normalized keys of
  * ALL remotes (origin first) when the repo has any, and `null` when it does
  * not — that null IS the "not shareable" signal. A local path is never
@@ -123,7 +173,7 @@ export async function resolveShareableScopeKeys(
   if (!normalizedInput) return null;
   if (!isLocalRepoPath(normalizedInput)) return [normalizedInput];
 
-  const cached = shareableScopeKeyCache.get(normalizedInput);
+  const cached = readLruEntry(shareableScopeKeyCache, normalizedInput);
   if (cached !== undefined) return cached;
   const pending = shareableScopeKeyInFlight.get(normalizedInput);
   if (pending) return pending;
@@ -149,17 +199,13 @@ export async function resolveShareableScopeKeys(
         ...remotes.filter((remote) => remote.name === "origin"),
         ...remotes.filter((remote) => remote.name !== "origin"),
       ];
-      const keys: string[] = [];
-      for (const remote of ordered) {
-        const remoteUrl = remote.url || remote.fetch_url;
-        const key = remoteUrl ? normalizeRepoScopeKey(remoteUrl) : "";
-        if (key && !keys.includes(key)) keys.push(key);
-      }
-      const result = keys.length > 0 ? keys : null;
+      const result = shareableScopeKeysFromRemoteUrls(
+        ordered.map((remote) => remote.url || remote.fetch_url)
+      );
       // Guard against a cache cleared while this lookup was in flight
       // (tests, future invalidation): a stale task must not repopulate it.
       if (shareableScopeKeyInFlight.get(normalizedInput) === task) {
-        shareableScopeKeyCache.set(normalizedInput, result);
+        writeLruEntry(shareableScopeKeyCache, normalizedInput, result);
         notifyShareableScopeKeys(normalizedInput, result);
       }
       return result;
@@ -199,6 +245,144 @@ export function primeShareableScopeKey(input: string): void {
 export function clearShareableScopeKeyCache(): void {
   shareableScopeKeyCache.clear();
   shareableScopeKeyInFlight.clear();
+  repoNetworkScopeCache.clear();
+  repoNetworkScopeInFlight.clear();
+}
+
+// ============================================================================
+// Provider repository identity (GitHub fork network)
+// ============================================================================
+
+function githubRepoFullName(scopeKey: string): string | null {
+  const normalized = normalizeRepoScopeKey(scopeKey);
+  if (!normalized.startsWith("github.com/") || isLocalRepoPath(normalized)) {
+    return null;
+  }
+  const fullName = normalized.slice("github.com/".length);
+  return fullName.split("/").length === 2 ? fullName : null;
+}
+
+/**
+ * Synchronous network-root cache view. Non-GitHub remote keys are already
+ * their own exact identity. A GitHub key is `undefined` until its repository
+ * metadata has resolved, then the normalized `source.full_name` shared by
+ * every fork in the network (or null during a bounded failure backoff).
+ */
+export function peekRepoNetworkScopeKey(
+  input: string
+): string | null | undefined {
+  const normalized = normalizeRepoScopeKey(input);
+  if (!normalized || isLocalRepoPath(normalized)) return null;
+  if (!githubRepoFullName(normalized)) return normalized;
+  const entry = readLruEntry(repoNetworkScopeCache, normalized);
+  if (!entry) return undefined;
+  if (entry.expiresAt <= Date.now()) {
+    repoNetworkScopeCache.delete(normalized);
+    return undefined;
+  }
+  return entry.value;
+}
+
+/** Resolve a remote key to its provider-level repository identity. */
+export async function resolveRepoNetworkScopeKey(
+  input: string
+): Promise<string | null> {
+  const normalized = normalizeRepoScopeKey(input);
+  if (!normalized || isLocalRepoPath(normalized)) return null;
+  const fullName = githubRepoFullName(normalized);
+  if (!fullName) return normalized;
+  const cached = peekRepoNetworkScopeKey(normalized);
+  if (cached !== undefined) return cached;
+  const pending = repoNetworkScopeInFlight.get(normalized);
+  if (pending) return pending;
+
+  const task = resolveGitHubRepoNetworkIdentityLocal(fullName)
+    .then((identity) => {
+      const sourceKey = normalizeRepoScopeKey(
+        `github.com/${identity.source_full_name}`
+      );
+      return sourceKey && !isLocalRepoPath(sourceKey) ? sourceKey : null;
+    })
+    .catch(() => null)
+    .then((value) => {
+      if (repoNetworkScopeInFlight.get(normalized) === task) {
+        writeLruEntry(repoNetworkScopeCache, normalized, {
+          value,
+          expiresAt:
+            value === null
+              ? Date.now() + NETWORK_LOOKUP_FAILURE_TTL_MS
+              : Number.POSITIVE_INFINITY,
+        });
+        // Reuse the existing cache-version subscription: repo pickers and
+        // share dialogs already subscribe to it and will re-evaluate their
+        // synchronous eligibility when the fork-network identity lands.
+        notifyShareableScopeKeys(normalized, value ? [value] : null);
+      }
+      return value;
+    })
+    .finally(() => {
+      if (repoNetworkScopeInFlight.get(normalized) === task) {
+        repoNetworkScopeInFlight.delete(normalized);
+      }
+    });
+  repoNetworkScopeInFlight.set(normalized, task);
+  return task;
+}
+
+export function primeRepoNetworkScopeKey(input: string): void {
+  void resolveRepoNetworkScopeKey(input).catch(() => null);
+}
+
+/**
+ * Exact remote match first; on GitHub, fall back to a confirmed common
+ * `source.full_name`. The returned string is always the ORIGINAL org scope,
+ * because the cloud backend validates that wire value against its stored
+ * governance scopes.
+ *
+ * `undefined` means a GitHub network lookup was primed and is still pending.
+ */
+export function peekMatchingOrgRepoScope(
+  repoScopeKeys: string[] | null | undefined,
+  orgScopes: string[] | null | undefined
+): string | null | undefined {
+  const exact = pickMatchingOrgScope(repoScopeKeys, orgScopes ?? undefined);
+  if (exact !== null) return exact;
+  if (!repoScopeKeys?.length || !orgScopes?.length) return null;
+
+  let unresolved = false;
+  for (const repoScopeKey of repoScopeKeys) {
+    const repoRoot = peekRepoNetworkScopeKey(repoScopeKey);
+    if (repoRoot === undefined) {
+      unresolved = true;
+      primeRepoNetworkScopeKey(repoScopeKey);
+      continue;
+    }
+    if (!repoRoot) continue;
+    for (const orgScope of orgScopes) {
+      const orgRoot = peekRepoNetworkScopeKey(orgScope);
+      if (orgRoot === undefined) {
+        unresolved = true;
+        primeRepoNetworkScopeKey(orgScope);
+        continue;
+      }
+      if (orgRoot && repoRoot === orgRoot) return orgScope;
+    }
+  }
+  return unresolved ? undefined : null;
+}
+
+export async function resolveMatchingOrgRepoScope(
+  repoScopeKeys: string[] | null | undefined,
+  orgScopes: string[] | null | undefined
+): Promise<string | null> {
+  const immediate = peekMatchingOrgRepoScope(repoScopeKeys, orgScopes);
+  if (immediate !== undefined) return immediate;
+  await Promise.all(
+    [...(repoScopeKeys ?? []), ...(orgScopes ?? [])].map((key) =>
+      resolveRepoNetworkScopeKey(key)
+    )
+  );
+  return peekMatchingOrgRepoScope(repoScopeKeys, orgScopes) ?? null;
 }
 
 // ============================================================================
@@ -242,7 +426,12 @@ export async function resolveLocalCheckoutForScopeKey(
     if (seen.has(normalizedPath)) continue;
     seen.add(normalizedPath);
     try {
-      if ((await resolve(normalizedPath))?.includes(normalizedKey)) {
+      const candidateKeys = await resolve(normalizedPath);
+      if (
+        candidateKeys?.includes(normalizedKey) ||
+        (await resolveMatchingOrgRepoScope(candidateKeys, [normalizedKey])) !==
+          null
+      ) {
         return normalizedPath;
       }
     } catch {

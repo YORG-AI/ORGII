@@ -11,7 +11,7 @@
  *
  * React/Jotai-free by design — unit-testable in isolation.
  */
-import { pickMatchingOrgScope } from "@src/features/TeamCollaboration/collabSyncUtils";
+import { peekMatchingOrgRepoScope } from "@src/features/TeamCollaboration/repoScopeResolver";
 import {
   type SessionOrgTags,
   cloudOrgIdsForSession,
@@ -22,6 +22,22 @@ import {
   type Org2CloudOrg,
   parseCloudOrgSelectorValue,
 } from "../org2CloudOrgsAtom";
+
+const BARE_ORG_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Owning cloud org from `Session.orgId`, tolerating rows written before
+ * fork/import stamped the selector form: those carry a BARE org uuid, which
+ * the strict parser rejects, so their session looked org-less and lost every
+ * ownership-derived affordance (share dialog, org selector placement).
+ * `personal-org` and other non-cloud scopes still resolve to null.
+ */
+function resolveOwningCloudOrgId(orgId: string): string | null {
+  const parsed = parseCloudOrgSelectorValue(orgId);
+  if (parsed) return parsed;
+  return BARE_ORG_UUID_RE.test(orgId) ? orgId : null;
+}
 
 export function getCloudShareOrgsForSession(
   session: Pick<Session, "session_id" | "orgId">,
@@ -35,15 +51,18 @@ export function getCloudShareOrgsForSession(
     cloudOrgIdsForSession(sessionOrgTags, session.session_id)
   );
   const owningCloudOrgId = session.orgId
-    ? parseCloudOrgSelectorValue(session.orgId)
+    ? resolveOwningCloudOrgId(session.orgId)
     : null;
   if (owningCloudOrgId) explicitOrgIds.add(owningCloudOrgId);
 
-  return cloudOrgs.filter(
-    (org) =>
-      explicitOrgIds.has(org.orgId) &&
-      pickMatchingOrgScope(scopeKeys, repoScopesByOrg[org.orgId]) !== null
-  );
+  return cloudOrgs.filter((org) => {
+    if (!explicitOrgIds.has(org.orgId)) return false;
+    const matched = peekMatchingOrgRepoScope(
+      scopeKeys,
+      repoScopesByOrg[org.orgId]
+    );
+    return matched !== null && matched !== undefined;
+  });
 }
 
 /**

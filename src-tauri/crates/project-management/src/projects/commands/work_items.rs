@@ -19,7 +19,7 @@
 use super::super::io;
 use super::super::types::{
     BatchDeleteResult, BatchUpdateResult, EnrichedWorkItem, WorkItemData, WorkItemFrontmatter,
-    WorkItemPartialUpdate, WorkItemsViewData,
+    WorkItemPartialUpdate, WorkItemReadBucket, WorkItemsViewData,
 };
 
 // ---------------------------------------------------------------------
@@ -50,9 +50,14 @@ pub async fn project_read_work_items(
 pub async fn project_read_work_items_enriched(
     project_slug: String,
     org_id: Option<String>,
+    read_bucket: Option<WorkItemReadBucket>,
 ) -> Result<Vec<EnrichedWorkItem>, String> {
     tokio::task::spawn_blocking(move || {
-        io::read_all_work_items_enriched_scoped(&project_slug, org_id.as_deref())
+        io::read_all_work_items_enriched_scoped_filtered(
+            &project_slug,
+            org_id.as_deref(),
+            read_bucket,
+        )
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
@@ -101,10 +106,13 @@ pub async fn project_read_work_item(
 #[tauri::command]
 pub async fn work_item_read_standalone_items(
     org_id: Option<String>,
+    read_bucket: Option<WorkItemReadBucket>,
 ) -> Result<Vec<WorkItemData>, String> {
-    tokio::task::spawn_blocking(move || io::read_standalone_work_items(org_id.as_deref()))
-        .await
-        .map_err(|err| format!("Task join error: {}", err))?
+    tokio::task::spawn_blocking(move || {
+        io::read_standalone_work_items_filtered(org_id.as_deref(), read_bucket)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
 }
 
 #[tauri::command]

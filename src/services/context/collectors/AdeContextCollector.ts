@@ -35,6 +35,7 @@ import type {
 } from "@src/services/context/workspaceSnapshot";
 import { currentGitStatusAtom } from "@src/store/git";
 import { currentBranchAtom } from "@src/store/repo/atoms";
+import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import { settingsAtom } from "@src/store/settings";
 import { globalStatusBarStateAtom } from "@src/store/ui/workStationAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
@@ -47,8 +48,9 @@ import {
   workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import {
-  activeWorkStationFilePathAtom,
-  workstationLayoutAtom,
+  selectWorkstationPanel,
+  sessionWorkstationWorkspaceKey,
+  workstationTabsStateAtom,
 } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
@@ -81,6 +83,8 @@ export interface CollectAdeContextOptions {
    * have no session affinity.
    */
   expectedRepoPath?: string | null;
+  /** Agent session whose WorkStation task workspace supplies file context. */
+  sessionId?: string | null;
 }
 
 function normalizeRepoPath(value: string | undefined | null): string | null {
@@ -201,11 +205,26 @@ export function collectAdeContext(
 
     const payload: WorkspaceSnapshot = {};
     let hasData = false;
+    const workspaceSessionId = options.sessionId ?? null;
+    const workspacePanel = workspaceSessionId
+      ? selectWorkstationPanel(
+          store.get(workstationTabsStateAtom),
+          sessionWorkstationWorkspaceKey(workspaceSessionId)
+        )
+      : null;
+    const presentedSessionId = store.get(workstationActiveSessionIdAtom);
 
-    // Active file
+    // Active/open files are owned by the target agent session. New-session
+    // callers intentionally have no task workspace and therefore attach none.
     try {
-      const activeFile = store.get(activeWorkStationFilePathAtom);
-      if (activeFile) {
+      const activeTab = workspacePanel?.tabs.find(
+        (tab) => tab.id === workspacePanel.activeTabId
+      );
+      const activeFile =
+        activeTab?.type === "file" || activeTab?.type === "git-diff"
+          ? activeTab.data.filePath
+          : null;
+      if (typeof activeFile === "string" && activeFile) {
         payload.activeFile = activeFile;
         hasData = true;
       }
@@ -213,10 +232,8 @@ export function collectAdeContext(
       /* not available */
     }
 
-    // Open files in the single main pane
     try {
-      const layout = store.get(workstationLayoutAtom);
-      const tabs = layout?.mainPane?.tabs ?? [];
+      const tabs = workspacePanel?.tabs ?? [];
       const seen = new Set<string>();
       const openFiles: string[] = [];
       for (const tab of tabs) {
@@ -235,10 +252,14 @@ export function collectAdeContext(
       /* tabs not available */
     }
 
-    // Cursor position (file:line:column)
+    // Cursor state is a live UI value and is safe only when the target session
+    // still owns the presented WorkStation workspace.
     try {
+      const canAttachCursor =
+        workspaceSessionId !== null &&
+        workspaceSessionId === presentedSessionId;
       const statusBar = store.get(globalStatusBarStateAtom);
-      if (statusBar.cursor && payload.activeFile) {
+      if (canAttachCursor && statusBar.cursor && payload.activeFile) {
         payload.cursorPosition = `${payload.activeFile}:${statusBar.cursor.line}:${statusBar.cursor.column}`;
         hasData = true;
       }

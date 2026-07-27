@@ -231,11 +231,30 @@ where
     let before = SyncFieldSnapshot::capture(&frontmatter, &body);
     let history_before = WorkItemHistorySnapshot::capture(&frontmatter, &body);
     let tail_before = payload_tail_fingerprint(&frontmatter);
+    let scheduler_before = (
+        frontmatter.status.clone(),
+        frontmatter.start_date.clone(),
+        frontmatter.schedule.clone(),
+        frontmatter
+            .orchestrator_config
+            .as_ref()
+            .and_then(|config| config.selected_account_id.clone()),
+    );
 
     let result = mutator(&mut frontmatter, &mut body)?;
 
     let changed_fields = before.diff(&frontmatter, &body);
     let payload_tail_changed = payload_tail_fingerprint(&frontmatter) != tail_before;
+    let scheduler_changed = scheduler_before
+        != (
+            frontmatter.status.clone(),
+            frontmatter.start_date.clone(),
+            frontmatter.schedule.clone(),
+            frontmatter
+                .orchestrator_config
+                .as_ref()
+                .and_then(|config| config.selected_account_id.clone()),
+        );
 
     // Persist mutated state back. Always bump `local_version` so any
     // OCC observers (sync, future readers caching by version) detect it.
@@ -385,6 +404,9 @@ where
     ))?;
 
     map_db(tx.commit())?;
+    if scheduler_changed {
+        crate::projects::events::notify_work_item_schedule_changed();
+    }
     Ok((result, changed_fields, payload_tail_changed))
 }
 

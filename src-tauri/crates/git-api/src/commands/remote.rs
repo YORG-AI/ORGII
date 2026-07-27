@@ -19,43 +19,51 @@ use std::time::{Duration, Instant};
 
 const GIT_CREDENTIAL_FILL_TIMEOUT: Duration = Duration::from_millis(1_200);
 
-/// List remotes
+/// List remotes without requiring a system Git executable.
+///
+/// Remote discovery is read-only repository metadata. Using libgit2 here
+/// keeps workspace identity resolution available on clean Windows installs,
+/// where New Session can already select a registered checkout even though
+/// `git.exe` is not installed yet.
 pub fn list_remotes(repo_path: &Path) -> Result<Vec<GitRemoteInfo>, String> {
-    let output = run_git(repo_path, &["remote", "-v"])?;
+    // A selected workspace may be a package/subfolder rather than the Git
+    // root. Match `git -C <folder>` semantics by discovering upward.
+    let repository = git2::Repository::discover(repo_path).map_err(|error| {
+        format!(
+            "Not a git repository at {}: {}",
+            repo_path.display(),
+            error.message()
+        )
+    })?;
+    let remote_names = repository
+        .remotes()
+        .map_err(|error| format!("Failed to read git remotes: {}", error.message()))?;
+    let mut remotes = Vec::new();
 
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut remotes: std::collections::HashMap<String, GitRemoteInfo> =
-        std::collections::HashMap::new();
-
-    for line in stdout.lines() {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        if parts.len() < 3 {
+    for name in remote_names.iter().flatten() {
+        let remote = repository
+            .find_remote(name)
+            .map_err(|error| format!("Failed to read git remote {name}: {}", error.message()))?;
+        let fetch_url = remote.url().map(ToString::to_string);
+        // Git uses the fetch URL for pushes when no separate pushurl exists.
+        let push_url = remote
+            .pushurl()
+            .map(ToString::to_string)
+            .or_else(|| fetch_url.clone());
+        let Some(url) = fetch_url.clone().or_else(|| push_url.clone()) else {
             continue;
-        }
+        };
 
-        let name = parts[0].to_string();
-        let url = parts[1].to_string();
-        let url_type = parts[2].trim_matches(|c| c == '(' || c == ')');
-
-        let remote = remotes.entry(name.clone()).or_insert(GitRemoteInfo {
-            name: name.clone(),
-            url: url.clone(),
-            fetch_url: None,
-            push_url: None,
+        remotes.push(GitRemoteInfo {
+            name: name.to_string(),
+            url,
+            fetch_url,
+            push_url,
         });
-
-        match url_type {
-            "fetch" => remote.fetch_url = Some(url),
-            "push" => remote.push_url = Some(url),
-            _ => {}
-        }
     }
 
-    Ok(remotes.into_values().collect())
+    remotes.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(remotes)
 }
 
 /// Add a remote

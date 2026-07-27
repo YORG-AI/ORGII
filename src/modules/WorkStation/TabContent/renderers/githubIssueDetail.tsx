@@ -19,6 +19,7 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   addIssueComment,
   closeIssue,
+  issueCommentToTimelineItem,
   reopenIssue,
 } from "@src/services/git/operations/githubIssues";
 import {
@@ -126,7 +127,7 @@ const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
               prev.issue?.number === issue.number
                 ? { ...prev.issue, comments: prev.issue.comments + 1 }
                 : prev.issue,
-            comments: [...prev.comments, comment],
+            timeline: [...prev.timeline, issueCommentToTimelineItem(comment)],
             submittingComment: false,
           }));
         } else {
@@ -179,8 +180,8 @@ const GitHubIssueDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     return (
       <IssueDetailPanel
         issue={selectedState.issue}
-        comments={selectedState.comments}
-        commentsLoading={selectedState.commentsLoading}
+        timeline={selectedState.timeline}
+        timelineLoading={selectedState.timelineLoading}
         submittingComment={selectedState.submittingComment}
         showHeader={false}
         onClose={handleClose}

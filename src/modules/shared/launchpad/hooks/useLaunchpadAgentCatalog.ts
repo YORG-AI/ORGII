@@ -51,12 +51,12 @@ export function rustBuiltInVariantsFromDefinitions(
   return ordered;
 }
 
-export function useLaunchpadAgentCatalog() {
+export function useLaunchpadAgentCatalog(enabled = true) {
   const { agents: cliAgentList, loading: cliLoading } = useCliAgents({
-    enabled: true,
+    enabled,
   });
 
-  const definitionsLoaded = useEnsureAgentDefs();
+  const definitionsLoaded = useEnsureAgentDefs(enabled);
   const builtInAgents = useAtomValue(builtInAgentsAtom);
   const customAgents = useAtomValue(customAgentsAtom);
   const cliVisibilityOverrides = useAtomValue(cliAgentVisibilityOverridesAtom);
@@ -76,7 +76,7 @@ export function useLaunchpadAgentCatalog() {
     [cliAgentList, cliVisibilityOverrides]
   );
 
-  const ready = !cliLoading && definitionsLoaded;
+  const ready = !enabled || (!cliLoading && definitionsLoaded);
 
   return {
     allCliAgents: cliAgentList,

@@ -168,6 +168,7 @@ export interface RemoteTeammateSessionMetadata {
   ownerMemberId: string;
   ownerUserId: string;
   ownerDisplayName: string;
+  ownerAvatarUrl?: string;
   ownerIdentityKind: CollabIdentityKind;
   sourceSessionId: string;
   title: string;

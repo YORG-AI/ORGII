@@ -220,6 +220,25 @@ describe("parsePillTextToSnapshot", () => {
     ]);
   });
 
+  it("round-trips a generic link pill without swallowing its URL label", () => {
+    const snapshot = parsePillTextToSnapshot(
+      "example.com/docs [link:https://example.com/docs]"
+    );
+    expect(snapshot.parts).toEqual([
+      {
+        kind: "pill",
+        attrs: {
+          filePath: "https://example.com/docs",
+          fileName: "example.com/docs",
+          isFolder: false,
+          iconType: "link",
+          lineStart: null,
+          lineEnd: null,
+        },
+      },
+    ]);
+  });
+
   it("round-trips a paste pill (paste://… filePath, paste iconType)", () => {
     const snapshot = parsePillTextToSnapshot(
       "look pasted.json [paste:paste://1234-abc]"

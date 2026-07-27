@@ -10,9 +10,11 @@ export { externalCliSourceProbe, externalCliSourcesDetect } from "./detection";
 export {
   externalHistoryRescanSource,
   externalHistoryRescanSources,
+  type ExternalHistoryScanResult,
 } from "./rescan";
 export {
   fetchExternalSourceStats,
+  fetchExternalSourceStatsBatch,
   type ExternalSourceStats,
 } from "./sourceStats";
 export * from "./cursorIde";

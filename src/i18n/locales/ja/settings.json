@@ -139,10 +139,13 @@
       "helveticaNeue": "Helvetica Neue 風"
     },
     "uiScale": "UIスケール",
+    "preferences": "設定",
+    "usePointerCursors": "ポインターカーソルを使用",
+    "usePointerCursorsDesc": "インタラクティブな要素にカーソルを合わせたときにポインターへ変更します",
     "timezoneAuto": "自動（ブラウザ）",
     "timezoneSearchPlaceholder": "近くの都市を検索",
     "sendOnEnter": "Enter でメッセージを送信",
-    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します",
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter と Ctrl/Cmd+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します",
     "language": "言語",
     "languageSearchPlaceholder": "言語を検索...",
     "languageNames": {
@@ -1008,7 +1011,7 @@
     "decryptEffect": "Decrypt エフェクト",
     "decryptEffectDesc": "Agent メッセージに Decrypt アニメーションを有効にする",
     "sendOnEnter": "Enter でメッセージを送信",
-    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します"
+    "sendOnEnterDesc": "有効にすると Enter で送信し、Shift+Enter と Ctrl/Cmd+Enter で改行します。無効の場合は Ctrl/Cmd+Enter で送信します"
   },
   "languageServers": {
     "languageServersDesc": "オートコンプリート、診断、コードインテリジェンスのためのLSPサーバーを管理",

@@ -449,32 +449,46 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       CLOUD_FETCH_TIMEOUT_MS
     );
     await waitForRendered(
+      '[data-testid="cloud-org-sharing-floor"]',
+      "minimum sharing level section"
+    );
+    await waitForGone(
       '[data-testid="cloud-org-default-access"]',
-      "default sync level section"
+      "removed default sync level section"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-repo-scope"]',
+      "repo scopes section in General"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-settings"]',
+      "org settings section (admin)"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-sessions-row"]',
+      "Sessions row in General"
+    );
+    await waitForGone(
+      '[data-testid="cloud-org-tab-sessions"]',
+      "removed Sessions management tab"
+    );
+    await waitForGone(
+      '[data-testid="cloud-org-tab-repo-scope"]',
+      "removed standalone repo scopes tab"
     );
     await selectCloudOrgManagementTab("members", "members");
     await waitForRendered(
-      '[data-testid="cloud-org-member-row"]',
-      "members section (self row)"
+      '[data-testid="cloud-org-about-me"]',
+      "members About me section"
     );
     // Owner of the personal org ⇒ admin invite surface renders.
     await waitForRendered(
       '[data-testid="cloud-org-invites"]',
       "invites card (admin)"
     );
-    await selectCloudOrgManagementTab("repo-scope", "repo scopes");
-    await waitForRendered(
-      '[data-testid="cloud-org-repo-scope"]',
-      "repo scopes section"
-    );
-    await selectCloudOrgManagementTab("general", "general");
-    await waitForRendered(
-      '[data-testid="cloud-org-settings"]',
-      "org settings section (admin)"
-    );
   });
 
-  it("D. renders the sidebar Team sessions section under the cloud scope", async function () {
+  it("D. opens scoped Kanban List from General and renders Team sessions", async function () {
     this.timeout(60_000);
     if (!orgId) throw new Error("scenario C did not establish a cloud org");
     await selectCloudOrgScopeFromSidebar(
@@ -575,39 +589,57 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
     }
 
     // The debug bridge only establishes deterministic remote-session rows;
-    // the assertions below exercise the production management-tab click and
-    // the real shared SessionTable render path.
+    // the assertions below exercise the production General-row navigation,
+    // scoped Kanban projection, and real shared SessionTable render path.
     await openCloudOrgPanelFromSidebar(
       orgId,
       live ? null : { orgId, name: OFFLINE_ORG_NAME, role: "owner" }
     );
-    await selectCloudOrgManagementTab("sessions", "sessions");
-    const tableOrdinaryRowSelector = `[data-testid="cloud-org-session-row"][data-cloud-session-id="e2e-team-all-${RUN_ID}"]`;
+    await waitForGone(
+      '[data-testid="cloud-org-tab-sessions"]',
+      "removed Sessions management tab"
+    );
     await waitForRendered(
-      tableOrdinaryRowSelector,
-      "ordinary cloud session in management table"
+      '[data-testid="cloud-org-sessions-row"]',
+      "Sessions row in General"
+    );
+    await clickRendered(
+      '[data-testid="cloud-org-open-sessions"]',
+      "open scoped Kanban from Sessions row"
+    );
+    await waitForRendered(
+      '[data-testid="kanban-org-scope-select"]',
+      "scoped Kanban org selector"
+    );
+    await clickRendered('[data-testid="kanban-view-list"]', "Kanban List view");
+    const tableOrdinaryRowSelector = `[data-testid="kanban-list-session-row"]`;
+    const takeOverSelector = `[data-testid="kanban-list-session-take-over-e2e-team-all-${RUN_ID}"]`;
+    await waitForRendered(
+      takeOverSelector,
+      "Take over action for ordinary cloud session in Kanban List"
     );
     const sessionsTableEvidence = await execJS(`
-      const section = document.querySelector('[data-testid="cloud-org-sessions"]');
-      const table = section?.querySelector('.settings-table-root');
-      const body = section?.parentElement;
+      const scope = document.querySelector('[data-testid="kanban-org-scope-select"]');
+      const row = Array.from(document.querySelectorAll(${JSON.stringify(tableOrdinaryRowSelector)}))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(`Visible to org ${RUN_ID}`)}));
+      const table = row?.closest('.settings-table-root');
+      const tableHost = table?.parentElement;
       return {
-        hasExpectedText:
-          section?.textContent?.includes(${JSON.stringify(`Visible to org ${RUN_ID}`)}) === true &&
-          section?.textContent?.includes('Teammate A') === true,
+        scopedOrg: scope?.textContent ?? '',
+        hasExpectedText: row?.textContent?.includes('Teammate A') === true,
+        hasTakeOver: !!document.querySelector(${JSON.stringify(takeOverSelector)}),
         fillsSection:
-          !!section && !!table &&
-          Math.abs(table.getBoundingClientRect().width - section.getBoundingClientRect().width) < 2,
-        bodyMaxWidth: body ? getComputedStyle(body).maxWidth : null,
+          !!table && !!tableHost &&
+          Math.abs(table.getBoundingClientRect().width - tableHost.getBoundingClientRect().width) < 2,
       };
     `);
     if (
       !sessionsTableEvidence?.hasExpectedText ||
-      !sessionsTableEvidence?.fillsSection ||
-      sessionsTableEvidence?.bodyMaxWidth !== "none"
+      !sessionsTableEvidence?.hasTakeOver ||
+      !sessionsTableEvidence?.fillsSection
     ) {
       throw new Error(
-        `cloud sessions table is missing data or not full width: ${JSON.stringify(sessionsTableEvidence)}`
+        `scoped Kanban List is missing cloud session data/action: ${JSON.stringify(sessionsTableEvidence)}`
       );
     }
 
@@ -752,12 +784,18 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
       "ensureRepoSelected(repository governance)"
     );
+    // The helper only seeds the local repo inventory; Add, option selection,
+    // and Save below exercise the production rendered interaction.
     await openCloudOrgPanelFromSidebar(orgId);
-    await selectCloudOrgManagementTab("repo-scope", "repository scope");
+    await selectCloudOrgManagementTab("general", "repository scope in General");
     await waitForRendered(
       '[data-testid="cloud-org-repo-scope"]',
       "repository-scope management section",
       CLOUD_FETCH_TIMEOUT_MS
+    );
+    await clickRendered(
+      '[data-testid="cloud-org-add-repo-scope"]',
+      "show repository scope picker"
     );
     await browser.waitUntil(
       async () =>
@@ -773,17 +811,29 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
         timeoutMsg: `rendered repo picker did not expose enabled scope ${E2E_REPO_SCOPE_KEY}`,
       }
     );
-    await execJS(`
+    const scopeOptionMarked = await execJS(`
       const expected = ${JSON.stringify(E2E_REPO_SCOPE_KEY)};
       const labels = [...document.querySelectorAll('[data-testid="cloud-org-repo-scope"] button span[title]')];
-      labels.find((candidate) => candidate.getAttribute('title') === expected)?.closest('button')?.click();
-      return true;
+      const button = labels.find((candidate) => candidate.getAttribute('title') === expected)?.closest('button');
+      button?.setAttribute('data-e2e-repo-scope-target', 'true');
+      return Boolean(button);
     `);
+    if (!scopeOptionMarked) {
+      throw new Error(
+        `rendered repo scope option disappeared: ${E2E_REPO_SCOPE_KEY}`
+      );
+    }
+    await clickRendered(
+      '[data-e2e-repo-scope-target="true"]',
+      "select repository scope"
+    );
     await browser.waitUntil(
       async () =>
         execJS(`
-          const button = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
-          return !!button && !button.disabled;
+          const save = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
+          const cancel = document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]');
+          const add = document.querySelector('[data-testid="cloud-org-add-repo-scope"]');
+          return !!save && !save.disabled && !!cancel && save.closest('.section-layout-row') === add?.closest('.section-layout-row');
         `),
       {
         timeout: RENDER_TIMEOUT_MS,
@@ -800,10 +850,15 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
           const section = document.querySelector('[data-testid="cloud-org-repo-scope"]');
           return {
             text: section?.textContent ?? '',
-            saveDisabled: document.querySelector('[data-testid="cloud-org-save-repo-scopes"]')?.disabled ?? false,
+            saveVisible: !!document.querySelector('[data-testid="cloud-org-save-repo-scopes"]'),
+            cancelVisible: !!document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]'),
           };
         `);
-        return state.saveDisabled && state.text.includes(E2E_REPO_SCOPE_KEY);
+        return (
+          !state.saveVisible &&
+          !state.cancelVisible &&
+          state.text.includes(E2E_REPO_SCOPE_KEY)
+        );
       },
       {
         timeout: CLOUD_FETCH_TIMEOUT_MS,

@@ -63,6 +63,7 @@ interface ChatPanelHeaderProps {
   showSessionContent: boolean;
   /** Owner-side share entry gate (design §6.3): own session + org in scope. */
   showCloudShareSettings: boolean;
+  showTranscriptActions?: boolean;
   t: TFunction<["sessions", "common", "projects", "navigation"]>;
   toggleHeaderActionsMenu: () => void;
   visibleRegionNotice: ChatPanelRegionNotice | null;
@@ -109,6 +110,7 @@ export function ChatPanelHeader({
   showHeader,
   showSessionContent,
   showCloudShareSettings,
+  showTranscriptActions,
   t,
   toggleHeaderActionsMenu,
   visibleRegionNotice,
@@ -206,6 +208,7 @@ export function ChatPanelHeader({
             moveTarget="workstation"
             paginationEnabled={paginationEnabled}
             showCloudShareSettings={showCloudShareSettings}
+            showTranscriptActions={showTranscriptActions}
             tokenUsageVisible={tokenUsageVisible}
             toggleHeaderActionsMenu={toggleHeaderActionsMenu}
             triggerTestId="chat-panel-header-more-button"

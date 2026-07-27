@@ -233,7 +233,13 @@ fn transition_allowed(from: TurnIntentStatus, to: TurnIntentStatus) -> bool {
 fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
     let source_str: String = row.get(3)?;
     let status_str: String = row.get(4)?;
-    let source = TurnIntentSource::parse(&source_str).unwrap_or(TurnIntentSource::UserSubmit);
+    let source = TurnIntentSource::parse(&source_str).ok_or_else(|| {
+        rusqlite::Error::FromSqlConversionFailure(
+            3,
+            rusqlite::types::Type::Text,
+            format!("unknown turn_intents.source value: {source_str}").into(),
+        )
+    })?;
     let status = TurnIntentStatus::parse(&status_str).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
             4,
@@ -442,6 +448,34 @@ mod tests {
             TurnIntentStatus::Queued,
         )
         .expect("first upsert succeeds")
+    }
+
+    #[test]
+    fn invalid_stored_source_is_rejected_instead_of_becoming_user_submit() {
+        with_temp_orgii_home(|| {
+            let session = "test-session-invalid-source";
+            let intent = "intent-invalid-source";
+            let now = Utc::now().to_rfc3339();
+            let conn = get_connection().expect("open sessions DB");
+            conn.execute(
+                "INSERT INTO session_turn_intents
+                    (session_id, turn_intent_id, client_message_id, source, status,
+                     created_at, updated_at)
+                 VALUES (?1, ?2, NULL, 'force-send', 'queued', ?3, ?3)",
+                params![session, intent, now],
+            )
+            .expect("seed invalid source row");
+            drop(conn);
+
+            let error = list_for_session(session)
+                .expect_err("unknown source must fail instead of silently changing semantics");
+            assert!(
+                error
+                    .to_string()
+                    .contains("unknown turn_intents.source value"),
+                "unexpected error: {error}"
+            );
+        });
     }
 
     #[test]

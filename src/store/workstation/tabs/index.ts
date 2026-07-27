@@ -17,6 +17,14 @@ export type {
   WorkStationTabCategory,
   PanelState,
   WorkStationLayoutState,
+  WorkstationWorkspaceKey,
+  WorkstationWorkspaceId,
+  WorkstationTabPartition,
+  WorkstationTabRef,
+  WorkstationWorkspaceState,
+  WorkstationSharedState,
+  WorkstationTabsStateV3,
+  WorkstationTabOwnership,
   TimelineDiffCommitInfo,
   // Editor cache types
   EditorRepoCache,
@@ -25,13 +33,31 @@ export type {
   ToolTabType,
 } from "./types";
 
-export { FILE_TAB_TYPES, TOOL_TAB_TYPES } from "./types";
+export {
+  FILE_TAB_TYPES,
+  TOOL_TAB_TYPES,
+  getWorkstationTabOwnership,
+} from "./types";
 
 // ============================================
 // Atoms
 // ============================================
 export {
   workstationLayoutAtom,
+  workstationTabsStateAtom,
+  workstationWorkspaceStateAtom,
+  presentedWorkstationWorkspaceKeyAtom,
+  GLOBAL_WORKSTATION_WORKSPACE_KEY,
+  sessionWorkstationWorkspaceKey,
+  claimLegacyWorkstationSeedAtom,
+  disposeWorkstationWorkspaceAtom,
+  openWorkstationTabAtom,
+  closeWorkstationTabAtom,
+  removeSharedWorkstationTabAtom,
+  focusWorkstationTabAtom,
+  updateWorkstationTabDataAtom,
+  reorderWorkstationTabsAtom,
+  selectWorkstationPanel,
   mainPaneStateAtom,
   mainPaneTabsAtom,
   mainPaneActiveTabIdAtom,
@@ -42,15 +68,19 @@ export {
   requestTabScrollRevealAtom,
 } from "./atoms";
 
+export { workstationWorkspaceId } from "./storage";
+
 export {
   queueFileOpens,
   consumePendingFileOpens,
+  clearPendingFileOpensForSession,
   type PendingFileOpen,
 } from "./pendingFileOpens";
 
 export {
   queuePendingCodeEditorTab,
   consumePendingCodeEditorTab,
+  clearPendingCodeEditorTabForSession,
 } from "./pendingCodeEditorTab";
 
 // ============================================

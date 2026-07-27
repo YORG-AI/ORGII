@@ -1,22 +1,22 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Open-source Cursor-style agent IDE<br />— but built for reviewability, traceability, and creative freedom, not just faster coding.</strong></p>
+  <p><strong>The system of record for software built with agents.<br />Run your coding agents — replay any session, review as a team, and trace every line back to the decision behind it.</strong></p>
 </div>
 
 ---
 
 <p align="center">
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest"><strong>All latest release assets</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest"><strong>All latest release assets</strong></a>
 </p>
 
 ---
@@ -31,9 +31,11 @@
   <video src="https://github.com/user-attachments/assets/bd4833d2-4cc4-4971-9805-84529b14d01a" controls width="720"></video>
 </p>
 
-It is not just another AI coding tool; it is an experiment in human/agent organizations and org-level alignment. Agents are getting better, but collaboration, observability, structure, and shared accountability are not keeping up — and in some cases are getting worse. Cursor, Claude Code, and similar tools often treat agents as outsourced assistants: useful for output, but hard to audit, coordinate, align, or evolve at a system level.
+Answering why a piece of code exists — and whether it worked — has always meant stitching systems together by hand. Jira sees only tickets. Codex sees only its own sessions. GitHub sees only committed lines. Amplitude sees only metrics. That was survivable when humans wrote the code. At agent speed it isn't: code written on Monday is legacy by Friday.
 
-ORG-II explores a different model: agents as persistent, observable colleagues inside a structured organization. Instead of stateless, hard-to-review AI IDE sessions, it introduces replayable agent execution, cross-session memory, AI blame, and a local-first Rust-based runtime so humans, agents, and teams can collaborate around shared context and aligned goals.
+ORG-2 is where your team runs its coding agents — a native Rust harness plus launchers for 20+ agent CLIs — and it builds that record automatically. Every session becomes a trajectory teammates replay like a video, reviewing how the work was actually built rather than just the diff and commenting in context. Sessions run in other tools are ingested and backfilled from their history, so the record covers work that never touched the app. The record links what the human asked for, what the agent understood, and what it actually did, so any shipped line traces back to the session that wrote it.
+
+It is not just another AI coding tool; it is an experiment in human/agent organizations and org-level alignment. ORG-II treats agents as persistent, observable colleagues inside a structured organization — replayable execution, cross-session memory, AI blame, and a local-first Rust runtime so humans, agents, and teams can collaborate around shared context and aligned goals.
 
 ## Features
 
@@ -189,16 +191,16 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
 
 ## Download
 
-Current build version: v1.1.24 (2026-07-16)
+Current build version: v1.2.2 (2026-07-25)
 
 Download the latest ORGII desktop app with one click:
 
-- [macOS Apple Silicon](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
-- [Windows x64 installer](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
-- [Windows x64 MSI](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
-- [Linux x64 AppImage](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
-- [Linux x64 DEB](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
-- [All latest release assets](https://github.com/yorgai/ORG2/releases/latest)
+- [macOS Apple Silicon](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
+- [Windows x64 installer](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
+- [Windows x64 MSI](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
+- [Linux x64 AppImage](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
+- [Linux x64 DEB](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
+- [All latest release assets](https://github.com/org2AI/ORG2/releases/latest)
 
 The direct download links always resolve through GitHub's latest release pointer.
 
@@ -230,7 +232,7 @@ If a sidecar is missing, the Rust build creates a small placeholder resource so 
 Have questions, feedback, or want to follow along as ORG-2 evolves? Join us on Discord:
 
 👉 **Discord: [discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
-👉 **WeChat: [https://github.com/yorgai/ORG2/issues/128]**
+👉 **WeChat: [https://github.com/org2AI/ORG2/issues/128]**
 
 - **#how-to-use-org2** and **#faq** — get up and running
 - **#announcement** — release news and updates

@@ -12,7 +12,14 @@ import {
 } from "@src/store/settings/settingsAtom";
 import type { Project } from "@src/types/core/project";
 import type { WorkItem } from "@src/types/core/workItem";
+import { CHAT_PANEL_SURFACE_KIND } from "@src/types/ui/chatPanel";
+import type { ProjectOrgSurfaceView } from "@src/types/ui/projectOrg";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
+
+export {
+  CHAT_PANEL_SURFACE_KIND,
+  type ChatPanelSurfaceKind,
+} from "@src/types/ui/chatPanel";
 
 // ============================================
 // Chat Panel Layout Atoms
@@ -334,6 +341,10 @@ export interface ChatPanelSelectedProjectOrg {
   orgName: string;
   orgScope: "personal_org" | "project_org";
   orgSyncProvider?: string | null;
+  /** Optional surface requested by the action opening/focusing this ORG. */
+  initialView?: ProjectOrgSurfaceView;
+  /** Changes when an opener explicitly requests `initialView` again. */
+  initialViewRequestId?: number;
 }
 
 export const chatPanelSelectedProjectOrgAtom =
@@ -360,6 +371,17 @@ chatPanelSelectedWorkspaceAtom.debugLabel = "chatPanelSelectedWorkspaceAtom";
 export interface ChatPanelSelectedCloudOrg {
   orgId: string;
 }
+
+/** The explicit provider variant owned by the shared organization tab. */
+export type ChatPanelSelectedOrganization =
+  | {
+      kind: "cloud";
+      cloudOrg: ChatPanelSelectedCloudOrg;
+    }
+  | {
+      kind: "local";
+      projectOrg: ChatPanelSelectedProjectOrg;
+    };
 
 export const chatPanelSelectedCloudOrgAtom =
   atom<ChatPanelSelectedCloudOrg | null>(null);
@@ -399,24 +421,6 @@ export const chatPanelWorkspaceOverviewTabAtom = atom<WorkspaceOverviewTab>(
 );
 chatPanelWorkspaceOverviewTabAtom.debugLabel =
   "chatPanelWorkspaceOverviewTabAtom";
-
-export const CHAT_PANEL_SURFACE_KIND = {
-  SESSION: "session",
-  BENCHMARK_SESSION_GROUP: "benchmarkSessionGroup",
-  NEW_PROJECT: "newProject",
-  NEW_GITHUB_ISSUES_PROJECT: "newGithubIssuesProject",
-  NEW_WORK_ITEM: "newWorkItem",
-  NEW_COLLAB_ORG: "newCollabOrg",
-  PROJECT: "project",
-  PROJECT_ORG: "projectOrg",
-  WORK_ITEM: "workItem",
-  WORKSPACE_EXPLORE: "workspaceExplore",
-  WORKSPACE_OVERVIEW: "workspaceOverview",
-  CLOUD_ORG: "cloudOrg",
-} as const;
-
-export type ChatPanelSurfaceKind =
-  (typeof CHAT_PANEL_SURFACE_KIND)[keyof typeof CHAT_PANEL_SURFACE_KIND];
 
 export type ChatPanelSurfaceState =
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.SESSION }

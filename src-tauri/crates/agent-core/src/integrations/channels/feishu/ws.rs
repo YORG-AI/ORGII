@@ -28,6 +28,50 @@ const MAX_BACKOFF_SECS: u64 = 900;
 
 /// Fragment cache entries older than this are purged.
 const FRAGMENT_TTL: Duration = Duration::from_secs(300);
+const MAX_FRAGMENT_MESSAGES: usize = 128;
+const MAX_FRAGMENTS_PER_MESSAGE: usize = 256;
+const MAX_FRAGMENT_MESSAGE_BYTES: usize = 2 * 1024 * 1024;
+const MAX_FRAGMENT_CACHE_BYTES: usize = 8 * 1024 * 1024;
+
+type FragmentCache = std::collections::HashMap<String, (usize, Vec<Option<Vec<u8>>>)>;
+
+fn fragment_cache_bytes(cache: &FragmentCache) -> usize {
+    cache
+        .values()
+        .flat_map(|(_, fragments)| fragments)
+        .filter_map(Option::as_ref)
+        .map(Vec::len)
+        .sum()
+}
+
+fn prune_stale_fragments(
+    cache: &mut FragmentCache,
+    timestamps: &mut std::collections::HashMap<String, Instant>,
+    now: Instant,
+) {
+    cache.retain(|key, _| {
+        timestamps
+            .get(key)
+            .is_some_and(|timestamp| now.duration_since(*timestamp) < FRAGMENT_TTL)
+    });
+    timestamps.retain(|key, _| cache.contains_key(key));
+}
+
+fn evict_oldest_fragment_message(
+    cache: &mut FragmentCache,
+    timestamps: &mut std::collections::HashMap<String, Instant>,
+) -> bool {
+    let Some(oldest_key) = timestamps
+        .iter()
+        .min_by_key(|(_, timestamp)| *timestamp)
+        .map(|(key, _)| key.clone())
+    else {
+        return false;
+    };
+    cache.remove(&oldest_key);
+    timestamps.remove(&oldest_key);
+    true
+}
 
 /// Compute exponential backoff delay: `base * 2^attempt`, capped at [`MAX_BACKOFF_SECS`].
 fn compute_backoff(attempt: u32, base_secs: u64) -> Duration {
@@ -79,9 +123,7 @@ pub(super) async fn feishu_ws_loop(
             .unwrap_or(0)
     }
 
-    #[allow(clippy::type_complexity)]
-    let mut fragment_cache: std::collections::HashMap<String, (usize, Vec<Option<Vec<u8>>>)> =
-        std::collections::HashMap::new();
+    let mut fragment_cache: FragmentCache = std::collections::HashMap::new();
     let mut fragment_timestamps: std::collections::HashMap<String, Instant> =
         std::collections::HashMap::new();
 
@@ -187,13 +229,11 @@ pub(super) async fn feishu_ws_loop(
         });
 
         // Purge stale fragment cache entries.
-        let now = Instant::now();
-        fragment_cache.retain(|k, _| {
-            fragment_timestamps
-                .get(k)
-                .is_some_and(|ts| now.duration_since(*ts) < FRAGMENT_TTL)
-        });
-        fragment_timestamps.retain(|k, _| fragment_cache.contains_key(k));
+        prune_stale_fragments(
+            &mut fragment_cache,
+            &mut fragment_timestamps,
+            Instant::now(),
+        );
 
         let mut connection_alive = true;
         while running.load(Ordering::Relaxed) && connection_alive {
@@ -243,9 +283,67 @@ pub(super) async fn feishu_ws_loop(
                                     let msg_id = frame.header("message_id").unwrap_or("").to_string();
 
                                     let payload_bytes = if sum > 1 {
+                                        prune_stale_fragments(
+                                            &mut fragment_cache,
+                                            &mut fragment_timestamps,
+                                            Instant::now(),
+                                        );
+                                        let fragment_count = sum as usize;
+                                        if fragment_count > MAX_FRAGMENTS_PER_MESSAGE
+                                            || frame.payload.len() > MAX_FRAGMENT_MESSAGE_BYTES
+                                        {
+                                            warn!(
+                                                "[{}] Dropping oversized fragment set {} (sum={}, payload={} bytes)",
+                                                channel_name,
+                                                msg_id,
+                                                fragment_count,
+                                                frame.payload.len()
+                                            );
+                                            fragment_cache.remove(&msg_id);
+                                            fragment_timestamps.remove(&msg_id);
+                                            None
+                                        } else {
+                                        while (!fragment_cache.contains_key(&msg_id)
+                                            && fragment_cache.len() >= MAX_FRAGMENT_MESSAGES)
+                                            || fragment_cache_bytes(&fragment_cache)
+                                                .saturating_add(frame.payload.len())
+                                                > MAX_FRAGMENT_CACHE_BYTES
+                                        {
+                                            if !evict_oldest_fragment_message(
+                                                &mut fragment_cache,
+                                                &mut fragment_timestamps,
+                                            ) {
+                                                break;
+                                            }
+                                        }
+                                        let message_bytes = fragment_cache
+                                            .get(&msg_id)
+                                            .map(|(_, fragments)| {
+                                                fragments
+                                                    .iter()
+                                                    .filter_map(Option::as_ref)
+                                                    .map(Vec::len)
+                                                    .sum::<usize>()
+                                            })
+                                            .unwrap_or_default();
+                                        if message_bytes.saturating_add(frame.payload.len())
+                                            > MAX_FRAGMENT_MESSAGE_BYTES
+                                            || fragment_cache_bytes(&fragment_cache)
+                                                .saturating_add(frame.payload.len())
+                                                > MAX_FRAGMENT_CACHE_BYTES
+                                        {
+                                            warn!(
+                                                "[{}] Dropping fragment set {} at cache byte limit",
+                                                channel_name,
+                                                msg_id
+                                            );
+                                            fragment_cache.remove(&msg_id);
+                                            fragment_timestamps.remove(&msg_id);
+                                            None
+                                        } else {
                                         let entry = fragment_cache
                                             .entry(msg_id.clone())
-                                            .or_insert_with(|| (sum as usize, vec![None; sum as usize]));
+                                            .or_insert_with(|| (fragment_count, vec![None; fragment_count]));
                                         fragment_timestamps.insert(msg_id.clone(), Instant::now());
                                         let idx = seq as usize;
                                         if idx < entry.1.len() {
@@ -263,6 +361,8 @@ pub(super) async fn feishu_ws_loop(
                                             Some(combined)
                                         } else {
                                             None
+                                        }
+                                        }
                                         }
                                     } else {
                                         Some(frame.payload.clone())

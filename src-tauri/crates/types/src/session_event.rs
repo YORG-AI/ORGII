@@ -552,6 +552,19 @@ pub struct StreamingSnapshot {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SnapshotEventMembership {
+    pub id: String,
+    /// Current insertion-order position in the EventStore. Streaming deltas
+    /// use this to update the normalized frontend cache without serializing
+    /// the complete event-id vector on every frame.
+    pub event_index: usize,
+    pub chat: bool,
+    pub messages: bool,
+    pub simulator: bool,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SnapshotDelta {
     pub version: u64,
     pub base_version: u64,
@@ -580,6 +593,16 @@ pub struct SnapshotDelta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub latest_canvas_preview: Option<LatestCanvasPreview>,
     pub snapshot_delta: bool,
+    /// Streaming deltas patch ordering from `memberships`; settled deltas
+    /// continue carrying complete id vectors for compatibility and recovery.
+    #[serde(default)]
+    pub incremental_orders: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub memberships: Vec<SnapshotEventMembership>,
+    /// True while this delta belongs to an active streaming turn. This is
+    /// distinct from the legacy `StreamingSnapshot` wire shape.
+    #[serde(default)]
+    pub streaming: bool,
 }
 
 #[cfg(test)]
@@ -648,5 +671,33 @@ mod tests {
             SimulatorEventPreview::from(&user).filter_category,
             SimulatorEventFilterCategory::KeyInteractions
         );
+    }
+
+    #[test]
+    fn incremental_snapshot_delta_uses_the_expected_wire_fields() {
+        let delta = SnapshotDelta {
+            version: 8,
+            base_version: 7,
+            event_count: 1,
+            snapshot_delta: true,
+            incremental_orders: true,
+            streaming: true,
+            memberships: vec![SnapshotEventMembership {
+                id: "event-1".to_string(),
+                event_index: 0,
+                chat: true,
+                messages: false,
+                simulator: true,
+            }],
+            ..SnapshotDelta::default()
+        };
+
+        let wire = serde_json::to_value(delta).expect("serialize delta");
+        assert_eq!(wire["snapshotDelta"], true);
+        assert_eq!(wire["incrementalOrders"], true);
+        assert_eq!(wire["streaming"], true);
+        assert_eq!(wire["memberships"][0]["eventIndex"], 0);
+        assert_eq!(wire["memberships"][0]["messages"], false);
+        assert!(wire.get("eventPreviewById").is_none());
     }
 }

@@ -26,6 +26,7 @@ members = [
     "crates/integrations",
     "crates/key-vault",
     "crates/lsp",
+    "crates/orgtrack-cli",
     "crates/orgtrack-core",
     "crates/orgtrack-protocol",
     "crates/orgtrack-graph",

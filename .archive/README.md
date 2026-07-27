@@ -53,3 +53,53 @@ The WorkStation "Database" app (the **Data** dock app, its tab types, renderers,
 **To restore:** reverse the `git mv`s above, revert the in-place edits (see the archival commit), and remove `.archive` from `tsconfig.json`'s `exclude`.
 
 **Known harmless leftovers (intentional, to limit ripple):** the `db-table`/`db-query`/`db-schema` members of `WorkStationTabCategory` and the `"data"` slot in `StatusBarAppType` remain as unused union members; the `dockFilter.data` i18n key remains in `navigation.json` across locales.
+
+## MainApp Home and global view-mode layer — archived 2026-07-23
+
+The standalone Home/Start Page and the global `mainApp` ↔ `workStation` view-mode switch were retired. Workstation and Settings now share one router-owned Workbench shell; standalone Market/Ideas/Dev pages use a plain route outlet. This removes the duplicated route/view/tab state machine, sticky mounts, route caching, and Home-only customization state.
+
+**What moved here:**
+
+- `src/modules/MainApp/StartPage/` and its `appGridAtom`
+- the Home-only repository-drop overlay layout helper at `src/components/GlobalDragDrop/useGlobalDragDrop/useLayoutHelpers.ts`
+- the old month/day Changelog UI was retired; its generated git-summary
+  documents and data-bound page were deleted instead of archived
+- `HomeSidebar`, `EconomySidebar`, and their unused `PageLevelSidebar` base
+- global view-mode configuration, atom, synchronization component, route-tab metadata, and retired MainApp tab helpers
+- `ScrollRestorationWrapper` and the MainApp KeepAlive route-cache helper
+
+**What deliberately stayed live:**
+
+- `ChatPanelStartPage` / Launchpad — this is the active new-session and creator surface, not the retired Home page
+- Workstation tab state and ChatPanel tab state — both remain active domain-owned tab systems
+- Changelog as a product feature — it now lives at `src/engines/ChatPanel/panels/ChangelogPanelView.tsx`, reads version-scoped release notes from `src/config/changelog/releases.ts`, and opens as a singleton ChatPanel tab
+- `/orgii/app/changelog` — retained as a route-level launcher for Spotlight, app actions, and old bookmarks; it opens the Changelog tab and redirects to Workstation
+
+**Shared logic edited in place:** Global drag/drop now handles only visible ChatPanel composer targets. The retired Home folder-drop hint, repository confirmation overlay, and Spotlight handoff state were removed from the shared handler.
+
+**To restore:** reverse the relevant `git mv`s and restore the removed
+route/view branches and KeepAlive dependencies. The legacy generated
+git-summary documents and their month/day page were deliberately deleted; the
+live version-level Changelog is the supported release-note source.
+
+## Detached window and standalone Settings shells — archived 2026-07-23
+
+The unused `/windows/welcome` mode picker and `/windows/tab` detached-tab host were removed after their route, window-manager, and Tauri command call chains were confirmed to have no production entry point. The old full-page Settings shell was reachable only from that detached-tab host; the active Settings experience remains `SettingsSlot` inside the Workbench.
+
+**What moved here:**
+
+- `src/windows/` detached-window components and their unreferenced styles
+- `src/modules/MainApp/Settings/index.tsx`, its full-page content component, and its route/monitor hooks
+- the unreferenced `SettingsListPanel`
+- the unused sidebar visibility hook and retired App Grid navigation-state type
+- the unused `WindowStateProvider`/window registry, including its 30-second heartbeat
+- the detached-window-only frontend base-URL helper
+
+**What deliberately stayed live:**
+
+- `src/modules/MainApp/Settings/SettingsSlot.tsx` and all renderers, sections, subpages, and toolbar logic it consumes
+- the `app-window` Rust crate’s main-window zoom, vibrancy, background, and native-window lifecycle support
+- `emitOpenWorkspace`, which is still used by session launch
+- the storage-safe `getWindowId()` helper used by repo/workspace persistence
+
+**To restore:** reverse the relevant moves and restore the `/windows/*` routes, detached-window manager helpers, and their four Tauri command registrations.

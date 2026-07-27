@@ -34,6 +34,7 @@ import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import { TIMELINE_CONSTANTS, TIMELINE_ICONS } from "./config";
+import { toTimelineRepoRelativePath } from "./filePath";
 import type { TimelineCommitInfo, TimelineContentProps } from "./types";
 
 type OrgtrackFileTimelineEntry = OrgtrackFileTimeline["entries"][number];
@@ -314,7 +315,15 @@ const FileSessionHistorySessionView: React.FC<FileSessionHistorySessionProps> =
           `${t(`labels.sessionBlameAction.${action}`, { defaultValue: action })} ${count}`
       )
       .join(" · ");
+    const collaborationOwner =
+      session.collaborationOrigin?.ownerDisplayName.trim();
+    const collaborationOwnerLabel = collaborationOwner
+      ? collaborationOwner.startsWith("@")
+        ? collaborationOwner
+        : `@${collaborationOwner}`
+      : null;
     const meta = [
+      collaborationOwnerLabel,
       formatRelativeTime(session.lastInteractionAt, "compact"),
       actionSummary,
     ].filter(Boolean);
@@ -429,21 +438,10 @@ export const TimelineContent: React.FC<TimelineContentProps> = memo(
       requestSessionSidebarRevealAtom
     );
     const orgtrackRepoPath = repoPath ?? repoId;
-    const relativeFilePath = React.useMemo(() => {
-      if (!filePath || !repoId) return null;
-
-      if (filePath.startsWith(repoId)) {
-        const relative = filePath.slice(repoId.length);
-        return relative.startsWith("/") ? relative.slice(1) : relative;
-      }
-
-      if (repoPath && filePath.startsWith(repoPath)) {
-        const relative = filePath.slice(repoPath.length);
-        return relative.startsWith("/") ? relative.slice(1) : relative;
-      }
-
-      return filePath;
-    }, [filePath, repoId, repoPath]);
+    const relativeFilePath = React.useMemo(
+      () => toTimelineRepoRelativePath(filePath, repoId, repoPath),
+      [filePath, repoId, repoPath]
+    );
 
     const { commits, loading, error } = useFileHistory({
       repoId,

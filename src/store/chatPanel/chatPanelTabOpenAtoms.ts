@@ -4,9 +4,8 @@ import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import {
   type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
-  type ChatPanelSelectedCloudOrg,
+  type ChatPanelSelectedOrganization,
   type ChatPanelSelectedProject,
-  type ChatPanelSelectedProjectOrg,
   type ChatPanelSelectedWorkItem,
   type ChatPanelSelectedWorkspace,
   type WorkspaceOverviewTab,
@@ -21,10 +20,9 @@ import {
 } from "@src/store/workstation/workstationTabBarAtoms";
 
 import {
-  createCloudOrgTab,
   createExploreTab,
   createLaunchpadTab,
-  createProjectOrgTab,
+  createOrganizationTab,
   createProjectTab,
   createRuntimeTab,
   createSessionTab,
@@ -216,40 +214,40 @@ export const openWorkspaceOverviewInChatPanelTabAtom = atom(
 openWorkspaceOverviewInChatPanelTabAtom.debugLabel =
   "openWorkspaceOverviewInChatPanelTab";
 
-interface OpenCloudOrgManagementTabOptions {
-  cloudOrg: ChatPanelSelectedCloudOrg;
+interface OpenOrganizationManagementTabOptions {
+  organization: ChatPanelSelectedOrganization;
   title?: string;
 }
 
 /**
- * Open or focus the singleton managed-cloud organization settings tab.
- * Switching organizations updates the tab payload in place, so its identity
- * remains "Manage ORG" and activating it restores the selected organization.
+ * Open or focus the singleton organization tab. Switching between cloud and
+ * local organizations updates the discriminated payload in place so every
+ * organization entry point shares one durable tab and presentation.
  */
-export const openCloudOrgManagementInChatPanelTabAtom = atom(
+export const openOrganizationInChatPanelTabAtom = atom(
   null,
-  (get, set, options: OpenCloudOrgManagementTabOptions) => {
-    const { cloudOrg, title = "Manage ORG" } = options;
+  (get, set, options: OpenOrganizationManagementTabOptions) => {
+    const { organization, title = "Manage ORG" } = options;
     const state = get(chatPanelTabsAtom);
-    const existingTab = state.tabs.find((tab) => tab.type === "cloud-org");
+    const existingTab = state.tabs.find((tab) => tab.type === "organization");
     if (existingTab) {
       set(chatPanelTabsAtom, {
         ...state,
         tabs: state.tabs.map((tab) =>
-          tab.id === existingTab.id ? { ...tab, title, cloudOrg } : tab
+          tab.id === existingTab.id ? { ...tab, title, organization } : tab
         ),
       });
       set(activateChatPanelTabAtom, existingTab.id);
       return existingTab.id;
     }
 
-    const tab = createCloudOrgTab({ cloudOrg, title });
+    const tab = createOrganizationTab({ organization, title });
     set(appendAndActivateChatPanelTabAtom, { tab });
     return tab.id;
   }
 );
-openCloudOrgManagementInChatPanelTabAtom.debugLabel =
-  "openCloudOrgManagementInChatPanelTab";
+openOrganizationInChatPanelTabAtom.debugLabel =
+  "openOrganizationInChatPanelTab";
 
 interface OpenSessionInNewChatTabOptions {
   sessionId: string;
@@ -437,33 +435,6 @@ export const openProjectInChatPanelTabAtom = atom(
   }
 );
 openProjectInChatPanelTabAtom.debugLabel = "openProjectInChatPanelTab";
-
-/** Open or focus a dedicated tab for an organization hub (deduped by orgId). */
-export const openProjectOrgInChatPanelTabAtom = atom(
-  null,
-  (get, set, projectOrg: ChatPanelSelectedProjectOrg) => {
-    const existingTab = get(chatPanelTabsAtom).tabs.find(
-      (tab) =>
-        tab.type === "project-org" && tab.projectOrg?.orgId === projectOrg.orgId
-    );
-    if (existingTab) {
-      set(chatPanelTabsAtom, (prev) => ({
-        ...prev,
-        tabs: prev.tabs.map((tab) =>
-          tab.id === existingTab.id
-            ? { ...tab, title: projectOrg.orgName, projectOrg }
-            : tab
-        ),
-      }));
-      set(activateChatPanelTabAtom, existingTab.id);
-      return existingTab.id;
-    }
-    const tab = createProjectOrgTab({ projectOrg });
-    set(appendAndActivateChatPanelTabAtom, { tab });
-    return tab.id;
-  }
-);
-openProjectOrgInChatPanelTabAtom.debugLabel = "openProjectOrgInChatPanelTab";
 
 /** Open or focus the singleton Explore tab. */
 export const openExploreInChatPanelTabAtom = atom(null, (get, set) => {

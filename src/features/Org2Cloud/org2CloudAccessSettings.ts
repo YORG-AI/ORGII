@@ -5,15 +5,15 @@
  * getSessionVisibility).
  *
  * Model, per cloud org:
- * - `defaultMode` — the org-wide default for repo-scope-matched sessions.
- *   PRIVACY-FIRST DEFAULT IS OFF (§13.4): adding a repo scope makes sessions
- *   push CANDIDATES, but nothing uploads until the member raises this
- *   default (or sets a per-session override).
- * - `sessionModes` — explicit per-session overrides; an entry ALWAYS wins
- *   over `defaultMode` (both directions: it can silence one session under a
- *   full-replay default, or share one session under an off default).
+ * - the server-backed org sharing floor is the ONE org-wide policy;
+ * - `sessionModes` stores explicit per-session choices. With no override the
+ *   local mode is Off, then the org floor raises it as required;
  * - `sessionVisibility` — per-session 'org' | 'restricted'; only explicit
  *   'restricted' entries are stored ('org' is the wire default).
+ *
+ * Older persisted objects may still contain `defaultMode`; Zod strips that
+ * unknown key while parsing, so upgraded devices cannot retain a hidden
+ * second org-wide policy.
  *
  * RATCHET GUARANTEE (0010 review finding): all three pieces persist in
  * localStorage (zod-validated, same idiom as org2CloudSyncAtoms) and the
@@ -54,7 +54,6 @@ const CloudVisibilitySchema = z.enum([
 ]) satisfies z.ZodType<CollabSessionVisibility>;
 
 const CloudOrgAccessSettingsSchema = z.object({
-  defaultMode: CloudAccessModeSchema,
   sessionModes: z.record(z.string(), CloudAccessModeSchema),
   sessionVisibility: z.record(z.string(), CloudVisibilitySchema),
 });
@@ -147,10 +146,9 @@ export function floorAccessMode(
   return ACCESS_MODE_RANK[mode] >= ACCESS_MODE_RANK[floor] ? mode : floor;
 }
 
-/** The §13.4 privacy-first default: nothing uploads until opted in. */
+/** Privacy-first local state: the server-backed minimum is applied later. */
 export function createDefaultCloudOrgAccessSettings(): CloudOrgAccessSettings {
   return {
-    defaultMode: COLLAB_SESSION_ACCESS_MODE.OFF,
     sessionModes: {},
     sessionVisibility: {},
   };
@@ -163,13 +161,12 @@ export function getCloudOrgAccessSettings(
   return byOrg[orgId] ?? createDefaultCloudOrgAccessSettings();
 }
 
-/** Explicit per-session override wins outright; else the org default. */
+/** Explicit per-session override, otherwise Off before the org floor. */
 export function getEffectiveCloudAccessMode(
   settings: CloudOrgAccessSettings | undefined,
   sessionId: string
 ): CollabSessionAccessMode {
-  if (!settings) return COLLAB_SESSION_ACCESS_MODE.OFF;
-  return settings.sessionModes[sessionId] ?? settings.defaultMode;
+  return settings?.sessionModes[sessionId] ?? COLLAB_SESSION_ACCESS_MODE.OFF;
 }
 
 export function getCloudSessionVisibility(
@@ -224,10 +221,11 @@ export interface CloudPushAccess {
  * 'off' / undefined is a no-op. The server backstops this at push time.
  *
  * CALLER CONTRACT: pass `floor` only for ADMITTED sessions (org-owned,
- * tagged, fork-provenance, or explicit per-session intent). A session that
- * is merely a repo-scope candidate — e.g. imported local CLI history under a
- * matching checkout — must be resolved WITHOUT the floor, otherwise an admin
- * policy silently becomes the first share intent for private local data.
+ * tagged, fork-provenance, explicit per-session intent, or imported local CLI
+ * history whose checkout matches an admin-configured repo scope). Ordinary
+ * Personal sessions are not admitted by scope alone. Imported histories are:
+ * the org sidebar already includes them automatically, so the effective admin
+ * policy shown in Settings must drive the same upload behavior.
  */
 export function resolveCloudPushAccess(
   settings: CloudOrgAccessSettings | undefined,
@@ -254,17 +252,7 @@ export function resolveCloudPushAccess(
 // Immutable update helpers (panel select / per-session dialog)
 // ============================================================================
 
-export function withCloudOrgDefaultMode(
-  byOrg: CloudAccessSettingsByOrg,
-  orgId: string,
-  mode: CollabSessionAccessMode
-): CloudAccessSettingsByOrg {
-  const current = getCloudOrgAccessSettings(byOrg, orgId);
-  if (current.defaultMode === mode && byOrg[orgId]) return byOrg;
-  return { ...byOrg, [orgId]: { ...current, defaultMode: mode } };
-}
-
-/** `mode: null` clears the override (session follows the org default). */
+/** `mode: null` clears the override (session follows the org minimum). */
 export function withCloudSessionMode(
   byOrg: CloudAccessSettingsByOrg,
   orgId: string,

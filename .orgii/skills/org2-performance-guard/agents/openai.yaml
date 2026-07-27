@@ -1,0 +1,4 @@
+interface:
+  display_name: "ORG2 Performance Guard"
+  short_description: "Prevent CPU/RAM regressions in ORG2 changes"
+  default_prompt: "Use $org2-performance-guard to audit this ORG2 change for CPU, RAM, polling, cache, and lifecycle regressions."

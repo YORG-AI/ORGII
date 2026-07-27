@@ -1,6 +1,7 @@
 /**
  * Shared shell + frame classes for Kanban horizontal cards and overlays.
  */
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 
 export const WORK_MANAGEMENT_CARD_SHELL =
@@ -25,7 +26,8 @@ export function workManagementAddCardClass(size: "session" | "agent"): string {
 export const WORK_MANAGEMENT_NEW_SESSION_CARD_CLASS =
   workManagementAddCardClass("session");
 
-export const WORK_MANAGEMENT_SESSION_CREATOR_MAX_WIDTH_CLASS = "max-w-[900px]";
+export const WORK_MANAGEMENT_SESSION_CREATOR_MAX_WIDTH_CLASS =
+  DETAIL_PANEL_TOKENS.contentMaxWidth;
 export const WORK_MANAGEMENT_SESSION_CREATOR_MIN_HEIGHT_CLASS = "min-h-[180px]";
 
 export const WORK_MANAGEMENT_SESSION_CREATOR_FLOW_CLASS = `mx-auto flex w-full ${WORK_MANAGEMENT_SESSION_CREATOR_MAX_WIDTH_CLASS} ${WORK_MANAGEMENT_SESSION_CREATOR_MIN_HEIGHT_CLASS} flex-col`;

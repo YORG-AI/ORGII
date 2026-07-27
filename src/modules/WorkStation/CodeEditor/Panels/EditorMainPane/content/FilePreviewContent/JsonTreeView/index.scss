@@ -33,7 +33,7 @@
     }
 
     &--expandable {
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
     }
   }
 
@@ -86,7 +86,7 @@
 
 // Value styling with type-specific colors
 .json-value {
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   border-radius: 2px;
   transition: background-color 0.1s;
 

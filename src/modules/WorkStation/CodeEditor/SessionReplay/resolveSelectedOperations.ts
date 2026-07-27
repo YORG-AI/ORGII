@@ -97,18 +97,19 @@ export function resolveSelectedShellOperation(
   currentShellOperation: ShellOperationEntry | null,
   userSelectedShellEventId: string | null
 ): ShellOperationEntry | null {
-  // A running command always takes priority over any manual selection so that
-  // live streamOutput is visible without requiring user interaction. Once the
-  // command finishes, control returns to the user's prior selection.
-  const runningOp = allShellOperations.find((op) => op.isLoading);
-  if (runningOp) return runningOp;
-
+  // An explicit click is local browsing and must win over the live command.
+  // Otherwise every render snaps back to the running operation, making older
+  // command rows appear unclickable. With no manual selection, keep following
+  // the running command so streamOutput remains visible automatically.
   if (userSelectedShellEventId) {
     const found = allShellOperations.find(
       (op) => op.eventId === userSelectedShellEventId
     );
     if (found) return found;
   }
+
+  const runningOp = allShellOperations.find((op) => op.isLoading);
+  if (runningOp) return runningOp;
 
   if (currentShellOperation) return currentShellOperation;
   return allShellOperations[0] || null;

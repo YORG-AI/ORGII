@@ -19,6 +19,8 @@ import {
 } from "./tokens";
 
 export interface SectionRowProps {
+  /** Stable selector for rendered tests and external UI drivers. */
+  dataTestId?: string;
   /** Row label (left side). Omit to render content-only (no header). */
   label?: React.ReactNode;
   /** Optional description under label */
@@ -56,6 +58,7 @@ const RequiredMark: React.FC = () => (
 
 const SectionRow: React.FC<SectionRowProps> = memo(
   ({
+    dataTestId,
     label,
     description,
     children,
@@ -98,6 +101,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (!showHeader || label == null) {
       return (
         <div
+          data-testid={dataTestId}
           className={`section-layout-row relative ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {children}
@@ -108,6 +112,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (layout === "vertical") {
       return (
         <div
+          data-testid={dataTestId}
           className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {/* Header: Label */}
@@ -135,6 +140,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
 
     return (
       <div
+        data-testid={dataTestId}
         className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
       >
         {/* Label + Description */}

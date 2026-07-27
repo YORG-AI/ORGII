@@ -137,6 +137,8 @@ fn to_row(input: &ImportedHistoryCacheInput) -> ImportedHistorySessionRow {
         input_tokens: input.input_tokens,
         output_tokens: input.output_tokens,
         repo_path: input.repo_path.clone(),
+        repo_root_path: None,
+        repo_remote_urls: Vec::new(),
         branch: input.branch.clone(),
         impact: input.impact.clone(),
         listable: input.listable,

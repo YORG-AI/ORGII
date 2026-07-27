@@ -1,14 +1,22 @@
-/**
- * Types for DOMTreeContent component
- */
 import type { DOMTreeNode } from "@src/modules/WorkStation/Browser/hooks/useWebviewDOMTree";
 
-/**
- * Flattened DOM node for virtualization
- */
+/** Flattened DOM node for list and virtualized rendering. */
 export interface FlattenedDOMNode {
-  /** The DOM node */
   node: DOMTreeNode;
-  /** Depth level (0 = root/body) */
   depth: number;
+}
+
+export interface DOMTreeContentProps {
+  tree: DOMTreeNode | null;
+  expandedNodes: Set<string>;
+  selectedXPath: string | null;
+  highlightedXPath?: string | null;
+  onToggle: (xpath: string) => void;
+  onSelect: (xpath: string) => void;
+  onHover: (xpath: string | null) => void;
+  loading?: boolean;
+  error?: string | null;
+  emptyMessage?: string;
+  revealXPath?: string | null;
+  revealKey?: number;
 }

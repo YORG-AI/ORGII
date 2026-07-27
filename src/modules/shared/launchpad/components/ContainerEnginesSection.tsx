@@ -24,6 +24,7 @@ interface ContainerEnginesSectionProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
   compact?: boolean;
 }
@@ -42,6 +43,7 @@ const ContainerEnginesSection: React.FC<ContainerEnginesSectionProps> = ({
   loading,
   error,
   onRefresh,
+  onOpenChange,
   defaultOpen = false,
   compact = false,
 }) => {
@@ -123,6 +125,7 @@ const ContainerEnginesSection: React.FC<ContainerEnginesSectionProps> = ({
           : t("navigation:launchpad.containerEngines.title")
       }
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
       compact={compact}
       actions={
         <Button

@@ -12,11 +12,13 @@ import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
+import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import {
   peekShareableScopeKeys,
   primeShareableScopeKey,
+  resolveMatchingOrgRepoScope,
 } from "../TeamCollaboration/repoScopeResolver";
 import {
   PERSONAL_EXCLUDED_TOKEN,
@@ -34,10 +36,17 @@ import {
 } from "./org2CloudAccessSettings";
 import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
-import { org2CloudOrgsAtom } from "./org2CloudOrgsAtom";
+import {
+  org2CloudOrgsAtom,
+  sidebarActiveCloudOrgIdAtom,
+} from "./org2CloudOrgsAtom";
 import { ensureProjectOrgForCloudOrg } from "./org2CloudProjectOrgAlias";
 import type { CloudOrgCollabState } from "./org2CloudProjectsClient";
 import { Org2CloudProjectsError } from "./org2CloudProjectsClient";
+import {
+  SESSION_PUSH_RETRY_BASE_MS,
+  SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
+} from "./org2CloudSessionSync";
 import {
   org2CloudCollabStateCursorsAtom,
   org2CloudPushCursorsAtom,
@@ -48,16 +57,18 @@ import {
 import type {
   CloudAppendSessionEventsInput,
   CloudOrgScopeState,
+  CloudOrgSessions,
   CloudRewriteSessionEventsInput,
   CloudSessionEventsSnapshot,
 } from "./org2CloudSyncClient";
 import { Org2CloudSyncError } from "./org2CloudSyncClient";
 import {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   DATA_CHANGED_DEBOUNCE_MS,
-  HIDDEN_PASS_INTERVAL_MS,
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
+  INACTIVE_ORG_BACKOFF_COOLDOWN_MS,
   ORG_BACKOFF_COOLDOWN_MS,
   Org2CloudSyncEngine,
-  PASS_INTERVAL_MS,
   PROJECT_PUSH_RETRY_DELAY_MS,
 } from "./org2CloudSyncEngine";
 
@@ -97,6 +108,13 @@ vi.mock("@src/engines/SessionCore/ingestion/rustBridge", () => ({
 vi.mock("../TeamCollaboration/repoScopeResolver", () => ({
   peekShareableScopeKeys: vi.fn(),
   primeShareableScopeKey: vi.fn(),
+  shareableScopeKeysFromRemoteUrls: vi.fn((urls: string[] | undefined) =>
+    urls?.length ? [...urls] : null
+  ),
+  resolveMatchingOrgRepoScope: vi.fn(
+    async (keys: string[] | null, scopes: string[] | undefined) =>
+      scopes?.find((scope) => keys?.includes(scope)) ?? null
+  ),
 }));
 
 vi.mock("@src/components/Message", () => ({
@@ -124,9 +142,10 @@ export const eventStoreMock = vi.mocked(eventStoreProxy);
 export const processChunksRustMock = vi.mocked(processChunksRust);
 export const peekMock = vi.mocked(peekShareableScopeKeys);
 export const primeMock = vi.mocked(primeShareableScopeKey);
+export const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
 export const messageMock = vi.mocked(Message);
 
-/** Minimal visibility stub for the engine's browser-only cadence paths. */
+/** Minimal visibility stub for the engine's browser lifecycle triggers. */
 export class DocumentStub extends EventTarget {
   visibilityState: DocumentVisibilityState = "visible";
 }
@@ -161,6 +180,7 @@ export const SESSION: Session = {
   name: "Local session",
   orgId: "cloud:corg-1",
   repoPath: REPO_PATH,
+  repoRemoteUrls: [SCOPE_KEY],
   category: "rust_agent",
 };
 
@@ -216,6 +236,12 @@ export function makeClient() {
         cap: null,
         cooldownDays: 0,
         coolingDown: [],
+      })
+    ),
+    listOrgSessions: vi.fn(
+      async (_token: string, _orgId: string): Promise<CloudOrgSessions> => ({
+        serverTime: "2026-07-01T12:00:00.000Z",
+        sessions: [],
       })
     ),
     deleteSession: vi.fn(
@@ -281,6 +307,8 @@ export function createEngineFixture() {
   store.set(org2CloudOrgsAtom, [
     { orgId: "corg-1", name: "Cloud Team", role: "member" },
   ]);
+  store.set(chatPanelSelectedCloudOrgAtom, null);
+  store.set(sidebarActiveCloudOrgIdAtom, "corg-1");
   store.set(org2CloudRepoScopesAtom, { "corg-1": [SCOPE_KEY] });
   store.set(org2CloudSyncEnabledAtom, {});
   store.set(org2CloudPushCursorsAtom, {});
@@ -289,12 +317,11 @@ export function createEngineFixture() {
   store.set(sessionOrgTagsAtom, {});
   store.set(org2CloudAccessSettingsAtom, {
     "corg-1": {
-      defaultMode: "full_replay",
       sessionModes: {},
       sessionVisibility: {},
     },
   });
-  store.set(org2CloudSharingFloorAtom, {});
+  store.set(org2CloudSharingFloorAtom, { "corg-1": "full_replay" });
   store.set(sessionsAtom, [SESSION]);
   peekMock.mockImplementation((path: string) =>
     path === REPO_PATH ? [SCOPE_KEY] : null
@@ -334,19 +361,23 @@ export function cleanupEngineFixture(engine: Org2CloudSyncEngine): void {
  * are installed before the engine and its collaborators are evaluated.
  */
 export const engineTestDeps = {
+  COLLAB_LISTING_SHARE_WINDOW_MS,
   DATA_CHANGED_DEBOUNCE_MS,
+  EXTERNAL_HISTORY_ACTIVITY_DEBOUNCE_MS,
+  chatPanelSelectedCloudOrgAtom,
   ensureProjectOrgForCloudOrg,
   getImportedHistorySourceBySessionId,
-  HIDDEN_PASS_INTERVAL_MS,
+  INACTIVE_ORG_BACKOFF_COOLDOWN_MS,
   ORG2_CLOUD_ENDPOINT_OVERRIDE_STORAGE_KEY,
   ORG2_CLOUD_EXPECTED_SCHEMA_VERSION,
   ORG_BACKOFF_COOLDOWN_MS,
   Org2CloudProjectsError,
   Org2CloudSyncEngine,
   Org2CloudSyncError,
-  PASS_INTERVAL_MS,
   PERSONAL_EXCLUDED_TOKEN,
   PROJECT_PUSH_RETRY_DELAY_MS,
+  SESSION_PUSH_RETRY_BASE_MS,
+  SESSION_SEGMENT_UPLOAD_BATCH_SIZE,
   cloudOrgToken,
   org2CloudAccessSettingsAtom,
   org2CloudSharingFloorAtom,
@@ -357,6 +388,7 @@ export const engineTestDeps = {
   org2CloudPushedMetadataAtom,
   org2CloudRepoScopesAtom,
   org2CloudSyncEnabledAtom,
+  sidebarActiveCloudOrgIdAtom,
   sessionOrgTagsAtom,
   sessionsAtom,
 };

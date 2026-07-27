@@ -37,6 +37,7 @@ export interface CodexSessionSetupProps {
   tokenError?: string | null;
   onClearTokenError?: () => void;
   closeSignal?: number;
+  autoStart?: boolean;
 }
 
 const CodexSessionSetup: React.FC<CodexSessionSetupProps> = ({
@@ -47,9 +48,10 @@ const CodexSessionSetup: React.FC<CodexSessionSetupProps> = ({
   tokenError = null,
   onClearTokenError,
   closeSignal = 0,
+  autoStart = false,
 }) => {
   const { t } = useTranslation("integrations");
-  const [showBrowser, setShowBrowser] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(autoStart);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const {

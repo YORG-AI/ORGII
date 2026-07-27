@@ -9,12 +9,24 @@
  *  - rows already in `prev` whose ids are NOT in `incoming` are kept;
  *  - the result is sorted by `updated_at desc`.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { __TESTS_ONLY } from "../loaders";
 import type { Session } from "../types";
 
-const { mergeSessions, replaceExternalHistorySourceFirstPage } = __TESTS_ONLY;
+const {
+  createSidebarLoadCoordinator,
+  mergeSessions,
+  replaceExternalHistorySourceFirstPage,
+} = __TESTS_ONLY;
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 function makeSession(
   id: string,
@@ -109,5 +121,61 @@ describe("replaceExternalHistorySourceFirstPage", () => {
       "claudecodeapp-keep",
       "cursoride-keep",
     ]);
+  });
+});
+
+describe("sidebar load coordinator", () => {
+  it("shares an active load with requests already covered by it", async () => {
+    const active = deferred();
+    const runner = vi.fn().mockReturnValue(active.promise);
+    const load = createSidebarLoadCoordinator(runner);
+
+    const first = load({ pageSize: 100, forceRefresh: true });
+    const covered = load({ pageSize: 25 });
+
+    expect(covered).toBe(first);
+    expect(runner).toHaveBeenCalledOnce();
+
+    active.resolve();
+    await first;
+    expect(runner).toHaveBeenCalledOnce();
+  });
+
+  it("merges stronger requests into one serialized follow-up pass", async () => {
+    const active = deferred();
+    const runner = vi
+      .fn()
+      .mockReturnValueOnce(active.promise)
+      .mockResolvedValueOnce(undefined);
+    const load = createSidebarLoadCoordinator(runner);
+
+    const first = load({ pageSize: 25 });
+    const larger = load({ pageSize: 100 });
+    const forced = load({ pageSize: 50, forceRefresh: true });
+
+    expect(larger).toBe(first);
+    expect(forced).toBe(first);
+    expect(runner).toHaveBeenCalledOnce();
+
+    active.resolve();
+    await first;
+
+    expect(runner).toHaveBeenCalledTimes(2);
+    expect(runner.mock.calls[1]?.[0]).toEqual({
+      pageSize: 100,
+      forceRefresh: true,
+    });
+  });
+
+  it("resets after failure so a later load can retry", async () => {
+    const runner = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("load failed"))
+      .mockResolvedValueOnce(undefined);
+    const load = createSidebarLoadCoordinator(runner);
+
+    await expect(load()).rejects.toThrow("load failed");
+    await expect(load({ forceRefresh: true })).resolves.toBeUndefined();
+    expect(runner).toHaveBeenCalledTimes(2);
   });
 });

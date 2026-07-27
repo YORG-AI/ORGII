@@ -139,10 +139,13 @@
       "helveticaNeue": "Helvetica-Neue-Stil"
     },
     "uiScale": "UI-Skalierung",
+    "preferences": "Präferenzen",
+    "usePointerCursors": "Zeiger-Cursor verwenden",
+    "usePointerCursorsDesc": "Den Cursor beim Bewegen über interaktive Elemente in einen Zeiger ändern",
     "timezoneAuto": "Automatisch (Browser)",
     "timezoneSearchPlaceholder": "Nächste Städte suchen",
     "sendOnEnter": "Nachrichten mit Enter senden",
-    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter und Shift+Enter fügt eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter; Shift+Enter und Ctrl/Cmd+Enter fügen eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter",
     "language": "Sprache",
     "languageSearchPlaceholder": "Sprachen suchen...",
     "languageNames": {
@@ -1008,7 +1011,7 @@
     "decryptEffect": "Decrypt-Effekt",
     "decryptEffectDesc": "Decrypt-Animation für Agent-Nachrichten aktivieren",
     "sendOnEnter": "Nachrichten mit Enter senden",
-    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter und Shift+Enter fügt eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Wenn aktiviert, sendet Enter; Shift+Enter und Ctrl/Cmd+Enter fügen eine neue Zeile ein. Wenn deaktiviert, sendet Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "LSP-Server für Autovervollständigung, Diagnose und Code-Intelligenz verwalten",

@@ -17,6 +17,7 @@ import { createLogger } from "@src/hooks/logger";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 
 import { org2CloudSharingFloorAtom } from "./org2CloudAccessSettings";
+import type { CloudEntitlementState } from "./org2CloudClient";
 import { getEntitlementState } from "./org2CloudClient";
 
 const log = createLogger("Org2CloudEntitlement");
@@ -24,10 +25,9 @@ const log = createLogger("Org2CloudEntitlement");
 type JotaiStore = ReturnType<typeof createStore>;
 
 /**
- * Short on purpose: `org_change_signals` cannot say WHICH plane changed, and
- * an admin floor flip must reach members promptly (it gates uploads). The
- * single-flight entry still bounds a signal burst to one entitlement RPC per
- * org per window.
+ * Short on purpose: a burst of explicit floor-change broadcasts and
+ * reconnect recovery must still collapse to one request. Generic session /
+ * project / comment signals no longer enter this coordinator.
  */
 export const ENTITLEMENT_REFRESH_TTL_MS = 10_000;
 
@@ -59,6 +59,26 @@ function entryFor(store: JotaiStore, orgId: string): OrgEntitlementEntry {
     entries.set(orgId, entry);
   }
   return entry;
+}
+
+/**
+ * Commit an entitlement snapshot the ROSTER LISTING already resolved (0004
+ * backends return one per org row). This is an authoritative read for TTL
+ * purposes: stamping the window keeps a same-moment signal burst from
+ * re-reading what the roster round-trip just delivered. Backends without the
+ * batched key keep using `refreshOrgEntitlement` per org.
+ */
+export function seedOrgEntitlement(
+  store: JotaiStore,
+  orgId: string,
+  entitlement: CloudEntitlementState
+): void {
+  const entry = entryFor(store, orgId);
+  entry.lastAttemptAt = Date.now();
+  const floor = entitlement.orgSharingFloor ?? COLLAB_SESSION_ACCESS_MODE.OFF;
+  store.set(org2CloudSharingFloorAtom, (previous) =>
+    previous[orgId] === floor ? previous : { ...previous, [orgId]: floor }
+  );
 }
 
 /**

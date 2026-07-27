@@ -141,6 +141,8 @@ export interface AgentWSEvent {
   operation?: "list" | "inspect" | "dispatch";
   action?: string;
   params?: Record<string, unknown>;
+  /** Trusted local session identity for actions bound to the invoking turn. */
+  invokingSessionId?: string;
   agentType?: RustAgentType;
 
   // ============================================

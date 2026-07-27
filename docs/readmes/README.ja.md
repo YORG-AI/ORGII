@@ -1,23 +1,23 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Cursor スタイルの open-source Agent IDE — ただ速くコードを書くためだけでなく、レビューしやすさ、トレーサビリティ、創造の自由のために作られています。</strong></p>
+  <p><strong>Agent とともに作られたソフトウェアのための System of Record。<br />コーディング Agent を実行し、任意のセッションを再生し、チームでレビューし、あらゆる行をその背後にある意思決定まで辿れます。</strong></p>
   <p>Rust と Tauri で構築され、local-first 実行を前提とし、ディスク上のサイズは 100MB 未満です。Agent trajectory の livestream と replay に対応しています。追跡しやすく、レビューしやすい構成です。</p>
 </div>
 
 ---
 
 <p align="center">
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest"><strong>All latest release assets</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest"><strong>All latest release assets</strong></a>
 </p>
 
 ---
@@ -30,9 +30,11 @@
   <video src="https://github.com/user-attachments/assets/bd4833d2-4cc4-4971-9805-84529b14d01a" controls width="720"></video>
 </p>
 
-これは単なる AI コーディングツールではありません。人間/Agent 組織と org-level alignment の実験です。Agents は進化していますが、collaboration、observability、構造、共有された accountability は追いついていません。場合によっては悪化しています。Cursor、Claude Code、類似ツールは Agents を外部委託されたアシスタントのように扱うことが多く、出力には役立つ一方で、システムレベルで監査、調整、alignment、進化を行うことが困難です。
+あるコードがなぜ存在するのか、そしてそれが実際に効果を出したのかを答えるには、常に複数のシステムを手作業でつなぎ合わせる必要がありました。Jira はチケットしか見ていません。Codex は自分のセッションしか見ていません。GitHub はコミットされた行しか見ていません。Amplitude は指標しか見ていません。人間がコードを書いていた頃はそれでも何とかなりました。Agent の速度ではそうはいきません。月曜に書かれたコードは、金曜にはもうレガシーです。
 
-ORG-II は別のモデルを探求します。構造化された組織の中で、Agents を永続的で観測可能な同僚として扱うモデルです。stateless でレビューしにくい AI IDE sessions ではなく、再生可能な Agent 実行、セッション横断メモリ、AI blame、local-first の Rust runtime を導入し、人間、Agents、チームが共有コンテキストと aligned goals を中心に協働できるようにします。
+ORG-2 は、チームがコーディング Agent を実行する場所です。ネイティブ Rust ハーネスに加えて 20 以上の Agent CLI 用ランチャーを備え、その記録を自動的に構築します。すべてのセッションは動画のように再生できる trajectory になり、チームメイトは最終的な diff だけでなく、作業が実際にどう組み立てられたかをレビューし、文脈の中でコメントできます。他のツールで実行されたセッションも取り込まれ、その履歴からさかのぼって補完されるため、アプリを一度も経由していない作業も記録に含まれます。記録は、人間が何を求めたか、Agent が何を理解したか、そして実際に何をしたかを結び付けるので、出荷されたどの行も、それを書いたセッションまで辿れます。
+
+これは単なるもう一つの AI コーディングツールではありません。人間と Agent からなる組織と、組織レベルの alignment に関する実験です。ORG-II は Agents を、構造化された組織の中の永続的で観測可能な同僚として扱います。再生可能な実行、セッション横断メモリ、AI blame、そして local-first の Rust runtime によって、人間、Agents、チームが共有コンテキストと aligned goals を中心に協働できるようにします。
 
 ## 機能
 
@@ -104,12 +106,12 @@ ORG-II の組み込み Rust ハーネスを使うか、デスクトップアプ�
 
 最新の ORGII デスクトップアプリをワンクリックでダウンロードできます：
 
-- [macOS Apple Silicon](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
-- [Windows x64 インストーラー](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
-- [Windows x64 MSI](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
-- [Linux x64 AppImage](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
-- [Linux x64 DEB](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
-- [最新リリースのすべてのアセット](https://github.com/yorgai/ORG2/releases/latest)
+- [macOS Apple Silicon](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
+- [Windows x64 インストーラー](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
+- [Windows x64 MSI](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
+- [Linux x64 AppImage](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
+- [Linux x64 DEB](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
+- [最新リリースのすべてのアセット](https://github.com/org2AI/ORG2/releases/latest)
 
 直接ダウンロードリンクは常に GitHub の最新リリースを参照します。
 
@@ -141,7 +143,7 @@ sidecar がない場合、Rust build は開発ビルドを継続できるよう�
 質問やフィードバックがありますか？ ORG-2 の進化をフォローしたいですか？ Discord にご参加ください：
 
 👉 **Discord：[discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
-👉 **WeChat：[https://github.com/yorgai/ORG2/issues/128]**
+👉 **WeChat：[https://github.com/org2AI/ORG2/issues/128]**
 
 - **#how-to-use-org2** と **#faq** — 利用開始のサポート
 - **#announcement** — リリースニュースと更新情報

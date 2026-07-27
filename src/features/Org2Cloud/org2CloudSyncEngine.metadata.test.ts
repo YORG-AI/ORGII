@@ -14,11 +14,13 @@ describe("buildCloudSessionMetadata", () => {
       "user-1",
       "Me",
       SCOPE_KEY,
-      { accessMode: "full_replay", visibility: "org" }
+      { accessMode: "full_replay", visibility: "org" },
+      "https://example.com/me.png"
     );
     expect(metadata.id).toBe("corg-1:user-1:session-1");
     expect(metadata.orgId).toBe("corg-1");
     expect(metadata.ownerMemberId).toBe("user-1");
+    expect(metadata.ownerAvatarUrl).toBe("https://example.com/me.png");
     expect(metadata.repoScopeKey).toBe(SCOPE_KEY);
     expect(metadata.accessMode).toBe("full_replay");
     expect(metadata.replayLevel).toBe("replay");

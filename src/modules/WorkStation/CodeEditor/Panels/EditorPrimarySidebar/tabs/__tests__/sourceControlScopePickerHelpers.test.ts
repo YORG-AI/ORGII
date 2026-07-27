@@ -94,9 +94,9 @@ describe("formatScopePickerPath", () => {
     const home = process.env.HOME;
     if (!home) return;
 
-    expect(formatScopePickerPath(`${home}/github/ORGII`)).toBe(
-      "~/github/ORGII"
-    );
+    expect(
+      formatScopePickerPath(`${home}/github/ORGII`).replace(/\\/g, "/")
+    ).toBe("~/github/ORGII");
   });
 });
 

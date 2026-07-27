@@ -21,6 +21,8 @@ import Button from "@src/components/Button";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import TaskKanban from "@src/features/TaskKanban";
 import FactoryViewPill from "@src/features/TaskKanban/components/FactoryViewPill";
+import KanbanOrgScopeSelect from "@src/features/TaskKanban/components/KanbanOrgScopeSelect";
+import { useElementDimensions } from "@src/hooks/ui/layout";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import {
   WorkstationHeaderSectionSeparator,
@@ -32,6 +34,7 @@ import {
   workstationTabHeaderAtomByHost,
 } from "@src/store/workstation";
 
+import { shouldUseSingleRowGitHubWorkItemsHeader } from "./GitHubWorkItemList";
 import GitHubWorkItemsSurface from "./GitHubWorkItemsSurface";
 import WorkManagementProjectsSurface from "./WorkManagementProjectsSurface";
 import WorkManagementTaskCreator from "./WorkManagementTaskCreator";
@@ -50,6 +53,12 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
   embedded = false,
 }) => {
   const { t } = useTranslation("common");
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const containerWidth = useElementDimensions(containerRef, {
+    dimension: "width",
+  });
+  const singleRowGitHubHeader =
+    shouldUseSingleRowGitHubWorkItemsHeader(containerWidth);
   const activeHomeTab = useAtomValue(activeWorkManagementSectionAtom);
   const headerSlots = useAtomValue(
     workstationTabHeaderAtomByHost.workManagement
@@ -73,7 +82,7 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
 
   // Leading header control: GitHub detail "back" button, else the view-switch
   // pill. Shared by the chat-pane and WorkStation published-header slots.
-  const headerLeading = React.useMemo(() => {
+  const headerLeadingControl = React.useMemo(() => {
     if (githubDetailActive) {
       return (
         <WorkstationToolbarTooltip label={t("actions.back")}>
@@ -95,6 +104,26 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     return null;
   }, [githubDetailActive, showViewSwitch, t]);
 
+  const headerLeading = React.useMemo(() => {
+    if (!headerLeadingControl) return null;
+    return (
+      <div className="flex shrink-0 items-center gap-2">
+        {showViewSwitch ? (
+          <>
+            <KanbanOrgScopeSelect />
+            <WorkstationHeaderSectionSeparator />
+            {headerLeadingControl}
+          </>
+        ) : (
+          <>
+            {headerLeadingControl}
+            <WorkstationHeaderSectionSeparator />
+          </>
+        )}
+      </div>
+    );
+  }, [headerLeadingControl, showViewSwitch]);
+
   // WorkStation embed: publish the pane's controls into the shared 40px bar
   // (and disable the sidebar toggle) instead of rendering our own header row.
   const embeddedHeaderContent = React.useMemo(
@@ -115,12 +144,7 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
 
   const chatHeaderContent = React.useMemo(
     () => ({
-      leading: headerLeading ? (
-        <div className="flex shrink-0 items-center gap-2">
-          {headerLeading}
-          <WorkstationHeaderSectionSeparator />
-        </div>
-      ) : null,
+      leading: headerLeading,
       content: headerSlots?.content ?? null,
       trailing: headerSlots?.trailing ?? null,
       joinWithFollowingRow: headerSlots?.joinWithFollowingRow ?? false,
@@ -140,11 +164,13 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_ISSUES ? (
           <GitHubWorkItemsSurface
             scope="issue"
+            singleRowHeader={singleRowGitHubHeader}
             onDetailViewChange={handleGitHubDetailViewChange}
           />
         ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_PRS ? (
           <GitHubWorkItemsSurface
             scope="pr"
+            singleRowHeader={singleRowGitHubHeader}
             onDetailViewChange={handleGitHubDetailViewChange}
           />
         ) : (
@@ -157,7 +183,11 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     </div>
   );
 
-  return <div className="h-full min-h-0 w-full">{mainContent}</div>;
+  return (
+    <div ref={containerRef} className="h-full min-h-0 w-full">
+      {mainContent}
+    </div>
+  );
 };
 
 export default WorkManagementPage;

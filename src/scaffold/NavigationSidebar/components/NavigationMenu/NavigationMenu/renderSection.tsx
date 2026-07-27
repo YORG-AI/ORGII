@@ -28,7 +28,6 @@ interface RenderNavigationMenuItemArgs {
   onRowMouseEnter: NavigationMenuRowMouseEnterHandler;
   onRowActionClick: NavigationMenuRowActionClickHandler;
   onToggleSubmenu: (key: string) => void;
-  compactRows: boolean;
 }
 
 export function renderNavigationMenuItem({
@@ -46,7 +45,6 @@ export function renderNavigationMenuItem({
   onRowMouseEnter,
   onRowActionClick,
   onToggleSubmenu,
-  compactRows,
 }: RenderNavigationMenuItemArgs): React.ReactElement {
   const hasChildren = item.children && item.children.length > 0;
   const isSelected = selectedKeys.includes(item.key);
@@ -68,7 +66,6 @@ export function renderNavigationMenuItem({
       onRowActionClick={onRowActionClick}
       onToggleSubmenu={onToggleSubmenu}
       onMenuItemClick={onMenuItemClick}
-      compactRows={compactRows}
     />
   ) : (
     <NavigationMenuLeafRow
@@ -82,7 +79,6 @@ export function renderNavigationMenuItem({
       onMenuItemContextMenu={onMenuItemContextMenu}
       onRowMouseEnter={onRowMouseEnter}
       onRowActionClick={onRowActionClick}
-      compactRows={compactRows}
     />
   );
 

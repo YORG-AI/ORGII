@@ -1,16 +1,10 @@
 import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
-import Dropdown from "@src/components/Dropdown";
-import {
-  DROPDOWN_CLASSES,
-  DROPDOWN_WIDTHS,
-} from "@src/components/Dropdown/exports";
-import { SearchInput } from "@src/components/SearchInput";
 import type { SelectOption } from "@src/components/Select";
 import { usePublishWorkstationTabHeader } from "@src/hooks/workStation";
 import {
+  IssueDetailExternalLinkButton,
   IssueDetailHeaderContent,
   IssueDetailPanel,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
@@ -21,6 +15,7 @@ import {
 
 import {
   CreateIssueModal,
+  IssuePersonalFilterDropdown,
   ManagedIssueRow,
   ManagedPrRow,
   RepoFilterPill,
@@ -28,7 +23,9 @@ import {
 import {
   GitHubWorkItemListFrame,
   GitHubWorkItemPagination,
+  GitHubWorkItemSearch,
   GitHubWorkItemStateTabs,
+  GitHubWorkItemTableSurface,
   GitHubWorkItemToolbarActions,
 } from "./GitHubWorkItemList";
 import {
@@ -49,6 +46,7 @@ import type { IssueDetailState } from "./useGitHubIssueDetail";
 
 interface GitHubWorkItemsViewProps {
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
+  singleRowHeader: boolean;
   loading: boolean;
   loadError: string | null;
   loadingMore: boolean;
@@ -96,6 +94,7 @@ interface GitHubWorkItemsViewProps {
 
 export function GitHubWorkItemsView({
   scope,
+  singleRowHeader,
   loading,
   loadError,
   loadingMore,
@@ -179,55 +178,58 @@ export function GitHubWorkItemsView({
         </span>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <GitHubWorkItemStateTabs
-            tabs={stateTabs}
-            activeTab={activeState}
-            onChange={handleStateChange}
-          />
           <RepoFilterPill
             options={repoOptions}
             selectedRepo={effectiveSelectedRepo}
             allReposLabel={t("chat.manageIssues.allRepositories")}
             onSelectRepo={onRepoSelect}
           />
+          <GitHubWorkItemStateTabs
+            tabs={stateTabs}
+            activeTab={activeState}
+            onChange={handleStateChange}
+          />
+          {scope === GITHUB_QUERY_SCOPE.ISSUE ? (
+            <IssuePersonalFilterDropdown
+              options={issuePersonalFilterOptions}
+              selectedFilters={selectedIssuePersonalFilters}
+              filterLabel={t("common:actions.filter")}
+              onSelect={onIssuePersonalFiltersSelect}
+            />
+          ) : null}
+          {singleRowHeader ? (
+            <GitHubWorkItemSearch
+              value={searchQuery}
+              onChange={onSearchQueryChange}
+              placeholder={t("chat.panels.manageIssues.searchPlaceholder")}
+            />
+          ) : null}
         </div>
       ),
     [
       effectiveSelectedRepo,
       activeState,
       handleStateChange,
+      issuePersonalFilterOptions,
       issueDetail,
+      singleRowHeader,
+      onSearchQueryChange,
+      onIssuePersonalFiltersSelect,
       stateTabs,
       onRepoSelect,
       repoOptions,
+      searchQuery,
+      scope,
+      selectedIssuePersonalFilters,
       t,
     ]
   );
   const headerTrailing = useMemo(
     () =>
-      issueDetail ? null : (
+      issueDetail ? (
+        <IssueDetailExternalLinkButton issue={issueDetail.issue} />
+      ) : (
         <div className="flex shrink-0 items-center gap-px">
-          {scope === GITHUB_QUERY_SCOPE.ISSUE ? (
-            <Dropdown
-              options={issuePersonalFilterOptions}
-              value={selectedIssuePersonalFilters}
-              mode="multiple"
-              position="bottom-end"
-              className={`${DROPDOWN_CLASSES.panelAnimated} ${DROPDOWN_WIDTHS.menuClass}`}
-              onSelect={(value) =>
-                onIssuePersonalFiltersSelect(
-                  Array.isArray(value) ? value : [value]
-                )
-              }
-            >
-              <Button htmlType="button" variant="secondary" size="small">
-                {t("common:actions.filter")}
-                {selectedIssuePersonalFilters.length > 0
-                  ? ` (${selectedIssuePersonalFilters.length})`
-                  : ""}
-              </Button>
-            </Dropdown>
-          ) : null}
           <GitHubWorkItemToolbarActions
             refreshLabel={t("common:actions.refresh")}
             refreshing={loading}
@@ -246,14 +248,11 @@ export function GitHubWorkItemsView({
       ),
     [
       issueDetail,
-      issuePersonalFilterOptions,
       loading,
-      onIssuePersonalFiltersSelect,
       onRefresh,
       onSetCreateFormOpen,
       repoSources.length,
       scope,
-      selectedIssuePersonalFilters,
       t,
     ]
   );
@@ -261,9 +260,9 @@ export function GitHubWorkItemsView({
     () => ({
       content: headerContent,
       trailing: headerTrailing,
-      joinWithFollowingRow: !issueDetail,
+      joinWithFollowingRow: !issueDetail && !singleRowHeader,
     }),
-    [headerContent, headerTrailing, issueDetail]
+    [headerContent, headerTrailing, issueDetail, singleRowHeader]
   );
   usePublishWorkstationTabHeader({
     host: "workManagement",
@@ -359,7 +358,9 @@ export function GitHubWorkItemsView({
                     issue={item}
                     addLabel={t("chat.panels.manageIssues.addToChat")}
                     openInBrowserLabel={t("common:previews.openInBrowser")}
-                    openInMyStationLabel={t("layout.sidebar.openInMyStation")}
+                    openInMyStationLabel={t(
+                      "controlTower.sidebar.openInMyStation"
+                    )}
                     moreActionsLabel={t("common:actions.moreActions")}
                     onOpenIssue={onOpenIssue}
                     onOpenIssueInBrowser={onOpenIssueInBrowser}
@@ -385,8 +386,8 @@ export function GitHubWorkItemsView({
   const issueDetailContent = issueDetail ? (
     <IssueDetailPanel
       issue={issueDetail.issue}
-      comments={issueDetail.comments}
-      commentsLoading={issueDetail.commentsLoading}
+      timeline={issueDetail.timeline}
+      timelineLoading={issueDetail.timelineLoading}
       submittingComment={issueDetail.submittingComment}
       showHeader={false}
       contentPadding="default"
@@ -431,28 +432,25 @@ export function GitHubWorkItemsView({
           <div className="bg-bg-0 flex min-w-0 flex-1 flex-col">
             {issueDetailContent ?? (
               <>
-                <div className="flex h-10 shrink-0 items-center border-b border-border-2 px-3">
-                  <SearchInput
-                    value={searchQuery}
-                    onChange={onSearchQueryChange}
-                    placeholder={t(
-                      "chat.panels.manageIssues.searchPlaceholder"
-                    )}
-                    ariaLabel={t("chat.panels.manageIssues.searchPlaceholder")}
-                    variant="panel"
-                    surface="transparent"
-                    hideChevron
-                    showClearButton
-                    inputBoxClassName="flex-1"
-                    className="min-w-0 flex-1"
-                  />
-                </div>
-                <div
-                  ref={listScrollRef}
-                  className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-hide"
-                >
-                  {listContent}
-                </div>
+                {!singleRowHeader ? (
+                  <div className="flex h-10 shrink-0 items-center border-b border-border-2 px-3">
+                    <GitHubWorkItemSearch
+                      value={searchQuery}
+                      onChange={onSearchQueryChange}
+                      placeholder={t(
+                        "chat.panels.manageIssues.searchPlaceholder"
+                      )}
+                    />
+                  </div>
+                ) : null}
+                <GitHubWorkItemTableSurface>
+                  <div
+                    ref={listScrollRef}
+                    className="min-h-0 flex-1 overflow-y-auto p-3 scrollbar-hide"
+                  >
+                    {listContent}
+                  </div>
+                </GitHubWorkItemTableSurface>
                 {filteredItems.length > 0 ? (
                   <GitHubWorkItemPagination
                     totalLabel={t("common:pagination.pageOf", {

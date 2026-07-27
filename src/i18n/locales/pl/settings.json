@@ -139,10 +139,13 @@
       "helveticaNeue": "Styl Helvetica Neue"
     },
     "uiScale": "Skala interfejsu",
+    "preferences": "Preferencje",
+    "usePointerCursors": "Używaj kursora wskazującego",
+    "usePointerCursorsDesc": "Zmieniaj kursor na wskazujący po najechaniu na elementy interaktywne",
     "timezoneAuto": "Auto (przeglądarka)",
     "timezoneSearchPlaceholder": "Szukaj najbliższych miast",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
     "language": "Język",
     "languageSearchPlaceholder": "Szukaj języków...",
     "languageNames": {
@@ -1011,7 +1014,7 @@
     "decryptEffect": "Efekt deszyfrowania",
     "decryptEffectDesc": "Włącz animację deszyfrowania dla wiadomości Agent",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "Zarządzaj serwerami LSP dla autouzupełniania, diagnostyki i inteligencji kodu",

@@ -44,6 +44,7 @@ interface UseChatHistoryProjectionModelOptions {
   isAgentWorking: boolean;
   isCursorIde: boolean;
   planningIndicatorCount: 0 | 1;
+  sessionStatus: string | undefined;
   sessionLoadStatus: SessionLoadStatus;
   turnPaginationEnabled: boolean;
 }
@@ -66,6 +67,7 @@ export function useChatHistoryProjectionModel({
   isAgentWorking,
   isCursorIde,
   planningIndicatorCount,
+  sessionStatus,
   sessionLoadStatus,
   turnPaginationEnabled,
 }: UseChatHistoryProjectionModelOptions) {
@@ -80,6 +82,7 @@ export function useChatHistoryProjectionModel({
     groupChat,
     isAgentWorking,
     isCursorIde,
+    sessionStatus,
   });
 
   const projectionSource = resolveChatHistoryProjectionSource({

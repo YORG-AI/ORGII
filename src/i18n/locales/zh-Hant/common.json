@@ -544,6 +544,10 @@
     "failedToRenderEvent": "渲染事件失敗",
     "unknown": "未知錯誤",
     "agentRequestFailed": "Agent 請求失敗",
+    "codexLoginExpired": "Codex 登入已過期",
+    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段。",
+    "reconnectCodex": "重新連接 Codex",
+    "technicalDetails": "技術詳細資訊",
     "failedToCopy": "複製失敗",
     "api": {
       "titles": {
@@ -969,7 +973,6 @@
     "addCssVariables": "向項目添加 CSS 變量",
     "loadingAccountStatus": "正在加載賬戶狀態...",
     "noRepositorySelected": "未選擇倉庫",
-    "selectRepositoryFromHome": "請從首頁選擇一個倉庫以打開。",
     "noWorkspaceExplorerTitle": "未開啟 Workspace",
     "noWorkspaceExplorerSubtitle": "開啟工作區以查看檔案",
     "cannotFindRepo": "找不到 {{repoName}}",
@@ -1000,7 +1003,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "預覽不可用",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "請從工作區選擇一個倉庫以開啟。"
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1160,8 +1164,6 @@
       "tryVerifyUrl": "確認網址是否正確",
       "tryAgainLater": "稍後再試"
     },
-    "selectRepoFromHome": "請從首頁選擇一個倉庫",
-    "cloneRepoAgain": "請從首頁重新克隆倉庫",
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Git 同步操作"
@@ -1254,6 +1256,43 @@
         "closed": "已關閉",
         "completed": "已完成",
         "notPlanned": "未計劃"
+      },
+      "activity": {
+        "opened": "開啟了此 issue",
+        "commented": "發表了留言",
+        "timelineItemCount_one": "{{count}} 個時間軸項目",
+        "timelineItemCount_other": "{{count}} 個時間軸項目",
+        "noDescription": "未提供描述。",
+        "assigned": "指派了：",
+        "assignedIssue": "指派了此 issue",
+        "unassigned": "取消指派了：",
+        "removedAssignee": "移除了一名受指派者",
+        "added": "新增了：",
+        "removed": "移除了：",
+        "label": "一個標籤",
+        "milestoned": "將此 issue 新增至里程碑 {{milestone}}",
+        "demilestoned": "將此 issue 從里程碑 {{milestone}} 中移除",
+        "closedViaCommit": "透過提交 {{commit}} 關閉了此 issue",
+        "closed": "關閉了此 issue",
+        "reopened": "重新開啟了此 issue",
+        "renamedTo": "將此 issue 重新命名為",
+        "renamed": "重新命名了此 issue",
+        "locked": "鎖定了此對話",
+        "lockedAs": "因 {{reason}} 鎖定了此對話",
+        "unlocked": "解鎖了此對話",
+        "crossReferencedFrom": "從以下位置引用了此 issue：",
+        "crossReferenced": "交叉引用了此 issue",
+        "referencedInCommit": "在提交 {{commit}} 中引用了此 issue",
+        "referencedInACommit": "在一次提交中引用了此 issue",
+        "connected": "連結了此 issue",
+        "disconnected": "取消連結了此 issue",
+        "markedAsDuplicate": "將此 issue 標記為重複",
+        "unmarkedAsDuplicate": "移除了重複標記",
+        "pinned": "置頂了此 issue",
+        "unpinned": "取消置頂了此 issue",
+        "transferred": "轉移了此 issue",
+        "convertedToDiscussion": "將此 issue 轉換為討論",
+        "mentioned": "提及了此 issue"
       }
     }
   },
@@ -1712,7 +1751,6 @@
     "ramCurrentSession": "目前會話",
     "ramChatRenderedTree": "Chat 渲染樹",
     "ramSessionStore": "Session store",
-    "ramStartSidebar": "Start 側欄",
     "ramSessionSidebar": "Session 側欄",
     "ramSecondLevelSidebars": "二級側欄",
     "ramSettingsSidebar": "Settings 側欄",
@@ -2159,20 +2197,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "拖放文件以上傳",
-    "dropFileToChat": "拖放文件以添加到聊天",
-    "dropFolderToAdd": "拖放文件夾以添加倉庫",
-    "releaseToAddFiles": "釋放以將文件添加到您的 Session",
-    "releaseToAddFileToChat": "釋放以將文件添加到聊天（類似 ⌘L）",
-    "releaseToOpenFolder": "釋放以打開文件夾",
-    "folderDetected": "檢測到文件夾",
-    "openSpotlightToAdd": "打開 Spotlight 以將此文件夾添加爲倉庫",
-    "openSpotlight": "打開 Spotlight",
-    "addedToChat": "已將 \"{{name}}\" 添加到聊天",
-    "couldNotExtractPath": "無法從拖放中提取文件路徑",
-    "couldNotExtractPathFromItem": "無法從拖放項中提取文件路徑",
-    "dropFilesHere": "將文件拖放到這裏",
-    "dragFilesFromIde": "從 VS Code 拖動文件或標籤頁以添加到聊天"
+    "couldNotExtractPathFromItem": "無法從拖放項中提取文件路徑"
   },
   "contextList": {
     "task": "任務",

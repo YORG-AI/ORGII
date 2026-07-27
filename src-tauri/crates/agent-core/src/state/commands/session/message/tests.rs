@@ -7,6 +7,7 @@
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
 use super::org_wake::{promote_agent_org_wake_session_to_running, resolve_agent_org_wake_mode};
+use super::send::should_divert_to_mid_turn_steering;
 use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
 };
@@ -147,6 +148,41 @@ fn insert_control(fixture: &WakeModeFixture, sender_member_id: &str, message: Ag
     })
     .expect("insert control row")
     .id
+}
+
+#[test]
+fn force_send_never_enters_mid_turn_steering() {
+    use crate::foundation::session_bridge::TurnIntentBridgeSource;
+
+    assert_eq!(
+        TurnIntentBridgeSource::parse("force_send")
+            .expect("force_send source")
+            .as_str(),
+        "force_send"
+    );
+    assert!(TurnIntentBridgeSource::parse("force-send").is_none());
+
+    assert!(should_divert_to_mid_turn_steering(
+        TurnIntentBridgeSource::UserSubmit,
+        false,
+        "ordinary live guidance",
+        None,
+        true,
+    ));
+    assert!(!should_divert_to_mid_turn_steering(
+        TurnIntentBridgeSource::ForceSend,
+        false,
+        "start a fresh turn now",
+        None,
+        true,
+    ));
+    assert!(!should_divert_to_mid_turn_steering(
+        TurnIntentBridgeSource::Queue,
+        false,
+        "queued follow-up",
+        None,
+        true,
+    ));
 }
 
 /// Historical callers without a task-scoped mode keep Build semantics.

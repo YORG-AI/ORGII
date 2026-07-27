@@ -1,9 +1,13 @@
 import { atom } from "jotai";
 
 import { destroyChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
+import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   type ChatPanelSelectedWorkItem,
   chatPanelSelectedCloudOrgAtom,
+  chatPanelSelectedProjectAtom,
+  chatPanelSelectedProjectOrgAtom,
+  chatPanelSelectedWorkItemAtom,
 } from "@src/store/ui/chatPanelAtom";
 
 import { buildDefaultLaunchpadTab } from "./chatPanelTabFactories";
@@ -35,6 +39,20 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
   if (idx === -1) return;
   const tab = state.tabs[idx];
   const nextTabs = state.tabs.filter((candidate) => candidate.id !== tabId);
+  if (
+    tab.type === "session" &&
+    tab.sessionId &&
+    get(workstationActiveSessionIdAtom) === tab.sessionId &&
+    !nextTabs.some(
+      (candidate) =>
+        candidate.type === "session" && candidate.sessionId === tab.sessionId
+    )
+  ) {
+    // A closed tab cannot remain the WorkStation's remembered selection.
+    // Activating a neighbouring session below will immediately replace this;
+    // a Launchpad/non-session fallback correctly leaves it empty.
+    set(workstationActiveSessionIdAtom, null);
+  }
   if (
     tab.type === "work-management" &&
     !nextTabs.some((candidate) => candidate.type === "work-management")
@@ -73,22 +91,91 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 });
 closeChatPanelTabAtom.debugLabel = "closeChatPanelTab";
 
-/** Close the singleton org-management tab, or clear a legacy bare surface. */
-export const closeCloudOrgManagementChatPanelTabAtom = atom(
+/** Close the singleton organization tab, or clear its legacy surface mirrors. */
+export const closeOrganizationChatPanelTabAtom = atom(null, (get, set) => {
+  const tab = get(chatPanelTabsAtom).tabs.find(
+    (candidate) => candidate.type === "organization"
+  );
+  if (tab) {
+    set(closeChatPanelTabAtom, tab.id);
+    return;
+  }
+  set(chatPanelSelectedCloudOrgAtom, null);
+  set(chatPanelSelectedProjectOrgAtom, null);
+});
+closeOrganizationChatPanelTabAtom.debugLabel = "closeOrganizationChatPanelTab";
+
+/**
+ * Close the tab that owns a deleted Work Item. Remote item tombstones and
+ * project cascades must remove the durable tab payload as well as the legacy
+ * selected-work-item mirror; clearing only the mirror leaves an editable ghost
+ * because `WorkItemSurfaceRenderer` is keyed by the tab.
+ */
+export const closeWorkItemChatPanelTabAtom = atom(
   null,
-  (get, set) => {
+  (get, set, shortId: string) => {
     const tab = get(chatPanelTabsAtom).tabs.find(
-      (candidate) => candidate.type === "cloud-org"
+      (candidate) =>
+        candidate.type === "work-item" &&
+        candidate.workItem?.shortId === shortId
     );
     if (tab) {
       set(closeChatPanelTabAtom, tab.id);
       return;
     }
-    set(chatPanelSelectedCloudOrgAtom, null);
+    const selected = get(chatPanelSelectedWorkItemAtom);
+    if (selected?.shortId === shortId) {
+      set(chatPanelSelectedWorkItemAtom, null);
+    }
   }
 );
-closeCloudOrgManagementChatPanelTabAtom.debugLabel =
-  "closeCloudOrgManagementChatPanelTab";
+closeWorkItemChatPanelTabAtom.debugLabel = "closeWorkItemChatPanelTab";
+
+/**
+ * Close every project/org/work-item tab backed by a project org whose remote
+ * membership was revoked. The tab payload is the durable owner of these
+ * surfaces, so clearing only sidebar selection would leave cached Team data
+ * visible and editable after the authoritative cloud roster removed it.
+ */
+export const closeProjectOrgChatPanelTabsAtom = atom(
+  null,
+  (get, set, orgIds: readonly string[]) => {
+    if (orgIds.length === 0) return;
+    const revoked = new Set(orgIds);
+    const tabIds = get(chatPanelTabsAtom)
+      .tabs.filter((tab) => {
+        if (tab.type === "work-item") {
+          return Boolean(
+            tab.workItem?.orgId && revoked.has(tab.workItem.orgId)
+          );
+        }
+        if (tab.type === "project") {
+          return Boolean(tab.project?.orgId && revoked.has(tab.project.orgId));
+        }
+        if (tab.type === "organization" && tab.organization?.kind === "local") {
+          return Boolean(revoked.has(tab.organization.projectOrg.orgId));
+        }
+        return false;
+      })
+      .map((tab) => tab.id);
+
+    for (const tabId of tabIds) set(closeChatPanelTabAtom, tabId);
+
+    const selectedWorkItem = get(chatPanelSelectedWorkItemAtom);
+    if (selectedWorkItem?.orgId && revoked.has(selectedWorkItem.orgId)) {
+      set(chatPanelSelectedWorkItemAtom, null);
+    }
+    const selectedProject = get(chatPanelSelectedProjectAtom);
+    if (selectedProject?.orgId && revoked.has(selectedProject.orgId)) {
+      set(chatPanelSelectedProjectAtom, null);
+    }
+    const selectedProjectOrg = get(chatPanelSelectedProjectOrgAtom);
+    if (revoked.has(selectedProjectOrg?.orgId ?? "")) {
+      set(chatPanelSelectedProjectOrgAtom, null);
+    }
+  }
+);
+closeProjectOrgChatPanelTabsAtom.debugLabel = "closeProjectOrgChatPanelTabs";
 
 /** Navigate to the next tab (wraps around) */
 export const nextChatPanelTabAtom = atom(null, (get, set) => {

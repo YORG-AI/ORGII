@@ -8,11 +8,11 @@ import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
+import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   type SessionViewState,
   closeSessionAtom,
   hasActiveSessionAtom,
-  jumpToSessionAtom,
   sessionViewAtom,
   updateSessionMetadataAtom,
   workstationActiveSessionIdAtom,
@@ -63,7 +63,7 @@ export function useSessionView(): UseSessionViewReturn {
   const [activeSessionId] = useAtom(workstationActiveSessionIdAtom);
   const hasActiveSession = useAtomValue(hasActiveSessionAtom);
 
-  const jumpToSession = useSetAtom(jumpToSessionAtom);
+  const openSessionTab = useSetAtom(openOrReplaceSessionInChatPanelTabAtom);
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
   const closeSessionAction = useSetAtom(closeSessionAtom);
@@ -71,16 +71,14 @@ export function useSessionView(): UseSessionViewReturn {
 
   const openSession = useCallback(
     (sessionId: string, sessionName?: string, repoPath?: string): void => {
-      // Single atom write — `jumpToSessionAtom` accepts the rich
-      // payload form so we don't double-flush sessionViewAtom.
-      // Preserve the user's current chat/workstation layout. In particular,
-      // switching sessions while chat is maximized must not reopen the
-      // workstation surface.
-      navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
-      jumpToSession({ sessionId, sessionName, repoPath });
+      // Keep the visible ChatPanel tab and the singleton event pipeline in the
+      // same transition. Calling jumpToSessionAtom directly updates the
+      // pipeline but leaves Launchpad (or another non-session tab) visible,
+      // which makes a successfully loaded external session appear blank.
+      openSessionTab({ sessionId, sessionName, repoPath });
       navigate(ROUTES.workStation.base.path);
     },
-    [jumpToSession, navigate, navigateChatPanel]
+    [navigate, openSessionTab]
   );
 
   const closeSession = useCallback((): void => {

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import { ChatCodeBlock, StackedBlock } from "@src/engines/ChatPanel/blocks";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { stripLineNumberPrefixes } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
 import { getFileName } from "@src/util/file/pathUtils";
 
 import { getReadFileName, getReadFilePath } from "../readFileEventData";
@@ -66,27 +67,15 @@ function getFileContent(event: SessionEvent): string | null {
   return null;
 }
 
-// Matches the right-aligned line-number prefix emitted by
-// `foundation/tool_infra/file.rs::format_text_result`.
-// Current separator: `│` (U+2502). Legacy: `→` (U+2192) for older sessions.
-function stripLineNumbers(content: string): string {
-  return content.replace(/^ *\d+[│→]/gm, "");
-}
-
-// `read_file` (Rust) prepends a `[action: read_text|read_image|read_pdf]`
-// marker line as an LLM hint. Strip it before display.
-function stripActionMarker(content: string): string {
-  return content.replace(/^\[action:[^\]]*\]\n?/, "");
-}
-
+// Line-number prefixes (`│`/`→` from the Rust `read_file`, `<digits><TAB>` from
+// Claude Code's `Read`) and the `[action: ...]` marker are stripped by the
+// shared extractor so every read surface agrees on the format list.
 function cleanFileContent(rawContent: string): string {
-  let content = rawContent.replace(
+  const withoutReminders = rawContent.replace(
     /<system-reminder>[\s\S]*?<\/system-reminder>\s*/g,
     ""
   );
-  content = stripActionMarker(content);
-  content = stripLineNumbers(content);
-  return content.trimEnd();
+  return stripLineNumberPrefixes(withoutReminders).content.trimEnd();
 }
 
 function formatReadEventName(event: SessionEvent): string {

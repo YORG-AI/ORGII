@@ -61,15 +61,9 @@
     "startSession": "Bắt đầu phiên",
     "sessions": "Các Session",
     "selectProject": "Chọn Project",
-    "startPage": "Trang bắt đầu",
     "inbox": "Hộp thư đến",
     "login": "Đăng nhập",
     "setup": "Thiết lập",
-    "devJourney": "Dev Journey",
-    "devRecord": "Hồ sơ phát triển",
-    "gitDashboard": "Bảng điều khiển Git",
-    "devActivity": "Hoạt động Dev",
-    "usageHistory": "Lịch sử sử dụng",
     "tokenMarket": "Thị trường Token",
     "taskMarket": "Thị trường nhiệm vụ",
     "channels": "Kênh",
@@ -85,20 +79,8 @@
     "ideaArea": "Khu vực ý tưởng",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Tùy chỉnh lưới",
-    "horizontalGap": "Khoảng cách ngang",
-    "verticalGap": "Khoảng cách dọc",
-    "resetToDefault": "Đặt lại mặc định"
-  },
-  "greetings": {
-    "morning": "Chào buổi sáng",
-    "afternoon": "Chào buổi chiều",
-    "evening": "Chào buổi tối"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Trang chủ",
       "workstation": "Workstation",
       "manage": "Quản lý",
       "core": "Lõi",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Thêm mới",
       "collapseAll": "Thu gọn tất cả",
-      "markAllRead": "Đánh dấu tất cả đã đọc",
-      "openHome": "Mở Home",
-      "openWorkstation": "Mở Workstation"
+      "markAllRead": "Đánh dấu tất cả đã đọc"
     },
     "search": {
       "folders": "Tìm kiếm Workspace...",
@@ -358,15 +338,6 @@
       "projects": "Dự án"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Cập nhật sản phẩm",
-    "commitCount": "{{count}} commit",
-    "commitCount_one": "{{count}} commit",
-    "details": "Chi tiết",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Chuyển ORG",
     "addOrg": "Thêm ORG",
@@ -434,7 +405,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
+    "signedInAs": "Đã đăng nhập: {{name}}",
     "signedInToast": "Đã đăng nhập ORG2 Cloud",
+    "sessionExpired": "Phiên ORG2 Cloud đã hết hạn. Hãy đăng nhập lại để tiếp tục.",
     "recommendedBadge": "Khuyên dùng",
     "recommendedDesc": "Chia sẻ phiên được quản lý, lưu trữ phát lại, phân quyền nhóm và liên kết chia sẻ an toàn. Không cần cài đặt Supabase. ORG2 quản lý giúp bạn Auth, di trú cơ sở dữ liệu, chính sách RLS, thanh toán, thời gian lưu trữ, hạn mức và nâng cấp backend",
     "customEndpoint": {
@@ -474,13 +447,15 @@
       "retentionUpgrade": "Phiên này nằm ngoài cửa sổ phát lại của gói — nâng cấp để xem",
       "importError": "Không nhập được phiên",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Giới thiệu về tôi"
     },
     "sidebar": {
       "teamSessions": "Phiên của nhóm",
       "mySessions": "Phiên của tôi",
       "memberFilter": "Lọc theo thành viên",
       "sessionFilter": "Lọc phiên",
+      "copyId": "Sao chép ID",
       "directlySharedWithMe": "Được chia sẻ trực tiếp với tôi",
       "everyone": "Tất cả",
       "forkedFrom": "được fork từ @{{name}}",
@@ -613,25 +588,22 @@
         "inviteInvalid": "Mã mời không hợp lệ.",
         "inviteRevoked": "Lời mời đã bị thu hồi.",
         "inviteExpired": "Lời mời đã hết hạn.",
-        "inviteExhausted": "Lời mời đã hết số lần dùng."
+        "inviteExhausted": "Lời mời đã hết số lần dùng.",
+        "network": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại."
       }
-    },
-    "defaultAccess": {
-      "label": "Mức đồng bộ mặc định",
-      "help": "Áp dụng cho các phiên trên thiết bị này khớp phạm vi repo và chưa có cài đặt riêng. Chọn “Tắt” thì phiên chỉ nằm ở máy cho đến khi bạn bật chia sẻ"
     },
     "syncLevel": {
       "menuItem": "Mức đồng bộ đám mây…",
       "title": "Mức đồng bộ đám mây",
       "hint": "Chọn phiên này chia sẻ gì với từng tổ chức đám mây — không chia sẻ, chỉ siêu dữ liệu hay phát lại đầy đủ — và ai được xem.",
-      "orgDefaultOption": "Mặc định của tổ chức ({{mode}})",
       "modeOff": "Tắt",
       "modeMetadata": "Chỉ siêu dữ liệu",
       "modeFullReplay": "Phát lại đầy đủ",
       "visibilityOrg": "Mọi người trong tổ chức",
       "visibilityRestricted": "Chỉ mình tôi",
       "taggedNote": "Phiên này đã được chuyển vào tổ chức, nên khi còn gắn thẻ nó luôn chia sẻ ít nhất siêu dữ liệu.",
-      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}."
+      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}.",
+      "orgMinimumOption": "Mức tối thiểu của tổ chức ({{mode}})"
     },
     "share": {
       "menuItem": "Chia sẻ đám mây…",

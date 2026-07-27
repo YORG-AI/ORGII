@@ -101,6 +101,7 @@ export function useProviderSelection({
       quota_info: undefined,
       extracted_api_key: undefined,
       extracted_base_url: undefined,
+      selected_endpoint_id: undefined,
       protocol: undefined,
       setup_method: undefined,
     });
@@ -128,6 +129,7 @@ export function useProviderSelection({
           // The setup step seeds the base URL from the provider's default
           // endpoint, so nothing is hardcoded per provider here.
           extracted_base_url: undefined,
+          selected_endpoint_id: undefined,
           protocol: selectedVariant?.defaultProtocol,
           setup_method:
             localRuntime ??

@@ -19,48 +19,51 @@ import { createLogger } from "@src/hooks/logger";
 
 const log = createLogger("WindowFocus");
 
+interface FocusDocument {
+  readonly hidden: boolean;
+  hasFocus(): boolean;
+  readonly documentElement: {
+    readonly dataset: DOMStringMap;
+  };
+}
+
+/**
+ * Mirror native-window focus onto the document so global CSS can suspend
+ * compositor animations while this desktop window is not interactive.
+ */
+export function reflectWindowFocusState(
+  focusDocument: FocusDocument = document
+): boolean {
+  const focused = focusDocument.hasFocus() && !focusDocument.hidden;
+  focusDocument.documentElement.dataset.windowFocused = String(focused);
+  return focused;
+}
+
 export function useWindowFocusTracking() {
   useEffect(() => {
-    async function handleFocus() {
+    let lastReportedFocus: boolean | null = null;
+    async function syncFocusState() {
+      const focused = reflectWindowFocusState();
+      if (focused === lastReportedFocus) return;
+      lastReportedFocus = focused;
       try {
-        await invoke("set_window_focus", { focused: true });
+        await invoke("set_window_focus", { focused });
       } catch (error) {
         log.error("[WindowFocus] Failed to set focused state:", error);
       }
     }
 
-    async function handleBlur() {
-      try {
-        await invoke("set_window_focus", { focused: false });
-      } catch (error) {
-        log.error("[WindowFocus] Failed to set blur state:", error);
-      }
-    }
-
     // Track window focus/blur
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("blur", handleBlur);
+    window.addEventListener("focus", syncFocusState);
+    window.addEventListener("blur", syncFocusState);
+    document.addEventListener("visibilitychange", syncFocusState);
 
-    // Also track visibility change (tab switching, minimizing)
-    function handleVisibilityChange() {
-      if (document.hidden) {
-        handleBlur();
-      } else {
-        handleFocus();
-      }
-    }
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Set initial state
-    if (document.hasFocus() && !document.hidden) {
-      handleFocus();
-    }
+    void syncFocusState();
 
     return () => {
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("blur", handleBlur);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", syncFocusState);
+      window.removeEventListener("blur", syncFocusState);
+      document.removeEventListener("visibilitychange", syncFocusState);
     };
   }, []);
 }

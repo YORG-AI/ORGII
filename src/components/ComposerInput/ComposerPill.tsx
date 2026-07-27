@@ -17,6 +17,7 @@ import {
   GitBranch,
   GitPullRequest,
   Globe,
+  Link,
   ListChecks,
   MousePointer2,
   SquareMousePointer,
@@ -140,10 +141,13 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
     return null;
   }, [lineStart, lineEnd]);
 
+  const isGenericLink = iconType === "link";
   const visibleFileName = useMemo(
     () =>
-      isGitHubPillUrl(filePath) ? fileName : truncateVisiblePillLabel(fileName),
-    [fileName, filePath]
+      isGitHubPillUrl(filePath) || isGenericLink
+        ? fileName
+        : truncateVisiblePillLabel(fileName),
+    [fileName, filePath, isGenericLink]
   );
 
   const isFolder = useMemo(() => {
@@ -177,7 +181,7 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
 
   const handlePillClick = useCallback(
     (event: React.MouseEvent) => {
-      if (isGitHubPillUrl(filePath)) {
+      if (isGitHubPillUrl(filePath) || iconType === "link") {
         event.preventDefault();
         event.stopPropagation();
         void openExternalLink(filePath);
@@ -299,7 +303,10 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
           size={PILL_SIZE.iconSize}
           strokeWidth={2}
           onClick={handleDelete}
-          style={{ cursor: "pointer", color: "var(--color-text-3)" }}
+          style={{
+            cursor: "var(--interactive-cursor, default)",
+            color: "var(--color-text-3)",
+          }}
         />
       );
     }
@@ -327,6 +334,8 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
         return <SessionPillIcon path={filePath} />;
       case "browser":
         return <Globe {...ICON_PROPS} />;
+      case "link":
+        return <Link {...ICON_PROPS} />;
       case "project":
         return <FolderKanban {...ICON_PROPS} />;
       case "workitem":
@@ -359,7 +368,7 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
       style={{
         userSelect: "none",
         WebkitUserSelect: "none",
-        cursor: "pointer",
+        cursor: "var(--interactive-cursor, default)",
         backgroundColor: "transparent",
         outline: "none",
       }}

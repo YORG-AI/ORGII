@@ -1,5 +1,6 @@
 import { useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   projectApi,
@@ -7,10 +8,14 @@ import {
   workItemDataToUI,
 } from "@src/api/http/project";
 import { projectSyncApi } from "@src/api/http/project/sync";
+import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
 import { ProjectOrgHubContent } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectOrgHubContent";
+import { ProjectOrgSurfacePillSwitch } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectOrgSurfacePillSwitch";
 import {
+  closeProjectOrgChatPanelTabsAtom,
   openCreateTargetInChatPanelStartPageAtom,
+  openOrganizationInChatPanelTabAtom,
   openProjectInChatPanelTabAtom,
   openWorkItemInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -21,7 +26,11 @@ import {
 import {
   PROJECT_ORG_SURFACE_VIEW,
   type ProjectOrgSurfaceView,
+  STORY_ORG_SCOPE,
+  STORY_PERSONAL_ORG_FILTER_ID,
 } from "@src/store/workstation/tabs";
+
+import OrganizationPanelHeader from "./OrganizationPanelHeader";
 
 const logger = createLogger("ProjectOrgPanelView");
 
@@ -32,13 +41,16 @@ interface ProjectOrgPanelViewProps {
 export const ProjectOrgPanelView: React.FC<ProjectOrgPanelViewProps> = ({
   selectedProjectOrg,
 }) => {
+  const { t } = useTranslation("projects");
   const openCreateTargetInStartPage = useSetAtom(
     openCreateTargetInChatPanelStartPageAtom
   );
   const openProjectTab = useSetAtom(openProjectInChatPanelTabAtom);
   const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
+  const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
+  const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const [orgView, setOrgView] = useState<ProjectOrgSurfaceView>(
-    PROJECT_ORG_SURFACE_VIEW.WORK_ITEMS
+    selectedProjectOrg.initialView ?? PROJECT_ORG_SURFACE_VIEW.WORK_ITEMS
   );
 
   const handleSelectProject = useCallback(
@@ -141,19 +153,58 @@ export const ProjectOrgPanelView: React.FC<ProjectOrgPanelViewProps> = ({
     [selectedProjectOrg.orgId, selectedProjectOrg.orgName, openWorkItemTab]
   );
 
+  const handleOrgDeleted = useCallback(
+    (orgId: string) => {
+      closeProjectOrgTabs([orgId]);
+      openOrganizationTab({
+        organization: {
+          kind: "local",
+          projectOrg: {
+            orgId: STORY_PERSONAL_ORG_FILTER_ID,
+            orgName: t("orgs.personalOrg"),
+            orgScope: STORY_ORG_SCOPE.PERSONAL_ORG,
+            initialView: PROJECT_ORG_SURFACE_VIEW.SETTINGS,
+          },
+        },
+      });
+      Message.success(
+        t("orgs.management.deletedToast", {
+          org: selectedProjectOrg.orgName,
+        })
+      );
+    },
+    [closeProjectOrgTabs, openOrganizationTab, selectedProjectOrg.orgName, t]
+  );
+
   return (
-    <ProjectOrgHubContent
-      orgId={selectedProjectOrg.orgId}
-      orgScope={selectedProjectOrg.orgScope}
-      orgView={orgView}
-      breadcrumbSegments={[{ label: selectedProjectOrg.orgName }]}
-      renderSurfaceControlsInline
-      onOrgViewChange={setOrgView}
-      onSelectProject={handleSelectProject}
-      onCreateProject={handleCreateProject}
-      onCreateWorkItem={handleCreateWorkItem}
-      onExpandWorkItemToTab={handleExpandWorkItemToTab}
-    />
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <OrganizationPanelHeader
+        organization={{ kind: "local", projectOrg: selectedProjectOrg }}
+        dataTestId="local-org-management-header"
+        tabControl={
+          <ProjectOrgSurfacePillSwitch
+            orgView={orgView}
+            onOrgViewChange={setOrgView}
+            className="h-10"
+            size="large"
+          />
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <ProjectOrgHubContent
+          orgId={selectedProjectOrg.orgId}
+          orgScope={selectedProjectOrg.orgScope}
+          orgView={orgView}
+          breadcrumbSegments={[{ label: selectedProjectOrg.orgName }]}
+          onOrgViewChange={setOrgView}
+          onSelectProject={handleSelectProject}
+          onCreateProject={handleCreateProject}
+          onCreateWorkItem={handleCreateWorkItem}
+          onExpandWorkItemToTab={handleExpandWorkItemToTab}
+          onOrgDeleted={handleOrgDeleted}
+        />
+      </div>
+    </div>
   );
 };
 

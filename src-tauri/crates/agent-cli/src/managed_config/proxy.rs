@@ -2,6 +2,7 @@
 //! and the authenticated route base URLs handed to each CLI.
 
 use rand::RngCore;
+use std::sync::OnceLock;
 
 use super::registry::{CLAUDE_CODE_AGENT, CODEX_AGENT};
 
@@ -9,12 +10,20 @@ use super::registry::{CLAUDE_CODE_AGENT, CODEX_AGENT};
 pub(super) const DEFAULT_PROXY_URL: &str = "http://127.0.0.1:17888";
 const DEFAULT_PROXY_PORT: u16 = 17888;
 const PROXY_PORT_ENV: &str = "ORGII_CLI_PROXY_PORT";
+static RUNTIME_DEFAULT_PROXY_PORT: OnceLock<u16> = OnceLock::new();
+
+/// Configure the default used when no explicit environment override exists.
+/// Called once by the desktop app from its embedded Tauri identifier.
+pub fn set_managed_proxy_port_default(port: u16) -> bool {
+    port > 0 && RUNTIME_DEFAULT_PROXY_PORT.set(port).is_ok()
+}
 
 pub fn managed_proxy_port() -> u16 {
     std::env::var(PROXY_PORT_ENV)
         .ok()
         .and_then(|value| value.parse::<u16>().ok())
         .filter(|port| *port > 0)
+        .or_else(|| RUNTIME_DEFAULT_PROXY_PORT.get().copied())
         .unwrap_or(DEFAULT_PROXY_PORT)
 }
 

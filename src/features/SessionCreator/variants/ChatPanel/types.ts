@@ -18,14 +18,20 @@ export type SessionCreatorChatPanelHeaderLayout = "hero" | "compact";
 export interface SessionCreatorChatPanelProps {
   centerFullScreenContent?: boolean;
   className?: string;
-  /** Optional content attached above the composer input, matching the session info row below it. */
+  /** Optional content rendered at the top of the composer input shell. */
   composerHeaderContent?: React.ReactNode;
+  /** Optional content rendered in the pinned Skills & Tools row. */
+  pinnedActionsContent?: React.ReactNode;
   /** Override classes on the inner content-padding div (e.g. to reduce bottom padding). */
   innerClassName?: string;
   footerSlot?: React.ReactNode;
   leadingActionSlot?: React.ReactNode;
   headerLayout?: SessionCreatorChatPanelHeaderLayout;
   hideRepoLine?: boolean;
+  /** Hide the work-item attachment action when the composer already creates one. */
+  hideWorkItemAttachmentControl?: boolean;
+  /** Whether the category picker may select Work log. Agent-only embedded creators disable it. */
+  includeHumanSession?: boolean;
   initialContent?: string;
   dropdownDirection?: DropdownDirection;
   onOpenCliTerminal?: (options: ChatPanelCliTerminalLaunchOptions) => void;

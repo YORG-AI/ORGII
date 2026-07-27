@@ -112,8 +112,13 @@ export {
   sessionIdAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
+  sessionHydrationCountMapAtom,
+  sessionHydrationByIdAtom,
+  beginSessionHydrationAtom,
+  endSessionHydrationAtom,
   specsAtom,
 } from "./core/atoms";
+export type { SessionHydrationState } from "./core/atoms";
 
 // Action Atoms
 export {

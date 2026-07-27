@@ -1,3 +1,4 @@
+import type { JSONContent } from "@tiptap/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -12,18 +13,23 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import ComposerInputSurface from "@src/components/ComposerInput/ComposerInputSurface";
+import type { PillIconType } from "@src/components/ComposerInput";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
 import { useComposerInput } from "@src/hooks/input";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
+import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import type {
+  RichMarkdownEditorMode,
+  RichMarkdownEditorRef,
+} from "@src/modules/shared/components/RichMarkdownEditor";
 import type { SlashItem } from "@src/types/extensions";
 
 export interface ProjectContentEditorRef {
   getDescriptionText: () => string;
   getDescriptionHTML: () => string;
-  getDescriptionJSON: () => undefined;
+  getDescriptionJSON: () => JSONContent | undefined;
   getMarkdown: () => string;
   insertImage: (src: string, alt?: string) => void;
   insertFilePill: (filePath: string, displayName?: string) => void;
@@ -63,6 +69,7 @@ export interface ProjectContentEditorProps {
   metaContent?: ReactNode;
   descriptionClassName?: string;
   descriptionMaxHeight?: number | string;
+  descriptionDefaultMode?: RichMarkdownEditorMode;
   repoPath?: string | null;
   dataTestId?: string;
 }
@@ -95,7 +102,7 @@ export const ProjectContentTitleInput = forwardRef<
         bgless
         autoHeight
         className="mb-1 min-w-0 flex-1"
-        inputClassName={`text-[22px] font-semibold text-text-2 ${PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}`}
+        inputClassName={`text-[22px] font-semibold text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
       />
       {titleActions && (
         <div className="flex shrink-0 items-center gap-1 pt-0.5">
@@ -134,6 +141,7 @@ const ProjectContentEditor = forwardRef<
       metaContent,
       descriptionClassName = "",
       descriptionMaxHeight,
+      descriptionDefaultMode,
       repoPath,
       dataTestId,
     },
@@ -148,6 +156,7 @@ const ProjectContentEditor = forwardRef<
       descriptionPlaceholderProp ?? t("projects.editor.descriptionPlaceholder");
     const titleRef = useRef<HTMLInputElement>(null);
     const editorContainerRef = useRef<HTMLDivElement>(null);
+    const editorRef = useRef<RichMarkdownEditorRef>(null);
     const descriptionValueRef = useRef(initialDescription);
     const [slashOpenedFromToolbar, setSlashOpenedFromToolbar] = useState(false);
     const slashOpenedFromToolbarRef = useRef(false);
@@ -156,12 +165,10 @@ const ProjectContentEditor = forwardRef<
     >(null);
 
     const {
-      composerInputRef: editorRef,
       showContextMenu,
       atSearchQuery,
       handleAtMention,
       handleAtMentionClose,
-      handleAtSelect,
       contextMenuKeyboardOpened,
       showSlashMenu,
       slashQuery,
@@ -169,7 +176,6 @@ const ProjectContentEditor = forwardRef<
       slashCommandKeyboardHandlerRef,
       handleSlashCommand,
       handleSlashCommandClose,
-      handleSlashSelect,
       handleModeSelect,
       currentMode,
       filteredSlashItems,
@@ -185,28 +191,20 @@ const ProjectContentEditor = forwardRef<
       if (descriptionValueRef.current === initialDescription) return;
       descriptionValueRef.current = initialDescription;
       editorRef.current?.setContent(initialDescription);
-    }, [editorRef, initialDescription]);
+    }, [initialDescription]);
 
     const getSerializedDescription = useCallback(
-      () =>
-        editorRef.current?.getTextWithPills() ?? descriptionValueRef.current,
-      [editorRef]
+      () => editorRef.current?.getMarkdown() ?? descriptionValueRef.current,
+      []
     );
 
     useImperativeHandle(ref, () => ({
-      getDescriptionText: getSerializedDescription,
-      getDescriptionHTML: getSerializedDescription,
-      getDescriptionJSON: () => undefined,
+      getDescriptionText: () => editorRef.current?.getText() ?? "",
+      getDescriptionHTML: () => editorRef.current?.getHTML() ?? "",
+      getDescriptionJSON: () => editorRef.current?.getJSON(),
       getMarkdown: getSerializedDescription,
-      insertImage: (src: string, alt?: string) => {
-        const label = alt?.trim() || "image";
-        editorRef.current
-          ?.getEditor()
-          ?.chain()
-          .focus()
-          .insertContent(`\n![${label}](${src})\n`)
-          .run();
-      },
+      insertImage: (src: string, alt?: string) =>
+        editorRef.current?.insertImage(src, alt),
       insertFilePill: (filePath: string, displayName?: string) => {
         editorRef.current?.insertFilePill(filePath, false, "file", displayName);
       },
@@ -221,8 +219,7 @@ const ProjectContentEditor = forwardRef<
       focusDescription: () => editorRef.current?.focus(),
     }));
 
-    const handleDescriptionChange = (text: string) => {
-      const markdown = editorRef.current?.getTextWithPills() ?? text;
+    const handleDescriptionChange = (markdown: string, text: string) => {
       descriptionValueRef.current = markdown;
       onDescriptionChange?.(markdown, text);
     };
@@ -230,16 +227,75 @@ const ProjectContentEditor = forwardRef<
     const handleDescriptionContainerClick = useCallback(
       (event: ReactMouseEvent<HTMLDivElement>) => {
         const target = event.target;
-        if (
-          target instanceof HTMLElement &&
-          target.closest(".composer-input")
-        ) {
-          return;
+        if (target instanceof HTMLElement) {
+          if (
+            target.closest(".ProseMirror, button, [data-rich-markdown-preview]")
+          ) {
+            return;
+          }
         }
         editorRef.current?.focus();
       },
       [editorRef]
     );
+
+    const handleProjectAtSelect = useCallback(
+      (type: string, value?: string, displayName?: string) => {
+        if (!value) return;
+        const normalizedType = type.toLowerCase();
+        const iconTypeByMenuType: Record<string, PillIconType> = {
+          files: "file",
+          file: "file",
+          folders: "folder",
+          folder: "folder",
+          directory: "folder",
+          repo: "repo",
+          branch: "branch",
+          terminals: "terminal",
+          terminal: "terminal",
+          sessions: "session",
+          session: "session",
+          browser: "browser",
+          project: "project",
+          workitem: "workitem",
+          issue: "issue",
+          pr: "pr",
+        };
+        const iconType = iconTypeByMenuType[normalizedType] ?? "file";
+        editorRef.current?.insertFilePill(
+          value,
+          iconType === "folder",
+          iconType,
+          displayName || value.split("/").pop() || value
+        );
+        handleAtMentionClose();
+      },
+      [handleAtMentionClose]
+    );
+
+    const handleContextMenuKeyDown = useCallback((event: KeyboardEvent) => {
+      const handler = contextMenuKeyboardHandlerRef.current;
+      if (!handler) return false;
+      const reactEvent = {
+        key: event.key,
+        code: event.code,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        shiftKey: event.shiftKey,
+        repeat: event.repeat,
+        preventDefault: () => event.preventDefault(),
+        stopPropagation: () => event.stopPropagation(),
+        nativeEvent: event,
+      } as unknown as ReactKeyboardEvent;
+      return handler(reactEvent);
+    }, []);
+
+    const handleProjectSlashClose = useCallback(() => {
+      slashOpenedFromToolbarRef.current = false;
+      setSlashOpenedFromToolbar(false);
+      handleSlashCommandClose();
+    }, [handleSlashCommandClose]);
 
     const handleProjectSlashSelect = useCallback(
       (item: SlashItem) => {
@@ -257,10 +313,9 @@ const ProjectContentEditor = forwardRef<
           handleSlashCommandClose();
           return;
         }
-
-        handleSlashSelect(item);
+        handleProjectSlashClose();
       },
-      [editorRef, handleSlashCommandClose, handleSlashSelect]
+      [handleProjectSlashClose, handleSlashCommandClose]
     );
 
     const handleProjectSlashCommand = useCallback(
@@ -272,12 +327,6 @@ const ProjectContentEditor = forwardRef<
       },
       [handleSlashCommand]
     );
-
-    const handleProjectSlashClose = useCallback(() => {
-      slashOpenedFromToolbarRef.current = false;
-      setSlashOpenedFromToolbar(false);
-      handleSlashCommandClose();
-    }, [handleSlashCommandClose]);
 
     const showSummary = onSummaryChange !== undefined || Boolean(summary);
 
@@ -309,7 +358,7 @@ const ProjectContentEditor = forwardRef<
             bgless
             autoHeight
             className="mb-5 w-full"
-            inputClassName={`text-[13px] text-text-2 ${PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}`}
+            inputClassName={`text-[13px] text-text-2 ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
           />
         )}
 
@@ -325,40 +374,34 @@ const ProjectContentEditor = forwardRef<
             className={`${descriptionMaxHeight ? "min-h-0 flex-1" : "min-h-[200px]"} w-full min-w-0 cursor-text`}
             onClick={handleDescriptionContainerClick}
           >
-            <ComposerInputSurface
+            <RichMarkdownEditor
               ref={editorRef}
-              wrapperClassName={
-                descriptionMaxHeight
-                  ? "relative h-full min-h-0 w-full min-w-0"
-                  : "relative w-full min-w-0"
-              }
+              value={initialDescription}
+              onChange={handleDescriptionChange}
               placeholder={descriptionPlaceholder}
-              initialContent={initialDescription}
-              onContentChange={handleDescriptionChange}
               onAtMention={editable ? handleAtMention : undefined}
               onAtMentionClose={editable ? handleAtMentionClose : undefined}
               onSlashCommand={editable ? handleProjectSlashCommand : undefined}
               onSlashCommandClose={
                 editable ? handleProjectSlashClose : undefined
               }
-              contextMenuVisible={showContextMenu}
-              contextMenuKeyboardHandlerRef={contextMenuKeyboardHandlerRef}
-              slashMenuVisible={showSlashMenu}
-              slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-              onImagePaste={editable ? onImageInsert : undefined}
+              onKeyDownForDropdown={handleContextMenuKeyDown}
+              onKeyDownForSlashDropdown={(event) =>
+                slashCommandKeyboardHandlerRef.current?.(event) ?? false
+              }
+              onImageInsert={editable ? onImageInsert : undefined}
               minHeight={200}
               maxHeight={descriptionMaxHeight}
-              overflowY={descriptionMaxHeight ? "auto" : "visible"}
+              defaultMode={descriptionDefaultMode}
               editable={editable}
-              requireCmdEnter
-              slashTriggerMode="context"
-              className={`session-editor noDrag flex-1 cursor-text overflow-y-auto rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}
+              toolbarClassName="work-item-toolbar"
+              className={`noDrag flex-1 cursor-text rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}
             />
             <ContextMenuPortal
               visible={showContextMenu}
               containerRef={editorContainerRef}
               onClose={handleAtMentionClose}
-              onSelect={handleAtSelect}
+              onSelect={handleProjectAtSelect}
               searchQuery={atSearchQuery}
               inlineSearchOnEmpty
               keyboardOpened={contextMenuKeyboardOpened}

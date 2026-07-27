@@ -494,7 +494,8 @@ async function openFileTimeline(repoPath) {
     );
   }
 
-  const toggleSelector = '[data-testid="code-editor-timeline-section-toggle"]';
+  const toggleSelector =
+    '[data-testid="code-editor-agent-timeline-section-toggle"]';
   await browser.waitUntil(
     async () =>
       execJS(`
@@ -536,11 +537,7 @@ async function openFileTimeline(repoPath) {
     throw new Error("Visible Timeline section disappeared before interaction");
   }
   if (collapsed === "true") {
-    await pointerClick(
-      toggleSelector,
-      "expand Timeline section",
-      30_000
-    );
+    await pointerClick(toggleSelector, "expand Timeline section", 30_000);
   }
   await browser.waitUntil(
     async () =>

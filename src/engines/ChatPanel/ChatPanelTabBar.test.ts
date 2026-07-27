@@ -4,7 +4,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
-import type { ChatPanelSelectedProject } from "@src/store/ui/chatPanelAtom";
+import type {
+  ChatPanelSelectedProject,
+  ChatPanelSelectedWorkItem,
+} from "@src/store/ui/chatPanelAtom";
 
 import { ChatPanelTabBar, PlusMenuContent } from "./ChatPanelTabBar";
 
@@ -71,7 +74,43 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain('data-icon-size="16"');
   });
 
-  it("offers Runtime in the new-tab menu", () => {
+  it("uses the GitHub SVG for a GitHub issue tab", () => {
+    const store = createStore();
+    store.set(chatPanelTabsAtom, {
+      tabs: [
+        {
+          id: "work-item-128",
+          type: "work-item",
+          title: "community issue",
+          workItem: {
+            workItem: {
+              session_id: "issue-128",
+              name: "community issue",
+              status: "open",
+              workItemStatus: "open",
+            },
+            shortId: "128",
+            projectId: "project-1",
+            projectName: "ORGII issues",
+            projectSlug: "orgii-issues",
+          } as ChatPanelSelectedWorkItem,
+        },
+      ],
+      activeTabId: "work-item-128",
+    });
+
+    const markup = renderToStaticMarkup(
+      createElement(Provider, { store }, createElement(ChatPanelTabBar))
+    );
+
+    expect(markup).toContain('data-integration-icon="github"');
+    expect(markup).toContain('data-icon-size="16"');
+    expect(markup).toContain("max-w-[120px]");
+    expect(markup).toContain("text-ellipsis");
+    expect(markup).not.toContain("max-w-none");
+  });
+
+  it("offers the supported creation surfaces in the new-tab menu", () => {
     const markup = renderToStaticMarkup(
       createElement(PlusMenuContent, {
         onOpenLaunchpad: vi.fn(),

@@ -1,3 +1,4 @@
+import { exists } from "@tauri-apps/plugin-fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deleteSession, saveSession } from "@src/api/tauri/agent";
@@ -27,9 +28,11 @@ import {
   forkTeammateSession,
   getSessionForkedFrom,
   markForkHandoffConsumed,
+  resolveForkWorkspacePath,
 } from "./forkSession";
 import {
   resolveLocalCheckoutForScopeKey,
+  resolveMatchingOrgRepoScope,
   resolveShareableScopeKeys,
 } from "./repoScopeResolver";
 import { sessionOrgTagsAtom, tokensForSession } from "./sessionOrgTagsAtom";
@@ -46,6 +49,10 @@ vi.mock("@src/api/tauri/agent", () => ({
   saveSession: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/plugin-fs", () => ({
+  exists: vi.fn(),
+}));
+
 vi.mock("./engine/collabSyncEngineHelpers", () => ({
   forkSession: vi.fn(),
 }));
@@ -54,6 +61,10 @@ vi.mock("./engine/collabSyncEngineHelpers", () => ({
 // workspace-resolution behavior is deterministic per test.
 vi.mock("./repoScopeResolver", () => ({
   resolveLocalCheckoutForScopeKey: vi.fn(async () => null),
+  resolveMatchingOrgRepoScope: vi.fn(
+    async (repoScopeKeys: string[] | null | undefined, orgScopes: string[]) =>
+      orgScopes.find((scope) => repoScopeKeys?.includes(scope)) ?? null
+  ),
   resolveShareableScopeKeys: vi.fn(async () => []),
 }));
 
@@ -75,8 +86,10 @@ const deleteSessionMock = vi.mocked(deleteSession);
 const saveSessionMock = vi.mocked(saveSession);
 const forkSessionMock = vi.mocked(forkSession);
 const resolveCheckoutMock = vi.mocked(resolveLocalCheckoutForScopeKey);
+const resolveMatchingScopeMock = vi.mocked(resolveMatchingOrgRepoScope);
 const resolveScopeKeysMock = vi.mocked(resolveShareableScopeKeys);
 const messageMock = vi.mocked(Message);
+const existsMock = vi.mocked(exists);
 
 // forkTeammateSession reads repos/sessions (workspace candidates) and cloud
 // orgs (auto-tag) from the global store.
@@ -155,7 +168,12 @@ beforeEach(() => {
   localStorage.removeItem(__FORK_RELAY_INTERNALS.FORK_RELAY_STORAGE_KEY);
   forkSessionMock.mockResolvedValue(FORK_RESULT);
   resolveCheckoutMock.mockResolvedValue(null);
+  resolveMatchingScopeMock.mockImplementation(
+    async (repoScopeKeys, orgScopes) =>
+      orgScopes?.find((scope) => repoScopeKeys?.includes(scope)) ?? null
+  );
   resolveScopeKeysMock.mockResolvedValue([]);
+  existsMock.mockResolvedValue(true);
   saveSessionMock.mockResolvedValue(undefined);
   deleteSessionMock.mockResolvedValue(undefined);
   eventStoreMock.clear.mockResolvedValue(undefined);
@@ -166,6 +184,63 @@ beforeEach(() => {
   store.set(sessionOrgTagsAtom, {});
   store.set(forkCheckoutRequestAtom, null);
   store.set(forkSessionSetupRequestAtom, null);
+});
+
+describe("resolveForkWorkspacePath", () => {
+  it("ignores stale imported paths and probes only checkouts that exist locally", async () => {
+    store.set(sessionsAtom, [
+      { session_id: "stale", repoPath: "/Users/owner/ORG2" } as Session,
+      { session_id: "local", repoPath: "C:\\Repos\\ORGII" } as Session,
+    ]);
+    existsMock.mockImplementation(async (path) =>
+      String(path).startsWith("C:\\Repos\\ORGII")
+    );
+    resolveCheckoutMock.mockImplementation(
+      async (_scopeKey, candidates) => candidates[0] ?? null
+    );
+
+    await expect(
+      resolveForkWorkspacePath(
+        makeRemote({ repoScopeKey: "github.com/org2ai/ORG2" })
+      )
+    ).resolves.toBe("C:\\Repos\\ORGII");
+    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/org2ai/ORG2", [
+      "C:\\Repos\\ORGII",
+    ]);
+  });
+
+  it("does not treat a stale owner path as a same-machine checkout", async () => {
+    store.set(sessionsAtom, [
+      { session_id: "stale", repoPath: "/repo/shared" } as Session,
+    ]);
+    existsMock.mockResolvedValue(false);
+
+    await expect(
+      resolveForkWorkspacePath(makeRemote({ repoScopeKey: undefined }))
+    ).resolves.toBeNull();
+  });
+
+  it("prefers an imported session's canonical repo root over its nested folder", async () => {
+    store.set(sessionsAtom, [
+      {
+        session_id: "codexapp-nested",
+        repoPath: "/repo/shared/src-tauri",
+        repoRootPath: "/repo/shared",
+      } as Session,
+    ]);
+    existsMock.mockResolvedValue(true);
+    resolveCheckoutMock.mockImplementation(
+      async (_scopeKey, candidates) => candidates[0] ?? null
+    );
+
+    await resolveForkWorkspacePath(
+      makeRemote({ repoScopeKey: "github.com/org2ai/ORG2" })
+    );
+
+    expect(resolveCheckoutMock).toHaveBeenCalledWith("github.com/org2ai/ORG2", [
+      "/repo/shared",
+    ]);
+  });
 });
 
 describe("forkTeammateSession (design §16.11 relay completion)", () => {
@@ -202,6 +277,34 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
     );
   });
 
+  it("accepts a checkout from the same GitHub fork network during setup", async () => {
+    resolveScopeKeysMock.mockResolvedValue(["github.com/org2ai/org2"]);
+    resolveMatchingScopeMock.mockResolvedValue("github.com/vantanode/org2");
+
+    const forkPromise = forkTeammateSession({
+      ...makeForkOptions({ repoScopeKey: "github.com/vantanode/org2" }),
+      promptForExecution: true,
+    });
+    store.get(forkSessionSetupRequestAtom)?.resolve({
+      workspaceRepoPath: "C:\\Repos\\ORGII",
+      execution: {
+        agentDefinitionId: "builtin:sde",
+        accountId: "openai-local",
+        model: "gpt-5.2-codex",
+      },
+    });
+
+    await forkPromise;
+
+    expect(resolveMatchingScopeMock).toHaveBeenCalledWith(
+      ["github.com/org2ai/org2"],
+      ["github.com/vantanode/org2"]
+    );
+    expect(forkSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceRepoPath: "C:\\Repos\\ORGII" })
+    );
+  });
+
   it("registers a REAL backend row so the fork is dispatchable and reload-proof", async () => {
     const result = await forkTeammateSession(makeForkOptions());
 
@@ -224,6 +327,7 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
     // persisted definition id is what makes the lazy init_session on the
     // first agent_send_message resolve an agent at all.
     expect(record.agentDefinitionId).toBe("builtin:sde");
+    expect(record.orgId).toBe("org-1");
     // UnifiedSessionRecord requires session_type (passed via the SessionMeta
     // schema catchall); "sde" = coding session.
     expect(record.sessionType).toBe("sde");
@@ -301,6 +405,9 @@ describe("forkTeammateSession (design §16.11 relay completion)", () => {
     // The token reaches the engine fork (anon segments fetch + Personal).
     expect(forkSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({ shareToken: "tok-1" })
+    );
+    expect(saveSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: undefined })
     );
   });
 

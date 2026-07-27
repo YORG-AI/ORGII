@@ -1,6 +1,6 @@
 /**
- * One-shot roster reconciliation sweep: after the FIRST successful
- * `list_my_orgs` load of an app run, prune entries keyed by cloud org ids
+ * Roster reconciliation sweep: after every authoritative `list_my_orgs`
+ * membership-set change, prune entries keyed by cloud org ids
  * that are no longer in the roster from the BACKEND-COUPLED
  * `orgii:org2-cloud-v1:*` persisted per-org maps. A wiped/rebuilt managed
  * backend otherwise leaves zombie org ids in these caches forever (there is
@@ -14,15 +14,20 @@
  * roster would silently drop the privacy ladder / runner intent the switch
  * kept. Org ids are uuids, so a genuinely-dead entry never collides.
  *
- * Conservative by design: runs only when the roster loaded successfully AND
- * is non-empty — a transient `[]` from a failed fetch keeps the loaded flag
- * FALSE and never prunes.
+ * Conservative by design: runs only when the roster loaded successfully. An
+ * authoritatively empty roster is still a valid result and must prune the
+ * previous account's backend-owned state; a transient failure keeps the
+ * loaded flag FALSE and never prunes.
  */
 import { type WritableAtom, createStore, useAtomValue, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "./org2CloudAuthAtom";
 import {
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
@@ -136,23 +141,47 @@ export function reconcileOrg2CloudPersistedState(
 
 export function shouldReconcileRoster(
   loaded: boolean,
-  orgCount: number
+  _orgCount: number
 ): boolean {
-  return loaded && orgCount > 0;
+  return loaded;
+}
+
+/** Stable effect key: role/name/order-only roster changes do not need a GC
+ * sweep, while a join/leave/delete under the same identity always does. */
+export function rosterReconcileKey(
+  authIdentityKey: string | null,
+  loaded: boolean,
+  orgIds: readonly string[]
+): string | null {
+  if (!authIdentityKey || !shouldReconcileRoster(loaded, orgIds.length)) {
+    return null;
+  }
+  return JSON.stringify([authIdentityKey, [...new Set(orgIds)].sort()]);
 }
 
 export function useOrg2CloudRosterReconcile(): void {
   const store = useStore();
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const loaded = useAtomValue(org2CloudOrgsLoadedAtom);
   const orgs = useAtomValue(org2CloudOrgsAtom);
-  const doneRef = useRef(false);
+  const reconciledRosterRef = useRef<string | null>(null);
+  const reconcileKey = rosterReconcileKey(
+    authIdentityKey,
+    loaded,
+    orgs.map((org) => org.orgId)
+  );
 
   useEffect(() => {
-    if (doneRef.current || !shouldReconcileRoster(loaded, orgs.length)) return;
-    doneRef.current = true;
+    if (!reconcileKey) {
+      if (!authIdentityKey) reconciledRosterRef.current = null;
+      return;
+    }
+    if (reconciledRosterRef.current === reconcileKey) return;
+    reconciledRosterRef.current = reconcileKey;
     reconcileOrg2CloudPersistedState(
       store,
       new Set(orgs.map((org) => org.orgId))
     );
-  }, [loaded, orgs, store]);
+  }, [authIdentityKey, orgs, reconcileKey, store]);
 }

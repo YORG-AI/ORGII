@@ -137,10 +137,17 @@ export async function dispatchAgentEvent(
   const eventSessionId = getEventSessionId(event);
   const sessionId = ctx.filterSessionIdRef.current || "";
 
-  // Coding session bridge (enabled via hasCodingSessionBridge feature flag)
+  // Coding session bridge (enabled via hasCodingSessionBridge feature flag).
+  // Never applies to the handler's OWN session: `SPAWNED_SESSION_RE` matches
+  // any `agentsession-<uuid>`, which is also the id shape a relay fork gets
+  // (createForkedSessionId), so a fork's own terminal would otherwise be
+  // mistaken for a spawned subagent's. Only `agent:complete` / `agent:error`
+  // / `agent:warning` carry a sessionId, so the symptom was precisely a
+  // fork whose text streamed normally but whose turn never ended.
   if (
     ctx.features.hasCodingSessionBridge &&
     eventSessionId &&
+    eventSessionId !== ctx.filterSessionIdRef.current &&
     ctx.trackedCodingSessionsRef
   ) {
     const parentEventId =
@@ -150,7 +157,9 @@ export async function dispatchAgentEvent(
       return;
     }
 
-    // Auto-track new spawned coding sessions
+    // Auto-track new spawned coding sessions. Without an active spawning
+    // tool_call there is no parent row to attach to — fall through to normal
+    // dispatch instead of swallowing the event.
     if (
       SPAWNED_SESSION_RE.test(eventSessionId) &&
       !ctx.trackedCodingSessionsRef.current.has(eventSessionId)
@@ -161,8 +170,8 @@ export async function dispatchAgentEvent(
         const parentId = currentEvents[activeIdx].id;
         ctx.trackedCodingSessionsRef.current.set(eventSessionId, parentId);
         handleCodingSessionEvent(event, parentId, ctx);
+        return;
       }
-      return;
     }
   }
 
@@ -172,6 +181,12 @@ export async function dispatchAgentEvent(
     eventSessionId &&
     eventSessionId !== ctx.filterSessionIdRef.current
   ) {
+    if (event.type === "agent:complete" || event.type === "agent:error") {
+      unknownEventLogger.warn(
+        `[${event.type}] dropped by session filter: event=${eventSessionId} ` +
+          `filter=${ctx.filterSessionIdRef.current}`
+      );
+    }
     return;
   }
 
@@ -312,9 +327,13 @@ export async function dispatchAgentEvent(
     // `agent:queue_status` is consumed by the adapter's status state machine
     // (createRustAgentAdapter), not here — it carries no transcript content.
     // `agent:computer_use_entered/exited/aborted` are CU-lock lifecycle
-    // signals also tracked by the adapter as ALWAYS_TRAILING_EVENTS; they
+    // signals also tracked by the adapter as turn-neutral events; they
     // intentionally produce no EventStore row.
+    // `agent:snapshot_created` only invalidates snapshot consumers through
+    // its dedicated bus listener. It is not transcript content and must not
+    // resurrect a completed turn as running.
     case "agent:queue_status":
+    case "agent:snapshot_created":
     case "agent:computer_use_entered":
     case "agent:computer_use_exited":
     case "agent:computer_use_aborted":

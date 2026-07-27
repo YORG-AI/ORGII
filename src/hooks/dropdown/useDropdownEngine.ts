@@ -39,6 +39,12 @@ export interface DropdownEnginePosition {
   left: number;
   right?: number;
   width: number;
+  /**
+   * Space left on the side the panel actually opened to, minus the gap and
+   * viewport padding. Apply it as the panel's `max-height` so a list that
+   * cannot fit scrolls instead of running off-screen.
+   */
+  maxHeight: number;
 }
 
 /**
@@ -134,6 +140,25 @@ export interface UseDropdownEngineReturn<
 
 const DROPDOWN_EST_HEIGHT = 240;
 
+/**
+ * Position writes land on every scroll frame while a dropdown is open. The
+ * numbers are usually identical (the trigger scrolled with its container),
+ * so bail out before React re-renders every consumer of `panelPosition`.
+ */
+function isSamePosition(
+  previous: DropdownEnginePosition,
+  next: DropdownEnginePosition
+): boolean {
+  return (
+    previous.top === next.top &&
+    previous.bottom === next.bottom &&
+    previous.left === next.left &&
+    previous.right === next.right &&
+    previous.width === next.width &&
+    previous.maxHeight === next.maxHeight
+  );
+}
+
 export function useDropdownEngine<
   TTrigger extends HTMLElement = HTMLDivElement,
   TItem = unknown,
@@ -173,6 +198,7 @@ export function useDropdownEngine<
   const [panelPosition, setPanelPosition] = useState<DropdownEnginePosition>({
     left: 0,
     width: 0,
+    maxHeight: DROPDOWN_PANEL.maxHeight,
   });
 
   // Participate in the global overlay-layer count so inline browser
@@ -185,42 +211,66 @@ export function useDropdownEngine<
 
     const triggerRect = triggerElement.getBoundingClientRect();
     const { width: viewportWidth, height: viewportHeight } = getViewportSize();
-    const dropdownHeight =
-      panelRef.current?.getBoundingClientRect().height ?? DROPDOWN_EST_HEIGHT;
+    // One rect read serves both the flip decision and the horizontal clamp.
+    // It is null on the first pass (panel not mounted yet); the follow-up
+    // frame in the open effect re-runs with real measurements.
+    const panelElement = panelRef.current;
+    const panelRect = panelElement?.getBoundingClientRect();
+    const panelWidth = panelRect?.width ?? 0;
+    // `scrollHeight` reports the content height the panel *wants*, so the
+    // flip decision is not fooled by the max-height a previous pass applied.
+    const preferredHeight = panelElement
+      ? Math.max(panelRect?.height ?? 0, panelElement.scrollHeight)
+      : DROPDOWN_EST_HEIGHT;
+    const padding = DROPDOWN_PANEL.viewportPadding;
+
+    const spaceBelow = viewportHeight - triggerRect.bottom - gap - padding;
+    const spaceAbove = triggerRect.top - gap - padding;
 
     let openAbove = placement === "top";
     if (placement === "auto") {
-      const spaceBelow = viewportHeight - triggerRect.bottom;
-      const spaceAbove = triggerRect.top;
-
-      if (dropdownHeight <= spaceBelow) {
+      if (preferredHeight <= spaceBelow) {
         openAbove = false;
-      } else if (dropdownHeight <= spaceAbove) {
+      } else if (preferredHeight <= spaceAbove) {
         openAbove = true;
       } else {
         openAbove = spaceAbove > spaceBelow;
       }
     }
 
-    const leftValue = triggerRect.left;
-    const rightValue =
+    const maxHeight = Math.max(
+      DROPDOWN_PANEL.minAvailableHeight,
+      Math.floor(openAbove ? spaceAbove : spaceBelow)
+    );
+
+    // Left-align to the trigger by default, but never let the panel run past
+    // the viewport edge — clamping only kicks in once the panel is measured.
+    let leftValue = triggerRect.left;
+    let rightValue =
       align === "right" ? viewportWidth - triggerRect.right : undefined;
 
-    if (openAbove) {
-      setPanelPosition({
-        bottom: viewportHeight - triggerRect.top + gap,
-        left: leftValue,
-        right: rightValue,
-        width: triggerRect.width,
-      });
-    } else {
-      setPanelPosition({
-        top: triggerRect.bottom + gap,
-        left: leftValue,
-        right: rightValue,
-        width: triggerRect.width,
-      });
+    if (panelWidth > 0) {
+      const maxOffset = Math.max(padding, viewportWidth - padding - panelWidth);
+      if (rightValue !== undefined) {
+        rightValue = Math.min(Math.max(padding, rightValue), maxOffset);
+      } else {
+        leftValue = Math.min(Math.max(padding, leftValue), maxOffset);
+      }
     }
+
+    const nextPosition: DropdownEnginePosition = {
+      ...(openAbove
+        ? { bottom: viewportHeight - triggerRect.top + gap }
+        : { top: triggerRect.bottom + gap }),
+      left: leftValue,
+      right: rightValue,
+      width: triggerRect.width,
+      maxHeight,
+    };
+
+    setPanelPosition((previous) =>
+      isSamePosition(previous, nextPosition) ? previous : nextPosition
+    );
 
     setIsPositioned(true);
   }, [gap, placement, align]);

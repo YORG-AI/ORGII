@@ -36,6 +36,8 @@ const ENTRY_TTL_SECS: i64 = 30 * 60;
 const FANOUT_COALESCE_MS: i64 = 250;
 /// Debounce for persisting the map to `last-status.json`.
 const PERSIST_DEBOUNCE_MS: u64 = 2_000;
+const MAX_REGISTRY_KEYS: usize = 4_096;
+const MAX_FANOUT_KEYS: usize = 2_048;
 
 const CACHE_SCHEMA_VERSION: u32 = 1;
 
@@ -83,9 +85,12 @@ fn last_fanout() -> &'static Mutex<HashMap<String, (String, i64)>> {
 
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 static PERSIST_SCHEDULED: AtomicBool = AtomicBool::new(false);
+static EXPIRY_TASK_STARTED: AtomicBool = AtomicBool::new(false);
+static EXPIRY_WAKE: OnceLock<tokio::sync::Notify> = OnceLock::new();
 
 pub fn init_app_handle(handle: tauri::AppHandle) {
     APP_HANDLE.set(handle).ok();
+    start_expiry_task();
 }
 
 fn now_ms() -> i64 {
@@ -115,6 +120,68 @@ fn is_entry_fresh(entry: &LiveStatusEntry, now_ms: i64) -> bool {
     }
 }
 
+fn expiry_wake() -> &'static tokio::sync::Notify {
+    EXPIRY_WAKE.get_or_init(tokio::sync::Notify::new)
+}
+
+fn enforce_registry_key_cap(map: &mut HashMap<String, LiveStatusEntry>) {
+    while map.len() > MAX_REGISTRY_KEYS {
+        let Some(oldest_key) = map
+            .iter()
+            .min_by_key(|(_, entry)| entry.received_at_ms)
+            .map(|(key, _)| key.clone())
+        else {
+            break;
+        };
+        map.remove(&oldest_key);
+    }
+}
+
+fn prune_expired_entries(now: i64) -> bool {
+    let mut map = registry().write().unwrap_or_else(|p| p.into_inner());
+    let before = map.len();
+    map.retain(|_, entry| now - entry.received_at_ms < ENTRY_TTL_SECS * 1_000);
+    let removed = map.len() != before;
+    drop(map);
+
+    let mut fanout = last_fanout().lock().unwrap_or_else(|p| p.into_inner());
+    fanout.retain(|_, (_, at_ms)| now - *at_ms < ENTRY_TTL_SECS * 1_000);
+    removed
+}
+
+fn next_expiry_delay(now: i64) -> Option<std::time::Duration> {
+    let map = registry().read().unwrap_or_else(|p| p.into_inner());
+    let deadline = map
+        .values()
+        .map(|entry| entry.received_at_ms + ENTRY_TTL_SECS * 1_000)
+        .min()?;
+    Some(std::time::Duration::from_millis(
+        deadline.saturating_sub(now).max(1) as u64,
+    ))
+}
+
+fn start_expiry_task() {
+    if EXPIRY_TASK_STARTED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    tauri::async_runtime::spawn(async {
+        loop {
+            let Some(delay) = next_expiry_delay(now_ms()) else {
+                expiry_wake().notified().await;
+                continue;
+            };
+            tokio::select! {
+                _ = tokio::time::sleep(delay) => {
+                    if prune_expired_entries(now_ms()) {
+                        schedule_cache_persist();
+                    }
+                }
+                _ = expiry_wake().notified() => {}
+            }
+        }
+    });
+}
+
 /// Ingest one normalized status event (called from the loopback HTTP route).
 pub fn ingest(event: AgentStatusEventV1) {
     let received_at_ms = now_ms();
@@ -134,9 +201,12 @@ pub fn ingest(event: AgentStatusEventV1) {
         if let Some(orgii_id) = entry.event.orgii_session_id.clone() {
             map.insert(orgii_id, entry.clone());
         }
-        // Opportunistic GC keeps the map bounded without a dedicated timer.
+        // Opportunistic GC plus a hard cardinality bound handles event bursts;
+        // the deadline task below also removes a final burst with no successor.
         map.retain(|_, existing| received_at_ms - existing.received_at_ms < ENTRY_TTL_SECS * 1_000);
+        enforce_registry_key_cap(&mut map);
     }
+    expiry_wake().notify_one();
 
     if entry.event.state.is_terminal() {
         persist_terminal_status(&entry);
@@ -163,6 +233,16 @@ pub fn ingest(event: AgentStatusEventV1) {
         }
         last.insert(entry.event.session_id.clone(), (fanout_key, received_at_ms));
         last.retain(|_, (_, at_ms)| received_at_ms - *at_ms < ENTRY_TTL_SECS * 1_000);
+        while last.len() > MAX_FANOUT_KEYS {
+            let Some(oldest_key) = last
+                .iter()
+                .min_by_key(|(_, (_, at_ms))| *at_ms)
+                .map(|(key, _)| key.clone())
+            else {
+                break;
+            };
+            last.remove(&oldest_key);
+        }
     }
 
     let wire = wire_from_entry(&entry);
@@ -210,17 +290,21 @@ pub fn effective_live_status(session_id: &str) -> Option<(&'static str, LiveStat
 /// runner's exit-code truth wins over any lingering hook state).
 pub fn clear(session_ids: &[&str]) {
     let mut map = registry().write().unwrap_or_else(|p| p.into_inner());
+    let mut fanout = last_fanout().lock().unwrap_or_else(|p| p.into_inner());
     let mut removed = false;
     for session_id in session_ids {
         if session_id.is_empty() {
             continue;
         }
         removed |= map.remove(*session_id).is_some();
+        fanout.remove(*session_id);
     }
     drop(map);
+    drop(fanout);
     if removed {
         schedule_cache_persist();
     }
+    expiry_wake().notify_one();
 }
 
 /// A transcript updated within this window reads as `running` even without
@@ -291,6 +375,9 @@ pub fn hydrate_from_disk() {
             map.insert(orgii_id, entry);
         }
     }
+    enforce_registry_key_cap(&mut map);
+    drop(map);
+    expiry_wake().notify_one();
 }
 
 fn schedule_cache_persist() {
@@ -407,5 +494,24 @@ mod tests {
         );
         assert_eq!(AgentLiveState::Done.as_session_status_str(), "completed");
         assert_eq!(AgentLiveState::Failed.as_session_status_str(), "failed");
+    }
+
+    #[test]
+    fn registry_key_cap_evicts_oldest_entries() {
+        let mut map = HashMap::new();
+        for index in 0..(MAX_REGISTRY_KEYS + 10) {
+            map.insert(
+                format!("session-{index}"),
+                LiveStatusEntry {
+                    event: event(&index.to_string(), AgentLiveState::Working),
+                    received_at_ms: index as i64,
+                },
+            );
+        }
+
+        enforce_registry_key_cap(&mut map);
+        assert_eq!(map.len(), MAX_REGISTRY_KEYS);
+        assert!(!map.contains_key("session-0"));
+        assert!(map.contains_key(&format!("session-{}", MAX_REGISTRY_KEYS + 9)));
     }
 }

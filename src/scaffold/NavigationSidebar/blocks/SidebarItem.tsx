@@ -68,7 +68,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
   return (
     <div
-      className={`group flex h-9 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 transition-colors duration-150 ${rowStateClasses} ${className}`}
+      className={`group flex h-8 min-w-0 cursor-pointer items-center gap-2 overflow-hidden rounded-lg px-2 transition-colors duration-150 ${rowStateClasses} ${className}`}
       onClick={onClick}
       onContextMenu={handleContextMenu}
       onAuxClick={handleAuxClick}
@@ -84,14 +84,14 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <span
-          className={`block truncate text-[13px] ${textClasses}`}
+          className={`block truncate text-[13px] leading-4 ${textClasses}`}
           style={textStyle}
         >
           {item.name}
         </span>
         {item.subtitle && (
           <span
-            className="block truncate text-[11px] text-text-3"
+            className="block truncate text-[11px] leading-3 text-text-3"
             style={theme ? { color: `${theme.foreground}60` } : undefined}
           >
             {item.subtitle}

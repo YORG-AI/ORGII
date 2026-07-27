@@ -21,6 +21,7 @@ import {
   extractSessionId,
   getBrowserSessionDisplayTitle,
   isBrowserSessionTab,
+  sharedBrowserTabsAtom,
   translatePlaceholderBrowserSessionTitle,
 } from "@src/store/workstation/browser/tabs";
 
@@ -50,6 +51,7 @@ export function useBrowserTabSync({
   const { t } = useTranslation();
   const setBrowserTabs = useSetAtom(browserTabsAtom);
   const browserTabsState = useAtomValue(browserTabsAtom);
+  const sharedBrowserTabs = useAtomValue(sharedBrowserTabsAtom);
 
   const prevSessionIdsRef = useRef<Set<string>>(new Set());
   const sessionSyncInitializedRef = useRef(false);
@@ -236,9 +238,7 @@ export function useBrowserTabSync({
   // ----------------------------------------------------------------
   useEffect(() => {
     const tabbedSessionIds = new Set(
-      browserTabsState.tabs
-        .filter((tab) => isBrowserSessionTab(tab.id))
-        .map((tab) => extractSessionId(tab.id))
+      sharedBrowserTabs.map((tab) => extractSessionId(tab.id))
     );
     const removed: string[] = [];
     for (const sessionId of prevTabbedSessionIdsRef.current) {
@@ -253,5 +253,5 @@ export function useBrowserTabSync({
         state.closeSession(sessionId);
       }
     }
-  }, [browserTabsState.tabs, browserStateRef, closingSessionIdsRef]);
+  }, [sharedBrowserTabs, browserStateRef, closingSessionIdsRef]);
 }

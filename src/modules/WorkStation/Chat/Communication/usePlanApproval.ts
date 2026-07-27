@@ -20,6 +20,7 @@ import {
   isPlanDisplayEvent,
   planAliasesContain,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import {
@@ -130,7 +131,7 @@ export function usePlanApproval({
 }: UsePlanApprovalOptions): PlanApprovalState {
   const { t } = useTranslation("sessions");
   const activeSessionId = useAtomValue(activeSessionIdAtom);
-  const approvalMap = useAtomValue(pendingPlanApprovalsAtom);
+  const activeSessionPendingPlan = usePendingPlanApproval(activeSessionId);
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const sessionMap = useAtomValue(sessionMapAtom);
   const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
@@ -148,10 +149,7 @@ export function usePlanApproval({
     null
   ) as React.RefObject<HTMLButtonElement>;
 
-  const activeSessionApprovalState = activeSessionId
-    ? approvalMap.get(activeSessionId)
-    : undefined;
-  const currentPendingPlan = activeSessionApprovalState?.current;
+  const currentPendingPlan = activeSessionPendingPlan;
   const planViewState = useMemo(
     () =>
       derivePlanApprovalViewState({
@@ -207,14 +205,12 @@ export function usePlanApproval({
     ? getPlanEventAliases(activePlanMessage!.event)
     : [];
 
-  const approvalState = planSessionId
-    ? approvalMap.get(planSessionId)
-    : undefined;
+  const planSessionPendingPlan = usePendingPlanApproval(planSessionId);
 
   const planRawContent = isPlanDoc
     ? resolvePlanMarkdownContent(
         activePlanMessage!.event,
-        approvalState?.current
+        planSessionPendingPlan
       )
     : "";
   const planPath =
@@ -222,7 +218,7 @@ export function usePlanApproval({
     asStringArg(planResult?.["planPath"]) ||
     null;
 
-  const planApprovalAliases = getPendingPlanAliases(approvalState?.current);
+  const planApprovalAliases = getPendingPlanAliases(planSessionPendingPlan);
   const matchesCurrentPendingPlan = planIdentity.some((identity) =>
     planAliasesContain(planApprovalAliases, identity)
   );
@@ -234,9 +230,9 @@ export function usePlanApproval({
   // The dedicated preview surface owns the single pending plan, so matching
   // the pending approval is the correct, sufficient condition (issue #28).
   const isPlanPending = matchesCurrentPendingPlan;
-  const pendingPlanId = currentPendingPlan
-    ? currentPendingPlan.planRevisionId ||
-      currentPendingPlan.toolCallId ||
+  const pendingPlanId = planSessionPendingPlan
+    ? planSessionPendingPlan.planRevisionId ||
+      planSessionPendingPlan.toolCallId ||
       "pending-plan"
     : null;
   const sessionIsWorking =
@@ -259,7 +255,7 @@ export function usePlanApproval({
     try {
       await persistEditedPlanContent({
         sessionId: planSessionId,
-        planRevisionId: currentPendingPlan?.planRevisionId,
+        planRevisionId: planSessionPendingPlan?.planRevisionId,
         pendingAliases: planApprovalAliases,
         content: editedContent,
         io: {
@@ -285,7 +281,7 @@ export function usePlanApproval({
   }, [
     planSessionId,
     buildDisabled,
-    currentPendingPlan,
+    planSessionPendingPlan,
     planApprovalAliases,
     editedContent,
     setPendingPlanApprovals,
@@ -333,7 +329,8 @@ export function usePlanApproval({
         clearPendingPlanApproval(
           prev,
           planSessionId,
-          currentPendingPlan?.toolCallId ?? currentPendingPlan?.planRevisionId
+          planSessionPendingPlan?.toolCallId ??
+            planSessionPendingPlan?.planRevisionId
         )
       );
       setIsEditing(false);
@@ -355,7 +352,7 @@ export function usePlanApproval({
     creatorDefaultSelection,
     activeWorkspaceRootPath,
     setPendingPlanApprovals,
-    currentPendingPlan,
+    planSessionPendingPlan,
     t,
   ]);
 

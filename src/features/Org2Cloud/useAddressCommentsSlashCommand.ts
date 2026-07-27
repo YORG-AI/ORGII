@@ -1,23 +1,24 @@
-/** Slash-menu bridge: an "Address comments" entry that fires the in-place address round on the active owned cloud session. */
+/** Slash-menu bridge for the owner-only single/multi comment agent runner. */
 import { useAtomValue } from "jotai";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import Message from "@src/components/Message";
-import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
-import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
-import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { SlashItem } from "@src/types/extensions";
 
 import { collectAddressableThreads } from "./addressComments";
 import type { AddressCommentScope } from "./addressComments";
-import { runAddressCommentsRound } from "./addressCommentsRun";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "./org2CloudAuthAtom";
 import { sessionCommentsKey } from "./org2CloudCommentsBus";
-import { org2CloudSessionCommentsAtom } from "./org2CloudSessionCommentsAtom";
+import {
+  org2CloudSessionCommentsAtom,
+  sessionCommentsEntryForIdentity,
+} from "./org2CloudSessionCommentsAtom";
 import { useSessionCommentTarget } from "./sessionCommentTarget";
-
-const log = createLogger("AddressCommentsSlashCommand");
+import { useOwnedCloudCommentAgentRun } from "./useOwnedCloudCommentAgentRun";
 
 export const ADDRESS_COMMENTS_SLASH_SOURCE = "org2cloud-address-comments";
 
@@ -45,10 +46,9 @@ export function useAddressCommentsSlashCommand(
 ): AddressCommentsSlashCommand {
   const { t } = useTranslation("navigation");
   const sessions = useAtomValue(sessionsAtom);
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const commentEntries = useAtomValue(org2CloudSessionCommentsAtom);
-  const submitUserIntent = useUserIntentSubmit({
-    getSessionId: () => sessionId ?? null,
-  });
 
   const session = useMemo(
     () =>
@@ -59,9 +59,13 @@ export function useAddressCommentsSlashCommand(
     [sessions, sessionId]
   );
   const target = useSessionCommentTarget(session);
-  const commentEntry = target
+  const storedCommentEntry = target
     ? commentEntries[sessionCommentsKey(target.orgId, target.sessionId)]
     : undefined;
+  const commentEntry = sessionCommentsEntryForIdentity(
+    storedCommentEntry,
+    authIdentityKey
+  );
 
   const threads = useMemo<AddressCommentsThreadOption[]>(() => {
     if (!target) return [];
@@ -75,14 +79,13 @@ export function useAddressCommentsSlashCommand(
     }));
   }, [target, commentEntry]);
 
-  const available = Boolean(
-    session &&
-    !session.importedFrom &&
-    !getSessionForkedFrom(session) &&
-    session.session_id === target?.sessionId &&
-    commentEntry?.viewerOwnsSession &&
-    threads.length > 0
-  );
+  const { available: ownerAgentAvailable, run: runOwnerAgent } =
+    useOwnedCloudCommentAgentRun({
+      session,
+      target,
+      viewerOwnsSession: Boolean(commentEntry?.viewerOwnsSession),
+    });
+  const available = ownerAgentAvailable && threads.length > 0;
 
   const item = useMemo<SlashItem | null>(
     () =>
@@ -101,29 +104,9 @@ export function useAddressCommentsSlashCommand(
   const run = useCallback(
     (options?: AddressCommentsRunOptions) => {
       if (!target || !session) return;
-      void runAddressCommentsRound({
-        orgId: target.orgId,
-        cloudSessionId: target.sessionId,
-        localSessionId: session.session_id,
-        dispatchTurn: ({ displayContent, agentContent, turnIntentId }) =>
-          submitUserIntent({
-            sessionId: session.session_id,
-            displayContent,
-            agentContent,
-            turnIntentId,
-          }),
-        ...(options?.selectedHeadIds !== undefined
-          ? { selectedHeadIds: options.selectedHeadIds }
-          : {}),
-        ...(options?.instruction !== undefined
-          ? { instruction: options.instruction }
-          : {}),
-      }).catch((error) => {
-        log.warn("address-comments slash run failed:", error);
-        Message.error(t("cloud.comments.actionError"));
-      });
+      void runOwnerAgent(options);
     },
-    [target, session, submitUserIntent, t]
+    [runOwnerAgent, session, target]
   );
 
   return { item, available, threads, run };

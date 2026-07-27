@@ -6,6 +6,7 @@
  * context — mirroring `ProjectManagerContentRouter`. The org view is derived
  * from tab data (see `projectOrgSettings` for the settings-forced variant).
  */
+import { useSetAtom } from "jotai";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +16,7 @@ import {
   getTabDataString,
 } from "@src/modules/ProjectManager/ProjectManagerLayout/components/projectManagerRouterUtils";
 import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManagerLayout/context/projectHostContext";
+import { closeProjectOrgWorkStationTabsAtom } from "@src/store/workstation/tabRegistry";
 import {
   STORY_ORG_SCOPE,
   normalizeProjectOrgSurfaceView,
@@ -26,6 +28,7 @@ import type { UnifiedTabContentProps } from "../types";
 const ProjectOrgTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
     const { t } = useTranslation("projects");
+    const closeProjectOrgTabs = useSetAtom(closeProjectOrgWorkStationTabsAtom);
     const {
       onUpdateTabData,
       onSelectProject,
@@ -56,6 +59,7 @@ const ProjectOrgTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         onCreateWorkItem={onCreateWorkItem}
         onExpandWorkItemToTab={onExpandWorkItemToTab}
         onOpenLinearProjects={onOpenLinearProjects}
+        onOrgDeleted={closeProjectOrgTabs}
       />
     );
   }

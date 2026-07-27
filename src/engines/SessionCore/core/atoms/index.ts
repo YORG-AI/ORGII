@@ -38,6 +38,10 @@ export {
   loadErrorAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
+  sessionHydrationCountMapAtom,
+  sessionHydrationByIdAtom,
+  beginSessionHydrationAtom,
+  endSessionHydrationAtom,
   isFromCacheAtom,
   lastFetchedAtom,
   hasMoreEventsAtom,
@@ -45,6 +49,7 @@ export {
   pendingSyntheticEventAtom,
   specsAtom,
 } from "./metadata";
+export type { SessionHydrationState } from "./metadata";
 
 // Compound Actions
 export {

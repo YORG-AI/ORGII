@@ -278,6 +278,7 @@ const TabPill: React.FC<TabPillProps> = ({
           data-tab-key={tab.key}
           data-testid={tab.dataTestId}
           onClick={() => handleImmediateTabClick(tab, isActive)}
+          onMouseEnter={() => setHoveredTabKey(tab.key)}
           onMouseLeave={handleImmediateTabMouseLeave}
           disabled={tab.disabled}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -304,7 +305,13 @@ const TabPill: React.FC<TabPillProps> = ({
             fillWidth && (wrap ? "min-w-[5rem] flex-1" : "flex-1")
           )}
         >
-          {renderTabContent(tab, iconOnly, true, isActive)}
+          {renderTabContent(
+            tab,
+            iconOnly,
+            true,
+            isActive,
+            hoveredTabKey === tab.key
+          )}
           <span
             className={cn(
               "mt-1 h-1 w-1 rounded-full",
@@ -427,7 +434,7 @@ const TabPill: React.FC<TabPillProps> = ({
           iconOnly,
           isPill,
           isActive || isDropdownOpen,
-          isMulti ? hoveredTabKey === tab.key : undefined,
+          hoveredTabKey === tab.key,
           !isMulti
         )}
       </button>
