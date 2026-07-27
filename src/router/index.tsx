@@ -18,7 +18,7 @@ import {
 } from "@src/router/routes/routeGroups";
 import { RouteDebugModal } from "@src/scaffold/ModalSystem/variants/RouteDebug";
 
-import { AuthGuard, AuthRedirect } from "./guards";
+import { AuthGuard, AuthRedirect, SetupWalkthroughGuard } from "./guards";
 
 // Root layout component that includes ViewModeSync and global modals
 const RootLayout = () => {
@@ -45,7 +45,9 @@ const RootLayout = () => {
       <RouteDebugModal />
       {/* AuthGuard wraps Outlet - if not authenticated, redirects to login */}
       <AuthGuard>
-        <Outlet />
+        <SetupWalkthroughGuard>
+          <Outlet />
+        </SetupWalkthroughGuard>
       </AuthGuard>
     </>
   );

@@ -9,11 +9,8 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  commitRefreshedAuth,
-  org2CloudAuthAtom,
-} from "@src/features/Org2Cloud/org2CloudAuthAtom";
-import { ensureFreshSession } from "@src/features/Org2Cloud/org2CloudClient";
+import { refreshOrg2CloudAuthForAction } from "@src/features/Org2Cloud/org2CloudAuthAction";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
   acceptCloudInvite,
   createCloudOrg,
@@ -24,7 +21,7 @@ import {
 } from "@src/features/Org2Cloud/org2CloudOrgManagement";
 import { useRefetchOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { ensureProjectOrgForCloudOrg } from "@src/features/Org2Cloud/org2CloudProjectOrgAlias";
-import { useAppNavigation } from "@src/hooks/navigation";
+import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -73,15 +70,10 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   const [inviteInput, setInviteInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const { goToSettings } = useAppNavigation();
+  const openCloudSignIn = useOrg2CloudSignIn();
   const openCloudOrgManagementTab = useSetAtom(
     openCloudOrgManagementInChatPanelTabAtom
   );
-
-  // "Use ORG2 Cloud" opens the Collaboration section where managed sign-in lives.
-  const handleUseOrg2Cloud = useCallback(() => {
-    goToSettings({ section: "collaboration" });
-  }, [goToSettings]);
 
   const sourceOptions = useMemo<SelectionGridOption<CreateOrgSource>[]>(
     () => [
@@ -152,9 +144,18 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   const handleCloudSubmit = useCallback(async () => {
     const current = cloudAuth;
     if (!current) return;
-    const fresh = await ensureFreshSession(current);
-    if (!fresh) throw new Error(t("navigation:cloud.orgPanel.loadError"));
-    commitRefreshedAuth(setCloudAuth, current, fresh);
+    const refreshed = await refreshOrg2CloudAuthForAction(
+      current,
+      setCloudAuth
+    );
+    if (refreshed.status === "expired") {
+      throw new Error(t("navigation:cloud.sessionExpired"));
+    }
+    if (refreshed.status === "superseded") return;
+    if (refreshed.status === "unavailable") {
+      throw new Error(t("navigation:cloud.orgPanel.loadError"));
+    }
+    const fresh = refreshed.auth;
 
     if (mode === CREATE_MODE) {
       const { orgId } = await createCloudOrg(fresh.accessToken, orgName.trim());
@@ -293,8 +294,8 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
                   <span className="min-w-0 flex-1 text-[12px] leading-[18px] text-text-2">
                     {t("navigation:cloud.orgManagement.create.signInFirst")}
                   </span>
-                  <Button size="small" onClick={handleUseOrg2Cloud}>
-                    {t("navigation:cloud.orgManagement.create.openSettings")}
+                  <Button size="small" onClick={openCloudSignIn}>
+                    {t("navigation:cloud.signIn")}
                   </Button>
                 </div>
               </SectionRow>

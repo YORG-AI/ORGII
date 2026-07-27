@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Gắn sao cho ORG2 trên GitHub",
+      "description": "Hỗ trợ dự án bằng một sao GitHub.",
+      "loading": "Đang kiểm tra...",
+      "star": "Gắn sao",
+      "starring": "Đang thêm...",
+      "starred": "Đã gắn sao",
+      "thanks": "Cảm ơn bạn đã hỗ trợ!",
+      "openGitHub": "Mở GitHub",
+      "openingGitHub": "Đang mở...",
+      "unavailableGhMissing": "GitHub CLI không khả dụng",
+      "unavailableNotAuthenticated": "Hãy đăng nhập GitHub CLI",
+      "unavailableNetwork": "Không thể kết nối GitHub",
+      "unavailablePermission": "Cần quyền GitHub",
+      "unavailableTimeout": "Yêu cầu GitHub hết thời gian",
+      "unavailableUnexpected": "Không thể lấy trạng thái GitHub",
+      "reminderTitle": "Hỗ trợ ORG2",
+      "reminderDescription": "Nếu ORG2 hữu ích, bạn có thể gắn sao cho dự án trên GitHub không?",
+      "later": "Để sau",
+      "neverAskAgain": "Không hỏi lại"
+    },
     "tabGeneral": "Chung",
     "loginStatus": "Trạng thái đăng nhập",
     "loggedIn": "Đã đăng nhập",

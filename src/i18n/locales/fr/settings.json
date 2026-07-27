@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Ajouter une étoile à ORG2 sur GitHub",
+      "description": "Soutenez le projet avec une étoile GitHub.",
+      "loading": "Vérification...",
+      "star": "Ajouter une étoile",
+      "starring": "Ajout en cours...",
+      "starred": "Étoile ajoutée",
+      "thanks": "Merci pour votre soutien !",
+      "openGitHub": "Ouvrir GitHub",
+      "openingGitHub": "Ouverture...",
+      "unavailableGhMissing": "GitHub CLI n’est pas disponible",
+      "unavailableNotAuthenticated": "Connectez-vous à GitHub CLI",
+      "unavailableNetwork": "GitHub est inaccessible",
+      "unavailablePermission": "Autorisation GitHub requise",
+      "unavailableTimeout": "La requête GitHub a expiré",
+      "unavailableUnexpected": "État GitHub indisponible",
+      "reminderTitle": "Soutenir ORG2",
+      "reminderDescription": "Si ORG2 vous a été utile, pourriez-vous lui ajouter une étoile sur GitHub ?",
+      "later": "Plus tard",
+      "neverAskAgain": "Ne plus demander"
+    },
     "tabGeneral": "Général",
     "loginStatus": "État de connexion",
     "loggedIn": "Connecté",

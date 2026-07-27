@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "GitHub で ORG2 に Star を付ける",
+      "description": "GitHub Star でプロジェクトを応援してください。",
+      "loading": "確認中...",
+      "star": "Star を付ける",
+      "starring": "追加中...",
+      "starred": "Star 済み",
+      "thanks": "ご支援ありがとうございます！",
+      "openGitHub": "GitHub を開く",
+      "openingGitHub": "開いています...",
+      "unavailableGhMissing": "GitHub CLI を利用できません",
+      "unavailableNotAuthenticated": "GitHub CLI にログインしてください",
+      "unavailableNetwork": "GitHub に接続できません",
+      "unavailablePermission": "GitHub の権限が必要です",
+      "unavailableTimeout": "GitHub リクエストがタイムアウトしました",
+      "unavailableUnexpected": "GitHub の状態を取得できません",
+      "reminderTitle": "ORG2 を応援",
+      "reminderDescription": "ORG2 が役に立ったら、GitHub で Star を付けていただけませんか？",
+      "later": "後で",
+      "neverAskAgain": "今後表示しない"
+    },
     "tabGeneral": "一般",
     "loginStatus": "ログイン状態",
     "loggedIn": "ログイン済み",

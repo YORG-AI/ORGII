@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "在 GitHub 上为 ORG2 点 Star",
+      "description": "用一个 GitHub Star 支持这个项目。",
+      "loading": "正在检查...",
+      "star": "点 Star",
+      "starring": "正在添加...",
+      "starred": "已 Star",
+      "thanks": "感谢你的支持！",
+      "openGitHub": "打开 GitHub",
+      "openingGitHub": "正在打开...",
+      "unavailableGhMissing": "GitHub CLI 不可用",
+      "unavailableNotAuthenticated": "请先登录 GitHub CLI",
+      "unavailableNetwork": "无法连接 GitHub",
+      "unavailablePermission": "需要 GitHub 权限",
+      "unavailableTimeout": "GitHub 请求超时",
+      "unavailableUnexpected": "无法获取 GitHub 状态",
+      "reminderTitle": "支持 ORG2",
+      "reminderDescription": "如果 ORG2 对你有帮助，可以在 GitHub 上点个 Star 吗？",
+      "later": "稍后",
+      "neverAskAgain": "不再提醒"
+    },
     "tabGeneral": "通用",
     "loginStatus": "登录状态",
     "loggedIn": "已登录",

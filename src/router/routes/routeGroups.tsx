@@ -123,11 +123,7 @@ export const appStandaloneRouteGroup: RouteObject[] = [
   { path: "app/start-page", element: lazy(<SuggestionsPage />, false) },
   {
     path: "app/walkthrough",
-    element: lazy(
-      <HostedLoginRoute>
-        <SetupWalkthrough />
-      </HostedLoginRoute>
-    ),
+    element: lazy(<SetupWalkthrough />),
   },
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
 ];

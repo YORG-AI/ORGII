@@ -46,8 +46,6 @@
     "fs:scope-home-recursive",
     "deep-link:default",
     "auth-session:allow-start",
-    "oauth:allow-start",
-    "oauth:allow-cancel",
     "core:window:default",
     "core:window:allow-start-dragging",
     "core:window:allow-set-decorations",

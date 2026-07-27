@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Поставить звезду ORG2 на GitHub",
+      "description": "Поддержите проект звездой на GitHub.",
+      "loading": "Проверка...",
+      "star": "Поставить звезду",
+      "starring": "Добавление...",
+      "starred": "Звезда поставлена",
+      "thanks": "Спасибо за поддержку!",
+      "openGitHub": "Открыть GitHub",
+      "openingGitHub": "Открытие...",
+      "unavailableGhMissing": "GitHub CLI недоступен",
+      "unavailableNotAuthenticated": "Войдите через GitHub CLI",
+      "unavailableNetwork": "GitHub недоступен",
+      "unavailablePermission": "Требуется разрешение GitHub",
+      "unavailableTimeout": "Время запроса GitHub истекло",
+      "unavailableUnexpected": "Статус GitHub недоступен",
+      "reminderTitle": "Поддержать ORG2",
+      "reminderDescription": "Если ORG2 был полезен, поставьте проекту звезду на GitHub.",
+      "later": "Позже",
+      "neverAskAgain": "Больше не спрашивать"
+    },
     "tabGeneral": "Общие",
     "loginStatus": "Статус входа",
     "loggedIn": "Вход выполнен",

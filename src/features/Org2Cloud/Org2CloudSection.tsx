@@ -18,19 +18,15 @@ import {
   SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAtom, useStore } from "jotai";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
-import { buildOrg2CloudLoginUrl } from "@src/features/Org2Cloud/config";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
-import { createLogger } from "@src/hooks/logger";
-
-const log = createLogger("Org2CloudSection");
+import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 
 export const COLLABORATION_TAB_KEYS = {
   CLOUD: "cloud",
@@ -53,11 +49,7 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
     auth?.userId ??
     "";
 
-  const handleSignIn = useCallback(() => {
-    openUrl(buildOrg2CloudLoginUrl()).catch((error: unknown) => {
-      log.error("failed to open ORG2 Cloud login in system browser", error);
-    });
-  }, []);
+  const handleSignIn = useOrg2CloudSignIn();
 
   const handleSignOut = useCallback(() => {
     resetOrgEntitlementCoordinator(store);

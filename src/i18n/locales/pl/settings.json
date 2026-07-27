@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "Dodaj gwiazdkę ORG2 na GitHubie",
+      "description": "Wesprzyj projekt gwiazdką na GitHubie.",
+      "loading": "Sprawdzanie...",
+      "star": "Dodaj gwiazdkę",
+      "starring": "Dodawanie...",
+      "starred": "Dodano gwiazdkę",
+      "thanks": "Dziękujemy za wsparcie!",
+      "openGitHub": "Otwórz GitHub",
+      "openingGitHub": "Otwieranie...",
+      "unavailableGhMissing": "GitHub CLI jest niedostępny",
+      "unavailableNotAuthenticated": "Zaloguj się w GitHub CLI",
+      "unavailableNetwork": "GitHub jest nieosiągalny",
+      "unavailablePermission": "Wymagane uprawnienie GitHub",
+      "unavailableTimeout": "Upłynął limit czasu GitHub",
+      "unavailableUnexpected": "Stan GitHub jest niedostępny",
+      "reminderTitle": "Wesprzyj ORG2",
+      "reminderDescription": "Jeśli ORG2 jest pomocny, rozważ dodanie gwiazdki na GitHubie.",
+      "later": "Później",
+      "neverAskAgain": "Nie pytaj ponownie"
+    },
     "tabGeneral": "Ogólne",
     "loginStatus": "Status logowania",
     "loggedIn": "Zalogowano",

@@ -113,6 +113,27 @@
     }
   },
   "general": {
+    "githubStar": {
+      "label": "GitHub에서 ORG2에 Star 주기",
+      "description": "GitHub Star로 프로젝트를 응원해 주세요.",
+      "loading": "확인 중...",
+      "star": "Star 주기",
+      "starring": "추가 중...",
+      "starred": "Star 완료",
+      "thanks": "지원해 주셔서 감사합니다!",
+      "openGitHub": "GitHub 열기",
+      "openingGitHub": "여는 중...",
+      "unavailableGhMissing": "GitHub CLI를 사용할 수 없습니다",
+      "unavailableNotAuthenticated": "GitHub CLI에 로그인해 주세요",
+      "unavailableNetwork": "GitHub에 연결할 수 없습니다",
+      "unavailablePermission": "GitHub 권한이 필요합니다",
+      "unavailableTimeout": "GitHub 요청 시간이 초과되었습니다",
+      "unavailableUnexpected": "GitHub 상태를 확인할 수 없습니다",
+      "reminderTitle": "ORG2 지원하기",
+      "reminderDescription": "ORG2가 도움이 되었다면 GitHub에서 Star를 주시겠어요?",
+      "later": "나중에",
+      "neverAskAgain": "다시 묻지 않기"
+    },
     "tabGeneral": "일반",
     "loginStatus": "로그인 상태",
     "loggedIn": "로그인됨",
