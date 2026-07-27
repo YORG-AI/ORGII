@@ -54,6 +54,7 @@ pub(crate) async fn send_message_impl(
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
     org_wake_run_id: Option<String>,
+    intent_org_run_id: Option<String>,
     source: TurnIntentBridgeSource,
 ) -> Result<AgentResponse, String> {
     // Canonical user-intent id: callers that already mint one at the
@@ -110,14 +111,27 @@ pub(crate) async fn send_message_impl(
 
     let runtime = crate::init::init_session(state, launch_spec).await?;
 
-    // Scheduler messages keep the current run id in memory so post-turn
-    // finality can reconcile the run that actually produced this turn. The
-    // durable turn-intent bridge remains session-scoped; nested-run intent
-    // ownership belongs to the later red-team hardening change.
-    let scheduled_org_run_id = runtime
+    // Turn intent ownership is independent from wake behavior. Explicit
+    // callers (initial Org launch, direct member message, wake) pass the run
+    // id before the runtime necessarily exists; ordinary messages recover it
+    // from the canonical runtime context. Never allow a retry to cross runs.
+    let runtime_org_run_id = runtime
         .agent_org_context
         .as_ref()
         .map(|context| context.run_id.clone());
+    let effective_intent_org_run_id = match (
+        intent_org_run_id.as_deref(),
+        runtime_org_run_id.as_deref(),
+    ) {
+        (Some(explicit), Some(runtime_id)) if explicit != runtime_id => {
+            return Err(format!(
+                "Agent Org turn intent run mismatch for session {session_id}: explicit run {explicit}, runtime run {runtime_id}"
+            ));
+        }
+        (Some(_), _) => intent_org_run_id,
+        (None, Some(_)) => runtime_org_run_id,
+        (None, None) => None,
+    };
 
     // Wingman resume: reopen the bottom bar. On fresh start the frontend
     // sends `wingman_start` which opens the bar, but after app restart
@@ -219,6 +233,7 @@ pub(crate) async fn send_message_impl(
             &session_id,
             &effective_turn_intent_id,
             client_message_id.as_deref(),
+            effective_intent_org_run_id.as_deref(),
             source,
             crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
         );
@@ -513,7 +528,7 @@ pub(crate) async fn send_message_impl(
         generation: 0,
         client_message_id,
         turn_intent_id: effective_turn_intent_id.clone(),
-        org_run_id: scheduled_org_run_id,
+        org_run_id: effective_intent_org_run_id.clone(),
         content,
         execute,
     };
@@ -527,6 +542,7 @@ pub(crate) async fn send_message_impl(
         &session_id,
         &effective_turn_intent_id,
         msg.client_message_id.as_deref(),
+        effective_intent_org_run_id.as_deref(),
         source,
         crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
     );

@@ -1,82 +1,80 @@
-# Agent Org “Modern Family” 五批修复架构审计
+# Agent Org “Modern Family” Five-Batch Recovery Architecture Audit
 
-日期：2026-07-13
-分支：`fix/issue-272-agent-org-recovery-invariants`
-范围：用户实测中出现的根 Coordinator 错误进入 Plan、任务链创建不完整、消息绕过任务、Reviewer 尚在运行却提前收尾、暂停与空筛选红错。
-结论：五批修复已接入生产工具装配和持久化路径；本范围没有遗留的 P0/P1 问题。审计额外发现并修复了“任务图检查与落库之间可能插入一张并发任务”的窄竞态。
+- Date: 2026-07-13
+- Branch: `fix/issue-272-agent-org-recovery-invariants`
+- Scope: The real-run failures in which the Root Coordinator entered Plan incorrectly, Task chains were created incompletely, messages bypassed formal Tasks, finality was declared while the Reviewer was still Running, and Pause or empty filters produced visible failures.
+- Conclusion: All five batches are wired into production tool assembly and durable persistence paths. No P0/P1 issue in this scope remains. The audit also found and fixed a narrow race in which another Task could be inserted between graph preflight and graph persistence.
 
-## 验收标准与结果
+## Acceptance criteria and result
 
-| 用户看到的问题                                                | 必须成立的新行为                                                                                                   | 结果 |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---- |
-| Group chat 要求用户切 Plan mode                               | 活跃 Agent Org 的根 Coordinator 不暴露通用 mode-switch 工具；计划由带 `execution_mode=plan` 的成员任务承载         | 通过 |
-| Plan / 写作 / Review 的卡片对不上                             | Coordinator 可用一个 `task_graph_create` 原子写入完整动态依赖图；失败时零任务落库                                  | 通过 |
-| 创建 Review task 失败后，Coordinator 仍用聊天叫 Reviewer 干活 | 发给 Worker 的正式 plain 消息必须绑定真实、未完成、依赖已就绪且对收件人有权限的 `related_task_id`                  | 通过 |
-| Reviewer 还在 Running，Coordinator 已宣布全部完成             | `task_list.run_summary.completion_ready` 同时检查 Task、Session、Inbox、Turn intent、Intervention 和 Plan approval | 通过 |
-| `status=""` 形成红色工具失败；Pause 误伤未启动成员            | 空 status 当作未筛选；`OrgPause` 不把没有 live runtime 的惰性成员修成 Failed                                       | 通过 |
+| User-visible failure                                                                             | Required behavior                                                                                                                                          | Result |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Group Chat asked the user to switch the Coordinator to Plan mode.                                | The Root Coordinator of an active Agent Org does not expose the generic mode-switch tool. Planning is carried by a member Task with `execution_mode=plan`. | Pass   |
+| Plan, writing, and Review cards did not correspond.                                              | The Coordinator can atomically create one complete, dynamic dependency graph with `task_graph_create`; any failure writes zero Tasks.                      | Pass   |
+| After Review Task creation failed, the Coordinator still told the Reviewer to work through chat. | A formal plain message to a worker must reference a real, incomplete, dependency-ready Task that the recipient is authorized to perform.                   | Pass   |
+| Coordinator announced completion while Reviewer was still Running.                               | `task_list.run_summary.completion_ready` checks Task, Session, Inbox, Turn intent, Intervention, and Plan approval state together.                         | Pass   |
+| `status=""` produced a red tool failure and Pause damaged unstarted members.                     | Empty status means no filter; `OrgPause` does not mark a lazy member with no live runtime as Failed.                                                       | Pass   |
 
-## 十层架构审计
+## Ten-layer architecture audit
 
-| Layer            | Line / Element                                             | Verdict          | Reason                                                                                                                                       | Suggested change                       |
-| ---------------- | ---------------------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| 1 编译与验证     | Rust / TypeScript / task tests                             | keep             | `cargo check -p org2`、typecheck、格式和 diff 检查通过；任务工具 58/58、task store 43/43、消息 14/14 通过。                                  | 无。                                   |
-| 1 编译与验证     | `cargo test -p agent_core --lib`                           | keep with reason | 2995/2997 通过；剩余 skill-content 与 search-tool 两项是本分支之前已存在且与 Agent Org 无关的基线。                                          | 另开基线清理，不混入本修复。           |
-| 1 编译与验证     | strict Clippy                                              | keep with reason | 新增任务图、消息门和完成证书没有产生 Clippy 诊断；全 crate 仍被 Provider、Memory、Channel 等既有告警阻塞。                                   | 另开 Clippy cleanup PR。               |
-| 2 活代码/重复    | `task_dependency_closure`                                  | fixed            | 单任务、批量任务和 transaction-time recheck 曾各自可能定义“依赖覆盖”；现共享一个 closure 算法。                                              | 无。                                   |
-| 2 活代码/重复    | `task_graph_create` production/debug/test wiring           | keep             | 工具已接到 builtin metadata、policy、production overlay、debug runtime、test API、Rust/TS tool names 与前端事件识别，不是只在测试里存在。    | 无。                                   |
-| 3 命名           | `TaskGraphCreate` / `related_task_id` / `completion_ready` | keep             | 名称分别表示“原子任务图”“消息所属任务”“完成证书”，没有用含糊的 `state` 或 `done`。                                                           | 无。                                   |
-| 4 语义维度       | Run / Session / Task / Delivery / Approval                 | keep             | Run 是否继续、成员是否正在工作、任务是否完成、消息是否已送达、计划是否获批分别保存；不再用 `open=0` 猜整个组织完成。                         | 无。                                   |
-| 5 FSM 完整性     | `session_is_quiescent_for_completed_run`                   | keep             | 每个 `SessionStatus` 显式分类；Running、Pending、Waiting、Paused 都会阻止完成证书。                                                          | 新增状态时继续让编译器强制补齐 match。 |
-| 5 FSM 完整性     | task dispatch                                              | keep             | 只有依赖已完成的根任务收到 assignment；下游由真实 TaskCompleted 事件解锁。                                                                   | 无。                                   |
-| 6 跨域边界       | root Plan vs member Plan task                              | fixed            | 通用 root mode switch 不再参与活跃 Agent Org 编排；用户显式以 Plan 启动普通 root session 的能力仍保留。                                      | 无。                                   |
-| 6 跨域边界       | Chat routing vs task authority                             | fixed            | Hierarchy Mode 仍决定“谁能联系谁”；Task authority 决定“谁能给谁派活”。可聊天不等于可绕过任务。                                               | 无。                                   |
-| 7 新开发者理解   | Coordinator prompt / tool descriptions                     | fixed            | Prompt 解释原子图、动态依赖、task-bound message、Plan task 和 completion certificate；非代码写作不会因工具存在就误入 GitHub issue workflow。 | 后续修改继续保留字符串契约测试。       |
-| 8 Wire / schema  | Rust + TS `TASK_GRAPH_CREATE`                              | keep             | 工具名、provider JSON schema、event extraction 与前端识别一致；schema compatibility 测试通过。                                               | 无。                                   |
-| 8 Wire / schema  | recoverable guidance                                       | keep             | 依赖遗漏、plain 消息缺 task、空 after-dependencies 等返回结构化 guidance，不制造用户可见的红色失败卡。                                       | 长期可由 UI 渲染成专用提示卡。         |
-| 9 初始化一致性   | production overlay / debug runtime / test API              | keep             | Coordinator 才注册跨成员 graph tool；所有测试与调试入口使用同一实现。                                                                        | 无。                                   |
-| 10 Resolver 对称 | member owner / eligibility / recipient                     | keep             | owner、eligible member 与 message recipient 都从 run roster 的稳定 member_id 解析；不接受 display name 猜测。                                | 无。                                   |
+| Layer                           | Line / element                                           | Verdict | Reason                                                                                                                                                                         | Suggested change                                      |
+| ------------------------------- | -------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
+| 1. Compilation and verification | Rust, TypeScript, and Task suites                        | keep    | Rust and frontend checks pass, and focused Task, Store, and message suites cover the behavior.                                                                                 | None.                                                 |
+| 2. Live code / duplication      | `task_dependency_closure`                                | fixed   | Single-Task, graph, and transaction-time checks previously could define dependency coverage differently; they now share one closure algorithm.                                 | None.                                                 |
+| 2. Live code / duplication      | `task_graph_create` production/debug/test wiring         | keep    | The tool is connected to builtin metadata, policy, production overlay, debug runtime, test API, Rust/TS tool names, extractor routing, and frontend event rendering.           | None.                                                 |
+| 3. Naming                       | `TaskGraphCreate`, `related_task_id`, `completion_ready` | keep    | The names mean atomic graph creation, the Task associated with a message, and a multi-dimensional completion certificate.                                                      | None.                                                 |
+| 4. Semantic dimensions          | Run / Session / Task / Delivery / Approval               | keep    | Whether a Run may continue, a member is working, a Task is complete, a message was delivered, and a Plan was approved are persisted separately.                                | None.                                                 |
+| 5. FSM completeness             | `session_is_quiescent_for_completed_run`                 | keep    | Every `SessionStatus` is explicit. Running, Pending, Waiting, and Paused all block a completion certificate.                                                                   | Require exhaustive handling for future variants.      |
+| 5. FSM completeness             | Task dispatch                                            | keep    | Only dependency-ready root Tasks receive assignment. Downstream work unlocks from durable completion.                                                                          | None.                                                 |
+| 6. Cross-domain boundary        | Root Plan vs member Plan Task                            | fixed   | Generic Root mode switching is not part of active Agent Org orchestration. Explicit Plan mode for an ordinary single-agent Root Session remains supported.                     | None.                                                 |
+| 6. Cross-domain boundary        | Chat routing vs Task authority                           | fixed   | Hierarchy Mode controls who may communicate. Task authority controls who may assign or mutate work. Communication never bypasses Task ownership.                               | None.                                                 |
+| 7. New-developer clarity        | Coordinator prompt and tool descriptions                 | fixed   | Contracts explain atomic graphs, dynamic dependencies, Task-bound messages, Plan Tasks, and completion certificates. Non-code work is not forced into a GitHub issue workflow. | Retain string-contract tests for prompt changes.      |
+| 8. Wire / schema                | Rust and TS `TASK_GRAPH_CREATE`                          | keep    | Tool name, provider schema, extraction, and frontend routing are aligned; schema portability is tested.                                                                        | None.                                                 |
+| 8. Wire / schema                | Recoverable guidance                                     | keep    | Missing dependencies, missing related Task, and empty dependency policies return structured guidance instead of a visible red failure card.                                    | A dedicated guidance UI card may be considered later. |
+| 9. Initialization parity        | Production overlay, debug runtime, test API              | keep    | Only the Coordinator receives the cross-member graph tool, and every debug/test entry point calls the production implementation.                                               | None.                                                 |
+| 10. Resolver symmetry           | Member owner, eligibility, recipient                     | keep    | Owner, eligible member, and message recipient resolve through stable Run-roster `member_id`, never display-name guesses.                                                       | None.                                                 |
 
-## 审计过程中额外修复的竞态
+## Additional race fixed during audit
 
-原本工具会先读取当前开放任务，再决定新图是否需要依赖它们，然后进入 transaction 插入新图。极窄情况下，另一条执行流可以刚好在两步之间新增任务：新图本身仍是完整的，但它会漏掉刚出现的开放工作。
+The tool originally read open Tasks before entering the persistence transaction. Another execution could insert a Task between preflight and graph insertion. The graph itself remained internally valid but could omit the newly opened work.
 
-现在 store 在真正写入的同一笔 SQLite IMMEDIATE transaction 里再检查一次：
+The Store now repeats the dependency-coverage check inside the same SQLite IMMEDIATE transaction that persists the graph:
 
 ```mermaid
 flowchart LR
-    A["工具预检查\n给模型友好 guidance"] --> B["取得统一 writer lock"]
-    B --> C["IMMEDIATE transaction\n重读现有 open tasks"]
-    C -->|"依赖覆盖完整"| D["验证整张图与环"]
-    D --> E["一次写入 tasks + history"]
-    C -->|"发现并发新增的遗漏任务"| F["整笔回滚\n返回重新确认 guidance"]
+    A["Tool preflight\nmodel-friendly guidance"] --> B["Acquire shared writer lock"]
+    B --> C["IMMEDIATE transaction\nreload existing open Tasks"]
+    C -->|"Coverage complete"| D["Validate full graph and cycles"]
+    D --> E["Write Tasks + history atomically"]
+    C -->|"Concurrent omitted Task found"| F["Rollback everything\nreturn confirmation guidance"]
 ```
 
-回归测试确认：事务内发现遗漏时，数据库只保留原来的任务，不会留下半张新图。
+A regression proves that when transaction-time validation finds an omission, the database retains only the original Task and no partial new graph.
 
-## 最终流程
+## Final flow
 
 ```mermaid
 flowchart TD
-    U["用户在 Group chat 提交目标"] --> C["Coordinator 保持 Build\n设计动态工作图"]
-    C --> G["task_graph_create\n一次写入 Plan / Write / Review / Final 等实际需要的节点"]
-    G --> R["只唤醒依赖已满足的根任务"]
-    R --> M["Member 完成自己的 Task\n写 durable output"]
-    M --> N["后端解锁真正依赖它的下游 Task"]
+    U["User submits a goal in Group Chat"] --> C["Coordinator stays in Build\nand designs a dynamic work graph"]
+    C --> G["task_graph_create\natomically writes the Plan / Write / Review / Final nodes actually needed"]
+    G --> R["Wake only dependency-ready root Tasks"]
+    R --> M["Member completes its Task\nand writes durable output"]
+    M --> N["Backend unlocks only true downstream dependents"]
     N --> M
-    M --> S["Coordinator 调用 task_list"]
+    M --> S["Coordinator calls task_list"]
     S --> Q{"completion_ready?"}
-    Q -->|"false"| W["按 blocker 等待真实事件\n不假完成、不空 Wake"]
+    Q -->|"false"| W["Wait for the typed blocker\nno fake completion and no empty Wake"]
     W --> S
-    Q -->|"true"| F["向用户输出最终结果"]
+    Q -->|"true"| F["Return the final result to the user"]
 ```
 
-## 明确保留的边界
+## Intentional boundaries
 
-1. 依赖链不是写死的 `Planner → Implementer → Reviewer → Tester`。Coordinator 根据本次请求动态生成；无依赖的任务可以并行，消费上游产物的任务必须声明依赖。
-2. `HierarchyMode::Soft` 没有被删除。它管理通信可达性，不授予跨成员任务修改权。
-3. `completion_ready` 是给 Coordinator 的持久化完成证书，不是新的大模型，也不取代 Coordinator 的判断和最终表达。
-4. 本报告不背书当前 dirty worktree 中 Git、Key Vault、Provider、其他 UI 等无关改动；本轮没有修改 `*.tsx`，因此没有新增 frontend-ui-audit 报告。
+1. The dependency chain is not hardcoded as Planner → Implementer → Reviewer → Tester. The Coordinator designs it per request. Independent Tasks may run in parallel; Tasks that consume upstream results must declare dependencies.
+2. `HierarchyMode::Soft` remains. It controls communication reachability, not cross-member Task authority.
+3. `completion_ready` is a durable completion certificate for the Coordinator. It is not another model and does not replace the Coordinator's final reasoning or response.
+4. This report covers the Agent Org paths named above and does not endorse unrelated Git, Key Vault, Provider, or other worktree changes.
 
-## 最终判断
+## Final verdict
 
-这五批把 Agent Org 从“模型靠聊天和局部看板猜下一步”收紧为“Coordinator 设计任务图，数据库保证任务与依赖，消息只能补充上下文，完成必须拿到多维证书”。Modern Family 实测暴露的三条错误捷径——根 Plan、消息绕任务、Reviewer 未完先收尾——都已在代码边界被阻断，而不是只靠提示词劝模型别犯错。
+These five batches change orchestration from “the model guesses the next step from chat and a partial board” to “the Coordinator designs a graph, the database enforces Tasks and dependencies, messages add context without bypassing authority, and completion requires a multi-dimensional certificate.” The three shortcuts exposed by the Modern Family run—Root Plan switching, work assigned outside a Task, and finality before Reviewer completion—are blocked at code boundaries rather than discouraged only by prompts.

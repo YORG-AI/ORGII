@@ -459,6 +459,7 @@ pub type UpsertTurnIntentFn = fn(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentBridgeSource,
     status: TurnIntentBridgeStatus,
 );
@@ -490,6 +491,7 @@ pub fn upsert_turn_intent(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentBridgeSource,
     status: TurnIntentBridgeStatus,
 ) {
@@ -501,6 +503,7 @@ pub fn upsert_turn_intent(
             session_id,
             turn_intent_id,
             client_message_id,
+            org_run_id,
             source,
             status,
         );

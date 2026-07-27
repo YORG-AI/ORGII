@@ -6,6 +6,8 @@
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};
 
+use crate::coordination::agent_org_payload_limits::validate_task_dependency_ids;
+
 use super::super::helpers::{
     encode_json_array, encode_metadata, insert_task_history_event, list_tasks_with_conn,
     now_rfc3339, row_to_task, SELECT_COLUMNS,
@@ -212,6 +214,9 @@ impl AgentOrgTaskStore {
         expected_updated_at: Option<&str>,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
+        if let Some(blocked_by) = patch.blocked_by.as_ref() {
+            validate_task_dependency_ids("blocked_by", blocked_by)?;
+        }
         let mut conn = get_connection().map_err(|err| err.to_string())?;
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)

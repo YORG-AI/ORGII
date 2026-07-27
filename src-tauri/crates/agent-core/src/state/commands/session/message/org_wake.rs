@@ -20,10 +20,23 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     let wakeable = SessionStatus::AGENT_ORG_WAKEABLE;
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "WITH run_anchor(root_session_id) AS (
+        "WITH RECURSIVE
+         run_anchor(root_session_id) AS (
              SELECT root_session_id
              FROM agent_org_runs
              WHERE id=?4 AND status=?5 AND root_session_id IS NOT NULL
+         ),
+         descendants(session_id) AS (
+             SELECT root_session_id FROM run_anchor
+             UNION
+             SELECT child.session_id
+             FROM agent_sessions child
+             JOIN descendants parent ON child.parent_session_id=parent.session_id
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM agent_org_runs nested
+                 WHERE nested.id<>?4
+                   AND nested.root_session_id=child.session_id
+             )
          ),
          ranked(session_id, member_rank) AS (
              SELECT session.session_id,
@@ -36,10 +49,10 @@ pub(super) fn promote_agent_org_wake_session_to_running(
                         ORDER BY session.updated_at DESC, session.session_id DESC
                     )
              FROM agent_sessions session
+             JOIN descendants USING (session_id)
              CROSS JOIN run_anchor anchor
              WHERE session.session_id=anchor.root_session_id
-                OR (session.parent_session_id=anchor.root_session_id
-                    AND session.agent_definition_id IS NOT NULL
+                OR (session.agent_definition_id IS NOT NULL
                     AND session.org_member_id IS NOT NULL)
          )
          UPDATE agent_sessions
@@ -118,6 +131,10 @@ pub(super) fn resolve_agent_org_wake_mode(
                  WHERE org_run_id=?1
                    AND recipient_member_id=?2
                    AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_inbox.id
+                   )
                  ORDER BY id ASC
                  LIMIT ?3
              ), delivery_window AS (

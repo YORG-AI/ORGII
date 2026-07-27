@@ -670,6 +670,11 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
+            "agent-org-production-return-to-work-drains-visible-input",
+            agent_org::production_return_to_work_drains_inbox_into_member_transcript
+        ),
+        scenario!(
+            "agent-org",
             "agent-org-run-pause-resume-toggles-status",
             agent_org::run_pause_resume_toggles_status
         ),

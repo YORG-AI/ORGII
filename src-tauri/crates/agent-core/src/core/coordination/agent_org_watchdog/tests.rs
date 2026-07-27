@@ -1,4 +1,6 @@
-use super::budget::{budget_disposition, coordinator_notice_allowed, BudgetDisposition};
+use super::budget::{
+    budget_disposition, coordinator_notice_allowed, rewake_budget_exhausted, BudgetDisposition,
+};
 use super::inspect::is_wakeable_status;
 use super::recover::{recover_listed_runs, run_best_effort_cleanup};
 use super::*;
@@ -128,4 +130,32 @@ fn coordinator_notice_budget_backs_off_and_resets_on_new_reason() {
     assert!(coordinator_notice_allowed(&run_id, "task a stuck").expect("notice"));
     assert!(!coordinator_notice_allowed(&run_id, "task a stuck").expect("backoff"));
     assert!(coordinator_notice_allowed(&run_id, "task b stuck").expect("new reason"));
+}
+
+#[test]
+fn rewake_budget_exhaustion_requires_all_attempts_and_an_expired_cooldown() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    init_schema(&conn).expect("schema");
+    let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let member_id = "member-exhausted";
+    let fingerprint = "same-input";
+    assert!(!rewake_budget_exhausted(&run_id, member_id, fingerprint).expect("initial budget"));
+    let expired_at = (Utc::now() - ChronoDuration::seconds(1)).to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_recovery_attempts
+             (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
+              next_allowed_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+        params![
+            &run_id,
+            MEMBER_REWAKE,
+            member_id,
+            fingerprint,
+            RECOVERY_DELAYS_SECS.len() as i64,
+            &expired_at,
+        ],
+    )
+    .expect("seed exhausted budget");
+    assert!(rewake_budget_exhausted(&run_id, member_id, fingerprint).expect("exhausted budget"));
 }

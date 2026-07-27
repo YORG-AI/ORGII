@@ -200,6 +200,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
     let view = agent_org_session_run_view_impl(state, &session_id)
         .await?
         .ok_or_else(|| format!("Session {session_id} is not part of an Agent Org run"))?;
+    let org_run_id = view.context.run_id.clone();
     let member = view
         .members
         .into_iter()
@@ -229,6 +230,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
         None,
         None,
         None,
+        Some(org_run_id),
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
     )
     .await?;

@@ -9,7 +9,16 @@ pub(super) fn now_rfc3339() -> String {
 }
 
 pub(super) fn encode_json_array(values: &[String]) -> Result<String, String> {
-    serde_json::to_string(values).map_err(|err| format!("encode JSON array: {err}"))
+    let encoded =
+        serde_json::to_string(values).map_err(|err| format!("encode JSON array: {err}"))?;
+    let max_bytes = crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES;
+    if encoded.len() > max_bytes {
+        return Err(format!(
+            "encoded task dependency array must be <= {max_bytes} bytes (got {} bytes)",
+            encoded.len()
+        ));
+    }
+    Ok(encoded)
 }
 
 pub(super) fn decode_json_array(raw: &str) -> Result<Vec<String>, String> {

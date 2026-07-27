@@ -57,6 +57,7 @@ pub(super) enum BudgetDisposition {
     Exhausted,
 }
 
+#[cfg(test)]
 pub(super) fn budget_disposition(
     run_id: &str,
     action_kind: &str,
@@ -121,6 +122,7 @@ pub(super) fn budget_disposition_with_connection(
     })
 }
 
+#[cfg(test)]
 pub(super) fn record_attempt(
     run_id: &str,
     action_kind: &str,
@@ -222,6 +224,7 @@ pub fn test_only_mark_failed_rewake_attempt(run_id: &str, member_id: &str) -> Re
     Ok(true)
 }
 
+#[cfg(test)]
 pub(super) fn delayed_rewake_allowed(
     run_id: &str,
     member_id: &str,
@@ -239,6 +242,7 @@ pub(super) fn delayed_rewake_allowed(
 /// backoff window": an exhausted budget never recovers without a
 /// successful member turn (which clears it), so it marks the member as
 /// beyond autonomous recovery.
+#[cfg(test)]
 pub(super) fn rewake_budget_exhausted(
     run_id: &str,
     member_id: &str,
@@ -250,6 +254,7 @@ pub(super) fn rewake_budget_exhausted(
     ))
 }
 
+#[cfg(test)]
 pub(super) fn reason_fingerprint(reason: &str) -> String {
     blake3::hash(reason.as_bytes()).to_hex().to_string()
 }
@@ -270,6 +275,7 @@ pub(super) fn coordinator_notice_allowed(run_id: &str, reason: &str) -> Result<b
     Ok(true)
 }
 
+#[cfg(test)]
 pub(super) fn coordinator_notice_budget_allows(
     run_id: &str,
     fingerprint: &str,
@@ -291,7 +297,7 @@ pub(crate) fn member_rewake_fingerprint(
     ))
 }
 
-fn member_rewake_fingerprint_from_unread(
+pub(super) fn member_rewake_fingerprint_from_unread(
     status: SessionStatus,
     unread_fingerprint: Option<&str>,
 ) -> String {

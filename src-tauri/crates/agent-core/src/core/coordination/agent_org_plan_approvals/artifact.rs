@@ -4,6 +4,11 @@ use std::sync::OnceLock;
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+use database::db::{get_connection, with_sessions_writer};
+
+use super::persistence::query_record;
+use super::AgentOrgPlanApproval;
+
 /// A fully-written, fsynced artifact waiting for its short atomic install.
 ///
 /// The temporary file lives beside the target so `rename` never crosses a
@@ -409,11 +414,152 @@ pub(super) fn finish_committed_artifact<T>(
                         .map(|artifact| artifact.target_path.display().to_string())
                         .unwrap_or_default(),
                     error = %err,
-                    "Agent Org plan DB commit succeeded but its derived artifact could not be installed"
+                    "Agent Org plan DB commit succeeded but artifact installation needs repair"
                 );
             }
             Ok(value)
         }
         Err(err) => Err(err),
     }
+}
+
+pub(super) fn list_distinct_plan_paths_after(
+    after_path: Option<&str>,
+    limit: usize,
+) -> Result<Vec<String>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT DISTINCT plan_path
+             FROM agent_org_plan_approvals
+             WHERE (?1 IS NULL OR plan_path > ?1)
+             ORDER BY plan_path ASC
+             LIMIT ?2",
+        )
+        .map_err(|err| err.to_string())?;
+    let rows = stmt
+        .query_map(params![after_path, limit as i64], |row| {
+            row.get::<_, String>(0)
+        })
+        .map_err(|err| err.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
+fn latest_plan_revision_for_path_with_connection(
+    conn: &Connection,
+    plan_path: &str,
+) -> Result<Option<AgentOrgPlanApproval>, String> {
+    query_record(
+        conn,
+        "WHERE plan_path=?1 ORDER BY created_at DESC, rowid DESC",
+        params![plan_path],
+    )
+}
+
+fn latest_plan_revision_for_path(plan_path: &str) -> Result<Option<AgentOrgPlanApproval>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    latest_plan_revision_for_path_with_connection(&conn, plan_path)
+}
+
+fn stage_plan_artifact_if_needed(
+    source_session_id: &str,
+    plan_path: &str,
+    canonical_content: &str,
+) -> Result<Option<StagedPlanArtifact>, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    let Some(owned) =
+        owned_plan_path_for_existing_revision_with_connection(&conn, source_session_id, plan_path)?
+    else {
+        return Ok(None);
+    };
+    let target_path = match resolve_owned_plan_target(&owned, true) {
+        Ok(Some(target)) => target,
+        Ok(None) => return Ok(None),
+        Err(err) => {
+            tracing::warn!(
+                source_session_id,
+                plan_path,
+                error = %err,
+                "skipping unsafe Agent Org plan artifact repair"
+            );
+            return Ok(None);
+        }
+    };
+    match std::fs::read(&target_path) {
+        Ok(existing) if existing == canonical_content.as_bytes() => return Ok(None),
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(format!(
+                "failed to inspect Agent Org plan artifact {}: {err}",
+                target_path.display()
+            ))
+        }
+    }
+    stage_owned_plan_artifact(owned, target_path, canonical_content).map(Some)
+}
+
+pub(super) fn repair_latest_plan_artifact_for_path(plan_path: &str) -> Result<bool, String> {
+    const MAX_REPAIR_RACES: usize = 4;
+
+    for _ in 0..MAX_REPAIR_RACES {
+        let Some(canonical) = latest_plan_revision_for_path(plan_path)? else {
+            return Ok(false);
+        };
+        let staged = stage_plan_artifact_if_needed(
+            &canonical.source_session_id,
+            plan_path,
+            &canonical.plan_content,
+        )?;
+        if staged.is_none() {
+            let latest = latest_plan_revision_for_path(plan_path)?;
+            if latest.as_ref().is_some_and(|record| {
+                record.approval_id == canonical.approval_id
+                    && record.plan_revision_id == canonical.plan_revision_id
+                    && record.plan_content == canonical.plan_content
+            }) {
+                return Ok(false);
+            }
+            continue;
+        }
+
+        let _artifact_guard = plan_artifact_install_lock().lock();
+        let should_install = with_sessions_writer(|| -> Result<bool, String> {
+            let conn = get_connection().map_err(|err| err.to_string())?;
+            let latest = latest_plan_revision_for_path_with_connection(&conn, plan_path)?;
+            let still_current = latest.as_ref().is_some_and(|record| {
+                record.approval_id == canonical.approval_id
+                    && record.plan_revision_id == canonical.plan_revision_id
+                    && record.plan_content == canonical.plan_content
+            });
+            if !still_current {
+                return Ok(false);
+            }
+            let Some(latest) = latest.as_ref() else {
+                return Ok(false);
+            };
+            if let Err(err) = validate_owned_plan_path_with_connection(
+                &conn,
+                &latest.source_session_id,
+                &latest.plan_path,
+            ) {
+                tracing::warn!(
+                    source_session_id = %latest.source_session_id,
+                    plan_path = %latest.plan_path,
+                    error = %err,
+                    "skipping Agent Org plan artifact repair after ownership changed"
+                );
+                return Ok(false);
+            }
+            Ok(true)
+        })?;
+        if should_install {
+            install_staged_plan_artifact(staged.as_ref())?;
+            return Ok(true);
+        }
+    }
+    Err(format!(
+        "Agent Org plan artifact kept changing while being repaired: {plan_path}"
+    ))
 }

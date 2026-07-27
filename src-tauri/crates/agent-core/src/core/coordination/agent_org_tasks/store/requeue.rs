@@ -228,3 +228,114 @@ impl AgentOrgTaskStore {
         Ok(updated_rows)
     }
 }
+
+#[cfg(test)]
+mod migration_tests {
+    use super::*;
+
+    #[test]
+    fn dependency_migration_skips_corrupt_run_and_normalizes_valid_run() {
+        let conn = rusqlite::Connection::open_in_memory().expect("open in-memory database");
+        super::super::super::init_schema(&conn).expect("create task schema");
+
+        let now = now_rfc3339();
+        for (id, blocks_json, blocked_by_json) in
+            [("task-a", r#"["task-b"]"#, "[]"), ("task-b", "[]", "[]")]
+        {
+            conn.execute(
+                "INSERT INTO agent_org_tasks (
+                     id, org_run_id, subject, description, status,
+                     blocks_json, blocked_by_json, created_at, updated_at
+                 ) VALUES (?1, 'valid-run', ?1, '', 'pending', ?2, ?3, ?4, ?4)",
+                params![id, blocks_json, blocked_by_json, &now],
+            )
+            .expect("seed valid legacy task");
+        }
+        conn.execute(
+            "INSERT INTO agent_org_tasks (
+                 id, org_run_id, subject, description, status,
+                 blocks_json, blocked_by_json, created_at, updated_at
+             ) VALUES (
+                 'corrupt-task', 'corrupt-run', 'corrupt', '', 'pending',
+                 'not-json', '[]', ?1, ?1
+             )",
+            params![&now],
+        )
+        .expect("seed corrupt historical task");
+
+        super::super::super::init_schema(&conn)
+            .expect("schema init must survive one corrupt historical run");
+
+        let (a_blocks, b_blocked_by): (String, String) = conn
+            .query_row(
+                "SELECT a.blocks_json, b.blocked_by_json
+                 FROM agent_org_tasks a
+                 JOIN agent_org_tasks b
+                   ON b.org_run_id=a.org_run_id AND b.id='task-b'
+                 WHERE a.org_run_id='valid-run' AND a.id='task-a'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("read normalized valid board");
+        assert_eq!(a_blocks, r#"["task-b"]"#);
+        assert_eq!(b_blocked_by, r#"["task-a"]"#);
+
+        let corrupt_blocks: String = conn
+            .query_row(
+                "SELECT blocks_json FROM agent_org_tasks
+                 WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("corrupt row remains available for runtime repair");
+        assert_eq!(corrupt_blocks, "not-json");
+
+        let valid_marked: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='valid-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read valid marker");
+        let corrupt_marked: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read corrupt marker");
+        assert!(valid_marked, "healthy run receives its own success marker");
+        assert!(
+            !corrupt_marked,
+            "corrupt run remains unmarked so a later startup can retry"
+        );
+
+        conn.execute(
+            "UPDATE agent_org_tasks SET blocks_json='[]'
+             WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
+            [],
+        )
+        .expect("repair corrupt historical row");
+        super::super::super::init_schema(&conn).expect("retry repaired run");
+        let corrupt_marked_after_retry: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
+                 )",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read retry marker");
+        assert!(
+            corrupt_marked_after_retry,
+            "a repaired run is retried and marked independently"
+        );
+    }
+}

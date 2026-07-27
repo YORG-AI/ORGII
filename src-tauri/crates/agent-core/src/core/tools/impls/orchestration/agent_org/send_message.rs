@@ -15,7 +15,9 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
-use crate::coordination::agent_inbox::{is_supported_agent_org_remote_mode, AgentMessage, RequestId};
+use crate::coordination::agent_inbox::{
+    is_supported_agent_org_remote_mode, AgentMessage, RequestId,
+};
 use crate::coordination::agent_org_plan_approvals::{
     AgentOrgPlanApprovalStore, AgentOrgPlanDecisionBy, AgentOrgPlanInboxDelivery,
 };
@@ -665,4 +667,3 @@ impl Tool for OrgSendMessageTool {
         false
     }
 }
-

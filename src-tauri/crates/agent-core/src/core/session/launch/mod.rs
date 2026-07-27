@@ -659,6 +659,7 @@ pub(crate) async fn launch_rust_agent_run(
                 ide_context_for_send,
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
+                agent_org_run_id_for_background.clone(),
                 crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
             )
             .await;
@@ -784,6 +785,7 @@ pub(crate) async fn launch_rust_agent_run(
                 ide_context_for_send,
                 agent_definition_id_for_send,
                 sub_agent_ids_for_send,
+                agent_org_run_id_for_send.clone(),
                 crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit,
             )
             .await;

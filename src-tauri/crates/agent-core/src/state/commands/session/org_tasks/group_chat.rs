@@ -40,6 +40,8 @@ pub struct AgentOrgGroupChatHistoryRow {
     pub display_text: String,
     pub created_at: String,
     pub read_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_resolution: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -103,7 +105,10 @@ pub(super) fn load_group_chat_history_page(
     let mut stmt = conn
         .prepare(
             "SELECT inbox.id,
-                    inbox.recipient_member_id,
+                    CASE WHEN inbox.recipient_member_id IS NULL THEN NULL
+                         WHEN length(CAST(inbox.recipient_member_id AS BLOB))<=?7
+                         THEN substr(inbox.recipient_member_id, 1, ?8)
+                         ELSE NULL END AS recipient_member_id,
                     CASE
                       WHEN length(CAST(inbox.payload_json AS BLOB))<=?4
                        AND json_valid(inbox.payload_json)
@@ -117,14 +122,17 @@ pub(super) fn load_group_chat_history_page(
                          THEN substr(inbox.display_text, 1, ?5)
                          ELSE NULL END AS display_text,
                     substr(inbox.created_at, 1, 64),
-                    CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END
+                    CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END,
+                    resolution.resolution_kind
              FROM agent_inbox inbox
+             LEFT JOIN agent_inbox_delivery_resolutions resolution
+               ON resolution.inbox_id=inbox.id
              WHERE inbox.org_run_id=?1
                AND inbox.sender_agent_id=?2
                AND inbox.payload_kind='plain'
                AND (?3 IS NULL OR inbox.id<?3)
              ORDER BY inbox.id DESC
-             LIMIT ?7",
+             LIMIT ?9",
         )
         .map_err(|err| err.to_string())?;
     let rows = stmt
@@ -136,6 +144,9 @@ pub(super) fn load_group_chat_history_page(
                 crate::coordination::agent_org_payload_limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
                 (crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_CHARS + 1) as i64,
                 crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_BYTES as i64,
+                crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_BYTES as i64,
+                (crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_CHARS + 1)
+                    as i64,
                 (limit + 1) as i64,
             ],
             |row| {
@@ -146,6 +157,7 @@ pub(super) fn load_group_chat_history_page(
                     row.get::<_, Option<String>>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, Option<String>>(5)?,
+                    row.get::<_, Option<String>>(6)?,
                 ))
             },
         )
@@ -155,16 +167,39 @@ pub(super) fn load_group_chat_history_page(
     let mut serialized_bytes = 2usize;
     let mut has_more = false;
     for row in rows {
-        let (inbox_id, target_member_id, text, stored_display_text, created_at, read_at) =
-            row.map_err(|err| err.to_string())?;
+        let (
+            inbox_id,
+            target_member_id,
+            text,
+            stored_display_text,
+            created_at,
+            read_at,
+            delivery_resolution,
+        ) = row.map_err(|err| err.to_string())?;
         if newest_first.len() == limit {
             has_more = true;
             break;
         }
+        let target_member_id = target_member_id.filter(|value| {
+            crate::coordination::agent_org_payload_limits::validate_message_identifier(
+                "group_chat_history.target_member_id",
+                value,
+            )
+            .is_ok()
+        });
         let target_member_name = target_member_id
             .as_deref()
             .and_then(|member_id| context.participant_display_name(member_id))
             .or_else(|| target_member_id.clone())
+            .filter(|value| {
+                crate::coordination::agent_org_payload_limits::validate_text_len(
+                    "group_chat_history.target_member_name",
+                    value,
+                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_CHARS,
+                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_BYTES,
+                )
+                .is_ok()
+            })
             .unwrap_or_else(|| "Unknown recipient".to_string());
         let text = text
             .filter(|value| {
@@ -196,6 +231,7 @@ pub(super) fn load_group_chat_history_page(
             display_text,
             created_at,
             read_at,
+            delivery_resolution,
         };
         let row_bytes = serde_json::to_vec(&history_row)
             .map_err(|err| format!("serialize Group Chat history row failed: {err}"))?
