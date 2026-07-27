@@ -18,7 +18,7 @@ fn config() -> AnthropicJsonlSource {
         provider_slug: "qoder_cli",
         display_name: "Qoder CLI",
         parser_version: 1,
-        candidate_roots: qoder_cli_history_candidate_paths,
+        candidate_roots: qoder_cli_history_candidate_paths(),
         // Qoder keeps delegated-agent transcripts below each primary session.
         // They are replay internals, not standalone sessions in the sidebar.
         exclude_subagent_dirs: true,

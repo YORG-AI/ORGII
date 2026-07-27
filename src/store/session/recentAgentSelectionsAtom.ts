@@ -30,6 +30,9 @@ function getRecentAgentSelectionKey(selection: RecentAgentSelection): string {
   if (selection.category === "cursor_ide") {
     return "cursor_ide";
   }
+  if (selection.category === "human_session") {
+    return "human_session";
+  }
   return `agent:${selection.agentDefinitionId ?? ""}`;
 }
 

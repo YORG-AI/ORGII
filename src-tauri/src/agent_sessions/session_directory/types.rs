@@ -21,7 +21,7 @@ pub struct SessionAggregateRecord {
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
-    /// Session category: "cli", "agent" (Coding), or "os"
+    /// Session category: "cli", "agent" (Coding), "os", or "human"
     pub category: SessionCategory,
     /// Imported external-history source subtype, when this row comes from an external DB.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -32,6 +32,14 @@ pub struct SessionAggregateRecord {
     /// Repository path (CLI sessions)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
+    /// Canonical Git worktree root discovered for an imported session's
+    /// recorded working folder. The original `repo_path` remains unchanged.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_root_path: Option<String>,
+    /// Raw Git remote URLs captured by the imported-history cache. Consumers
+    /// normalize these into collaboration scope keys without live Git I/O.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_remote_urls: Option<Vec<String>>,
     /// Path to the file or directory where this session's persisted data lives.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub storage_path: Option<String>,
@@ -167,6 +175,8 @@ pub enum SessionCategory {
     Agent,
     /// OS Agent session (external channels)
     Os,
+    /// User-authored proof-of-work session
+    Human,
 }
 
 impl SessionCategory {
@@ -175,6 +185,7 @@ impl SessionCategory {
             Self::Cli => "cli",
             Self::Agent => "agent",
             Self::Os => "os",
+            Self::Human => "human",
         }
     }
 
@@ -183,6 +194,7 @@ impl SessionCategory {
             "cli" => Ok(Self::Cli),
             "agent" => Ok(Self::Agent),
             "os" => Ok(Self::Os),
+            "human" => Ok(Self::Human),
             other => Err(format!("Unknown session category: {other}")),
         }
     }
@@ -200,7 +212,7 @@ pub struct SessionFilter {
     /// that must hydrate an older row without walking sidebar pagination.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_ids: Option<Vec<String>>,
-    /// Filter by category: "cli", "agent", "os"
+    /// Filter by category: "cli", "agent", "os", "human"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub category: Option<String>,
     /// Filter by status (comma-separated for multiple)
@@ -255,6 +267,12 @@ pub struct SessionFilter {
     /// Only return active (ongoing) sessions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_only: Option<bool>,
+    /// Exact-id lookups normally report continuation-superseded siblings as
+    /// absent so hydration surfaces never re-add rows the listing demoted.
+    /// Existence checks (the cloud vanished-session sweep) opt out: a
+    /// superseded sibling still exists locally and must not read as vanished.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub include_continuation_superseded: Option<bool>,
 }
 
 // ============================================================================

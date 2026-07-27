@@ -3,12 +3,10 @@
  * (migration 0012): confirmation dialog → resolveCloudSessionShare(token) →
  * read-only import through the shared segments importer → openSession.
  *
- * Guests (not signed in, not a member) are first-class: the token IS the
- * credential — resolve and every segments fetch ride the anon TICKET tier,
- * the imported copy lands as an `external_history` session with no `orgId`
- * (sidebar Personal area), and no org records are created. Signed-in
- * members go through the exact same path; the token authenticates the read
- * regardless.
+ * Registered non-members are first-class: a user JWT proves registration and
+ * the token grants access without creating an org membership. The imported
+ * copy lands as an `external_history` session with no `orgId` (sidebar
+ * Personal area), and no org records are created.
  *
  * The pending atom itself is the dialog state: it stays set while the
  * confirmation is open and is consumed (cleared) exactly once on close. Each
@@ -18,7 +16,7 @@
  * share links carry a token plus non-secret endpoint provenance).
  */
 import Modal from "@/src/scaffold/ModalSystem";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, {
   useCallback,
   useEffect,
@@ -27,8 +25,10 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 
 import Button from "@src/components/Button";
+import { ROUTES } from "@src/config/routes";
 import { importRemoteSession } from "@src/features/TeamCollaboration/engine/collabSyncEngineHelpers";
 import { resolveForkWorkspacePath } from "@src/features/TeamCollaboration/forkSession";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
@@ -42,13 +42,23 @@ import {
   findLocalCloudShareSource,
 } from "./cloudShareImportModel";
 import type { CloudEndpoint } from "./config";
+import { commitRefreshedAuth, org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { buildCloudSessionFetchClient } from "./org2CloudBackendAdapter";
+import { ensureFreshSession } from "./org2CloudClient";
 import {
   consumeOrg2CloudPendingShareAtom,
   org2CloudPendingShareAtom,
 } from "./org2CloudPendingShareAtom";
-import { resolveCloudShareEndpoint } from "./org2CloudShareEndpoint";
+import {
+  Org2CloudSignerError,
+  type Org2CloudSignerErrorCode,
+} from "./org2CloudReplaySignedReads";
+import {
+  requireCloudShareAuthEndpoint,
+  resolveCloudShareEndpoint,
+} from "./org2CloudShareEndpoint";
 import { resolveCloudSessionShare } from "./org2CloudSharesClient";
+import { useOrg2CloudSignIn } from "./useOrg2CloudSignIn";
 
 interface ResolveState {
   attemptId: number;
@@ -61,15 +71,19 @@ interface ResolveState {
 interface ImportState {
   attemptId: number;
   status: "importing" | "failed";
+  signerCode?: Org2CloudSignerErrorCode;
 }
 
 const CloudShareImportDialog: React.FC = () => {
   const { t } = useTranslation("navigation");
+  const openCloudSignIn = useOrg2CloudSignIn();
+  const location = useLocation();
   const { openSession } = useSessionView();
   const openOrReplaceSessionTab = useSetAtom(
     openOrReplaceSessionInChatPanelTabAtom
   );
   const share = useAtomValue(org2CloudPendingShareAtom);
+  const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const consumePendingShare = useSetAtom(consumeOrg2CloudPendingShareAtom);
   const sessions = useAtomValue(sessionsAtom);
 
@@ -80,6 +94,9 @@ const CloudShareImportDialog: React.FC = () => {
   const importGenerationRef = useRef(0);
   const importAbortRef = useRef<AbortController | null>(null);
   const attemptId = share?.attemptId ?? null;
+  const onWorkstation = location.pathname.startsWith(
+    ROUTES.workStation.base.path
+  );
 
   // Commit the current hand-off before a user can interact with the painted
   // dialog. A layout effect keeps ref access outside render while still
@@ -95,15 +112,26 @@ const CloudShareImportDialog: React.FC = () => {
   // confirmation). Resolve and segment fetches share one endpoint snapshot.
   // State updates are keyed by attempt + retry cycle, never by token alone.
   useEffect(() => {
-    if (!share) return;
+    if (!share || !auth) return;
     let cancelled = false;
     const abortController = new AbortController();
     const currentAttemptId = share.attemptId;
     const currentCycle = resolveCycle;
+    const currentAuth = auth;
     void (async () => {
       try {
-        const endpoint = resolveCloudShareEndpoint(share.endpoint);
+        const fresh = await ensureFreshSession(currentAuth, {
+          onRefreshRejected: () =>
+            setAuth((latest) => (latest === currentAuth ? null : latest)),
+        });
+        if (!fresh) throw new TypeError("Cloud session refresh failed");
+        if (!commitRefreshedAuth(setAuth, currentAuth, fresh)) return;
+        const endpoint = requireCloudShareAuthEndpoint(
+          resolveCloudShareEndpoint(share.endpoint),
+          fresh.supabaseUrl
+        );
         const session = await resolveCloudSessionShare(
+          fresh.accessToken,
           share.shareToken,
           endpoint,
           abortController.signal
@@ -138,9 +166,10 @@ const CloudShareImportDialog: React.FC = () => {
       cancelled = true;
       abortController.abort();
     };
-  }, [resolveCycle, share]);
+  }, [auth, resolveCycle, setAuth, share]);
 
   const resolved =
+    auth &&
     share &&
     resolveState?.attemptId === share.attemptId &&
     resolveState.cycle === resolveCycle
@@ -157,10 +186,14 @@ const CloudShareImportDialog: React.FC = () => {
   const resolveFailed = resolveError !== null;
   const isImporting = currentImport?.status === "importing";
   const importFailed = currentImport?.status === "failed" && !resolveFailed;
+  const importSignerCode = importFailed
+    ? (currentImport?.signerCode ?? null)
+    : null;
   const localSource = resolved?.session
     ? findLocalCloudShareSource(sessions, resolved.session)
     : null;
   const canImport =
+    Boolean(auth) &&
     Boolean(resolved?.session && resolved.endpoint) &&
     !resolveFailed &&
     !isImporting;
@@ -180,6 +213,7 @@ const CloudShareImportDialog: React.FC = () => {
   const handleImport = useCallback(async () => {
     if (
       !share ||
+      !auth ||
       !resolved?.session ||
       !resolved.endpoint ||
       resolveFailed ||
@@ -195,12 +229,25 @@ const CloudShareImportDialog: React.FC = () => {
     importAbortRef.current = abortController;
     setImportState({ attemptId: currentAttemptId, status: "importing" });
     try {
+      const currentAuth = auth;
+      const fresh = await ensureFreshSession(currentAuth, {
+        onRefreshRejected: () =>
+          setAuth((latest) => (latest === currentAuth ? null : latest)),
+      });
+      if (!fresh) throw new Error("Cloud session refresh failed");
+      if (!commitRefreshedAuth(setAuth, currentAuth, fresh)) {
+        setImportState(null);
+        return;
+      }
       const localRepoPath =
         (await resolveForkWorkspacePath(resolved.session)) ?? undefined;
       const result = await importRemoteSession({
-        // TICKET tier: anon fetch client — the share token authenticates
-        // every segments read, member or not.
-        client: buildCloudSessionFetchClient(null, resolved.endpoint),
+        // The JWT proves registration; the share token authorizes every
+        // segments read without requiring source-org membership.
+        client: buildCloudSessionFetchClient(
+          fresh.accessToken,
+          resolved.endpoint
+        ),
         orgId: resolved.session.orgId,
         remoteSession: resolved.session,
         sourceEndpointUrl: resolved.endpoint.supabaseUrl,
@@ -226,21 +273,29 @@ const CloudShareImportDialog: React.FC = () => {
       });
       openSession(result.localSessionId, resolved.session.title, localRepoPath);
       handleClose();
-    } catch {
+    } catch (error) {
       if (
         activeAttemptRef.current === currentAttemptId &&
         importGenerationRef.current === generation
       ) {
-        setImportState({ attemptId: currentAttemptId, status: "failed" });
+        setImportState({
+          attemptId: currentAttemptId,
+          status: "failed",
+          ...(error instanceof Org2CloudSignerError
+            ? { signerCode: error.code }
+            : {}),
+        });
       }
     }
   }, [
+    auth,
     handleClose,
     isImporting,
     openOrReplaceSessionTab,
     openSession,
     resolveFailed,
     resolved,
+    setAuth,
     share,
   ]);
 
@@ -286,7 +341,7 @@ const CloudShareImportDialog: React.FC = () => {
 
   return (
     <Modal
-      visible={share !== null}
+      visible={share !== null && onWorkstation}
       title={t("cloud.share.incomingTitle")}
       onCancel={handleClose}
       footer={null}
@@ -296,7 +351,16 @@ const CloudShareImportDialog: React.FC = () => {
         className="flex flex-col gap-3"
         data-testid="cloud-share-import-dialog"
       >
-        {!resolved && !resolveFailed ? (
+        {!auth ? (
+          <div
+            className="rounded-lg bg-fill-1 px-3 py-2 text-[12px] text-text-3"
+            data-testid="cloud-share-import-sign-in-required"
+          >
+            {t("cloud.orgManagement.join.signInFirst")}
+          </div>
+        ) : null}
+
+        {auth && !resolved && !resolveFailed ? (
           <div
             className="text-[12px] text-text-3"
             role="status"
@@ -348,8 +412,13 @@ const CloudShareImportDialog: React.FC = () => {
           <div
             className="rounded-lg bg-fill-1 px-3 py-2 text-[12px] text-text-3"
             data-testid="cloud-share-import-retry-error"
+            data-signer-code={importSignerCode ?? undefined}
           >
-            {t("cloud.share.incomingRetryHint")}
+            {importSignerCode === "unreachable"
+              ? t("cloud.share.incomingConnectionError")
+              : importSignerCode !== null
+                ? t("cloud.share.incomingError")
+                : t("cloud.share.incomingRetryHint")}
           </div>
         ) : null}
 
@@ -373,7 +442,16 @@ const CloudShareImportDialog: React.FC = () => {
               {t("cloud.share.incomingRetry")}
             </Button>
           ) : null}
-          {!resolveFailed ? (
+          {!auth ? (
+            <Button
+              htmlType="button"
+              variant="primary"
+              onClick={openCloudSignIn}
+              data-testid="cloud-share-import-sign-in"
+            >
+              {t("cloud.signIn")}
+            </Button>
+          ) : !resolveFailed ? (
             <Button
               htmlType="button"
               variant="primary"

@@ -4,10 +4,13 @@ import BreadcrumbFileHeader from "@src/modules/shared/components/FileHeader/Brea
 
 export interface ProjectManagerBreadcrumbSegment {
   label: string;
+  content?: React.ReactNode;
   icon?: React.ReactNode;
   onClick?: () => void;
   title?: string;
   maxCharacters?: number;
+  /** Keep the full label and let this segment consume the remaining row width. */
+  fillAvailableWidth?: boolean;
 }
 
 interface ProjectManagerBreadcrumbProps {
@@ -46,10 +49,12 @@ export const ProjectManagerBreadcrumb: React.FC<
     return {
       ...segment,
       icon: index === 0 ? breadcrumbIcon : undefined,
-      label: truncateProjectManagerHeaderLabel(
-        segment.label,
-        segment.maxCharacters ?? defaultMaxCharacters
-      ),
+      label: segment.fillAvailableWidth
+        ? segment.label
+        : truncateProjectManagerHeaderLabel(
+            segment.label,
+            segment.maxCharacters ?? defaultMaxCharacters
+          ),
       title: segment.title ?? segment.label,
     };
   });

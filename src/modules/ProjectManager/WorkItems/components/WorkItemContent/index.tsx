@@ -1,7 +1,8 @@
 import { Bot, Repeat, Terminal } from "lucide-react";
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Avatar from "@src/components/Avatar";
 import TabPill from "@src/components/TabPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -9,12 +10,25 @@ import {
   ProjectContentEditor,
   type ProjectContentEditorRef,
 } from "@src/modules/ProjectManager/shared";
+import { IssueTimelineItems } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
+import {
+  ConnectedTimelineItem,
+  MarkdownContent,
+  TimelineCard,
+  TimelineCardHeader,
+  TimelineStack,
+} from "@src/modules/shared/components/ActivityTimeline";
 import {
   DetailPanelContainer,
+  PanelFooter,
   SessionTable,
   type SessionTableItem,
 } from "@src/modules/shared/layouts/blocks";
-import type { LinkedSession, WorkItemStatus } from "@src/types/core/workItem";
+import {
+  type LinkedSession,
+  WORK_ITEM_STATUS,
+  type WorkItemStatus,
+} from "@src/types/core/workItem";
 import {
   formatReplayDateLabel,
   toIntlLocaleTag,
@@ -26,6 +40,7 @@ import TodoChecklist from "../TodoChecklist";
 import WorkItemContentStack from "../WorkItemContentStack";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
+import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
 import { useWorkItemContentState } from "./hooks/useWorkItemContentState";
 import type { SessionTab, WorkItemContentProps } from "./types";
 
@@ -163,7 +178,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   lockHolderName,
   onCreatePr,
 }) => {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation(["projects", "common"]);
   const editorRef = useRef<ProjectContentEditorRef>(null);
 
   const { handleImageInsert } = useWorkItemImageInsert({
@@ -184,7 +199,6 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     resolvedDescription,
     rawDescription,
     timelineEntries,
-    formatRelativeTime,
     handleTitleChange,
     handleDescriptionChange,
     handleTodosChange,
@@ -203,41 +217,170 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     activeAgentSessionId,
   });
 
+  const creatorName =
+    workItem.createdBy?.name ||
+    workItem.user_id ||
+    t("workItems.activity.system");
+  const displayedDescription = resolvedDescription ?? rawDescription;
+  const displayStatus = workItem.workItemStatus ?? workItem.status;
+  const isGitHubWorkItem =
+    displayStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
+    displayStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
+  const canEditDescription = Boolean(onUpdateWorkItem) && !isGitHubWorkItem;
+  const { timeline: githubTimeline, timelineLoading: githubTimelineLoading } =
+    useGitHubIssueTimeline({
+      enabled: isGitHubWorkItem,
+      repoPath,
+      shortId: shortId ?? workItem.shortId,
+    });
+  const [descriptionDraftState, setDescriptionDraftState] = useState<{
+    workItemId: string;
+    base: string;
+    value: string;
+  } | null>(null);
+  const currentDescriptionDraft =
+    descriptionDraftState?.workItemId === workItem.session_id
+      ? descriptionDraftState
+      : null;
+  const descriptionHasChanges = Boolean(
+    currentDescriptionDraft &&
+    currentDescriptionDraft.value !== currentDescriptionDraft.base
+  );
+  const descriptionDraft =
+    currentDescriptionDraft && descriptionHasChanges
+      ? currentDescriptionDraft.value
+      : displayedDescription;
+
+  const handleDescriptionDraftChange = (markdown: string) => {
+    setDescriptionDraftState((current) => {
+      if (current?.workItemId === workItem.session_id) {
+        return { ...current, value: markdown };
+      }
+      return {
+        workItemId: workItem.session_id,
+        base: displayedDescription,
+        value: markdown,
+      };
+    });
+  };
+
+  const handleCancelDescription = () => {
+    setDescriptionDraftState(null);
+  };
+
+  const handleSaveDescription = () => {
+    handleDescriptionChange(descriptionDraft);
+    setDescriptionDraftState(null);
+  };
+
   const descriptionSection = (
-    <>
-      {workItem.routineSource && (
-        <div
-          className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-fill-2 px-2 py-0.5 text-[11px] text-text-3"
-          data-testid="work-item-routine-source-chip"
-          title={workItem.routineSource.firedAt}
+    <TimelineStack>
+      <ConnectedTimelineItem
+        isLast={
+          !isGitHubWorkItem ||
+          (!githubTimelineLoading && githubTimeline.length === 0)
+        }
+      >
+        <TimelineCard
+          copyBody={rawDescription}
+          footer={
+            descriptionHasChanges && canEditDescription ? (
+              <PanelFooter
+                secondaryActions={[
+                  {
+                    label: t("common:actions.cancel"),
+                    onClick: handleCancelDescription,
+                    dataTestId: "work-item-description-cancel",
+                  },
+                ]}
+                primaryAction={{
+                  label: t("common:actions.save"),
+                  onClick: handleSaveDescription,
+                  dataTestId: "work-item-description-save",
+                }}
+              />
+            ) : null
+          }
+          header={
+            <TimelineCardHeader
+              avatar={
+                <Avatar
+                  size={18}
+                  src={workItem.createdBy?.avatar}
+                  style={
+                    workItem.createdBy?.color
+                      ? {
+                          backgroundColor: workItem.createdBy.color,
+                          color: "var(--color-text-white)",
+                        }
+                      : undefined
+                  }
+                >
+                  {creatorName.charAt(0).toUpperCase()}
+                </Avatar>
+              }
+              actor={creatorName}
+              action={
+                isGitHubWorkItem
+                  ? t("common:git.issues.activity.opened", "opened this issue")
+                  : t(
+                      "workItems.activity.openedWorkItem",
+                      "opened this work item"
+                    )
+              }
+              timestamp={workItem.created_time}
+            />
+          }
         >
-          <Repeat size={11} className="shrink-0" />
-          <span className="truncate">
-            {t("workItems.fromRoutine", {
-              name: workItem.routineSource.routineName,
-            })}
-          </span>
-        </div>
-      )}
-      <ProjectContentEditor
-        key={workItem.session_id}
-        ref={editorRef}
-        title={workItem.name || ""}
-        onTitleChange={handleTitleChange}
-        initialDescription={resolvedDescription ?? rawDescription}
-        onDescriptionChange={handleDescriptionChange}
-        onImageInsert={onUpdateWorkItem ? handleImageInsert : undefined}
-        titleVisible={titleVisible}
-        separatorVisible={false}
-        descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
-        editable={!!onUpdateWorkItem}
-        descriptionMaxHeight={600}
-        descriptionClassName="no-bottom-border"
-        repoPath={repoPath}
-        className="w-full"
-        dataTestId="work-item-content-editor"
-      />
-    </>
+          {workItem.routineSource && (
+            <div
+              className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-fill-2 px-2 py-0.5 text-[11px] text-text-3"
+              data-testid="work-item-routine-source-chip"
+              title={workItem.routineSource.firedAt}
+            >
+              <Repeat size={11} className="shrink-0" />
+              <span className="truncate">
+                {t("workItems.fromRoutine", {
+                  name: workItem.routineSource.routineName,
+                })}
+              </span>
+            </div>
+          )}
+          {isGitHubWorkItem ? (
+            <MarkdownContent
+              body={displayedDescription}
+              emptyText="No description provided."
+              className="text-[14px] leading-[1.6] [&_.chat-markdown-body]:text-[14px] [&_.chat-markdown-body]:leading-[1.6]"
+            />
+          ) : (
+            <ProjectContentEditor
+              key={workItem.session_id}
+              ref={editorRef}
+              title={workItem.name || ""}
+              onTitleChange={handleTitleChange}
+              initialDescription={descriptionDraft}
+              onDescriptionChange={handleDescriptionDraftChange}
+              onImageInsert={canEditDescription ? handleImageInsert : undefined}
+              titleVisible={titleVisible}
+              separatorVisible={false}
+              descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
+              editable={canEditDescription}
+              descriptionMaxHeight={600}
+              descriptionClassName="no-bottom-border"
+              repoPath={repoPath}
+              className="w-full"
+              dataTestId="work-item-content-editor"
+            />
+          )}
+        </TimelineCard>
+      </ConnectedTimelineItem>
+      {isGitHubWorkItem ? (
+        <IssueTimelineItems
+          timeline={githubTimeline}
+          timelineLoading={githubTimelineLoading}
+        />
+      ) : null}
+    </TimelineStack>
   );
 
   const todosSection = (
@@ -322,7 +465,6 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           onCommentTextChange={setCommentText}
           onCommentSubmit={handleCommentSubmit}
           isSubmittingComment={isSubmittingComment}
-          formatRelativeTime={formatRelativeTime}
         />
       )}
     </section>

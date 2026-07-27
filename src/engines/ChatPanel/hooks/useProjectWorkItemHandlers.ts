@@ -1,11 +1,11 @@
+import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import { workItemDataToUI } from "@src/api/http/project";
 import type { CreatedWorkItemResult } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView";
+import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
-  CHAT_PANEL_CONTENT_MODE,
   CHAT_PANEL_CREATE_TARGET,
-  type ChatPanelContentMode,
   type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
   type ChatPanelSelectedProject,
@@ -27,7 +27,6 @@ interface UseProjectWorkItemHandlersOptions {
   handleReturnToSessionCreator: () => void;
   sessionCreatorAvailable: boolean;
   setActiveSessionId: (sessionId: string | null) => void;
-  setContentMode: (mode: ChatPanelContentMode) => void;
   setCreateTarget: (target: ChatPanelCreateTarget) => void;
   setSelectedProject: StateSetter<ChatPanelSelectedProject | null>;
   setSelectedWorkItem: StateSetter<ChatPanelSelectedWorkItem | null>;
@@ -44,7 +43,6 @@ export function useProjectWorkItemHandlers({
   handleReturnToSessionCreator,
   sessionCreatorAvailable,
   setActiveSessionId,
-  setContentMode,
   setCreateTarget,
   setSelectedProject,
   setSelectedWorkItem,
@@ -53,6 +51,7 @@ export function useProjectWorkItemHandlers({
   setWorkItemCreateDraft,
   setWorkstationActiveSessionId,
 }: UseProjectWorkItemHandlersOptions) {
+  const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
   const handleChatPanelProjectCreated = useCallback(
     (options?: { keepOpen?: boolean }) => {
       bumpProjectListRefresh((previous) => previous + 1);
@@ -111,8 +110,7 @@ export function useProjectWorkItemHandlers({
             })
           : null);
       if (!workItem) return;
-      setSelectedProject(null);
-      setSelectedWorkItem({
+      const createdWorkItem: ChatPanelSelectedWorkItem = {
         shortId: result.shortId,
         projectSlug: result.projectSlug ?? "",
         projectId:
@@ -129,23 +127,32 @@ export function useProjectWorkItemHandlers({
             ? createProjectContext?.scopeBreadcrumbLabel
             : undefined,
         workItem,
-      });
-      if (!result.keepOpen) {
-        setWorkItemCreateDraft(null);
-        setShowWorkItemAgentCreator(sessionCreatorAvailable);
-        setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-        setContentMode(CHAT_PANEL_CONTENT_MODE.NON_SESSION);
-        dispatchClearSession();
-        setWorkstationActiveSessionId(null);
-        setActiveSessionId(null);
+      };
+      setSelectedProject(null);
+      if (result.keepOpen) {
+        // "Create another" intentionally stays on the creator. Preserve the
+        // last-created payload for existing draft flows without changing the
+        // active tab.
+        setSelectedWorkItem(createdWorkItem);
+        return;
       }
+      setWorkItemCreateDraft(null);
+      setShowWorkItemAgentCreator(sessionCreatorAvailable);
+      setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+      dispatchClearSession();
+      setWorkstationActiveSessionId(null);
+      setActiveSessionId(null);
+      // Work-item surfaces are tab-owned. Opening the canonical keyed tab is
+      // the only transition that updates both its durable payload and the
+      // legacy selected-work-item mirror used by existing panel hooks.
+      openWorkItemTab(createdWorkItem);
     },
     [
       createProjectContext,
       dispatchClearSession,
+      openWorkItemTab,
       sessionCreatorAvailable,
       setActiveSessionId,
-      setContentMode,
       setCreateTarget,
       setSelectedProject,
       setSelectedWorkItem,

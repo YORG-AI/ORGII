@@ -114,15 +114,6 @@ const WorkManagementProjectsSurface: React.FC = memo(() => {
     []
   );
 
-  const handleOpenProjects = useCallback(() => {
-    setWorkManagementProjectsView(WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS);
-    setView({
-      kind: "repo",
-      view: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
-      orgScope: STORY_ORG_SCOPE.ALL,
-    });
-  }, [setWorkManagementProjectsView]);
-
   const handleOpenLinearProjects = useCallback(
     (selection?: LinearProjectSelection) => {
       setView({
@@ -186,7 +177,6 @@ const WorkManagementProjectsSurface: React.FC = memo(() => {
           workStationTabId="work-management-projects"
           workstationHeaderHost="workManagement"
           onProjectSlugResolved={setSelectedProjectSlug}
-          onOpenProjects={handleOpenProjects}
           onCreateProject={handleCreateProject}
           onCreateWorkItem={handleCreateWorkItem}
           onProjectDeleted={handleProjectDeleted}
@@ -267,7 +257,6 @@ const WorkManagementProjectsSurface: React.FC = memo(() => {
     handleOpenLinearProjects,
     handleOpenLinearWorkItems,
     handleOpenSettings,
-    handleOpenProjects,
     handleSelectProject,
     handleProjectDeleted,
     handleCreateProject,

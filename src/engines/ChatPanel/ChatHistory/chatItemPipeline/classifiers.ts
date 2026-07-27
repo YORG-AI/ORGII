@@ -13,6 +13,7 @@ import {
   resolveToolSimulatorApp,
   resolveToolUiCanonical,
 } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
+import { isShellSearchCommand } from "@src/util/terminal/searchCommandParser";
 
 /**
  * Get UI canonical name from a SessionEvent.
@@ -41,13 +42,31 @@ const SUMMARY_CATEGORY_BY_CANONICAL: Readonly<
 };
 
 /**
+ * A `run_shell` event whose command is really a code search — a pure grep/rg
+ * pipeline (`grep -rn "foo" src | head`). These render as search rows
+ * (ShellAdapter → SearchBlock) and group with explorations, not terminals.
+ */
+export function isShellSearchCommandEvent(event: SessionEvent): boolean {
+  if (getUiCanonical(event) !== "run_shell") return false;
+  const extracted = event.extracted?.kind === "shell" ? event.extracted : null;
+  const command =
+    extracted?.command ??
+    event.command ??
+    (typeof event.args?.command === "string" ? event.args.command : "");
+  return isShellSearchCommand(command);
+}
+
+/**
  * Classify an event into an action summary category.
  * Returns null if the event is not an exploration/lookup action.
  */
 export function getActionSummaryCategory(
   event: SessionEvent
 ): ActionSummaryCategory | null {
-  return SUMMARY_CATEGORY_BY_CANONICAL[getUiCanonical(event)] ?? null;
+  const category = SUMMARY_CATEGORY_BY_CANONICAL[getUiCanonical(event)] ?? null;
+  if (category) return category;
+  if (isShellSearchCommandEvent(event)) return "search";
+  return null;
 }
 
 /**
@@ -158,9 +177,33 @@ export const isTerminalActivityEvent = (event: SessionEvent): boolean => {
   return isTerminalCommandEvent(event);
 };
 
+/**
+ * MCP tool calls arrive in several wire shapes across agent providers:
+ * - canonical `mcp_tool` events;
+ * - Rust bridge names (`mcp__server__tool`, `mcp_server_tool`);
+ * - provider namespaces (`codex_app__read_thread_terminal`);
+ * - legacy events carrying an explicit `args.server` field.
+ */
+export const isMcpToolEvent = (event: SessionEvent): boolean => {
+  const functionName = event.functionName.toLowerCase();
+  return (
+    getUiCanonical(event) === "mcp_tool" ||
+    functionName.startsWith("mcp_") ||
+    functionName.includes("__") ||
+    typeof event.args?.server === "string"
+  );
+};
+
+/** Activity that belongs in the collapsible command/MCP stack. */
+export const isCommandGroupActivityEvent = (event: SessionEvent): boolean => {
+  return isTerminalActivityEvent(event) || isMcpToolEvent(event);
+};
+
 /** A shell command that can anchor a Terminal activity group. */
 export const isTerminalCommandEvent = (event: SessionEvent): boolean => {
   if (getUiCanonical(event) !== "run_shell") return false;
+  // Grep/rg pipelines belong to the exploration summary, not terminal stacks.
+  if (isShellSearchCommandEvent(event)) return false;
 
   const extracted = event.extracted?.kind === "shell" ? event.extracted : null;
   const action = extracted?.action ?? event.args?.action;

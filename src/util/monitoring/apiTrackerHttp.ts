@@ -1,6 +1,7 @@
 import axios, { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 
 import { detectInteractionType } from "./apiTrackerInteractions";
+import { summarizeTrackedValue } from "./apiTrackerPayload";
 import {
   addApiCall,
   dispatchApiCallUpdatedIfTracing,
@@ -94,7 +95,7 @@ export const initializeApiTracking = (): (() => void) | undefined => {
         transport: "http",
         headers: config.headers as Record<string, string>,
         params: config.params,
-        data: config.data,
+        data: summarizeTrackedValue(config.data),
         timestamp: new Date().toISOString(),
         componentSelector: componentInfo.selector,
         componentLabel: componentInfo.label,
@@ -125,7 +126,7 @@ export const initializeApiTracking = (): (() => void) | undefined => {
         if (apiCall) {
           apiCall.status = response.status;
           apiCall.statusText = response.statusText;
-          apiCall.response = response.data;
+          apiCall.response = summarizeTrackedValue(response.data);
           apiCall.duration = duration;
           dispatchApiCallUpdatedIfTracing(apiCall);
         }
@@ -144,7 +145,9 @@ export const initializeApiTracking = (): (() => void) | undefined => {
         if (apiCall) {
           apiCall.status = error.response?.status;
           apiCall.statusText = error.response?.statusText;
-          apiCall.error = error.response?.data || error.message;
+          apiCall.error = summarizeTrackedValue(
+            error.response?.data || error.message
+          );
           apiCall.duration = duration;
           dispatchApiCallUpdatedIfTracing(apiCall);
         }
@@ -201,7 +204,7 @@ export function installFetchTracking(): (() => void) | undefined {
       url: target.url,
       fullUrl: target.url,
       transport: "http",
-      data: init?.body,
+      data: summarizeTrackedValue(init?.body),
       timestamp: new Date().toISOString(),
       componentSelector: componentInfo.selector,
       componentLabel: componentInfo.label,
@@ -219,7 +222,9 @@ export function installFetchTracking(): (() => void) | undefined {
       apiCall.duration = finishRequestTiming(requestId);
       apiCall.status = status;
       apiCall.statusText = statusText;
-      if (error !== undefined) apiCall.error = error;
+      if (error !== undefined) {
+        apiCall.error = summarizeTrackedValue(error);
+      }
       dispatchApiCallUpdatedIfTracing(apiCall);
     };
 
@@ -341,7 +346,7 @@ export function installXmlHttpRequestTracking(): (() => void) | undefined {
       url: request.url,
       fullUrl: request.url,
       transport: "http",
-      data: body,
+      data: summarizeTrackedValue(body),
       timestamp: new Date().toISOString(),
       componentSelector: componentInfo.selector,
       componentLabel: componentInfo.label,
@@ -365,9 +370,9 @@ export function installXmlHttpRequestTracking(): (() => void) | undefined {
       if (this.status >= 400 || this.status === 0) {
         apiCall.error = this.statusText || "XMLHttpRequest failed";
       } else if (this.responseType === "" || this.responseType === "text") {
-        apiCall.response = this.responseText;
+        apiCall.response = summarizeTrackedValue(this.responseText);
       } else {
-        apiCall.response = this.response;
+        apiCall.response = summarizeTrackedValue(this.response);
       }
       dispatchApiCallUpdatedIfTracing(apiCall);
     };

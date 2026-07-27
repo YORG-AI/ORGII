@@ -23,6 +23,7 @@ import {
   buildAgentOrgsPath,
   buildCoreSettingsItemPath,
   buildIntegrationsPath,
+  filterDevModeIntegrationItems,
   getSegmentIcon,
   parseCoreSettingsItem,
   parseSettingsTopTab,
@@ -31,8 +32,8 @@ import { ROUTES } from "@src/config/routes";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
 import { APP_SECTIONS } from "@src/modules/MainApp/Settings/config";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
+import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
-import { settingsReturnRouteAtom } from "@src/store/ui/viewModeAtom";
 
 import SidebarBase from "../SidebarBase";
 import {
@@ -141,13 +142,13 @@ const SETTINGS_ROOT_LIST_SECTIONS: SettingsRootSectionConfig[] = [
 const SettingsSidebar: React.FC = () => {
   const { t } = useTranslation("navigation");
   const navigate = useNavigate();
-  const settingsReturnRoute = useAtomValue(settingsReturnRouteAtom);
+  const settingsReturnPath = useAtomValue(settingsReturnPathAtom);
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
 
   const handleBack = useCallback(() => {
-    navigate(settingsReturnRoute || ROUTES.app.home.start.path);
-  }, [navigate, settingsReturnRoute]);
+    navigate(settingsReturnPath || ROUTES.workStation.base.path);
+  }, [navigate, settingsReturnPath]);
 
   const handleOpenSpotlight = useCallback(() => {
     setSpotlightOpen(true);
@@ -176,7 +177,7 @@ const SettingsSidebar: React.FC = () => {
       }
     >
       <div className="shrink-0 px-3">{settingsReturnItem}</div>
-      <SettingsRootBody />
+      <SettingsRootBody devModeEnabled={devModeEnabled} />
       <SidebarBottomBar
         rightActions={
           <>
@@ -194,7 +195,13 @@ const SettingsSidebar: React.FC = () => {
 
 export default SettingsSidebar;
 
-const SettingsRootBody: React.FC = () => {
+interface SettingsRootBodyProps {
+  devModeEnabled: boolean;
+}
+
+const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
+  devModeEnabled,
+}) => {
   const { t } = useTranslation("settings");
   const navigate = useNavigate();
   const location = useLocation();
@@ -232,7 +239,10 @@ const SettingsRootBody: React.FC = () => {
       SETTINGS_ROOT_LIST_SECTIONS.map((section) => ({
         id: section.id,
         title: t(`settings:${section.labelKey}`),
-        items: section.itemIds.map<NavigationMenuItem>((id) => {
+        items: filterDevModeIntegrationItems(
+          section.itemIds,
+          devModeEnabled
+        ).map<NavigationMenuItem>((id) => {
           if (id === AGENT_ORG_ROW_KEY) {
             return {
               id,
@@ -257,7 +267,7 @@ const SettingsRootBody: React.FC = () => {
           };
         }),
       })),
-    [t]
+    [devModeEnabled, t]
   );
 
   const handleItemClick = useCallback(

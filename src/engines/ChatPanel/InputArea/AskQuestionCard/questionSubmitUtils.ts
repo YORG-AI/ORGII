@@ -99,24 +99,28 @@ export function validateAnswers(
 }
 
 /**
- * Force-finalize a stale question event on the FE when the backend has no
- * pending request (e.g. the session was restarted after the question was
- * asked). This is the ONLY optimistic path — the normal flow relies on the
- * Rust `agent:interaction_finalized` broadcast.
+ * Finalize a question event in the frontend store as soon as the response API
+ * succeeds. Rust's `agent:interaction_finalized` remains the authoritative,
+ * idempotent confirmation, but the visible card must not stay in
+ * `awaiting_user` while that broadcast travels through the event pipeline.
  *
  * `status` distinguishes "user answered" (default) from "user dismissed via
  * Skip" ("rejected"). The history card renders the two differently.
  */
-export function markEventStaleAnswered(
+export async function markQuestionAnswered(
+  sessionId: string,
   chunkId: string,
   answerLabels: string[][],
   status: "answered" | "rejected" = "answered"
-): void {
-  if (!chunkId) return;
-  eventStoreProxy.getEvents().then((events) => {
-    const evt = events.find((e) => e.id === chunkId);
-    if (!evt) return;
-    eventStoreProxy.upsert({
+): Promise<boolean> {
+  if (!chunkId) return false;
+
+  const events = await eventStoreProxy.getEvents(sessionId);
+  const evt = events.find((event) => event.id === chunkId);
+  if (!evt) return false;
+
+  await eventStoreProxy.upsert(
+    {
       ...evt,
       result: {
         ...(evt.result as Record<string, unknown>),
@@ -125,6 +129,8 @@ export function markEventStaleAnswered(
       },
       displayStatus: "completed" as EventDisplayStatus,
       activityStatus: "processed",
-    });
-  });
+    },
+    sessionId
+  );
+  return true;
 }

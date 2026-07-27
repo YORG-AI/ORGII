@@ -239,6 +239,18 @@ export function buildShellReplayVisualRows(
   return rows;
 }
 
+/** Flatten a bounded replay window for the plain DOM terminal renderer. */
+export function shellReplayRowsToText(
+  rows: readonly ShellReplayVisualRow[]
+): string {
+  let text = "";
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
+    if (rowIndex > 0) text += "\n";
+    for (const span of rows[rowIndex].spans) text += span.text;
+  }
+  return text;
+}
+
 /** Defense-in-depth: never render frames beyond the cursor's immutable watermark. */
 export function filterFramesToBookmark(
   frames: readonly ShellReplayFrame[],

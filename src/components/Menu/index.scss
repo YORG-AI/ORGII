@@ -37,7 +37,7 @@
     font-size: 13px; // DROPDOWN_ITEM.fontSize
     color: var(--color-text-1);
     background: transparent;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.15s ease; // DROPDOWN_ITEM.transitionClass
     border-radius: 6px; // DROPDOWN_ITEM.borderRadius
     margin: 0;
@@ -86,7 +86,7 @@
       font-size: 13px;
       color: var(--color-text-1);
       background: transparent;
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
       transition: all 0.15s ease;
       border-radius: 6px;
       user-select: none;

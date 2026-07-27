@@ -55,6 +55,15 @@ export interface RawGitBranch {
   last_commit_date?: string;
 }
 
+export function sourceKey(source: WorktreeLaunchSource): string {
+  return [
+    source.kind,
+    source.sourceRef ?? "",
+    source.baseBranch ?? "",
+    source.label,
+  ].join(":");
+}
+
 /**
  * Map raw `getGitBranches` rows to `WorktreeBranchOption`s. Drops entries
  * without a usable name and de-duplicates by name (keeping the first, which —
@@ -170,6 +179,16 @@ export function shouldOfferCustomRef(
 export function branchToLaunchSource(
   option: WorktreeBranchOption
 ): WorktreeLaunchSource {
+  if (option.worktreePath) {
+    return {
+      kind: "worktree",
+      label: `Worktree: ${compactText(option.name, 34)}`,
+      baseBranch: option.name,
+      sourceRef: `worktree:${option.worktreePath}`,
+      title: option.name,
+      existingWorktreePath: option.worktreePath,
+    };
+  }
   return refToLaunchSource(option.name);
 }
 

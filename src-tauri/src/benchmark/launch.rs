@@ -28,6 +28,7 @@ pub(super) fn benchmark_launch_params(
         native_harness_type: launch.native_harness_type.clone(),
         platform: launch.platform.clone(),
         branch: launch.branch.clone(),
+        worktree_base_ref: None,
         hosted_token: launch.hosted_token.clone(),
         tier: launch.tier.clone(),
         name: session_name,

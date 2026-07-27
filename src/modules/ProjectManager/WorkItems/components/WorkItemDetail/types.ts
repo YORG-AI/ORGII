@@ -55,6 +55,7 @@ export interface WorkItemDetailProps {
   surface?: WorkItemDetailSurface;
   breadcrumbProjectName?: string;
   breadcrumbIcon?: ReactNode;
+  titleEditable?: boolean;
   propertiesOpen?: boolean;
   onToggleProperties?: () => void;
   publishHeaderToWorkstation?: boolean;

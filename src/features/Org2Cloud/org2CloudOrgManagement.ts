@@ -11,6 +11,7 @@
  * plaintext means minting a new invite.
  */
 import { ORG2_CLOUD_OFFICIAL_SUPABASE_URL } from "./config";
+import { isFetchTransportError } from "./org2CloudFetchRetry";
 
 // ---------------------------------------------------------------------------
 // Invite code generation / hashing
@@ -448,7 +449,9 @@ export function cloudManagementErrorKey(error: unknown): string | null {
 
 /**
  * Human message for a management failure: the translated specific message
- * when the code is recognized, the raw error message otherwise.
+ * when the code is recognized, a translated connection message for fetch
+ * transport failures (WebKit's raw "Load failed" is meaningless to users),
+ * the raw error message otherwise.
  */
 export function cloudManagementErrorMessage(
   error: unknown,
@@ -456,5 +459,8 @@ export function cloudManagementErrorMessage(
 ): string {
   const key = cloudManagementErrorKey(error);
   if (key) return translate(key);
+  if (isFetchTransportError(error)) {
+    return translate("cloud.orgManagement.errors.network");
+  }
   return error instanceof Error ? error.message : String(error);
 }

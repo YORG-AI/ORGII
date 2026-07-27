@@ -9,7 +9,8 @@
  * individual blocks that emit cursor-movement sequences are upgraded
  * automatically regardless of this setting.
  */
-import { atomFamily, atomWithStorage } from "jotai/utils";
+import { atomFamily } from "jotai-family";
+import { atomWithStorage } from "jotai/utils";
 
 export const tuiModeAtom = atomFamily((sessionId: string) =>
   atomWithStorage<boolean>(`orgii:tuiMode:${sessionId}`, false)

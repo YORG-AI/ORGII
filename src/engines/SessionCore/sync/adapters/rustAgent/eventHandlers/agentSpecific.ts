@@ -65,6 +65,7 @@ export function handleAdeAction(event: AgentWSEvent): void {
           action: event.action,
           params: event.params ?? {},
           sessionId: getEventSessionId(event),
+          invokingSessionId: event.invokingSessionId,
         },
       })
     );

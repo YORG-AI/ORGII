@@ -1,3 +1,4 @@
+import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -7,6 +8,8 @@ import type {
 import {
   clearPendingPlanApproval,
   normalizePlanCallId,
+  pendingPlanApprovalForSessionAtomFamily,
+  pendingPlanApprovalsAtom,
   rehydratePendingPlanApprovalIfNewer,
   upsertPendingPlanApproval,
 } from "../planApprovalAtom";
@@ -35,6 +38,37 @@ function emptyMap(): PlanApprovalStateMap {
 function mapWithPlan(plan: PendingPlanApproval): PlanApprovalStateMap {
   return upsertPendingPlanApproval(emptyMap(), plan);
 }
+
+describe("pendingPlanApprovalForSessionAtomFamily", () => {
+  it("returns only the requested session and updates independently", () => {
+    const store = createStore();
+    const sessionOne = pendingPlanApprovalForSessionAtomFamily("session-1");
+    const sessionTwo = pendingPlanApprovalForSessionAtomFamily("session-2");
+    const planOne = makePlan({ sessionId: "session-1" });
+    const planTwo = makePlan({
+      sessionId: "session-2",
+      planRevisionId: "call_2",
+      toolCallId: "call_2",
+    });
+
+    store.set(pendingPlanApprovalsAtom, mapWithPlan(planOne));
+    expect(store.get(sessionOne)).toBe(planOne);
+    expect(store.get(sessionTwo)).toBeNull();
+
+    store.set(pendingPlanApprovalsAtom, (prev) =>
+      upsertPendingPlanApproval(prev, planTwo)
+    );
+    expect(store.get(sessionOne)).toBe(planOne);
+    expect(store.get(sessionTwo)).toBe(planTwo);
+  });
+
+  it("returns null when no session is selected", () => {
+    const store = createStore();
+    store.set(pendingPlanApprovalsAtom, mapWithPlan(makePlan()));
+
+    expect(store.get(pendingPlanApprovalForSessionAtomFamily(""))).toBeNull();
+  });
+});
 
 // ─── normalizePlanCallId ─────────────────────────────────────────────────────
 

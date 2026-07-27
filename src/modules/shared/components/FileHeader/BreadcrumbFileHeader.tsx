@@ -43,18 +43,23 @@ export interface BreadcrumbFileHeaderProps {
 
 export interface BreadcrumbFileHeaderDisplaySegment {
   label: string;
+  content?: React.ReactNode;
   icon?: React.ReactNode;
   onClick?: () => void;
   title?: string;
+  /** Let this segment consume the remaining row width without ellipsis. */
+  fillAvailableWidth?: boolean;
 }
 
 interface PathSegment {
   label: string;
+  content?: React.ReactNode;
   fullPath: string;
   isLast: boolean;
   icon?: React.ReactNode;
   onClick?: () => void;
   title?: string;
+  fillAvailableWidth?: boolean;
 }
 
 /**
@@ -230,7 +235,9 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
               className={`h-6 min-w-0 items-center px-1 ${textSizeClassName} leading-6 transition-colors ${
                 singleLineTitle
                   ? "flex flex-1 truncate font-medium text-text-1"
-                  : `inline-flex flex-shrink-0 whitespace-nowrap ${
+                  : `inline-flex whitespace-nowrap ${
+                      segment.fillAvailableWidth ? "flex-1" : "flex-shrink-0"
+                    } ${
                       isLast && !segment.onClick
                         ? "font-medium text-text-1"
                         : isClickable
@@ -259,9 +266,11 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
                 </span>
               ) : null}
               {singleLineTitle ? (
-                <span className="min-w-0 flex-1 truncate">{segment.label}</span>
+                <span className="min-w-0 flex-1 truncate">
+                  {segment.content ?? segment.label}
+                </span>
               ) : (
-                segment.label
+                (segment.content ?? segment.label)
               )}
             </span>
 

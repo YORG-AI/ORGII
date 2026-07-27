@@ -85,7 +85,12 @@ export const enableApiTracking = (): void => {
   cleanupInterceptors = initializeApiTracking();
   cleanupDirectTauriInvokeTracking = installDirectTauriInvokeTracking();
   cleanupTauriCallbackTracking = installTauriCallbackTracking();
-  cleanupTimerTracking = installTimerTracking();
+  // Production bundles intentionally omit source maps. Timer/RAF stack
+  // capture cannot attribute those callbacks to a source file, so installing
+  // the global wrappers there adds measurable CPU while producing no usable
+  // hotspot rows. Development builds retain the full timer diagnostics.
+  cleanupTimerTracking =
+    process.env.NODE_ENV === "production" ? undefined : installTimerTracking();
   cleanupFetchTracking = installFetchTracking();
   cleanupXmlHttpRequestTracking = installXmlHttpRequestTracking();
   installInteractionTracking();

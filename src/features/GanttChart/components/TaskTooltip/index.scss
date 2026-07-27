@@ -57,7 +57,7 @@
     font-weight: 500;
     color: white;
     border-radius: 12px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: opacity 0.15s ease;
     white-space: nowrap;
 
@@ -120,7 +120,7 @@
     background: var(--color-fill-1);
     border: none;
     border-radius: 6px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.15s ease;
 
     &:hover {

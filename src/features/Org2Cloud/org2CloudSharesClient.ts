@@ -9,10 +9,11 @@
  *   codes. The client mints the 32-byte link token and sends ONLY its
  *   sha256 — the plaintext exists solely in the returned result (and the
  *   share link the caller builds from it), mirroring the invite-code model.
- * - TICKET tier (resolve + the guest segments fetch in
- *   `org2CloudBackendAdapter`): anon key + plaintext token is the whole
- *   credential; the server hashes and matches. EVERY failure is the single
- *   opaque ORG2_UNAUTHORIZED (no existence oracle).
+ * - REGISTERED LINK tier (resolve + the non-member segments fetch in
+ *   `org2CloudBackendAdapter`): a valid user JWT proves registration while
+ *   the plaintext share token grants access to this one session. Org
+ *   membership is deliberately not required. EVERY capability failure is
+ *   still the single opaque ORG2_UNAUTHORIZED (no existence oracle).
  */
 import { z } from "zod/v4";
 
@@ -24,6 +25,7 @@ import {
   ORG2_CLOUD_POSTGREST_SCHEMA,
   getCloudEndpoint,
 } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 import { sha256Hex } from "./org2CloudOrgManagement";
 
 // ---------------------------------------------------------------------------
@@ -71,23 +73,23 @@ export function isOrg2ShareErrorCode(
 }
 
 // ---------------------------------------------------------------------------
-// RPC plumbing (throwing; anon bearer when no JWT — the ticket tier)
+// RPC plumbing (throwing; every share operation requires a registered user)
 // ---------------------------------------------------------------------------
 
 async function callShareRpc(
   functionName: string,
-  accessToken: string | null,
+  accessToken: string,
   body: Record<string, unknown>,
   endpoint: CloudEndpoint = getCloudEndpoint(),
   signal?: AbortSignal
 ): Promise<unknown> {
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",
       headers: {
         apikey: endpoint.anonKey,
-        authorization: `Bearer ${accessToken ?? endpoint.anonKey}`,
+        authorization: `Bearer ${accessToken}`,
         "content-type": "application/json",
         "content-profile": ORG2_CLOUD_POSTGREST_SCHEMA,
       },
@@ -250,19 +252,21 @@ export async function listCloudSessionShares(
 }
 
 /**
- * TICKET tier: resolve a link token to the bound session's listing-row
- * projection (metadata blob + orgId/sessionId coordinates + events summary).
- * Anon — no JWT; the caller is typically not a member at all. Every failure
- * throws with the opaque ORG2_UNAUTHORIZED.
+ * Registered-link tier: resolve a link token to the bound session's
+ * listing-row projection (metadata blob + orgId/sessionId coordinates +
+ * events summary). The caller must be signed in but need not belong to the
+ * source org. Every capability failure throws with the opaque
+ * ORG2_UNAUTHORIZED.
  */
 export async function resolveCloudSessionShare(
+  accessToken: string,
   shareToken: string,
   endpoint?: CloudEndpoint,
   signal?: AbortSignal
 ): Promise<RemoteTeammateSessionMetadata> {
   const payload = await callShareRpc(
     "cloud_resolve_session_share",
-    null,
+    accessToken,
     { p_share_token: shareToken },
     endpoint,
     signal

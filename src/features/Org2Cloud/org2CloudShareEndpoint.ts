@@ -13,11 +13,36 @@ export class CloudShareEndpointMismatchError extends Error {
   readonly currentSupabaseUrl: string;
 
   constructor(expectedSupabaseUrl: string, currentSupabaseUrl: string) {
-    super("Cloud share belongs to a different custom endpoint");
+    super("Cloud share belongs to a different endpoint");
     this.name = "CloudShareEndpointMismatchError";
     this.expectedSupabaseUrl = expectedSupabaseUrl;
     this.currentSupabaseUrl = currentSupabaseUrl;
   }
+}
+
+function normalizedSupabaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, "");
+}
+
+/**
+ * A JWT is scoped to the GoTrue deployment that issued it. Verify that the
+ * endpoint selected from share provenance is the endpoint represented by the
+ * current auth state before sending the token across a backend boundary.
+ */
+export function requireCloudShareAuthEndpoint(
+  endpoint: CloudEndpoint,
+  authSupabaseUrl: string
+): CloudEndpoint {
+  if (
+    normalizedSupabaseUrl(endpoint.supabaseUrl) !==
+    normalizedSupabaseUrl(authSupabaseUrl)
+  ) {
+    throw new CloudShareEndpointMismatchError(
+      endpoint.supabaseUrl,
+      authSupabaseUrl
+    );
+  }
+  return endpoint;
 }
 
 /** Resolve and snapshot the endpoint for the complete resolve → import flow. */

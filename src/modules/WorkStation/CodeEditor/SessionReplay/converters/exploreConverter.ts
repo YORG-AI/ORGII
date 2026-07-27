@@ -97,7 +97,7 @@ function extractToolSearchResults(result: Record<string, unknown>): string[] {
   return [];
 }
 
-function toSlimExploreEvent(event: SessionEvent): SessionEvent {
+export function toSlimExploreEvent(event: SessionEvent): SessionEvent {
   const argsCallId =
     typeof event.args?.call_id === "string" ? event.args.call_id : undefined;
   const resultCallId =

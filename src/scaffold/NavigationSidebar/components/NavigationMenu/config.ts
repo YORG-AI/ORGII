@@ -8,6 +8,8 @@ import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/
 
 export interface NavigationMenuRowAction {
   icon?: LucideIcon;
+  /** Optional class applied to the rendered Lucide icon (for example refresh spin). */
+  iconClassName?: string;
   label: string;
   active?: boolean;
   /** Stable rendered selector for high-value header/row actions. */
@@ -74,6 +76,8 @@ export interface NavigationMenuItem {
    * Work Items list) keeps body-click = toggle.
    */
   navigableParent?: boolean;
+  /** Keep a parent row's disclosure control beside its label instead of right-aligning it. */
+  disclosureFollowsLabel?: boolean;
   shortcut?: string;
   disabled?: boolean;
   dataTestId?: string;

@@ -39,6 +39,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -127,9 +128,10 @@ const AddSubAgentButton: React.FC<AddSubAgentButtonProps> = ({
       {isOpen &&
         isPositioned &&
         createPortal(
-          <div
+          <DropdownPanel
             ref={panelRef}
-            className={DROPDOWN_CLASSES.panel}
+            animated={false}
+            maxHeight="none"
             style={{
               position: "fixed",
               top: panelPosition.top,
@@ -165,7 +167,7 @@ const AddSubAgentButton: React.FC<AddSubAgentButtonProps> = ({
                 ))
               )}
             </div>
-          </div>,
+          </DropdownPanel>,
           document.body
         )}
     </div>

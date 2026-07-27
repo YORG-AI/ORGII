@@ -17,6 +17,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { RecentFilesProvider } from "@src/contexts/session";
 import { replayModeAtom } from "@src/engines/SessionCore";
 import type { ReplayMode } from "@src/engines/SessionCore/core/types";
@@ -250,7 +251,9 @@ const ActivitySimulator: React.FC = memo(() => {
 
   if (!hasSession) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[var(--cm-editor-background)] p-4">
+      <div
+        className={`flex h-full w-full items-center justify-center p-4 ${EDITOR_TAB_CANVAS_BG_CLASS}`}
+      >
         <span className="text-sm text-text-3">
           {t("simulator.noActiveSession")}
         </span>

@@ -1,6 +1,7 @@
 import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SHARED_AUTH_SYNCHRONIZED_EVENT } from "@src/api/http/auth/sharedAuthStorage";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 import {
@@ -73,6 +74,29 @@ describe("org2CloudAuthAtom storage schema", () => {
     expect(storage.getItem(ORG2_CLOUD_AUTH_STORAGE_KEY, null)).toEqual(
       withProfile
     );
+  });
+
+  it("applies a shared-store synchronization while the atom is mounted", () => {
+    const eventTarget = new EventTarget();
+    const addEventListener = vi
+      .spyOn(window, "addEventListener")
+      .mockImplementation(eventTarget.addEventListener.bind(eventTarget));
+    const removeEventListener = vi
+      .spyOn(window, "removeEventListener")
+      .mockImplementation(eventTarget.removeEventListener.bind(eventTarget));
+    const store = createStore();
+    const unsubscribe = store.sub(org2CloudAuthAtom, () => {});
+    localStorage.setItem(
+      ORG2_CLOUD_AUTH_STORAGE_KEY,
+      JSON.stringify(VALID_STATE)
+    );
+
+    eventTarget.dispatchEvent(new Event(SHARED_AUTH_SYNCHRONIZED_EVENT));
+
+    expect(store.get(org2CloudAuthAtom)).toEqual(VALID_STATE);
+    unsubscribe();
+    addEventListener.mockRestore();
+    removeEventListener.mockRestore();
   });
 });
 

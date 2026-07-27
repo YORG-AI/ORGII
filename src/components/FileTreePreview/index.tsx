@@ -23,75 +23,8 @@ import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 
 import { STYLE_CONFIG } from "./config";
+import { buildFileTree, getRepoRelativePath } from "./pathTree";
 import { FileTreePreviewProps, TreeNode } from "./types";
-
-// ============================================
-// Utility Functions
-// ============================================
-
-/**
- * Get repo-relative path from absolute path
- * e.g., /Users/laptop/Documents/GitHub/orgii_frontend/src/file.ts
- *   -> orgii_frontend/src/file.ts
- */
-const getRepoRelativePath = (
-  absolutePath: string,
-  repoPath?: string
-): string => {
-  if (!repoPath) {
-    // If no repoPath, try to extract from common patterns
-    const parts = absolutePath.split("/");
-    // Find index of common repo indicators (Documents/GitHub, Projects, workspace, etc.)
-    const githubIdx = parts.findIndex(
-      (part, idx) =>
-        part.toLowerCase() === "github" &&
-        parts[idx - 1]?.toLowerCase() === "documents"
-    );
-    if (githubIdx !== -1 && githubIdx + 1 < parts.length) {
-      // Return from repo name onwards
-      return parts.slice(githubIdx + 1).join("/");
-    }
-    // Fallback: just return the path as-is
-    return absolutePath;
-  }
-
-  // Extract repo name from repoPath
-  const repoName = repoPath.split("/").filter(Boolean).pop() || "";
-
-  // Find where the repo name appears in the absolute path
-  const pathParts = absolutePath.split("/");
-  const repoIdx = pathParts.findIndex((part) => part === repoName);
-
-  if (repoIdx !== -1) {
-    return pathParts.slice(repoIdx).join("/");
-  }
-
-  // Fallback: return original path
-  return absolutePath;
-};
-
-/**
- * Build a tree structure from a file path
- */
-const buildFileTree = (filePath: string): TreeNode[] => {
-  const parts = filePath.split("/").filter(Boolean);
-  const tree: TreeNode[] = [];
-  let currentLevel = tree;
-
-  parts.forEach((part, index) => {
-    const isLast = index === parts.length - 1;
-    const node: TreeNode = {
-      name: part,
-      isFile: isLast,
-      isHighlighted: isLast,
-      children: [],
-    };
-    currentLevel.push(node);
-    currentLevel = node.children;
-  });
-
-  return tree;
-};
 
 // ============================================
 // Component

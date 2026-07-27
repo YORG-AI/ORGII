@@ -2,6 +2,7 @@ import { RotateCcw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItemPriority,
@@ -10,6 +11,11 @@ import type {
 } from "@src/types/core/workItem";
 
 import { getContextMenuItems } from "../../config";
+import {
+  formatWorkItemShortId,
+  getWorkItemSourceIntegration,
+  isGitHubIssueStatus,
+} from "../../workItemIdentity";
 import WorkItemContextMenu from "../WorkItemContextMenu";
 import { AssigneeCell } from "./AssigneeCell";
 import { DueDateCell } from "./DueDateCell";
@@ -55,6 +61,15 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
     const [savingExternalStatus, setSavingExternalStatus] = useState(false);
     const isChecked = isCheckedProp ?? localChecked;
     const status = workItem.workItemStatus || "backlog";
+    const workspaceSource = (
+      workItem as typeof workItem & {
+        workspaceSource?: { source?: string };
+      }
+    ).workspaceSource?.source;
+    const sourceIntegration = getWorkItemSourceIntegration(
+      status,
+      workspaceSource
+    );
     const priority = workItem.priority || "none";
     const isDeleted = Boolean(workItem.deletedAt);
     const isInteractive = !isDeleted;
@@ -64,9 +79,17 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
         ? { x: contextMenu.x, y: contextMenu.y }
         : null;
 
-    const shortId = workItemPrefix
-      ? deriveDisplayId(workItem.session_id, workItemPrefix)
-      : workItem.session_id || "WI-???";
+    const storedShortId = workItem.shortId || workItem.session_id || "WI-???";
+    const projectDisplayId =
+      workItemPrefix && !isGitHubIssueStatus(status)
+        ? deriveDisplayId(storedShortId, workItemPrefix)
+        : storedShortId;
+    const shortId =
+      formatWorkItemShortId(
+        projectDisplayId,
+        status,
+        workItemPrefix || workItem.project?.name
+      ) ?? projectDisplayId;
 
     const dateInfo = useWorkItemDueDate(workItem.endDate);
     const dueDateColorClass = getDueDateColorClass(status, dateInfo);
@@ -312,6 +335,14 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
             statusDisabled={statusDisabled || savingExternalStatus || isDeleted}
             readonly={readonly || isDeleted}
           />
+
+          {sourceIntegration ? (
+            <IntegrationIcon
+              type={sourceIntegration}
+              size={14}
+              className="shrink-0 text-text-2"
+            />
+          ) : null}
 
           <TitleCell
             name={workItem.name}

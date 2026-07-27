@@ -13,6 +13,7 @@ import {
   GitBranch,
   GitPullRequest,
   Globe,
+  Link,
   ListChecks,
   MousePointer2,
   SquareMousePointer,
@@ -31,6 +32,7 @@ import {
   PILL_LINE_HEIGHT,
   PILL_SIZE,
   PILL_TYPES,
+  PILL_TYPE_LIST,
 } from "@src/config/pillTokens";
 import type { PillType } from "@src/config/pillTokens";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
@@ -45,23 +47,7 @@ import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
  * token.
  */
 const SINGLE_LINE_PILL_REGEX = new RegExp(
-  `([^\\n[]+?)\\s*\\[(${[
-    "file",
-    "folder",
-    "repo",
-    "branch",
-    "terminal",
-    "session",
-    "browser",
-    "project",
-    "workitem",
-    "dom-element",
-    "dom-component",
-    "skill",
-    "paste",
-    "pr",
-    "issue",
-  ].join("|")}):([^\\]]+)\\]`,
+  `([^\\n[]+?)\\s*\\[(${PILL_TYPE_LIST.join("|")}):([^\\]]+)\\]`,
   "g"
 );
 
@@ -241,6 +227,8 @@ const PillIcon: React.FC<{
       return <SessionPillIcon path={path} />;
     case "browser":
       return <Globe {...ICON_PROPS} />;
+    case "link":
+      return <Link {...ICON_PROPS} />;
     case "dom-element":
       return <SquareMousePointer {...ICON_PROPS} />;
     case "dom-component":
@@ -305,8 +293,10 @@ SessionPillLabel.displayName = "SessionPillLabel";
 
 const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
   const isGitHubUrl = isGitHubPillUrl(segment.path);
+  const isGenericLink = segment.pillType === "link";
   const isClickable =
     isGitHubUrl ||
+    isGenericLink ||
     segment.pillType === "terminal" ||
     segment.pillType === "file" ||
     segment.pillType === "folder" ||
@@ -314,11 +304,11 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
     segment.pillType === "paste";
 
   const handleClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.SyntheticEvent) => {
       e.stopPropagation();
       e.preventDefault();
 
-      if (isGitHubUrl) {
+      if (isGitHubUrl || isGenericLink) {
         void openExternalLink(segment.path);
         return;
       }
@@ -382,7 +372,15 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
         );
       }
     },
-    [isGitHubUrl, segment]
+    [isGenericLink, isGitHubUrl, segment]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (!isClickable || (event.key !== "Enter" && event.key !== " ")) return;
+      handleClick(event);
+    },
+    [handleClick, isClickable]
   );
 
   /** Prevent mousedown from triggering text-selection or parent click */
@@ -398,10 +396,10 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
 
   const visibleDisplayName = useMemo(
     () =>
-      isGitHubUrl
+      isGitHubUrl || isGenericLink
         ? segment.displayName
         : truncateVisiblePillLabel(segment.displayName),
-    [isGitHubUrl, segment.displayName]
+    [isGenericLink, isGitHubUrl, segment.displayName]
   );
 
   return (
@@ -417,13 +415,14 @@ const InlinePill: React.FC<{ segment: PillSegment }> = memo(({ segment }) => {
       role={isClickable ? "button" : undefined}
       tabIndex={isClickable ? 0 : undefined}
       style={{
-        cursor: isClickable ? "pointer" : "default",
+        cursor: isClickable ? "var(--interactive-cursor, default)" : "default",
         position: "relative",
         zIndex: 1,
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
       onClick={isClickable ? handleClick : undefined}
+      onKeyDown={isClickable ? handleKeyDown : undefined}
       onMouseDown={handleMouseDown}
       title={segment.displayName}
     >

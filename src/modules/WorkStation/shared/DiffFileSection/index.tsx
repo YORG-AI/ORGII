@@ -18,6 +18,7 @@ import {
   getStatusColor,
   getStatusLetterForFile,
 } from "@src/config/gitStatus";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
@@ -412,7 +413,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
         data-diff-section-path={dataPath}
       >
         <button
-          className="sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 bg-[var(--cm-editor-background)] px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent"
+          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${EDITOR_TAB_CANVAS_BG_CLASS}`}
           onClick={toggleExpanded}
           disabled={isDeleted}
         >

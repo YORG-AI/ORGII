@@ -111,6 +111,7 @@ impl Channel for DiscordChannel {
             }
 
             // Process gateway events
+            let mut heartbeat_handle: Option<tokio::task::JoinHandle<()>> = None;
             while running.load(Ordering::Relaxed) {
                 match ws_source.next().await {
                     Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
@@ -134,7 +135,10 @@ impl Channel for DiscordChannel {
 
                                     let sink_clone = shared_sink.clone();
                                     let running_clone = running.clone();
-                                    tokio::spawn(async move {
+                                    if let Some(previous) = heartbeat_handle.take() {
+                                        previous.abort();
+                                    }
+                                    heartbeat_handle = Some(tokio::spawn(async move {
                                         let heartbeat =
                                             tokio_tungstenite::tungstenite::Message::Text(
                                                 serde_json::json!({"op": 1, "d": null})
@@ -159,7 +163,7 @@ impl Channel for DiscordChannel {
                                                 break;
                                             }
                                         }
-                                    });
+                                    }));
                                 }
                                 0
                                     // Dispatch event
@@ -220,6 +224,9 @@ impl Channel for DiscordChannel {
                     None => break,
                     _ => {}
                 }
+            }
+            if let Some(handle) = heartbeat_handle {
+                handle.abort();
             }
         });
 

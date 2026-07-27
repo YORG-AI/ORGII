@@ -4,6 +4,7 @@
 //! imported-history caches and loaders. This module owns only scheduling,
 //! checkpoints, prioritization, and projection into canonical interactions.
 
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -24,7 +25,8 @@ use orgtrack_core::sources::cursor_ide::history::{
     list_cursor_ide_sessions_paginated, load_history_for_session as load_cursor_history_for_session,
 };
 use orgtrack_core::sources::imported_history::cache::{
-    query_cached_sessions_for_repo_from_conn, ImportedHistoryCachedSession,
+    query_cached_sessions_for_repo_from_conn, query_recent_cached_sessions_for_source_from_conn,
+    ImportedHistoryCachedSession,
 };
 use orgtrack_core::sources::imported_history::metadata::{
     SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE,
@@ -43,6 +45,31 @@ use super::{
 // derivation and keep every session's rows on a single repository_id.
 const HISTORICAL_INTERACTION_PARSER_VERSION: i64 = 3;
 const BACKFILL_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
+const CODEX_WRITE_RECONCILIATION_POLL_INTERVAL: Duration = Duration::from_secs(30);
+/// The 30-second loop may cheaply inspect the SQLite cache, but a recursive
+/// walk of every Codex rollout directory plus session_index.jsonl belongs on
+/// the same low-frequency cadence as external-history discovery.
+const CODEX_DISCOVERY_REFRESH_INTERVAL_MS: i64 = 5 * 60 * 1000;
+/// Missing SessionStart receipts require transcript recovery even while a
+/// Codex task is active. Re-parsing an append-only rollout every poll is
+/// needlessly quadratic, though: one long task can consume a full core and
+/// temporarily allocate hundreds of MiB on every pass. Recover it immediately
+/// once, then sparsely while it remains active; the quiescent transition below
+/// bypasses this throttle and performs the final reconciliation right away.
+const ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS: i64 = 5 * 60 * 1000;
+/// Automatic provenance recovery is best-effort and must never materialize a
+/// gigantic transcript into several full in-memory projections behind the
+/// user's back. Larger rollouts remain available to explicit history flows;
+/// the background reconciler waits for a future streaming implementation.
+const MAX_BACKGROUND_CODEX_RECONCILIATION_SOURCE_BYTES: i64 = 32 * 1024 * 1024;
+/// Do not parse a transcript that is receiving output right now. A short quiet
+/// window avoids racing the writer without delaying the eventual 10-minute
+/// quiescent finalization path.
+const ACTIVE_CODEX_MIN_QUIET_MS: i64 = 60 * 1000;
+/// Startup may discover many old tasks without activation receipts. Replaying
+/// all of them in one worker creates a multi-minute CPU/RAM plateau, so admit
+/// at most one non-quiescent recovery per pass.
+const ACTIVE_CODEX_RECONCILIATION_BATCH_PER_PASS: usize = 1;
 // A single provider transcript can legitimately take several minutes to
 // parse. Previous-process rows are reclaimed immediately through owner_id, so
 // this lease only protects against racing a still-live worker in this process.
@@ -582,8 +609,33 @@ const BACKFILL_BACKLOG_BATCH_PER_RUN: usize = 25;
 /// short-circuit can never delay a reconciliation that would have happened.
 const BACKFILL_RECHECK_TTL_MS: i64 = 5 * 60 * 1000;
 
+/// Imported-history signatures were historically epoch milliseconds. New
+/// signatures use epoch nanoseconds (despite the compatibility field name) so
+/// rapid in-place transcript appends are observable. Normalize both formats
+/// before applying wall-clock lifecycle thresholds.
+fn source_mtime_epoch_ms(source_mtime_value: i64) -> i64 {
+    const EPOCH_NANOSECONDS_THRESHOLD: i64 = 100_000_000_000_000;
+    if source_mtime_value >= EPOCH_NANOSECONDS_THRESHOLD {
+        source_mtime_value / 1_000_000
+    } else {
+        source_mtime_value
+    }
+}
+
+fn source_age_ms(source_mtime_value: i64, now_ms: i64) -> i64 {
+    now_ms.saturating_sub(source_mtime_epoch_ms(source_mtime_value))
+}
+
 fn session_is_quiescent(session: &ImportedHistoryCachedSession, now_ms: i64) -> bool {
-    now_ms.saturating_sub(session.source_mtime_ms) >= SESSION_QUIESCENCE_MS
+    source_age_ms(session.source_mtime_ms, now_ms) >= SESSION_QUIESCENCE_MS
+}
+
+fn active_codex_recovery_is_quiet_enough(source_mtime_value: i64, now_ms: i64) -> bool {
+    source_age_ms(source_mtime_value, now_ms) >= ACTIVE_CODEX_MIN_QUIET_MS
+}
+
+fn background_codex_reconciliation_source_is_bounded(source_size_bytes: i64) -> bool {
+    source_size_bytes <= MAX_BACKGROUND_CODEX_RECONCILIATION_SOURCE_BYTES
 }
 
 /// Cheap pre-claim probe: does any already-discovered session that touched
@@ -733,6 +785,70 @@ fn imported_session_fingerprint(session: &ImportedHistoryCachedSession) -> Strin
     )
 }
 
+#[derive(Default)]
+struct ActiveCodexReconciliationThrottle {
+    attempted_at_ms: HashMap<String, i64>,
+    last_discovery_at_ms: Option<i64>,
+    last_active_attempt_at_ms: Option<i64>,
+}
+
+impl ActiveCodexReconciliationThrottle {
+    fn retain_recent<'a>(&mut self, session_ids: impl IntoIterator<Item = &'a str>) {
+        let recent = session_ids.into_iter().collect::<HashSet<_>>();
+        self.attempted_at_ms
+            .retain(|session_id, _| recent.contains(session_id.as_str()));
+    }
+
+    fn clear(&mut self, session_id: &str) {
+        self.attempted_at_ms.remove(session_id);
+    }
+
+    fn should_refresh_discovery(&mut self, now_ms: i64) -> bool {
+        if self.last_discovery_at_ms.is_some_and(|last_discovery_ms| {
+            now_ms.saturating_sub(last_discovery_ms) < CODEX_DISCOVERY_REFRESH_INTERVAL_MS
+        }) {
+            return false;
+        }
+        self.last_discovery_at_ms = Some(now_ms);
+        true
+    }
+
+    fn should_attempt(&mut self, session_id: &str, is_quiescent: bool, now_ms: i64) -> bool {
+        if is_quiescent {
+            // A task that just stopped writing needs its final append indexed
+            // immediately, regardless of its last active-recovery attempt.
+            self.clear(session_id);
+            return true;
+        }
+        if self
+            .attempted_at_ms
+            .get(session_id)
+            .is_some_and(|last_attempt_ms| {
+                now_ms.saturating_sub(*last_attempt_ms) < ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS
+            })
+        {
+            return false;
+        }
+        // A per-session throttle alone still rotates through a dozen missing
+        // receipts at one parse every 30 seconds. Bound the whole background
+        // worker so startup cannot become a multi-session CPU/RAM plateau.
+        if self
+            .last_active_attempt_at_ms
+            .is_some_and(|last_attempt_ms| {
+                now_ms.saturating_sub(last_attempt_ms) < ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS
+            })
+        {
+            return false;
+        }
+        // Record attempts, not just successes: malformed or temporarily locked
+        // active rollouts must not turn the 30-second discovery loop into an
+        // unbounded retry/parse loop.
+        self.attempted_at_ms.insert(session_id.to_string(), now_ms);
+        self.last_active_attempt_at_ms = Some(now_ms);
+        true
+    }
+}
+
 /// Periodically reconcile recent Codex tasks whose own SessionStart was not
 /// observed. Source fingerprints make this incremental: unchanged rollouts
 /// are checkpoint hits, while an appended rollout replaces only prior
@@ -741,35 +857,64 @@ fn imported_session_fingerprint(session: &ImportedHistoryCachedSession) -> Strin
 /// opts only that task into active-transcript recovery.
 pub(crate) fn spawn_codex_write_reconciliation_loop(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
+        let mut throttle = ActiveCodexReconciliationThrottle::default();
         loop {
-            let result =
-                tauri::async_runtime::spawn_blocking(reconcile_recent_codex_sessions).await;
+            // Keep blocking parsing off the async runtime without putting the
+            // throttle behind a mutex held across filesystem and SQLite work.
+            let worker_throttle = std::mem::take(&mut throttle);
+            let result = tauri::async_runtime::spawn_blocking(move || {
+                let mut worker_throttle = worker_throttle;
+                let result = reconcile_recent_codex_sessions(&mut worker_throttle);
+                (result, worker_throttle)
+            })
+            .await;
             match result {
-                Ok(Ok(reconciled)) if reconciled > 0 => {
-                    let _ =
-                        tauri::Emitter::emit(&app, super::RESOURCE_INTERACTIONS_CHANGED_EVENT, ());
+                Ok((result, next_throttle)) => {
+                    throttle = next_throttle;
+                    match result {
+                        Ok(reconciled) if reconciled > 0 => {
+                            let _ = tauri::Emitter::emit(
+                                &app,
+                                super::RESOURCE_INTERACTIONS_CHANGED_EVENT,
+                                (),
+                            );
+                        }
+                        Ok(_) => {}
+                        Err(err) => tracing::warn!(
+                            error = %err,
+                            "[SessionProvenance] Codex write reconciliation failed"
+                        ),
+                    }
                 }
-                Ok(Ok(_)) => {}
-                Ok(Err(err)) => tracing::warn!(
-                    error = %err,
-                    "[SessionProvenance] Codex write reconciliation failed"
-                ),
                 Err(err) => tracing::warn!(
                     error = %err,
                     "[SessionProvenance] Codex write reconciliation task failed"
                 ),
             }
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            tokio::time::sleep(CODEX_WRITE_RECONCILIATION_POLL_INTERVAL).await;
         }
     });
 }
 
-fn reconcile_recent_codex_sessions() -> Result<usize, String> {
+fn reconcile_recent_codex_sessions(
+    throttle: &mut ActiveCodexReconciliationThrottle,
+) -> Result<usize, String> {
     const RECENT_SESSION_LIMIT: usize = 12;
 
     let mut conn = get_connection().map_err(|err| err.to_string())?;
-    let sessions = list_codex_app_reconciliation_sessions(&mut conn, RECENT_SESSION_LIMIT)?;
+    let now_ms = Utc::now().timestamp_millis();
+    let sessions = if throttle.should_refresh_discovery(now_ms) {
+        list_codex_app_reconciliation_sessions(&mut conn, RECENT_SESSION_LIMIT)?
+    } else {
+        query_recent_cached_sessions_for_source_from_conn(
+            &conn,
+            SOURCE_CODEX_APP,
+            RECENT_SESSION_LIMIT,
+        )?
+    };
+    throttle.retain_recent(sessions.iter().map(|session| session.session_id.as_str()));
     let mut reconciled = 0;
+    let mut active_reconciliations = 0;
     for session in sessions {
         let hook_session_id = codex_thread_id_from_file_stem(&session.source_session_id)
             .unwrap_or(&session.source_session_id);
@@ -777,7 +922,28 @@ fn reconcile_recent_codex_sessions() -> Result<usize, String> {
             agent_cli::session_provenance::codex_session_start_is_active(hook_session_id)
                 .unwrap_or(false);
         if session_start_active {
+            throttle.clear(&session.session_id);
             continue;
+        }
+        if !background_codex_reconciliation_source_is_bounded(session.source_size_bytes) {
+            // Keep the durable import marker untouched. This is a safety
+            // boundary, not a claim that the transcript was reconciled.
+            throttle.clear(&session.session_id);
+            continue;
+        }
+        let is_quiescent = session_is_quiescent(&session, now_ms);
+        if !is_quiescent {
+            if !active_codex_recovery_is_quiet_enough(session.source_mtime_ms, now_ms)
+                || active_reconciliations >= ACTIVE_CODEX_RECONCILIATION_BATCH_PER_PASS
+            {
+                continue;
+            }
+        }
+        if !throttle.should_attempt(&session.session_id, is_quiescent, now_ms) {
+            continue;
+        }
+        if !is_quiescent {
+            active_reconciliations += 1;
         }
         let repo = session.repo_path.as_deref().unwrap_or(".");
         let canonical_repo = canonicalize_existing_prefix(Path::new(repo));
@@ -939,5 +1105,109 @@ mod tests {
             reclaimed_token.as_deref(),
             Some(reclaimed.run_token.as_str())
         );
+    }
+
+    #[test]
+    fn active_codex_reconciliation_is_sparse_but_quiescence_flushes_immediately() {
+        let mut throttle = ActiveCodexReconciliationThrottle::default();
+        let now_ms = 1_000_000;
+
+        assert!(throttle.should_attempt("active", false, now_ms));
+        assert!(!throttle.should_attempt(
+            "active",
+            false,
+            now_ms + ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS - 1
+        ));
+        assert!(throttle.should_attempt(
+            "active",
+            false,
+            now_ms + ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS
+        ));
+
+        // The final quiet transcript is never delayed by the active throttle.
+        assert!(throttle.should_attempt("active", true, now_ms + 1));
+        assert!(!throttle.attempted_at_ms.contains_key("active"));
+    }
+
+    #[test]
+    fn active_codex_reconciliation_throttle_is_bounded_to_recent_sessions() {
+        let mut throttle = ActiveCodexReconciliationThrottle::default();
+        assert!(throttle.should_attempt("old", false, 1));
+        assert!(throttle.should_attempt(
+            "recent",
+            false,
+            1 + ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS
+        ));
+
+        throttle.retain_recent(["recent"]);
+
+        assert_eq!(throttle.attempted_at_ms.len(), 1);
+        assert!(throttle.attempted_at_ms.contains_key("recent"));
+    }
+
+    #[test]
+    fn active_codex_reconciliation_is_globally_serialized() {
+        let mut throttle = ActiveCodexReconciliationThrottle::default();
+        let now_ms = 1_000_000;
+
+        assert!(throttle.should_attempt("first", false, now_ms));
+        assert!(!throttle.should_attempt(
+            "second",
+            false,
+            now_ms + ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS - 1
+        ));
+        assert!(throttle.should_attempt(
+            "second",
+            false,
+            now_ms + ACTIVE_CODEX_RECONCILIATION_INTERVAL_MS
+        ));
+    }
+
+    #[test]
+    fn background_codex_reconciliation_rejects_giant_rollouts() {
+        assert!(background_codex_reconciliation_source_is_bounded(
+            MAX_BACKGROUND_CODEX_RECONCILIATION_SOURCE_BYTES
+        ));
+        assert!(!background_codex_reconciliation_source_is_bounded(
+            MAX_BACKGROUND_CODEX_RECONCILIATION_SOURCE_BYTES + 1
+        ));
+    }
+
+    #[test]
+    fn codex_discovery_refresh_is_low_frequency() {
+        let mut throttle = ActiveCodexReconciliationThrottle::default();
+        let now_ms = 1_000_000;
+
+        assert!(throttle.should_refresh_discovery(now_ms));
+        assert!(
+            !throttle.should_refresh_discovery(now_ms + CODEX_DISCOVERY_REFRESH_INTERVAL_MS - 1)
+        );
+        assert!(throttle.should_refresh_discovery(now_ms + CODEX_DISCOVERY_REFRESH_INTERVAL_MS));
+    }
+
+    #[test]
+    fn active_codex_recovery_waits_for_a_short_writer_quiet_window() {
+        let now_ms = 1_000_000;
+
+        assert!(!active_codex_recovery_is_quiet_enough(
+            now_ms - ACTIVE_CODEX_MIN_QUIET_MS + 1,
+            now_ms
+        ));
+        assert!(active_codex_recovery_is_quiet_enough(
+            now_ms - ACTIVE_CODEX_MIN_QUIET_MS,
+            now_ms
+        ));
+    }
+
+    #[test]
+    fn imported_history_source_age_accepts_legacy_milliseconds_and_current_nanoseconds() {
+        let now_ms = 1_750_000_000_000;
+        let source_ms = now_ms - ACTIVE_CODEX_MIN_QUIET_MS;
+        let source_ns = source_ms * 1_000_000;
+
+        assert_eq!(source_age_ms(source_ms, now_ms), ACTIVE_CODEX_MIN_QUIET_MS);
+        assert_eq!(source_age_ms(source_ns, now_ms), ACTIVE_CODEX_MIN_QUIET_MS);
+        assert!(active_codex_recovery_is_quiet_enough(source_ms, now_ms));
+        assert!(active_codex_recovery_is_quiet_enough(source_ns, now_ms));
     }
 }

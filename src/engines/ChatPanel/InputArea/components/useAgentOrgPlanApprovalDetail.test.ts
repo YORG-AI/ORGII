@@ -126,4 +126,34 @@ describe("Agent Org plan approval detail cache", () => {
       agentOrgPlanApprovalDetailCacheTestApi.getSnapshot(approval)
     ).toMatchObject({ detail: approvalDetail(), error: null, loading: false });
   });
+
+  it("evicts inactive immutable revisions at the hard entry bound", async () => {
+    mockedGetDetail.mockImplementation(
+      async ({ approvalId, planRevisionId }) => ({
+        ...approvalDetail(),
+        approvalId,
+        planRevisionId,
+      })
+    );
+
+    for (
+      let index = 0;
+      index < agentOrgPlanApprovalDetailCacheTestApi.limits.entries + 20;
+      index += 1
+    ) {
+      await agentOrgPlanApprovalDetailCacheTestApi.load("root-session", {
+        ...approvalSummary(),
+        approvalId: `approval-${index}`,
+        planRevisionId: `revision-${index}`,
+      });
+    }
+
+    const stats = agentOrgPlanApprovalDetailCacheTestApi.stats();
+    expect(stats.entries).toBeLessThanOrEqual(
+      agentOrgPlanApprovalDetailCacheTestApi.limits.entries
+    );
+    expect(stats.bytes).toBeLessThanOrEqual(
+      agentOrgPlanApprovalDetailCacheTestApi.limits.bytes
+    );
+  });
 });

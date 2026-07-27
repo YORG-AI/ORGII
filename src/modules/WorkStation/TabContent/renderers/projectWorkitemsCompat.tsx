@@ -85,14 +85,20 @@ const ProjectWorkitemsCompatTabRenderer: React.FC<UnifiedTabContentProps> =
         onSetUnsaved={(unsaved) => onSetTabUnsaved(tab.id, unsaved)}
         onOpenRepoSettings={() => onOpenRepoSettings("members")}
         onOpenChatSession={onOpenChatSession}
-        onExpandWorkItemToTab={(workItemId, workItemName, pendingUpdates) =>
+        onExpandWorkItemToTab={(
+          workItemId,
+          workItemName,
+          pendingUpdates,
+          workItemStatus
+        ) =>
           onExpandWorkItemToTab(
             tab.data.projectId as string,
             tab.data.projectName as string,
             tab.data.projectSlug as string | undefined,
             workItemId,
             workItemName,
-            pendingUpdates
+            pendingUpdates,
+            workItemStatus
           )
         }
       />

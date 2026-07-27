@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token decision",
     "tooltip": "Estimated tool attribution. Method: {{method}}. Input: {{inputBytes}} bytes. Output: {{outputBytes}} bytes. Decision: {{decisionTokens}} Token. Context: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. 관련 LLM cache read: {{cacheReadTokens}} Token. 관련 LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "제목(선택 사항)"
+  },
   "history": {
     "untitledSession": "제목 없는 Session",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "생성일",
       "updated": "업데이트됨",
       "lastUpdated": "마지막 업데이트",
+      "external": "외부",
+      "internal": "내부",
       "rounds": "라운드",
       "roundCount_one": "{{count}} 라운드",
       "roundCount_other": "{{count}} 라운드",
@@ -124,9 +129,10 @@
         "default": "기본값",
         "manual": "수동",
         "60s": "60초마다",
-        "5m": "5분마다",
-        "1h": "매시간",
-        "1d": "매일"
+        "120s": "120초마다",
+        "10m": "10분마다",
+        "30m": "30분마다",
+        "1h": "매시간"
       },
       "openFolder": "폴더 열기",
       "tabs": {
@@ -1314,6 +1320,8 @@
     "terminalSummary": {
       "command_one": "명령 {{count}}개",
       "command_other": "명령 {{count}}개",
+      "mcp_one": "MCP 호출 {{count}}회",
+      "mcp_other": "MCP 호출 {{count}}회",
       "wait_one": "대기 {{count}}회",
       "wait_other": "대기 {{count}}회",
       "check_one": "확인 {{count}}회",
@@ -2091,7 +2099,10 @@
     "categoryLabel": "세션 카테고리",
     "categoryTemplate": "{category} 선택",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "내장 Agent",
+    "builtIns": "기본 제공",
+    "humanSession": {
+      "name": "작업 기록"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "사용자 지정 Agent",
     "agentOrgs": "Agent 팀",

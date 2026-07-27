@@ -20,7 +20,10 @@ export const AccountCategoryView: React.FC<{
         onSubmit={accounts.handleFormSubmit}
         onCancel={accounts.handleFormCancel}
         loading={accounts.formLoading}
-        existingAccountNames={accounts.accounts.map((account) => account.name)}
+        initialAgentType={accounts.formInitialAgentType}
+        initialData={accounts.formInitialData}
+        autoStartCodexLogin={accounts.autoStartCodexLogin}
+        existingAccountNames={accounts.formExistingAccountNames}
       />
     );
   }

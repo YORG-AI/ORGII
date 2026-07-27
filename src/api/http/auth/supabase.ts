@@ -8,10 +8,15 @@ import {
   SERVICE_AUTH_CONFIG,
   clearHostedToken,
   getCallbackUrl,
-  isTauriProduction,
+  isTauriRuntime,
   storeHostedToken,
   storeHostedUserId,
 } from "@src/config/serviceAuth";
+
+import {
+  SUPABASE_AUTH_STORAGE_KEY,
+  sharedServiceAuthStorage,
+} from "./sharedAuthStorage";
 
 interface TokenResponse {
   access_token: string;
@@ -44,9 +49,12 @@ export function getSupabaseAuthClient(): SupabaseClient {
         auth: {
           flowType: "pkce",
           persistSession: true,
-          autoRefreshToken: true,
+          // useServiceAuth owns refresh timing. Keeping Supabase's internal
+          // ticker off avoids a shared-file read every 30 seconds while idle.
+          autoRefreshToken: false,
           detectSessionInUrl: false,
-          storageKey: "orgii.supabase.auth",
+          storageKey: SUPABASE_AUTH_STORAGE_KEY,
+          storage: sharedServiceAuthStorage,
         },
       }
     );
@@ -73,12 +81,13 @@ export function syncHostedTokenFromSession(session: Session): TokenResponse {
 
 export async function signInWithSupabase(): Promise<void> {
   const supabase = getSupabaseAuthClient();
+  const tauriRuntime = isTauriRuntime();
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: SERVICE_AUTH_CONFIG.oauthProvider,
     options: {
       redirectTo: getCallbackUrl(),
       scopes: SERVICE_AUTH_CONFIG.oauthScopes,
-      skipBrowserRedirect: isTauriProduction(),
+      skipBrowserRedirect: tauriRuntime,
     },
   });
 
@@ -86,7 +95,7 @@ export async function signInWithSupabase(): Promise<void> {
     throw error;
   }
 
-  if (isTauriProduction() && data.url) {
+  if (tauriRuntime && data.url) {
     const { open } = await import("@tauri-apps/plugin-shell");
     await open(data.url);
   }

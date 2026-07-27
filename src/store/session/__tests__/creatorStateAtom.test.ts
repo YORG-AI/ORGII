@@ -4,6 +4,7 @@ import {
   CLI_LAUNCH_MODE,
   SESSION_TARGET_KIND,
   type SessionCreatorState,
+  normalizeAgentOnlySessionCreatorState,
   normalizeSessionCreatorState,
 } from "../creatorStateAtom";
 
@@ -41,5 +42,39 @@ describe("normalizeSessionCreatorState", () => {
     expect(normalizeSessionCreatorState(customOrgState)).toEqual(
       customOrgState
     );
+  });
+});
+
+describe("normalizeAgentOnlySessionCreatorState", () => {
+  it("replaces a Human session selection with the default SDE Agent", () => {
+    const humanState: SessionCreatorState = {
+      ...defaultAgentOrgState,
+      dispatchCategory: "human_session",
+      targetKind: SESSION_TARGET_KIND.HUMAN,
+      selectedAgentOrgId: null,
+      agentName: "Work log",
+      agentIconId: "clipboard-list",
+    };
+
+    const normalized = normalizeAgentOnlySessionCreatorState(humanState);
+
+    expect(normalized.dispatchCategory).toBe("rust_agent");
+    expect(normalized.targetKind).toBe(SESSION_TARGET_KIND.AGENT);
+    expect(normalized.selectedAgentDefinitionId).toBe("builtin:sde");
+    expect(normalized.selectedAgentOrgId).toBeNull();
+    expect(normalized.agentName).toBe("SDE Agent");
+    expect(normalized.agentIconId).toBe("code");
+  });
+
+  it("preserves an existing agent selection", () => {
+    const agentState: SessionCreatorState = {
+      ...defaultAgentOrgState,
+      targetKind: SESSION_TARGET_KIND.AGENT,
+      selectedAgentDefinitionId: "custom-agent",
+      selectedAgentOrgId: null,
+      agentName: "Custom Agent",
+    };
+
+    expect(normalizeAgentOnlySessionCreatorState(agentState)).toBe(agentState);
   });
 });

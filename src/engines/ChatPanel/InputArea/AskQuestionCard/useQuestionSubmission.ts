@@ -18,7 +18,7 @@ import type { SingleQuestion } from "@src/engines/ChatPanel/InputArea/AskQuestio
 import {
   buildAnswerIds,
   buildAnswerLabels,
-  markEventStaleAnswered,
+  markQuestionAnswered,
   validateAnswers,
 } from "./questionSubmitUtils";
 
@@ -77,7 +77,8 @@ export function useQuestionSubmission(): UseQuestionSubmissionReturn {
         // the finalize event is dropped (e.g. tool_call_id mismatch, channel
         // buffer eviction) — the broadcast then becomes an idempotent confirm.
         await respondQuestion(sessionId, questionId, answers);
-        markEventStaleAnswered(
+        await markQuestionAnswered(
+          sessionId,
           chunkId,
           buildAnswerLabels(questions, selections, customTexts)
         );
@@ -96,7 +97,8 @@ export function useQuestionSubmission(): UseQuestionSubmissionReturn {
           // The user DID answer — expired only means the pending request was
           // already gone (session restart, etc.). Use their real selections,
           // not a "skipped" placeholder.
-          markEventStaleAnswered(
+          await markQuestionAnswered(
+            sessionId,
             chunkId,
             buildAnswerLabels(questions, selections, customTexts)
           );
@@ -117,8 +119,16 @@ export function useQuestionSubmission(): UseQuestionSubmissionReturn {
       const skippedLabel = t("chat.skippedByUser");
 
       try {
-        // Rust emits `agent:interaction_finalized` with status=rejected.
+        // Rust emits `agent:interaction_finalized` with status=rejected. Keep
+        // the same immediate frontend completion as the answer path so Skip
+        // cannot remain visually stuck if that broadcast is delayed.
         await rejectQuestion(sessionId, questionId);
+        await markQuestionAnswered(
+          sessionId,
+          chunkId,
+          [[skippedLabel]],
+          "rejected"
+        );
         return true;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -130,7 +140,12 @@ export function useQuestionSubmission(): UseQuestionSubmissionReturn {
         if (isExpired) {
           Message.warning(t("chat.questionExpired"));
         }
-        markEventStaleAnswered(chunkId, [[skippedLabel]], "rejected");
+        await markQuestionAnswered(
+          sessionId,
+          chunkId,
+          [[skippedLabel]],
+          "rejected"
+        );
         return true;
       }
     },

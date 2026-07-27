@@ -25,6 +25,7 @@ import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
   chatPanelTabsAtom,
   openOrFocusChatPanelStartPageTabAtom,
+  openOrFocusSessionInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { reposAtom, selectedRepoIdAtom } from "@src/store/repo/atoms";
 import {
@@ -50,7 +51,6 @@ import type { Session } from "@src/store/session/sessionAtom/types";
 import {
   activeSessionIdAtom,
   jumpToSessionAtom,
-  openSessionAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session/viewAtom";
 import { chatImageAttachmentsAtom } from "@src/store/ui/chatImageAtom";
@@ -452,7 +452,15 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(chatPanelSelectedWorkItemAtom, null);
       store.set(chatPanelMaximizedAtom, true);
       store.set(chatWidthAtom, 560);
-      store.set(openSessionAtom, { sessionId, sessionName, repoPath });
+      // Keep the canonical tab identity and the legacy session atoms in one
+      // transition. Writing `openSessionAtom` alone leaves a previously-active
+      // cloud-org/work-item tab in front of the seeded session, so rendered
+      // E2E would test a stale management surface instead of the product flow.
+      store.set(openOrFocusSessionInChatPanelTabAtom, {
+        sessionId,
+        sessionName,
+        repoPath,
+      });
       store.set(sessionIdAtom, sessionId);
       store.set(sessionRuntimeStatusAtom, "idle");
       await eventStoreProxy.switchSession(sessionId);

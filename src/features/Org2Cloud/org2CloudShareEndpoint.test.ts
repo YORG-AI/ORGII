@@ -6,6 +6,7 @@ import {
 } from "./config";
 import {
   CloudShareEndpointMismatchError,
+  requireCloudShareAuthEndpoint,
   resolveCloudShareEndpoint,
   resolvePersistedCloudShareEndpoint,
 } from "./org2CloudShareEndpoint";
@@ -60,5 +61,26 @@ describe("resolveCloudShareEndpoint", () => {
       resolvePersistedCloudShareEndpoint(ORG2_CLOUD_OFFICIAL_SUPABASE_URL)
         .supabaseUrl
     ).toBe(ORG2_CLOUD_OFFICIAL_SUPABASE_URL);
+  });
+
+  it("accepts only the endpoint that issued the current auth token", () => {
+    const endpoint = resolveCloudShareEndpoint({ kind: "official" });
+    expect(
+      requireCloudShareAuthEndpoint(
+        endpoint,
+        `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/`
+      )
+    ).toBe(endpoint);
+    expect(() =>
+      requireCloudShareAuthEndpoint(endpoint, "https://db.custom.example.com")
+    ).toThrow(CloudShareEndpointMismatchError);
+  });
+
+  it("does not send an official token to a configured custom share endpoint", () => {
+    configureCustomEndpoint("https://db.custom.example.com");
+    const endpoint = resolveCloudShareEndpoint({ kind: "current" });
+    expect(() =>
+      requireCloudShareAuthEndpoint(endpoint, ORG2_CLOUD_OFFICIAL_SUPABASE_URL)
+    ).toThrow(CloudShareEndpointMismatchError);
   });
 });

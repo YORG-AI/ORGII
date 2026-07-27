@@ -5,6 +5,20 @@
     "decision": "{{tokenCount}} Token decision",
     "tooltip": "Estimated tool attribution. Method: {{method}}. Input: {{inputBytes}} bytes. Output: {{outputBytes}} bytes. Decision: {{decisionTokens}} Token. Context: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Related LLM cache read: {{cacheReadTokens}} Token. Related LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Title (optional)",
+    "createPlaceholder": "Add the first note… Type / for skills or @ to mention a session.",
+    "createAction": "Create work log",
+    "appendLabel": "New note",
+    "entryLabel": "Work log entry",
+    "appendPlaceholder": "Append a note… Type / for skills, @ to mention a session, or drag one here.",
+    "appendAction": "Append note",
+    "loading": "Loading work log",
+    "updated": "Updated {{date}}",
+    "createFailed": "Could not create the work log",
+    "loadFailed": "Could not load the work log",
+    "appendFailed": "Could not append the note"
+  },
   "history": {
     "untitledSession": "Untitled Session",
     "prStatus": {
@@ -19,6 +33,8 @@
       "created": "Created",
       "updated": "Updated",
       "lastUpdated": "Last updated",
+      "external": "External",
+      "internal": "Internal",
       "rounds": "Rounds",
       "roundCount_one": "{{count}} round",
       "roundCount_other": "{{count}} rounds",
@@ -131,9 +147,10 @@
         "default": "Default",
         "manual": "Manual",
         "60s": "Every 60s",
-        "5m": "Every 5 min",
-        "1h": "Hourly",
-        "1d": "Daily"
+        "120s": "Every 120s",
+        "10m": "Every 10 min",
+        "30m": "Every 30 min",
+        "1h": "Hourly"
       },
       "tabs": {
         "all": "All",
@@ -1369,6 +1386,8 @@
     "terminalSummary": {
       "command_one": "{{count}} command",
       "command_other": "{{count}} commands",
+      "mcp_one": "{{count}} MCP call",
+      "mcp_other": "{{count}} MCP calls",
       "wait_one": "{{count}} wait",
       "wait_other": "{{count}} waits",
       "check_one": "{{count}} check",
@@ -2115,6 +2134,7 @@
     "contextMenu": {
       "filesAndFolders": "Files & Folders",
       "agentSession": "Agent Session",
+      "session": "Session",
       "workItems": "Work Items",
       "back": "Back",
       "recent": "Recent",
@@ -2149,7 +2169,10 @@
     "categoryLabel": "Session category",
     "categoryTemplate": "Select {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Built-in Agents",
+    "builtIns": "Built-ins",
+    "humanSession": {
+      "name": "Work log"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Custom Agents",
     "agentOrgs": "Agent Teams",

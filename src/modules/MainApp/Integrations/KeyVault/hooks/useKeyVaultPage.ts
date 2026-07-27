@@ -14,13 +14,18 @@
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { getFullKey, validateKey } from "@src/api/services/keyValidation";
 import type { SaveKeyRequest as RpcSaveKeyRequest } from "@src/api/tauri/rpc/schemas/validation";
 import type { ModelType, SaveKeyRequest } from "@src/api/types/keys";
 import Message from "@src/components/Message";
-import { WIZARD_IDS, buildIntegrationsPath } from "@src/config/mainAppPaths";
+import {
+  CODEX_REAUTH_RETURN_TO_STATE_KEY,
+  WIZARD_IDS,
+  buildIntegrationsPath,
+  parseCodexReauthIntent,
+} from "@src/config/mainAppPaths";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
 import { useWizardParam } from "@src/hooks/navigation";
@@ -36,12 +41,25 @@ import {
 
 const log = createLogger("KeyVaultPage");
 
+function readCodexReauthReturnTo(state: unknown): string | null {
+  if (!state || typeof state !== "object") return null;
+  const returnTo = (state as Record<string, unknown>)[
+    CODEX_REAUTH_RETURN_TO_STATE_KEY
+  ];
+  return typeof returnTo === "string" &&
+    (returnTo === "/orgii/app" || returnTo.startsWith("/orgii/app/"))
+    ? returnTo
+    : null;
+}
+
 export function useKeyVaultPage() {
   const { t } = useTranslation("integrations");
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     accounts,
     loading,
+    hasLoaded,
     error,
     refresh,
     refreshAccount,
@@ -67,12 +85,35 @@ export function useKeyVaultPage() {
   const [refreshingAllModels, setRefreshingAllModels] = useState(false);
 
   // Wizard open-state derived from URL
-  const { wizard, openWizard } = useWizardParam();
+  const { wizard, entityId, openWizard } = useWizardParam();
   const showAddForm = wizard === WIZARD_IDS.KEY_ADD;
+  const codexReauthIntent = parseCodexReauthIntent(location.search);
+  const isCodexReauth = showAddForm && codexReauthIntent.active;
+  const explicitReauthAccount = entityId ? getAccount(entityId) : undefined;
+  const soleCodexAccount = useMemo(() => {
+    const codexAccounts = accounts.filter(
+      (account) => account.modelType === "codex"
+    );
+    return codexAccounts.length === 1 ? codexAccounts[0] : undefined;
+  }, [accounts]);
+  const reauthAccount = isCodexReauth
+    ? (explicitReauthAccount ?? soleCodexAccount)
+    : undefined;
+  const reauthAccountId =
+    reauthAccount?.id ?? (isCodexReauth ? entityId : null);
+  const isResolvingReauthAccount =
+    isCodexReauth && !hasLoaded && !reauthAccount;
+  const reauthReturnTo = isCodexReauth
+    ? readCodexReauthReturnTo(location.state)
+    : null;
 
   const closeKeyVaultWizard = useCallback(() => {
+    if (reauthReturnTo) {
+      navigate(reauthReturnTo, { replace: true });
+      return;
+    }
     navigate(buildIntegrationsPath({ category: "models" }), { replace: true });
-  }, [navigate]);
+  }, [navigate, reauthReturnTo]);
 
   // Initial load
   useEffect(() => {
@@ -225,6 +266,7 @@ export function useKeyVaultPage() {
       try {
         const saveRequest: SaveKeyRequest = {
           ...(data as SaveKeyRequest),
+          ...(reauthAccountId ? { id: reauthAccountId } : {}),
           has_local_key: true,
           is_listed: false,
         };
@@ -242,7 +284,7 @@ export function useKeyVaultPage() {
         setFormLoading(false);
       }
     },
-    [saveKey, refresh, t, closeKeyVaultWizard]
+    [saveKey, refresh, t, closeKeyVaultWizard, reauthAccountId]
   );
 
   const handleEditAccountSave = useCallback(
@@ -319,9 +361,20 @@ export function useKeyVaultPage() {
     agentTypeFilter,
 
     // Form state
-    showAddForm,
+    showAddForm: showAddForm && !isResolvingReauthAccount,
     formLoading,
     selectedAccountId,
+    formInitialAgentType: isCodexReauth ? ("codex" as const) : undefined,
+    formInitialData: isCodexReauth
+      ? {
+          name: reauthAccount?.name ?? "",
+          setup_method: "signin",
+        }
+      : undefined,
+    formExistingAccountNames: accounts
+      .filter((account) => account.id !== reauthAccountId)
+      .map((account) => account.name),
+    autoStartCodexLogin: isCodexReauth && codexReauthIntent.autoStart,
 
     // Handlers
     handleAccountSelect,

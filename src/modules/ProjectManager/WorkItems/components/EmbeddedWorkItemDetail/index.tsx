@@ -43,10 +43,12 @@ interface EmbeddedWorkItemDetailProps {
   onExpandWorkItemToTab?: (
     workItemId: string,
     workItemName: string,
-    pendingUpdates?: Record<string, unknown>
+    pendingUpdates?: Record<string, unknown>,
+    workItemStatus?: string
   ) => void;
   breadcrumbProjectName: string;
   breadcrumbIcon?: React.ReactNode;
+  titleEditable: boolean;
   propertiesOpen: boolean;
   onToggleProperties: () => void;
   publishHeaderToWorkstation: boolean;
@@ -76,6 +78,7 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   onExpandWorkItemToTab,
   breadcrumbProjectName,
   breadcrumbIcon,
+  titleEditable,
   propertiesOpen,
   onToggleProperties,
   publishHeaderToWorkstation,
@@ -101,7 +104,8 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
         workItem.name || "Work Item",
         Object.keys(pendingUpdates).length > 0
           ? (pendingUpdates as Record<string, unknown>)
-          : undefined
+          : undefined,
+        workItem.workItemStatus ?? workItem.status
       );
       onClose();
     },
@@ -137,6 +141,7 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
         surface={WORK_ITEM_DETAIL_SURFACE.nested}
         breadcrumbProjectName={breadcrumbProjectName}
         breadcrumbIcon={breadcrumbIcon}
+        titleEditable={titleEditable}
         propertiesOpen={propertiesOpen}
         onToggleProperties={onToggleProperties}
         publishHeaderToWorkstation={publishHeaderToWorkstation}

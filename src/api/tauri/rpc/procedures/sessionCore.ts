@@ -7,6 +7,17 @@ import { snakeToCamel } from "../transforms";
 const cache = {
   saveEvents: defineProcedure("cache_save_session_events")
     .input(schemas.sessionCore.SaveEventsInput)
+    .output(z.number())
+    .build(),
+
+  appendImportedEvents: defineProcedure("cache_append_session_event_import")
+    .input(schemas.sessionCore.SaveEventsInput)
+    .output(z.number())
+    .build(),
+
+  finalizeImportedEvents: defineProcedure("cache_finalize_session_event_import")
+    .input(schemas.sessionCore.SessionIdInput)
+    .output(z.number())
     .build(),
 
   loadEvents: defineProcedure("cache_load_session_events")

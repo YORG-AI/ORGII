@@ -17,8 +17,6 @@ use objc2::msg_send;
 #[cfg(target_os = "macos")]
 use objc2::runtime::{AnyClass, AnyObject};
 
-use super::{create_window, CreateWindowOptions};
-
 /// Set the native zoom factor for the main application WebView.
 #[tauri::command]
 pub async fn set_main_webview_zoom(app: AppHandle, scale_factor: f64) -> Result<(), String> {
@@ -28,78 +26,6 @@ pub async fn set_main_webview_zoom(app: AppHandle, scale_factor: f64) -> Result<
         .set_zoom(scale_factor)
         .map_err(|err| format!("Failed to set main WebView zoom: {}", err))?;
 
-    Ok(())
-}
-
-/// Create a new app window from the frontend.
-///
-/// This is the primary entry point for window creation from JavaScript.
-/// All options are passed as a single object for flexibility.
-#[tauri::command]
-pub async fn create_app_window(app: AppHandle, options: CreateWindowOptions) -> Result<(), String> {
-    println!("📦 [Window] Creating window: {}", options.label);
-    create_window(&app, options)?;
-    println!("✅ [Window] Window created successfully");
-    Ok(())
-}
-
-/// Show an existing window or create it fresh if it doesn't exist yet.
-///
-/// Unlike `create_app_window` (which errors when the label already exists),
-/// this command implements the prewarm/reuse pattern for any window with a
-/// **stable label** (e.g. "mode-selection", "new-project"):
-///
-/// - **Hot path** — window already exists: `show()` + optional reposition +
-///   `set_focus()` (when `options.focus` is true). O(1), no webview spin-up.
-/// - **Cold path** — window does not exist: behaves exactly like
-///   `create_app_window`. On macOS applies Glass + traffic lights.
-#[tauri::command]
-pub async fn show_or_create_app_window(
-    app: AppHandle,
-    options: CreateWindowOptions,
-) -> Result<(), String> {
-    if let Some(existing) = app.get_webview_window(&options.label) {
-        if let (Some(x), Some(y)) = (options.x, options.y) {
-            let _ =
-                existing.set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
-        } else if options.center {
-            let _ = existing.center();
-        }
-        existing
-            .show()
-            .map_err(|err| format!("Failed to show window '{}': {}", options.label, err))?;
-        if options.focus {
-            existing
-                .set_focus()
-                .map_err(|err| format!("Failed to focus window '{}': {}", options.label, err))?;
-        }
-        return Ok(());
-    }
-    create_window(&app, options)?;
-    Ok(())
-}
-
-/// Close a window by label.
-#[tauri::command]
-pub async fn close_app_window(app: AppHandle, label: String) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(&label) {
-        window
-            .close()
-            .map_err(|e| format!("Failed to close window: {}", e))?;
-    }
-    Ok(())
-}
-
-/// Focus a window by label.
-#[tauri::command]
-pub async fn focus_app_window(app: AppHandle, label: String) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(&label) {
-        window
-            .set_focus()
-            .map_err(|e| format!("Failed to focus window: {}", e))?;
-    } else {
-        return Err(format!("Window '{}' not found", label));
-    }
     Ok(())
 }
 

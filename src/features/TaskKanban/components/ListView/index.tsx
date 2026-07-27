@@ -6,23 +6,44 @@ import {
   Placeholder,
   SessionTable,
   type SessionTableColumnKey,
+  type SessionTableColumnOverrides,
+  type SessionTableItem,
   mapKanbanTaskToSessionTableItem,
 } from "@src/modules/shared/layouts/blocks";
 import { toIntlLocaleTag } from "@src/util/data/formatters/date";
 
 import { getColumnTitleKey } from "../../config";
 
-const PAGE_SIZE = 50;
-const PAGE_SIZE_OPTIONS = [50, 100, 200];
+const PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [25, 50];
 
 // Stable identity so <SessionTable>'s column memo isn't rebuilt each render.
-// The list drops the git-commit "Committed" ratio because it is not meaningful
-// for read-only imported/agent sessions.
+// Kanban keeps file/line impact but omits git-commit columns, which are covered
+// by the Diary view and are not meaningful for every imported/agent session.
 const LIST_COLUMN_VISIBILITY: Partial<Record<SessionTableColumnKey, boolean>> =
   {
+    relatedCommits: false,
     committedRate: false,
+    filesChanged: false,
     tokens: true,
   };
+
+const EMPTY_STAT = "—";
+
+function combineFileAndLineChanges(item: SessionTableItem): SessionTableItem {
+  if (item.filesChangedLabel == null && item.impactLabel == null) return item;
+
+  return {
+    ...item,
+    impactLabel: (
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+        <span>{item.filesChangedLabel ?? EMPTY_STAT}</span>
+        <span aria-hidden="true">·</span>
+        <span>{item.impactLabel ?? EMPTY_STAT}</span>
+      </span>
+    ),
+  };
+}
 
 function getTaskTimestamp(task: KanbanTask): number {
   const timestamp = task.updated_at || task.created_at;
@@ -35,6 +56,7 @@ export interface ListViewProps {
   selectedTaskId: string | null;
   detailPanelVisible: boolean;
   onTaskClick: (task: KanbanTask) => void;
+  renderRowAction?: (task: KanbanTask) => React.ReactNode;
 }
 
 const ListView: React.FC<ListViewProps> = ({
@@ -42,8 +64,9 @@ const ListView: React.FC<ListViewProps> = ({
   selectedTaskId,
   detailPanelVisible,
   onTaskClick,
+  renderRowAction,
 }) => {
-  const { t, i18n } = useTranslation(["sessions", "common"]);
+  const { t, i18n } = useTranslation(["sessions", "common", "projects"]);
   const sortedTasks = useMemo(
     () => [...tasks].sort((a, b) => getTaskTimestamp(b) - getTaskTimestamp(a)),
     [tasks]
@@ -59,14 +82,46 @@ const ListView: React.FC<ListViewProps> = ({
   const sessionTableItems = useMemo(
     () =>
       sortedTasks.map((task) =>
-        mapKanbanTaskToSessionTableItem({
-          task,
-          active: task.id === selectedTaskId && detailPanelVisible,
-          statusLabel: t(`sessions:${getColumnTitleKey(task.status)}`),
-          dateTimeLabelOptions,
-        })
+        combineFileAndLineChanges(
+          mapKanbanTaskToSessionTableItem({
+            task,
+            active: task.id === selectedTaskId && detailPanelVisible,
+            statusLabel: t(`sessions:${getColumnTitleKey(task.status)}`),
+            dateTimeLabelOptions,
+            testId: "kanban-list-session-row",
+            rowAction: renderRowAction?.(task),
+          })
+        )
       ),
-    [dateTimeLabelOptions, detailPanelVisible, selectedTaskId, sortedTasks, t]
+    [
+      dateTimeLabelOptions,
+      detailPanelVisible,
+      renderRowAction,
+      selectedTaskId,
+      sortedTasks,
+      t,
+    ]
+  );
+  const columnVisibility = useMemo(
+    () => ({
+      ...LIST_COLUMN_VISIBILITY,
+      owner: sortedTasks.some((task) => Boolean(task.createdBy)),
+    }),
+    [sortedTasks]
+  );
+  const columnOverrides = useMemo<SessionTableColumnOverrides>(
+    () => ({
+      impact: {
+        label: (
+          <>
+            {t("common:labels.files")} <span aria-hidden="true">·</span>{" "}
+            {t("common:aiImpact.lines")}
+          </>
+        ),
+        width: "190px",
+      },
+    }),
+    [t]
   );
 
   return (
@@ -82,7 +137,9 @@ const ListView: React.FC<ListViewProps> = ({
         <SessionTable
           items={sessionTableItems}
           className="[&_.table-fixed-header]:scrollbar-hide [&_.table-scroll]:scrollbar-hide"
-          columnVisibility={LIST_COLUMN_VISIBILITY}
+          columnVisibility={columnVisibility}
+          columnOverrides={columnOverrides}
+          ownerColumnLabel={t("projects:projects.groupBy.createdBy")}
           onSelect={(item) => {
             const task = sortedTasks.find(
               (candidate) => candidate.id === item.id

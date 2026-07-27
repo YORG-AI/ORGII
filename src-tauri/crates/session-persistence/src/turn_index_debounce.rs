@@ -21,14 +21,13 @@
 //! `save_events` calls within `DEBOUNCE_DELAY` collapse to a single
 //! rebuild.
 //!
-//! The debouncer holds *no* state across rebuild runs other than the
-//! "scheduled" flag; a fresh task is spawned each time a debounced
-//! interval elapses, so a stuck rebuild can never permanently lock out
-//! future scheduling.
+//! One process-wide condvar worker owns exact per-session deadlines. It is
+//! fully parked while no rebuild is scheduled; concurrent sessions do not
+//! create additional OS threads or fixed-cadence wakeups.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::sync::{Condvar, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 /// Quiet period before a coalesced rebuild fires. Tuned to the
 /// human-perceptible "did the turn list update?" budget: a few hundred
@@ -38,33 +37,25 @@ use std::time::Duration;
 const DEBOUNCE_DELAY: Duration = Duration::from_millis(250);
 
 struct ScheduledState {
-    /// Sessions with a rebuild task in-flight. The task drains itself
-    /// from the map after acquiring the writer lock so a coalesced
-    /// follow-up gets re-scheduled rather than dropped.
-    scheduled: HashMap<String, ScheduledEntry>,
-}
-
-struct ScheduledEntry {
-    /// Bumped every time `schedule()` is called. The in-flight worker
-    /// thread reads this value after its sleep window and re-runs the
-    /// sleep+check loop if it changed, so a fresh `schedule()` during
-    /// the quiet period extends the debounce rather than spawning a
-    /// second thread.
-    generation: u64,
-    /// `true` while a worker thread is sleeping or rebuilding for this
-    /// session. Prevents per-call thread spawn storms under streaming
-    /// agent load — at most one OS thread per session is alive at a
-    /// time regardless of `schedule()` call rate.
+    /// Session → exact quiet-period deadline. A new write replaces the
+    /// deadline, so continuous streaming stays coalesced without periodic
+    /// per-session wakeups.
+    scheduled: HashMap<String, Instant>,
+    /// One process-wide worker owns all deadlines.
     worker_running: bool,
 }
 
-static SCHEDULED: OnceLock<Mutex<ScheduledState>> = OnceLock::new();
+static SCHEDULED: OnceLock<(Mutex<ScheduledState>, Condvar)> = OnceLock::new();
 
-fn scheduled_state() -> &'static Mutex<ScheduledState> {
+fn scheduled_state() -> &'static (Mutex<ScheduledState>, Condvar) {
     SCHEDULED.get_or_init(|| {
-        Mutex::new(ScheduledState {
-            scheduled: HashMap::new(),
-        })
+        (
+            Mutex::new(ScheduledState {
+                scheduled: HashMap::new(),
+                worker_running: false,
+            }),
+            Condvar::new(),
+        )
     })
 }
 
@@ -76,11 +67,12 @@ fn scheduled_state() -> &'static Mutex<ScheduledState> {
 /// dropped background rebuild does not cause data loss.
 pub fn schedule(session_id: &str) {
     let session_owned = session_id.to_string();
+    let (state_lock, wake) = scheduled_state();
 
-    // Atomically bump the generation and decide whether *we* need to
-    // spawn a worker thread (vs. piggy-backing on an existing one).
+    // Atomically replace this session's deadline and decide whether this
+    // call must create the single process-wide worker.
     let needs_worker = {
-        let mut state = match scheduled_state().lock() {
+        let mut state = match state_lock.lock() {
             Ok(guard) => guard,
             // Poisoned mutex: another thread panicked while holding it.
             // The state itself is just a scheduling cache, so recovering
@@ -88,114 +80,91 @@ pub fn schedule(session_id: &str) {
             // panic into the writer hot path.
             Err(poisoned) => poisoned.into_inner(),
         };
-        let entry = state
+        state
             .scheduled
-            .entry(session_owned.clone())
-            .or_insert(ScheduledEntry {
-                generation: 0,
-                worker_running: false,
-            });
-        entry.generation = entry.generation.saturating_add(1);
-        if entry.worker_running {
-            // Existing worker will observe the new generation after
-            // its current sleep window and loop again.
-            false
-        } else {
-            entry.worker_running = true;
-            true
-        }
+            .insert(session_owned.clone(), Instant::now() + DEBOUNCE_DELAY);
+        let needs_worker = !state.worker_running;
+        state.worker_running = true;
+        needs_worker
     };
+    // Wake the worker if this write moved the earliest deadline.
+    wake.notify_one();
 
     if !needs_worker {
         return;
     }
 
-    let session_for_task = session_owned.clone();
     let spawn_result = std::thread::Builder::new()
-        .name(format!("turn-index-debounce-{session_for_task}"))
-        .spawn(move || debounce_worker(session_for_task));
+        .name("turn-index-debounce".to_string())
+        .spawn(debounce_worker);
 
     // If thread spawn failed (OS thread limit hit) clear the in-flight
     // flag so the next `schedule()` call can try again; otherwise we'd
     // wedge this session's debouncer forever.
     if let Err(err) = spawn_result {
         tracing::warn!("[turn-index-debounce] failed to spawn worker for {session_owned}: {err}");
-        let mut state = match scheduled_state().lock() {
+        let mut state = match state_lock.lock() {
             Ok(guard) => guard,
             Err(poisoned) => poisoned.into_inner(),
         };
-        if let Some(entry) = state.scheduled.get_mut(&session_owned) {
-            entry.worker_running = false;
-        }
+        state.worker_running = false;
     }
 }
 
-/// Worker loop: sleep `DEBOUNCE_DELAY`, observe the generation, either
-/// run the rebuild and exit or loop again if a fresh `schedule()` call
-/// arrived during the quiet period.
-fn debounce_worker(session: String) {
+/// Process-wide exact-deadline worker. It blocks on a condvar while empty and
+/// wakes only for a new/earlier deadline or when the next rebuild is due.
+fn debounce_worker() {
+    let (state_lock, wake) = scheduled_state();
     loop {
-        // Snapshot the generation we are about to "consume" by
-        // sleeping; if it changes during the sleep we restart the
-        // quiet period.
-        let target_generation = {
-            let state = match scheduled_state().lock() {
+        let due_sessions = {
+            let mut state = match state_lock.lock() {
                 Ok(guard) => guard,
                 Err(poisoned) => poisoned.into_inner(),
             };
-            match state.scheduled.get(&session) {
-                Some(entry) => entry.generation,
-                // Spurious wake — should not happen since the
-                // spawner sets `worker_running = true` before
-                // spawning us, but be defensive.
-                None => return,
+
+            while state.scheduled.is_empty() {
+                state = match wake.wait(state) {
+                    Ok(guard) => guard,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
             }
+
+            let next_deadline = state
+                .scheduled
+                .values()
+                .copied()
+                .min()
+                .expect("scheduled map is non-empty");
+            let now = Instant::now();
+            if next_deadline > now {
+                let timeout = next_deadline.saturating_duration_since(now);
+                let (next_state, _) = match wake.wait_timeout(state, timeout) {
+                    Ok(result) => result,
+                    Err(poisoned) => poisoned.into_inner(),
+                };
+                drop(next_state);
+                continue;
+            }
+
+            let due = state
+                .scheduled
+                .iter()
+                .filter(|(_, deadline)| **deadline <= now)
+                .map(|(session, _)| session.clone())
+                .collect::<Vec<_>>();
+            for session in &due {
+                state.scheduled.remove(session);
+            }
+            due
         };
 
-        std::thread::sleep(DEBOUNCE_DELAY);
-
-        let action = {
-            let mut state = match scheduled_state().lock() {
-                Ok(guard) => guard,
-                Err(poisoned) => poisoned.into_inner(),
-            };
-            match state.scheduled.get_mut(&session) {
-                Some(entry) if entry.generation == target_generation => {
-                    // Quiet period elapsed — clear the slot and run
-                    // the rebuild outside the state lock.
-                    state.scheduled.remove(&session);
-                    Action::Rebuild
-                }
-                Some(_) => {
-                    // Newer schedule() during the sleep — extend the
-                    // debounce by looping.
-                    Action::Reloop
-                }
-                // Entry vanished (shouldn't happen while we are the
-                // only writer-running task for this session, but stay
-                // defensive).
-                None => Action::Stop,
+        for session in due_sessions {
+            if let Err(err) = super::turn_index::rebuild_turn_index(&session) {
+                // Read-time rebuild will recover; just log.
+                tracing::warn!("[turn-index-debounce] rebuild failed for {session}: {err}");
             }
-        };
-
-        match action {
-            Action::Rebuild => {
-                if let Err(err) = super::turn_index::rebuild_turn_index(&session) {
-                    // Read-time rebuild will recover; just log.
-                    tracing::warn!("[turn-index-debounce] rebuild failed for {session}: {err}");
-                }
-                return;
-            }
-            Action::Reloop => continue,
-            Action::Stop => return,
         }
     }
-}
-
-enum Action {
-    Rebuild,
-    Reloop,
-    Stop,
 }
 
 #[cfg(test)]

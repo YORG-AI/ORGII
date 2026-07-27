@@ -395,6 +395,36 @@ sortedEventIndexMapAtom.debugLabel = "session/sortedEventIndexMap";
 
 let _prevLastEvent: SessionEvent | null = null;
 
+/**
+ * Drop module-level memo state when the active session departs.
+ *
+ * These caches intentionally outlive individual atom evaluations so their
+ * references stay stable while a session is active. That also means Jotai
+ * cannot collect the previous transcript when the UI navigates to a surface
+ * that no longer reads these atoms (for example, Launchpad): the cached
+ * arrays and lookup maps would continue to root every event until another
+ * session happened to recompute each selector.
+ *
+ * Session lifecycle actions call this eagerly before clearing or replacing
+ * the active snapshot. The next atom read rebuilds the small indexes from the
+ * current snapshot, preserving the hot-path behavior without retaining an
+ * inactive transcript.
+ */
+export function resetEventAtomMemoCaches(): void {
+  _lastKnownEventsCache = { sessionId: null, events: [] };
+  _prevEventsForIndex = [];
+  _prevEventIndexRecord = null;
+  _prevEventIndexMap = new EventLookupMap([], {});
+  _prevEventsForSecondaryLookup = [];
+  _prevEventSecondaryLookup = {
+    chunkIdToEventId: new Map<string, string>(),
+    callIdToEventId: new Map<string, string>(),
+  };
+  _prevSortedForIndex = [];
+  _prevSortedIndexMap = new Map<string, number>();
+  _prevLastEvent = null;
+}
+
 export const lastEventAtom = atom<SessionEvent | null>((get) => {
   const snap = get(derivedSnapshotAtom);
 

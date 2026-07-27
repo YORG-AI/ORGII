@@ -61,15 +61,9 @@
     "startSession": "Начать сессию",
     "sessions": "Session",
     "selectProject": "Выбрать Project",
-    "startPage": "Главная страница",
     "inbox": "Входящие",
     "login": "Вход",
     "setup": "Настройка",
-    "devJourney": "Dev Journey",
-    "devRecord": "Журнал разработки",
-    "gitDashboard": "Git Панель",
-    "devActivity": "Dev Активность",
-    "usageHistory": "История использования",
     "tokenMarket": "Token маркет",
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
@@ -85,20 +79,8 @@
     "ideaArea": "Пространство идей",
     "changelog": "Журнал изменений"
   },
-  "appGrid": {
-    "customizeGrid": "Настроить сетку",
-    "horizontalGap": "Горизонтальный интервал",
-    "verticalGap": "Вертикальный интервал",
-    "resetToDefault": "Сбросить по умолчанию"
-  },
-  "greetings": {
-    "morning": "Доброе утро",
-    "afternoon": "Добрый день",
-    "evening": "Добрый вечер"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Главная",
       "workstation": "Workstation",
       "manage": "Управление",
       "core": "Ядро",
@@ -134,9 +116,7 @@
     "actions": {
       "addNew": "Добавить новое",
       "collapseAll": "Свернуть все",
-      "markAllRead": "Отметить все как прочитанные",
-      "openHome": "Открыть Home",
-      "openWorkstation": "Открыть Workstation"
+      "markAllRead": "Отметить все как прочитанные"
     },
     "search": {
       "folders": "Искать в рабочей области...",
@@ -358,15 +338,6 @@
       "projects": "Проекты"
     }
   },
-  "changelog": {
-    "title": "Журнал изменений",
-    "subtitle": "Обновления продукта",
-    "commitCount": "{{count}} коммитов",
-    "commitCount_one": "{{count}} коммит",
-    "details": "Подробности",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Сменить ORG",
     "addOrg": "Добавить ORG",
@@ -434,7 +405,9 @@
     "title": "ORG2 Cloud",
     "signIn": "Войти",
     "signOut": "Выйти",
+    "signedInAs": "Выполнен вход как {{name}}",
     "signedInToast": "Выполнен вход в ORG2 Cloud",
+    "sessionExpired": "Сеанс ORG2 Cloud истёк. Войдите снова, чтобы продолжить.",
     "recommendedBadge": "Рекомендуется",
     "recommendedDesc": "Управляемое совместное использование сессий, хранение реплеев, командные права и безопасные ссылки. Настройка Supabase не нужна. ORG2 берёт на себя Auth, миграции базы данных, политики RLS, оплату, сроки хранения, квоты и обновления бэкенда",
     "customEndpoint": {
@@ -474,13 +447,15 @@
       "retentionUpgrade": "Эта сессия вне окна реплея вашего плана — обновите план, чтобы её открыть",
       "importError": "Не удалось импортировать сессию",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Обо мне"
     },
     "sidebar": {
       "teamSessions": "Сессии команды",
       "mySessions": "Мои сессии",
       "memberFilter": "Фильтр по участнику",
       "sessionFilter": "Фильтр сеансов",
+      "copyId": "Копировать ID",
       "directlySharedWithMe": "Доступ предоставлен лично мне",
       "everyone": "Все",
       "forkedFrom": "форк от @{{name}}",
@@ -613,25 +588,22 @@
         "inviteInvalid": "Этот код приглашения недействителен.",
         "inviteRevoked": "Это приглашение отозвано.",
         "inviteExpired": "Срок действия приглашения истёк.",
-        "inviteExhausted": "У этого приглашения не осталось использований."
+        "inviteExhausted": "У этого приглашения не осталось использований.",
+        "network": "Не удалось подключиться к облачному сервису. Проверьте сеть и повторите попытку."
       }
-    },
-    "defaultAccess": {
-      "label": "Уровень синхронизации по умолчанию",
-      "help": "Применяется к сессиям этого устройства, попавшим под область репозиториев и без собственной настройки. «Выключено» — сессии остаются локальными, пока вы не включите синхронизацию"
     },
     "syncLevel": {
       "menuItem": "Уровень облачной синхронизации…",
       "title": "Уровень облачной синхронизации",
       "hint": "Выберите, что эта сессия передаёт в каждую облачную организацию — ничего, только метаданные или полный реплей — и кто может её видеть.",
-      "orgDefaultOption": "По умолчанию организации ({{mode}})",
       "modeOff": "Выключено",
       "modeMetadata": "Только метаданные",
       "modeFullReplay": "Полный реплей",
       "visibilityOrg": "Вся организация",
       "visibilityRestricted": "Только я",
       "taggedNote": "Эта сессия перемещена в организацию, поэтому, пока стоит метка, она передаёт как минимум метаданные.",
-      "floorNote": "Администратор организации требует делиться минимум на уровне {{mode}}."
+      "floorNote": "Администратор организации требует делиться минимум на уровне {{mode}}.",
+      "orgMinimumOption": "Минимум организации ({{mode}})"
     },
     "share": {
       "menuItem": "Облачный доступ…",

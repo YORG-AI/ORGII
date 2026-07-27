@@ -297,6 +297,79 @@ pub struct WorkItemData {
     pub filename: String,
 }
 
+/// Narrow database projection consumed by the background schedule executor.
+///
+/// Keeping this separate from [`WorkItemData`] prevents an idle scheduling
+/// pass from loading bodies, labels, history, comments, or runtime state for
+/// every work item.
+#[derive(Debug, Clone)]
+pub struct ScheduledWorkItemCandidate {
+    pub project_slug: String,
+    pub short_id: String,
+    pub title: String,
+    pub status: String,
+    pub start_date: Option<String>,
+    pub orchestrator_config: Option<OrchestratorConfig>,
+    pub schedule: Option<WorkItemSchedule>,
+}
+
+/// Optional read partition used by aggregate views that defer terminal items.
+/// GitHub `closed` and native `completed` share the completed partition.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkItemReadBucket {
+    Active,
+    Completed,
+}
+
+impl WorkItemReadBucket {
+    pub fn matches(self, status: &str) -> bool {
+        let is_completed = status == "completed" || status == "closed";
+        match self {
+            Self::Active => !is_completed,
+            Self::Completed => is_completed,
+        }
+    }
+}
+
+#[cfg(test)]
+mod work_item_read_bucket_tests {
+    use super::WorkItemReadBucket;
+
+    #[test]
+    fn active_and_completed_buckets_partition_native_and_github_statuses() {
+        for active_status in [
+            "open",
+            "backlog",
+            "planned",
+            "in_progress",
+            "in_review",
+            "cancelled",
+            "duplicate",
+        ] {
+            assert!(WorkItemReadBucket::Active.matches(active_status));
+            assert!(!WorkItemReadBucket::Completed.matches(active_status));
+        }
+
+        for completed_status in ["completed", "closed"] {
+            assert!(!WorkItemReadBucket::Active.matches(completed_status));
+            assert!(WorkItemReadBucket::Completed.matches(completed_status));
+        }
+    }
+
+    #[test]
+    fn read_bucket_wire_values_are_stable_snake_case() {
+        assert_eq!(
+            serde_json::to_string(&WorkItemReadBucket::Active).unwrap(),
+            "\"active\""
+        );
+        assert_eq!(
+            serde_json::to_string(&WorkItemReadBucket::Completed).unwrap(),
+            "\"completed\""
+        );
+    }
+}
+
 fn deserialize_optional_update<'de, D, T>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
 where
     D: Deserializer<'de>,

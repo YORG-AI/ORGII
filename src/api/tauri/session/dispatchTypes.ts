@@ -21,12 +21,14 @@
 export type DispatchCategory =
   | "cli_agent"
   | "rust_agent"
+  | "human_session"
   | "cursor_ide"
   | "external_history";
 
 export const DISPATCH_CATEGORY = {
   CLI_AGENT: "cli_agent",
   RUST_AGENT: "rust_agent",
+  HUMAN_SESSION: "human_session",
   CURSOR_IDE: "cursor_ide",
   EXTERNAL_HISTORY: "external_history",
 } as const;

@@ -26,6 +26,19 @@ import type {
 export type { SessionStatus, PendingQuestion };
 
 /**
+ * Source-owned identity retained for display after a teammate session is
+ * imported as a read-only replay. This is intentionally separate from the
+ * imported Session's runnable configuration: `Session.model` remains unset so
+ * the fork composer asks the viewer which local model/account to use.
+ */
+export interface SessionSourceDisplayMetadata {
+  cliAgentType?: string;
+  agentDisplayName?: string;
+  agentDefinitionId?: string;
+  model?: string;
+}
+
+/**
  * Provenance + consumer-side sync cursor for sessions imported from a
  * collaboration org (design §7.4 / §16.7). Lives on the Session record as a
  * first-class field — it replaces the legacy collab idiom of JSON-encoding
@@ -60,8 +73,12 @@ export interface SessionImportedFrom {
   tailHash?: string;
   /** Display convenience carried over from the remote metadata. */
   ownerDisplayName?: string;
+  /** Optional profile image carried over from the remote metadata. */
+  ownerAvatarUrl?: string;
   /** Original read-only adapter when the shared source came from another app. */
   externalHistorySource?: ImportedHistorySourceId;
+  /** Display-only source identity; never used as fork execution authority. */
+  sourceDisplay?: SessionSourceDisplayMetadata;
   importedAt?: string;
   /** Share-link capability used for a later guest fork; absent for member imports. */
   shareToken?: string;
@@ -141,6 +158,13 @@ export interface Session {
    * the `repo_path` column on `agent_sessions` / `code_sessions`.
    */
   repoPath?: string;
+  /**
+   * Canonical Git worktree root discovered for imported history. `repoPath`
+   * remains the original working folder captured by the source application.
+   */
+  repoRootPath?: string;
+  /** Raw cached Git remotes for imported history; normalized at scope use. */
+  repoRemoteUrls?: string[];
   /** Path to the file or directory where this session's persisted data lives. */
   storagePath?: string;
   /** Worktree path for isolated parallel sessions */

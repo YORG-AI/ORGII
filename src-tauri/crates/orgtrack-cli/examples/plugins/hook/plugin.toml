@@ -1,0 +1,18 @@
+# Example orgtrack action hook: run when a trigger fires during `orgtrack check`.
+# It runs code, so it is inert until trusted:
+#   orgtrack plugins list
+#   orgtrack plugins trust notify-firings
+#   orgtrack check --db ~/.orgtrack/index.db
+#
+# The firings JSON arrives on stdin; do whatever you like (Slack webhook,
+# notify-send, open a ticket). `on` limits which severities invoke it.
+
+[plugin]
+id     = "notify-firings"
+label  = "Notify on trigger firing"
+kind   = "hook"
+format = "exec"
+exec   = "./notify.sh"
+
+[hook]
+on = ["error"]     # invoke only when an error-severity trigger fires; omit for any

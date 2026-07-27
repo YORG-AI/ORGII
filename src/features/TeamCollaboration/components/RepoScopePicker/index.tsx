@@ -38,6 +38,8 @@ export interface RepoScopePickerProps {
   onChange: (keys: string[]) => void;
   /** Multi-select (org scopes) vs single-select (join request). */
   multiple?: boolean;
+  /** Keep selected repos visible but disabled so this surface only adds. */
+  addOnly?: boolean;
   disabled?: boolean;
 }
 
@@ -56,6 +58,7 @@ export function RepoScopePicker({
   selectedKeys,
   onChange,
   multiple = true,
+  addOnly = false,
   disabled = false,
 }: RepoScopePickerProps) {
   const { t } = useTranslation("navigation");
@@ -92,6 +95,7 @@ export function RepoScopePicker({
     if (disabled) return;
     const normalized = normalizeRepoScopeKey(key);
     const isSelected = normalizedSelection.has(normalized);
+    if (addOnly && isSelected) return;
     if (!multiple) {
       onChange(isSelected ? [] : [normalized]);
       return;
@@ -106,7 +110,10 @@ export function RepoScopePicker({
   };
 
   return (
-    <div className="flex max-h-56 flex-col divide-y divide-border-2 overflow-y-auto rounded-xl border border-border-2 bg-bg-2">
+    <div
+      className="flex max-h-56 w-full flex-col divide-y divide-border-2 overflow-y-auto rounded-xl border border-border-2 bg-bg-2"
+      data-testid="repo-scope-picker"
+    >
       {repos.length === 0 ? (
         <div className="px-3 py-3 text-[12px] text-text-3">
           {repoLoading
@@ -116,10 +123,17 @@ export function RepoScopePicker({
       ) : (
         repos.map((repo) => {
           const scopeKey = getRepoScopeKey(repo);
-          const selectable = typeof scopeKey === "string" && !disabled;
           const isSelected =
             typeof scopeKey === "string" &&
             normalizedSelection.has(normalizeRepoScopeKey(scopeKey));
+          const selectable =
+            typeof scopeKey === "string" &&
+            !disabled &&
+            !(addOnly && isSelected);
+          const scopeLabel =
+            scopeKey === undefined
+              ? t("collaboration.repoPicker.resolving")
+              : (scopeKey ?? t("collaboration.repoPicker.noRemote"));
           return (
             <button
               key={repo.id}
@@ -134,17 +148,16 @@ export function RepoScopePicker({
                   : "cursor-not-allowed opacity-60"
               }`}
             >
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate text-[12px] text-text-1">
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="min-w-0 truncate text-[12px] text-text-1">
                   {repo.name}
                 </span>
+                <span className="shrink-0 text-[11px] text-text-3">·</span>
                 <span
-                  className="truncate text-[11px] text-text-3"
+                  className="min-w-0 flex-1 truncate text-[11px] text-text-3"
                   title={scopeKey ?? repo.fs_uri}
                 >
-                  {scopeKey === undefined
-                    ? t("collaboration.repoPicker.resolving")
-                    : (scopeKey ?? t("collaboration.repoPicker.noRemote"))}
+                  {scopeLabel}
                 </span>
               </div>
               {isSelected ? (

@@ -28,12 +28,19 @@ function guestSession(id: string, updatedAt = "2026-07-17T10:00:00Z"): Session {
       sourceSessionId: `source-${id}`,
       ownerMemberId: "owner-1",
       ownerDisplayName: "Owner",
+      ownerAvatarUrl: "https://example.com/owner.png",
       epoch: 2,
       seq: 3,
       count: 40,
       frozenCount: 30,
       tailHash: "tail-hash",
       importedAt: updatedAt,
+      externalHistorySource: "codex_app",
+      sourceDisplay: {
+        cliAgentType: "codex",
+        agentDisplayName: "Codex App",
+        model: "gpt-5.6-sol",
+      },
       shareToken: `token-${id}`,
       shareEndpointUrl: "https://supabase.acme.dev",
     },
@@ -81,6 +88,14 @@ describe("guestImportRegistry", () => {
     expect(restored?.importedFrom?.shareEndpointUrl).toBe(
       "https://supabase.acme.dev"
     );
+    expect(restored?.importedFrom?.ownerAvatarUrl).toBe(
+      "https://example.com/owner.png"
+    );
+    expect(restored?.importedFrom?.sourceDisplay).toEqual({
+      cliAgentType: "codex",
+      agentDisplayName: "Codex App",
+      model: "gpt-5.6-sol",
+    });
   });
 
   it("prefers the live row over the registry copy on id collision", () => {

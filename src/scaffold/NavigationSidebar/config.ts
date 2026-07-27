@@ -17,10 +17,8 @@ export const SIDEBAR_STYLE = {
   searchHeight: 28,
   /** Action button size */
   actionButtonSize: 28,
-  /** Item height */
-  itemHeight: 36,
-  /** Group header height */
-  groupHeaderHeight: 28,
+  /** Shared navigation row height */
+  rowHeight: 32,
   /** Border radius */
   borderRadius: 20,
   /** Item border radius */

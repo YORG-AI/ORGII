@@ -139,10 +139,13 @@
       "helveticaNeue": "Helvetica Neue style"
     },
     "uiScale": "UI scale",
+    "preferences": "Preferences",
+    "usePointerCursors": "Use pointer cursors",
+    "usePointerCursorsDesc": "Change the cursor to a pointer when hovering over interactive elements",
     "timezoneAuto": "Auto (Browser)",
     "timezoneSearchPlaceholder": "Search closest cities",
     "sendOnEnter": "Send messages with Enter",
-    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends",
+    "sendOnEnterDesc": "When enabled, Enter sends; Shift+Enter and Ctrl/Cmd+Enter insert a new line. When disabled, Ctrl/Cmd+Enter sends",
     "language": "Language",
     "languageSearchPlaceholder": "Search languages...",
     "languageNames": {
@@ -799,8 +802,6 @@
   },
   "update": {
     "title": "App Update",
-    "autoUpdate": "Automatic updates",
-    "autoUpdateDesc": "Download updates automatically and ask before installing and restarting ORGII",
     "channel": "Update channel",
     "channelDesc": "Beta receives prerelease builds ahead of the stable release. Switching back to Stable never downgrades — it takes effect at the next stable release",
     "channelStable": "Stable",
@@ -810,7 +811,6 @@
     "installConfirmTitle": "Update ready to install",
     "installConfirmDesc": "Version {{version}} has been downloaded. Save any ongoing work before installing and restarting ORGII.",
     "installAndRestart": "Install and restart",
-    "autoDownloadUpdates": "Automatically download future updates",
     "skipVersion": "Skip this version"
   },
   "monitor": {
@@ -1027,7 +1027,7 @@
     "decryptEffect": "Typewriter Effect",
     "decryptEffectDesc": "Reveal Agent messages character by character",
     "sendOnEnter": "Send messages with Enter",
-    "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends"
+    "sendOnEnterDesc": "When enabled, Enter sends; Shift+Enter and Ctrl/Cmd+Enter insert a new line. When disabled, Ctrl/Cmd+Enter sends"
   },
   "languageServers": {
     "languageServersDesc": "Manage LSP servers for autocomplete, diagnostics, and code intelligence",

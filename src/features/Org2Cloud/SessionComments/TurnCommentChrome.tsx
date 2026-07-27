@@ -2,18 +2,22 @@
  * TurnCommentChrome — per-turn comment affordance + inline thread panel in
  * the replay transcript (managed-cloud collaboration design).
  *
- * Rendered by `GroupHeaderRenderer` under each turn's user-message card;
- * the anchor id is the turn's leading user-message event id (the same
- * stable id `useChatGroups` exposes as `turnId`). Consumes
+ * Rendered by `GroupHeaderRenderer` around each turn's user-message card;
+ * its toggle is injected into the card's existing action toolbar while the
+ * expanding thread remains below the card. The anchor id is the turn's
+ * leading user-message event id (the same stable id `useChatGroups` exposes
+ * as `turnId`). Consumes
  * `SessionCommentsContext` — a null context (any non-cloud session, or a
- * surface without the provider) renders NOTHING, so the ordinary chat
- * panel is untouched. The expanding panel lives inside the group row,
+ * surface without the provider) adds no chrome, so the ordinary chat panel
+ * is untouched. The expanding panel lives inside the group row,
  * which is height-measured by a ResizeObserver in both list paths, so
  * virtualization stays correct.
  */
 import { MessageSquare } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+
+import { CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS } from "@src/components/ChatBubble";
 
 import type { CloudSessionComment } from "../org2CloudCommentsClient";
 import { countLiveComments } from "../org2CloudSessionCommentsAtom";
@@ -23,10 +27,13 @@ import { useSessionCommentsContext } from "./SessionCommentsContext";
 export interface TurnCommentChromeProps {
   /** Turn anchor: the group's leading user-message event id. */
   anchorEventId: string;
+  /** Render the message card with the optional comment toolbar action. */
+  renderMessage: (toolbarAction: React.ReactNode) => React.ReactNode;
 }
 
 const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
   anchorEventId,
+  renderMessage,
 }) => {
   const { t } = useTranslation("navigation");
   const context = useSessionCommentsContext();
@@ -60,44 +67,39 @@ const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
 
   // Hidden in group-chat view: the transcript there merges MEMBER-session
   // events whose ids can never anchor into this session's comment plane.
-  if (!context || !context.turnAnchorsVisible) return null;
+  if (!context || !context.turnAnchorsVisible) {
+    return <>{renderMessage(null)}</>;
+  }
 
   const sourceAnchorEventId = context.toSourceEventId(anchorEventId);
   const threads = context.grouped.byEventId.get(sourceAnchorEventId) ?? [];
   const liveCount = countLiveComments(threads);
   const toggleLabel = t("cloud.comments.toggleLabel");
 
-  // The add-comment affordance rides the turn's hover-reveal button group
-  // (icon-only, primary tint) — kept out of the resting transcript like the
-  // copy/edit toolbar. Turns that already carry state (an open panel or live
-  // comments) stay pinned visible so nothing persistent hides behind a hover.
-  const persistent = open || liveCount > 0;
-
   return (
-    <div className="mt-1 flex flex-col gap-1.5">
-      <div className="flex items-center justify-end gap-1.5">
+    <>
+      {renderMessage(
         <button
           type="button"
-          className={`inline-flex items-center justify-center gap-1 rounded-md p-1 leading-none text-primary-6 transition-[opacity,background-color] hover:bg-fill-2 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${
-            persistent
-              ? "opacity-100"
-              : "opacity-0 group-hover/turn:opacity-100"
-          }`}
+          className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} gap-1 leading-none text-primary-6`}
           aria-label={toggleLabel}
           title={toggleLabel}
           aria-expanded={open}
           data-testid={`session-comment-toggle-${anchorEventId}`}
-          onClick={() => setOpen((current) => !current)}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen((current) => !current);
+          }}
         >
           <MessageSquare size={14} strokeWidth={2} />
           {liveCount > 0 && (
             <span className="text-[11px] leading-none">{liveCount}</span>
           )}
         </button>
-      </div>
+      )}
       {open && (
         <div
-          className="rounded-lg border border-border-2 bg-bg-2 p-2"
+          className="mt-1 rounded-lg border border-border-2 bg-bg-2 p-2"
           data-testid="session-comment-thread"
         >
           <CommentThreadList
@@ -110,6 +112,7 @@ const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
                 ? undefined
                 : t("cloud.comments.replayRequired")
             }
+            onComposerCancel={() => setOpen(false)}
             emptyLabel={
               context.state === "error"
                 ? t("cloud.comments.loadError")
@@ -122,7 +125,7 @@ const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
           />
         </div>
       )}
-    </div>
+    </>
   );
 };
 

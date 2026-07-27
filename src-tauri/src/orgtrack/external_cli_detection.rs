@@ -631,7 +631,10 @@ fn platform_data_candidates(relative_paths: &[&str]) -> Vec<PathBuf> {
 }
 
 fn expand_home_relative(relative: &str) -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    // Keep history discovery aligned with the source-specific importers. The
+    // secondary-instance launcher overrides this root so two cloud identities
+    // cannot both discover and claim the same system-level transcripts.
+    let home = app_paths::external_history_home_dir();
     Some(home.join(relative))
 }
 

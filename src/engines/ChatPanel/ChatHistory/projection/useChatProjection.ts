@@ -47,14 +47,17 @@ export function useChatProjection({
   options,
   enabled = true,
 }: UseChatProjectionOptions): UseChatProjectionResult {
+  const projectionEnabled = enabled && Boolean(sessionId);
   const shouldUseWorker =
-    enabled &&
-    Boolean(sessionId) &&
+    projectionEnabled &&
     events.length >= CHAT_PROJECTION_WORKER_THRESHOLD &&
     chatProjectionClient.isSupported();
   const synchronous = useMemo(
-    () => (shouldUseWorker ? null : projectChatHistory(events, options)),
-    [events, options, shouldUseWorker]
+    () =>
+      !projectionEnabled || shouldUseWorker
+        ? null
+        : projectChatHistory(events, options),
+    [events, options, projectionEnabled, shouldUseWorker]
   );
   const [workerState, setWorkerState] = useState<{
     sessionId: string;
@@ -97,6 +100,20 @@ export function useChatProjection({
     events: SessionEvent[];
     options: ChatHistoryProjectionOptions;
   } | null>(null);
+
+  useEffect(() => {
+    if (shouldUseWorker) return;
+
+    // A completed Worker projection owns both the input event array and the
+    // projected output graph. ChatHistory stays mounted not only on Launchpad
+    // but also while switching to a smaller session that projects on the main
+    // thread. Drop those Worker-side React references whenever the CURRENT
+    // input no longer uses the Worker; disposing its remote session alone does
+    // not release workerState/previousWorkerInputRef in this component.
+    requestIdentityRef.current += 1;
+    previousWorkerInputRef.current = null;
+    setWorkerState(null);
+  }, [shouldUseWorker]);
 
   useEffect(() => {
     if (!shouldUseWorker || !sessionId || !workerSessionKey) return;
@@ -192,6 +209,18 @@ export function useChatProjection({
   );
 
   const active = workerProjection ?? retainedProjection ?? synchronous;
+  if (!projectionEnabled) {
+    return {
+      optimizedChatHistory: [],
+      sessionInfo: null,
+      groups: undefined,
+      projectionRevision: 0,
+      groupShapeDigest: "disabled",
+      itemShapeDigest: "disabled",
+      pending: false,
+      execution: "main",
+    };
+  }
   if (!active) {
     return {
       optimizedChatHistory: [],

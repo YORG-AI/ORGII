@@ -19,6 +19,8 @@ use super::{
     EventStoreState,
 };
 
+const DEFAULT_RECENT_TURN_BODY_COUNT: usize = 1;
+
 // ============================================================================
 // Turn Window Types
 // ============================================================================
@@ -41,13 +43,18 @@ pub struct SessionInitialTurnWindow {
 // Turn Window Helpers
 // ============================================================================
 
-fn turn_user_preview_text(turn: &sqlite_cache::CachedTurnSummary) -> String {
-    let preview = turn.user_preview.trim();
+fn normalize_turn_user_preview(preview: &str) -> String {
+    let preview = preview.trim();
     preview
         .strip_prefix("user_message ")
+        .or_else(|| preview.strip_prefix("user "))
         .unwrap_or(preview)
         .trim()
         .to_string()
+}
+
+fn turn_user_preview_text(turn: &sqlite_cache::CachedTurnSummary) -> String {
+    normalize_turn_user_preview(&turn.user_preview)
 }
 
 fn turn_has_user_header(
@@ -197,7 +204,7 @@ pub(super) async fn load_initial_turn_window_events(
     recent_turn_count: Option<usize>,
 ) -> Result<SessionInitialTurnWindow, String> {
     let sid = session_id.to_string();
-    let recent_count = recent_turn_count.unwrap_or(5);
+    let recent_count = recent_turn_count.unwrap_or(DEFAULT_RECENT_TURN_BODY_COUNT);
     let window = tokio::task::spawn_blocking(move || {
         sqlite_cache::load_initial_turn_window(&sid, recent_count)
     })
@@ -278,13 +285,24 @@ pub async fn es_unload_turn_body(
 ) -> Result<usize, String> {
     let lookup_sid = session_id.clone();
     let lookup_turn_id = turn_id.clone();
-    let turn = tokio::task::spawn_blocking(move || sqlite_cache::load_turn_index(&lookup_sid))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())?
+    let persisted_turn =
+        tokio::task::spawn_blocking(move || sqlite_cache::load_turn_index(&lookup_sid))
+            .await
+            .map_err(|e| e.to_string())?
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .find(|summary| summary.turn_id == lookup_turn_id);
+    let turn = match persisted_turn {
+        Some(turn) => turn,
+        None => crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
+            session_id.clone(),
+            Some(vec![turn_id.clone()]),
+        )
+        .await?
         .into_iter()
-        .find(|summary| summary.turn_id == lookup_turn_id)
-        .ok_or_else(|| format!("turn not found: {turn_id}"))?;
+        .next()
+        .ok_or_else(|| format!("turn not found: {turn_id}"))?,
+    };
 
     let placeholder = make_turn_placeholder_event(&session_id, &turn);
     let removed = state.with_store_mut(&session_id, |store| {
@@ -294,4 +312,18 @@ pub async fn es_unload_turn_body(
         schedule_notify(&app, &state, &session_id);
     }
     Ok(removed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::normalize_turn_user_preview;
+
+    #[test]
+    fn imported_user_alias_is_removed_from_placeholder_preview() {
+        assert_eq!(normalize_turn_user_preview("user hello"), "hello");
+        assert_eq!(
+            normalize_turn_user_preview("user_message native hello"),
+            "native hello"
+        );
+    }
 }

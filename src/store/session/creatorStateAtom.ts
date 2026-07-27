@@ -25,6 +25,7 @@ export const SESSION_TARGET_KIND = {
   AGENT: "agent",
   AGENT_ORG: "agent_org",
   CLI_AGENT: "cli_agent",
+  HUMAN: "human",
 } as const;
 
 export type SessionTargetKind =
@@ -180,6 +181,19 @@ export function normalizeSessionCreatorState(
   return state;
 }
 
+export function normalizeAgentOnlySessionCreatorState(
+  state: SessionCreatorState
+): SessionCreatorState {
+  if (
+    state.dispatchCategory !== "human_session" &&
+    state.targetKind !== SESSION_TARGET_KIND.HUMAN
+  ) {
+    return state;
+  }
+
+  return withDefaultSdeAgent(state);
+}
+
 // ============================================
 // Atoms
 // ============================================
@@ -244,7 +258,9 @@ export const dispatchCategoryAtom = atom(
       targetKind:
         category === "cli_agent"
           ? SESSION_TARGET_KIND.CLI_AGENT
-          : SESSION_TARGET_KIND.AGENT,
+          : category === "human_session"
+            ? SESSION_TARGET_KIND.HUMAN
+            : SESSION_TARGET_KIND.AGENT,
       selectedAgentOrgId: null,
     });
   }

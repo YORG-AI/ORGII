@@ -42,6 +42,29 @@ const BUFFER_FLUSH_INTERVAL = 1500;
 
 /** Maximum events per batch store request */
 const MAX_BATCH_SIZE = 500;
+const MAX_BUFFER_EVENTS = 2_000;
+const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
+const MAX_SINGLE_EVENT_BYTES = 256 * 1024;
+
+function estimateEventBytes(event: HostedKeyActivityEvent): number {
+  try {
+    return JSON.stringify(event).length * 2;
+  } catch {
+    return MAX_SINGLE_EVENT_BYTES + 1;
+  }
+}
+
+function wouldOverflowBuffer(
+  eventCount: number,
+  bufferedBytes: number,
+  eventBytes: number
+): boolean {
+  return (
+    eventBytes > MAX_SINGLE_EVENT_BYTES ||
+    eventCount >= MAX_BUFFER_EVENTS ||
+    bufferedBytes + eventBytes > MAX_BUFFER_BYTES
+  );
+}
 
 // ============================================
 // Types
@@ -109,6 +132,8 @@ export function useHostedKeyActivitySync(
 
   /** Event buffer for batching */
   const eventBufferRef = useRef<HostedKeyActivityEvent[]>([]);
+  const eventBufferBytesRef = useRef(0);
+  const overflowWarnedRef = useRef(false);
   /** Flush timer */
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Session ID ref to handle async operations */
@@ -154,6 +179,14 @@ export function useHostedKeyActivitySync(
 
     // Take events from buffer
     const eventsToStore = eventBufferRef.current.splice(0, MAX_BATCH_SIZE);
+    const batchBytes = eventsToStore.reduce(
+      (total, event) => total + estimateEventBytes(event),
+      0
+    );
+    eventBufferBytesRef.current = Math.max(
+      0,
+      eventBufferBytesRef.current - batchBytes
+    );
 
     if (eventsToStore.length === 0) return;
 
@@ -170,6 +203,7 @@ export function useHostedKeyActivitySync(
       if (sessionIdRef.current !== sid) return;
 
       if (response?.status === 0 && response.data) {
+        overflowWarnedRef.current = false;
         // Keep ref + state in lockstep so the next processEvent's
         // dedup check sees the most recent cursor regardless of whether
         // the state has flushed through React yet.
@@ -184,7 +218,25 @@ export function useHostedKeyActivitySync(
       log.error("[CloudActivitySync] Failed to store events:", err);
       // Only re-add events if still the same session
       if (sessionIdRef.current === sid) {
+        // Failed older events take precedence over newer buffered events.
+        // Evict from the tail until reinsertion stays within both hard
+        // bounds; the stream cursor is not advanced for anything dropped.
+        while (
+          eventBufferRef.current.length > 0 &&
+          (eventBufferRef.current.length + eventsToStore.length >
+            MAX_BUFFER_EVENTS ||
+            eventBufferBytesRef.current + batchBytes > MAX_BUFFER_BYTES)
+        ) {
+          const dropped = eventBufferRef.current.pop();
+          if (dropped) {
+            eventBufferBytesRef.current = Math.max(
+              0,
+              eventBufferBytesRef.current - estimateEventBytes(dropped)
+            );
+          }
+        }
         eventBufferRef.current.unshift(...eventsToStore);
+        eventBufferBytesRef.current += batchBytes;
       }
     }
 
@@ -227,8 +279,26 @@ export function useHostedKeyActivitySync(
         return;
       }
 
-      // Add to buffer
+      const eventBytes = estimateEventBytes(event);
+      if (
+        wouldOverflowBuffer(
+          eventBufferRef.current.length,
+          eventBufferBytesRef.current,
+          eventBytes
+        )
+      ) {
+        if (!overflowWarnedRef.current) {
+          overflowWarnedRef.current = true;
+          log.warn(
+            `[CloudActivitySync] Buffer limit reached (${MAX_BUFFER_EVENTS} events / ${MAX_BUFFER_BYTES} bytes); dropping newest events until persistence recovers`
+          );
+        }
+        return;
+      }
+
+      // Add to the bounded buffer.
       eventBufferRef.current.push(event);
+      eventBufferBytesRef.current += eventBytes;
 
       // Convert to SessionEvent and notify
       if (onEventsReceivedRef.current) {
@@ -437,6 +507,8 @@ export function useHostedKeyActivitySync(
         flushTimerRef.current = null;
       }
       eventBufferRef.current = [];
+      eventBufferBytesRef.current = 0;
+      overflowWarnedRef.current = false;
       setIsReady(false);
       initializedRef.current = null;
       return;
@@ -453,6 +525,8 @@ export function useHostedKeyActivitySync(
     setCursor("0");
     setError(null);
     eventBufferRef.current = [];
+    eventBufferBytesRef.current = 0;
+    overflowWarnedRef.current = false;
 
     const initSessionId = sessionId;
     loadHistory()
@@ -516,5 +590,14 @@ export function useHostedKeyActivitySync(
 }
 
 export { isEmptyThinkingEndFrame } from "./hostedKeyEventUtils";
+
+export const hostedKeyActivityBufferTestApi = {
+  wouldOverflow: wouldOverflowBuffer,
+  limits: {
+    events: MAX_BUFFER_EVENTS,
+    bytes: MAX_BUFFER_BYTES,
+    singleEventBytes: MAX_SINGLE_EVENT_BYTES,
+  },
+};
 
 export default useHostedKeyActivitySync;

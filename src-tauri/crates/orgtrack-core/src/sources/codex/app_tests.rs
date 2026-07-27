@@ -6,7 +6,7 @@ fn includes_codex_session_dir_candidates() {
     let paths = codex_sessions_dir_candidates(home);
     let rendered = paths
         .iter()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
 
     assert!(rendered.iter().any(|path| path.contains(".codex/sessions")));
@@ -30,6 +30,100 @@ fn includes_codex_session_dir_candidates() {
             .iter()
             .any(|path| path.contains("AppData/Local/Codex/sessions")));
     }
+}
+
+#[test]
+fn normalizes_codex_collaboration_calls_without_exposing_encrypted_messages() {
+    let spawn_calls = normalize_codex_tool_calls(
+        "spawn_agent",
+        json!({
+            "task_name": "audit_todays_commits",
+            "fork_turns": "all",
+            "message": format!("gAAAAA{}", "x".repeat(100))
+        }),
+    );
+    assert_eq!(spawn_calls.len(), 1);
+    assert_eq!(spawn_calls[0].0, "subagent");
+    assert_eq!(spawn_calls[0].1["description"], "audit_todays_commits");
+    assert_eq!(spawn_calls[0].1["task"], "audit_todays_commits");
+    assert!(spawn_calls[0].1.get("prompt").is_none());
+
+    let plaintext_spawn = normalize_codex_tool_calls(
+        "spawn_agent",
+        json!({
+            "task_name": "inspect_parser",
+            "message": "Inspect the Codex parser and report the root cause."
+        }),
+    );
+    assert_eq!(
+        plaintext_spawn[0].1["prompt"],
+        "Inspect the Codex parser and report the root cause."
+    );
+
+    let message_calls = normalize_codex_tool_calls(
+        "send_message",
+        json!({
+            "target": "/root/audit_todays_commits",
+            "message": format!("gAAAAA{}", "y".repeat(100))
+        }),
+    );
+    assert!(
+        message_calls.is_empty(),
+        "encrypted messages should not create empty cards"
+    );
+
+    let followup_calls = normalize_codex_tool_calls(
+        "followup_task",
+        json!({
+            "target": "/root/audit_todays_commits",
+            "message": "Also check regression coverage."
+        }),
+    );
+    assert_eq!(followup_calls[0].0, "org_send_message");
+    assert_eq!(
+        followup_calls[0].1["text"],
+        "Also check regression coverage."
+    );
+}
+
+#[test]
+fn codex_subagent_activity_attaches_exact_child_identity_to_spawn() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-subagent-activity-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-subagent-activity.jsonl");
+    let arguments = json!({
+        "task_name": "audit_todays_commits",
+        "fork_turns": "all",
+        "message": format!("gAAAAA{}", "x".repeat(100))
+    })
+    .to_string();
+    let content = format!(
+        r#"{{"timestamp":"2026-07-23T10:18:51.000Z","type":"event_msg","payload":{{"type":"user_message","message":"audit today's commit history"}}}}
+{{"timestamp":"2026-07-23T10:19:01.213Z","type":"response_item","payload":{{"type":"function_call","name":"spawn_agent","namespace":"collaboration","arguments":{},"call_id":"call_spawn"}}}}
+{{"timestamp":"2026-07-23T10:19:01.638Z","type":"event_msg","payload":{{"type":"sub_agent_activity","event_id":"call_spawn","agent_thread_id":"019f8e7c-5713-78b2-b790-494c41020f0f","agent_path":"/root/audit_todays_commits","kind":"started"}}}}
+{{"timestamp":"2026-07-23T10:19:01.648Z","type":"response_item","payload":{{"type":"function_call_output","call_id":"call_spawn","output":"{{\"task_name\":\"/root/audit_todays_commits\"}}"}}}}
+"#,
+        serde_json::to_string(&arguments).expect("encode spawn arguments")
+    );
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-parent", &path).expect("parse");
+    let spawn = chunks
+        .iter()
+        .find(|chunk| chunk.function == "subagent")
+        .expect("subagent chunk");
+
+    assert_eq!(
+        spawn.args["codexAgentThreadId"],
+        "019f8e7c-5713-78b2-b790-494c41020f0f"
+    );
+    assert_eq!(spawn.args["agent_path"], "/root/audit_todays_commits");
+    assert!(spawn.args.get("prompt").is_none());
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }
 
 #[test]
@@ -74,6 +168,159 @@ fn parses_codex_jsonl_into_replay_chunks() {
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
+    let temp_dir =
+        std::env::temp_dir().join(format!("orgii-codex-window-test-{}", std::process::id()));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-window.jsonl");
+    let content = r#"{"timestamp":"2026-07-21T01:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"first"}}
+{"timestamp":"2026-07-21T01:00:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first reply"}}
+{"timestamp":"2026-07-21T01:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"second"}}
+{"timestamp":"2026-07-21T01:01:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second reply"}}
+{"timestamp":"2026-07-21T01:02:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"third"}}
+{"timestamp":"2026-07-21T01:02:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"third reply"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let window =
+        load_codex_app_initial_window_from_path("codexapp-window", &path, 1).expect("window");
+    let wire = serde_json::to_value(&window).expect("serialize window");
+    assert!(wire.get("turns").is_none());
+    assert_eq!(window.turns.len(), 2);
+    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(
+        window.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+    assert_eq!(
+        window.chunks[1]
+            .result
+            .get("unloadedTurn")
+            .and_then(|value| value.get("nextTurnId"))
+            .and_then(Value::as_str),
+        Some(window.chunks[2].chunk_id.as_str())
+    );
+    assert_eq!(
+        window.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("third")
+    );
+
+    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[0].chunk_id)
+        .expect("turn");
+    assert_eq!(turn.loaded_event_count, 2);
+    assert_eq!(
+        turn.chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .filter_map(|chunk| chunk.result.pointer("/message/content"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["first", "second"]
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-tail-window-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-tail-window.jsonl");
+    let content = r#"{"timestamp":"2026-07-21T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-1"}}
+{"timestamp":"2026-07-21T01:00:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"first"}}
+{"timestamp":"2026-07-21T01:00:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first reply"}}
+{"timestamp":"2026-07-21T01:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2"}}
+{"timestamp":"2026-07-21T01:01:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"second"}}
+{"timestamp":"2026-07-21T01:01:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second reply"}}
+{"timestamp":"2026-07-21T01:02:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-3"}}
+{"timestamp":"2026-07-21T01:02:00.100Z","type":"event_msg","payload":{"type":"user_message","message":"third"}}
+{"timestamp":"2026-07-21T01:02:01.000Z","type":"event_msg","payload":{"type":"agent_message","message":"third reply"}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let window =
+        load_codex_app_initial_window_from_path("codexapp-tail-window", &path, 1).expect("window");
+    assert_eq!(
+        window.turns.len(),
+        2,
+        "only the previous and latest turns are indexed"
+    );
+    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(
+        window.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+    assert!(window.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        window.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("third")
+    );
+    let second_turn_id = window.chunks[0].chunk_id.clone();
+    let second = load_codex_app_turn_from_path("codexapp-tail-window", &path, &second_turn_id)
+        .expect("load previous turn");
+    assert_eq!(second.loaded_event_count, 2);
+    assert_eq!(second.chunks.len(), 4);
+    assert_eq!(
+        second.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("first")
+    );
+    assert!(second.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        second.chunks[2]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("second")
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_embedded_tool_images_are_removed_before_json_deserialization() {
+    let mut line = format!(
+        r#"{{"payload":{{"output":[{{"type":"input_text","text":"kept"}},{{"type":"input_image","image_url":"data:image/png;base64,{}"}}]}}}}"#,
+        "A".repeat(1024 * 1024)
+    );
+
+    strip_ignored_embedded_images(&mut line);
+
+    assert!(line.len() < 256);
+    assert!(!line.contains("base64"));
+    let parsed: Value = serde_json::from_str(&line).expect("valid compacted JSON");
+    assert_eq!(
+        parsed
+            .get("payload")
+            .and_then(|payload| payload.get("output"))
+            .and_then(Value::as_array)
+            .and_then(|parts| parts.first())
+            .and_then(|part| part.get("text"))
+            .and_then(Value::as_str),
+        Some("kept")
+    );
 }
 
 #[test]
@@ -348,6 +595,92 @@ fn codex_desktop_exec_unwraps_parallel_shell_commands() {
     assert_eq!(calls[1].args["command"], "cargo test -p orgtrack_core");
     assert_eq!(calls[0].call_id, "call_parallel:part-0");
     assert_eq!(calls[1].call_id, "call_parallel:part-1");
+}
+
+#[test]
+fn codex_desktop_exec_unwraps_parallel_result_array_per_command() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-parallel-results-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-parallel-results.jsonl");
+    let script = r#"const results = await Promise.all([
+  tools.exec_command({cmd:"npx eslint src/ --format stylish",workdir:"/tmp/project",yield_time_ms:30000,max_output_tokens:20000}),
+  tools.exec_command({cmd:"npm run typecheck",workdir:"/tmp/project",yield_time_ms:30000,max_output_tokens:30000})
+]); results.forEach((result) => text(JSON.stringify(result)));"#;
+    let wrapped_results = format!(
+        "Script completed\nWall time 17.6 seconds\nOutput:\n{}",
+        json!([
+            {
+                "chunk_id": "eed8df",
+                "wall_time_seconds": 17.6,
+                "session_id": 17954,
+                "original_token_count": 0,
+                "output": "lint passed\n"
+            },
+            {
+                "chunk_id": "7ed187",
+                "wall_time_seconds": 31.4,
+                "session_id": 95241,
+                "original_token_count": 14,
+                "output": "> orgii@1.2.1 typecheck\n> tsc --noEmit --pretty false\n"
+            }
+        ])
+    );
+    let content = [
+        json!({
+            "timestamp": "2026-07-23T15:27:00Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "call_parallel_results",
+                "input": script,
+            }
+        }),
+        json!({
+            "timestamp": "2026-07-23T15:27:18Z",
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call_output",
+                "call_id": "call_parallel_results",
+                "output": [
+                    { "type": "input_text", "text": wrapped_results },
+                ],
+            }
+        }),
+    ]
+    .into_iter()
+    .map(|line| line.to_string())
+    .collect::<Vec<_>>()
+    .join("\n");
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-parallel-results", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 2);
+    let lint = chunks
+        .iter()
+        .find(|chunk| chunk.args["command"] == "npx eslint src/ --format stylish")
+        .expect("lint command");
+    let typecheck = chunks
+        .iter()
+        .find(|chunk| chunk.args["command"] == "npm run typecheck")
+        .expect("typecheck command");
+    assert_eq!(lint.result["output"], "lint passed\n");
+    assert_eq!(
+        typecheck.result["output"],
+        "> orgii@1.2.1 typecheck\n> tsc --noEmit --pretty false\n"
+    );
+    assert!(chunks.iter().all(|chunk| {
+        chunk.result["output"]
+            .as_str()
+            .is_some_and(|output| !output.contains("Script completed"))
+    }));
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }
 
 #[test]
@@ -1443,7 +1776,7 @@ fn maps_codex_subagent_parent_thread_to_parent_session_id() {
     std::fs::write(
         &child_path,
         format!(
-            r#"{{"timestamp":"2026-07-08T15:12:12.000Z","type":"session_meta","payload":{{"cwd":"/Users/me/project","id":"{child_thread_id}","session_id":"{parent_thread_id}","forked_from_id":"{parent_thread_id}","parent_thread_id":"{parent_thread_id}","thread_source":"subagent","source":{{"subagent":{{"thread_spawn":{{"parent_thread_id":"{parent_thread_id}","depth":1,"agent_nickname":"Copernicus"}}}}}}}}}}
+            r#"{{"timestamp":"2026-07-08T15:12:12.000Z","type":"session_meta","payload":{{"cwd":"/Users/me/project","id":"{child_thread_id}","session_id":"{parent_thread_id}","forked_from_id":"{parent_thread_id}","parent_thread_id":"{parent_thread_id}","thread_source":"subagent","source":{{"subagent":{{"thread_spawn":{{"parent_thread_id":"{parent_thread_id}","depth":1,"agent_path":"/root/inspect_session_naming","agent_nickname":"Copernicus"}}}}}}}}}}
 {{"timestamp":"2026-07-08T15:12:13.000Z","type":"event_msg","payload":{{"type":"user_message","message":"inspect session naming","images":[],"local_images":[],"text_elements":[]}}}}
 "#
         ),
@@ -1470,6 +1803,28 @@ fn maps_codex_subagent_parent_thread_to_parent_session_id() {
         meta.parent_session_id.as_deref(),
         Some(expected_parent_session_id.as_str())
     );
+    assert_eq!(
+        meta.source_metadata.first_prompt.as_deref(),
+        Some("inspect session naming")
+    );
+    assert_eq!(
+        meta.source_metadata.agent_nickname.as_deref(),
+        Some("Copernicus")
+    );
+    assert_eq!(
+        meta.source_metadata.agent_path.as_deref(),
+        Some("/root/inspect_session_naming")
+    );
+    let cache_input = meta::session_meta_to_cache_input(meta);
+    let cached_metadata: Value = serde_json::from_str(
+        cache_input
+            .source_metadata_json
+            .as_deref()
+            .expect("subagent metadata"),
+    )
+    .expect("parse subagent metadata");
+    assert_eq!(cached_metadata["firstPrompt"], "inspect session naming");
+    assert_eq!(cached_metadata["agentNickname"], "Copernicus");
 
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }
@@ -1629,4 +1984,89 @@ fn strips_ide_context_from_codex_user_text() {
         user_message_from_payload(&both_payload).as_deref(),
         Some("fix the login bug")
     );
+}
+
+#[test]
+fn resumes_codex_meta_parse_from_watermark() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-history-watermark-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-watermark.jsonl");
+    let prefix = r#"{"timestamp":"2026-02-11T06:16:06.458Z","type":"session_meta","payload":{"cwd":"/Users/me/project","id":"abc"}}
+{"timestamp":"2026-02-11T06:16:07.000Z","type":"event_msg","payload":{"type":"user_message","message":"resume me","images":[],"local_images":[],"text_elements":[]}}
+{"timestamp":"2026-02-11T06:16:09.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"cache_write_input_tokens":10,"output_tokens":30,"reasoning_output_tokens":5}}}}
+"#;
+    std::fs::write(&path, prefix).expect("write fixture");
+
+    let record_for = |path: &std::path::Path| {
+        let (source_mtime_ms, source_size_bytes) =
+            imported_paths::file_metadata_signature(path, "Codex").expect("metadata");
+        ImportedHistoryDiscoveredRecord {
+            source_session_id: "rollout-watermark".to_string(),
+            source_path: path.to_path_buf(),
+            source_record_key: "rollout-watermark".to_string(),
+            source_mtime_ms,
+            source_size_bytes,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        }
+    };
+
+    let first = parse_codex_session_meta_incremental(&record_for(&path), None).expect("parse");
+    assert!(!first.resumed);
+    assert_eq!(first.watermark.byte_offset, prefix.len() as i64);
+    let first_meta = first.meta.expect("first meta");
+    assert_eq!(first_meta.input_tokens, 100);
+    assert_eq!(first_meta.output_tokens, 35);
+    assert_eq!(first_meta.rounds.len(), 1);
+
+    // Cumulative totals continue past the watermark; the per-round delta
+    // depends on prev_* carried inside the persisted state.
+    let suffix = r#"{"timestamp":"2026-02-11T06:17:09.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":260,"cached_input_tokens":60,"cache_write_input_tokens":25,"output_tokens":70,"reasoning_output_tokens":10}}}}
+"#;
+    std::fs::write(&path, format!("{prefix}{suffix}")).expect("append fixture");
+
+    let resumed = parse_codex_session_meta_incremental(&record_for(&path), Some(&first.watermark))
+        .expect("parse resumed");
+    assert!(resumed.resumed);
+    let scratch =
+        parse_codex_session_meta_incremental(&record_for(&path), None).expect("parse from scratch");
+    assert!(!scratch.resumed);
+
+    let resumed_meta = resumed.meta.expect("resumed meta");
+    let scratch_meta = scratch.meta.expect("scratch meta");
+    assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
+    assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
+    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_write_tokens,
+        scratch_meta.cache_write_tokens
+    );
+    assert_eq!(resumed_meta.rounds.len(), 2);
+    assert_eq!(resumed_meta.rounds.len(), scratch_meta.rounds.len());
+    assert_eq!(resumed_meta.rounds[1].seq, 1);
+    assert_eq!(resumed_meta.rounds[1].input_tokens, 105); // Δinput 160 − Δcached 40 − Δcache_write 15
+    assert_eq!(
+        resumed_meta.rounds[1].input_tokens,
+        scratch_meta.rounds[1].input_tokens
+    );
+    assert_eq!(resumed_meta.name, scratch_meta.name);
+    assert_eq!(resumed_meta.updated_at_ms, scratch_meta.updated_at_ms);
+    assert_eq!(resumed.watermark.byte_offset, scratch.watermark.byte_offset);
+    assert_eq!(resumed.watermark.prefix_hash, scratch.watermark.prefix_hash);
+
+    // Same-length prefix mutation invalidates the resume.
+    let mutated = format!("{prefix}{suffix}").replace("resume me", "RESUME ME");
+    std::fs::write(&path, mutated).expect("mutate fixture");
+    let reparsed =
+        parse_codex_session_meta_incremental(&record_for(&path), Some(&resumed.watermark))
+            .expect("parse mutated");
+    assert!(!reparsed.resumed);
+    let reparsed_meta = reparsed.meta.expect("reparsed meta");
+    assert_eq!(reparsed_meta.input_tokens, scratch_meta.input_tokens);
+    assert_eq!(reparsed_meta.name, "RESUME ME");
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }

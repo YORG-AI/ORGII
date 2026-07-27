@@ -1,7 +1,9 @@
 import { createRoot } from "react-dom/client";
 
-import App from "@src/App";
+import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
+import { configureIdeServerForIdentifier } from "@src/config/ideServer";
 import { applyHostDesktopWindowChromeRadius } from "@src/config/windowChromeRadius";
+import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
 import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTauriSelectAllShortcut";
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
@@ -132,8 +134,33 @@ if (isDev && module.hot) {
 // Timeout for overall initialization to prevent hanging forever
 const INIT_TIMEOUT_MS = 10000;
 
+async function initializeRuntimeInstanceIdentity(): Promise<void> {
+  try {
+    const { getIdentifier } = await import("@tauri-apps/api/app");
+    const identifier = await getIdentifier();
+    configureIdeServerForIdentifier(identifier);
+    configureCloudAuthCallbackForIdentifier(identifier);
+  } catch {
+    // Browser/unit-test builds retain the compile-time/default callback.
+  }
+}
+
 // PERFORMANCE: Initialize all critical services in parallel before render
 async function initializeApp() {
+  // Runtime identity must be known before loading App: several API modules
+  // derive local HTTP/WebSocket constants at module evaluation time.
+  await initializeRuntimeInstanceIdentity();
+  // Tauri dev and bundled WebViews have different origins. Hydrate the shared
+  // app-data auth store before App imports initialize auth atoms and guards.
+  try {
+    await initializeSharedServiceAuthStorage();
+  } catch (error) {
+    // Fall back to this origin's local session if the store is unavailable.
+    // A focus event retries synchronization after React mounts.
+    log.warn("[Init] Shared auth storage unavailable:", error);
+  }
+  const appModulePromise = import("@src/App");
+
   // Clear stale opened repos from previous app session (main window only)
   // Secondary windows should not clear, as they'd wipe main window's registration
   try {
@@ -158,6 +185,7 @@ async function initializeApp() {
     initTheme(),
     initializeTauriAPIs(),
     initBackgroundImage(),
+    appModulePromise,
   ]);
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -172,6 +200,8 @@ async function initializeApp() {
     // Log but continue - we want to mount React even if some init failed
     log.warn("[Init] Initialization issue:", error);
   }
+
+  const App = (await appModulePromise).default;
 
   // Mount React app
   const rootElement = document.getElementById("root");

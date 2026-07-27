@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token решения",
     "tooltip": "Оценочная атрибуция инструмента. Метод: {{method}}. Ввод: {{inputBytes}} bytes. Вывод: {{outputBytes}} bytes. Решение: {{decisionTokens}} Token. Контекст: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Связанный LLM cache read: {{cacheReadTokens}} Token. Связанный LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Название (необязательно)"
+  },
   "history": {
     "untitledSession": "Session без названия",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Создано",
       "updated": "Обновлено",
       "lastUpdated": "Последнее обновление",
+      "external": "Внешняя",
+      "internal": "Внутренняя",
       "rounds": "Раунды",
       "roundCount_one": "{{count}} раунд",
       "roundCount_other": "{{count}} раундов",
@@ -124,9 +129,10 @@
         "default": "По умолчанию",
         "manual": "Вручную",
         "60s": "Каждые 60 с",
-        "5m": "Каждые 5 мин",
-        "1h": "Ежечасно",
-        "1d": "Ежедневно"
+        "120s": "Каждые 120 с",
+        "10m": "Каждые 10 мин",
+        "30m": "Каждые 30 мин",
+        "1h": "Ежечасно"
       },
       "openFolder": "Открыть папку",
       "tabs": {
@@ -1341,6 +1347,10 @@
       "command_few": "{{count}} команды",
       "command_many": "{{count}} команд",
       "command_other": "{{count}} команды",
+      "mcp_one": "{{count}} вызов MCP",
+      "mcp_few": "{{count}} вызова MCP",
+      "mcp_many": "{{count}} вызовов MCP",
+      "mcp_other": "{{count}} вызова MCP",
       "wait_one": "{{count}} ожидание",
       "wait_few": "{{count}} ожидания",
       "wait_many": "{{count}} ожиданий",
@@ -2133,7 +2143,10 @@
     "categoryLabel": "Категория сессии",
     "categoryTemplate": "Выбрать {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Встроенные Agents",
+    "builtIns": "Встроенные",
+    "humanSession": {
+      "name": "Журнал работы"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Пользовательские Agents",
     "agentOrgs": "Команды Agent",

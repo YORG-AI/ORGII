@@ -15,7 +15,7 @@ path = "src/lib.rs"
 default = ["sqlite", "repo-sync", "git"]
 sqlite = ["dep:rusqlite"]
 repo-sync = ["dep:sha2"]
-git = []
+git = ["dep:git2"]
 source-cursor = []
 source-claude-code = []
 source-codex = []
@@ -40,6 +40,9 @@ dirs = "6.0"
 similar = "2.6"
 prost-reflect = { version = "0.16.3", features = ["serde"] }
 regex = "1"
+git2 = { version = "0.20", default-features = false, features = [
+    "vendored-libgit2",
+], optional = true }
 
 [dev-dependencies]
 prost = "0.14.3"

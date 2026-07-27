@@ -2,7 +2,7 @@
  * CloudSyncLevelDialog — per-session cloud access ladder editor (§13.4).
  *
  * Opened from the session context menu ("Cloud sync level…"). One row per
- * currently selected cloud org: a sync-level Select (Org default / Off /
+ * currently selected cloud org: a sync-level Select (Org minimum / Off /
  * Metadata only / Full replay) and a visibility Select (Everyone in org /
  * Only me). Personal/local scope exposes no cross-org sharing controls.
  * Writes land in the persisted `org2CloudAccessSettingsAtom` — the ratchet
@@ -48,8 +48,8 @@ import {
 } from "../org2CloudOrgsAtom";
 import { org2CloudSyncEngine } from "../org2CloudSyncEngine";
 
-/** Sentinel select value for "no per-session override" (org default). */
-const USE_ORG_DEFAULT = "__org_default__";
+/** Sentinel select value for "no per-session override" (follow org minimum). */
+const USE_ORG_MINIMUM = "__org_minimum__";
 /** Ladder order for building the (floor-filtered) per-session mode options. */
 const ACCESS_MODE_LADDER = [
   COLLAB_SESSION_ACCESS_MODE.OFF,
@@ -107,7 +107,7 @@ const CloudSyncLevelDialog: React.FC<CloudSyncLevelDialogProps> = ({
           current,
           orgId,
           session.session_id,
-          value === USE_ORG_DEFAULT ? null : (value as CollabSessionAccessMode)
+          value === USE_ORG_MINIMUM ? null : (value as CollabSessionAccessMode)
         )
       );
       org2CloudSyncEngine.resumeOrg(orgId);
@@ -186,18 +186,16 @@ const CloudSyncLevelDialog: React.FC<CloudSyncLevelDialogProps> = ({
                 );
                 // Admin sharing FLOOR (0002): drop every mode below the floor
                 // from the picker so a member can't author a sub-floor value
-                // (the engine + server floor it anyway). The org-default
-                // sentinel's label reflects the FLOORED default.
+                // (the engine + server floor it anyway). The sentinel follows
+                // the single org policy: its minimum, or Off when unset.
                 const floor = getOrgSharingFloor(floorByOrg, org.orgId);
                 const modeOptions = [
                   {
-                    value: USE_ORG_DEFAULT,
-                    label: t("cloud.syncLevel.orgDefaultOption", {
-                      mode: modeLabels[
-                        floorAccessMode(settings.defaultMode, floor)
-                      ],
+                    value: USE_ORG_MINIMUM,
+                    label: t("cloud.syncLevel.orgMinimumOption", {
+                      mode: modeLabels[floor],
                     }),
-                    dataTestId: `session-sync-level-mode-option-${org.orgId}-default`,
+                    dataTestId: `session-sync-level-mode-option-${org.orgId}-minimum`,
                   },
                   ...ACCESS_MODE_LADDER.filter((mode) =>
                     isAccessModeAtLeast(mode, floor)
@@ -211,7 +209,7 @@ const CloudSyncLevelDialog: React.FC<CloudSyncLevelDialogProps> = ({
                 // actually gets pushed), never a now-hidden option.
                 const selectedMode = overrideMode
                   ? floorAccessMode(overrideMode, floor)
-                  : USE_ORG_DEFAULT;
+                  : USE_ORG_MINIMUM;
                 return (
                   <div
                     key={org.orgId}

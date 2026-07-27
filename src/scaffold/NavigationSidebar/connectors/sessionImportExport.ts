@@ -405,10 +405,16 @@ export function formatCategoryLabel(
       return t("chat.importExport.categories.cli");
     case "rust_agent":
       return t("chat.importExport.categories.rust");
+    case "human_session":
+      return t("chat.importExport.categories.human", {
+        defaultValue: "Work log",
+      });
     case "cursor_ide":
       return t("chat.importExport.categories.cursorIde");
     case "external_history":
       return t("chat.importExport.categories.externalHistory");
+    default:
+      return category;
   }
 }
 

@@ -10,7 +10,7 @@ import React, { type FC, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import { DropdownItem, DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -161,9 +161,10 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
         {isOpen &&
           isPositioned &&
           createPortal(
-            <div
+            <DropdownPanel
               ref={panelRef}
-              className={`${DROPDOWN_CLASSES.panelAnimated} ${DROPDOWN_WIDTHS.sidebarMenuClass} fixed`}
+              className={`${DROPDOWN_WIDTHS.sidebarMenuClass} fixed`}
+              maxHeight="none"
               style={{
                 top: panelPosition.top,
                 bottom: panelPosition.bottom,
@@ -265,7 +266,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                   </>
                 )}
               </div>
-            </div>,
+            </DropdownPanel>,
             document.body
           )}
       </>

@@ -531,6 +531,10 @@
     "failedToRenderEvent": "Échec du rendu de l'événement",
     "unknown": "Erreur inconnue",
     "agentRequestFailed": "Échec de la requête Agent",
+    "codexLoginExpired": "La connexion à Codex a expiré",
+    "codexLoginExpiredDescription": "Reconnectez Codex pour réparer ce compte. Vous reviendrez à cette session une fois la nouvelle connexion enregistrée.",
+    "reconnectCodex": "Reconnecter Codex",
+    "technicalDetails": "Détails techniques",
     "failedToCopy": "Échec de la copie",
     "api": {
       "titles": {
@@ -957,7 +961,6 @@
     "addCssVariables": "Ajoutez des variables CSS à votre projet",
     "loadingAccountStatus": "Chargement du statut du compte...",
     "noRepositorySelected": "Aucun dépôt sélectionné",
-    "selectRepositoryFromHome": "Choisissez un dépôt depuis l’accueil.",
     "noWorkspaceExplorerTitle": "Aucun workspace ouvert",
     "noWorkspaceExplorerSubtitle": "Ouvrir le workspace pour voir les fichiers",
     "cannotFindRepo": "Impossible de trouver {{repoName}}",
@@ -988,7 +991,8 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Aperçu indisponible",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
+    "selectRepositoryFromWorkspace": "Sélectionnez un dépôt dans votre espace de travail pour l’ouvrir."
   },
   "inbox": {
     "searchPlaceholder": "Rechercher des messages...",
@@ -1147,8 +1151,6 @@
       "tryVerifyUrl": "Vérifier que l’URL est correcte",
       "tryAgainLater": "Réessayer plus tard"
     },
-    "selectRepoFromHome": "Please select a repo from the home page",
-    "cloneRepoAgain": "Please clone the repo again from the home page",
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
     "gitSyncMenuTitle": "Actions de synchronisation Git"
@@ -1241,6 +1243,43 @@
         "closed": "Fermé",
         "completed": "Terminé",
         "notPlanned": "Non planifié"
+      },
+      "activity": {
+        "opened": "a ouvert cette issue",
+        "commented": "a commenté",
+        "timelineItemCount_one": "{{count}} élément dans la chronologie",
+        "timelineItemCount_other": "{{count}} éléments dans la chronologie",
+        "noDescription": "Aucune description fournie.",
+        "assigned": "a assigné",
+        "assignedIssue": "a assigné cette issue",
+        "unassigned": "a désassigné",
+        "removedAssignee": "a retiré une personne assignée",
+        "added": "a ajouté",
+        "removed": "a retiré",
+        "label": "un label",
+        "milestoned": "a ajouté cette issue au jalon {{milestone}}",
+        "demilestoned": "a retiré cette issue du jalon {{milestone}}",
+        "closedViaCommit": "a fermé cette issue via le commit {{commit}}",
+        "closed": "a fermé cette issue",
+        "reopened": "a rouvert cette issue",
+        "renamedTo": "a renommé cette issue en",
+        "renamed": "a renommé cette issue",
+        "locked": "a verrouillé cette conversation",
+        "lockedAs": "a verrouillé cette conversation pour le motif {{reason}}",
+        "unlocked": "a déverrouillé cette conversation",
+        "crossReferencedFrom": "a référencé cette issue depuis",
+        "crossReferenced": "a créé une référence croisée vers cette issue",
+        "referencedInCommit": "a référencé cette issue dans le commit {{commit}}",
+        "referencedInACommit": "a référencé cette issue dans un commit",
+        "connected": "a lié cette issue",
+        "disconnected": "a dissocié cette issue",
+        "markedAsDuplicate": "a marqué cette issue comme doublon",
+        "unmarkedAsDuplicate": "a retiré le marquage comme doublon",
+        "pinned": "a épinglé cette issue",
+        "unpinned": "a désépinglé cette issue",
+        "transferred": "a transféré cette issue",
+        "convertedToDiscussion": "a converti cette issue en discussion",
+        "mentioned": "a mentionné cette issue"
       }
     }
   },
@@ -1697,7 +1736,6 @@
     "ramCurrentSession": "Session actuelle",
     "ramChatRenderedTree": "Arbre Chat rendu",
     "ramSessionStore": "Store de sessions",
-    "ramStartSidebar": "Barre latérale Start",
     "ramSessionSidebar": "Barre latérale Session",
     "ramSecondLevelSidebars": "Barres latérales de second niveau",
     "ramSettingsSidebar": "Barre latérale Settings",
@@ -2132,20 +2170,7 @@
     }
   },
   "dragDrop": {
-    "dropFilesToUpload": "Drop files to upload",
-    "dropFileToChat": "Drop file to add to chat",
-    "dropFolderToAdd": "Drop folder to add repo",
-    "releaseToAddFiles": "Release to add files to your session",
-    "releaseToAddFileToChat": "Release to add file to chat (like ⌘L)",
-    "releaseToOpenFolder": "Release to open the folder",
-    "folderDetected": "Folder Detected",
-    "openSpotlightToAdd": "Open Spotlight to add this folder as a repo",
-    "openSpotlight": "Open Spotlight",
-    "addedToChat": "Added \"{{name}}\" to chat",
-    "couldNotExtractPath": "Could not extract file path from drop",
-    "couldNotExtractPathFromItem": "Could not extract file path from dropped item",
-    "dropFilesHere": "Drop files here",
-    "dragFilesFromIde": "Drag files or tabs from VS Code to add them to chat"
+    "couldNotExtractPathFromItem": "Could not extract file path from dropped item"
   },
   "contextList": {
     "task": "Task",

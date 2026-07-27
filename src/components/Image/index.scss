@@ -19,7 +19,7 @@
   height: auto;
 
   &.image-preview-enabled {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: opacity 0.2s ease;
 
     &:hover {
@@ -99,7 +99,7 @@
     right: 0;
     font-size: 24px;
     color: white;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: opacity 0.2s ease;
 
     &:hover {

@@ -94,6 +94,8 @@ enum ContentSignal {
     Silent,
 }
 
+type EditSnapshotMap = HashMap<String, (String, String)>;
+
 /// Enrich a session's text-only chunks with the tool trajectory recovered
 /// from Qoder's launch logs. `task_dir_name`/`project_dir_name` are the
 /// conversation-history composite id halves; `workspace_path` is the
@@ -129,7 +131,7 @@ fn enrich_chunks_with_events(
     workspace_path: Option<&str>,
     chunks: Vec<ActivityChunk>,
     events: &[LogEvent],
-    edit_snapshots: &dyn Fn(&str) -> HashMap<String, (String, String)>,
+    edit_snapshots: &dyn Fn(&str) -> EditSnapshotMap,
 ) -> Vec<ActivityChunk> {
     // Resolve the truncated dir name to the full task id seen in the logs.
     // Two distinct matches would mean we cannot tell the sessions apart —

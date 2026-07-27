@@ -1,15 +1,23 @@
 /**
  * Local IDE server (the Rust HTTP server inside this app) endpoint config.
  *
- * The port is baked at BUILD time via webpack DefinePlugin from the
- * `ORGII_IDE_SERVER_PORT` env var (default 13847 — see api/server.rs). A
- * second app instance (dual-instance cloud-collab testing) is built with a
- * different port so its frontend talks to ITS OWN backend instead of the
- * first instance's; the launcher must set the same `ORGII_IDE_SERVER_PORT`
- * at runtime for the Rust side.
+ * Webpack's env value is the browser/test fallback. Desktop startup replaces
+ * it from the identifier embedded in the running Tauri binary before the App
+ * module graph is loaded, so a directly launched isolated executable always
+ * talks to its own backend.
  */
-export const IDE_SERVER_PORT = process.env.ORGII_IDE_SERVER_PORT ?? "13847";
+import { runtimeInstanceProfileForIdentifier } from "./runtimeInstance";
 
-export const IDE_SERVER_HTTP_URL = `http://localhost:${IDE_SERVER_PORT}`;
+export let IDE_SERVER_PORT = process.env.ORGII_IDE_SERVER_PORT ?? "13847";
 
-export const IDE_SERVER_WS_URL = `ws://localhost:${IDE_SERVER_PORT}/ws`;
+export let IDE_SERVER_HTTP_URL = `http://localhost:${IDE_SERVER_PORT}`;
+
+export let IDE_SERVER_WS_URL = `ws://localhost:${IDE_SERVER_PORT}/ws`;
+
+export function configureIdeServerForIdentifier(identifier: string): number {
+  const { ideServerPort } = runtimeInstanceProfileForIdentifier(identifier);
+  IDE_SERVER_PORT = String(ideServerPort);
+  IDE_SERVER_HTTP_URL = `http://localhost:${IDE_SERVER_PORT}`;
+  IDE_SERVER_WS_URL = `ws://localhost:${IDE_SERVER_PORT}/ws`;
+  return ideServerPort;
+}
