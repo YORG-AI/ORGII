@@ -17,8 +17,8 @@ import {
   openOrReplaceSessionInChatPanelTabAtom,
   openOrganizationInChatPanelTabAtom,
   openRuntimeInChatPanelTabAtom,
-  openTeamInboxInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
+  openTeamInboxInChatPanelTabAtom,
   openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { openSessionInWorkstationAtom } from "@src/store/session/sessionTabPlacementAtom";
