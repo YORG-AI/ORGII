@@ -6,37 +6,63 @@ use super::*;
 // Session helper: list filter & cache-row conversion
 // ============================================================================
 
-pub(in crate::sources::cursor_ide) fn is_listable_cursor_session(
-    row: &super::db::CursorSession,
-    cursor_conn: Option<&Connection>,
-) -> Result<bool, String> {
-    let Some(conn) = cursor_conn else {
-        return Ok(false);
-    };
-    if row.name.trim().is_empty() {
-        return Ok(false);
-    }
-    // Fast path: single EXISTS query on cursorDiskKV.
-    // We only need to know whether the session has at least one user bubble
-    // (bubble_type == 1). Parsing the JSON value is enough — no blob reads,
-    // no diff, no full order reconstruction.
-    // load_bubble_order/load_complete_bubble_order fetches all rows AND
-    // deserialises every bubble value; that was the ~542% CPU hot path.
-    let prefix = format!("bubbleId:{}:", row.id);
-    let upper_bound = format!("bubbleId:{};", row.id);
-    let found: bool = conn
-        .query_row(
-            "SELECT EXISTS(
-                SELECT 1 FROM cursorDiskKV
-                WHERE key >= ?1 AND key < ?2
-                  AND json_extract(value, '$.type') = ?3
-                LIMIT 1
-             )",
-            rusqlite::params![prefix, upper_bound, CURSOR_BUBBLE_TYPE_USER],
-            |r| r.get(0),
+#[derive(Debug, Default)]
+pub(in crate::sources::cursor_ide) struct CursorUserBubbleProbe {
+    pub has_user_bubble: bool,
+    pub first_user_preview: Option<String>,
+}
+
+/// Inspect only one composer's indexed bubble-key range.
+///
+/// Cursor occasionally omits a bubble from
+/// `fullConversationHeadersOnly`, so header point-lookups alone are not an
+/// authoritative existence check. The primary-key range keeps this bounded to
+/// the requested session and avoids the old whole-`cursorDiskKV` scan.
+pub(in crate::sources::cursor_ide) fn probe_indexed_cursor_user_bubbles(
+    conn: &Connection,
+    composer_id: &str,
+) -> Result<CursorUserBubbleProbe, String> {
+    let prefix = format!("bubbleId:{composer_id}:");
+    let upper_bound = format!("bubbleId:{composer_id};");
+    let mut stmt = conn
+        .prepare(
+            "SELECT value
+             FROM cursorDiskKV
+             WHERE key >= ?1 AND key < ?2
+               AND CASE
+                     WHEN json_valid(value)
+                     THEN json_extract(value, '$.type')
+                   END = ?3
+             ORDER BY key ASC",
         )
-        .unwrap_or(false);
-    Ok(found)
+        .map_err(|err| format!("Failed to prepare Cursor user-bubble range lookup: {err}"))?;
+    let rows = stmt
+        .query_map(
+            rusqlite::params![prefix, upper_bound, CURSOR_BUBBLE_TYPE_USER],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .map_err(|err| format!("Failed to query Cursor user-bubble range: {err}"))?;
+    let mut probe = CursorUserBubbleProbe::default();
+    for row in rows {
+        let Some(value) =
+            row.map_err(|err| format!("Failed to read Cursor user-bubble range row: {err}"))?
+        else {
+            continue;
+        };
+        let Ok(bubble) = serde_json::from_str::<RawBubble>(&value) else {
+            continue;
+        };
+        if bubble.bubble_type != CURSOR_BUBBLE_TYPE_USER {
+            continue;
+        }
+        probe.has_user_bubble = true;
+        let preview = preview_text(&bubble.text);
+        if !preview.is_empty() {
+            probe.first_user_preview = Some(preview);
+            break;
+        }
+    }
+    Ok(probe)
 }
 
 /// Convert a cache row to the sidebar-ready session shape.

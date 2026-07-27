@@ -11,7 +11,9 @@ use super::events::{build_plan_approval_event, PlanApprovalCardStatus};
 use super::gc::{persist_blocking, persist_ready_row};
 use super::persistence::PlanApprovalStore;
 use super::resolution::{resolve_pending, PlanResolution};
-use super::snapshot::{auto_approve_deadline_ms, plan_id_for, revision_id_for, PendingPlanApproval};
+use super::snapshot::{
+    auto_approve_deadline_ms, plan_id_for, revision_id_for, PendingPlanApproval,
+};
 use super::watcher::spawn_auto_approve_watcher;
 
 pub struct PlanApprovalManager {

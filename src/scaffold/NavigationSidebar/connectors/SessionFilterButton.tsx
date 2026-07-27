@@ -134,6 +134,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
         >
           <div ref={triggerRef} className="inline-flex">
             <IconButton
+              data-testid="sidebar-session-filter-button"
               aria-label={t("sidebar.groupBy.title")}
               size="lg"
               variant="default"
@@ -180,6 +181,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                   return (
                     <DropdownItem
                       key={mode}
+                      dataTestId={`sidebar-group-by-${mode}`}
                       selected={active}
                       onClick={() => handleSelect(mode)}
                     >
@@ -189,6 +191,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                 })}
                 <div className={DROPDOWN_CLASSES.menuSeparator} />
                 <DropdownItem
+                  dataTestId="sidebar-include-external-toggle"
                   selected={includeExternal}
                   onClick={handleToggleIncludeExternal}
                 >

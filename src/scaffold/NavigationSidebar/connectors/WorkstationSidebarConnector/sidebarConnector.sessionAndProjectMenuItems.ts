@@ -22,9 +22,12 @@ interface UseWorkstationSidebarSessionAndProjectMenuItemsParams {
   untitledSession: SessionMenuItemsParams["untitledSession"];
   workstationSearchQuery: string;
   sessionFilterOrgIds: SessionMenuItemsParams["selectedOrgIds"];
+  sidebarOrgIds: SessionMenuItemsParams["sidebarOrgIds"];
   cloudScopedExtraSessionIds: SessionMenuItemsParams["extraSessionIds"];
   sessionListExcludedIds: SessionMenuItemsParams["excludedSessionIds"];
   includeExternal: SessionMenuItemsParams["includeExternal"];
+  pinnedPage: SessionMenuItemsParams["pinnedPage"];
+  workspaceFacetPage: SessionMenuItemsParams["workspaceFacetPage"];
   groupVisibleCounts: SessionMenuItemsParams["groupVisibleCounts"];
   activeCloudOrgId: string | null;
   expandedSubagentParentIds: SessionMenuItemsParams["expandedSubagentParentIds"];
@@ -44,9 +47,12 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
   untitledSession,
   workstationSearchQuery,
   sessionFilterOrgIds,
+  sidebarOrgIds,
   cloudScopedExtraSessionIds,
   sessionListExcludedIds,
   includeExternal,
+  pinnedPage,
+  workspaceFacetPage,
   groupVisibleCounts,
   activeCloudOrgId,
   expandedSubagentParentIds,
@@ -63,6 +69,9 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
     subagentParentIds,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
   } = useSessionMenuItems({
     sortedSessions,
     visitedSessions,
@@ -71,9 +80,12 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
     untitledSession,
     searchQuery: workstationSearchQuery,
     selectedOrgIds: sessionFilterOrgIds,
+    sidebarOrgIds,
     extraSessionIds: cloudScopedExtraSessionIds,
     excludedSessionIds: sessionListExcludedIds,
     includeExternal,
+    pinnedPage,
+    workspaceFacetPage,
     groupVisibleCounts,
     showAllLoadedGroupSessions: Boolean(activeCloudOrgId),
     expandedSubagentParentIds,
@@ -107,6 +119,9 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
     subagentParentIds,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
     projectsWorkItemMenuItems,
     projectsProjectMap,
     projectsWorkItemMap,

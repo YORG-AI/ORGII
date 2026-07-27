@@ -175,6 +175,104 @@ fn lifecycle_source_binding_preserves_existing_catalog_metadata() {
 }
 
 #[test]
+fn codex_tool_names_do_not_mutate_catalog_title_across_open_poll_and_reopen() {
+    use std::io::Write;
+
+    let (mut conn, path, session_id) = codex_fixture();
+    conn.execute(
+        "UPDATE imported_history_session_cache
+         SET source_record_key='replay-fixture', name='Session index title'
+         WHERE source='codex_app' AND source_session_id='replay-fixture'",
+        [],
+    )
+    .expect("set authoritative fixture title");
+    std::fs::write(
+        &path,
+        [
+            serde_json::json!({
+                "timestamp": "2026-07-22T00:00:00Z",
+                "type": "session_meta",
+                "payload": {
+                    "id": "replay-fixture",
+                    "title": "Transcript title"
+                }
+            })
+            .to_string(),
+            jsonl(serde_json::json!({
+                "type": "user_message",
+                "message": "First genuine request"
+            })),
+            jsonl(serde_json::json!({
+                "type": "function_call",
+                "name": "exec",
+                "arguments": "{\"command\":\"true\"}",
+                "call_id": "call-exec"
+            })),
+        ]
+        .join("\n")
+            + "\n",
+    )
+    .expect("write Codex title fixture");
+
+    let opened = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("open Codex title fixture");
+    let read_title = |conn: &rusqlite::Connection| -> String {
+        conn.query_row(
+            "SELECT name FROM imported_history_session_cache
+             WHERE source='codex_app' AND source_session_id='replay-fixture'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("read Codex catalog title")
+    };
+    assert_eq!(read_title(&conn), "Session index title");
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("append Codex title fixture");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({
+            "type": "custom_tool_call",
+            "name": "update_plan",
+            "input": "{}",
+            "call_id": "call-plan"
+        }))
+    )
+    .expect("append tool call");
+    file.flush().expect("flush tool call");
+    drop(file);
+
+    let polled = poll_delta(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        &opened.cursor,
+        ReplayLimits::default(),
+    )
+    .expect("poll Codex tool delta");
+    assert_eq!(read_title(&conn), "Session index title");
+
+    let reopened = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("reopen Codex title fixture");
+    assert_eq!(reopened.cursor.generation, polled.cursor.generation);
+    assert_eq!(read_title(&conn), "Session index title");
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn every_registered_adapter_is_incremental() {
     for source in ImportedHistorySourceId::ALL {
         ensure_supported(source).expect("all 15 imported sources have bounded replay");
@@ -458,6 +556,133 @@ fn codex_delta_honors_max_turns_across_many_new_turns() {
 }
 
 #[test]
+fn codex_large_turn_reads_newest_slice_then_continues_without_gaps() {
+    use std::io::Write;
+
+    let (mut conn, path, session_id) = codex_fixture();
+    let mut file = std::fs::File::create(&path).expect("create large-turn fixture");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({"type":"user_message","message":"large turn"}))
+    )
+    .expect("write user event");
+    for event_index in 0..450 {
+        writeln!(
+            file,
+            "{}",
+            jsonl(serde_json::json!({
+                "type":"agent_message",
+                "message":format!("assistant-{event_index}")
+            }))
+        )
+        .expect("write assistant event");
+    }
+    drop(file);
+
+    let limits = ReplayLimits {
+        max_turns: 1,
+        max_events: 200,
+        max_ipc_bytes: HARD_MAX_IPC_BYTES,
+    };
+    let newest = read_turn_window_at_index(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        0,
+        limits,
+    )
+    .expect("read newest turn slice");
+    assert_eq!(newest.chunks.len(), 200);
+    assert_eq!(newest.chunks.first().map(|chunk| chunk.sequence), Some(0));
+    assert_eq!(newest.window_start_sequence, Some(252));
+    assert_eq!(
+        newest.chunks.get(1).map(|chunk| chunk.sequence),
+        Some(252),
+        "selected large turns retain the user anchor plus the newest bounded tail"
+    );
+    assert_eq!(newest.chunks.last().map(|chunk| chunk.sequence), Some(450));
+    assert!(newest.has_older);
+
+    let middle = read_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        newest.window_start_sequence,
+        limits,
+    )
+    .expect("read middle turn slice");
+    let oldest = read_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        middle.chunks.first().map(|chunk| chunk.sequence),
+        limits,
+    )
+    .expect("read oldest turn slice");
+
+    assert_eq!(middle.chunks.len(), 200);
+    assert_eq!(oldest.chunks.len(), 52);
+    for window in [&newest, &middle, &oldest] {
+        assert!(window.chunks.len() <= limits.max_events);
+        assert!(window.stats.ipc_bytes <= limits.max_ipc_bytes as u64);
+    }
+    let sequences = oldest
+        .chunks
+        .iter()
+        .chain(middle.chunks.iter())
+        .chain(newest.chunks.iter().skip(1))
+        .map(|chunk| chunk.sequence)
+        .collect::<Vec<_>>();
+    assert_eq!(sequences, (0..=450).collect::<Vec<_>>());
+    assert_eq!(
+        sequences
+            .iter()
+            .copied()
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        sequences.len()
+    );
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn codex_exact_small_turn_keeps_the_anchor_as_its_continuation_boundary() {
+    use std::io::Write;
+
+    let (mut conn, path, session_id) = codex_fixture();
+    let mut file = std::fs::File::create(&path).expect("create small-turn fixture");
+    for payload in [
+        serde_json::json!({"type":"user_message","message":"small turn"}),
+        serde_json::json!({"type":"agent_message","message":"assistant-1"}),
+        serde_json::json!({"type":"agent_message","message":"assistant-2"}),
+    ] {
+        writeln!(file, "{}", jsonl(payload)).expect("write small-turn event");
+    }
+    drop(file);
+
+    let window = read_turn_window_at_index(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        0,
+        ReplayLimits::default(),
+    )
+    .expect("read complete exact turn");
+    assert_eq!(
+        window
+            .chunks
+            .iter()
+            .map(|chunk| chunk.sequence)
+            .collect::<Vec<_>>(),
+        vec![0, 1, 2]
+    );
+    assert_eq!(window.window_start_sequence, Some(0));
+    assert!(!window.has_older);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn codex_large_body_is_source_backed_and_range_bounded() {
     let (mut conn, path, session_id) = codex_fixture();
     let large = format!("BEGIN-{}-END", "你".repeat(10_000));
@@ -507,6 +732,169 @@ fn codex_large_body_is_source_backed_and_range_bounded() {
         }
     }
     assert_eq!(reconstructed, large);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn cached_codex_secondary_reads_do_not_mutate_source_sync() {
+    use std::io::Write;
+
+    let (mut conn, path, session_id) = codex_fixture();
+    std::fs::write(
+        &path,
+        [
+            jsonl(serde_json::json!({"type":"user_message","message":"first"})),
+            jsonl(serde_json::json!({"type":"agent_message","message":"first answer"})),
+            jsonl(serde_json::json!({"type":"user_message","message":"second"})),
+            jsonl(serde_json::json!({"type":"agent_message","message":"second answer"})),
+        ]
+        .join("\n")
+            + "\n",
+    )
+    .expect("initial cached JSONL");
+
+    assert!(open_cached_window(
+        &conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("check cold replay cache")
+    .is_none());
+
+    let indexed = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("index cached replay fixture");
+    let indexed_cursor = indexed.cursor.clone();
+    let changes_before_cached_reads = conn.total_changes();
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("append cached replay fixture");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({"type":"user_message","message":"third"}))
+    )
+    .expect("append third user turn");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({"type":"agent_message","message":"third answer"}))
+    )
+    .expect("append third assistant turn");
+    file.flush().expect("flush appended replay fixture");
+    drop(file);
+
+    let cached = open_cached_window(
+        &conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("read last published replay generation")
+    .expect("published replay cache");
+    assert_eq!(cached.cursor, indexed_cursor);
+    assert_eq!(cached.stats.parsed_bytes, 0);
+    assert_eq!(cached.stats.parsed_rows, 0);
+
+    let first_turn = read_cached_turn_window_at_index(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        0,
+        ReplayLimits::default(),
+    )
+    .expect("read cached earlier turn")
+    .expect("cached earlier turn");
+    assert_eq!(first_turn.turn_headers[0].turn_index, 0);
+    let cached_metadata = project_cached_turn_metadata(
+        &conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        Some(&[first_turn.turn_headers[0].turn_id.clone()]),
+    )
+    .expect("project cached earlier-turn metadata")
+    .expect("cached metadata projection");
+    assert_eq!(cached_metadata.len(), 1);
+    assert_eq!(
+        cached_metadata[0].turn_id,
+        first_turn.turn_headers[0].turn_id
+    );
+    assert_eq!(conn.total_changes(), changes_before_cached_reads);
+
+    let delta = poll_delta(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        &indexed_cursor,
+        ReplayLimits::default(),
+    )
+    .expect("publish appended replay delta");
+    assert!(delta.stats.parsed_rows > 0);
+    assert!(delta.cursor.revision > indexed_cursor.revision);
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn authoritative_codex_open_syncs_an_append_before_returning() {
+    use std::io::Write;
+
+    let (mut conn, path, session_id) = codex_fixture();
+    std::fs::write(
+        &path,
+        [
+            jsonl(serde_json::json!({"type":"user_message","message":"first"})),
+            jsonl(serde_json::json!({"type":"agent_message","message":"first answer"})),
+        ]
+        .join("\n")
+            + "\n",
+    )
+    .expect("initial authoritative-open JSONL");
+    let first = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("initial authoritative open");
+    assert_eq!(first.total_turn_count, 1);
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("append authoritative-open fixture");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({"type":"user_message","message":"second"}))
+    )
+    .expect("append second user turn");
+    writeln!(
+        file,
+        "{}",
+        jsonl(serde_json::json!({"type":"agent_message","message":"second answer"}))
+    )
+    .expect("append second assistant turn");
+    file.flush().expect("flush authoritative-open append");
+    drop(file);
+
+    let reopened = open_window(
+        &mut conn,
+        ImportedHistorySourceId::CodexApp,
+        &session_id,
+        ReplayLimits::default(),
+    )
+    .expect("authoritative reopen after append");
+
+    assert_eq!(reopened.total_turn_count, 2);
+    assert!(reopened.cursor.revision > first.cursor.revision);
+    assert!(reopened.stats.parsed_rows > 0);
     let _ = std::fs::remove_file(path);
 }
 

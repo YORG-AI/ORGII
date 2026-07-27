@@ -166,12 +166,19 @@ pub fn list_sessions() -> SqliteResult<Vec<CodeSession>> {
     rows.collect()
 }
 
-/// One page of sessions ordered by recent activity. Serves the sidebar's
-/// paginated category view without loading the whole table.
-pub fn list_sessions_page(limit: usize, offset: usize) -> SqliteResult<Vec<CodeSession>> {
+/// One page of top-level sessions ordered by recent activity.
+///
+/// This query serves the sidebar category pager. Filtering children before
+/// `LIMIT`/`OFFSET` is essential: managed OpenCode and Agent Org rows can
+/// otherwise occupy an entire SQL page even though the sidebar hides them.
+/// Child-session APIs continue to use [`list_sessions`] or direct parent
+/// queries and are unaffected.
+pub fn list_root_sessions_page(limit: usize, offset: usize) -> SqliteResult<Vec<CodeSession>> {
     let conn = get_connection()?;
     let query = format!(
-        "SELECT {} FROM code_sessions cs ORDER BY cs.updated_at DESC LIMIT ?1 OFFSET ?2",
+        "SELECT {} FROM code_sessions cs
+         WHERE cs.parent_session_id IS NULL OR cs.parent_session_id = ''
+         ORDER BY cs.updated_at DESC LIMIT ?1 OFFSET ?2",
         SESSION_COLUMNS
     );
     let limit = limit.min(i64::MAX as usize) as i64;
@@ -855,4 +862,72 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<CodeSession> {
         updated_at: row.get(40)?,
         transcript_source: row.get(41)?,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::test_env;
+
+    fn insert_sidebar_fixture(session_id: &str, parent_session_id: Option<&str>, updated_at: &str) {
+        let conn = get_connection().expect("open sandbox database");
+        conn.execute(
+            "INSERT INTO code_sessions
+                 (session_id, name, status, flow, runner, cli_agent_type,
+                  parent_session_id, created_at, updated_at)
+             VALUES (?1, ?1, 'completed', 'quick', 'local', 'opencode',
+                     ?2, '2026-07-26T00:00:00Z', ?3)",
+            params![session_id, parent_session_id, updated_at],
+        )
+        .expect("insert CLI sidebar fixture");
+    }
+
+    #[test]
+    fn root_page_offsets_ignore_dense_managed_cli_children() {
+        let _sandbox = test_env::sandbox();
+
+        for (root_index, second) in [50, 30, 10].into_iter().enumerate() {
+            let root_id = format!("cliagent-root-{root_index}");
+            insert_sidebar_fixture(&root_id, None, &format!("2026-07-26T12:00:{second:02}Z"));
+            if root_index < 2 {
+                for child_index in 1..=9 {
+                    insert_sidebar_fixture(
+                        &format!("opencodeapp-child-{root_index}-{child_index}"),
+                        Some(&root_id),
+                        &format!("2026-07-26T12:00:{:02}Z", second - child_index),
+                    );
+                }
+            }
+        }
+
+        // Sidebar callers ask for page_size + 1 roots. The extra row makes
+        // hasMore=true without allowing the 18 child rows to consume slots.
+        let first_page = list_root_sessions_page(3, 0).expect("load first root-only CLI page");
+        assert_eq!(
+            first_page
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["cliagent-root-0", "cliagent-root-1", "cliagent-root-2"]
+        );
+
+        let second_page = list_root_sessions_page(3, 2).expect("load second root-only CLI page");
+        assert_eq!(
+            second_page
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["cliagent-root-2"]
+        );
+
+        assert_eq!(
+            list_sessions()
+                .expect("ordinary CLI listing")
+                .iter()
+                .filter(|session| session.parent_session_id.is_some())
+                .count(),
+            18,
+            "root pagination must not remove children from the ordinary APIs"
+        );
+    }
 }

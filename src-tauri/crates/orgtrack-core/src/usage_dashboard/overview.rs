@@ -11,7 +11,9 @@ use serde::Serialize;
 
 use super::accumulator::UsageHeadlineAccumulator;
 use super::rounds::{visit_rounds, UsageRoundRow};
-use super::{SessionSort, TrendBucket, UsageFilter, UsageRoundQuery, UsageSummary, UsageTrendPoint};
+use super::{
+    SessionSort, TrendBucket, UsageFilter, UsageRoundQuery, UsageSummary, UsageTrendPoint,
+};
 
 const ROUND_PAGE_TABLE: &str = "usage_dashboard_round_page";
 

@@ -20,10 +20,10 @@
 //! `list_sessions` pair without inventing a parallel test fixture.
 
 use super::ops::{
-    delete_session, finalize_terminal_turn_status, list_sessions,
+    delete_session, finalize_terminal_turn_status, list_root_sessions, list_sessions,
     reconcile_sessions_with_terminal_turn_markers, upsert_session,
 };
-use super::record::UnifiedSessionRecord;
+use super::record::{session_type, UnifiedSessionRecord};
 use crate::session::persistence;
 use crate::session::types::{SessionListFilter, SessionStatus};
 use core_types::key_source::KeySource;
@@ -89,20 +89,33 @@ fn ensure_test_schema() {
 }
 
 fn seed_session(session_id: &str, status: SessionStatus) {
+    seed_session_with_parent(
+        session_id,
+        status,
+        session_type::CODING,
+        None,
+        "2024-01-01T00:00:00Z",
+    );
+}
+
+fn seed_session_with_parent(
+    session_id: &str,
+    status: SessionStatus,
+    record_type: &str,
+    parent_session_id: Option<&str>,
+    updated_at: &str,
+) {
     ensure_test_schema();
-    // Status is the only column under test; everything else is filler
-    // matching the NOT NULL constraints in the schema. `session_type`
-    // is forced to a concrete value (`"sde"`) because the default
-    // `list_sessions` filter already excludes the `gateway` type.
-    let now = "2024-01-01T00:00:00Z".to_string();
+    let created_at = "2024-01-01T00:00:00Z".to_string();
     let record = UnifiedSessionRecord {
         session_id: session_id.to_string(),
         name: format!("seed-{session_id}"),
         status: status.as_str().to_string(),
-        created_at: now.clone(),
-        updated_at: now,
-        session_type: "sde".to_string(),
+        created_at,
+        updated_at: updated_at.to_string(),
+        session_type: record_type.to_string(),
         key_source: KeySource::OwnKey,
+        parent_session_id: parent_session_id.map(str::to_string),
         ..Default::default()
     };
     upsert_session(&record).expect("seed upsert");
@@ -185,6 +198,82 @@ fn list_sessions_default_filter_excludes_archived() {
         archived_ids,
         vec!["sid-archived"],
         "explicit status=archived must return exactly the archived row",
+    );
+}
+
+#[test]
+fn root_page_offsets_ignore_dense_org_member_children() {
+    let _sandbox = test_env::sandbox();
+
+    for (root_index, second) in [50, 30, 10].into_iter().enumerate() {
+        let root_id = format!("sdeagent-root-{root_index}");
+        seed_session_with_parent(
+            &root_id,
+            SessionStatus::Completed,
+            session_type::CODING,
+            None,
+            &format!("2026-07-26T12:00:{second:02}Z"),
+        );
+        if root_index < 2 {
+            for child_index in 1..=9 {
+                seed_session_with_parent(
+                    &format!("{root_id}:member:{child_index}"),
+                    SessionStatus::Completed,
+                    session_type::ORG_MEMBER,
+                    Some(&root_id),
+                    &format!("2026-07-26T12:00:{:02}Z", second - child_index),
+                );
+            }
+        }
+    }
+
+    let first_page_filter = SessionListFilter {
+        type_names: Some(vec![
+            session_type::CODING.to_string(),
+            session_type::ORG_MEMBER.to_string(),
+        ]),
+        limit: Some(3),
+        offset: Some(0),
+        ..Default::default()
+    };
+    let first_page = list_root_sessions(&first_page_filter).expect("load first root-only page");
+    assert_eq!(
+        first_page
+            .iter()
+            .map(|session| session.session_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["sdeagent-root-0", "sdeagent-root-1", "sdeagent-root-2"]
+    );
+
+    let second_page_filter = SessionListFilter {
+        limit: Some(3),
+        offset: Some(2),
+        ..first_page_filter
+    };
+    let second_page = list_root_sessions(&second_page_filter).expect("load second root-only page");
+    assert_eq!(
+        second_page
+            .iter()
+            .map(|session| session.session_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["sdeagent-root-2"]
+    );
+
+    let unscoped = list_sessions(&SessionListFilter {
+        type_names: Some(vec![
+            session_type::CODING.to_string(),
+            session_type::ORG_MEMBER.to_string(),
+        ]),
+        ..Default::default()
+    })
+    .expect("ordinary listing still includes children");
+    assert_eq!(
+        unscoped
+            .iter()
+            .filter(|session| session.parent_session_id.is_some())
+            .count(),
+        18,
+        "root pagination must not remove children from the ordinary APIs"
     );
 }
 

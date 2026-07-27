@@ -431,6 +431,95 @@ fn readerless_large_single_turn_pages_from_actual_window_start_without_gaps() {
 }
 
 #[test]
+fn readerless_exact_turn_anchors_only_when_the_bounded_tail_has_a_gap() {
+    let conn = rusqlite::Connection::open_in_memory().expect("managed replay DB");
+    managed_replay_test_schema(&conn);
+    let large_session_id = "cliagent-large-exact-turn";
+    conn.execute(
+        "INSERT INTO code_session_history_mutations VALUES(?1, 11)",
+        [large_session_id],
+    )
+    .expect("managed replay generation");
+    insert_managed_replay_chunk(&conn, large_session_id, "user-0", 0, "user_message");
+    for sequence in 1..=450_i64 {
+        insert_managed_replay_chunk(
+            &conn,
+            large_session_id,
+            &format!("assistant-{sequence}"),
+            sequence,
+            "assistant_message",
+        );
+    }
+    conn.execute(
+        "UPDATE code_session_chunks
+         SET result_json=json_object('content',chunk_id)
+         WHERE session_id=?1",
+        [large_session_id],
+    )
+    .expect("make large exact turn visible");
+
+    let large = managed_chunk_read_window_from_conn(
+        &conn,
+        large_session_id,
+        None,
+        None,
+        Some(0),
+        managed_replay_limits(10),
+    )
+    .expect("read exact large managed turn");
+    assert_eq!(large.chunks.len(), 200);
+    assert_eq!(large.chunks.first().map(|chunk| chunk.sequence), Some(0));
+    assert_eq!(large.chunks.get(1).map(|chunk| chunk.sequence), Some(252));
+    assert_eq!(large.chunks.last().map(|chunk| chunk.sequence), Some(450));
+    assert_eq!(large.window_start_sequence, Some(252));
+    assert!(large.has_older);
+    assert_eq!(large.turn_headers.len(), 1);
+    assert_eq!(large.turn_headers[0].event_count, 451);
+
+    let small_session_id = "cliagent-small-exact-turn";
+    conn.execute(
+        "INSERT INTO code_session_history_mutations VALUES(?1, 12)",
+        [small_session_id],
+    )
+    .expect("small managed replay generation");
+    insert_managed_replay_chunk(&conn, small_session_id, "small-user", 0, "user_message");
+    insert_managed_replay_chunk(
+        &conn,
+        small_session_id,
+        "small-assistant",
+        1,
+        "assistant_message",
+    );
+    conn.execute(
+        "UPDATE code_session_chunks
+         SET result_json=json_object('content',chunk_id)
+         WHERE session_id=?1",
+        [small_session_id],
+    )
+    .expect("make small exact turn visible");
+
+    let small = managed_chunk_read_window_from_conn(
+        &conn,
+        small_session_id,
+        None,
+        None,
+        Some(0),
+        managed_replay_limits(10),
+    )
+    .expect("read exact small managed turn");
+    assert_eq!(
+        small
+            .chunks
+            .iter()
+            .map(|chunk| chunk.sequence)
+            .collect::<Vec<_>>(),
+        vec![0, 1]
+    );
+    assert_eq!(small.window_start_sequence, Some(0));
+    assert!(!small.has_older);
+}
+
+#[test]
 fn readerless_managed_cli_uses_one_fallback_turn_without_user_rows() {
     let conn = rusqlite::Connection::open_in_memory().expect("managed replay DB");
     managed_replay_test_schema(&conn);

@@ -382,19 +382,17 @@ pub(super) fn delete_orphans(
     tx.execute(
         "DELETE FROM imported_replay_payload_artifacts AS artifact
          WHERE artifact.source=?1 AND artifact.source_session_id=?2 AND artifact.generation=?3
-           AND NOT EXISTS (
-             SELECT 1 FROM imported_replay_payload_artifact_refs AS ref
-             WHERE ref.source=artifact.source
-               AND ref.source_session_id=artifact.source_session_id
-               AND ref.generation=artifact.generation
-               AND ref.content_hash=artifact.content_hash
+           AND artifact.content_hash NOT IN (
+             SELECT ref.content_hash FROM imported_replay_payload_artifact_refs AS ref
+             WHERE ref.source=?1
+               AND ref.source_session_id=?2
+               AND ref.generation=?3
            )
-           AND NOT EXISTS (
-             SELECT 1 FROM imported_replay_shell_segments AS shell
-             WHERE shell.source=artifact.source
-               AND shell.source_session_id=artifact.source_session_id
-               AND shell.generation=artifact.generation
-               AND shell.content_hash=artifact.content_hash
+           AND artifact.content_hash NOT IN (
+             SELECT shell.content_hash FROM imported_replay_shell_segments AS shell
+             WHERE shell.source=?1
+               AND shell.source_session_id=?2
+               AND shell.generation=?3
            )",
         params![source.as_str(), source_session_id, generation],
     )

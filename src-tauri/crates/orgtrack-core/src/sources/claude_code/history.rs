@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
@@ -810,13 +810,6 @@ fn parse_claude_session_meta(
 fn parse_claude_catalog_input(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<Option<ImportedHistoryCacheInput>, String> {
-    let file = fs::File::open(&record.source_path).map_err(|err| {
-        format!(
-            "Failed to open Claude catalog prefix {}: {err}",
-            record.source_path.display()
-        )
-    })?;
-    let reader = BufReader::new(file.take(CLAUDE_CATALOG_PREFIX_BYTES));
     let mut created_at_ms = 0;
     let external_title = claude_session_title_for_record(record)?;
     let mut summary_title = String::new();
@@ -827,8 +820,11 @@ fn parse_claude_catalog_input(
     let mut parent_source_session_id = None;
     let mut first_user_uuid = None;
 
-    for line in reader.lines() {
-        let line = line.map_err(|err| format!("Failed to read Claude catalog prefix: {err}"))?;
+    for line in imported_history::read_complete_jsonl_prefix_lines(
+        &record.source_path,
+        "Claude",
+        CLAUDE_CATALOG_PREFIX_BYTES,
+    )? {
         let Ok(parsed) = serde_json::from_str::<ClaudeJsonlLine>(line.trim()) else {
             continue;
         };

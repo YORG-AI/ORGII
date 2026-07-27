@@ -198,10 +198,31 @@ pub fn get_session(session_id: &str) -> SqliteResult<Option<UnifiedSessionRecord
 
 /// List sessions with optional filtering.
 pub fn list_sessions(filter: &SessionListFilter) -> SqliteResult<Vec<UnifiedSessionRecord>> {
+    list_sessions_with_parent_scope(filter, false)
+}
+
+/// List only top-level sessions with optional filtering.
+///
+/// This is the root-only counterpart used by bounded sidebar pagination.
+/// Child sessions remain available through [`list_sessions`] and
+/// [`get_child_sessions`], but they cannot consume `LIMIT`/`OFFSET` slots
+/// intended for user-visible root rows.
+pub fn list_root_sessions(filter: &SessionListFilter) -> SqliteResult<Vec<UnifiedSessionRecord>> {
+    list_sessions_with_parent_scope(filter, true)
+}
+
+fn list_sessions_with_parent_scope(
+    filter: &SessionListFilter,
+    root_only: bool,
+) -> SqliteResult<Vec<UnifiedSessionRecord>> {
     let conn = get_connection()?;
 
     let mut conditions: Vec<String> = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+    if root_only {
+        conditions.push("(s.parent_session_id IS NULL OR s.parent_session_id = '')".to_string());
+    }
 
     if let Some(ref type_name) = filter.type_name {
         conditions.push(format!("s.session_type = ?{}", params_vec.len() + 1));

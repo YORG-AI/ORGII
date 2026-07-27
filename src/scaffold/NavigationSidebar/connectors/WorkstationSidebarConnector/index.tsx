@@ -9,7 +9,6 @@ import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
-  loadSessionRoster,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
@@ -135,9 +134,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
         ...currentQueries,
         [activeSidebarSearchKey]: value,
       }));
-      if (activeSidebarSearchKey === "workstation") {
-        void loadSessionRoster();
-      }
     },
     [activeSidebarSearchKey]
   );
@@ -155,6 +151,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
+    sidebarOrgIds,
+    activePinnedPage,
+    activeWorkspaceFacetPage,
     setSelectedOrgId,
     repoPathToName,
     groupByMode,
@@ -240,6 +239,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     subagentParentIds,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
     projectsWorkItemMenuItems,
     projectsProjectMap,
     projectsWorkItemMap,
@@ -262,9 +264,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
     untitledSession,
     workstationSearchQuery: sidebarSearchQueries.workstation,
     sessionFilterOrgIds,
+    sidebarOrgIds,
     cloudScopedExtraSessionIds,
     sessionListExcludedIds,
     includeExternal,
+    pinnedPage: activePinnedPage,
+    workspaceFacetPage: activeWorkspaceFacetPage,
     groupVisibleCounts,
     activeCloudOrgId,
     expandedSubagentParentIds,
@@ -377,6 +382,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
     sessionMap,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
+    sidebarOrgIds,
+    includeExternal,
     sessionRouteLabel: t("routes.session"),
     handleGoToNewSession,
     navigateTo,
@@ -561,6 +571,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
                 onChange={handleSidebarSearchChange}
                 placeholder={searchPlaceholder}
                 compact
+                dataTestId={`${activeSidebarSearchKey}-sidebar-search-input`}
               />
             }
             rightActions={sidebarBottomRightActions}

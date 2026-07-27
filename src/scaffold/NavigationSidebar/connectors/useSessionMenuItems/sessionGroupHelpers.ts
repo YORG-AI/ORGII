@@ -15,5 +15,14 @@ export function groupKeyToWireCategory(
   }
   if (groupKey === "cli") return "cli_agent";
   if (groupKey === "human") return "human_session";
-  return "rust_agent";
+  switch (groupKey) {
+    case "sde":
+      return "rust_agent:sde";
+    case "os":
+      return "rust_agent:os";
+    case "wingman":
+      return "rust_agent:wingman";
+    case "custom":
+      return "rust_agent:custom";
+  }
 }

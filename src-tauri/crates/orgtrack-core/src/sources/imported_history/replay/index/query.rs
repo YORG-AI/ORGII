@@ -87,6 +87,7 @@ pub(in crate::sources::imported_history::replay) fn read_window_before(
             revision: state.revision,
             through_sequence,
         },
+        window_start_sequence: chunks.first().map(|chunk| chunk.sequence),
         chunks,
         turn_headers,
         total_turn_count: state.total_turns,
@@ -175,23 +176,40 @@ pub(in crate::sources::imported_history::replay) fn read_window_for_turn_index(
     )?;
     let state = load_state(conn, source, &resolved.source_session_id)?
         .ok_or_else(|| "Replay index state disappeared after turn hydration".to_string())?;
-    let chunks = read_chunks(
+    let (chunks, window_start_sequence) = read_anchored_turn_chunks(
         conn,
         source,
         session_id,
         &resolved.source_session_id,
         &state.generation,
-        "turn_index=?4",
-        &[turn.turn_index],
+        turn.turn_index,
         limits,
-        QueryDirection::OldestFirst,
     )?;
     let ipc_bytes = chunks
         .iter()
         .map(serialized_indexed_chunk_bytes)
         .sum::<usize>();
     let through_sequence = chunks.last().map_or(-1, |chunk| chunk.sequence);
-    let has_older = turn.turn_index > 0;
+    let has_older = if let Some(continuation_sequence) = window_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM imported_replay_events
+                WHERE source=?1 AND source_session_id=?2 AND generation=?3
+                  AND sequence<?4
+             )",
+            params![
+                source.as_str(),
+                resolved.source_session_id,
+                state.generation,
+                continuation_sequence
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|err| format!("query events before replay turn slice: {err}"))?
+            != 0
+    } else {
+        turn.turn_index > 0
+    };
     Ok(ReplayChunkWindow {
         cursor: ReplayCursor {
             source_id: source.as_str().to_string(),
@@ -200,6 +218,7 @@ pub(in crate::sources::imported_history::replay) fn read_window_for_turn_index(
             revision: state.revision,
             through_sequence,
         },
+        window_start_sequence,
         chunks,
         turn_headers: vec![turn],
         total_turn_count: state.total_turns,
@@ -210,6 +229,89 @@ pub(in crate::sources::imported_history::replay) fn read_window_for_turn_index(
             ..hydrate_stats
         },
     })
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "Replay adapter boundaries keep cursor, generation, and payload fields explicit"
+)]
+fn read_anchored_turn_chunks(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    display_session_id: &str,
+    source_session_id: &str,
+    generation: &str,
+    turn_index: i64,
+    limits: ReplayLimits,
+) -> Result<(Vec<ReplayIndexedChunk>, Option<i64>), String> {
+    let anchor_limits = ReplayLimits {
+        max_turns: 1,
+        max_events: 1,
+        max_ipc_bytes: limits.max_ipc_bytes,
+    };
+    let mut chunks = read_chunks(
+        conn,
+        source,
+        display_session_id,
+        source_session_id,
+        generation,
+        "turn_index=?4",
+        &[turn_index],
+        anchor_limits,
+        QueryDirection::OldestFirst,
+    )?;
+    let Some(anchor_sequence) = chunks.first().map(|anchor| anchor.sequence) else {
+        return Ok((chunks, None));
+    };
+    let anchor_bytes = chunks
+        .first()
+        .map(serialized_indexed_chunk_bytes)
+        .unwrap_or_default();
+    let Some(tail_limits) = limits.after_exact_turn_anchor(anchor_bytes) else {
+        return Ok((chunks, Some(anchor_sequence)));
+    };
+    let mut tail = read_chunks(
+        conn,
+        source,
+        display_session_id,
+        source_session_id,
+        generation,
+        "turn_index=?4 AND sequence>?5",
+        &[turn_index, anchor_sequence],
+        tail_limits,
+        QueryDirection::NewestFirst,
+    )?;
+    tail.reverse();
+    let tail_start_sequence = tail.first().map(|chunk| chunk.sequence);
+    let has_gap = if let Some(tail_start_sequence) = tail_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM imported_replay_events
+                WHERE source=?1 AND source_session_id=?2 AND generation=?3
+                  AND turn_index=?4 AND sequence>?5 AND sequence<?6
+             )",
+            params![
+                source.as_str(),
+                source_session_id,
+                generation,
+                turn_index,
+                anchor_sequence,
+                tail_start_sequence
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|err| format!("query exact replay turn gap: {err}"))?
+            != 0
+    } else {
+        false
+    };
+    let window_start_sequence = if has_gap {
+        tail_start_sequence
+    } else {
+        Some(anchor_sequence)
+    };
+    chunks.extend(tail);
+    Ok((chunks, window_start_sequence))
 }
 
 pub(in crate::sources::imported_history::replay) fn hydrate_turn_if_needed(

@@ -7,6 +7,7 @@ import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHist
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   ExternalHistorySidebarBatchResponse,
+  ExternalHistorySidebarCursor,
   ExternalHistorySidebarDateBucket,
   ExternalHistorySidebarListRequest,
   ExternalHistorySidebarResponse,
@@ -14,6 +15,8 @@ import type {
   SessionAggregateRecord,
   SessionFilter,
   SessionListResponse,
+  SessionWorkspaceFacetListRequest,
+  SessionWorkspaceFacetResponse,
 } from "@src/api/tauri/rpc/schemas/sessionAggregate";
 import { normalizeAgentExecMode } from "@src/config/sessionCreatorConfig";
 import type { Session } from "@src/store/session/sessionAtom/types";
@@ -43,6 +46,7 @@ export type {
 // Re-export session aggregate types from RPC schemas (single source of truth).
 export type {
   ExternalHistorySidebarBatchResponse,
+  ExternalHistorySidebarCursor,
   ExternalHistorySidebarDateBucket,
   ExternalHistorySidebarListRequest,
   ExternalHistorySidebarResponse,
@@ -50,6 +54,8 @@ export type {
   SessionAggregateRecord,
   SessionFilter,
   SessionListResponse,
+  SessionWorkspaceFacetListRequest,
+  SessionWorkspaceFacetResponse,
 };
 
 // ============================================================================
@@ -72,6 +78,12 @@ export async function externalHistorySidebarList(
   request: ExternalHistorySidebarListRequest
 ): Promise<ExternalHistorySidebarBatchResponse> {
   return rpc.sessionAggregate.externalHistorySidebarList(request);
+}
+
+export async function sessionWorkspaceFacets(
+  request: SessionWorkspaceFacetListRequest
+): Promise<SessionWorkspaceFacetResponse> {
+  return rpc.sessionAggregate.workspaceFacets({ request });
 }
 
 // ============================================================================

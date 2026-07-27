@@ -59,6 +59,16 @@ export function markTurnBodyLoaded(
   getSessionLoadedTurns(sessionId).set(turnId, Date.now());
 }
 
+/** Random-access bounded replay replaces the previously resident turn body. */
+export function replaceTurnBodyLoaded(
+  sessionId: string,
+  turnId: string,
+  generation: number
+): void {
+  if (registryGenerationBySession.get(sessionId) !== generation) return;
+  loadedTurnsBySession.set(sessionId, new Map([[turnId, Date.now()]]));
+}
+
 export async function pruneLoadedTurnBodies(
   sessionId: string,
   protectedTurnIds: Iterable<string>

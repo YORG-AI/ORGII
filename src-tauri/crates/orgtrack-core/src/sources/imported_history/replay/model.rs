@@ -51,6 +51,18 @@ impl ReplayLimits {
             max_ipc_bytes: self.max_ipc_bytes.clamp(1, HARD_MAX_IPC_BYTES),
         }
     }
+
+    /// Reserve the remaining exact-turn budget after retaining its first
+    /// rendering anchor. A selected turn may then use this budget for its
+    /// newest tail without exceeding either the event or compact-byte cap.
+    pub fn after_exact_turn_anchor(self, anchor_bytes: usize) -> Option<Self> {
+        let bounded = self.bounded();
+        (bounded.max_events > 1).then(|| Self {
+            max_turns: 1,
+            max_events: bounded.max_events - 1,
+            max_ipc_bytes: bounded.max_ipc_bytes.saturating_sub(anchor_bytes).max(1),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -267,6 +279,12 @@ pub struct ReplayIndexedChunk {
 pub struct ReplayChunkWindow {
     pub cursor: ReplayCursor,
     pub chunks: Vec<ReplayIndexedChunk>,
+    /// Sequence before which an older-page request should continue.
+    ///
+    /// Selected large turns keep their first user event as a rendering anchor
+    /// plus a bounded newest tail. The continuation boundary is therefore the
+    /// start of that tail, not necessarily the minimum sequence in `chunks`.
+    pub window_start_sequence: Option<i64>,
     pub turn_headers: Vec<ReplayTurnHeader>,
     pub total_turn_count: u64,
     pub total_event_count: u64,

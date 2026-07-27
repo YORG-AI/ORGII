@@ -17,7 +17,9 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
+import { externalReplayPlaceholderId } from "@src/engines/SessionCore/sync/externalReplayTurnState";
 import {
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
@@ -59,7 +61,12 @@ function getTurnIdsToLoadForPage(
   if (!summary || summary.bodyEventCount <= 0) return [];
   const hasLoadedBody =
     page.replayBodyLoaded && page.flatEndIndex > page.flatStartIndex;
-  return hasLoadedBody ? [] : [summary.turnId];
+  // A virtual replay page first has a local placeholder id, then receives
+  // the provider's real turn id when its compact header arrives. The body
+  // request must keep one stable identity across that transition; otherwise
+  // React starts a second request for the same turn and Rust's request-token
+  // guard can invalidate the first publication before the UI consumes it.
+  return hasLoadedBody ? [] : [externalReplayPlaceholderId(summary.turnIndex)];
 }
 
 interface TurnPageSelection {
@@ -226,8 +233,21 @@ export function useTurnPageNavigation({
           turnId,
         })
           .then(async () => {
+            const replacedBoundedReplayBody = Boolean(
+              resolveExternalReplayTarget(startedForSession)
+            );
+            if (replacedBoundedReplayBody) {
+              autoLoadedTurnKeysRef.current.clear();
+              autoLoadedTurnKeysRef.current.add(loadKey);
+            }
             setLoadedTurnIds((prev) => {
               if (startedForSession !== activeId) return prev;
+              if (replacedBoundedReplayBody) {
+                return {
+                  sessionId: startedForSession,
+                  turnIds: new Set([turnId]),
+                };
+              }
               if (prev.sessionId !== startedForSession) {
                 return {
                   sessionId: startedForSession,

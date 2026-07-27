@@ -11,6 +11,7 @@ import {
   sortedEventsAtom,
   streamingDeltaContentAtom,
 } from "@src/engines/SessionCore/core/atoms/events";
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { chatEventsAtom } from "@src/engines/SessionCore/derived/chatEvents";
 import {
   isPendingCancelAtom,
@@ -19,6 +20,7 @@ import {
   sessionRuntimeStatusAtom,
   userInitiatedCancelAtom,
 } from "@src/store/session/cliSessionStatusAtom";
+import { externalReplayTurnSummariesAtomFamily } from "@src/store/session/externalReplayTurnSummariesAtom";
 import {
   fileReviewMapAtom,
   pendingReviewCountAtom,
@@ -55,6 +57,16 @@ export function createInspectChatStateHelper(store: E2EStore) {
       chatPanelMaximized: boolean;
       snapshotEventCount: number;
       snapshotChatEventCount: number;
+      proxySnapshotEventCount: number;
+      proxySnapshotChatEventCount: number;
+      proxySnapshotChatEventIds: string[];
+      externalReplayTurnSummaryCount: number;
+      externalReplayTurnSummarySamples: Array<{
+        turnIndex: number;
+        turnId: string;
+        renderedUserEventId: string | null;
+        userPreview: string;
+      }>;
       chatEventCount: number;
       chatEventIds: string[];
       runtimeStatus: string;
@@ -155,6 +167,25 @@ export function createInspectChatStateHelper(store: E2EStore) {
         .filter((message) => message.priority === "now")
         .map(serializeQueuedMessage);
       const activeSessionId = store.get(activeSessionIdAtom);
+      const proxySnapshot = activeSessionId
+        ? eventStoreProxy.getLatestSessionSnapshot(activeSessionId)
+        : null;
+      const externalReplayTurnSummaries = activeSessionId
+        ? store.get(externalReplayTurnSummariesAtomFamily(activeSessionId))
+        : [];
+      const summarySampleIndices = Array.from(
+        new Set(
+          [
+            0,
+            1,
+            externalReplayTurnSummaries.length - 3,
+            externalReplayTurnSummaries.length - 2,
+            externalReplayTurnSummaries.length - 1,
+          ].filter(
+            (index) => index >= 0 && index < externalReplayTurnSummaries.length
+          )
+        )
+      );
       const activeSession = activeSessionId
         ? (store
             .get(sessionsAtom)
@@ -209,6 +240,22 @@ export function createInspectChatStateHelper(store: E2EStore) {
         chatPanelMaximized: store.get(chatPanelMaximizedAtom),
         snapshotEventCount: snapshot?.eventCount ?? 0,
         snapshotChatEventCount: snapshot?.chatEvents.length ?? 0,
+        proxySnapshotEventCount: proxySnapshot?.eventCount ?? 0,
+        proxySnapshotChatEventCount: proxySnapshot?.chatEvents.length ?? 0,
+        proxySnapshotChatEventIds:
+          proxySnapshot?.chatEvents.map((event) => event.id) ?? [],
+        externalReplayTurnSummaryCount: externalReplayTurnSummaries.length,
+        externalReplayTurnSummarySamples: summarySampleIndices.map(
+          (turnIndex) => {
+            const summary = externalReplayTurnSummaries[turnIndex];
+            return {
+              turnIndex,
+              turnId: summary?.turnId ?? "",
+              renderedUserEventId: summary?.renderedUserEventId ?? null,
+              userPreview: summary?.userPreview ?? "",
+            };
+          }
+        ),
         chatEventCount: chatEvents.length,
         chatEventIds: chatEvents.map((event) => event.id),
         runtimeStatus: store.get(sessionRuntimeStatusAtom),

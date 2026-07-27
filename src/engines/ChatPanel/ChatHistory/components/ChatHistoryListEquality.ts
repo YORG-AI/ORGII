@@ -175,6 +175,7 @@ export function sameChatHistoryListProps(
     CHAT_FOOTER_SPACER.UPDATE_THRESHOLD_PX;
   const checks: Array<[string, boolean]> = [
     ["flatItems", sameFlatItems(previous.flatItems, next.flatItems)],
+    ["groupKeys", sameNullableStringArray(previous.groupKeys, next.groupKeys)],
     ["groupCounts", sameNumberArray(previous.groupCounts, next.groupCounts)],
     ["turnIds", sameNullableStringArray(previous.turnIds, next.turnIds)],
     ["totalFlatItems", previous.totalFlatItems === next.totalFlatItems],
@@ -216,6 +217,10 @@ export function sameChatHistoryListProps(
     [
       "renderGroupHeader",
       previous.renderGroupHeader === next.renderGroupHeader,
+    ],
+    [
+      "onAtStartStateChange",
+      previous.onAtStartStateChange === next.onAtStartStateChange,
     ],
     [
       "onAtBottomStateChange",

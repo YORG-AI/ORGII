@@ -19,11 +19,13 @@ use crate::sources::imported_history;
 use super::{index, ImportedHistorySourceId, ReplayTurnHeader};
 
 const MAX_REQUESTED_TURNS: usize = 500;
+const TURN_INDEX_SELECTOR_PREFIX: &str = "__external_replay_turn_index__:";
 
 #[derive(Debug, Clone)]
 struct ProjectionTurn {
     header: ReplayTurnHeader,
     next_turn_started_at: Option<String>,
+    source_turn_id: String,
 }
 
 /// Synchronize the compact replay index and project only the requested turns.
@@ -108,6 +110,119 @@ pub(super) fn project_turn_metadata(
     )
 }
 
+/// Project metadata from the last atomically published compact index without
+/// synchronizing the provider or taking a write transaction.
+///
+/// Foreground ChatHistory calls this after a bounded replay window has
+/// already supplied a generation. JSONL, row-store SQLite, structured SQLite,
+/// and whole-JSON adapters project their already-indexed rows. Cursor IDE and
+/// Windsurf retain every turn header but lazily materialize old bodies, so
+/// their storage-specific path performs exact, read-only user-bubble lookups
+/// and never indexes assistant/tool content.
+pub(super) fn project_cached_turn_metadata(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    requested_turn_ids: Option<&[String]>,
+) -> Result<Option<Vec<ProjectedTurnMetadata>>, String> {
+    source.validate_session_id(session_id)?;
+    if requested_turn_ids.is_some_and(|ids| ids.is_empty()) {
+        return Ok(Some(Vec::new()));
+    }
+    if requested_turn_ids.is_some_and(|ids| ids.len() > MAX_REQUESTED_TURNS) {
+        return Err(format!(
+            "At most {MAX_REQUESTED_TURNS} turn summaries can be loaded at once"
+        ));
+    }
+
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    let Some(state) = index::load_state(conn, source, &resolved.source_session_id)? else {
+        return Ok(None);
+    };
+    let turns = select_projection_turns(
+        conn,
+        source,
+        &resolved.source_session_id,
+        &state.generation,
+        requested_turn_ids,
+    )?;
+    let mut projected = project_indexed_turns(
+        conn,
+        source,
+        &resolved.source_session_id,
+        &state.generation,
+        &turns,
+    )?;
+    if matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    ) {
+        apply_compact_kv_turn_previews(
+            &resolved.path,
+            source,
+            &resolved.source_session_id,
+            &turns,
+            &mut projected,
+        )?;
+    }
+    load_projection_state_for_generation(
+        conn,
+        source,
+        &resolved.source_session_id,
+        &state.generation,
+        "finishing cached replay metadata projection",
+    )?;
+    Ok(Some(projected))
+}
+
+fn apply_compact_kv_turn_previews(
+    source_path: &std::path::Path,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    turns: &[ProjectionTurn],
+    projected: &mut [ProjectedTurnMetadata],
+) -> Result<(), String> {
+    let requested = turns
+        .iter()
+        .map(|turn| (turn.header.turn_index, turn.source_turn_id.clone()))
+        .collect::<Vec<_>>();
+    let previews = super::sqlite_driver::read_kv_turn_previews(
+        source_path,
+        source,
+        source_session_id,
+        &requested,
+    )?
+    .into_iter()
+    .map(|preview| (preview.turn_index, preview))
+    .collect::<std::collections::HashMap<_, _>>();
+
+    for (turn, metadata) in turns.iter().zip(projected) {
+        if metadata.event_count == 0 {
+            metadata.event_count = turn.header.event_count.min(i64::MAX as u64) as i64;
+            metadata.body_event_count = turn
+                .header
+                .event_count
+                .saturating_sub(1)
+                .min(i64::MAX as u64) as i64;
+        }
+        let Some(preview) = previews.get(&turn.header.turn_index) else {
+            continue;
+        };
+        if metadata.user_preview.is_empty() {
+            metadata.user_preview = preview.user_preview.clone();
+        }
+        if !preview.created_at.is_empty()
+            && chrono::DateTime::parse_from_rfc3339(&preview.created_at).is_ok()
+        {
+            metadata.started_at = preview.created_at.clone();
+            if metadata.ended_at.as_deref() == Some(turn.header.started_at.as_str()) {
+                metadata.ended_at = Some(preview.created_at.clone());
+            }
+        }
+    }
+    Ok(())
+}
+
 fn load_projection_state_for_generation(
     conn: &Connection,
     source: ImportedHistorySourceId,
@@ -143,9 +258,10 @@ fn select_projection_turns(
            FROM imported_replay_turns AS current
           WHERE source=?1 AND source_session_id=?2 AND generation=?3";
     let decode = |row: &rusqlite::Row<'_>| {
+        let source_turn_id: String = row.get(0)?;
         Ok(ProjectionTurn {
             header: ReplayTurnHeader {
-                turn_id: row.get(0)?,
+                turn_id: source_turn_id.clone(),
                 turn_index: row.get(1)?,
                 start_sequence: row.get(2)?,
                 end_sequence: row.get(3)?,
@@ -154,24 +270,54 @@ fn select_projection_turns(
                 event_count: row.get::<_, i64>(6)?.max(0) as u64,
             },
             next_turn_started_at: row.get(7)?,
+            source_turn_id,
         })
     };
 
     let mut turns = Vec::new();
     if let Some(requested) = requested_turn_ids {
         let requested = requested.iter().collect::<HashSet<_>>();
-        let mut statement = conn
+        let mut id_statement = conn
             .prepare(&format!("{select} AND turn_id=?4"))
             .map_err(|err| format!("prepare requested replay metadata turn: {err}"))?;
-        for turn_id in requested {
-            if let Some(turn) = statement
-                .query_row(
-                    params![source.as_str(), source_session_id, generation, turn_id],
-                    decode,
-                )
-                .optional()
-                .map_err(|err| format!("query requested replay metadata turn: {err}"))?
-            {
+        let mut index_statement = conn
+            .prepare(&format!("{select} AND turn_index=?4"))
+            .map_err(|err| format!("prepare requested replay metadata index: {err}"))?;
+        for requested_turn_id in requested {
+            let turn_index = requested_turn_id
+                .strip_prefix(TURN_INDEX_SELECTOR_PREFIX)
+                .and_then(|value| value.parse::<i64>().ok())
+                .filter(|value| *value >= 0);
+            let selected = if let Some(turn_index) = turn_index {
+                index_statement
+                    .query_row(
+                        params![source.as_str(), source_session_id, generation, turn_index],
+                        decode,
+                    )
+                    .optional()
+                    .map_err(|err| format!("query requested replay metadata index: {err}"))?
+                    .map(|mut turn| {
+                        // The selector is a renderer catalog locator, not the
+                        // provider's turn id. Echo it so a batched response can
+                        // be joined to virtual rows without hydrating bodies.
+                        turn.header.turn_id = requested_turn_id.clone();
+                        turn
+                    })
+            } else {
+                id_statement
+                    .query_row(
+                        params![
+                            source.as_str(),
+                            source_session_id,
+                            generation,
+                            requested_turn_id
+                        ],
+                        decode,
+                    )
+                    .optional()
+                    .map_err(|err| format!("query requested replay metadata turn: {err}"))?
+            };
+            if let Some(turn) = selected {
                 turns.push(turn);
             }
         }
@@ -525,6 +671,7 @@ mod tests {
                 event_count: chunks.len() as u64,
             },
             next_turn_started_at: None,
+            source_turn_id: "user-1".to_string(),
         }];
 
         let expected = project_activity_chunks(&chunks);
@@ -579,6 +726,7 @@ mod tests {
                 event_count: 251,
             },
             next_turn_started_at: None,
+            source_turn_id: "user-large".to_string(),
         }];
 
         let projected = project_indexed_turns(
@@ -671,6 +819,53 @@ mod tests {
         .expect("select newest turn");
         assert_eq!(newest.len(), 1);
         assert_eq!(newest[0].header.turn_id, "user-next");
+    }
+
+    #[test]
+    fn virtual_turn_index_selectors_return_compact_previews_without_body_windows() {
+        let conn = setup();
+        let first = vec![chunk(
+            "provider-user-0",
+            "raw",
+            imported_history::FUNCTION_USER_MESSAGE,
+            0,
+            json!({}),
+            json!({"message":{"content":"first compact prompt"}}),
+        )];
+        let second = vec![chunk(
+            "provider-user-1",
+            "raw",
+            imported_history::FUNCTION_USER_MESSAGE,
+            1,
+            json!({}),
+            json!({"message":{"content":"second compact prompt"}}),
+        )];
+        insert_turn(&conn, 0, &first);
+        insert_turn(&conn, 1, &second);
+
+        let selector = format!("{TURN_INDEX_SELECTOR_PREFIX}0");
+        let requested = vec![selector.clone()];
+        let turns = select_projection_turns(
+            &conn,
+            ImportedHistorySourceId::CodexApp,
+            SOURCE_SESSION_ID,
+            GENERATION,
+            Some(&requested),
+        )
+        .expect("select virtual catalog row by turn index");
+        let projected = project_indexed_turns(
+            &conn,
+            ImportedHistorySourceId::CodexApp,
+            SOURCE_SESSION_ID,
+            GENERATION,
+            &turns,
+        )
+        .expect("project compact catalog preview");
+
+        assert_eq!(projected.len(), 1);
+        assert_eq!(projected[0].turn_id, selector);
+        assert_eq!(projected[0].user_preview, "first compact prompt");
+        assert_eq!(projected[0].event_count, 1);
     }
 
     #[test]

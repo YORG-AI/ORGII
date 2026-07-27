@@ -15,8 +15,14 @@ import { getExternalHistorySourceId } from "@src/util/session/sessionDispatch";
 import {
   getActiveExternalReplayLease,
   getExternalReplayWatcherAvailable,
+  openExternalReplaySession,
   pollExternalReplaySession,
 } from "./externalReplayTransport";
+import {
+  getExternalReplayTurnGeneration,
+  mergeExternalReplayTurnWindow,
+  startExternalReplayTurnEpisode,
+} from "./externalReplayTurnState";
 import { getAdapterForSession } from "./types";
 
 const logger = createLogger("ExternalReplayAutoRefresh");
@@ -204,7 +210,23 @@ export async function refreshBoundedReplaySession(
 
   const delta = await pollExternalReplaySession(lease, signal);
   if (!delta || signal.aborted || delta.stats.notReady) return false;
+  let catalogReplaced = false;
+  if (
+    delta.resetRequired ||
+    getExternalReplayTurnGeneration(sessionId) !== delta.cursor.generation
+  ) {
+    // A reset delta authoritatively replaces Rust EventStore, but carries no
+    // compact turn headers. Reopen one bounded window so the renderer's
+    // virtual turn catalog advances to the same generation. The generation
+    // comparison also retries this repair after a transient reopen failure.
+    const window = await openExternalReplaySession(lease, signal);
+    if (!window || signal.aborted) return false;
+    startExternalReplayTurnEpisode(sessionId, window.cursor.generation);
+    mergeExternalReplayTurnWindow(sessionId, window);
+    catalogReplaced = true;
+  }
   return (
+    catalogReplaced ||
     delta.resetRequired ||
     delta.events.length > 0 ||
     delta.removedEventIds.length > 0

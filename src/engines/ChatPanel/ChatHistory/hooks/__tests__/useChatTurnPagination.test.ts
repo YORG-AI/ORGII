@@ -149,7 +149,7 @@ describe("useChatTurnPagination — mergeUserOnlyPages", () => {
   });
 });
 
-describe("useChatTurnPagination — Cursor bounded replay", () => {
+describe("useChatTurnPagination — bounded external replay", () => {
   it("maps the complete provider-stable user event id to its loaded group", () => {
     const stableId = "cursoride-user-provider-stable-id";
     const header = {
@@ -158,6 +158,7 @@ describe("useChatTurnPagination — Cursor bounded replay", () => {
     } as OptimizedChatItem;
     const summary: ExternalReplayTurnSummary = {
       turnId: stableId,
+      renderedUserEventId: stableId,
       nextTurnId: null,
       turnIndex: 0,
       startedAt: "2026-07-22T00:00:00Z",
@@ -183,5 +184,96 @@ describe("useChatTurnPagination — Cursor bounded replay", () => {
     expect(result.pages[0]?.startGroupIndex).toBe(0);
     expect(result.pages[0]?.replayBodyLoaded).toBe(true);
     expect(result.pages[0]?.replayTurnSummary?.turnId).toBe(stableId);
+  });
+
+  it("maps a Codex turn locator to its distinct rendered user event id", () => {
+    const latestHeader = {
+      ...fakeHeader(),
+      event: { id: "codex-user-19372" },
+    } as OptimizedChatItem;
+    const olderHeader = {
+      ...fakeHeader(),
+      event: { id: "codex-user-19216" },
+    } as OptimizedChatItem;
+    const summaries: ExternalReplayTurnSummary[] = [
+      {
+        turnId: "codex-turn-163",
+        renderedUserEventId: "codex-user-19216",
+        nextTurnId: "codex-turn-164",
+        turnIndex: 163,
+        startedAt: "2026-07-22T08:01:00Z",
+        endedAt: "2026-07-22T08:40:00Z",
+        durationMs: 39 * 60 * 1000,
+        userPreview: "older prompt",
+        eventCount: 3,
+        bodyEventCount: 2,
+      },
+      {
+        turnId: "codex-turn-164",
+        renderedUserEventId: "codex-user-19372",
+        nextTurnId: null,
+        turnIndex: 164,
+        startedAt: "2026-07-22T08:40:00Z",
+        endedAt: null,
+        durationMs: null,
+        userPreview: "latest prompt",
+        eventCount: 2,
+        bodyEventCount: 1,
+      },
+    ];
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- useMemo is mocked as a pass-through; this is not a real hook call
+    const result = useChatTurnPagination({
+      enabled: true,
+      activePageIndex: 0,
+      groupCounts: [2, 1],
+      groupHeaders: [olderHeader, latestHeader],
+      groupMeta: [
+        { turnId: "codex-user-19216" } as ChatGroupMeta,
+        { turnId: "codex-user-19372" } as ChatGroupMeta,
+      ],
+      flatItems: [fakeItem(), fakeItem(), fakeItem()],
+      lastAssistantFlatIndexPerItem: [1, 1, 2],
+      externalReplayTurnSummaries: summaries,
+    });
+
+    expect(result.pages[0]?.startGroupIndex).toBe(0);
+    expect(result.pages[0]?.replayBodyLoaded).toBe(true);
+    expect(result.displayFlatItems).toHaveLength(2);
+  });
+
+  it("renders no unrelated body while an external turn is still unloaded", () => {
+    const latestHeader = {
+      ...fakeHeader(),
+      event: { id: "codex-user-19372" },
+    } as OptimizedChatItem;
+    const summary: ExternalReplayTurnSummary = {
+      turnId: "codex-turn-0",
+      renderedUserEventId: null,
+      nextTurnId: "codex-turn-1",
+      turnIndex: 0,
+      startedAt: "2026-07-12T00:00:00Z",
+      endedAt: "2026-07-12T00:01:00Z",
+      durationMs: 60_000,
+      userPreview: "oldest prompt",
+      eventCount: 4,
+      bodyEventCount: 3,
+    };
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- useMemo is mocked as a pass-through; this is not a real hook call
+    const result = useChatTurnPagination({
+      enabled: true,
+      activePageIndex: 0,
+      groupCounts: [1],
+      groupHeaders: [latestHeader],
+      groupMeta: [{ turnId: "codex-user-19372" } as ChatGroupMeta],
+      flatItems: [fakeItem()],
+      lastAssistantFlatIndexPerItem: [0],
+      externalReplayTurnSummaries: [summary],
+    });
+
+    expect(result.pages[0]?.replayBodyLoaded).toBe(false);
+    expect(result.displayGroupHeaders).toEqual([]);
+    expect(result.displayFlatItems).toEqual([]);
   });
 });

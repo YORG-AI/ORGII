@@ -27,8 +27,10 @@ mod kv_store;
 mod row_store;
 
 use common::*;
-pub(in crate::sources::imported_history::replay) use kv_store::hydrate_kv_turn;
 use kv_store::*;
+pub(in crate::sources::imported_history::replay) use kv_store::{
+    hydrate_kv_turn, read_kv_turn_previews,
+};
 use row_store::*;
 
 use crate::sources::imported_history::replay::{
@@ -109,6 +111,13 @@ struct SourceRow {
 struct DeferredPayloadBody {
     field_path: String,
     text: String,
+}
+
+#[derive(Debug, Clone)]
+pub(in crate::sources::imported_history::replay) struct KvTurnPreview {
+    pub turn_index: i64,
+    pub created_at: String,
+    pub user_preview: String,
 }
 
 pub(in crate::sources::imported_history::replay) fn cursor_schema_version(

@@ -43,6 +43,9 @@ import {
   type Session,
   type SessionListCategory,
   loadMoreCategory,
+  loadMoreSessionScope,
+  loadMoreSidebarPinnedPage,
+  loadMoreSidebarWorkspaceFacetPage,
   removeSession,
   sessionPaginationAtom,
   upsertSession,
@@ -83,6 +86,11 @@ interface UseWorkstationSidebarHandlersParams {
   sessionMap: Map<string, Session>;
   isLoadMoreId: (id: string) => SessionListCategory | null;
   getLoadMoreGroupId: (id: string) => string | null;
+  getLoadMoreScopeKey: (id: string) => string | null;
+  isPinnedLoadMoreId: (id: string) => boolean;
+  isWorkspaceFacetLoadMoreId: (id: string) => boolean;
+  sidebarOrgIds: readonly string[];
+  includeExternal: boolean;
   sessionRouteLabel: string;
   goToNewSession: (options?: GoToNewSessionOptions) => void;
   navigateTo: (path: string) => void;
@@ -120,6 +128,11 @@ export function useWorkstationSidebarHandlers({
   sessionMap,
   isLoadMoreId,
   getLoadMoreGroupId,
+  getLoadMoreScopeKey,
+  isPinnedLoadMoreId,
+  isWorkspaceFacetLoadMoreId,
+  sidebarOrgIds,
+  includeExternal,
   sessionRouteLabel,
   goToNewSession,
   navigateTo,
@@ -300,6 +313,32 @@ export function useWorkstationSidebarHandlers({
         return;
       }
 
+      const loadMoreScopeKey = getLoadMoreScopeKey(item.id);
+      if (loadMoreScopeKey) {
+        setGroupVisibleCounts((previousCounts) => {
+          const nextCounts = new Map(previousCounts);
+          const current =
+            nextCounts.get(loadMoreScopeKey) ?? SESSION_SIDEBAR_PAGE_SIZE;
+          nextCounts.set(loadMoreScopeKey, current + SESSION_SIDEBAR_PAGE_SIZE);
+          return nextCounts;
+        });
+        void loadMoreSessionScope(loadMoreScopeKey);
+        return;
+      }
+
+      if (isPinnedLoadMoreId(item.id)) {
+        void loadMoreSidebarPinnedPage({ orgIds: sidebarOrgIds });
+        return;
+      }
+
+      if (isWorkspaceFacetLoadMoreId(item.id)) {
+        void loadMoreSidebarWorkspaceFacetPage({
+          orgIds: sidebarOrgIds,
+          includeExternal,
+        });
+        return;
+      }
+
       const loadMoreCategory = isLoadMoreId(item.id);
       if (loadMoreCategory) {
         void loadMoreCategoryAction(loadMoreCategory);
@@ -358,7 +397,11 @@ export function useWorkstationSidebarHandlers({
     },
     [
       getLoadMoreGroupId,
+      getLoadMoreScopeKey,
+      includeExternal,
       isLoadMoreId,
+      isPinnedLoadMoreId,
+      isWorkspaceFacetLoadMoreId,
       pagination,
       sessionMap,
       openSession,
@@ -370,6 +413,7 @@ export function useWorkstationSidebarHandlers({
       onOpenSessionChatPanelTab,
       promoteActiveSessionCreatorDraft,
       sessionRouteLabel,
+      sidebarOrgIds,
       setBenchmarkActiveBatchId,
       setBenchmarkActiveBatchTaskId,
       setBenchmarkAgentBatchStatus,

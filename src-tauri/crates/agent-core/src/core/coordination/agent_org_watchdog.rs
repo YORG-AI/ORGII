@@ -37,9 +37,9 @@ mod tests;
 
 pub use budget::clear_rewake_budget;
 pub use budget::init_schema;
+pub(crate) use budget::member_rewake_fingerprint;
 #[cfg(test)]
 pub use budget::test_only_mark_failed_rewake_attempt;
-pub(crate) use budget::member_rewake_fingerprint;
 pub use inspect::inspect_stalled_run;
 pub use plan::{MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan};
 pub use recover::{recover_stalled_run, spawn};

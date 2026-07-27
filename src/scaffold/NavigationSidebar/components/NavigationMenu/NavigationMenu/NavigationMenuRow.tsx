@@ -105,7 +105,7 @@ export const NavigationMenuParentRow = React.forwardRef<
       {dragState && <ReferenceDragGhost dragState={dragState} />}
       <div
         data-testid={item.dataTestId}
-        data-menu-item-id={item.id}
+        data-menu-item-id={item.dataMenuItemId ?? item.id}
         role="button"
         tabIndex={item.disabled ? -1 : 0}
         aria-expanded={isOpen}
@@ -329,7 +329,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
       )}
       <div
         data-testid={item.dataTestId}
-        data-menu-item-id={item.id}
+        data-menu-item-id={item.dataMenuItemId ?? item.id}
         data-selected={isSelected ? "true" : "false"}
         className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
           isChild ? "pl-5 pr-2" : "px-2"

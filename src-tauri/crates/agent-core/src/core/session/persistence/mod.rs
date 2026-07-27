@@ -24,7 +24,7 @@ mod messages;
 pub use crud::{
     backfill_agent_definition_id, clear_worktree_metadata, delete_session,
     finalize_terminal_turn_status, get_child_sessions, get_parent_session, get_session,
-    list_sessions, load_workspace, mark_stale_running_sessions_abandoned,
+    list_root_sessions, list_sessions, load_workspace, mark_stale_running_sessions_abandoned,
     reconcile_sessions_with_terminal_turn_markers, register_session_delete_mirror_hook,
     register_session_mirror_hook, save_workspace, save_worktree_metadata, session_type,
     update_account_id, update_agent_exec_mode, update_draft_text, update_model,

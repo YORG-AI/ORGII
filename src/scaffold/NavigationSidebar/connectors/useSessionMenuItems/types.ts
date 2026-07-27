@@ -1,5 +1,11 @@
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
-import type { Session, SessionListCategory } from "@src/store/session";
+import type {
+  Session,
+  SessionListCategory,
+  SessionPaginationScope,
+  SidebarPinnedPageState,
+  SidebarWorkspaceFacetPageState,
+} from "@src/store/session";
 
 import type { GroupByMode } from "../types";
 
@@ -17,6 +23,8 @@ export interface UseSessionMenuItemsParams {
    * empty disables org filtering.
    */
   selectedOrgIds?: ReadonlySet<string>;
+  /** Canonical sorted org ids used by the matching backend cursors. */
+  sidebarOrgIds: readonly string[];
   /**
    * Session ids matched INTO the scope regardless of their `orgId` — e.g.
    * sessions explicitly tagged into the active cloud org
@@ -30,6 +38,8 @@ export interface UseSessionMenuItemsParams {
    */
   excludedSessionIds?: ReadonlySet<string>;
   includeExternal: boolean;
+  pinnedPage?: SidebarPinnedPageState;
+  workspaceFacetPage?: SidebarWorkspaceFacetPageState;
   groupVisibleCounts: ReadonlyMap<string, number>;
   /**
    * Render every session already present in each subgroup and let the caller
@@ -48,6 +58,9 @@ export interface UseSessionMenuItemsResult {
   subagentParentIds: ReadonlySet<string>;
   isLoadMoreId: (id: string) => SessionListCategory | null;
   getLoadMoreGroupId: (id: string) => string | null;
+  getLoadMoreScopeKey: (id: string) => string | null;
+  isPinnedLoadMoreId: (id: string) => boolean;
+  isWorkspaceFacetLoadMoreId: (id: string) => boolean;
 }
 
 export type BuildSessionRow = (session: Session) => NavigationMenuItem;
@@ -58,10 +71,13 @@ export type AppendGroupSessions = (
   groupSessions: readonly Session[]
 ) => boolean;
 
+export type AppendAllGroupSessions = (
+  items: NavigationMenuItem[],
+  groupSessions: readonly Session[]
+) => void;
+
 export type AppendPinnedSessions = (items: NavigationMenuItem[]) => boolean;
 
-export type AppendTrailingLoadMoreItems = (items: NavigationMenuItem[]) => void;
-
-export type LoadMoreRowFor = (
-  category: SessionListCategory
+export type ScopedLoadMoreRowFor = (
+  scope: SessionPaginationScope
 ) => NavigationMenuItem | null;

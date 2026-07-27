@@ -99,6 +99,28 @@ export function getNavigableConversationGroupIndices(
   );
 }
 
+export function getConversationTurnPosition(
+  groupIndex: number,
+  navigableGroupIndices: readonly number[],
+  meta: ChatGroupMeta | undefined
+): { current: number; total: number } {
+  if (
+    meta?.replayTurnIndex !== null &&
+    meta?.replayTurnIndex !== undefined &&
+    meta.replayTotalTurnCount !== null &&
+    meta.replayTotalTurnCount !== undefined
+  ) {
+    return {
+      current: meta.replayTurnIndex + 1,
+      total: meta.replayTotalTurnCount,
+    };
+  }
+  return {
+    current: Math.max(1, navigableGroupIndices.indexOf(groupIndex) + 1),
+    total: navigableGroupIndices.length,
+  };
+}
+
 export function getAdjacentConversationGroupIndex(
   groupIndices: readonly number[],
   activeGroupIndex: number,
@@ -221,10 +243,6 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
         ),
       [activeGroupIndex, isAtBottom, markerGroupIndices, visibleGroupIndices]
     );
-    const previewMarkerPosition =
-      previewGroupIndex === null
-        ? -1
-        : navigableGroupIndices.indexOf(previewGroupIndex);
     const previewSampledMarkerIndex =
       previewGroupIndex === null
         ? -1
@@ -238,6 +256,14 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
         : (assistantPreviews[previewGroupIndex] ?? "");
     const previewMeta =
       previewGroupIndex === null ? undefined : groupMeta[previewGroupIndex];
+    const previewTurnPosition =
+      previewGroupIndex === null
+        ? null
+        : getConversationTurnPosition(
+            previewGroupIndex,
+            navigableGroupIndices,
+            previewMeta
+          );
     const previewTiming = getTurnTimingLabels(
       previewMeta?.durationMs ?? 0,
       previewMeta?.startMs ?? null,
@@ -258,12 +284,11 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           end: previewTiming.endClock,
         })
       : "";
-    const previewFallback =
-      previewMarkerPosition >= 0
-        ? t("common:pagination.round", {
-            current: previewMarkerPosition + 1,
-          })
-        : "";
+    const previewFallback = previewTurnPosition
+      ? t("common:pagination.round", {
+          current: previewTurnPosition.current,
+        })
+      : "";
     const showFloatingMinimap =
       isScrolling || isPointerOver || previewGroupIndex !== null;
     const previewPositionClass =
@@ -308,6 +333,7 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           <>
             <div className="absolute bottom-full right-0 flex w-7 justify-end pb-1 @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center">
               <TabBarTrailingIconButton
+                data-testid="conversation-history-toggle"
                 title={t("common:labels.history")}
                 tooltipPosition="top"
                 onClick={onHistoryToggle}
@@ -342,7 +368,11 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           </>
         )}
         {markerGroupIndices.map((groupIndex, markerIndex) => {
-          const turnPosition = navigableGroupIndices.indexOf(groupIndex) + 1;
+          const turnPosition = getConversationTurnPosition(
+            groupIndex,
+            navigableGroupIndices,
+            groupMeta[groupIndex]
+          );
           const prompt = getUserPreview(groupHeaders[groupIndex]);
           const isActive = groupIndex === activeMarkerGroupIndex;
           const isHighlighted = highlightedMarkerGroupIndices.has(groupIndex);
@@ -364,11 +394,13 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
                 aria-label={t("sessions:chat.goToConversationTurn", {
                   defaultValue:
                     "Go to turn {{current}} of {{total}}: {{preview}}",
-                  current: turnPosition,
-                  total: navigableGroupIndices.length,
+                  current: turnPosition.current,
+                  total: turnPosition.total,
                   preview:
                     prompt ||
-                    t("common:pagination.round", { current: turnPosition }),
+                    t("common:pagination.round", {
+                      current: turnPosition.current,
+                    }),
                 })}
                 className="group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center"
                 onClick={() => onNavigate(groupIndex)}

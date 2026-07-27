@@ -112,6 +112,68 @@ fn collaboration_snapshot_window_is_bounded_ranges_ten_mib_and_polls_true_deltas
     assert_eq!(window.total_event_count, 205);
     assert!(window.has_older);
     assert!(window.stats.ipc_bytes < 4 * 1024 * 1024);
+    assert_eq!(
+        window.events.first().map(|event| event.id.as_str()),
+        Some("snapshot-5")
+    );
+    assert_eq!(
+        window.events.last().map(|event| event.id.as_str()),
+        Some("snapshot-204")
+    );
+    assert_eq!(window.window_start_sequence, Some(5));
+    let older = collaboration_snapshot_read_window_from_conn(
+        &conn,
+        session_id,
+        window.window_start_sequence,
+        None,
+        None,
+        limits,
+    )
+    .expect("read remaining collaboration turn prefix");
+    assert_eq!(
+        older
+            .events
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "snapshot-0",
+            "snapshot-1",
+            "snapshot-2",
+            "snapshot-3",
+            "snapshot-4",
+        ]
+    );
+    assert_eq!(older.window_start_sequence, Some(0));
+    assert!(!older.has_older);
+
+    let exact = collaboration_snapshot_read_window_from_conn(
+        &conn,
+        session_id,
+        None,
+        None,
+        Some(0),
+        limits,
+    )
+    .expect("read exact collaboration turn");
+    assert_eq!(exact.events.len(), 200);
+    assert_eq!(
+        exact.events.first().map(|event| event.id.as_str()),
+        Some("snapshot-0")
+    );
+    assert_eq!(
+        exact.events.get(1).map(|event| event.id.as_str()),
+        Some("snapshot-6")
+    );
+    assert_eq!(
+        exact.events.last().map(|event| event.id.as_str()),
+        Some("snapshot-204")
+    );
+    assert_eq!(exact.window_start_sequence, Some(6));
+    assert!(exact.has_older);
+    assert_eq!(exact.turn_headers.len(), 1);
+    assert_eq!(exact.turn_headers[0].event_count, 205);
+
     let large = window
         .events
         .iter()
@@ -194,6 +256,60 @@ fn collaboration_snapshot_window_is_bounded_ranges_ten_mib_and_polls_true_deltas
         .expect("refresh state once after bulk delete");
     assert_eq!(deleted.event_count, 0);
     assert_eq!(deleted.max_sequence, -1);
+}
+
+#[test]
+fn collaboration_exact_small_turn_keeps_the_anchor_as_its_continuation_boundary() {
+    let conn = rusqlite::Connection::open_in_memory().expect("snapshot replay DB");
+    collaboration_snapshot_test_schema(&conn);
+    let session_id = "imported-session-small-exact";
+    for (sequence, source) in [(0_i64, "user"), (1_i64, "assistant")] {
+        conn.execute(
+            "INSERT INTO events(
+                   id,session_id,event_type,function_name,args_json,result_json,
+                   content,created_at,meta_json,history_sequence
+                 ) VALUES(?1,?2,?3,?4,'{}','{}','',?5,?6,?7)",
+            rusqlite::params![
+                format!("small-{sequence}"),
+                session_id,
+                if source == "user" {
+                    "user_message"
+                } else {
+                    "assistant"
+                },
+                if source == "user" {
+                    "user_message"
+                } else {
+                    "assistant_message"
+                },
+                format!("2026-07-22T00:00:0{sequence}Z"),
+                collaboration_snapshot_meta(source, source),
+                sequence,
+            ],
+        )
+        .expect("insert small collaboration event");
+    }
+
+    let window = collaboration_snapshot_read_window_from_conn(
+        &conn,
+        session_id,
+        None,
+        None,
+        Some(0),
+        ReplayLimits::default(),
+    )
+    .expect("read exact small collaboration turn");
+    assert_eq!(
+        window
+            .events
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["small-0", "small-1"]
+    );
+    assert_eq!(window.window_start_sequence, Some(0));
+    assert!(!window.has_older);
+    assert_eq!(window.turn_headers[0].event_count, 2);
 }
 
 #[test]

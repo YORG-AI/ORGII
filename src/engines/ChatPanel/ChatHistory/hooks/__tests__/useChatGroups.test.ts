@@ -188,6 +188,79 @@ describe("projectChatGroups", () => {
     expect(result.groupHeaders).toEqual([null, boundary]);
     expect(result.groupCounts).toEqual([1, 1]);
   });
+
+  it("keeps a historical turn's tool activity when paging disables collapse", () => {
+    const history = [
+      userItem("historical turn"),
+      toolItem(),
+      assistantItem("historical reply"),
+      userItem("latest turn"),
+      assistantItem("latest reply"),
+    ];
+
+    const collapsed = projectChatGroups(history);
+    const paged = projectChatGroups(history, { disableTurnCollapse: true });
+
+    expect(flatTexts(collapsed.flatItems)).not.toContain("run_shell");
+    expect(flatTexts(paged.flatItems)).toEqual([
+      "run_shell",
+      "historical reply",
+      "latest reply",
+    ]);
+    expect(paged.groupCounts).toEqual([2, 1]);
+  });
+
+  it("does not fold an anchorless replay tail into an older resident turn", () => {
+    const oldUser = userItem("old prompt");
+    const oldReply = assistantItem("old reply");
+    const recentTail = assistantItem("recent anchorless tail");
+    const history = [oldUser, oldReply, recentTail];
+    const externalReplayTurnIndexByEventId = new Map([
+      [oldUser.event!.id, 0],
+      [oldReply.event!.id, 0],
+      [recentTail.event!.id, 155],
+    ]);
+
+    const result = projectChatGroups(history, {
+      externalReplayTurnIndexByEventId,
+    });
+
+    expect(result.groupHeaders).toEqual([oldUser, null]);
+    expect(result.groupCounts).toEqual([1, 1]);
+    expect(result.groupMeta.map((meta) => meta.replayTurnIndex)).toEqual([
+      0, 155,
+    ]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "old reply",
+      "recent anchorless tail",
+    ]);
+  });
+
+  it("keeps duplicate user-like aliases inside one provider replay turn", () => {
+    const providerUser = userItem("provider prompt");
+    const importedAlias = userItem("provider prompt");
+    const reply = assistantItem("provider reply");
+    const externalReplayTurnIndexByEventId = new Map([
+      [providerUser.event!.id, 42],
+      [importedAlias.event!.id, 42],
+      [reply.event!.id, 42],
+    ]);
+
+    const result = projectChatGroups([providerUser, importedAlias, reply], {
+      disableTurnCollapse: true,
+      externalReplayTurnIndexByEventId,
+      externalReplayTotalTurnCount: 165,
+    });
+
+    expect(result.groupHeaders).toEqual([providerUser]);
+    expect(result.groupCounts).toEqual([2]);
+    expect(result.groupMeta).toMatchObject([
+      {
+        replayTurnIndex: 42,
+        replayTotalTurnCount: 165,
+      },
+    ]);
+  });
 });
 
 describe("useChatGroups collapse — terminal error survival", () => {

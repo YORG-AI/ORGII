@@ -75,6 +75,13 @@ fn projected_rounds_to_cached_turns(
         .collect()
 }
 
+fn metadata_cache_miss_requires_sync(source: ImportedHistorySourceId) -> bool {
+    !matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    )
+}
+
 /// Unified per-round metadata read surface. Native SDE sessions keep using the
 /// versioned local turn cache. Imported and managed CLI sessions project only
 /// visible turns from the compact replay index and never hydrate a transcript.
@@ -98,6 +105,25 @@ pub async fn orgtrack_session_turn_metadata_index(
             )
             .unwrap_or_else(|| session_id.clone());
         if let Some(source) = ImportedHistorySourceId::from_session_id(&transcript_session_id) {
+            let cached = {
+                let conn = open_cache_conn()?;
+                replay::project_cached_turn_metadata(
+                    &conn,
+                    source,
+                    &transcript_session_id,
+                    turn_ids.as_deref(),
+                )?
+            };
+            if let Some(projected) = cached {
+                return Ok(projected_rounds_to_cached_turns(&session_id, projected));
+            }
+            // Cursor/Windsurf materialize old KV turn bodies lazily. A
+            // metadata-only caller must wait for the foreground compact index
+            // instead of taking the application writer lock and hydrating the
+            // requested body as a cache-miss fallback.
+            if !metadata_cache_miss_requires_sync(source) {
+                return Ok(Vec::new());
+            }
             let projected = database::db::with_sessions_writer(|| {
                 let mut conn = open_cache_conn()?;
                 replay::project_turn_metadata(
@@ -606,5 +632,21 @@ mod tests {
 
         assert_eq!(turns[0].status, "pending");
         assert!(!turns[0].interrupted);
+    }
+
+    #[test]
+    fn lazy_kv_metadata_cache_misses_never_take_the_sync_fallback() {
+        assert!(!metadata_cache_miss_requires_sync(
+            ImportedHistorySourceId::CursorIde
+        ));
+        assert!(!metadata_cache_miss_requires_sync(
+            ImportedHistorySourceId::Windsurf
+        ));
+        assert!(metadata_cache_miss_requires_sync(
+            ImportedHistorySourceId::OpenCode
+        ));
+        assert!(metadata_cache_miss_requires_sync(
+            ImportedHistorySourceId::CodexApp
+        ));
     }
 }

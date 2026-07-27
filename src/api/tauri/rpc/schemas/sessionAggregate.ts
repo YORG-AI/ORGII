@@ -41,18 +41,26 @@ export const SessionFilterInput = z.object({
   status: z.string().optional(),
   keySource: z.string().optional(),
   repoPath: z.string().optional(),
+  repoPathExact: z.boolean().optional(),
+  missingRepoPath: z.boolean().optional(),
   orgId: z.string().optional(),
+  orgIds: z.array(z.string().min(1)).min(1).optional(),
   projectSlug: z.string().optional(),
   workItemId: z.string().optional(),
   limit: z.number().int().optional(),
   offset: z.number().int().optional(),
+  beforeUpdatedAt: z.string().min(1).optional(),
+  beforeSessionId: z.string().min(1).optional(),
   textQuery: z.string().optional(),
   sortBy: z.string().optional(),
   sortOrder: z.enum(["asc", "desc"]).optional(),
   includeExternalHistory: z.boolean().optional(),
   externalHistorySource: z.string().optional(),
   disabledExternalHistorySources: z.array(z.string()).optional(),
+  updatedAfterMs: z.number().int().optional(),
+  updatedBeforeMs: z.number().int().optional(),
   activeOnly: z.boolean().optional(),
+  pinnedOnly: z.boolean().optional(),
 });
 
 export const SessionAggregateListInput = z.object({
@@ -66,30 +74,44 @@ export const ExternalHistorySidebarDateBucketSchema = z.enum([
   "older",
 ]);
 
-export const ExternalHistorySidebarSourceRequestSchema = z.object({
-  source: z.string().min(1),
-  buckets: z
-    .array(
-      z
-        .object({
-          bucket: ExternalHistorySidebarDateBucketSchema,
-          startMs: z.number().int().optional(),
-          endMs: z.number().int().optional(),
-          limit: z.number().int().min(1).max(50),
-          offset: z.number().int().min(0),
-        })
-        .refine(
-          ({ startMs, endMs }) =>
-            startMs === undefined || endMs === undefined || startMs < endMs,
-          { message: "startMs must precede endMs" }
-        )
-    )
-    .refine(
-      (buckets) =>
-        new Set(buckets.map(({ bucket }) => bucket)).size === buckets.length,
-      { message: "date buckets must be unique" }
-    ),
+export const ExternalHistorySidebarCursorSchema = z.object({
+  updatedAtMs: z.number().int(),
+  sessionId: z.string().min(1),
 });
+
+export const ExternalHistorySidebarSourceRequestSchema = z
+  .object({
+    source: z.string().min(1),
+    repoPath: z.string().min(1).optional(),
+    missingRepoPath: z.boolean().optional(),
+    buckets: z
+      .array(
+        z
+          .object({
+            bucket: ExternalHistorySidebarDateBucketSchema,
+            startMs: z.number().int().optional(),
+            endMs: z.number().int().optional(),
+            limit: z.number().int().min(1).max(50),
+            offset: z.number().int().min(0),
+            before: ExternalHistorySidebarCursorSchema.optional(),
+          })
+          .refine(
+            ({ startMs, endMs }) =>
+              startMs === undefined || endMs === undefined || startMs < endMs,
+            { message: "startMs must precede endMs" }
+          )
+      )
+      .refine(
+        (buckets) =>
+          new Set(buckets.map(({ bucket }) => bucket)).size === buckets.length,
+        { message: "date buckets must be unique" }
+      ),
+  })
+  .refine(
+    ({ repoPath, missingRepoPath }) =>
+      repoPath === undefined || missingRepoPath !== true,
+    { message: "repoPath and missingRepoPath are mutually exclusive" }
+  );
 
 export const ExternalHistorySidebarListInput = z.object({
   requests: z
@@ -263,12 +285,40 @@ export const ExternalHistorySidebarResponseSchema = z.object({
       bucket: ExternalHistorySidebarDateBucketSchema,
       sessions: z.array(ExternalHistorySidebarRowSchema),
       hasMore: z.boolean(),
+      nextCursor: ExternalHistorySidebarCursorSchema.optional(),
     })
   ),
 });
 
 export const ExternalHistorySidebarBatchResponseSchema = z.object({
   sources: z.array(ExternalHistorySidebarResponseSchema),
+});
+
+export const SessionWorkspaceFacetListInput = z.object({
+  request: z.object({
+    orgIds: z.array(z.string().min(1)).min(1),
+    includeExternalHistory: z.boolean().optional(),
+    disabledExternalHistorySources: z.array(z.string()).optional(),
+    limit: z.number().int().min(1).max(50),
+    offset: z.number().int().min(0).optional(),
+    before: z
+      .object({
+        lastUpdatedAtMs: z.number().int(),
+        repoPath: z.string().nullable(),
+      })
+      .optional(),
+  }),
+});
+
+export const SessionWorkspaceFacetResponseSchema = z.object({
+  facets: z.array(
+    z.object({
+      repoPath: z.string().nullable().optional(),
+      lastUpdatedAtMs: z.number().int(),
+      sessionCount: z.number().int().min(0),
+    })
+  ),
+  hasMore: z.boolean(),
 });
 
 export type SessionFilter = z.input<typeof SessionFilterInput>;
@@ -278,6 +328,9 @@ export type SessionAggregateRecord = z.output<
 export type SessionListResponse = z.output<typeof SessionListResponseSchema>;
 export type ExternalHistorySidebarDateBucket = z.output<
   typeof ExternalHistorySidebarDateBucketSchema
+>;
+export type ExternalHistorySidebarCursor = z.output<
+  typeof ExternalHistorySidebarCursorSchema
 >;
 export type ExternalHistorySidebarListRequest = z.input<
   typeof ExternalHistorySidebarListInput
@@ -290,5 +343,11 @@ export type ExternalHistorySidebarResponse = z.output<
 >;
 export type ExternalHistorySidebarBatchResponse = z.output<
   typeof ExternalHistorySidebarBatchResponseSchema
+>;
+export type SessionWorkspaceFacetListRequest = z.input<
+  typeof SessionWorkspaceFacetListInput
+>["request"];
+export type SessionWorkspaceFacetResponse = z.output<
+  typeof SessionWorkspaceFacetResponseSchema
 >;
 export type SessionPatchPayload = z.input<typeof SessionPatchInput>;

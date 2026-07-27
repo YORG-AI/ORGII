@@ -7,9 +7,9 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::SkillsLoader;
 use super::super::helpers::{collect_bundled_files, estimate_summary_line_tokens, estimate_tokens};
 use super::super::types::{DescriptionQuality, SkillInfo};
+use super::SkillsLoader;
 
 const DISCOVERED_SKILL_ROOT_MAX_DEPTH: usize = 4;
 const DISCOVERED_SKILL_ROOT_MAX_ENTRIES: usize = 500;

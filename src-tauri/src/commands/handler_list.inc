@@ -1145,6 +1145,7 @@ agent_sessions::event_pipeline::commands::debug_seed_child_session,
 // Unified Session API commands
 agent_sessions::session_directory::commands::session_aggregate_list,
 agent_sessions::session_directory::commands::session_external_history_sidebar_list,
+agent_sessions::session_directory::commands::session_sidebar_workspace_facets,
 agent_sessions::session_directory::patch::session_patch,
 // Flow Awareness commands (user activity tracking for intent inference)
 agent_core::flow_awareness::commands::flow_record_activity,

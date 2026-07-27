@@ -14,6 +14,8 @@ export interface UnloadedTurnMeta {
 
 export interface ChatGroupMeta {
   turnId: string | null;
+  replayTurnIndex: number | null;
+  replayTotalTurnCount: number | null;
   durationMs: number;
   itemCount: number;
   previewText: string;
@@ -46,6 +48,12 @@ export interface ChatGroupsProjectionOptions {
   allTurnsCollapsed?: boolean;
   defaultTurnCollapsed?: boolean;
   turnGrouping?: TurnGroupingPolicy;
+  /**
+   * Source-neutral provider turn ownership for sparse bounded-replay events.
+   * Native SDE projections omit this map and retain their existing grouping.
+   */
+  externalReplayTurnIndexByEventId?: ReadonlyMap<string, number>;
+  externalReplayTotalTurnCount?: number;
 }
 
 /** React-only compatibility options. Worker callers use ChatGroupsProjectionOptions. */
@@ -57,6 +65,7 @@ export interface UseChatGroupsOptions extends ChatGroupsProjectionOptions {
 interface ChatGroup {
   header: OptimizedChatItem | null;
   items: OptimizedChatItem[];
+  replayTurnIndex: number | null;
 }
 
 function getObjectRecord(value: unknown): Record<string, unknown> | null {
@@ -242,13 +251,56 @@ export function projectChatGroups(
     defaultTurnCollapsed = true,
   } = options;
   const { isHeader, isBoundary } = resolveTurnPredicates(options);
+  const replayTurnIndexByEventId =
+    options.externalReplayTurnIndexByEventId ?? null;
+  const replayTotalTurnCount = options.externalReplayTotalTurnCount ?? null;
   const groups: ChatGroup[] = [];
-  let current: ChatGroup = { header: null, items: [] };
+  let current: ChatGroup = {
+    header: null,
+    items: [],
+    replayTurnIndex: null,
+  };
+  let currentReplayTurnIndex: number | undefined;
 
   for (const item of optimizedChatHistory) {
+    const replayTurnIndex = item.event
+      ? replayTurnIndexByEventId?.get(item.event.id)
+      : undefined;
+    if (
+      replayTurnIndex !== undefined &&
+      currentReplayTurnIndex !== undefined &&
+      replayTurnIndex !== currentReplayTurnIndex
+    ) {
+      if (current.header || current.items.length > 0) groups.push(current);
+      current = {
+        header: null,
+        items: [],
+        replayTurnIndex,
+      };
+    }
+    if (replayTurnIndex !== undefined) {
+      // The compact replay index is the source of truth for provider turn
+      // ownership. A bounded window may contain a duplicate/import alias that
+      // also looks like a user header, or it may begin in the middle of a
+      // provider turn. Neither case should split one provider turn into two UI
+      // groups: keep the first real header and fold the remaining rows into the
+      // same stable provider-owned group.
+      if (!current.header && (isHeader(item) || isBoundary(item))) {
+        current.header = item;
+      } else {
+        current.items.push(item);
+      }
+      currentReplayTurnIndex = replayTurnIndex;
+      current.replayTurnIndex = replayTurnIndex;
+      continue;
+    }
     if (isHeader(item) || isBoundary(item)) {
       if (current.header || current.items.length > 0) groups.push(current);
-      current = { header: item, items: [] };
+      current = {
+        header: item,
+        items: [],
+        replayTurnIndex: replayTurnIndex ?? null,
+      };
     } else {
       current.items.push(item);
     }
@@ -284,6 +336,9 @@ export function projectChatGroups(
 
     return {
       turnId,
+      replayTurnIndex: group.replayTurnIndex,
+      replayTotalTurnCount:
+        group.replayTurnIndex === null ? null : replayTotalTurnCount,
       durationMs: unloadedTurn?.durationMs ?? durationMs,
       itemCount: group.items.length,
       previewText: headerEvent?.displayText ?? "",

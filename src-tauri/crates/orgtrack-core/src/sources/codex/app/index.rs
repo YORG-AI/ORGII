@@ -6,19 +6,19 @@ use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use core_types::activity::ActivityChunk;
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction};
 use serde::Deserialize;
 use serde_json::Value;
 
 use crate::sources::codex::{canonical_session_id, SESSION_PREFIX as CODEX_APP_SESSION_PREFIX};
 use crate::sources::imported_history::{
     self, cache as imported_cache,
-    metadata::{ImportedHistoryDiscoveredRecord, SOURCE_CODEX_APP},
+    metadata::{ImportedHistoryDiscoveredRecord, ImportedHistoryRecordSignature, SOURCE_CODEX_APP},
     paths as imported_paths,
 };
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
-use super::meta::{parse_codex_catalog_input, resolve_codex_transcript_for_thread_id_near_path};
+use super::meta::resolve_codex_transcript_for_thread_id_near_path;
 use super::transcript::load_codex_app_from_path;
 use super::{
     CodexAppRecentPath, CodexAppSessionPage, CodexAppSourceMetadata,
@@ -30,6 +30,32 @@ struct CodexSessionIndexEntry {
     thread_name: String,
     updated_at: Option<String>,
 }
+
+#[derive(Debug)]
+struct DiscoveredCodexCatalogRecord {
+    record: ImportedHistoryDiscoveredRecord,
+    /// Codex's own session index is the authoritative source for a root
+    /// thread's display title. Keep it separate from the discovery
+    /// fingerprint so catalog repair never has to reverse-parse an opaque
+    /// signature string.
+    authoritative_title: Option<String>,
+}
+
+#[derive(Debug)]
+struct CachedCodexCatalogTitle {
+    name: String,
+    source_record_key: String,
+    session_id: String,
+    signature: ImportedHistoryRecordSignature,
+    verified_title_signature: Option<String>,
+}
+
+#[derive(Debug)]
+struct ReplayAppliedTitleOwnership {
+    applied_name: String,
+}
+
+const CODEX_TITLE_REPAIR_SIGNATURE_FIELD: &str = "_codexTitleRepairSignature";
 
 #[derive(Debug, Deserialize)]
 struct CodexSessionIndexLine {
@@ -233,25 +259,27 @@ fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
             "codex",
             SOURCE_CODEX_APP,
         )?;
-    for record in &mut discovered {
+    for discovered_record in &mut discovered {
         crate::sources::imported_history::managed_mirror::append_managed_fingerprint(
-            &mut record.source_fingerprint,
+            &mut discovered_record.record.source_fingerprint,
             crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
                 &managed_ids,
-                &record.source_session_id,
+                &discovered_record.record.source_session_id,
             ),
         );
     }
+    repair_codex_catalog_titles(conn, &discovered)?;
     let signatures = discovered
         .iter()
-        .map(ImportedHistoryDiscoveredRecord::signature)
+        .map(|record| record.record.signature())
         .collect::<Vec<_>>();
     let changed =
         imported_cache::changed_records_from_conn(conn, SOURCE_CODEX_APP, &discovered, |record| {
-            record.signature()
+            record.record.signature()
         })?;
     let mut inputs = Vec::new();
-    for record in changed {
+    for discovered_record in changed {
+        let record = &discovered_record.record;
         let is_managed =
             crate::sources::imported_history::managed_mirror::is_managed_source_session_id(
                 &managed_ids,
@@ -268,7 +296,10 @@ fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
         )? {
             continue;
         }
-        if let Some(mut input) = parse_codex_catalog_input(record)? {
+        if let Some(mut input) = super::meta::parse_codex_catalog_input_with_title(
+            record,
+            discovered_record.authoritative_title.as_deref(),
+        )? {
             input.listable = !is_managed;
             inputs.push(input);
         }
@@ -281,7 +312,242 @@ fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
     )
 }
 
-fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
+/// Reassert Codex-owned title precedence without hydrating transcripts.
+///
+/// Older replay cursors treated every payload `name` as a session title, so
+/// an active session could be renamed from its session-index title to
+/// `update_plan`, then to `js`, on successive polls. The derivation baseline
+/// is not sufficient to undo that damage because an already-polluted title
+/// can itself become the next baseline. Discovery has stronger provenance:
+/// use the session index unconditionally, and only inspect the bounded JSONL
+/// prefix when a legacy replay-owned title has no index entry.
+fn repair_codex_catalog_titles(
+    conn: &mut Connection,
+    discovered: &[DiscoveredCodexCatalogRecord],
+) -> Result<(), String> {
+    let cached = load_cached_codex_catalog_titles(conn)?;
+    let replay_applied_names = load_current_replay_applied_names(conn, &cached)?;
+    let mut repairs = Vec::new();
+    let mut verified_replay_titles = Vec::new();
+
+    for discovered_record in discovered {
+        let source_session_id = &discovered_record.record.source_session_id;
+        let Some(current) = cached.get(source_session_id) else {
+            continue;
+        };
+        let discovered_signature = discovered_record.record.signature();
+        let title_repair_signature = codex_title_repair_signature(&discovered_signature);
+        let desired =
+            if let Some(authoritative_title) = discovered_record.authoritative_title.as_deref() {
+                Some(authoritative_title.to_string())
+            } else {
+                let signature_changed = !imported_cache::record_matches_cached_signature(
+                    &current.signature,
+                    &discovered_signature,
+                );
+                let placeholder = is_codex_catalog_placeholder(current, source_session_id);
+                let already_neutral = current.name.trim() == "Untitled";
+                let replay_polluted =
+                    replay_applied_names
+                        .get(source_session_id)
+                        .is_some_and(|ownership| {
+                            ownership.applied_name == current.name.trim()
+                                && current.verified_title_signature.as_deref()
+                                    != Some(title_repair_signature.as_str())
+                        });
+                if replay_polluted || placeholder && (!already_neutral || signature_changed) {
+                    let parsed = super::meta::parse_codex_catalog_input_with_title(
+                        &discovered_record.record,
+                        None,
+                    )?
+                    .map(|input| input.name);
+                    if replay_polluted {
+                        // The replay derivation can legitimately have selected
+                        // the same first-user title that discovery now verifies.
+                        // Record the physical source signature so an unchanged
+                        // sidebar refresh does not reopen the JSONL prefix on
+                        // every pass. A replace/append/parser upgrade changes the
+                        // signature and intentionally re-enables verification.
+                        verified_replay_titles
+                            .push((source_session_id.clone(), title_repair_signature));
+                    }
+                    parsed
+                } else {
+                    None
+                }
+            };
+        if let Some(desired) = desired.filter(|desired| desired.trim() != current.name.trim()) {
+            repairs.push((source_session_id.clone(), desired));
+        }
+    }
+
+    if repairs.is_empty() && verified_replay_titles.is_empty() {
+        return Ok(());
+    }
+    let tx = conn
+        .transaction()
+        .map_err(|err| format!("start Codex catalog-title repair: {err}"))?;
+    for (source_session_id, desired) in repairs {
+        tx.execute(
+            "UPDATE imported_history_session_cache
+             SET name=?2, updated_at=?3
+             WHERE source='codex_app' AND source_session_id=?1",
+            (source_session_id, desired, chrono::Utc::now().to_rfc3339()),
+        )
+        .map_err(|err| format!("restore Codex catalog title: {err}"))?;
+    }
+    for (source_session_id, signature) in verified_replay_titles {
+        mark_codex_replay_title_verified(&tx, &source_session_id, &signature)?;
+    }
+    tx.commit()
+        .map_err(|err| format!("commit Codex catalog-title repair: {err}"))
+}
+
+fn codex_title_repair_signature(signature: &ImportedHistoryRecordSignature) -> String {
+    serde_json::json!([
+        signature.source_path,
+        signature.source_mtime_ms,
+        signature.source_size_bytes,
+        signature.source_fingerprint,
+        signature.parser_version
+    ])
+    .to_string()
+}
+
+fn mark_codex_replay_title_verified(
+    tx: &Transaction<'_>,
+    source_session_id: &str,
+    signature: &str,
+) -> Result<(), String> {
+    let source_metadata_json = tx
+        .query_row(
+            "SELECT source_metadata_json
+             FROM imported_history_session_cache
+             WHERE source='codex_app' AND source_session_id=?1",
+            [source_session_id],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|err| format!("read Codex replay-title verification state: {err}"))?;
+    let mut source_metadata = serde_json::from_str::<Value>(&source_metadata_json)
+        .ok()
+        .and_then(|value| value.as_object().cloned())
+        .unwrap_or_default();
+    source_metadata.insert(
+        CODEX_TITLE_REPAIR_SIGNATURE_FIELD.to_string(),
+        Value::String(signature.to_string()),
+    );
+    tx.execute(
+        "UPDATE imported_history_session_cache
+         SET source_metadata_json=?2, updated_at=?3
+         WHERE source='codex_app' AND source_session_id=?1",
+        (
+            source_session_id,
+            Value::Object(source_metadata).to_string(),
+            chrono::Utc::now().to_rfc3339(),
+        ),
+    )
+    .map(|_| ())
+    .map_err(|err| format!("store Codex replay-title verification state: {err}"))
+}
+
+fn load_cached_codex_catalog_titles(
+    conn: &Connection,
+) -> Result<HashMap<String, CachedCodexCatalogTitle>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT source_session_id,name,source_record_key,session_id,
+                    source_path,source_mtime_ms,source_size_bytes,
+                    source_fingerprint,parser_version,source_metadata_json
+             FROM imported_history_session_cache
+             WHERE source='codex_app'",
+        )
+        .map_err(|err| format!("prepare cached Codex title query: {err}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            let source_session_id = row.get::<_, String>(0)?;
+            let source_metadata_json = row.get::<_, String>(9)?;
+            let verified_title_signature = serde_json::from_str::<Value>(&source_metadata_json)
+                .ok()
+                .and_then(|value| {
+                    value
+                        .get(CODEX_TITLE_REPAIR_SIGNATURE_FIELD)
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                });
+            Ok((
+                source_session_id.clone(),
+                CachedCodexCatalogTitle {
+                    name: row.get(1)?,
+                    source_record_key: row.get(2)?,
+                    session_id: row.get(3)?,
+                    signature: ImportedHistoryRecordSignature {
+                        source_session_id,
+                        source_path: row.get(4)?,
+                        source_mtime_ms: row.get(5)?,
+                        source_size_bytes: row.get(6)?,
+                        source_fingerprint: row.get(7)?,
+                        parser_version: row.get(8)?,
+                    },
+                    verified_title_signature,
+                },
+            ))
+        })
+        .map_err(|err| format!("query cached Codex titles: {err}"))?;
+    rows.collect::<rusqlite::Result<HashMap<_, _>>>()
+        .map_err(|err| format!("read cached Codex titles: {err}"))
+}
+
+fn load_current_replay_applied_names(
+    conn: &Connection,
+    cached: &HashMap<String, CachedCodexCatalogTitle>,
+) -> Result<HashMap<String, ReplayAppliedTitleOwnership>, String> {
+    let mut statement = conn
+        .prepare(
+            "SELECT source_session_id,applied_json
+             FROM imported_replay_catalog_derivations
+             WHERE source='codex_app'",
+        )
+        .map_err(|err| format!("prepare Codex replay-title ownership query: {err}"))?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|err| format!("query Codex replay-title ownership: {err}"))?;
+    let mut applied_names = HashMap::new();
+    for row in rows {
+        let (source_session_id, applied_json) =
+            row.map_err(|err| format!("read Codex replay-title ownership: {err}"))?;
+        let Some(current) = cached.get(&source_session_id) else {
+            continue;
+        };
+        let applied = serde_json::from_str::<Value>(&applied_json).ok();
+        let applied_name = applied
+            .as_ref()
+            .and_then(|value| value.get("name"))
+            .and_then(Value::as_str)
+            .map(str::to_string);
+        if applied_name.as_deref() == Some(current.name.trim()) {
+            applied_names.insert(
+                source_session_id,
+                ReplayAppliedTitleOwnership {
+                    applied_name: current.name.trim().to_string(),
+                },
+            );
+        }
+    }
+    Ok(applied_names)
+}
+
+fn is_codex_catalog_placeholder(cached: &CachedCodexCatalogTitle, source_session_id: &str) -> bool {
+    let name = cached.name.trim();
+    name.is_empty()
+        || name == cached.source_record_key
+        || name == source_session_id
+        || name == cached.session_id
+        || matches!(name, "New Agent" | "Untitled")
+}
+
+fn discover_codex_app_records() -> Result<Vec<DiscoveredCodexCatalogRecord>, String> {
     let mut sessions = Vec::new();
     for sessions_dir in codex_sessions_dirs()? {
         if sessions_dir.is_dir() {
@@ -299,14 +565,19 @@ fn discover_codex_app_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, 
                 let (source_mtime_ms, source_size_bytes) =
                     imported_paths::file_metadata_signature(&path, "Codex")?;
                 let source_fingerprint = codex_source_fingerprint(&file_stem, &title_index);
-                sessions.push(ImportedHistoryDiscoveredRecord {
-                    source_session_id: file_stem.clone(),
-                    source_path: path,
-                    source_record_key: file_stem,
-                    source_mtime_ms,
-                    source_size_bytes,
-                    source_fingerprint,
-                    parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+                let authoritative_title = codex_title_entry_for_file_stem(&file_stem, &title_index)
+                    .map(|entry| imported_history::truncate_name(entry.thread_name.trim(), 200));
+                sessions.push(DiscoveredCodexCatalogRecord {
+                    record: ImportedHistoryDiscoveredRecord {
+                        source_session_id: file_stem.clone(),
+                        source_path: path,
+                        source_record_key: file_stem,
+                        source_mtime_ms,
+                        source_size_bytes,
+                        source_fingerprint,
+                        parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+                    },
+                    authoritative_title,
                 });
             }
         }
@@ -405,6 +676,7 @@ fn codex_source_fingerprint(
         .unwrap_or_default()
 }
 
+#[cfg(test)]
 pub(super) fn codex_session_index_title_for_record(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<String, String> {
@@ -419,6 +691,7 @@ pub(super) fn codex_session_index_title_for_record(
     )
 }
 
+#[cfg(test)]
 fn codex_index_path_for_session_path(session_path: &Path) -> Option<PathBuf> {
     codex_sessions_dir_for_session_path(session_path).and_then(|sessions_dir| {
         sessions_dir
@@ -607,6 +880,395 @@ pub(crate) fn codex_sessions_dir_candidates(home: &Path) -> Vec<PathBuf> {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static TITLE_REPAIR_FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+
+    fn title_repair_fixture(
+        current_name: &str,
+        transcript_lines: &[Value],
+    ) -> (Connection, DiscoveredCodexCatalogRecord, PathBuf) {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-codex-title-repair-{}-{}.jsonl",
+            std::process::id(),
+            TITLE_REPAIR_FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let body = transcript_lines
+            .iter()
+            .map(Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, format!("{body}\n")).expect("write Codex title fixture");
+        let metadata = fs::metadata(&path).expect("Codex title fixture metadata");
+        let source_session_id = "rollout-title-fixture".to_string();
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: source_session_id.clone(),
+            source_path: path.clone(),
+            source_record_key: source_session_id.clone(),
+            source_mtime_ms: 1_774_137_600_000_000_000,
+            source_size_bytes: i64::try_from(metadata.len()).expect("fixture size"),
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        };
+
+        let conn = Connection::open_in_memory().expect("catalog DB");
+        SqliteRecordStore::init_tables(&conn).expect("core schema");
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("catalog schema");
+        conn.execute(
+            "INSERT INTO imported_history_session_cache(
+                source,source_session_id,session_id,source_path,source_record_key,
+                source_mtime_ms,source_size_bytes,source_fingerprint,parser_version,
+                name,created_at_ms,updated_at_ms,model,input_tokens,output_tokens,
+                cache_read_tokens,cache_write_tokens,repo_path,branch,files_changed,
+                lines_added,lines_removed,touched_files_json,listable,
+                source_metadata_json,parent_session_id,updated_at
+             ) VALUES(
+                'codex_app',?1,'codexapp-title-fixture',?2,?1,
+                ?3,?4,'',?5,?6,1,1,'',0,0,0,0,'','',0,0,0,'[]',0,
+                '{\"adapterOwned\":{\"keep\":true},\"unrelated\":\"preserve-me\"}',
+                'codexapp-parent','2026-07-22T00:00:00Z'
+             )",
+            (
+                &source_session_id,
+                path.to_string_lossy().to_string(),
+                record.source_mtime_ms,
+                record.source_size_bytes,
+                record.parser_version,
+                current_name,
+            ),
+        )
+        .expect("insert cached Codex title");
+        conn.execute(
+            "INSERT INTO imported_replay_catalog_derivations(
+                source,source_session_id,baseline_json,applied_json,updated_at
+             ) VALUES('codex_app',?1,'{\"name\":\"older-tool\"}',?2,
+                '2026-07-22T00:00:00Z')",
+            (
+                &source_session_id,
+                serde_json::json!({"name": current_name}).to_string(),
+            ),
+        )
+        .expect("insert replay title ownership");
+
+        (
+            conn,
+            DiscoveredCodexCatalogRecord {
+                record,
+                authoritative_title: None,
+            },
+            path,
+        )
+    }
+
+    fn cached_title(conn: &Connection) -> (String, i64, String) {
+        conn.query_row(
+            "SELECT name,listable,parent_session_id
+             FROM imported_history_session_cache
+             WHERE source='codex_app'
+               AND source_session_id='rollout-title-fixture'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read repaired Codex title")
+    }
+
+    fn cached_title_verification_signature(conn: &Connection) -> Option<String> {
+        cached_source_metadata(conn)
+            .get(CODEX_TITLE_REPAIR_SIGNATURE_FIELD)
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    }
+
+    fn cached_source_metadata(conn: &Connection) -> Value {
+        conn.query_row(
+            "SELECT source_metadata_json
+             FROM imported_history_session_cache
+             WHERE source='codex_app'
+               AND source_session_id='rollout-title-fixture'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .expect("read Codex source metadata")
+        .parse::<Value>()
+        .expect("parse Codex source metadata")
+    }
+
+    fn assert_unrelated_source_metadata_survives(conn: &Connection) {
+        let metadata = cached_source_metadata(conn);
+        assert_eq!(
+            metadata.pointer("/adapterOwned/keep"),
+            Some(&Value::Bool(true))
+        );
+        assert_eq!(
+            metadata.get("unrelated").and_then(Value::as_str),
+            Some("preserve-me")
+        );
+    }
+
+    fn publish_title_fixture_projection(
+        conn: &mut Connection,
+        record: &ImportedHistoryDiscoveredRecord,
+        model: Option<&str>,
+    ) {
+        // `title_repair_fixture` seeds the minimal legacy ownership shape used
+        // by title repair itself. Replay publication expects the modern full
+        // snapshot shape, so start a fresh derivation exactly as a post-prune
+        // replay generation would.
+        conn.execute(
+            "DELETE FROM imported_replay_catalog_derivations
+             WHERE source='codex_app' AND source_session_id=?1",
+            [&record.source_session_id],
+        )
+        .expect("clear legacy title-only derivation");
+        let driver_cursor = serde_json::json!({
+            "catalog": crate::sources::imported_history::catalog::ReplayCatalogProjection {
+                model: model.map(str::to_string),
+                ..Default::default()
+            }
+        })
+        .to_string();
+        let tx = conn.transaction().expect("replay catalog transaction");
+        crate::sources::imported_history::catalog::publish_from_replay_tx(
+            &tx,
+            crate::sources::imported_history::replay::ImportedHistorySourceId::CodexApp,
+            &record.source_session_id,
+            "title-fixture-generation",
+            0,
+            false,
+            record.source_mtime_ms,
+            &driver_cursor,
+        )
+        .expect("publish replay catalog projection");
+        tx.commit().expect("commit replay catalog projection");
+    }
+
+    #[test]
+    fn authoritative_index_title_repairs_pollution_without_changing_visibility_or_parent() {
+        let (mut conn, mut discovered, path) = title_repair_fixture("update_plan", &[]);
+        discovered.authoritative_title = Some("Human session title".to_string());
+
+        repair_codex_catalog_titles(&mut conn, &[discovered])
+            .expect("repair from Codex session index");
+
+        assert_eq!(
+            cached_title(&conn),
+            (
+                "Human session title".to_string(),
+                0,
+                "codexapp-parent".to_string()
+            ),
+            "managed/subagent visibility and parent placement must remain adapter-owned"
+        );
+        fs::remove_file(path).expect("remove title fixture");
+    }
+
+    #[test]
+    fn polluted_title_without_an_index_uses_first_real_user_prompt() {
+        let (mut conn, discovered, path) = title_repair_fixture(
+            "update_plan",
+            &[
+                json!({
+                    "timestamp":"2026-07-22T00:00:00Z",
+                    "type":"response_item",
+                    "payload":{"type":"custom_tool_call","name":"update_plan"}
+                }),
+                json!({
+                    "timestamp":"2026-07-22T00:00:01Z",
+                    "type":"event_msg",
+                    "payload":{"type":"user_message","message":"Investigate bounded replay"}
+                }),
+                json!({
+                    "timestamp":"2026-07-22T00:00:02Z",
+                    "type":"response_item",
+                    "payload":{"type":"function_call","name":"exec"}
+                }),
+            ],
+        );
+
+        repair_codex_catalog_titles(&mut conn, &[discovered])
+            .expect("repair from first user prompt");
+
+        assert_eq!(cached_title(&conn).0, "Investigate bounded replay");
+        fs::remove_file(path).expect("remove title fixture");
+    }
+
+    #[test]
+    fn verified_replay_title_does_not_reopen_unchanged_jsonl_prefix() {
+        let (mut conn, discovered, path) = title_repair_fixture(
+            "Investigate bounded replay",
+            &[json!({
+                "timestamp":"2026-07-22T00:00:01Z",
+                "type":"event_msg",
+                "payload":{"type":"user_message","message":"Investigate bounded replay"}
+            })],
+        );
+
+        repair_codex_catalog_titles(&mut conn, std::slice::from_ref(&discovered))
+            .expect("verify replay-owned title from first user prompt");
+        assert_eq!(cached_title(&conn).0, "Investigate bounded replay");
+        let initial_verified_signature = cached_title_verification_signature(&conn)
+            .expect("verification must live with adapter metadata");
+
+        // A logical/no-change replay publication rewrites its derivation
+        // baseline/applied snapshots. Verification must not be stored in that
+        // disposable lifecycle because compact-index prune deletes it.
+        publish_title_fixture_projection(&mut conn, &discovered.record, None);
+        assert_eq!(
+            cached_title_verification_signature(&conn).as_deref(),
+            Some(initial_verified_signature.as_str())
+        );
+
+        // Discovery growth advances only physical signature fields. It must
+        // preserve adapter-owned metadata instead of forcing another prefix
+        // read on the next unchanged refresh.
+        let mut advanced_record = discovered.record.clone();
+        advanced_record.source_size_bytes += 1;
+        imported_cache::advance_cached_catalog_record_from_conn(
+            &conn,
+            SOURCE_CODEX_APP,
+            &advanced_record,
+            None,
+        )
+        .expect("advance Codex discovery signature");
+        assert_eq!(
+            cached_title_verification_signature(&conn).as_deref(),
+            Some(initial_verified_signature.as_str())
+        );
+
+        let advanced_discovered = DiscoveredCodexCatalogRecord {
+            record: advanced_record,
+            authoritative_title: None,
+        };
+        repair_codex_catalog_titles(&mut conn, std::slice::from_ref(&advanced_discovered))
+            .expect("changed discovery signature revalidates while JSONL is available");
+        let advanced_verified_signature =
+            cached_title_verification_signature(&conn).expect("advanced verification signature");
+        assert_ne!(advanced_verified_signature, initial_verified_signature);
+
+        fs::remove_file(&path).expect("remove title fixture before unchanged refresh");
+        repair_codex_catalog_titles(&mut conn, std::slice::from_ref(&advanced_discovered))
+            .expect("verified unchanged title must stay on the metadata-only path");
+        assert_eq!(cached_title(&conn).0, "Investigate bounded replay");
+    }
+
+    #[test]
+    fn verified_title_survives_replay_baseline_restore_and_prune() {
+        let (mut conn, discovered, path) = title_repair_fixture(
+            "Investigate bounded replay",
+            &[json!({
+                "timestamp":"2026-07-22T00:00:01Z",
+                "type":"event_msg",
+                "payload":{"type":"user_message","message":"Investigate bounded replay"}
+            })],
+        );
+        conn.execute(
+            "UPDATE imported_history_session_cache SET model='adapter-model'
+             WHERE source='codex_app' AND source_session_id='rollout-title-fixture'",
+            [],
+        )
+        .expect("seed adapter-owned baseline");
+
+        repair_codex_catalog_titles(&mut conn, std::slice::from_ref(&discovered))
+            .expect("verify replay-owned title");
+        let verified_signature =
+            cached_title_verification_signature(&conn).expect("verification signature");
+        assert_unrelated_source_metadata_survives(&conn);
+        publish_title_fixture_projection(&mut conn, &discovered.record, Some("replay-model"));
+        assert_unrelated_source_metadata_survives(&conn);
+        let projected_model: String = conn
+            .query_row(
+                "SELECT model FROM imported_history_session_cache
+                 WHERE source='codex_app'
+                   AND source_session_id='rollout-title-fixture'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read replay-projected model");
+        assert_eq!(projected_model, "replay-model");
+
+        let tx = conn.transaction().expect("replay prune transaction");
+        crate::sources::imported_history::catalog::clear_replay_projection_tx(
+            &tx,
+            SOURCE_CODEX_APP,
+            &discovered.record.source_session_id,
+        )
+        .expect("prune replay catalog projection");
+        tx.commit().expect("commit replay projection prune");
+
+        let restored_model: String = conn
+            .query_row(
+                "SELECT model FROM imported_history_session_cache
+                 WHERE source='codex_app'
+                   AND source_session_id='rollout-title-fixture'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read restored adapter model");
+        assert_eq!(restored_model, "adapter-model");
+        assert_eq!(
+            cached_title_verification_signature(&conn).as_deref(),
+            Some(verified_signature.as_str()),
+            "pruning replay-owned fields must not discard adapter verification"
+        );
+        assert_unrelated_source_metadata_survives(&conn);
+
+        fs::remove_file(&path).expect("remove title fixture after prune");
+        repair_codex_catalog_titles(&mut conn, std::slice::from_ref(&discovered))
+            .expect("post-prune refresh must not reopen the unchanged JSONL");
+        assert_unrelated_source_metadata_survives(&conn);
+    }
+
+    #[test]
+    fn tool_only_codex_session_uses_neutral_untitled_name() {
+        let (mut conn, discovered, path) = title_repair_fixture(
+            "js",
+            &[json!({
+                "timestamp":"2026-07-22T00:00:00Z",
+                "type":"response_item",
+                "payload":{"type":"custom_tool_call","name":"js"}
+            })],
+        );
+
+        repair_codex_catalog_titles(&mut conn, &[discovered])
+            .expect("repair tool-only Codex title");
+
+        assert_eq!(cached_title(&conn).0, "Untitled");
+        fs::remove_file(path).expect("remove title fixture");
+    }
+
+    #[test]
+    fn legacy_record_key_placeholder_repairs_without_a_replay_derivation() {
+        let (mut conn, discovered, path) = title_repair_fixture("rollout-title-fixture", &[]);
+        conn.execute(
+            "DELETE FROM imported_replay_catalog_derivations
+             WHERE source='codex_app'",
+            [],
+        )
+        .expect("remove replay derivation");
+
+        repair_codex_catalog_titles(&mut conn, &[discovered])
+            .expect("repair legacy record-key placeholder");
+
+        assert_eq!(cached_title(&conn).0, "Untitled");
+        fs::remove_file(path).expect("remove title fixture");
+    }
+
+    #[test]
+    fn unchanged_untitled_session_does_not_reopen_its_transcript() {
+        let (mut conn, discovered, path) = title_repair_fixture("Untitled", &[]);
+        conn.execute(
+            "DELETE FROM imported_replay_catalog_derivations
+             WHERE source='codex_app'",
+            [],
+        )
+        .expect("remove replay derivation");
+        fs::remove_file(&path).expect("remove title fixture before refresh");
+
+        repair_codex_catalog_titles(&mut conn, &[discovered])
+            .expect("unchanged neutral title must stay on the metadata-only path");
+
+        assert_eq!(cached_title(&conn).0, "Untitled");
+    }
 
     #[test]
     fn links_spawn_chunk_to_matching_codex_child_and_restores_prompt() {

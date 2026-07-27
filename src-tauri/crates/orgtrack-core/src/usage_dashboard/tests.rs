@@ -158,8 +158,8 @@ fn rounds_fallback_when_no_round_rows() {
     // No imported_history_round_usage rows: native sessions expand to their
     // per-turn rows, imported codex gets one synthesized fallback round.
     let conn = seeded_conn();
-    let rows = usage_rounds(&conn, &UsageFilter::default(), SessionSort::Recent, 0, 100)
-        .expect("rounds");
+    let rows =
+        usage_rounds(&conn, &UsageFilter::default(), SessionSort::Recent, 0, 100).expect("rounds");
     // claude 2 native turns + org2 1 native turn + codex 1 fallback = 4.
     assert_eq!(rows.len(), 4);
     assert!(rows.iter().all(|r| r.session_id != "mirror-claude"));
@@ -198,8 +198,8 @@ fn rounds_use_real_rows_and_session_filter() {
         ms("2026-07-18T02:10:00Z"),
     );
 
-    let rows = usage_rounds(&conn, &UsageFilter::default(), SessionSort::Recent, 0, 100)
-        .expect("rounds");
+    let rows =
+        usage_rounds(&conn, &UsageFilter::default(), SessionSort::Recent, 0, 100).expect("rounds");
     // claude 2 + org2 1 + codex 2 real = 5.
     assert_eq!(rows.len(), 5);
     let codex: Vec<_> = rows
@@ -599,8 +599,7 @@ fn sessions_table_paginates() {
 #[test]
 fn trends_use_per_turn_native_and_lumped_imported() {
     let conn = seeded_conn();
-    let series =
-        usage_trends(&conn, &UsageFilter::default(), TrendBucket::Hour).expect("trends");
+    let series = usage_trends(&conn, &UsageFilter::default(), TrendBucket::Hour).expect("trends");
     // Distinct hour buckets: codex 02:00, claude 03:00, org2 04:00, claude 05:00.
     let keys: Vec<i64> = series.iter().map(|p| p.bucket_ms).collect();
     assert_eq!(
@@ -631,8 +630,7 @@ fn trends_use_per_turn_native_and_lumped_imported() {
 #[test]
 fn trends_day_bucket_collapses_hours() {
     let conn = seeded_conn();
-    let series =
-        usage_trends(&conn, &UsageFilter::default(), TrendBucket::Day).expect("trends");
+    let series = usage_trends(&conn, &UsageFilter::default(), TrendBucket::Day).expect("trends");
     assert_eq!(series.len(), 1);
     assert_eq!(series[0].bucket_ms, ms("2026-07-18T00:00:00Z"));
 }

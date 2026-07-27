@@ -31,6 +31,31 @@ impl EventStoreState {
         session_id: &str,
         max_bytes: usize,
     ) -> Result<usize, String> {
+        self.cap_external_replay_store_inner(session_id, max_bytes, None)
+    }
+
+    /// Apply the external replay byte cap while pinning one foreground window.
+    /// This is used only after an older-page merge so the returned page remains
+    /// visible long enough for the renderer snapshot barrier to observe it.
+    pub fn cap_external_replay_store_preserving_window(
+        &self,
+        session_id: &str,
+        max_bytes: usize,
+        window: &[SessionEvent],
+    ) -> Result<usize, String> {
+        let preserved_event_ids = window
+            .iter()
+            .map(|event| event.id.clone())
+            .collect::<HashSet<_>>();
+        self.cap_external_replay_store_inner(session_id, max_bytes, Some(&preserved_event_ids))
+    }
+
+    fn cap_external_replay_store_inner(
+        &self,
+        session_id: &str,
+        max_bytes: usize,
+        preserved_event_ids: Option<&HashSet<String>>,
+    ) -> Result<usize, String> {
         // Match the EventStore write/switch lock order: manager -> stores.
         let (bytes, evicted) = {
             let mut manager = self
@@ -47,7 +72,12 @@ impl EventStoreState {
             #[cfg(test)]
             self.bounded_replay_exact_cap_count
                 .fetch_add(1, Ordering::Relaxed);
-            let bytes = store.cap_external_replay_bytes(max_bytes)?;
+            let bytes = match preserved_event_ids {
+                Some(preserved_event_ids) => {
+                    store.cap_external_replay_bytes_preserving(max_bytes, preserved_event_ids)?
+                }
+                None => store.cap_external_replay_bytes(max_bytes)?,
+            };
             let evicted = manager.update_estimated_bytes(session_id, bytes);
             (bytes, evicted)
         };

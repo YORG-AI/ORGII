@@ -27,6 +27,20 @@ const summaryGenerationsByArray = new WeakMap<
   ExternalReplayTurnSummary[],
   string
 >();
+interface ExternalReplayWindowBoundary {
+  generation: string;
+  earliestSequence: number | null;
+  hasOlder: boolean;
+}
+const replayWindowBoundaries = new Map<string, ExternalReplayWindowBoundary>();
+interface ExternalReplayTurnSliceBoundaries {
+  generation: string;
+  earliestSequenceByTurn: Map<number, number>;
+}
+const replayTurnSliceBoundaries = new Map<
+  string,
+  ExternalReplayTurnSliceBoundaries
+>();
 
 export function externalReplayPlaceholderId(turnIndex: number): string {
   return `${EXTERNAL_REPLAY_TURN_PLACEHOLDER_PREFIX}${turnIndex}`;
@@ -60,6 +74,13 @@ export function captureExternalReplayTurnEpisode(
   );
 }
 
+/** Current provider generation for one already-open replay session. */
+export function getExternalReplayTurnGeneration(
+  sessionId: string
+): string | null {
+  return replayEpisodes.get(sessionId)?.generation ?? null;
+}
+
 export function isCurrentExternalReplayTurnEpisode(
   sessionId: string,
   episode: ExternalReplayTurnEpisode
@@ -69,6 +90,8 @@ export function isCurrentExternalReplayTurnEpisode(
 
 export function deactivateExternalReplayTurnState(sessionId: string): void {
   replayEpisodes.delete(sessionId);
+  replayWindowBoundaries.delete(sessionId);
+  replayTurnSliceBoundaries.delete(sessionId);
   getInstrumentedStore().set(
     externalReplayTurnSummariesAtomFamily(sessionId),
     []
@@ -88,14 +111,77 @@ function eventPreview(event: SessionEvent | undefined): string {
   return "";
 }
 
+function eventTimestamp(event: SessionEvent): number | null {
+  const timestamp = Date.parse(event.createdAt);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+/**
+ * Correlate source-neutral replay turn headers with the normalized user rows
+ * that own rendered chat groups. The replay protocol deliberately keeps the
+ * provider turn locator independent from SessionEvent ids.
+ */
+function renderedUserEventsByTurnIndex(
+  window: ExternalReplayWindow
+): ReadonlyMap<number, SessionEvent> {
+  const userEvents = window.events.filter((event) => event.source === "user");
+  const claimedUserEventIds = new Set<string>();
+  const result = new Map<number, SessionEvent>();
+  const headers = [...window.turnHeaders].sort(
+    (left, right) => left.turnIndex - right.turnIndex
+  );
+
+  for (let headerIndex = 0; headerIndex < headers.length; headerIndex += 1) {
+    const header = headers[headerIndex];
+    const exact = userEvents.find(
+      (event) =>
+        event.id === header.turnId && !claimedUserEventIds.has(event.id)
+    );
+    if (exact) {
+      result.set(header.turnIndex, exact);
+      claimedUserEventIds.add(exact.id);
+      continue;
+    }
+
+    const startedAt = Date.parse(header.startedAt);
+    const nextStartedAt = headers[headerIndex + 1]
+      ? Date.parse(headers[headerIndex + 1].startedAt)
+      : Number.NaN;
+    const endedAt = header.endedAt ? Date.parse(header.endedAt) : Number.NaN;
+    const upperBound = Number.isFinite(nextStartedAt) ? nextStartedAt : endedAt;
+    const timestampMatch = userEvents.find((event) => {
+      if (claimedUserEventIds.has(event.id)) return false;
+      const timestamp = eventTimestamp(event);
+      if (timestamp === null || !Number.isFinite(startedAt)) return false;
+      return (
+        timestamp >= startedAt &&
+        (!Number.isFinite(upperBound) || timestamp <= upperBound)
+      );
+    });
+    const orderedFallback =
+      headers.length === userEvents.length
+        ? userEvents[headerIndex]
+        : headers.length === 1
+          ? userEvents[0]
+          : undefined;
+    const userEvent =
+      timestampMatch ??
+      (orderedFallback && !claimedUserEventIds.has(orderedFallback.id)
+        ? orderedFallback
+        : undefined);
+    if (!userEvent) continue;
+    result.set(header.turnIndex, userEvent);
+    claimedUserEventIds.add(userEvent.id);
+  }
+
+  return result;
+}
+
 function summaryFromHeader(
-  window: ExternalReplayWindow,
   header: ExternalReplayWindow["turnHeaders"][number],
+  renderedUserEvent: SessionEvent | undefined,
   nextTurnId: string | null
 ): ExternalReplayTurnSummary {
-  const userEvent =
-    window.events.find((event) => event.id === header.turnId) ??
-    window.events.find((event) => event.source === "user");
   const startedMs = Date.parse(header.startedAt);
   const endedMs = header.endedAt ? Date.parse(header.endedAt) : Number.NaN;
   const durationMs =
@@ -104,12 +190,13 @@ function summaryFromHeader(
       : null;
   return {
     turnId: header.turnId,
+    renderedUserEventId: renderedUserEvent?.id ?? null,
     nextTurnId,
     turnIndex: header.turnIndex,
     startedAt: header.startedAt,
     endedAt: header.endedAt,
     durationMs,
-    userPreview: eventPreview(userEvent),
+    userPreview: eventPreview(renderedUserEvent),
     eventCount: header.eventCount,
     bodyEventCount: Math.max(0, header.eventCount - 1),
   };
@@ -121,6 +208,7 @@ function placeholderSummary(
 ): ExternalReplayTurnSummary {
   return {
     turnId: externalReplayPlaceholderId(turnIndex),
+    renderedUserEventId: null,
     nextTurnId:
       turnIndex + 1 < totalTurnCount
         ? externalReplayPlaceholderId(turnIndex + 1)
@@ -225,11 +313,12 @@ export function buildExternalReplayTurnSummaries(
   window: ExternalReplayWindow
 ): ExternalReplayTurnSummary[] {
   const loaded = new Map<number, ExternalReplayTurnSummary>();
+  const renderedUserEvents = renderedUserEventsByTurnIndex(window);
   for (const header of window.turnHeaders) {
     touchLoadedSummary(
       loaded,
       header.turnIndex,
-      summaryFromHeader(window, header, null)
+      summaryFromHeader(header, renderedUserEvents.get(header.turnIndex), null)
     );
   }
   trimLoadedSummaries(loaded, new Set(loaded.keys()));
@@ -238,10 +327,162 @@ export function buildExternalReplayTurnSummaries(
   return summaries;
 }
 
+/**
+ * Recover the provider turn owning each resident replay event without adding
+ * renderer-only fields to the public SessionEvent wire shape.
+ *
+ * Bounded replay intentionally keeps sparse windows in EventStore. A window
+ * can therefore begin in the middle of a turn, without that turn's user row.
+ * The compact headers are the authoritative boundaries: match exact rendered
+ * user ids first, then assign the remaining chronologically ordered events to
+ * the latest header whose start time has been reached.
+ */
+export function buildExternalReplayTurnIndexByEventId(
+  events: readonly SessionEvent[],
+  summaries: ExternalReplayTurnSummary[]
+): ReadonlyMap<string, number> {
+  const loaded = new Map<number, ExternalReplayTurnSummary>();
+  summaries.forEach((summary, turnIndex) => {
+    if (!summary?.startedAt) return;
+    loaded.set(turnIndex, summary);
+  });
+  if (loaded.size === 0 || events.length === 0) return new Map();
+
+  const ranges = [...loaded.values()]
+    .map((summary) => ({
+      renderedUserEventId: summary.renderedUserEventId,
+      startedAtMs: Date.parse(summary.startedAt),
+      turnIndex: summary.turnIndex,
+    }))
+    .filter((range) => Number.isFinite(range.startedAtMs))
+    .sort(
+      (left, right) =>
+        left.startedAtMs - right.startedAtMs || left.turnIndex - right.turnIndex
+    );
+  if (ranges.length === 0) return new Map();
+
+  const rangeIndexByUserEventId = new Map<string, number>();
+  ranges.forEach((range, rangeIndex) => {
+    if (range.renderedUserEventId) {
+      rangeIndexByUserEventId.set(range.renderedUserEventId, rangeIndex);
+    }
+  });
+
+  const result = new Map<string, number>();
+  let currentRangeIndex = -1;
+  for (const event of events) {
+    const exactRangeIndex = rangeIndexByUserEventId.get(event.id);
+    if (exactRangeIndex !== undefined) {
+      currentRangeIndex = exactRangeIndex;
+    } else {
+      const eventTimeMs = Date.parse(event.createdAt);
+      if (Number.isFinite(eventTimeMs)) {
+        while (
+          currentRangeIndex + 1 < ranges.length &&
+          ranges[currentRangeIndex + 1].startedAtMs <= eventTimeMs
+        ) {
+          currentRangeIndex += 1;
+        }
+      }
+    }
+    const owner = ranges[currentRangeIndex];
+    if (owner) result.set(event.id, owner.turnIndex);
+  }
+  return result;
+}
+
+/**
+ * Return the immediately older catalog locator without walking the virtual
+ * array. Used by non-paginated history to backfill one bounded turn whenever
+ * the user reaches the top of the currently resident window.
+ */
+export function previousExternalReplayWindowStart(
+  sessionId: string
+): number | null {
+  const boundary = replayWindowBoundaries.get(sessionId);
+  return boundary?.hasOlder ? boundary.earliestSequence : null;
+}
+
+export function previousExternalReplayTurnSliceStart(
+  sessionId: string,
+  turnIndex: number
+): number | null {
+  return (
+    replayTurnSliceBoundaries
+      .get(sessionId)
+      ?.earliestSequenceByTurn.get(turnIndex) ?? null
+  );
+}
+
+function mergeReplayTurnSliceBoundary(
+  sessionId: string,
+  window: ExternalReplayWindow
+): void {
+  let state = replayTurnSliceBoundaries.get(sessionId);
+  if (!state || state.generation !== window.cursor.generation) {
+    state = {
+      generation: window.cursor.generation,
+      earliestSequenceByTurn: new Map(),
+    };
+    replayTurnSliceBoundaries.set(sessionId, state);
+  }
+  const windowStart = window.windowStartSequence;
+  if (windowStart === null) return;
+  const owningHeader = window.turnHeaders.find(
+    (header) =>
+      windowStart >= header.startSequence &&
+      (header.endSequence === null || windowStart <= header.endSequence)
+  );
+  if (!owningHeader) return;
+
+  if (windowStart <= owningHeader.startSequence) {
+    state.earliestSequenceByTurn.delete(owningHeader.turnIndex);
+    return;
+  }
+  state.earliestSequenceByTurn.delete(owningHeader.turnIndex);
+  state.earliestSequenceByTurn.set(owningHeader.turnIndex, windowStart);
+  while (
+    state.earliestSequenceByTurn.size >
+    MAX_LOADED_EXTERNAL_REPLAY_TURN_SUMMARIES
+  ) {
+    const oldestTurnIndex = state.earliestSequenceByTurn.keys().next().value;
+    if (oldestTurnIndex === undefined) break;
+    state.earliestSequenceByTurn.delete(oldestTurnIndex);
+  }
+}
+
+function mergeReplayWindowBoundary(
+  sessionId: string,
+  window: ExternalReplayWindow
+): void {
+  const nextSequence = window.windowStartSequence;
+  const current = replayWindowBoundaries.get(sessionId);
+  if (!current || current.generation !== window.cursor.generation) {
+    replayWindowBoundaries.set(sessionId, {
+      generation: window.cursor.generation,
+      earliestSequence: nextSequence,
+      hasOlder: window.hasOlder,
+    });
+    return;
+  }
+  if (nextSequence === null) return;
+  if (
+    current.earliestSequence === null ||
+    nextSequence < current.earliestSequence
+  ) {
+    current.earliestSequence = nextSequence;
+    current.hasOlder = window.hasOlder;
+  } else if (nextSequence === current.earliestSequence) {
+    current.hasOlder = current.hasOlder && window.hasOlder;
+  }
+}
+
 export function mergeExternalReplayTurnWindow(
   sessionId: string,
   window: ExternalReplayWindow
 ): void {
+  mergeReplayWindowBoundary(sessionId, window);
+  mergeReplayTurnSliceBoundary(sessionId, window);
   const episode = replayEpisodes.get(sessionId);
   if (episode) episode.generation = window.cursor.generation;
   else startExternalReplayTurnEpisode(sessionId, window.cursor.generation);
@@ -266,11 +507,16 @@ export function mergeExternalReplayTurnWindow(
       }
     });
     const pinned = new Set<number>();
+    const renderedUserEvents = renderedUserEventsByTurnIndex(window);
     for (const header of window.turnHeaders) {
       touchLoadedSummary(
         loaded,
         header.turnIndex,
-        summaryFromHeader(window, header, null)
+        summaryFromHeader(
+          header,
+          renderedUserEvents.get(header.turnIndex),
+          null
+        )
       );
       for (const nearby of [header.turnIndex - 1, header.turnIndex + 1]) {
         if (loaded.has(nearby)) pinned.add(nearby);

@@ -120,9 +120,9 @@ impl ImportedHistorySourceId {
                 source_id: SOURCE_CODEX_APP,
                 session_prefix: sources::codex::SESSION_PREFIX,
                 storage_family: ReplayStorageFamily::JsonLines,
-                // v3 additionally materializes decoded/cross-line payloads
-                // once per generation, avoiding range-read reparse loops.
-                parser_version: 3,
+                // v4 rebuilds the compact catalog projection so historical
+                // tool-call names can no longer remain cached as titles.
+                parser_version: 4,
                 support: ReplayAdapterSupport::Incremental,
             },
             Self::CursorIde => ImportedReplayDescriptor {
@@ -302,6 +302,16 @@ mod tests {
         let codex = ImportedHistorySourceId::CodexApp;
         assert!(codex.validate_session_id("codexapp-abc").is_ok());
         assert!(codex.validate_session_id("claudecodeapp-abc").is_err());
+    }
+
+    #[test]
+    fn codex_catalog_title_fix_forces_existing_replay_indexes_to_rebuild() {
+        assert_eq!(
+            ImportedHistorySourceId::CodexApp
+                .descriptor()
+                .parser_version,
+            4
+        );
     }
 
     #[test]

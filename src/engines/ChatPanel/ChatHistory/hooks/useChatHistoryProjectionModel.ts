@@ -1,10 +1,16 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { buildExternalReplayTurnIndexByEventId } from "@src/engines/SessionCore/sync/externalReplayTurnState";
+import {
+  loadPreviousExternalReplayTurnSlice,
+  loadPreviousExternalReplayWindow,
+} from "@src/engines/SessionCore/turns/externalReplayTurnLoader";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
+import { createLogger } from "@src/hooks/logger";
 import {
   estimateRuntimeValueBytes,
   removeChatRenderedTreeMemoryEntry,
@@ -29,6 +35,7 @@ import {
 } from "./useTurnPageSelection";
 
 const DEFAULT_TURN_COLLAPSED = true;
+const logger = createLogger("ChatHistory");
 
 interface UseChatHistoryProjectionModelOptions {
   activeId: string | null;
@@ -91,6 +98,18 @@ export function useChatHistoryProjectionModel({
     sourceSessionId: chatHistorySourceSessionId,
     sourceVersion: chatHistorySourceVersion,
   });
+  const disableExternalReplayTurnCollapse =
+    turnPaginationEnabled && externalReplayTurnSummaries.length > 0;
+  const externalReplayTurnIndexByEventId = useMemo(
+    () =>
+      externalReplayTurnSummaries.length > 0
+        ? buildExternalReplayTurnIndexByEventId(
+            chatHistory,
+            externalReplayTurnSummaries
+          )
+        : undefined,
+    [chatHistory, externalReplayTurnSummaries]
+  );
 
   const groupOptions = useMemo<ChatGroupsProjectionOptions>(
     () => ({
@@ -98,10 +117,19 @@ export function useChatHistoryProjectionModel({
       isAgentWorking,
       collapseTailWhenIdle,
       forceCollapseAllTurns,
+      // Pagination already limits rendering to one bounded replay turn. If
+      // historical-turn collapse runs first, it drops that turn's tool stack
+      // and leaves only the final assistant message on the selected page.
+      disableTurnCollapse: disableExternalReplayTurnCollapse,
       defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
       allTurnsCollapsed:
         collapseAllCommand.epoch > 0 && collapseAllCommand.collapsed
           ? true
+          : undefined,
+      externalReplayTurnIndexByEventId,
+      externalReplayTotalTurnCount:
+        externalReplayTurnSummaries.length > 0
+          ? externalReplayTurnSummaries.length
           : undefined,
       turnGrouping: groupChat?.enabled
         ? {
@@ -113,6 +141,9 @@ export function useChatHistoryProjectionModel({
     [
       collapseAllCommand,
       collapseTailWhenIdle,
+      disableExternalReplayTurnCollapse,
+      externalReplayTurnIndexByEventId,
+      externalReplayTurnSummaries.length,
       forceCollapseAllTurns,
       groupChat,
       isAgentWorking,
@@ -228,6 +259,35 @@ export function useChatHistoryProjectionModel({
   });
   const planningIndicatorEnabled =
     !turnPaginationEnabled || currentPageIndex >= pageCount - 1;
+  const currentReplayTurnIndex =
+    pages[currentPageIndex]?.replayTurnSummary?.turnIndex ?? null;
+  const loadPreviousExternalReplayTurn = useCallback(async () => {
+    if (!activeId || sessionLoadStatus !== "loaded") {
+      return false;
+    }
+    try {
+      if (turnPaginationEnabled) {
+        if (currentReplayTurnIndex === null) return false;
+        await loadPreviousExternalReplayTurnSlice(
+          activeId,
+          currentReplayTurnIndex
+        );
+        return true;
+      }
+      return await loadPreviousExternalReplayWindow(activeId);
+    } catch (error: unknown) {
+      logger.warn("Failed to scroll-load older external replay turn", {
+        sessionId: activeId,
+        error,
+      });
+      throw error;
+    }
+  }, [
+    activeId,
+    currentReplayTurnIndex,
+    sessionLoadStatus,
+    turnPaginationEnabled,
+  ]);
   const collapseStateKey = useMemo(() => {
     const overrideKey = Array.from(turnCollapseOverrides.entries())
       .sort(([left], [right]) => left.localeCompare(right))
@@ -245,6 +305,15 @@ export function useChatHistoryProjectionModel({
   ].join(":");
   const displayTurnIds = useMemo(
     () => turnPages.displayGroupMeta.map((meta) => meta.turnId),
+    [turnPages.displayGroupMeta]
+  );
+  const displayGroupKeys = useMemo(
+    () =>
+      turnPages.displayGroupMeta.map((meta) =>
+        meta.replayTurnIndex === null
+          ? meta.turnId
+          : `external-replay-turn-${meta.replayTurnIndex}`
+      ),
     [turnPages.displayGroupMeta]
   );
   const turnMetadataReloadKey = [
@@ -273,12 +342,14 @@ export function useChatHistoryProjectionModel({
     activeProjectionHistory,
     collapseTailWhenIdle,
     defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
+    displayGroupKeys,
     displayTurnIds,
     flatItems,
     groupCounts,
     groupHeaders,
     groupMeta,
     originalToFlatIndex,
+    loadPreviousExternalReplayTurn,
     planningIndicatorEnabled,
     projection,
     tailFollowKey,

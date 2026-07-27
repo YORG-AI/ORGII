@@ -33,8 +33,8 @@ mod tests;
 
 use accumulator::UsageHeadlineAccumulator;
 pub use overview::{usage_overview, usage_rounds, usage_trends, UsageOverview};
-pub use rounds::UsageRoundRow;
 use rounds::visit_rounds;
+pub use rounds::UsageRoundRow;
 
 use rusqlite::Connection;
 use serde::Serialize;

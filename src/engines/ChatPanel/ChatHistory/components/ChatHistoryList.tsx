@@ -54,6 +54,7 @@ export type { ChatHistoryListHandle } from "./ChatHistoryListTypes";
 export { resolveActiveGroupPinState, resolveVisibleGroupIndices };
 
 const STATIC_RENDER_ITEM_LIMIT = 24;
+const PROGRAMMATIC_NAVIGATION_SIGNAL_MS = 500;
 
 // memo: parent (`ChatHistory/index.tsx`) re-renders on every chat event
 // (atom subscriptions, useDeferredValue ticks). All props are either
@@ -64,6 +65,7 @@ const STATIC_RENDER_ITEM_LIMIT = 24;
 const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
   ({
     flatItems,
+    groupKeys,
     groupCounts,
     turnIds,
     totalFlatItems,
@@ -79,6 +81,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     getIsWpGeneWorking,
     getIsExploring,
     renderGroupHeader: renderGroupHeaderProp,
+    onAtStartStateChange,
     onAtBottomStateChange,
     onRangeChanged,
     onActiveGroupIndexChange,
@@ -128,6 +131,21 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         return group;
       });
     }, [effectiveGroupCounts]);
+    const virtualGroupKeys = useMemo(
+      () =>
+        virtualGroups.map((group) => {
+          const tailItem =
+            flatItems[group.startFlatIndex + Math.max(0, group.itemCount - 1)];
+          return (
+            groupKeys[group.groupIndex] ??
+            turnIds[group.groupIndex] ??
+            tailItem?.event?.id ??
+            tailItem?.chunk_id ??
+            `chat-group-${group.groupIndex}`
+          );
+        }),
+      [flatItems, groupKeys, turnIds, virtualGroups]
+    );
     const flatIndexToGroupIndex = useMemo(() => {
       const indexes: number[] = [];
       for (const group of virtualGroups) {
@@ -143,29 +161,17 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       getScrollElement: () => virtualScrollerRef.current,
       estimateSize: () => 360,
       overscan: 4,
-      getItemKey: (index) => {
-        const group = virtualGroups[index];
-        if (!group) return `chat-group-${index}:0`;
-        const itemKeys = flatItems
-          .slice(group.startFlatIndex, group.startFlatIndex + group.itemCount)
-          .map((item) => {
-            const event = item.event;
-            const displayTextLength = event?.displayText?.length ?? 0;
-            return [
-              item.chunk_id,
-              event?.displayStatus ?? "",
-              event?.activityStatus ?? "",
-              displayTextLength,
-            ].join(":");
-          })
-          .join("|");
-        return `${index}:${group.itemCount}:${itemKeys}`;
-      },
+      // A prepend changes every numerical group index. Provider/user ids (or
+      // the tail event for an anchorless partial turn) remain stable, allowing
+      // TanStack Virtual to reuse measurements instead of remounting every
+      // resident row after each bounded replay window.
+      getItemKey: (index) => virtualGroupKeys[index] ?? `chat-group-${index}`,
     });
     const virtualItems = virtualizer.getVirtualItems();
     const rowResizeObserverRef = useRef<ResizeObserver | null>(null);
     const measuredRowHeightsRef = useRef(new WeakMap<Element, number>());
     const observedRowsRef = useRef(new Set<Element>());
+    const programmaticNavigationAtRef = useRef(0);
     const measureVirtualRow = useCallback(
       (node: HTMLDivElement | null) => {
         if (!node) return;
@@ -222,13 +228,18 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       () => ({
         scrollToIndex: ({ index, behavior = "auto", align = "center" }) => {
           const groupIndex = flatIndexToGroupIndex[index] ?? 0;
+          programmaticNavigationAtRef.current = performance.now();
           virtualizer.scrollToIndex(groupIndex, { align, behavior });
         },
-        scrollToGroup: ({ groupIndex, behavior = "smooth" }) => {
+        scrollToGroup: ({ groupIndex, behavior = "smooth", turnId = null }) => {
+          const currentTurnIndex = turnId ? turnIds.indexOf(turnId) : -1;
+          const resolvedGroupIndex =
+            currentTurnIndex >= 0 ? currentTurnIndex : groupIndex;
           const boundedGroupIndex = Math.max(
             0,
-            Math.min(groupIndex, virtualGroups.length - 1)
+            Math.min(resolvedGroupIndex, virtualGroups.length - 1)
           );
+          programmaticNavigationAtRef.current = performance.now();
           const staticScrollRoot = staticScrollerRef?.current;
           const staticGroup = staticScrollRoot?.querySelector<HTMLElement>(
             `[data-chat-group-index="${boundedGroupIndex}"]`
@@ -251,6 +262,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
       [
         flatIndexToGroupIndex,
         staticScrollerRef,
+        turnIds,
         virtualGroups.length,
         virtualizer,
       ]
@@ -385,13 +397,46 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         onActiveGroupIndexChange,
       });
 
+    useEffect(() => {
+      const frame = window.requestAnimationFrame(() => {
+        const scrollRoot = useStaticRendering
+          ? staticScrollerRef?.current
+          : virtualScrollerRef.current;
+        if (scrollRoot) {
+          onAtStartStateChange(
+            scrollRoot.scrollTop <= 32,
+            scrollRoot.scrollHeight > scrollRoot.clientHeight + 1,
+            "layout"
+          );
+        }
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }, [
+      onAtStartStateChange,
+      staticScrollerRef,
+      useStaticRendering,
+      virtualListDataKey,
+      virtualScrollerRef,
+    ]);
+
     if (useStaticRendering) {
       return (
         <div
           ref={staticScrollerRef}
+          data-testid="chat-history-scroll-root"
           className="h-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
           onScroll={(event) => {
             const element = event.currentTarget;
+            const startSignalSource =
+              performance.now() - programmaticNavigationAtRef.current <
+              PROGRAMMATIC_NAVIGATION_SIGNAL_MS
+                ? "programmatic"
+                : "scroll";
+            onAtStartStateChange(
+              element.scrollTop <= 32,
+              element.scrollHeight > element.clientHeight + 1,
+              startSignalSource
+            );
             onAtBottomStateChange(
               isScrolledToContentBottom({
                 element,
@@ -400,6 +445,29 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
               })
             );
             scheduleReportActiveGroupIndex(element);
+          }}
+          onWheel={(event) => {
+            const element = event.currentTarget;
+            if (event.deltaY >= 0) {
+              if (event.deltaY > 0) {
+                onAtStartStateChange(
+                  false,
+                  element.scrollHeight > element.clientHeight + 1,
+                  "wheel"
+                );
+              }
+              return;
+            }
+            if (element.scrollTop > 32) return;
+            // A wheel gesture at the physical top does not produce another
+            // `scroll` event. Surface the user's continued scroll-back intent
+            // so a request that overlapped the previous bounded page can queue
+            // exactly one successor instead of stalling until a manual nudge.
+            onAtStartStateChange(
+              true,
+              element.scrollHeight > element.clientHeight + 1,
+              "wheel"
+            );
           }}
         >
           <div
@@ -410,6 +478,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 key={groupKey}
                 className="relative"
                 data-chat-group-index={groupIndex}
+                data-chat-group-key={groupKeys[groupIndex] ?? undefined}
+                data-chat-turn-id={turnIds[groupIndex] ?? undefined}
               >
                 <div data-chat-group-header>
                   <div className="relative z-[30]">
@@ -468,9 +538,20 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         ref={(node) => {
           virtualScrollerRef.current = node;
         }}
+        data-testid="chat-history-scroll-root"
         className="h-full w-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
         onScroll={(event) => {
           const element = event.currentTarget;
+          const startSignalSource =
+            performance.now() - programmaticNavigationAtRef.current <
+            PROGRAMMATIC_NAVIGATION_SIGNAL_MS
+              ? "programmatic"
+              : "scroll";
+          onAtStartStateChange(
+            element.scrollTop <= 32,
+            element.scrollHeight > element.clientHeight + 1,
+            startSignalSource
+          );
           const isAtBottom = isScrolledToContentBottom({
             element,
             footerSpacerHeight,
@@ -479,6 +560,25 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
           onAtBottomStateChange(isAtBottom);
           scheduleReportActiveGroupIndex(element);
           if (isAtBottom) onEndReached();
+        }}
+        onWheel={(event) => {
+          const element = event.currentTarget;
+          if (event.deltaY >= 0) {
+            if (event.deltaY > 0) {
+              onAtStartStateChange(
+                false,
+                element.scrollHeight > element.clientHeight + 1,
+                "wheel"
+              );
+            }
+            return;
+          }
+          if (element.scrollTop > 32) return;
+          onAtStartStateChange(
+            true,
+            element.scrollHeight > element.clientHeight + 1,
+            "wheel"
+          );
         }}
       >
         <div
@@ -494,6 +594,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 ref={measureVirtualRow}
                 data-index={virtualItem.index}
                 data-chat-group-index={group.groupIndex}
+                data-chat-group-key={groupKeys[group.groupIndex] ?? undefined}
+                data-chat-turn-id={turnIds[group.groupIndex] ?? undefined}
                 className="absolute left-0 top-0 w-full"
                 style={{
                   transform: `translateY(${virtualItem.start}px)`,
@@ -507,10 +609,14 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 </div>
                 {Array.from({ length: group.itemCount }, (_, itemOffset) => {
                   const flatIndex = group.startFlatIndex + itemOffset;
+                  const item = flatItems[flatIndex];
                   return (
                     <div
                       key={`virtual-item-${flatIndex}`}
                       data-item-index={flatIndex}
+                      data-chat-item-key={
+                        item?.event?.id ?? item?.chunk_id ?? undefined
+                      }
                     >
                       {renderGroupItem(flatIndex, group.groupIndex)}
                     </div>

@@ -609,6 +609,121 @@ impl EventStore {
             .map_err(|error| format!("serialize capped external replay store: {error}"))
     }
 
+    /// Cap an older-page merge without immediately discarding the page that
+    /// the foreground reader just requested.
+    ///
+    /// The requested page is retained first. Up to half of the budget then
+    /// keeps its immediately newer resident neighbour so a prepend has a
+    /// stable scroll anchor. The remaining budget retains the ordinary newest
+    /// suffix. This policy is external-replay-only; native SDE stores never
+    /// call it.
+    pub fn cap_external_replay_bytes_preserving(
+        &mut self,
+        max_bytes: usize,
+        preserved_event_ids: &HashSet<String>,
+    ) -> Result<usize, String> {
+        if preserved_event_ids.is_empty() {
+            return self.cap_external_replay_bytes(max_bytes);
+        }
+
+        let event_bytes = self
+            .events
+            .iter()
+            .map(|event| {
+                serde_json::to_vec(event)
+                    .map(|bytes| bytes.len())
+                    .map_err(|error| format!("serialize external replay store event: {error}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut keep = vec![false; self.events.len()];
+        let mut retained_bytes = 2_usize; // `[]`
+        let mut retained_count = 0_usize;
+        let mut last_preserved_index = None;
+
+        for (index, (event, event_bytes)) in self.events.iter().zip(&event_bytes).enumerate() {
+            if !preserved_event_ids.contains(&event.id) {
+                continue;
+            }
+            let separator = usize::from(retained_count > 0);
+            let next_bytes = retained_bytes
+                .saturating_add(separator)
+                .saturating_add(*event_bytes);
+            if next_bytes > max_bytes {
+                return Err(format!(
+                    "requested external replay window exceeds the {max_bytes} byte resident budget"
+                ));
+            }
+            keep[index] = true;
+            retained_bytes = next_bytes;
+            retained_count += 1;
+            last_preserved_index = Some(index);
+        }
+
+        let Some(last_preserved_index) = last_preserved_index else {
+            return self.cap_external_replay_bytes(max_bytes);
+        };
+
+        // Keep the immediately newer resident range as the prepend anchor, but
+        // reserve at least half of the store for the newest live suffix.
+        let neighbourhood_budget = max_bytes / 2;
+        for (index, event_bytes) in event_bytes
+            .iter()
+            .enumerate()
+            .skip(last_preserved_index.saturating_add(1))
+        {
+            if keep[index] {
+                continue;
+            }
+            let separator = usize::from(retained_count > 0);
+            let next_bytes = retained_bytes
+                .saturating_add(separator)
+                .saturating_add(*event_bytes);
+            if next_bytes > neighbourhood_budget {
+                break;
+            }
+            keep[index] = true;
+            retained_bytes = next_bytes;
+            retained_count += 1;
+        }
+
+        // Fill the remainder with the same newest-first priority used by the
+        // ordinary external replay cap.
+        for (index, event_bytes) in event_bytes.iter().enumerate().rev() {
+            if keep[index] {
+                continue;
+            }
+            let separator = usize::from(retained_count > 0);
+            let next_bytes = retained_bytes
+                .saturating_add(separator)
+                .saturating_add(*event_bytes);
+            if next_bytes > max_bytes {
+                break;
+            }
+            keep[index] = true;
+            retained_bytes = next_bytes;
+            retained_count += 1;
+        }
+
+        let mut index = 0_usize;
+        let mut removed_ids = Vec::new();
+        self.events.retain(|event| {
+            let retained = keep[index];
+            index += 1;
+            if !retained {
+                removed_ids.push(event.id.clone());
+            }
+            retained
+        });
+        for event_id in removed_ids {
+            self.mark_removed(event_id);
+        }
+        self.rebuild_indexes();
+
+        serde_json::to_vec(&self.events)
+            .map(|bytes| bytes.len())
+            .map_err(|error| format!("serialize capped external replay store: {error}"))
+    }
+
     pub(super) fn stamp_repo(&self, event: &mut SessionEvent) {
         if event.repo_id.is_none() {
             event.repo_id = self.repo_id.clone();

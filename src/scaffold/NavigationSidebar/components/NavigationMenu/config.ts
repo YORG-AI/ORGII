@@ -82,6 +82,11 @@ export interface NavigationMenuItem {
   disabled?: boolean;
   dataTestId?: string;
   /**
+   * Optional stable DOM identity when the logical `id` must retain richer
+   * routing state (for example a scope cursor behind a legacy category pager).
+   */
+  dataMenuItemId?: string;
+  /**
    * When set, the row becomes draggable. Dropping it onto a chat input or
    * session creator inserts a context pill using the existing tab-drag-end
    * event system.

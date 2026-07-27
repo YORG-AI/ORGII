@@ -11,8 +11,10 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
   type Session,
-  type SessionListCategory,
+  type SessionPaginationScope,
+  scopedSessionPaginationAtom,
   sessionPaginationAtom,
+  sidebarPinnedScopeKey,
   upsertSession,
 } from "@src/store/session";
 import { agentLiveStatusAtom } from "@src/store/session/agentLiveStatusAtom";
@@ -38,10 +40,14 @@ import { sessionMatchesOrgFilter } from "./orgFilter";
 import {
   appendSessionGroup,
   getLoadMoreGroupId,
-  getUnifiedLoadMoreState,
+  getLoadMoreScopeKey,
+  getScopedLoadMoreState,
   isLoadMoreId,
-  loadMoreRow,
-  unifiedLoadMoreRow,
+  isPinnedLoadMoreId,
+  isWorkspaceFacetLoadMoreId,
+  pinnedLoadMoreRow,
+  scopedLoadMoreRow,
+  workspaceFacetLoadMoreRow,
 } from "./paginationHelpers";
 import type {
   UseSessionMenuItemsParams,
@@ -63,7 +69,11 @@ function liveDetailForSession(
   );
 }
 
-export { getLoadMoreGroupId, isLoadMoreId } from "./paginationHelpers";
+export {
+  getLoadMoreGroupId,
+  getLoadMoreScopeKey,
+  isLoadMoreId,
+} from "./paginationHelpers";
 
 const logger = createLogger("SessionSidebar");
 
@@ -169,9 +179,12 @@ export function useSessionMenuItems({
   untitledSession,
   searchQuery = "",
   selectedOrgIds,
+  sidebarOrgIds,
   extraSessionIds,
   excludedSessionIds,
   includeExternal,
+  pinnedPage,
+  workspaceFacetPage,
   groupVisibleCounts,
   showAllLoadedGroupSessions = false,
   expandedSubagentParentIds = new Set(),
@@ -179,6 +192,7 @@ export function useSessionMenuItems({
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
+  const scopedPagination = useAtomValue(scopedSessionPaginationAtom);
   const agentLiveStatuses = useAtomValue(agentLiveStatusAtom);
   const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
@@ -450,37 +464,6 @@ export function useSessionMenuItems({
     [agentLiveStatuses, untitledSession, visitedSessions]
   );
 
-  const loadMoreRowFor = useCallback(
-    (category: SessionListCategory): NavigationMenuItem | null => {
-      const state = pagination[category];
-      if (!state.hasMore && !state.loading) return null;
-      const label = state.loading
-        ? tCommon("sessions:chat.loading")
-        : tCommon("common:actions.loadMore");
-      return loadMoreRow(category, state.loading, label);
-    },
-    [pagination, tCommon]
-  );
-
-  const trailingLoadMoreItems = useMemo<NavigationMenuItem[]>(() => {
-    if (isFiltering) return [];
-    const state = getUnifiedLoadMoreState(pagination);
-    if (!state.visible) return [];
-    const label = state.loading
-      ? tCommon("sessions:chat.loading")
-      : tCommon("common:actions.loadMore");
-    return [unifiedLoadMoreRow(state, label)];
-  }, [isFiltering, pagination, tCommon]);
-
-  const appendTrailingLoadMoreItems = useCallback(
-    (items: NavigationMenuItem[]) => {
-      if (trailingLoadMoreItems.length === 0) return;
-      items.push(separator("backend-load-more"));
-      items.push(...trailingLoadMoreItems);
-    },
-    [trailingLoadMoreItems]
-  );
-
   const appendGroupSessions = useCallback(
     (
       items: NavigationMenuItem[],
@@ -515,6 +498,26 @@ export function useSessionMenuItems({
     ]
   );
 
+  const appendAllGroupSessions = useCallback(
+    (items: NavigationMenuItem[], groupSessions: readonly Session[]): void => {
+      items.push(...groupSessions.map(buildSessionRow));
+    },
+    [buildSessionRow]
+  );
+
+  const scopedLoadMoreRowFor = useCallback(
+    (scope: SessionPaginationScope): NavigationMenuItem | null => {
+      if (isFiltering) return null;
+      const state = getScopedLoadMoreState(scope, pagination, scopedPagination);
+      if (!state.visible) return null;
+      const label = state.loading
+        ? tCommon("sessions:chat.loading")
+        : tCommon("common:actions.loadMore");
+      return scopedLoadMoreRow(scope, state, label);
+    },
+    [isFiltering, pagination, scopedPagination, tCommon]
+  );
+
   const dateGroupLabels: Record<DateGroupKey, string> = useMemo(
     () => ({
       today: tCommon("sessions:chat.historyToday", "Today"),
@@ -529,11 +532,34 @@ export function useSessionMenuItems({
 
   const appendPinnedSessions = useCallback(
     (items: NavigationMenuItem[]): boolean => {
-      if (pinnedSessions.length === 0) return false;
+      const backendRow =
+        !isFiltering && pinnedPage && (pinnedPage.hasMore || pinnedPage.loading)
+          ? pinnedLoadMoreRow(
+              pinnedPage.loading,
+              pinnedPage.loading
+                ? tCommon("sessions:chat.loading")
+                : tCommon("common:actions.loadMore"),
+              sidebarPinnedScopeKey(pinnedPage.orgIds)
+            )
+          : null;
+      if (pinnedSessions.length === 0 && !backendRow) return false;
       items.push(separator("pinned", pinnedLabel));
-      return appendGroupSessions(items, "pinned", pinnedSessions);
+      const hasHiddenLocalSessions = appendGroupSessions(
+        items,
+        "pinned",
+        pinnedSessions
+      );
+      if (!hasHiddenLocalSessions && backendRow) items.push(backendRow);
+      return true;
     },
-    [appendGroupSessions, pinnedLabel, pinnedSessions]
+    [
+      appendGroupSessions,
+      isFiltering,
+      pinnedLabel,
+      pinnedPage,
+      pinnedSessions,
+      tCommon,
+    ]
   );
 
   const byTimeMenuItems = useMemo<NavigationMenuItem[]>(
@@ -543,14 +569,16 @@ export function useSessionMenuItems({
         dateGroupLabels,
         appendPinnedSessions,
         appendGroupSessions,
-        appendTrailingLoadMoreItems,
+        scopedLoadMoreRowFor,
+        orgIds: sidebarOrgIds,
       }),
     [
       unpinnedSessions,
       dateGroupLabels,
       appendPinnedSessions,
       appendGroupSessions,
-      appendTrailingLoadMoreItems,
+      scopedLoadMoreRowFor,
+      sidebarOrgIds,
     ]
   );
 
@@ -558,16 +586,19 @@ export function useSessionMenuItems({
     () =>
       buildByAgentMenuItems({
         unpinnedSessions,
+        pinnedSessions,
         appendPinnedSessions,
-        appendGroupSessions,
-        loadMoreRowFor: isFiltering ? () => null : loadMoreRowFor,
+        appendAllGroupSessions,
+        scopedLoadMoreRowFor,
+        orgIds: sidebarOrgIds,
       }),
     [
       unpinnedSessions,
+      pinnedSessions,
       appendPinnedSessions,
-      appendGroupSessions,
-      isFiltering,
-      loadMoreRowFor,
+      appendAllGroupSessions,
+      scopedLoadMoreRowFor,
+      sidebarOrgIds,
     ]
   );
 
@@ -584,7 +615,21 @@ export function useSessionMenuItems({
         noWorkspaceLabel,
         appendPinnedSessions,
         appendGroupSessions,
-        appendTrailingLoadMoreItems,
+        scopedLoadMoreRowFor,
+        orgIds: sidebarOrgIds,
+        workspaceFacets: isFiltering ? [] : (workspaceFacetPage?.facets ?? []),
+        workspaceFacetLoadMoreRow:
+          !isFiltering &&
+          workspaceFacetPage &&
+          (workspaceFacetPage.hasMore || workspaceFacetPage.loading)
+            ? workspaceFacetLoadMoreRow(
+                workspaceFacetPage.loading,
+                workspaceFacetPage.loading
+                  ? tCommon("sessions:chat.loading")
+                  : tCommon("common:actions.loadMore"),
+                workspaceFacetPage.scopeKey
+              )
+            : null,
       }),
     [
       unpinnedSessions,
@@ -592,7 +637,11 @@ export function useSessionMenuItems({
       noWorkspaceLabel,
       appendPinnedSessions,
       appendGroupSessions,
-      appendTrailingLoadMoreItems,
+      scopedLoadMoreRowFor,
+      sidebarOrgIds,
+      isFiltering,
+      workspaceFacetPage,
+      tCommon,
     ]
   );
   const baseMenuItems = useMemo<NavigationMenuItem[]>(() => {
@@ -629,5 +678,8 @@ export function useSessionMenuItems({
     subagentParentIds,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
   };
 }

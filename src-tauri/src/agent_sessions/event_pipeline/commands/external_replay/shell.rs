@@ -37,14 +37,14 @@ pub(super) fn persist_shell_replays_bounded(
             source,
             imported_session_id,
         } => {
-            for event in events.iter_mut().filter(|event| {
-                event.ui_canonical == core_types::tool_names::RUN_SHELL
-                    && event.shell_replay.is_none()
-            }) {
-                with_sessions_replay_writer("external Shell replay", |conn| {
-                    let tx = database::db::begin_immediate(conn).map_err(|error| {
-                        format!("begin external Shell manifest transaction: {error}")
-                    })?;
+            with_foreground_replay_connection("external Shell replay", |conn| {
+                let tx = database::db::begin_immediate(conn).map_err(|error| {
+                    format!("begin external Shell manifest transaction: {error}")
+                })?;
+                for event in events.iter_mut().filter(|event| {
+                    event.ui_canonical == core_types::tool_names::RUN_SHELL
+                        && event.shell_replay.is_none()
+                }) {
                     persist_imported_shell_manifest(
                         &tx,
                         event,
@@ -52,10 +52,10 @@ pub(super) fn persist_shell_replays_bounded(
                         &imported_session_id,
                         generation,
                     )?;
-                    tx.commit()
-                        .map_err(|error| format!("publish external Shell manifest: {error}"))
-                })?;
-            }
+                }
+                tx.commit()
+                    .map_err(|error| format!("publish external Shell manifests: {error}"))
+            })?;
             validate_imported_shell_snapshot(source, &imported_session_id, generation, revision)?;
         }
         ResolvedReplayTarget::CollaborationSnapshot => {
@@ -63,14 +63,14 @@ pub(super) fn persist_shell_replays_bounded(
             // same-lineage rewrites advance revision. Artifact scopes must
             // include both or a same-length UPDATE can reuse stale content.
             let artifact_generation = collaboration_shell_artifact_generation(generation, revision);
-            for event in events.iter_mut().filter(|event| {
-                event.ui_canonical == core_types::tool_names::RUN_SHELL
-                    && event.shell_replay.is_none()
-            }) {
-                with_sessions_replay_writer("collaboration Shell replay", |conn| {
-                    let tx = database::db::begin_immediate(conn).map_err(|error| {
-                        format!("begin collaboration Shell manifest transaction: {error}")
-                    })?;
+            with_foreground_replay_connection("collaboration Shell replay", |conn| {
+                let tx = database::db::begin_immediate(conn).map_err(|error| {
+                    format!("begin collaboration Shell manifest transaction: {error}")
+                })?;
+                for event in events.iter_mut().filter(|event| {
+                    event.ui_canonical == core_types::tool_names::RUN_SHELL
+                        && event.shell_replay.is_none()
+                }) {
                     persist_scoped_shell_manifest(
                         &tx,
                         event,
@@ -93,21 +93,21 @@ pub(super) fn persist_shell_replays_bounded(
                             .map(|range| range.text.into_bytes())
                         },
                     )?;
-                    tx.commit()
-                        .map_err(|error| format!("publish collaboration Shell manifest: {error}"))
-                })?;
-            }
+                }
+                tx.commit()
+                    .map_err(|error| format!("publish collaboration Shell manifests: {error}"))
+            })?;
             validate_collaboration_shell_snapshot(session_id, generation, revision)?;
         }
         ResolvedReplayTarget::ManagedChunkStore => {
-            for event in events.iter_mut().filter(|event| {
-                event.ui_canonical == core_types::tool_names::RUN_SHELL
-                    && event.shell_replay.is_none()
-            }) {
-                with_sessions_replay_writer("managed Shell replay", |conn| {
-                    let tx = database::db::begin_immediate(conn).map_err(|error| {
-                        format!("begin managed Shell manifest transaction: {error}")
-                    })?;
+            with_foreground_replay_connection("managed Shell replay", |conn| {
+                let tx = database::db::begin_immediate(conn).map_err(|error| {
+                    format!("begin managed Shell manifest transaction: {error}")
+                })?;
+                for event in events.iter_mut().filter(|event| {
+                    event.ui_canonical == core_types::tool_names::RUN_SHELL
+                        && event.shell_replay.is_none()
+                }) {
                     persist_scoped_shell_manifest(
                         &tx,
                         event,
@@ -129,10 +129,10 @@ pub(super) fn persist_shell_replays_bounded(
                             .map(|range| range.text.into_bytes())
                         },
                     )?;
-                    tx.commit()
-                        .map_err(|error| format!("publish managed Shell manifest: {error}"))
-                })?;
-            }
+                }
+                tx.commit()
+                    .map_err(|error| format!("publish managed Shell manifests: {error}"))
+            })?;
             validate_managed_chunk_shell_snapshot(session_id, generation, revision)?;
         }
         ResolvedReplayTarget::NotReady => {}
@@ -150,7 +150,7 @@ pub(super) fn validate_imported_shell_snapshot(
     generation: &str,
     revision: u64,
 ) -> Result<(), String> {
-    with_sessions_replay_writer("imported Shell validation", |conn| {
+    with_foreground_replay_connection("imported Shell validation", |conn| {
         validate_imported_shell_snapshot_from_conn(conn, source, session_id, generation, revision)
     })
 }
@@ -636,6 +636,22 @@ pub(super) fn set_external_shell_state(
     });
 }
 
+pub(super) const DELETE_UNREFERENCED_PAYLOAD_ARTIFACTS_SQL: &str =
+    "DELETE FROM imported_replay_payload_artifacts AS artifact
+     WHERE artifact.source=?1 AND artifact.source_session_id=?2 AND artifact.generation=?3
+       AND artifact.content_hash NOT IN(
+         SELECT ref.content_hash FROM imported_replay_payload_artifact_refs AS ref
+         WHERE ref.source=?1
+           AND ref.source_session_id=?2
+           AND ref.generation=?3
+       )
+       AND artifact.content_hash NOT IN(
+         SELECT shell.content_hash FROM imported_replay_shell_segments AS shell
+         WHERE shell.source=?1
+           AND shell.source_session_id=?2
+           AND shell.generation=?3
+       )";
+
 pub(super) fn delete_unreferenced_payload_artifacts(
     tx: &Transaction<'_>,
     source: &str,
@@ -643,22 +659,7 @@ pub(super) fn delete_unreferenced_payload_artifacts(
     generation: &str,
 ) -> Result<(), String> {
     tx.execute(
-        "DELETE FROM imported_replay_payload_artifacts AS artifact
-         WHERE artifact.source=?1 AND artifact.source_session_id=?2 AND artifact.generation=?3
-           AND NOT EXISTS(
-             SELECT 1 FROM imported_replay_payload_artifact_refs AS ref
-             WHERE ref.source=artifact.source
-               AND ref.source_session_id=artifact.source_session_id
-               AND ref.generation=artifact.generation
-               AND ref.content_hash=artifact.content_hash
-           )
-           AND NOT EXISTS(
-             SELECT 1 FROM imported_replay_shell_segments AS shell
-             WHERE shell.source=artifact.source
-               AND shell.source_session_id=artifact.source_session_id
-               AND shell.generation=artifact.generation
-               AND shell.content_hash=artifact.content_hash
-           )",
+        DELETE_UNREFERENCED_PAYLOAD_ARTIFACTS_SQL,
         params![source, source_session_id, generation],
     )
     .map(|_| ())

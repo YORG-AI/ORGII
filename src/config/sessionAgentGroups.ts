@@ -40,6 +40,7 @@ export const SESSION_GROUP_ORDER: readonly SessionGroupKey[] = [
   RUST_AGENT_TYPE.OS,
   RUST_AGENT_TYPE.SDE,
   RUST_AGENT_TYPE.WINGMAN,
+  RUST_AGENT_TYPE.CUSTOM,
   "human",
   "cli",
   ...IMPORTED_HISTORY_SOURCES.map((source) => source.listCategory),

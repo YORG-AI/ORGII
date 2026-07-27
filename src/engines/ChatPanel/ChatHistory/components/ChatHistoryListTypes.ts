@@ -16,6 +16,12 @@ import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
 
 export type EventSummary = NonNullable<OptimizedChatItem["event"]>;
 
+export type ChatHistoryStartSignalSource =
+  | "layout"
+  | "programmatic"
+  | "scroll"
+  | "wheel";
+
 export interface ChatHistoryListHandle {
   scrollToIndex: (options: {
     index: number;
@@ -25,11 +31,14 @@ export interface ChatHistoryListHandle {
   scrollToGroup: (options: {
     groupIndex: number;
     behavior?: ScrollBehavior;
+    turnId?: string | null;
   }) => void;
 }
 
 export interface ChatHistoryListProps {
   flatItems: OptimizedChatItem[];
+  /** Stable provider/native group identity used across history prepends. */
+  groupKeys: (string | null)[];
   groupCounts: number[];
   turnIds: (string | null)[];
   totalFlatItems: number;
@@ -57,6 +66,11 @@ export interface ChatHistoryListProps {
     groupIndex: number,
     renderPart?: GroupHeaderRenderPart
   ) => React.ReactNode;
+  onAtStartStateChange: (
+    atStart: boolean,
+    canScroll: boolean,
+    source: ChatHistoryStartSignalSource
+  ) => void;
   onAtBottomStateChange: (atBottom: boolean) => void;
   onRangeChanged: (range: { startIndex: number; endIndex: number }) => void;
   onActiveGroupIndexChange?: (

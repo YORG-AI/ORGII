@@ -15,6 +15,21 @@ use super::models::{OrderedBubble, RawBubble, RawComposerForOrder, RawComposerHe
 
 const SQLITE_IN_QUERY_CHUNK_SIZE: usize = 500;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum CursorDbPathState {
+    Present(PathBuf),
+    Missing,
+    /// Home/path metadata could not be resolved (for example macOS TCC
+    /// denial). Unknown is not evidence that Cursor or its history is absent.
+    Unknown,
+}
+
+pub(super) enum CursorConversationIndexDbState {
+    Present(Connection),
+    Missing,
+    Unknown,
+}
+
 /// Open Cursor's global `state.vscdb` read-only.
 ///
 /// Returns `None` if the file does not exist (Cursor not installed / not yet
@@ -60,27 +75,45 @@ fn cursor_global_storage_dir() -> Option<PathBuf> {
 }
 
 pub(super) fn cursor_db_path() -> Option<PathBuf> {
-    let path = cursor_global_storage_dir()?.join("state.vscdb");
-    path.exists().then_some(path)
+    match cursor_db_path_state() {
+        CursorDbPathState::Present(path) => Some(path),
+        CursorDbPathState::Missing | CursorDbPathState::Unknown => None,
+    }
 }
 
-/// Cursor's newer conversation index — a small, indexed SQLite listing every
-/// conversation (`id`, `title`, `updated_at`, `is_archived`, `root_fingerprint`)
-/// next to `state.vscdb`. Lets discovery avoid scanning the multi-GB `state.vscdb`.
-/// `None` on older Cursor builds that predate it.
-pub(super) fn cursor_conversation_index_path() -> Option<PathBuf> {
-    let path = cursor_global_storage_dir()?.join("conversation-search.db");
-    path.exists().then_some(path)
+pub(super) fn cursor_db_path_state() -> CursorDbPathState {
+    let Some(storage_dir) = cursor_global_storage_dir() else {
+        return CursorDbPathState::Unknown;
+    };
+    classify_cursor_db_path(storage_dir.join("state.vscdb"))
 }
 
-/// Open the conversation index read-only, or `None` if absent/unreadable.
-pub(super) fn open_cursor_conversation_index_db() -> Option<Connection> {
-    let path = cursor_conversation_index_path()?;
-    Connection::open_with_flags(
-        &path,
-        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
-    )
-    .ok()
+fn classify_cursor_db_path(path: PathBuf) -> CursorDbPathState {
+    match path.try_exists() {
+        Ok(true) => CursorDbPathState::Present(path),
+        Ok(false) => CursorDbPathState::Missing,
+        Err(_) => CursorDbPathState::Unknown,
+    }
+}
+
+/// Open Cursor's optional conversation index while preserving the difference
+/// between an older install that definitively has no index and an index that
+/// exists but is temporarily unreadable. Only the former may use the bounded
+/// no-index compatibility path.
+pub(super) fn open_cursor_conversation_index_db_state() -> CursorConversationIndexDbState {
+    let Some(storage_dir) = cursor_global_storage_dir() else {
+        return CursorConversationIndexDbState::Unknown;
+    };
+    match classify_cursor_db_path(storage_dir.join("conversation-search.db")) {
+        CursorDbPathState::Present(path) => Connection::open_with_flags(
+            &path,
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+        )
+        .map(CursorConversationIndexDbState::Present)
+        .unwrap_or(CursorConversationIndexDbState::Unknown),
+        CursorDbPathState::Missing => CursorConversationIndexDbState::Missing,
+        CursorDbPathState::Unknown => CursorConversationIndexDbState::Unknown,
+    }
 }
 
 pub(super) fn load_complete_bubble_order(
@@ -278,6 +311,9 @@ pub(super) fn load_content_blob(conn: &Connection, content_id: &str) -> Option<S
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static PATH_STATE_FIXTURE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
     fn test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("open in-memory db");
@@ -349,5 +385,25 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(ids, vec!["early-user", "early-edit", "header-user"]);
+    }
+
+    #[test]
+    fn path_state_distinguishes_definitive_absence_from_presence() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-cursor-path-state-{}-{}.vscdb",
+            std::process::id(),
+            PATH_STATE_FIXTURE_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        assert_eq!(
+            classify_cursor_db_path(path.clone()),
+            CursorDbPathState::Missing
+        );
+
+        std::fs::write(&path, b"sqlite fixture").expect("create Cursor path-state fixture");
+        assert_eq!(
+            classify_cursor_db_path(path.clone()),
+            CursorDbPathState::Present(path.clone())
+        );
+        std::fs::remove_file(path).expect("remove Cursor path-state fixture");
     }
 }

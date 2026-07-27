@@ -23,7 +23,11 @@ const mocks = vi.hoisted(() => ({
   getAdapterForSession: vi.fn(),
   getActiveExternalReplayLease: vi.fn(),
   getExternalReplayWatcherAvailable: vi.fn(() => false),
+  getExternalReplayTurnGeneration: vi.fn(() => "generation-1"),
+  mergeExternalReplayTurnWindow: vi.fn(),
+  openExternalReplaySession: vi.fn(),
   pollExternalReplaySession: vi.fn(),
+  startExternalReplayTurnEpisode: vi.fn(),
   listen: vi.fn(),
   unlisten: vi.fn(),
   isWindowFocused: vi.fn(() => true),
@@ -62,7 +66,13 @@ vi.mock("./types", () => ({
 vi.mock("./externalReplayTransport", () => ({
   getActiveExternalReplayLease: mocks.getActiveExternalReplayLease,
   getExternalReplayWatcherAvailable: mocks.getExternalReplayWatcherAvailable,
+  openExternalReplaySession: mocks.openExternalReplaySession,
   pollExternalReplaySession: mocks.pollExternalReplaySession,
+}));
+vi.mock("./externalReplayTurnState", () => ({
+  getExternalReplayTurnGeneration: mocks.getExternalReplayTurnGeneration,
+  mergeExternalReplayTurnWindow: mocks.mergeExternalReplayTurnWindow,
+  startExternalReplayTurnEpisode: mocks.startExternalReplayTurnEpisode,
 }));
 
 class RefreshSchedulerEnvironment implements ExternalReplayRefreshSchedulerEnvironment {
@@ -130,7 +140,7 @@ describe("refreshBoundedReplaySession", () => {
       episodeId: 1,
     });
     mocks.pollExternalReplaySession.mockResolvedValue({
-      cursor: {},
+      cursor: { generation: "generation-1" },
       events: [{ id: "event-1" }],
       removedEventIds: [],
       resetRequired: false,
@@ -186,6 +196,70 @@ describe("refreshBoundedReplaySession", () => {
         new AbortController().signal
       )
     ).resolves.toBe(false);
+  });
+
+  it("reopens one bounded window to replace compact turn summaries after reset", async () => {
+    const controller = new AbortController();
+    const resetWindow = {
+      cursor: { generation: "generation-2" },
+      events: [],
+      turnHeaders: [{ turnId: "new-turn" }],
+    };
+    mocks.pollExternalReplaySession.mockResolvedValue({
+      cursor: { generation: "generation-2" },
+      events: [],
+      removedEventIds: [],
+      resetRequired: true,
+      watcherAvailable: false,
+      stats: { notReady: false },
+    });
+    mocks.openExternalReplaySession.mockResolvedValue(resetWindow);
+
+    await expect(
+      refreshBoundedReplaySession("codexapp-active", controller.signal)
+    ).resolves.toBe(true);
+
+    expect(mocks.openExternalReplaySession).toHaveBeenCalledWith(
+      { sessionId: "codexapp-active", episodeId: 1 },
+      controller.signal
+    );
+    expect(mocks.startExternalReplayTurnEpisode).toHaveBeenCalledWith(
+      "codexapp-active",
+      "generation-2"
+    );
+    expect(mocks.mergeExternalReplayTurnWindow).toHaveBeenCalledWith(
+      "codexapp-active",
+      resetWindow
+    );
+  });
+
+  it("retries catalog repair when the prior reset reopen did not advance the renderer generation", async () => {
+    const controller = new AbortController();
+    const repairedWindow = {
+      cursor: { generation: "generation-2" },
+      events: [],
+      turnHeaders: [],
+    };
+    mocks.pollExternalReplaySession.mockResolvedValue({
+      cursor: { generation: "generation-2" },
+      events: [],
+      removedEventIds: [],
+      resetRequired: false,
+      watcherAvailable: false,
+      stats: { notReady: false },
+    });
+    mocks.getExternalReplayTurnGeneration.mockReturnValue("generation-1");
+    mocks.openExternalReplaySession.mockResolvedValue(repairedWindow);
+
+    await expect(
+      refreshBoundedReplaySession("codexapp-active", controller.signal)
+    ).resolves.toBe(true);
+
+    expect(mocks.openExternalReplaySession).toHaveBeenCalledTimes(1);
+    expect(mocks.mergeExternalReplayTurnWindow).toHaveBeenCalledWith(
+      "codexapp-active",
+      repairedWindow
+    );
   });
 });
 

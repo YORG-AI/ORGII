@@ -8,8 +8,6 @@
 use std::collections::HashSet;
 
 use crate::agent_sessions::cli::persistence as cli_session_persistence;
-use agent_core::coordination::agent_org_runs::{AgentOrgRunRecord, AgentOrgRunStore};
-use agent_core::definitions::orgs::OrgDefinition;
 use agent_core::session::persistence::{self as session_persistence, session_type};
 use chrono::DateTime;
 use core_types::key_source::KeySource;
@@ -17,16 +15,17 @@ use database::db::get_connection;
 use orgtrack_core::sources::imported_history::cache as imported_history_cache;
 use orgtrack_core::sources::imported_history::catalog as imported_history_catalog;
 use orgtrack_core::sources::imported_history::replay::ImportedHistorySourceId;
-use orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED;
 
-const AGENT_ORG_ICON_ID: &str = "network";
-
+use super::agent_org_annotations::annotate_agent_org_root_rows;
 use super::conversion::{
     cli_session_to_aggregate_record, human_session_to_aggregate_record,
     imported_history_to_aggregate_record, os_session_to_aggregate_record,
     sde_session_to_aggregate_record, AgentMetadataResolver,
 };
 use super::display::matches_text_query;
+use super::sidebar_discovery::bounded_search_or_pinned_page;
+use super::sidebar_queries::{self, CliPageRequest, RustAgentGroupPageRequest, SidebarSeekCursor};
+use super::status::decorate_imported_live_status;
 use super::types::{SessionAggregateRecord, SessionFilter, SessionListResponse};
 
 const IMPORTED_HISTORY_PAGE_SIZE: usize = 500;
@@ -38,39 +37,6 @@ pub fn resync_external_history_source(
     source: &str,
 ) -> Result<(), String> {
     imported_history_catalog::refresh_source(conn, ImportedHistorySourceId::parse(source)?)
-}
-
-/// How long after the last transcript write a hook-less CLI still counts as
-/// running. Scan cadence (60s focused) bounds how fresh `updated_at` can be,
-/// so the effective "running" window is roughly one to two scan ticks.
-const IMPORTED_MTIME_ACTIVE_WINDOW_MS: i64 = 60_000;
-
-/// Live-status decoration for imported rows: a fresh lifecycle-hook state
-/// wins; otherwise a transcript updated moments ago flips the row to
-/// `running` — the only liveness signal CLIs without any hook surface
-/// (aider, goose, cline, warp, ...) can give us.
-fn decorate_imported_live_status(records: &mut [SessionAggregateRecord]) {
-    let now_ms = chrono::Utc::now().timestamp_millis();
-    for record in records.iter_mut() {
-        if let Some((status, _entry)) =
-            crate::orgtrack::agent_live_status::effective_live_status(&record.session_id)
-        {
-            record.status = status.to_string();
-            record.is_active = super::status::is_active_status(status);
-            continue;
-        }
-        if record.status == IMPORTED_STATUS_COMPLETED {
-            let recently_updated = DateTime::parse_from_rfc3339(&record.updated_at)
-                .map(|updated| {
-                    now_ms - updated.timestamp_millis() < IMPORTED_MTIME_ACTIVE_WINDOW_MS
-                })
-                .unwrap_or(false);
-            if recently_updated {
-                record.status = "running".to_string();
-                record.is_active = true;
-            }
-        }
-    }
 }
 
 fn load_imported_history_sessions(
@@ -147,6 +113,27 @@ fn load_imported_history_sessions(
     Ok(records)
 }
 
+#[cfg(test)]
+fn load_rust_agent_group_page(
+    group: &str,
+    limit: usize,
+    offset: usize,
+) -> Result<Vec<session_persistence::UnifiedSessionRecord>, String> {
+    super::sidebar_queries::load_scoped_rust_agent_group_page(
+        super::sidebar_queries::RustAgentGroupPageRequest {
+            group,
+            org_ids: None,
+            repo_path: None,
+            missing_repo_path: false,
+            updated_after_ms: None,
+            updated_before_ms: None,
+            before: None,
+            limit,
+            offset,
+        },
+    )
+}
+
 // ============================================================================
 // Core Aggregation
 // ============================================================================
@@ -170,17 +157,25 @@ fn plain_native_page(
     let Some(filter) = filter else {
         return Ok(None);
     };
+    if let Some(page) = bounded_search_or_pinned_page(filter)? {
+        return Ok(Some(page));
+    }
     let SessionFilter {
         session_ids,
         category,
         status,
         key_source,
         repo_path,
+        repo_path_exact,
+        missing_repo_path,
         org_id,
+        org_ids,
         project_slug,
         work_item_id,
         limit,
         offset,
+        before_updated_at,
+        before_session_id,
         text_query,
         sort_by,
         sort_order,
@@ -189,14 +184,51 @@ fn plain_native_page(
         disabled_external_history_sources: _,
         created_after_ms,
         created_before_ms,
+        updated_after_ms,
+        updated_before_ms,
         active_only,
+        pinned_only,
     } = filter;
 
+    if repo_path.is_some() && *missing_repo_path == Some(true) {
+        return Err("Session page cannot combine repoPath and missingRepoPath".to_string());
+    }
+    if repo_path_exact == &Some(true) && repo_path.is_none() {
+        return Err("repoPathExact requires repoPath".to_string());
+    }
+    if updated_after_ms
+        .zip(*updated_before_ms)
+        .is_some_and(|(start, end)| start >= end)
+    {
+        return Err("updatedAfterMs must precede updatedBeforeMs".to_string());
+    }
+    if before_updated_at.is_some() != before_session_id.is_some() {
+        return Err("beforeUpdatedAt and beforeSessionId must be provided together".to_string());
+    }
+    let before = before_updated_at
+        .as_deref()
+        .zip(before_session_id.as_deref())
+        .map(|(updated_at, session_id)| SidebarSeekCursor {
+            updated_at,
+            session_id,
+        });
+
+    let exact_repo_scope = repo_path.is_some() && *repo_path_exact == Some(true);
+    let missing_repo_scope = *missing_repo_path == Some(true);
+    let has_group_scope = exact_repo_scope
+        || missing_repo_scope
+        || org_ids.is_some()
+        || updated_after_ms.is_some()
+        || updated_before_ms.is_some()
+        || before.is_some();
     let plain = session_ids.is_none()
         && status.is_none()
         && key_source.is_none()
-        && repo_path.is_none()
+        && (repo_path.is_none() || exact_repo_scope)
+        && repo_path_exact.is_none_or(|exact| exact == exact_repo_scope)
+        && missing_repo_path.is_none_or(|missing| missing == missing_repo_scope)
         && org_id.is_none()
+        && pinned_only.is_none_or(|pinned| !pinned)
         && project_slug.is_none()
         && work_item_id.is_none()
         && text_query.is_none()
@@ -207,6 +239,9 @@ fn plain_native_page(
         && sort_by.as_deref().is_none_or(|key| key == "updated_at")
         && sort_order.as_deref().is_none_or(|order| order == "desc");
     if !plain {
+        return Ok(None);
+    }
+    if has_group_scope && category.is_none() {
         return Ok(None);
     }
 
@@ -222,13 +257,24 @@ fn plain_native_page(
 
     let mut sessions = match category.as_deref() {
         Some("cli") => {
-            let page = cli_session_persistence::list_sessions_page(limit, offset)
-                .map_err(|err| format!("Failed to load CLI session page: {}", err))?;
+            let page = sidebar_queries::load_scoped_cli_page(CliPageRequest {
+                org_ids: org_ids.as_deref(),
+                repo_path: repo_path.as_deref(),
+                missing_repo_path: missing_repo_scope,
+                updated_after_ms: *updated_after_ms,
+                updated_before_ms: *updated_before_ms,
+                before,
+                limit,
+                offset,
+            })?;
             page.into_iter()
                 .map(cli_session_to_aggregate_record)
                 .collect::<Vec<_>>()
         }
         Some("agent") => {
+            if has_group_scope {
+                return Ok(None);
+            }
             let sde_filter = agent_core::session::SessionListFilter {
                 type_names: Some(vec![
                     session_type::CODING.to_string(),
@@ -238,7 +284,7 @@ fn plain_native_page(
                 offset: Some(offset),
                 ..Default::default()
             };
-            let page = session_persistence::list_sessions(&sde_filter)
+            let page = session_persistence::list_root_sessions(&sde_filter)
                 .map_err(|err| format!("Failed to load agent session page: {}", err))?;
             let mut resolver = AgentMetadataResolver::new();
             let mut rows = page
@@ -248,32 +294,50 @@ fn plain_native_page(
             annotate_agent_org_root_rows(&mut rows)?;
             rows
         }
-        Some("os") => {
-            let os_filter = agent_core::session::SessionListFilter {
-                type_name: Some(session_type::DESKTOP.to_string()),
-                limit: Some(limit),
-                offset: Some(offset),
-                ..Default::default()
-            };
-            let page = session_persistence::list_sessions(&os_filter)
-                .map_err(|err| format!("Failed to load OS session page: {}", err))?;
+        Some(group @ ("sde" | "agent_org" | "os" | "wingman" | "custom")) => {
+            let page =
+                sidebar_queries::load_scoped_rust_agent_group_page(RustAgentGroupPageRequest {
+                    group,
+                    org_ids: org_ids.as_deref(),
+                    repo_path: repo_path.as_deref(),
+                    missing_repo_path: missing_repo_scope,
+                    updated_after_ms: *updated_after_ms,
+                    updated_before_ms: *updated_before_ms,
+                    before,
+                    limit,
+                    offset,
+                })?;
             let mut resolver = AgentMetadataResolver::new();
-            page.into_iter()
-                .map(|session| os_session_to_aggregate_record(session, &mut resolver))
-                .collect::<Vec<_>>()
+            let mut rows = page
+                .into_iter()
+                .map(|session| {
+                    if group == "os" {
+                        os_session_to_aggregate_record(session, &mut resolver)
+                    } else {
+                        sde_session_to_aggregate_record(session, &mut resolver)
+                    }
+                })
+                .collect::<Vec<_>>();
+            if group == "agent_org" {
+                annotate_agent_org_root_rows(&mut rows)?;
+            }
+            rows
         }
         Some("human") => {
-            let human_filter = agent_core::session::SessionListFilter {
-                type_name: Some(session_type::HUMAN.to_string()),
-                limit: Some(limit),
-                offset: Some(offset),
-                ..Default::default()
-            };
-            session_persistence::list_sessions(&human_filter)
-                .map_err(|err| format!("Failed to load Human session page: {err}"))?
-                .into_iter()
-                .map(human_session_to_aggregate_record)
-                .collect::<Vec<_>>()
+            sidebar_queries::load_scoped_rust_agent_group_page(RustAgentGroupPageRequest {
+                group: "human",
+                org_ids: org_ids.as_deref(),
+                repo_path: repo_path.as_deref(),
+                missing_repo_path: missing_repo_scope,
+                updated_after_ms: *updated_after_ms,
+                updated_before_ms: *updated_before_ms,
+                before,
+                limit,
+                offset,
+            })?
+            .into_iter()
+            .map(human_session_to_aggregate_record)
+            .collect::<Vec<_>>()
         }
         None => return plain_directory_page(filter, limit, offset),
         _ => return Ok(None),
@@ -624,18 +688,67 @@ fn apply_filters(
         });
     }
 
+    if let Some(updated_after_ms) = filter.updated_after_ms {
+        sessions.retain(|session| {
+            parse_epoch_millis(&session.updated_at)
+                .map(|updated_at_ms| updated_at_ms >= updated_after_ms)
+                .unwrap_or(false)
+        });
+    }
+
+    if let Some(updated_before_ms) = filter.updated_before_ms {
+        sessions.retain(|session| {
+            parse_epoch_millis(&session.updated_at)
+                .map(|updated_at_ms| updated_at_ms < updated_before_ms)
+                .unwrap_or(false)
+        });
+    }
+
     if let Some(ref repo_path) = filter.repo_path {
+        let normalized_repo_path = repo_path.trim_end_matches('/');
         sessions.retain(|session| {
             session
                 .repo_path
                 .as_ref()
-                .map(|p| p.starts_with(repo_path))
+                .map(|path| {
+                    if filter.repo_path_exact == Some(true) {
+                        path.trim_end_matches('/') == normalized_repo_path
+                    } else {
+                        path.starts_with(repo_path)
+                    }
+                })
                 .unwrap_or(false)
+        });
+    } else if filter.missing_repo_path == Some(true) {
+        sessions.retain(|session| {
+            session
+                .repo_path
+                .as_deref()
+                .is_none_or(|path| path.trim().is_empty())
         });
     }
 
     if let Some(ref org_id) = filter.org_id {
         sessions.retain(|session| session.org_id.as_deref() == Some(org_id.as_str()));
+    }
+    if let Some(org_ids) = filter.org_ids.as_ref() {
+        let org_ids = org_ids
+            .iter()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .collect::<HashSet<_>>();
+        if org_ids.is_empty() {
+            return Err("orgIds must contain at least one non-empty org id".to_string());
+        }
+        sessions.retain(|session| {
+            let org_id = session
+                .org_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .unwrap_or(sidebar_queries::PERSONAL_ORG_ID);
+            org_ids.contains(org_id)
+        });
     }
 
     if let Some(ref project_slug) = filter.project_slug {
@@ -657,6 +770,9 @@ fn apply_filters(
     if filter.active_only == Some(true) {
         sessions.retain(|session| session.is_active);
     }
+    if filter.pinned_only == Some(true) {
+        sessions.retain(|session| session.pinned);
+    }
 
     Ok(())
 }
@@ -665,7 +781,10 @@ fn apply_filters(
 // Sorting
 // ============================================================================
 
-fn apply_sorting(sessions: &mut [SessionAggregateRecord], filter: Option<&SessionFilter>) {
+pub(super) fn apply_sorting(
+    sessions: &mut [SessionAggregateRecord],
+    filter: Option<&SessionFilter>,
+) {
     let sort_by = filter
         .as_ref()
         .and_then(|f| f.sort_by.as_deref())
@@ -719,39 +838,6 @@ fn apply_pagination(sessions: &mut Vec<SessionAggregateRecord>, filter: &Session
     }
 }
 
-fn agent_org_display_name(run: &AgentOrgRunRecord) -> String {
-    run.org_snapshot_json
-        .as_deref()
-        .and_then(|json| serde_json::from_str::<OrgDefinition>(json).ok())
-        .map(|org| org.name)
-        .unwrap_or_else(|| run.org_id.clone())
-}
-
-fn annotate_agent_org_root_rows(sessions: &mut [SessionAggregateRecord]) -> Result<(), String> {
-    let root_session_ids: std::collections::HashMap<String, (String, String)> =
-        AgentOrgRunStore::list_runs(usize::MAX)?
-            .into_iter()
-            .filter_map(|run| {
-                let root_session_id = run.root_session_id.clone()?;
-                let org_name = agent_org_display_name(&run);
-                Some((root_session_id, (run.org_id, org_name)))
-            })
-            .collect();
-    if root_session_ids.is_empty() {
-        return Ok(());
-    }
-
-    for session in sessions {
-        if let Some((org_id, org_name)) = root_session_ids.get(&session.session_id) {
-            session.agent_icon_id = Some(AGENT_ORG_ICON_ID.to_string());
-            session.agent_org_id = Some(org_id.clone());
-            session.agent_org_name = Some(org_name.clone());
-        }
-    }
-
-    Ok(())
-}
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -762,6 +848,7 @@ mod tests {
     use crate::agent_sessions::session_directory::display::generate_display_label;
     use crate::agent_sessions::session_directory::status::is_active_status;
     use crate::agent_sessions::session_directory::types::SessionCategory;
+    use crate::test_utils::test_env;
 
     fn make_session(
         id: &str,
@@ -821,6 +908,305 @@ mod tests {
             lines_removed: None,
             touched_files: None,
         }
+    }
+
+    fn seed_native_root(
+        session_id: &str,
+        record_type: &str,
+        updated_at: &str,
+        parent_session_id: Option<&str>,
+    ) {
+        let record = session_persistence::UnifiedSessionRecord {
+            session_id: session_id.to_string(),
+            name: session_id.to_string(),
+            status: agent_core::session::SessionStatus::Completed
+                .as_str()
+                .to_string(),
+            created_at: updated_at.to_string(),
+            updated_at: updated_at.to_string(),
+            session_type: record_type.to_string(),
+            parent_session_id: parent_session_id.map(str::to_string),
+            key_source: KeySource::OwnKey,
+            ..Default::default()
+        };
+        session_persistence::upsert_session(&record).expect("seed native sidebar root");
+    }
+
+    fn set_native_workspace(session_id: &str, workspace_path: Option<&str>) {
+        let conn = get_connection().expect("open sandbox DB");
+        conn.execute(
+            "UPDATE agent_sessions SET workspace_path = ?2 WHERE session_id = ?1",
+            rusqlite::params![session_id, workspace_path],
+        )
+        .expect("set native workspace");
+    }
+
+    fn seed_cli_root(session_id: &str, updated_at: &str, repo_path: Option<&str>) {
+        let conn = get_connection().expect("open sandbox DB");
+        conn.execute(
+            "INSERT INTO code_sessions
+                 (session_id, name, status, flow, runner, cli_agent_type,
+                  repo_path, created_at, updated_at)
+             VALUES (?1, ?1, 'completed', 'quick', 'local', 'opencode',
+                     ?2, ?3, ?3)",
+            rusqlite::params![session_id, repo_path, updated_at],
+        )
+        .expect("seed CLI sidebar root");
+    }
+
+    #[test]
+    fn rust_agent_group_pages_do_not_consume_each_others_offsets() {
+        let _sandbox = test_env::sandbox();
+        seed_native_root(
+            "sdeagent-archived",
+            session_type::CODING,
+            "2026-07-26T13:00:00Z",
+            None,
+        );
+        session_persistence::update_status(
+            "sdeagent-archived",
+            agent_core::session::SessionStatus::Archived,
+        )
+        .expect("archive fixture");
+        seed_native_root(
+            "sdeagent-child",
+            session_type::CODING,
+            "2026-07-26T12:00:00Z",
+            Some("sdeagent-standalone-1"),
+        );
+        for (session_id, updated_at) in [
+            ("sdeagent-standalone-1", "2026-07-26T11:00:00Z"),
+            ("sdeagent-org-1", "2026-07-26T10:00:00Z"),
+            ("sdeagent-standalone-2", "2026-07-26T09:00:00Z"),
+            ("sdeagent-org-2", "2026-07-26T08:00:00Z"),
+            ("sdeagent-standalone-3", "2026-07-26T07:00:00Z"),
+        ] {
+            seed_native_root(session_id, session_type::CODING, updated_at, None);
+        }
+        seed_native_root(
+            "wingman-1",
+            session_type::CODING,
+            "2026-07-26T06:00:00Z",
+            None,
+        );
+        seed_native_root(
+            "dsagent-1",
+            session_type::CODING,
+            "2026-07-26T05:00:00Z",
+            None,
+        );
+        seed_native_root(
+            "osagent-1",
+            session_type::DESKTOP,
+            "2026-07-26T04:00:00Z",
+            None,
+        );
+
+        let conn = get_connection().expect("open sandbox DB");
+        for (run_id, root_session_id) in [("run-1", "sdeagent-org-1"), ("run-2", "sdeagent-org-2")]
+        {
+            conn.execute(
+                "INSERT INTO agent_org_runs
+                   (id, org_id, coordinator_agent_id, root_session_id,
+                    entry_mode, status, created_at, updated_at)
+                 VALUES (?1, 'org-alpha', 'coordinator', ?2,
+                         'standalone_session', 'completed',
+                         '2026-07-26T00:00:00Z', '2026-07-26T00:00:00Z')",
+                rusqlite::params![run_id, root_session_id],
+            )
+            .expect("seed Agent Org run");
+        }
+
+        let ids = |group: &str, limit: usize, offset: usize| {
+            load_rust_agent_group_page(group, limit, offset)
+                .expect("load group page")
+                .into_iter()
+                .map(|session| session.session_id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ids("sde", 2, 0),
+            vec!["sdeagent-standalone-1", "sdeagent-standalone-2"]
+        );
+        assert_eq!(ids("sde", 2, 2), vec!["sdeagent-standalone-3"]);
+        assert_eq!(
+            ids("agent_org", 10, 0),
+            vec!["sdeagent-org-1", "sdeagent-org-2"]
+        );
+        assert_eq!(ids("wingman", 10, 0), vec!["wingman-1"]);
+        assert_eq!(ids("custom", 10, 0), vec!["dsagent-1"]);
+        assert_eq!(ids("os", 10, 0), vec!["osagent-1"]);
+    }
+
+    #[test]
+    fn rust_agent_group_classification_matches_sidebar_sections() {
+        let _sandbox = test_env::sandbox();
+        for (session_id, record_type, updated_at) in [
+            (
+                "sdeagent-modern",
+                session_type::CODING,
+                "2026-07-26T11:00:00Z",
+            ),
+            (
+                "agentsession-legacy",
+                session_type::CODING,
+                "2026-07-26T10:00:00Z",
+            ),
+            (
+                "wingman-specialist",
+                session_type::CODING,
+                "2026-07-26T09:00:00Z",
+            ),
+            (
+                "random-custom-id",
+                session_type::CODING,
+                "2026-07-26T08:00:00Z",
+            ),
+            (
+                "osagent-desktop",
+                session_type::DESKTOP,
+                "2026-07-26T07:00:00Z",
+            ),
+            (
+                "random-agent-org-root",
+                session_type::CODING,
+                "2026-07-26T06:00:00Z",
+            ),
+            (
+                "random-agent-org-os-root",
+                session_type::DESKTOP,
+                "2026-07-26T05:30:00Z",
+            ),
+            (
+                "random-agent-org-human-root",
+                session_type::HUMAN,
+                "2026-07-26T05:00:00Z",
+            ),
+        ] {
+            seed_native_root(session_id, record_type, updated_at, None);
+        }
+        let conn = get_connection().expect("open sandbox DB");
+        for (run_id, root_session_id) in [
+            ("run-parity-coding", "random-agent-org-root"),
+            ("run-parity-os", "random-agent-org-os-root"),
+            ("run-parity-human", "random-agent-org-human-root"),
+        ] {
+            conn.execute(
+                "INSERT INTO agent_org_runs
+                   (id, org_id, coordinator_agent_id, root_session_id,
+                    entry_mode, status, created_at, updated_at)
+                 VALUES (?1, 'org-parity', 'coordinator', ?2,
+                         'standalone_session', 'completed',
+                         '2026-07-26T00:00:00Z',
+                         '2026-07-26T00:00:00Z')",
+                rusqlite::params![run_id, root_session_id],
+            )
+            .expect("seed parity Agent Org run");
+        }
+
+        let ids = |group: &str| {
+            load_rust_agent_group_page(group, 20, 0)
+                .expect("load classified group")
+                .into_iter()
+                .map(|session| session.session_id)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids("sde"), vec!["sdeagent-modern", "agentsession-legacy"]);
+        assert_eq!(ids("wingman"), vec!["wingman-specialist"]);
+        assert_eq!(ids("custom"), vec!["random-custom-id"]);
+        assert_eq!(ids("os"), vec!["osagent-desktop"]);
+        assert!(ids("human").is_empty());
+        assert_eq!(
+            ids("agent_org"),
+            vec![
+                "random-agent-org-root",
+                "random-agent-org-os-root",
+                "random-agent-org-human-root"
+            ]
+        );
+    }
+
+    #[test]
+    fn native_scope_filters_workspace_and_date_before_pagination() {
+        let _sandbox = test_env::sandbox();
+        for (session_id, updated_at, workspace) in [
+            ("sdeagent-a-new", "2026-07-26T11:00:00Z", Some("/repo-a/")),
+            ("sdeagent-b-new", "2026-07-26T10:00:00Z", Some("/repo-b")),
+            ("sdeagent-a-old", "2026-07-26T09:00:00Z", Some("/repo-a")),
+            ("sdeagent-missing", "2026-07-26T08:00:00Z", None),
+        ] {
+            seed_native_root(session_id, session_type::CODING, updated_at, None);
+            set_native_workspace(session_id, workspace);
+        }
+        let range_start = DateTime::parse_from_rfc3339("2026-07-26T08:30:00Z")
+            .expect("range start")
+            .timestamp_millis();
+        let range_end = DateTime::parse_from_rfc3339("2026-07-26T12:00:00Z")
+            .expect("range end")
+            .timestamp_millis();
+        let page = |offset| {
+            sidebar_queries::load_scoped_rust_agent_group_page(RustAgentGroupPageRequest {
+                group: "sde",
+                org_ids: None,
+                repo_path: Some("/repo-a"),
+                missing_repo_path: false,
+                updated_after_ms: Some(range_start),
+                updated_before_ms: Some(range_end),
+                before: None,
+                limit: 1,
+                offset,
+            })
+            .expect("scoped native page")
+            .into_iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>()
+        };
+
+        assert_eq!(page(0), vec!["sdeagent-a-new"]);
+        assert_eq!(page(1), vec!["sdeagent-a-old"]);
+        assert_eq!(
+            sidebar_queries::load_scoped_rust_agent_group_page(RustAgentGroupPageRequest {
+                group: "sde",
+                org_ids: None,
+                repo_path: None,
+                missing_repo_path: true,
+                updated_after_ms: None,
+                updated_before_ms: None,
+                before: None,
+                limit: 10,
+                offset: 0,
+            },)
+            .expect("missing-workspace native page")
+            .into_iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>(),
+            vec!["sdeagent-missing"]
+        );
+
+        for (session_id, updated_at, workspace) in [
+            ("cliagent-a-new", "2026-07-26T11:30:00Z", Some("/repo-a")),
+            ("cliagent-b-new", "2026-07-26T10:30:00Z", Some("/repo-b")),
+            ("cliagent-a-old", "2026-07-26T09:30:00Z", Some("/repo-a/")),
+        ] {
+            seed_cli_root(session_id, updated_at, workspace);
+        }
+        assert_eq!(
+            sidebar_queries::load_scoped_cli_page(CliPageRequest {
+                org_ids: None,
+                repo_path: Some("/repo-a"),
+                missing_repo_path: false,
+                updated_after_ms: Some(range_start),
+                updated_before_ms: Some(range_end),
+                before: None,
+                limit: 10,
+                offset: 0,
+            })
+            .expect("scoped CLI page")
+            .into_iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>(),
+            vec!["cliagent-a-new", "cliagent-a-old"]
+        );
     }
 
     #[test]

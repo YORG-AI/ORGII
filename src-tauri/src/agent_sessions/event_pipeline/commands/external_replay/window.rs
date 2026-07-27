@@ -43,10 +43,8 @@ pub async fn external_replay_open_window(
             ResolvedReplayTarget::Imported {
                 source,
                 imported_session_id,
-            } => with_sessions_replay_writer("replay index", |conn| {
-                replay::open_window(conn, source, &imported_session_id, requested_limits)
-                    .map(ResolvedReplayWindow::Imported)
-            }),
+            } => open_foreground_imported_window(source, &imported_session_id, requested_limits)
+                .map(ResolvedReplayWindow::Imported),
             ResolvedReplayTarget::CollaborationSnapshot => {
                 let conn = database::db::get_connection()
                     .map_err(|err| format!("open collaboration replay DB: {err}"))?;
@@ -60,10 +58,11 @@ pub async fn external_replay_open_window(
                 )
                 .map(ResolvedReplayWindow::CollaborationSnapshot)
             }
-            ResolvedReplayTarget::ManagedChunkStore => {
-                managed_chunk_open_window(&session_id, requested_limits)
-                    .map(ResolvedReplayWindow::ManagedChunks)
-            }
+            ResolvedReplayTarget::ManagedChunkStore => managed_chunk_open_window(
+                &session_id,
+                replay_storage_limits_with_normalization_headroom(requested_limits),
+            )
+            .map(ResolvedReplayWindow::ManagedChunks),
             ResolvedReplayTarget::NotReady => Ok(ResolvedReplayWindow::NotReady),
         }
     })
@@ -148,6 +147,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 episode_id,
                 request_token,
+                &response.cursor.generation,
                 &response.events,
                 ReplayWindowPublish::Replace,
             ) {
@@ -202,6 +202,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 episode_id,
                 request_token,
+                &response.cursor.generation,
                 &response.events,
                 ReplayWindowPublish::Replace,
             ) {
@@ -260,6 +261,7 @@ pub async fn external_replay_open_window(
                 &display_session_id,
                 episode_id,
                 request_token,
+                &response.cursor.generation,
                 &response.events,
                 ReplayWindowPublish::Replace,
             ) {
@@ -302,13 +304,13 @@ pub async fn external_replay_poll_delta(
                 let mut underlying_cursor = cursor;
                 underlying_cursor.source_id = source.as_str().to_string();
                 underlying_cursor.session_id = imported_session_id.clone();
-                with_sessions_replay_writer("replay index", |conn| {
+                with_foreground_replay_connection("replay index poll", |conn| {
                     replay::poll_delta(
                         conn,
                         source,
                         &imported_session_id,
                         &underlying_cursor,
-                        requested_limits,
+                        replay_storage_limits_with_normalization_headroom(requested_limits),
                     )
                     .map(ResolvedReplayDelta::Imported)
                 })
@@ -324,10 +326,12 @@ pub async fn external_replay_poll_delta(
                 )
                 .map(ResolvedReplayDelta::CollaborationSnapshot)
             }
-            ResolvedReplayTarget::ManagedChunkStore => {
-                managed_chunk_poll_delta(&session_id, &cursor, requested_limits)
-                    .map(ResolvedReplayDelta::ManagedChunks)
-            }
+            ResolvedReplayTarget::ManagedChunkStore => managed_chunk_poll_delta(
+                &session_id,
+                &cursor,
+                replay_storage_limits_with_normalization_headroom(requested_limits),
+            )
+            .map(ResolvedReplayDelta::ManagedChunks),
             ResolvedReplayTarget::NotReady => Ok(ResolvedReplayDelta::NotReady),
         })
         .await
@@ -419,6 +423,19 @@ pub async fn external_replay_poll_delta(
     Ok(response)
 }
 
+pub(super) fn replay_window_publish_for_locator(
+    before_sequence: Option<i64>,
+) -> ReplayWindowPublish {
+    if before_sequence.is_some() {
+        ReplayWindowPublish::Merge
+    } else {
+        // A turn id/index is random-access pagination, not a continuation of
+        // the currently resident continuous history. Replacing here prevents
+        // page navigation from accumulating every previously visited body.
+        ReplayWindowPublish::Replace
+    }
+}
+
 #[tauri::command]
 #[allow(
     clippy::too_many_arguments,
@@ -443,6 +460,7 @@ pub async fn external_replay_read_window(
     }
     let request_token =
         begin_validated_foreground_request(&source_id, &session_id, episode_id, false)?;
+    let publish = replay_window_publish_for_locator(before_sequence);
     let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();
@@ -451,34 +469,15 @@ pub async fn external_replay_read_window(
             ResolvedReplayTarget::Imported {
                 source,
                 imported_session_id,
-            } => with_sessions_replay_writer("replay index", |conn| {
-                if let Some(turn_id) = turn_id.as_deref() {
-                    replay::read_turn_window(
-                        conn,
-                        source,
-                        &imported_session_id,
-                        turn_id,
-                        requested_limits,
-                    )
-                } else if let Some(turn_index) = turn_index {
-                    replay::read_turn_window_at_index(
-                        conn,
-                        source,
-                        &imported_session_id,
-                        turn_index,
-                        requested_limits,
-                    )
-                } else {
-                    replay::read_window(
-                        conn,
-                        source,
-                        &imported_session_id,
-                        before_sequence,
-                        requested_limits,
-                    )
-                }
-                .map(ResolvedReplayWindow::Imported)
-            }),
+            } => read_foreground_imported_window(
+                source,
+                &imported_session_id,
+                before_sequence,
+                turn_id.as_deref(),
+                turn_index,
+                requested_limits,
+            )
+            .map(ResolvedReplayWindow::Imported),
             ResolvedReplayTarget::CollaborationSnapshot => {
                 let conn = database::db::get_connection()
                     .map_err(|err| format!("open collaboration replay DB: {err}"))?;
@@ -497,7 +496,7 @@ pub async fn external_replay_read_window(
                 before_sequence,
                 turn_id.as_deref(),
                 turn_index,
-                requested_limits,
+                replay_storage_limits_with_normalization_headroom(requested_limits),
             )
             .map(ResolvedReplayWindow::ManagedChunks),
             ResolvedReplayTarget::NotReady => Ok(ResolvedReplayWindow::NotReady),
@@ -547,15 +546,27 @@ pub async fn external_replay_read_window(
         &display_session_id,
         episode_id,
         request_token,
+        &response.cursor.generation,
         &response.events,
-        ReplayWindowPublish::Merge,
+        publish,
     ) {
         return Ok(response);
     }
-    state.cap_external_replay_store(
-        &display_session_id,
-        super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-    )?;
+    match publish {
+        ReplayWindowPublish::Replace => {
+            state.cap_external_replay_store(
+                &display_session_id,
+                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+            )?;
+        }
+        ReplayWindowPublish::Merge => {
+            state.cap_external_replay_store_preserving_window(
+                &display_session_id,
+                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+                &response.events,
+            )?;
+        }
+    }
     if !response.events.is_empty() {
         schedule_notify(&app, &state, &display_session_id);
     }

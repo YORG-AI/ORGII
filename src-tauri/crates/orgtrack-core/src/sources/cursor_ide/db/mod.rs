@@ -18,8 +18,8 @@ use crate::sources::imported_history::{
 };
 
 use super::io::{
-    cursor_conversation_index_path, cursor_db_path, open_cursor_conversation_index_db,
-    open_cursor_db,
+    cursor_db_path_state, open_cursor_conversation_index_db_state, open_cursor_db,
+    CursorConversationIndexDbState, CursorDbPathState,
 };
 use super::CURSORIDE_SESSION_PREFIX;
 // Re-exported so submodule code moved out of this file keeps resolving its
@@ -32,12 +32,19 @@ mod sync;
 
 use sync::delta_sync;
 #[cfg(test)]
-use sync::{build_inputs_from_index, discover_from_index};
+use sync::{
+    build_inputs_from_index, cursor_content_probe_count, cursor_content_probed_ids,
+    delta_sync_from_connections, demote_definitively_missing_cursor_database, discover_from_index,
+    preferred_cursor_title, reset_cursor_content_probe_count, CursorStorageSnapshot,
+    CURSOR_STORAGE_MISSING_IDENTITY, INDEX_BLOB_VALIDATION_FIELD,
+    NO_INDEX_ACTIVITY_SIGNATURE_FIELD, NO_INDEX_DATABASE_IDENTITY_FIELD,
+    NO_INDEX_VALIDATION_BATCH_SIZE,
+};
 
-// v6: top-level index rows now bring their `subagentComposerIds` into the cache
-// as child sessions with `parent_session_id`, allowing the shared sidebar
-// parent/child collapse flow to render Cursor subagents.
-const CURSOR_IDE_METADATA_PARSER_VERSION: i64 = 6;
+// v7: a top-level composer is listable only after a bounded content check
+// confirms a real user bubble. This migrates earlier empty composer shells out
+// of the sidebar and derives a title for valid untitled sessions.
+const CURSOR_IDE_METADATA_PARSER_VERSION: i64 = 7;
 const COMPOSER_KEY_PREFIX: &str = "composerData:";
 const BUBBLE_KEY_PREFIX: &str = "bubbleId:";
 const SOURCE_RECORD_KEY_PREFIX: &str = "cursorDiskKV:";
@@ -93,6 +100,8 @@ struct RawComposerData {
 struct BubbleHeader {
     #[serde(default)]
     bubble_id: String,
+    #[serde(default, rename = "type")]
+    bubble_type: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,6 +124,31 @@ struct CursorCacheMetadata {
     status: String,
     is_agentic: bool,
     mode: String,
+    /// Stable main-database identity used by the no-conversation-index
+    /// compatibility path. WAL activity is intentionally separate: normal
+    /// Cursor writes must never reparse every visible cached root.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    no_index_database_identity: Option<String>,
+    /// Main/WAL activity watermark used only to retry hidden/missing roots in
+    /// bounded batches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    no_index_activity_signature: Option<String>,
+    /// Validation guard for a conversation-index row whose composer blob is
+    /// absent from `state.vscdb`. A successful point-read that proves the blob
+    /// missing or malformed hides the cached card immediately; transient
+    /// SQLite/open failures do not stamp this field. Physical DB movement
+    /// changes the signature and permits promotion without scanning others.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    index_blob_validation: Option<CursorIndexBlobValidation>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CursorIndexBlobValidation {
+    signature: String,
+    misses: u8,
+    #[serde(default)]
+    database_identity: String,
 }
 
 /// One row of Cursor's `conversation-search.db` `conversations` table — the
@@ -132,6 +166,14 @@ struct CursorParentBuild {
     inputs: Vec<ImportedHistoryCacheInput>,
     live_child_ids: Vec<String>,
     child_list_authoritative: bool,
+    composer_availability: CursorComposerAvailability,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CursorComposerAvailability {
+    Available,
+    MissingOrMalformed,
+    TemporarilyUnavailable,
 }
 
 impl CursorIndexRow {

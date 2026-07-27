@@ -8,12 +8,19 @@ import { sessionsAtom } from "../atoms";
 import {
   __TESTS_ONLY,
   loadMoreCategory,
+  loadMoreSessionScope,
   loadSessionRoster,
   loadSidebarSessionById,
   loadSidebarSessions,
   loadSidebarSessionsByIds,
 } from "../loaders";
-import { sessionPaginationAtom } from "../paginationAtoms";
+import {
+  resetPaginationState,
+  scopedSessionPaginationAtom,
+  sessionPaginationAtom,
+  sessionPaginationScopeKey,
+  sessionRosterGenerationAtom,
+} from "../paginationAtoms";
 
 const mocks = vi.hoisted(() => ({
   externalHistorySidebarList: vi.fn(),
@@ -48,6 +55,17 @@ function makeRow(sessionId: string, updatedAt: string) {
     updatedAt,
     repoPath: "/tmp/project",
     storagePath: `/tmp/store/${sessionId}.jsonl`,
+  };
+}
+
+function makeNativeRow(sessionId: string, updatedAt: string) {
+  return {
+    session_id: sessionId,
+    name: sessionId,
+    status: "completed" as const,
+    category: "rust_agent" as const,
+    created_at: updatedAt,
+    updated_at: updatedAt,
   };
 }
 
@@ -157,27 +175,40 @@ describe("loadSidebarSessions", () => {
     }
   });
 
-  it("continues each external date bucket from its own offset", async () => {
+  it("continues each external date bucket from its own seek cursor", async () => {
     mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
     mocks.externalHistorySidebarList.mockImplementation(
       async (request: {
         requests: Array<{
           source: string;
-          buckets: Array<{ bucket: string; offset: number }>;
+          buckets: Array<{
+            bucket: string;
+            offset: number;
+            before?: { updatedAtMs: number; sessionId: string };
+          }>;
         }>;
       }) => ({
         sources: request.requests.map((sourceRequest) => ({
           source: sourceRequest.source,
-          buckets: sourceRequest.buckets.map(({ bucket, offset }) => ({
-            bucket,
-            sessions: [
-              makeRow(
-                `${sourceRequest.source}-${bucket}-${offset}`,
-                "2026-07-12T12:00:00Z"
-              ),
-            ],
-            hasMore: bucket === "today" && offset === 0,
-          })),
+          buckets: sourceRequest.buckets.map(
+            ({ bucket, offset, before }, bucketIndex) => {
+              const pageIndex = before ? 1 : offset;
+              return {
+                bucket,
+                sessions: [
+                  makeRow(
+                    `${sourceRequest.source}-${bucket}-${pageIndex}`,
+                    "2026-07-12T12:00:00Z"
+                  ),
+                ],
+                hasMore: bucket === "today" && !before,
+                nextCursor: {
+                  updatedAtMs: 1_752_321_600_000 - bucketIndex - pageIndex,
+                  sessionId: `${sourceRequest.source}-raw-${bucket}-${pageIndex}`,
+                },
+              };
+            }
+          ),
         })),
       })
     );
@@ -190,8 +221,561 @@ describe("loadSidebarSessions", () => {
     expect(lastRequest.requests).toHaveLength(1);
     expect(lastRequest.requests[0].source).toBe("codex_app");
     expect(lastRequest.requests[0].buckets).toEqual([
-      expect.objectContaining({ bucket: "today", offset: 1, limit: 10 }),
+      expect.objectContaining({
+        bucket: "today",
+        offset: 0,
+        limit: 10,
+        before: {
+          updatedAtMs: 1_752_321_600_000,
+          sessionId: "codex_app-raw-today-0",
+        },
+      }),
     ]);
+  });
+
+  it("paginates complete native root pages without duplicates or gaps", async () => {
+    const nativeRoots = {
+      cli: Array.from({ length: 25 }, (_, index) => ({
+        session_id: `cliagent-root-${index}`,
+        name: `CLI root ${index}`,
+        status: "completed" as const,
+        created_at: `2026-07-26T12:00:${59 - index}Z`,
+        updated_at: `2026-07-26T12:00:${59 - index}Z`,
+      })),
+      sde: Array.from({ length: 25 }, (_, index) => ({
+        session_id: `sdeagent-root-${index}`,
+        name: `SDE root ${index}`,
+        status: "completed" as const,
+        created_at: `2026-07-26T11:00:${59 - index}Z`,
+        updated_at: `2026-07-26T11:00:${59 - index}Z`,
+      })),
+      agent_org: Array.from({ length: 12 }, (_, index) => ({
+        session_id: `sdeagent-org-root-${index}`,
+        name: `Agent Org root ${index}`,
+        status: "completed" as const,
+        created_at: `2026-07-26T10:00:${59 - index}Z`,
+        updated_at: `2026-07-26T10:00:${59 - index}Z`,
+        agentOrgId: "org-alpha",
+        agentOrgName: "Alpha Org",
+      })),
+      os: Array.from({ length: 12 }, (_, index) => ({
+        session_id: `osagent-root-${index}`,
+        name: `OS root ${index}`,
+        status: "completed" as const,
+        created_at: `2026-07-26T09:00:${59 - index}Z`,
+        updated_at: `2026-07-26T09:00:${59 - index}Z`,
+      })),
+      wingman: [],
+      custom: [],
+      human: [],
+    };
+    mocks.sessionAggregateList.mockImplementation(
+      async (filter: {
+        category?: keyof typeof nativeRoots;
+        limit?: number;
+        offset?: number;
+        beforeUpdatedAt?: string;
+        beforeSessionId?: string;
+      }) => {
+        const rows = filter.category ? nativeRoots[filter.category] : [];
+        const cursorIndex = filter.beforeSessionId
+          ? rows.findIndex(
+              (row) =>
+                row.session_id === filter.beforeSessionId &&
+                row.updated_at === filter.beforeUpdatedAt
+            )
+          : -1;
+        const offset =
+          cursorIndex >= 0 ? cursorIndex + 1 : (filter.offset ?? 0);
+        return {
+          sessions: rows.slice(offset, offset + (filter.limit ?? rows.length)),
+        };
+      }
+    );
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map(({ source, buckets }) => ({
+          source,
+          buckets: buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+
+    await loadSidebarSessions({ forceRefresh: true, pageSize: 10 });
+    expect(mocks.store?.get(sessionPaginationAtom).cli_agent).toMatchObject({
+      loaded: 10,
+      hasMore: true,
+    });
+    expect(
+      mocks.store?.get(sessionPaginationAtom)["rust_agent:sde"]
+    ).toMatchObject({ loaded: 10, hasMore: true });
+    expect(
+      mocks.store?.get(sessionPaginationAtom)["rust_agent:agent_org"]
+    ).toMatchObject({ loaded: 10, hasMore: true });
+    expect(
+      mocks.store?.get(sessionPaginationAtom)["rust_agent:os"]
+    ).toMatchObject({ loaded: 10, hasMore: true });
+    await loadMoreCategory("cli_agent", 10);
+    await loadMoreCategory("rust_agent:sde", 10);
+    await loadMoreCategory("cli_agent", 10);
+    await loadMoreCategory("rust_agent:sde", 10);
+
+    const loadedIds = mocks.store
+      ?.get(sessionsAtom)
+      .map((session) => session.session_id);
+    expect(
+      loadedIds?.filter((id) => id.startsWith("cliagent-")).sort()
+    ).toEqual(nativeRoots.cli.map((session) => session.session_id).sort());
+    expect(
+      loadedIds?.filter((id) => id.startsWith("sdeagent-")).sort()
+    ).toEqual(
+      [...nativeRoots.sde, ...nativeRoots.agent_org]
+        .slice(0, 35)
+        .map((session) => session.session_id)
+        .sort()
+    );
+    expect(loadedIds?.filter((id) => id.startsWith("osagent-")).sort()).toEqual(
+      nativeRoots.os
+        .slice(0, 10)
+        .map((session) => session.session_id)
+        .sort()
+    );
+    expect(new Set(loadedIds).size).toBe(loadedIds?.length);
+
+    const pagination = mocks.store?.get(sessionPaginationAtom);
+    expect(pagination?.cli_agent).toMatchObject({
+      loaded: 25,
+      hasMore: false,
+      loading: false,
+    });
+    expect(pagination?.["rust_agent:sde"]).toMatchObject({
+      loaded: 25,
+      hasMore: false,
+      loading: false,
+    });
+    expect(pagination?.["rust_agent:agent_org"]).toMatchObject({
+      loaded: 10,
+      hasMore: true,
+      loading: false,
+    });
+
+    for (const category of ["cli", "sde"] as const) {
+      expect(
+        mocks.sessionAggregateList.mock.calls
+          .map(([filter]) => filter)
+          .filter((filter) => filter.category === category)
+          .map((filter) => ({
+            offset: filter.offset,
+            beforeUpdatedAt: filter.beforeUpdatedAt,
+            beforeSessionId: filter.beforeSessionId,
+          }))
+      ).toEqual([
+        {
+          offset: 0,
+          beforeUpdatedAt: undefined,
+          beforeSessionId: undefined,
+        },
+        {
+          offset: 0,
+          beforeUpdatedAt: nativeRoots[category][9]?.updated_at,
+          beforeSessionId: nativeRoots[category][9]?.session_id,
+        },
+        {
+          offset: 0,
+          beforeUpdatedAt: nativeRoots[category][19]?.updated_at,
+          beforeSessionId: nativeRoots[category][19]?.session_id,
+        },
+      ]);
+    }
+  });
+
+  it("keeps consecutive By Time pages on one date-scoped native cursor", async () => {
+    const now = new Date();
+    now.setHours(12, 0, 0, 0);
+    const allRows = Array.from({ length: 23 }, (_, index) => ({
+      session_id: `sdeagent-today-${index}`,
+      name: `Today ${index}`,
+      status: "completed" as const,
+      category: "rust_agent" as const,
+      created_at: new Date(now.getTime() - index * 1_000).toISOString(),
+      updated_at: new Date(now.getTime() - index * 1_000).toISOString(),
+    }));
+    const initial = allRows.slice(0, 10);
+    mocks.store?.set(sessionsAtom, initial);
+    mocks.store?.set(sessionPaginationAtom, {
+      ...resetPaginationState(),
+      "rust_agent:sde": {
+        loaded: 10,
+        hasMore: true,
+        loading: false,
+        loadedSessionIds: initial.map((session) => session.session_id),
+      },
+    });
+    mocks.sessionAggregateList.mockImplementation(
+      async (filter: {
+        category?: string;
+        offset?: number;
+        limit?: number;
+        updatedAfterMs?: number;
+        beforeUpdatedAt?: string;
+        beforeSessionId?: string;
+      }) => {
+        expect(filter.category).toBe("sde");
+        expect(filter.updatedAfterMs).toBeTypeOf("number");
+        const cursorIndex = filter.beforeSessionId
+          ? allRows.findIndex(
+              (row) =>
+                row.session_id === filter.beforeSessionId &&
+                row.updated_at === filter.beforeUpdatedAt
+            )
+          : -1;
+        const offset =
+          cursorIndex >= 0 ? cursorIndex + 1 : (filter.offset ?? 0);
+        return {
+          sessions: allRows.slice(
+            offset,
+            offset + (filter.limit ?? allRows.length)
+          ),
+        };
+      }
+    );
+
+    const scopeKey = sessionPaginationScopeKey({
+      kind: "time",
+      bucket: "today",
+      orgIds: ["personal-org"],
+    });
+    await loadMoreSessionScope(scopeKey, 10);
+    await loadMoreSessionScope(scopeKey, 10);
+    await loadMoreSessionScope(scopeKey, 10);
+
+    expect(
+      mocks.sessionAggregateList.mock.calls.map(([filter]) => ({
+        offset: filter.offset,
+        beforeUpdatedAt: filter.beforeUpdatedAt,
+        beforeSessionId: filter.beforeSessionId,
+      }))
+    ).toEqual([
+      {
+        offset: 10,
+        beforeUpdatedAt: undefined,
+        beforeSessionId: undefined,
+      },
+      {
+        offset: 0,
+        beforeUpdatedAt: allRows[19]?.updated_at,
+        beforeSessionId: allRows[19]?.session_id,
+      },
+    ]);
+    const ids = mocks.store
+      ?.get(sessionsAtom)
+      .filter((session) => session.session_id.startsWith("sdeagent-today-"))
+      .map((session) => session.session_id);
+    expect(new Set(ids).size).toBe(23);
+    const scoped = mocks.store?.get(scopedSessionPaginationAtom)[scopeKey]
+      .categories["rust_agent:sde"];
+    expect(scoped).toMatchObject({
+      loaded: 23,
+      hasMore: false,
+      loading: false,
+    });
+  });
+
+  it("does not turn an exact-loaded atom row into a scoped server offset", async () => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    mocks.store?.set(sessionsAtom, [
+      {
+        session_id: "sdeagent-exact-loaded-middle",
+        name: "Exact loaded middle row",
+        status: "completed",
+        category: "rust_agent",
+        created_at: today.toISOString(),
+        updated_at: today.toISOString(),
+        repoPath: "/repo-a",
+      },
+    ]);
+    mocks.store?.set(sessionPaginationAtom, {
+      ...resetPaginationState(),
+      "rust_agent:sde": {
+        loaded: 0,
+        hasMore: true,
+        loading: false,
+      },
+    });
+    mocks.sessionAggregateList.mockResolvedValue({
+      sessions: [
+        {
+          session_id: "sdeagent-first-scoped-row",
+          name: "First scoped row",
+          status: "completed",
+          category: "rust_agent",
+          created_at: today.toISOString(),
+          updated_at: today.toISOString(),
+          repoPath: "/repo-a",
+        },
+      ],
+    });
+    const scopeKey = sessionPaginationScopeKey({
+      kind: "workspace",
+      repoPath: "/repo-a",
+      orgIds: ["personal-org"],
+    });
+
+    await loadMoreSessionScope(scopeKey, 10);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        category: "sde",
+        repoPath: "/repo-a",
+        repoPathExact: true,
+        offset: 0,
+      })
+    );
+    expect(
+      mocks.store?.get(scopedSessionPaginationAtom)[scopeKey].categories[
+        "rust_agent:sde"
+      ]
+    ).toMatchObject({
+      loaded: 1,
+      hasMore: false,
+      loadedSessionIds: ["sdeagent-first-scoped-row"],
+    });
+  });
+
+  it("keeps imported workspace offsets independent and stops at hasMore false", async () => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const makeImportedSession = (sessionId: string, repoPath: string) => ({
+      session_id: sessionId,
+      name: sessionId,
+      status: "completed" as const,
+      category: "external_history" as const,
+      created_at: today.toISOString(),
+      updated_at: today.toISOString(),
+      repoPath,
+    });
+    mocks.store?.set(sessionsAtom, [
+      makeImportedSession("codexapp-repo-a-0", "/repo-a"),
+      makeImportedSession("codexapp-repo-a-1", "/repo-a"),
+      ...Array.from({ length: 5 }, (_, index) =>
+        makeImportedSession(`codexapp-repo-b-${index}`, "/repo-b")
+      ),
+    ]);
+    const pagination = resetPaginationState();
+    mocks.store?.set(sessionPaginationAtom, {
+      ...pagination,
+      "external_history:codex_app": {
+        loaded: 7,
+        hasMore: true,
+        loading: false,
+        loadedSessionIds: [
+          "codexapp-repo-a-0",
+          "codexapp-repo-a-1",
+          ...Array.from(
+            { length: 5 },
+            (_, index) => `codexapp-repo-b-${index}`
+          ),
+        ],
+        dateBuckets: {
+          today: {
+            loaded: 7,
+            hasMore: true,
+            cursor: {
+              updatedAtMs: today.getTime() - 6_000,
+              sessionId: "raw-global-row-6",
+            },
+          },
+          yesterday: { loaded: 0, hasMore: false },
+          thisWeek: { loaded: 0, hasMore: false },
+          older: { loaded: 0, hasMore: false },
+        },
+      },
+    });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          repoPath?: string;
+          buckets: Array<{ bucket: string; offset: number }>;
+        }>;
+      }) => {
+        expect(request.requests).toEqual([
+          expect.objectContaining({
+            source: "codex_app",
+            repoPath: "/repo-a",
+            buckets: [
+              expect.objectContaining({
+                bucket: "today",
+                offset: 0,
+                before: {
+                  updatedAtMs: today.getTime() - 6_000,
+                  sessionId: "raw-global-row-6",
+                },
+              }),
+            ],
+          }),
+        ]);
+        return {
+          sources: [
+            {
+              source: "codex_app",
+              buckets: [
+                {
+                  bucket: "today",
+                  sessions: [
+                    makeRow("codexapp-repo-a-2", today.toISOString()),
+                    makeRow("codexapp-repo-a-3", today.toISOString()),
+                  ].map((row) => ({ ...row, repoPath: "/repo-a" })),
+                  hasMore: false,
+                },
+              ],
+            },
+          ],
+        };
+      }
+    );
+    const scopeKey = sessionPaginationScopeKey({
+      kind: "workspace",
+      repoPath: "/repo-a",
+      orgIds: ["personal-org"],
+    });
+
+    await loadMoreSessionScope(scopeKey, 10);
+    await loadMoreSessionScope(scopeKey, 10);
+
+    expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
+    const repoAIds = mocks.store
+      ?.get(sessionsAtom)
+      .filter((session) => session.repoPath === "/repo-a")
+      .map((session) => session.session_id);
+    expect(new Set(repoAIds).size).toBe(4);
+    expect(
+      mocks.store?.get(scopedSessionPaginationAtom)[scopeKey].categories[
+        "external_history:codex_app"
+      ]
+    ).toMatchObject({
+      loaded: 4,
+      hasMore: false,
+      loading: false,
+    });
+  });
+
+  it("keeps native category cursors independent across org A, org B, then org A", async () => {
+    const rowsByOrg = new Map([
+      [
+        "cloud:org-a",
+        Array.from({ length: 3 }, (_, index) => ({
+          session_id: `sdeagent-cloud:org-a-${index}`,
+          name: `cloud:org-a ${index}`,
+          status: "completed" as const,
+          category: "rust_agent" as const,
+          orgId: "cloud:org-a",
+          created_at: `2026-07-01T00:00:0${2 - index}Z`,
+          updated_at: `2026-07-01T00:00:0${2 - index}Z`,
+        })),
+      ],
+      [
+        "cloud:org-b",
+        [
+          {
+            session_id: "sdeagent-cloud:org-b-0",
+            name: "cloud:org-b 0",
+            status: "completed" as const,
+            category: "rust_agent" as const,
+            orgId: "cloud:org-b",
+            created_at: "2026-07-01T00:00:02Z",
+            updated_at: "2026-07-01T00:00:02Z",
+          },
+        ],
+      ],
+    ]);
+    mocks.sessionAggregateList.mockImplementation(
+      async (filter: {
+        category?: string;
+        orgIds?: string[];
+        offset?: number;
+        limit?: number;
+        beforeUpdatedAt?: string;
+        beforeSessionId?: string;
+      }) => {
+        expect(filter.category).toBe("sde");
+        const org = filter.orgIds?.[0] ?? "missing";
+        const rows = rowsByOrg.get(org) ?? [];
+        const cursorIndex = filter.beforeSessionId
+          ? rows.findIndex(
+              (row) =>
+                row.session_id === filter.beforeSessionId &&
+                row.updated_at === filter.beforeUpdatedAt
+            )
+          : -1;
+        const offset =
+          cursorIndex >= 0 ? cursorIndex + 1 : (filter.offset ?? 0);
+        return {
+          sessions: rows.slice(offset, offset + (filter.limit ?? rows.length)),
+        };
+      }
+    );
+    const scopeA = sessionPaginationScopeKey({
+      kind: "category",
+      category: "rust_agent:sde",
+      orgIds: ["cloud:org-a", "org-a"],
+    });
+    const scopeB = sessionPaginationScopeKey({
+      kind: "category",
+      category: "rust_agent:sde",
+      orgIds: ["cloud:org-b", "org-b"],
+    });
+
+    await loadMoreSessionScope(scopeA, 2);
+    await loadMoreSessionScope(scopeB, 2);
+    await loadMoreSessionScope(scopeA, 2);
+
+    expect(
+      mocks.sessionAggregateList.mock.calls.map(([filter]) => ({
+        orgIds: filter.orgIds,
+        offset: filter.offset,
+        beforeUpdatedAt: filter.beforeUpdatedAt,
+        beforeSessionId: filter.beforeSessionId,
+      }))
+    ).toEqual([
+      {
+        orgIds: ["cloud:org-a", "org-a"],
+        offset: 0,
+        beforeUpdatedAt: undefined,
+        beforeSessionId: undefined,
+      },
+      {
+        orgIds: ["cloud:org-b", "org-b"],
+        offset: 0,
+        beforeUpdatedAt: undefined,
+        beforeSessionId: undefined,
+      },
+      {
+        orgIds: ["cloud:org-a", "org-a"],
+        offset: 0,
+        beforeUpdatedAt: "2026-07-01T00:00:01Z",
+        beforeSessionId: "sdeagent-cloud:org-a-1",
+      },
+    ]);
+    const scoped = mocks.store?.get(scopedSessionPaginationAtom);
+    expect(scoped?.[scopeA].categories["rust_agent:sde"]).toMatchObject({
+      loaded: 3,
+      hasMore: false,
+    });
+    expect(scoped?.[scopeB].categories["rust_agent:sde"]).toMatchObject({
+      loaded: 1,
+      hasMore: false,
+    });
   });
 
   it("gates a disabled Warp source out of sidebar loading", async () => {
@@ -226,6 +810,214 @@ describe("loadSidebarSessions", () => {
       );
     expect(requestedSources).not.toContain("warp");
     expect(requestedSources).toHaveLength(IMPORTED_HISTORY_SOURCES.length - 1);
+  });
+
+  it("drops a delayed category page after a forced roster generation", async () => {
+    let resolveStale:
+      | ((value: { sessions: ReturnType<typeof makeNativeRow>[] }) => void)
+      | undefined;
+    let firstSdeRequest = true;
+    mocks.sessionAggregateList.mockImplementation(
+      async (filter: { category?: string }) => {
+        if (filter.category === "sde" && firstSdeRequest) {
+          firstSdeRequest = false;
+          return new Promise((resolve) => {
+            resolveStale = resolve;
+          });
+        }
+        return {
+          sessions:
+            filter.category === "sde"
+              ? [
+                  makeNativeRow(
+                    "sdeagent-fresh-generation",
+                    "2026-07-27T00:00:00Z"
+                  ),
+                ]
+              : [],
+        };
+      }
+    );
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map(({ source, buckets }) => ({
+          source,
+          buckets: buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+    const pagination = resetPaginationState();
+    mocks.store?.set(sessionPaginationAtom, {
+      ...pagination,
+      "rust_agent:sde": {
+        ...pagination["rust_agent:sde"],
+        hasMore: true,
+      },
+    });
+
+    const staleLoad = loadMoreCategory("rust_agent:sde", 2);
+    await loadSessionRoster({ forceRefresh: true, pageSize: 2 });
+    resolveStale?.({
+      sessions: [
+        makeNativeRow("sdeagent-stale-generation", "2026-07-01T00:00:00Z"),
+      ],
+    });
+    await staleLoad;
+
+    const ids = mocks.store?.get(sessionsAtom).map((row) => row.session_id);
+    expect(ids).toContain("sdeagent-fresh-generation");
+    expect(ids).not.toContain("sdeagent-stale-generation");
+    expect(mocks.store?.get(sessionRosterGenerationAtom)).toBe(1);
+  });
+
+  it("drops a delayed scoped page after a forced roster generation", async () => {
+    let resolveStale:
+      | ((value: { sessions: ReturnType<typeof makeNativeRow>[] }) => void)
+      | undefined;
+    mocks.sessionAggregateList.mockImplementation(
+      async (filter: { orgIds?: string[] }) => {
+        if (filter.orgIds?.includes("cloud:org-a")) {
+          return new Promise((resolve) => {
+            resolveStale = resolve;
+          });
+        }
+        return { sessions: [] };
+      }
+    );
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{
+          source: string;
+          buckets: Array<{ bucket: string }>;
+        }>;
+      }) => ({
+        sources: request.requests.map(({ source, buckets }) => ({
+          source,
+          buckets: buckets.map(({ bucket }) => ({
+            bucket,
+            sessions: [],
+            hasMore: false,
+          })),
+        })),
+      })
+    );
+    const scopeKey = sessionPaginationScopeKey({
+      kind: "category",
+      category: "rust_agent:sde",
+      orgIds: ["cloud:org-a", "org-a"],
+    });
+
+    const staleLoad = loadMoreSessionScope(scopeKey, 2);
+    await loadSessionRoster({ forceRefresh: true, pageSize: 2 });
+    resolveStale?.({
+      sessions: [
+        makeNativeRow("sdeagent-stale-scoped", "2026-07-01T00:00:00Z"),
+      ],
+    });
+    await staleLoad;
+
+    expect(
+      mocks.store?.get(scopedSessionPaginationAtom)[scopeKey]
+    ).toBeUndefined();
+    expect(
+      mocks.store
+        ?.get(sessionsAtom)
+        .some((row) => row.session_id === "sdeagent-stale-scoped")
+    ).toBe(false);
+  });
+
+  it("cannot revive a disabled imported source from a delayed page", async () => {
+    let resolveStale:
+      | ((value: {
+          sources: Array<{
+            source: string;
+            buckets: Array<{
+              bucket: string;
+              sessions: ReturnType<typeof makeRow>[];
+              hasMore: boolean;
+            }>;
+          }>;
+        }) => void)
+      | undefined;
+    let firstExternalRequest = true;
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [] });
+    mocks.externalHistorySidebarList.mockImplementation(
+      async (request: {
+        requests: Array<{ source: string; buckets: Array<{ bucket: string }> }>;
+      }) => {
+        if (firstExternalRequest) {
+          firstExternalRequest = false;
+          return new Promise((resolve) => {
+            resolveStale = resolve;
+          });
+        }
+        return {
+          sources: request.requests.map(({ source, buckets }) => ({
+            source,
+            buckets: buckets.map(({ bucket }) => ({
+              bucket,
+              sessions: [],
+              hasMore: false,
+            })),
+          })),
+        };
+      }
+    );
+    const pagination = resetPaginationState();
+    mocks.store?.set(sessionPaginationAtom, {
+      ...pagination,
+      "external_history:warp": {
+        ...pagination["external_history:warp"],
+        hasMore: true,
+        dateBuckets: {
+          today: { loaded: 0, hasMore: true },
+          yesterday: { loaded: 0, hasMore: false },
+          thisWeek: { loaded: 0, hasMore: false },
+          older: { loaded: 0, hasMore: false },
+        },
+      },
+    });
+
+    const staleLoad = loadMoreCategory("external_history:warp", 2);
+    mocks.store?.set(dataSourceConfigAtom, {
+      warp: { enabled: false, frequency: "default", lastScannedAt: null },
+    });
+    await loadSessionRoster({ forceRefresh: true, pageSize: 2 });
+    resolveStale?.({
+      sources: [
+        {
+          source: "warp",
+          buckets: [
+            {
+              bucket: "today",
+              sessions: [
+                makeRow("warpapp-stale-disabled", "2026-07-01T00:00:00Z"),
+              ],
+              hasMore: false,
+            },
+          ],
+        },
+      ],
+    });
+    await staleLoad;
+
+    expect(
+      mocks.store
+        ?.get(sessionsAtom)
+        .some((row) => row.session_id === "warpapp-stale-disabled")
+    ).toBe(false);
+    expect(
+      mocks.store?.get(sessionPaginationAtom)["external_history:warp"]
+    ).toMatchObject({ loaded: 0, hasMore: false, loading: false });
   });
 
   it("hydrates one historical session by canonical ID without paging", async () => {

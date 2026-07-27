@@ -1,6 +1,7 @@
 import {
   type ExternalReplayCursor,
   type ExternalReplayDelta,
+  type ExternalReplayLimits,
   type ExternalReplayWindow,
   externalReplayOpenWindow,
   externalReplayPollDelta,
@@ -13,6 +14,18 @@ import { createLogger } from "@src/hooks/logger";
 import { deactivateExternalReplayTurnState } from "./externalReplayTurnState";
 
 const log = createLogger("externalReplayTransport");
+const DEFAULT_WINDOW_LIMITS: Required<ExternalReplayLimits> = {
+  maxTurns: 10,
+  maxEvents: 200,
+  maxIpcBytes: 4 * 1024 * 1024,
+};
+const DEFAULT_OPEN_WINDOW_LIMITS: Required<ExternalReplayLimits> = {
+  ...DEFAULT_WINDOW_LIMITS,
+  // Rust's public open default intentionally loads only the latest turn.
+  // A wire-budget retry must shrink that request, never widen it to the
+  // generic ten-turn read ceiling.
+  maxTurns: 1,
+};
 
 export interface ExternalReplaySessionLease {
   readonly sessionId: string;
@@ -51,6 +64,75 @@ function isCurrentLease(lease: ExternalReplaySessionLease): boolean {
     activeReplaySession?.lease.sessionId === lease.sessionId &&
     activeReplaySession.lease.episodeId === lease.episodeId
   );
+}
+
+function isShellManifestSnapshotRace(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Shell replay changed while publishing manifests") &&
+    message.includes("retry the bounded replay request")
+  );
+}
+
+function isNormalizedWindowBudgetError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes("Bounded replay window requires") &&
+    message.includes("serialized bytes after normalization")
+  );
+}
+
+async function retryNormalizedWindowBudget(
+  operation: (limits?: ExternalReplayLimits) => Promise<ExternalReplayWindow>,
+  requestedLimits?: ExternalReplayLimits,
+  defaultLimits: Required<ExternalReplayLimits> = DEFAULT_WINDOW_LIMITS
+): Promise<ExternalReplayWindow> {
+  let limits = requestedLimits;
+  for (;;) {
+    try {
+      return await operation(limits);
+    } catch (error) {
+      if (!isNormalizedWindowBudgetError(error)) throw error;
+      const current = {
+        ...defaultLimits,
+        ...limits,
+      };
+      if (current.maxEvents <= 1) throw error;
+      limits = {
+        ...current,
+        maxEvents: Math.max(1, Math.floor(current.maxEvents / 2)),
+      };
+      log.warn(
+        "Normalized replay window exceeded its wire budget; retrying a smaller event slice",
+        {
+          previousMaxEvents: current.maxEvents,
+          nextMaxEvents: limits.maxEvents,
+        }
+      );
+    }
+  }
+}
+
+async function retryShellManifestSnapshotRace<T>(
+  lease: ExternalReplaySessionLease,
+  signal: AbortSignal | undefined,
+  operation: () => Promise<T>
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (
+      !isShellManifestSnapshotRace(error) ||
+      !isCurrentLease(lease) ||
+      signal?.aborted
+    ) {
+      throw error;
+    }
+    // Snapshot validation deliberately fails closed if the provider advances
+    // while a Shell manifest is materialized. One fresh bounded request reads
+    // the newly published replay revision; a second failure remains visible.
+    return operation();
+  }
 }
 
 /** Begin a new visible replay episode. Every switch/reload gets a new episode id. */
@@ -113,7 +195,14 @@ export async function openExternalReplaySession(
 
   const request =
     state.openInFlight ??
-    externalReplayOpenWindow(lease.sessionId, lease.episodeId);
+    retryShellManifestSnapshotRace(lease, signal, () =>
+      retryNormalizedWindowBudget(
+        (limits) =>
+          externalReplayOpenWindow(lease.sessionId, lease.episodeId, limits),
+        undefined,
+        DEFAULT_OPEN_WINDOW_LIMITS
+      )
+    );
   state.openInFlight = request;
   try {
     const window = await request;
@@ -146,7 +235,9 @@ export async function pollExternalReplaySession(
   const cursor = state.cursor;
   const request =
     state.pollInFlight ??
-    externalReplayPollDelta(lease.sessionId, lease.episodeId, cursor);
+    retryShellManifestSnapshotRace(lease, signal, () =>
+      externalReplayPollDelta(lease.sessionId, lease.episodeId, cursor)
+    );
   state.pollInFlight = request;
   try {
     const delta = await request;
@@ -194,11 +285,18 @@ export async function readExternalReplaySession(
     if (priorRead) blockers.push(priorRead);
     await Promise.allSettled(blockers);
     if (!isCurrentLease(lease) || signal?.aborted) return null;
-    return externalReplayReadWindow({
-      sessionId: lease.sessionId,
-      episodeId: lease.episodeId,
-      ...selection,
-    });
+    return retryShellManifestSnapshotRace(lease, signal, () =>
+      retryNormalizedWindowBudget(
+        (limits) =>
+          externalReplayReadWindow({
+            sessionId: lease.sessionId,
+            episodeId: lease.episodeId,
+            ...selection,
+            limits,
+          }),
+        selection.limits
+      )
+    );
   })();
   const tail = request.then(
     () => undefined,

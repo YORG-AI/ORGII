@@ -205,8 +205,7 @@ fn range_aligns_to_complete_sequence_and_never_splits_emoji() {
     with_test_home(|home| {
         let root = home.join("replays");
         let target = ShellReplayTarget::new("session-utf8", "call-utf8");
-        let mut writer =
-            ShellReplayWriter::create(&root, target, "emit utf8", home, None).unwrap();
+        let mut writer = ShellReplayWriter::create(&root, target, "emit utf8", home, None).unwrap();
         let text = format!("{}🙂END", "x".repeat(1_000));
         let append = writer
             .append(ShellReplayStream::Stdout, text.as_bytes())
@@ -457,8 +456,7 @@ fn oversized_frame_is_rejected_and_corrupt_length_is_never_allocated() {
         let root = home.join("replays");
         let target = ShellReplayTarget::new("session-corrupt-length", "call-corrupt-length");
         let path = {
-            let mut writer =
-                ShellReplayWriter::create(&root, target, "emit", home, None).unwrap();
+            let mut writer = ShellReplayWriter::create(&root, target, "emit", home, None).unwrap();
             let oversized = vec![b'x'; SHELL_REPLAY_FRAME_MAX_BYTES + 1];
             assert!(writer
                 .append(ShellReplayStream::Stdout, &oversized)
@@ -674,9 +672,7 @@ fn shell_replay_rss_plateau_after_ten_megabyte_warmup() {
         }
         let final_peak = peak_rss_bytes();
         let delta = final_peak.saturating_sub(warm_peak);
-        eprintln!(
-            "shell replay RSS: warm_peak={warm_peak} final_peak={final_peak} delta={delta}"
-        );
+        eprintln!("shell replay RSS: warm_peak={warm_peak} final_peak={final_peak} delta={delta}");
         assert!(
             delta <= 64 * 1024 * 1024,
             "RSS grew by {delta} bytes after warmup"

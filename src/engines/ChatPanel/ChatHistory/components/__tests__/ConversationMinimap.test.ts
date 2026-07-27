@@ -5,11 +5,46 @@ import {
   getAdjacentConversationGroupIndex,
   getConversationMarkerWidthClass,
   getConversationPreviewPositionClass,
+  getConversationTurnPosition,
   getNavigableConversationGroupIndices,
   resolveActiveConversationMarker,
   resolveHighlightedConversationMarkers,
   sampleConversationGroupIndices,
 } from "../ConversationMinimap";
+
+describe("getConversationTurnPosition", () => {
+  it("uses the provider round number for a sparse external replay window", () => {
+    expect(
+      getConversationTurnPosition(0, [0, 1, 2], {
+        turnId: null,
+        replayTurnIndex: 154,
+        replayTotalTurnCount: 165,
+        durationMs: 0,
+        itemCount: 1,
+        previewText: "",
+        startMs: null,
+        endMs: null,
+        unloadedTurn: null,
+      })
+    ).toEqual({ current: 155, total: 165 });
+  });
+
+  it("keeps resident ordering for native SDE conversations", () => {
+    expect(
+      getConversationTurnPosition(4, [1, 4, 9], {
+        turnId: "native-turn",
+        replayTurnIndex: null,
+        replayTotalTurnCount: null,
+        durationMs: 0,
+        itemCount: 1,
+        previewText: "",
+        startMs: null,
+        endMs: null,
+        unloadedTurn: null,
+      })
+    ).toEqual({ current: 2, total: 3 });
+  });
+});
 
 describe("getConversationPreviewPositionClass", () => {
   it("opens a left-docked chat preview into the chat interior (not outward)", () => {

@@ -40,6 +40,8 @@ export interface UseChatTurnPaginationReturn {
   pageCount: number;
   currentPageIndex: number;
   pages: ChatTurnPage[];
+  /** Resident source-group to logical page lookup; never scans virtual holes. */
+  pageIndexByGroupIndex: ReadonlyMap<number, number>;
   displayGroupCounts: number[];
   displayGroupHeaders: (OptimizedChatItem | null)[];
   displayGroupMeta: ChatGroupMeta[];
@@ -67,6 +69,10 @@ export function projectChatTurnPagination({
     externalReplayTurnSummaries,
     mergeUserOnlyPages
   );
+  const pageIndexByGroupIndex = buildPageIndexByGroupIndex(
+    pages,
+    externalReplayTurnSummaries
+  );
   const pageCount = pages.length;
   const currentPageIndex = clampPageIndex(activePageIndex, pageCount);
 
@@ -75,6 +81,7 @@ export function projectChatTurnPagination({
       pageCount,
       currentPageIndex,
       pages,
+      pageIndexByGroupIndex,
       displayGroupCounts: groupCounts,
       displayGroupHeaders: groupHeaders,
       displayGroupMeta: groupMeta,
@@ -95,6 +102,7 @@ export function projectChatTurnPagination({
       pageCount,
       currentPageIndex,
       pages,
+      pageIndexByGroupIndex,
       displayGroupCounts: [],
       displayGroupHeaders: [],
       displayGroupMeta: [],
@@ -128,6 +136,7 @@ export function projectChatTurnPagination({
     pageCount,
     currentPageIndex,
     pages,
+    pageIndexByGroupIndex,
     displayGroupCounts,
     displayGroupHeaders: groupHeaders.slice(
       page.startGroupIndex,
@@ -186,6 +195,34 @@ export function useChatTurnPagination({
       mergeUserOnlyPages,
     ]
   );
+}
+
+function buildPageIndexByGroupIndex(
+  pages: ChatTurnPage[],
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[]
+): ReadonlyMap<number, number> {
+  const result = new Map<number, number>();
+  const addPage = (page: ChatTurnPage | undefined, pageIndex: number) => {
+    if (!page || page.endGroupIndex < page.startGroupIndex) return;
+    for (
+      let groupIndex = page.startGroupIndex;
+      groupIndex <= page.endGroupIndex;
+      groupIndex += 1
+    ) {
+      result.set(groupIndex, pageIndex);
+    }
+  };
+
+  if (externalReplayTurnSummaries.length > 0) {
+    // The summary array is deliberately sparse. forEach visits only the
+    // at-most-12 resident headers instead of totalTurnCount virtual holes.
+    externalReplayTurnSummaries.forEach((_summary, pageIndex) => {
+      addPage(pages[pageIndex], pageIndex);
+    });
+  } else {
+    pages.forEach(addPage);
+  }
+  return result;
 }
 
 function buildTurnPages(
@@ -282,7 +319,6 @@ function buildExternalReplayTurnPages(
   }
 
   const groupFlatStartIndices = computeGroupFlatStartIndices(groupCounts);
-  const fallbackGroupIndex = Math.max(0, groupCounts.length - 1);
   const target: ChatTurnPage[] = [];
   target.length = externalReplayTurnSummaries.length;
 
@@ -303,8 +339,19 @@ function buildExternalReplayTurnPages(
       }
       const summary = externalReplayTurnSummaries[pageIndex];
       if (!summary) return undefined;
-      const loadedGroupIndex = groupByTurnId.get(summary.turnId);
-      const groupIndex = loadedGroupIndex ?? fallbackGroupIndex;
+      const renderedUserEventId = summary.renderedUserEventId ?? summary.turnId;
+      const loadedGroupIndex = groupByTurnId.get(renderedUserEventId);
+      if (loadedGroupIndex === undefined) {
+        return {
+          startGroupIndex: 0,
+          endGroupIndex: -1,
+          flatStartIndex: 0,
+          flatEndIndex: 0,
+          replayTurnSummary: summary,
+          replayBodyLoaded: false,
+        } satisfies ChatTurnPage;
+      }
+      const groupIndex = loadedGroupIndex;
       const flatStartIndex = groupFlatStartIndices[groupIndex] ?? 0;
       const flatEndIndex = flatStartIndex + (groupCounts[groupIndex] ?? 0);
       return {
@@ -313,7 +360,7 @@ function buildExternalReplayTurnPages(
         flatStartIndex,
         flatEndIndex,
         replayTurnSummary: summary,
-        replayBodyLoaded: loadedGroupIndex !== undefined,
+        replayBodyLoaded: true,
       } satisfies ChatTurnPage;
     },
   });

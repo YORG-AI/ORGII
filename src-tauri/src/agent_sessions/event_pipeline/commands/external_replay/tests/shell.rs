@@ -59,6 +59,46 @@ fn bounded_utf8_payload_bytes(text: &str, offset: u64, max_bytes: usize) -> Vec<
     text.as_bytes()[start..end].to_vec()
 }
 
+#[test]
+fn foreground_replay_connection_does_not_wait_for_catalog_writer_mutex() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (release_tx, release_rx) = mpsc::sync_channel::<()>(1);
+    let (locked_tx, locked_rx) = mpsc::sync_channel(1);
+    let catalog_writer = std::thread::spawn(move || {
+        let _writer = database::db::sessions_writer_guard();
+        locked_tx.send(()).expect("report catalog writer lock");
+        release_rx.recv().expect("release catalog writer lock");
+    });
+    locked_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("catalog writer must acquire the mutex");
+
+    let (probe_tx, probe_rx) = mpsc::sync_channel(1);
+    let foreground = std::thread::spawn(move || {
+        let result = with_foreground_replay_connection("lock probe", |conn| {
+            let tx = database::db::begin_immediate(conn)
+                .map_err(|error| format!("begin foreground lock probe: {error}"))?;
+            tx.rollback()
+                .map_err(|error| format!("rollback foreground lock probe: {error}"))?;
+            Ok(1_i64)
+        });
+        probe_tx.send(result).expect("report foreground probe");
+    });
+    let probe = probe_rx.recv_timeout(Duration::from_secs(2));
+    release_tx
+        .send(())
+        .expect("release simulated catalog writer");
+    catalog_writer.join().expect("catalog writer thread");
+    foreground.join().expect("foreground probe thread");
+
+    assert_eq!(
+        probe.expect("foreground Shell path must bypass the catalog mutex"),
+        Ok(1)
+    );
+}
+
 fn read_complete_external_shell(
     conn: &Connection,
     session_id: &str,
@@ -789,4 +829,31 @@ fn external_shell_payload_is_one_canonical_body_and_updates_atomically() {
             1
         );
     }
+}
+
+#[test]
+fn external_shell_artifact_cleanup_does_not_use_correlated_reference_scans() {
+    use orgtrack_core::store::sqlite::SqliteRecordStore;
+
+    let conn = Connection::open_in_memory().expect("open cleanup query-plan DB");
+    SqliteRecordStore::init_tables(&conn).expect("initialize replay schema");
+    SqliteRecordStore::init_source_cache_tables(&conn).expect("initialize source cache schema");
+
+    let mut statement = conn
+        .prepare(&format!(
+            "EXPLAIN QUERY PLAN {DELETE_UNREFERENCED_PAYLOAD_ARTIFACTS_SQL}"
+        ))
+        .expect("prepare cleanup query plan");
+    let details = statement
+        .query_map(params!["codex_app", "session", "generation"], |row| {
+            row.get::<_, String>(3)
+        })
+        .expect("query cleanup plan")
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .expect("read cleanup query plan");
+
+    assert!(
+        details.iter().all(|detail| !detail.contains("CORRELATED")),
+        "cleanup must build each referenced-hash set once instead of rescanning it per artifact: {details:?}"
+    );
 }

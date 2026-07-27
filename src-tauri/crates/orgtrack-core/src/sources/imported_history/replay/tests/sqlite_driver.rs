@@ -603,6 +603,117 @@ fn kv_cold_open_reads_only_latest_turn_and_older_turn_hydrates_by_index() {
 }
 
 #[test]
+fn kv_visible_turn_metadata_reads_bounded_user_previews_without_hydrating_bodies() {
+    for source in [
+        ImportedHistorySourceId::CursorIde,
+        ImportedHistorySourceId::Windsurf,
+    ] {
+        let path = temp_db(&format!("{}-compact-turn-metadata", source.as_str()));
+        let writer = create_kv_db(&path, "c1");
+        write_kv_transcript(&writer, "c1", &[1, 2, 1, 2]);
+        let large_user_text = format!(
+            "compact target prompt {}",
+            "user-payload ".repeat(128 * 1024)
+        );
+        let large_user_bubble = serde_json::json!({
+            "bubbleId":"b0",
+            "type":1,
+            "createdAt":"2026-07-22T00:00:00Z",
+            "text":large_user_text,
+        });
+        let large_assistant_bubble = serde_json::json!({
+            "bubbleId":"b1",
+            "type":2,
+            "createdAt":"2026-07-22T00:00:01Z",
+            "text":"assistant-body ".repeat(128 * 1024),
+        });
+        writer
+            .execute(
+                "UPDATE cursorDiskKV SET value=?1 WHERE key='bubbleId:c1:b0'",
+                [large_user_bubble.to_string()],
+            )
+            .expect("large user bubble");
+        writer
+            .execute(
+                "UPDATE cursorDiskKV SET value=?1 WHERE key='bubbleId:c1:b1'",
+                [large_assistant_bubble.to_string()],
+            )
+            .expect("large assistant bubble");
+
+        let (mut cache, session_id) = cache_conn(source, "c1", &path);
+        let opened = open_window(&mut cache, source, &session_id, ReplayLimits::default())
+            .expect("cold bounded KV replay");
+        assert_eq!(opened.stats.parsed_rows, 2, "{}", source.as_str());
+        assert_eq!(
+            cache
+                .query_row(
+                    "SELECT COUNT(*) FROM imported_replay_events
+                     WHERE source=?1 AND source_session_id='c1'
+                       AND generation=?2 AND turn_index=0",
+                    params![source.as_str(), opened.cursor.generation],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("count old indexed events"),
+            0,
+            "{}",
+            source.as_str()
+        );
+        let changes_before = cache.total_changes();
+        let selector = "__external_replay_turn_index__:0".to_string();
+        let projected = crate::sources::imported_history::replay::project_cached_turn_metadata(
+            &cache,
+            source,
+            &session_id,
+            Some(std::slice::from_ref(&selector)),
+        )
+        .expect("read cached KV turn metadata")
+        .expect("published compact KV index");
+
+        assert_eq!(projected.len(), 1, "{}", source.as_str());
+        assert_eq!(projected[0].turn_id, selector, "{}", source.as_str());
+        assert!(
+            projected[0]
+                .user_preview
+                .starts_with("compact target prompt"),
+            "{}",
+            source.as_str()
+        );
+        assert!(
+            projected[0].user_preview.chars().count() <= 160,
+            "{}",
+            source.as_str()
+        );
+        assert_eq!(projected[0].started_at, "2026-07-22T00:00:00Z");
+        assert_eq!(projected[0].event_count, 2);
+        assert_eq!(projected[0].body_event_count, 1);
+        assert_eq!(
+            cache
+                .query_row(
+                    "SELECT COUNT(*) FROM imported_replay_events
+                     WHERE source=?1 AND source_session_id='c1'
+                       AND generation=?2 AND turn_index=0",
+                    params![source.as_str(), opened.cursor.generation],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("recount old indexed events"),
+            0,
+            "{}",
+            source.as_str()
+        );
+        assert_eq!(
+            cache.total_changes(),
+            changes_before,
+            "metadata read must not write the compact index for {}",
+            source.as_str()
+        );
+
+        drop(cache);
+        drop(writer);
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+#[test]
 fn kv_cold_forward_scan_hydrates_turns_in_order_without_gaps() {
     for source in [
         ImportedHistorySourceId::CursorIde,

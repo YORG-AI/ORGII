@@ -161,6 +161,7 @@ describe("sidebar load coordinator", () => {
     expect(runner.mock.calls[1]?.[0]).toEqual({
       pageSize: 100,
       forceRefresh: true,
+      generation: 0,
     });
   });
 

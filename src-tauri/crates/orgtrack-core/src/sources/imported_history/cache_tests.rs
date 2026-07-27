@@ -191,6 +191,157 @@ fn sidebar_query_paginates_within_one_date_bucket() {
 }
 
 #[test]
+fn sidebar_scope_filters_workspace_before_limit_and_offset() {
+    let mut conn = fixture_conn();
+    let mut rows = Vec::new();
+    for (id, updated_at, repo_path) in [
+        ("a-new", 260, Some("/repo-a/")),
+        ("b-new", 250, Some("/repo-b")),
+        ("a-mid", 240, Some("/repo-a")),
+        ("b-mid", 230, Some("/repo-b")),
+        ("a-old", 220, Some("/repo-a")),
+        ("missing", 210, None),
+    ] {
+        let mut row = input(SOURCE_CODEX_APP, id, updated_at);
+        row.repo_path = repo_path.map(str::to_string);
+        rows.push(row);
+    }
+    upsert_imported_session_cache_from_conn(&mut conn, &rows).expect("upsert");
+
+    let first = query_imported_sidebar_scoped_page_from_conn(
+        &conn,
+        ImportedHistorySidebarPageQuery {
+            source: SOURCE_CODEX_APP,
+            start_ms: Some(200),
+            end_ms: Some(300),
+            repo_path: Some("/repo-a"),
+            missing_repo_path: false,
+            before_updated_at_ms: None,
+            before_session_id: None,
+            limit: 2,
+            offset: 0,
+        },
+    )
+    .expect("first repo page");
+    let second = query_imported_sidebar_scoped_page_from_conn(
+        &conn,
+        ImportedHistorySidebarPageQuery {
+            source: SOURCE_CODEX_APP,
+            start_ms: Some(200),
+            end_ms: Some(300),
+            repo_path: Some("/repo-a"),
+            missing_repo_path: false,
+            before_updated_at_ms: None,
+            before_session_id: None,
+            limit: 2,
+            offset: 2,
+        },
+    )
+    .expect("second repo page");
+    let missing = query_imported_sidebar_scoped_page_from_conn(
+        &conn,
+        ImportedHistorySidebarPageQuery {
+            source: SOURCE_CODEX_APP,
+            start_ms: Some(200),
+            end_ms: Some(300),
+            repo_path: None,
+            missing_repo_path: true,
+            before_updated_at_ms: None,
+            before_session_id: None,
+            limit: 10,
+            offset: 0,
+        },
+    )
+    .expect("missing repo page");
+
+    assert!(first.has_more);
+    assert_eq!(
+        first
+            .sessions
+            .iter()
+            .map(|row| row.session_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["codex_app-a-new", "codex_app-a-mid"]
+    );
+    assert!(!second.has_more);
+    assert_eq!(second.sessions[0].session_id, "codex_app-a-old");
+    assert_eq!(missing.sessions[0].session_id, "codex_app-missing");
+}
+
+#[test]
+fn imported_sidebar_seek_cursor_is_stable_across_newer_inserts_and_updates() {
+    let mut conn = fixture_conn();
+    upsert_imported_session_cache_from_conn(
+        &mut conn,
+        &[
+            input(SOURCE_CODEX_APP, "four", 400),
+            input(SOURCE_CODEX_APP, "three", 300),
+            input(SOURCE_CODEX_APP, "two", 200),
+            input(SOURCE_CODEX_APP, "one", 100),
+        ],
+    )
+    .expect("seed imported seek rows");
+
+    let first = query_imported_sidebar_scoped_page_from_conn(
+        &conn,
+        ImportedHistorySidebarPageQuery {
+            source: SOURCE_CODEX_APP,
+            start_ms: None,
+            end_ms: None,
+            repo_path: None,
+            missing_repo_path: false,
+            before_updated_at_ms: None,
+            before_session_id: None,
+            limit: 2,
+            offset: 0,
+        },
+    )
+    .expect("first imported seek page");
+    assert_eq!(
+        first
+            .sessions
+            .iter()
+            .map(|session| session.session_id.as_str())
+            .collect::<Vec<_>>(),
+        ["codex_app-four", "codex_app-three"]
+    );
+    let cursor = first.next_cursor.expect("first-page cursor");
+
+    upsert_imported_session_cache_from_conn(
+        &mut conn,
+        &[
+            input(SOURCE_CODEX_APP, "new", 600),
+            input(SOURCE_CODEX_APP, "four", 500),
+        ],
+    )
+    .expect("mutate imported head");
+    let second = query_imported_sidebar_scoped_page_from_conn(
+        &conn,
+        ImportedHistorySidebarPageQuery {
+            source: SOURCE_CODEX_APP,
+            start_ms: None,
+            end_ms: None,
+            repo_path: None,
+            missing_repo_path: false,
+            before_updated_at_ms: Some(cursor.updated_at_ms),
+            before_session_id: Some(&cursor.session_id),
+            limit: 2,
+            // A stable cursor wins over a stale legacy offset.
+            offset: 99,
+        },
+    )
+    .expect("second imported seek page");
+    assert_eq!(
+        second
+            .sessions
+            .iter()
+            .map(|session| session.session_id.as_str())
+            .collect::<Vec<_>>(),
+        ["codex_app-two", "codex_app-one"]
+    );
+}
+
+#[test]
 fn cache_pruning_is_source_scoped() {
     let mut conn = fixture_conn();
     upsert_imported_session_cache_from_conn(

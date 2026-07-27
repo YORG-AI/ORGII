@@ -224,9 +224,23 @@ pub struct SessionFilter {
     /// Filter by repo path prefix
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
+    /// Match `repo_path` exactly (ignoring trailing slashes) instead of using
+    /// the historical prefix semantics. Used by the By Workspace pager.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_path_exact: Option<bool>,
+    /// Return only rows without a repository/workspace path. This is distinct
+    /// from an omitted `repo_path`, which means no workspace filter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub missing_repo_path: Option<bool>,
     /// Filter by owning project/collaboration org ID
     #[serde(skip_serializing_if = "Option::is_none")]
     pub org_id: Option<String>,
+    /// Exact canonical org IDs accepted by bounded sidebar cursors.
+    ///
+    /// Cloud scopes include both `cloud:<id>` and the historical bare ID.
+    /// An omitted list preserves the legacy unscoped API behavior.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub org_ids: Option<Vec<String>>,
     /// Filter by linked project slug
     #[serde(skip_serializing_if = "Option::is_none")]
     pub project_slug: Option<String>,
@@ -239,6 +253,14 @@ pub struct SessionFilter {
     /// Skip first N sessions (for pagination)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<usize>,
+    /// Descending sidebar seek boundary. Both cursor fields must be supplied
+    /// together; rows strictly older than this exact `(updated_at,
+    /// session_id)` tuple are returned. Legacy callers may continue using
+    /// `offset` when these fields are absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_updated_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_session_id: Option<String>,
     /// Text search query (searches name, user_input, repo_name — case-insensitive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text_query: Option<String>,
@@ -264,9 +286,22 @@ pub struct SessionFilter {
     /// Only include sessions created at or before this epoch millisecond.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_before_ms: Option<i64>,
+    /// Only include sessions updated at or after this epoch millisecond.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_after_ms: Option<i64>,
+    /// Only include sessions updated before this epoch millisecond.
+    ///
+    /// The upper bound is exclusive so adjacent sidebar date buckets cannot
+    /// overlap.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub updated_before_ms: Option<i64>,
     /// Only return active (ongoing) sessions
     #[serde(skip_serializing_if = "Option::is_none")]
     pub active_only: Option<bool>,
+    /// Return only native/managed sessions pinned in their source table.
+    /// Imported application history is not pinnable.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pinned_only: Option<bool>,
 }
 
 // ============================================================================
@@ -289,6 +324,13 @@ pub enum ExternalHistorySidebarDateBucket {
     Older,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalHistorySidebarCursor {
+    pub updated_at_ms: i64,
+    pub session_id: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalHistorySidebarBucketRequest {
@@ -297,12 +339,18 @@ pub struct ExternalHistorySidebarBucketRequest {
     pub end_ms: Option<i64>,
     pub limit: usize,
     pub offset: usize,
+    pub before: Option<ExternalHistorySidebarCursor>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalHistorySidebarSourceRequest {
     pub source: String,
+    /// Optional exact workspace scope for every requested date bucket.
+    pub repo_path: Option<String>,
+    /// Scope every requested bucket to sessions without a workspace.
+    #[serde(default)]
+    pub missing_repo_path: bool,
     pub buckets: Vec<ExternalHistorySidebarBucketRequest>,
 }
 
@@ -312,6 +360,8 @@ pub struct ExternalHistorySidebarBucketPage {
     pub bucket: ExternalHistorySidebarDateBucket,
     pub sessions: Vec<ImportedHistorySidebarRow>,
     pub has_more: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<ExternalHistorySidebarCursor>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -325,4 +375,40 @@ pub struct ExternalHistorySidebarResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ExternalHistorySidebarBatchResponse {
     pub sources: Vec<ExternalHistorySidebarResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspaceFacetRequest {
+    pub org_ids: Vec<String>,
+    #[serde(default)]
+    pub include_external_history: bool,
+    #[serde(default)]
+    pub disabled_external_history_sources: Vec<String>,
+    pub limit: usize,
+    #[serde(default)]
+    pub offset: usize,
+    pub before: Option<SessionWorkspaceFacetCursor>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspaceFacetCursor {
+    pub last_updated_at_ms: i64,
+    pub repo_path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspaceFacet {
+    pub repo_path: Option<String>,
+    pub last_updated_at_ms: i64,
+    pub session_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionWorkspaceFacetResponse {
+    pub facets: Vec<SessionWorkspaceFacet>,
+    pub has_more: bool,
 }

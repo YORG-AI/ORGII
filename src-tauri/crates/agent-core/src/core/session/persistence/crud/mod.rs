@@ -24,7 +24,7 @@ mod workspace;
 pub use migration::ensure_unified_schema;
 pub use ops::{
     backfill_agent_definition_id, delete_session, finalize_terminal_turn_status,
-    get_child_sessions, get_parent_session, get_session, list_sessions,
+    get_child_sessions, get_parent_session, get_session, list_root_sessions, list_sessions,
     mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
     register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id,
     update_agent_exec_mode, update_draft_text, update_model, update_model_and_account, update_name,

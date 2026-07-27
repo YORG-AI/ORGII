@@ -45,6 +45,11 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
   sessionMap: SidebarHandlersParams["sessionMap"];
   isLoadMoreId: SidebarHandlersParams["isLoadMoreId"];
   getLoadMoreGroupId: SidebarHandlersParams["getLoadMoreGroupId"];
+  getLoadMoreScopeKey: SidebarHandlersParams["getLoadMoreScopeKey"];
+  isPinnedLoadMoreId: SidebarHandlersParams["isPinnedLoadMoreId"];
+  isWorkspaceFacetLoadMoreId: SidebarHandlersParams["isWorkspaceFacetLoadMoreId"];
+  sidebarOrgIds: SidebarHandlersParams["sidebarOrgIds"];
+  includeExternal: SidebarHandlersParams["includeExternal"];
   sessionRouteLabel: string;
   handleGoToNewSession: SidebarHandlersParams["goToNewSession"];
   navigateTo: SidebarHandlersParams["navigateTo"];
@@ -82,6 +87,11 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   sessionMap,
   isLoadMoreId,
   getLoadMoreGroupId,
+  getLoadMoreScopeKey,
+  isPinnedLoadMoreId,
+  isWorkspaceFacetLoadMoreId,
+  sidebarOrgIds,
+  includeExternal,
   sessionRouteLabel,
   handleGoToNewSession,
   navigateTo,
@@ -137,6 +147,11 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     sessionMap,
     isLoadMoreId,
     getLoadMoreGroupId,
+    getLoadMoreScopeKey,
+    isPinnedLoadMoreId,
+    isWorkspaceFacetLoadMoreId,
+    sidebarOrgIds,
+    includeExternal,
     sessionRouteLabel,
     goToNewSession: handleGoToNewSession,
     navigateTo,

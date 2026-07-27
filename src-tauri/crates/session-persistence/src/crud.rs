@@ -140,8 +140,8 @@ fn refresh_session_metadata_from_events(
     conn: &Connection,
     session_id: &str,
 ) -> SqliteResult<usize> {
-    let (event_count, time_start, time_end): (i64, Option<String>, Option<String>) =
-        conn.query_row(
+    let (event_count, time_start, time_end): (i64, Option<String>, Option<String>) = conn
+        .query_row(
             "SELECT COUNT(*), MIN(created_at), MAX(created_at)
              FROM events WHERE session_id=?1",
             [session_id],
@@ -920,11 +920,8 @@ mod tests {
                 ],
             )
             .expect("append first import page");
-            save_events_deferred(
-                session_id,
-                &[cached_event(session_id, "event-3", t3)],
-            )
-            .expect("append second import page");
+            save_events_deferred(session_id, &[cached_event(session_id, "event-3", t3)])
+                .expect("append second import page");
 
             assert!(
                 get_session_metadata(session_id)

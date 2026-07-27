@@ -12,3 +12,5 @@ export * from "./loaders";
 export * from "./mutations";
 export * from "./helpers";
 export * from "./paginationAtoms";
+export * from "./sidebarDiscoveryAtoms";
+export * from "./sidebarDiscoveryLoaders";

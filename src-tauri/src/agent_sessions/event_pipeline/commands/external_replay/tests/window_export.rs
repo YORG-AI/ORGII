@@ -44,6 +44,7 @@ fn handoff_page(
     has_older: bool,
 ) -> ResolvedReplayWindow {
     let through_sequence = chunks.last().map_or(-1, |chunk| chunk.sequence);
+    let window_start_sequence = chunks.first().map(|chunk| chunk.sequence);
     let ipc_bytes = compact_handoff_page_bytes(&chunks) as u64;
     ResolvedReplayWindow::Imported(ReplayChunkWindow {
         cursor: ReplayCursor {
@@ -56,6 +57,7 @@ fn handoff_page(
         total_turn_count: chunks.len() as u64,
         total_event_count: chunks.len() as u64,
         chunks,
+        window_start_sequence,
         turn_headers: Vec::new(),
         has_older,
         stats: ReplayStats {
@@ -651,6 +653,7 @@ fn foreground_window_publish_is_linearized_with_its_request_ticket() {
         session_id,
         80,
         stale_request_token,
+        "generation-a",
         &[event("stale", session_id, "must not publish")],
         ReplayWindowPublish::Replace,
     ));
@@ -663,12 +666,185 @@ fn foreground_window_publish_is_linearized_with_its_request_ticket() {
         session_id,
         80,
         current_request_token,
+        "generation-a",
         &[event("current", session_id, "publish")],
         ReplayWindowPublish::Replace,
     ));
     assert_eq!(
         state.with_store_opt(session_id, |store| store.events().len()),
         Some(1)
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn foreground_merge_rejects_a_different_source_generation_before_store_apply() {
+    let session_id = "codexapp-foreground-generation-guard";
+    let state = EventStoreState::new();
+    let open_request = begin_replay_request(session_id, 81, true).expect("open request");
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        81,
+        open_request,
+        "generation-a",
+        &[event("current", session_id, "generation a")],
+        ReplayWindowPublish::Replace,
+    ));
+
+    let read_request = begin_replay_request(session_id, 81, false).expect("read request");
+    assert!(!apply_foreground_window_if_current(
+        &state,
+        session_id,
+        81,
+        read_request,
+        "generation-b",
+        &[event("replacement", session_id, "must not merge")],
+        ReplayWindowPublish::Merge,
+    ));
+    assert_eq!(
+        state.with_store_opt(session_id, |store| {
+            store
+                .events()
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>()
+        }),
+        Some(vec!["current".to_string()])
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn foreground_same_generation_merge_and_reset_delta_advance_the_guard() {
+    let session_id = "codexapp-foreground-generation-reset";
+    let state = EventStoreState::new();
+    let open_request = begin_replay_request(session_id, 82, true).expect("open request");
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        82,
+        open_request,
+        "generation-a",
+        &[event("open", session_id, "generation a")],
+        ReplayWindowPublish::Replace,
+    ));
+
+    let merge_request = begin_replay_request(session_id, 82, false).expect("merge request");
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        82,
+        merge_request,
+        "generation-a",
+        &[event("older", session_id, "same generation")],
+        ReplayWindowPublish::Merge,
+    ));
+
+    let stale_delta_request =
+        begin_replay_request(session_id, 82, false).expect("stale delta request");
+    let mut stale_delta = delta(
+        vec![event("stale", session_id, "wrong generation")],
+        Vec::new(),
+        false,
+    );
+    stale_delta.cursor.generation = "generation-b".to_string();
+    assert!(apply_foreground_delta_if_current(
+        &state,
+        session_id,
+        82,
+        stale_delta_request,
+        &stale_delta,
+    )
+    .is_none());
+
+    let reset_request = begin_replay_request(session_id, 82, false).expect("reset request");
+    let mut reset_delta = delta(
+        vec![event("reset", session_id, "generation b")],
+        Vec::new(),
+        true,
+    );
+    reset_delta.cursor.generation = "generation-b".to_string();
+    assert!(
+        apply_foreground_delta_if_current(&state, session_id, 82, reset_request, &reset_delta,)
+            .is_some()
+    );
+
+    let post_reset_request =
+        begin_replay_request(session_id, 82, false).expect("post-reset request");
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        82,
+        post_reset_request,
+        "generation-b",
+        &[event("post-reset", session_id, "same new generation")],
+        ReplayWindowPublish::Merge,
+    ));
+    assert_eq!(
+        state.with_store_opt(session_id, |store| {
+            let mut ids = store
+                .events()
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>();
+            ids.sort();
+            ids
+        }),
+        Some(vec!["post-reset".to_string(), "reset".to_string()])
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn direct_turn_selection_replaces_while_continuous_history_merges() {
+    let session_id = "codexapp-foreground-navigation-mode";
+    let state = EventStoreState::new();
+    let open_request = begin_replay_request(session_id, 83, true).expect("open request");
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        83,
+        open_request,
+        "generation-a",
+        &[event("latest", session_id, "latest window")],
+        ReplayWindowPublish::Replace,
+    ));
+
+    let older_request = begin_replay_request(session_id, 83, false).expect("older request");
+    let older_publish = replay_window_publish_for_locator(Some(200));
+    assert_eq!(older_publish, ReplayWindowPublish::Merge);
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        83,
+        older_request,
+        "generation-a",
+        &[event("older", session_id, "continuous prepend")],
+        older_publish,
+    ));
+
+    let direct_request = begin_replay_request(session_id, 83, false).expect("direct request");
+    let direct_publish = replay_window_publish_for_locator(None);
+    assert_eq!(direct_publish, ReplayWindowPublish::Replace);
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        83,
+        direct_request,
+        "generation-a",
+        &[event("direct", session_id, "random access page")],
+        direct_publish,
+    ));
+    assert_eq!(
+        state.with_store_opt(session_id, |store| {
+            store
+                .events()
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>()
+        }),
+        Some(vec!["direct".to_string()])
     );
     release_session_runtime(session_id);
 }
@@ -723,8 +899,25 @@ fn final_wire_budget_counts_normalized_payload_refs_and_fails_closed() {
 }
 
 #[test]
-fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
-    let events = (0..200)
+fn compact_storage_reads_reserve_normalization_wire_headroom() {
+    let requested = ReplayLimits {
+        max_turns: replay::HARD_MAX_TURNS,
+        max_events: replay::HARD_MAX_EVENTS,
+        max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
+    };
+    let storage = replay_storage_limits_with_normalization_headroom(requested);
+
+    assert_eq!(storage.max_turns, requested.max_turns);
+    assert_eq!(storage.max_events, requested.max_events);
+    assert_eq!(
+        storage.max_ipc_bytes,
+        replay::HARD_MAX_IPC_BYTES / 2,
+        "raw compact rows must stop before renderer-only fields and payload refs can overflow IPC"
+    );
+}
+
+fn max_preview_replay_events(count: usize) -> Vec<SessionEvent> {
+    (0..count)
         .map(|index| {
             let mut row = event(
                 &format!("event-{index}"),
@@ -744,7 +937,11 @@ fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
             });
             row
         })
-        .collect::<Vec<_>>();
+        .collect()
+}
+
+#[test]
+fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
     let mut window = ExternalReplayWindow {
         cursor: ReplayCursor {
             source_id: "codex_app".to_string(),
@@ -753,7 +950,7 @@ fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
             revision: 200,
             through_sequence: 199,
         },
-        events,
+        events: max_preview_replay_events(200),
         window_start_sequence: Some(0),
         turn_headers: Vec::new(),
         total_turn_count: 1,
@@ -765,6 +962,41 @@ fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
     finalize_window_wire_budget(&mut window, replay::HARD_MAX_IPC_BYTES)
         .expect("200 normal previews fit hard cap");
     assert!(window.stats.ipc_bytes <= replay::HARD_MAX_IPC_BYTES as u64);
+}
+
+#[test]
+fn final_delta_wire_budget_counts_payload_refs_and_preserves_the_cursor_on_failure() {
+    let mut replay_event = event("payload", "codexapp-test", "preview");
+    replay_event.payload_refs.push(PayloadRef {
+        event_id: replay_event.id.clone(),
+        field_path: "result.content".to_string(),
+        preview: "x".repeat(70 * 1024),
+        full_size_bytes: 10 * 1024 * 1024,
+        truncated: true,
+        replay_encoding: Some(PayloadRefEncoding::Utf8Text),
+        replay_source_id: Some("codex_app".to_string()),
+        replay_generation: Some("g1".to_string()),
+        replay_source_event_id: Some("payload".to_string()),
+    });
+    let mut response = delta(vec![replay_event], Vec::new(), false);
+    let cursor = response.cursor.clone();
+    let error = finalize_delta_wire_budget(&mut response, 64 * 1024)
+        .expect_err("delta payload ref must count toward wire bytes");
+    assert!(error.contains("serialized bytes"));
+    assert_eq!(
+        response.cursor, cursor,
+        "failed delta wire check never advances the caller-visible cursor"
+    );
+}
+
+#[test]
+fn two_hundred_max_preview_delta_events_stay_under_the_hard_wire_cap() {
+    let mut response = delta(max_preview_replay_events(200), Vec::new(), false);
+    response.cursor.revision = 200;
+    response.cursor.through_sequence = 199;
+    finalize_delta_wire_budget(&mut response, replay::HARD_MAX_IPC_BYTES)
+        .expect("200 normal delta previews fit hard cap");
+    assert!(response.stats.ipc_bytes <= replay::HARD_MAX_IPC_BYTES as u64);
 }
 
 #[test]

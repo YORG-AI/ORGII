@@ -95,6 +95,24 @@ fn with_sessions_replay_writer<T>(
     })
 }
 
+/// Open a short-lived connection for visible replay work without queueing
+/// behind the process-wide catalog-writer mutex.
+///
+/// Source discovery holds that mutex while it walks every installed provider,
+/// including intervals where it owns no SQLite write transaction. Foreground
+/// Shell materialization and delta polls must not wait for that unrelated
+/// filesystem work. Replay synchronization still begins an IMMEDIATE
+/// transaction, so SQLite itself remains the serialization boundary and the
+/// configured busy timeout continues to coordinate a second ORGII process.
+fn with_foreground_replay_connection<T>(
+    context: &str,
+    operation: impl FnOnce(&mut Connection) -> Result<T, String>,
+) -> Result<T, String> {
+    let mut conn = database::db::get_connection()
+        .map_err(|error| format!("open foreground {context} DB: {error}"))?;
+    operation(&mut conn)
+}
+
 #[cfg(test)]
 static MANAGED_CHUNK_MAX_DB_JSON_FIELD_BYTES: AtomicUsize = AtomicUsize::new(0);
 #[cfg(test)]
@@ -163,10 +181,8 @@ pub(crate) async fn test_open_managed_replay_window(
             ResolvedReplayTarget::Imported {
                 source,
                 imported_session_id,
-            } => with_sessions_replay_writer("replay index", |conn| {
-                replay::open_window(conn, source, &imported_session_id, TEST_REPLAY_LIMITS)
-                    .map(ResolvedReplayWindow::Imported)
-            })?,
+            } => open_foreground_imported_window(source, &imported_session_id, TEST_REPLAY_LIMITS)
+                .map(ResolvedReplayWindow::Imported)?,
             ResolvedReplayTarget::CollaborationSnapshot => {
                 ResolvedReplayWindow::CollaborationSnapshot(
                     collaboration_snapshot_read_window_from_conn(
@@ -180,9 +196,12 @@ pub(crate) async fn test_open_managed_replay_window(
                     )?,
                 )
             }
-            ResolvedReplayTarget::ManagedChunkStore => ResolvedReplayWindow::ManagedChunks(
-                managed_chunk_open_window(&session_id, TEST_REPLAY_LIMITS)?,
-            ),
+            ResolvedReplayTarget::ManagedChunkStore => {
+                ResolvedReplayWindow::ManagedChunks(managed_chunk_open_window(
+                    &session_id,
+                    replay_storage_limits_with_normalization_headroom(TEST_REPLAY_LIMITS),
+                )?)
+            }
             ResolvedReplayTarget::NotReady => ResolvedReplayWindow::NotReady,
         };
         let mut response = match window {

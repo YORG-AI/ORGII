@@ -129,6 +129,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     currentTurnPageTimeLabel,
     defaultTurnCollapsed,
     displayFlatItems,
+    displayGroupKeys,
     displayGroupCounts,
     displayGroupHeaders,
     displayGroupMeta,
@@ -175,6 +176,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   const {
     conversationMinimapScrolling,
     footerSpacerHeight,
+    handleAtStartStateChange,
     handleChatListScrollStateChange,
     handleRangeChanged,
     handleTurnPageEndReached,
@@ -381,6 +383,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                 ? turnPaginationReady
                 : pages.length > 0) && (
                 <TurnPageList
+                  sessionId={activeId}
                   surfaceBgClass={surfaceBgClass}
                   bottomInset={bottomInset}
                   pages={pages}
@@ -444,6 +447,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       planningIndicatorEnabled={planningIndicatorEnabled}
                       onPlanningIndicatorCount={handlePlanningIndicatorCount}
                       flatItems={displayFlatItems}
+                      groupKeys={displayGroupKeys}
                       groupCounts={displayGroupCounts}
                       turnIds={displayTurnIds}
                       totalFlatItems={displayTotalFlatItems}
@@ -462,6 +466,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                           ? renderNoGroupHeader
                           : renderGroupHeader
                       }
+                      onAtStartStateChange={handleAtStartStateChange}
                       onAtBottomStateChange={handleChatListScrollStateChange}
                       onRangeChanged={handleRangeChanged}
                       onActiveGroupIndexChange={handleActiveGroupIndexChange}

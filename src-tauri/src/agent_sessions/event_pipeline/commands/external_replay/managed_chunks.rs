@@ -158,6 +158,7 @@ pub(super) fn managed_chunk_read_window_from_conn(
     limits: ReplayLimits,
 ) -> Result<ReplayChunkWindow, String> {
     let limits = limits.bounded();
+    let exact_turn = turn_id.is_some() || turn_index.is_some();
     let (generation, source_revision) = managed_chunk_stream_cursor(conn, session_id)?;
     let source_revision = source_revision.max(0) as u64;
     let (total_event_count, total_turn_count) = managed_chunk_total_counts(conn, session_id)?;
@@ -171,6 +172,7 @@ pub(super) fn managed_chunk_read_window_from_conn(
                 through_sequence: -1,
             },
             chunks: Vec::new(),
+            window_start_sequence: None,
             turn_headers: Vec::new(),
             total_turn_count: 0,
             total_event_count: 0,
@@ -211,6 +213,7 @@ pub(super) fn managed_chunk_read_window_from_conn(
                 through_sequence: -1,
             },
             chunks: Vec::new(),
+            window_start_sequence: None,
             turn_headers: Vec::new(),
             total_turn_count,
             total_event_count,
@@ -218,9 +221,13 @@ pub(super) fn managed_chunk_read_window_from_conn(
             stats: ReplayStats::default(),
         });
     };
-    let oldest_turn_index = newest_turn_index
-        .saturating_sub(limits.max_turns.saturating_sub(1) as i64)
-        .max(0);
+    let oldest_turn_index = if exact_turn {
+        newest_turn_index
+    } else {
+        newest_turn_index
+            .saturating_sub(limits.max_turns.saturating_sub(1) as i64)
+            .max(0)
+    };
     let mut turn_headers = Vec::with_capacity(
         newest_turn_index
             .saturating_sub(oldest_turn_index)
@@ -245,15 +252,28 @@ pub(super) fn managed_chunk_read_window_from_conn(
     if let Some(before_sequence) = before_sequence {
         end_sequence = end_sequence.min(before_sequence.saturating_sub(1));
     }
-    let mut chunks = query_managed_chunks(
-        conn,
-        session_id,
-        "sequence >= ?2",
-        start_sequence,
-        Some(end_sequence),
-        limits,
-        true,
-    )?;
+    let (mut chunks, window_start_sequence) = if exact_turn {
+        read_managed_exact_turn_chunks(
+            conn,
+            session_id,
+            turn_headers
+                .first()
+                .ok_or_else(|| "Managed replay exact turn header disappeared".to_string())?,
+            limits,
+        )?
+    } else {
+        let chunks = query_managed_chunks(
+            conn,
+            session_id,
+            "sequence >= ?2",
+            start_sequence,
+            Some(end_sequence),
+            limits,
+            true,
+        )?;
+        let window_start_sequence = chunks.first().map(|chunk| chunk.sequence);
+        (chunks, window_start_sequence)
+    };
     for chunk in &mut chunks {
         if let Some(header) = turn_headers.iter().find(|header| {
             chunk.sequence >= header.start_sequence
@@ -263,10 +283,20 @@ pub(super) fn managed_chunk_read_window_from_conn(
         }
     }
     let through_sequence = chunks.last().map_or(-1, |chunk| chunk.sequence);
-    let has_older = oldest_turn_index > 0
-        || chunks
-            .first()
-            .is_some_and(|chunk| chunk.sequence > start_sequence);
+    let has_older = if let Some(continuation_sequence) = window_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM code_session_chunks
+                WHERE session_id=?1 AND sequence<?2
+             )",
+            rusqlite::params![session_id, continuation_sequence],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|err| format!("query older managed replay events: {err}"))?
+            != 0
+    } else {
+        false
+    };
     Ok(ReplayChunkWindow {
         cursor: ReplayCursor {
             source_id: MANAGED_CLI_REPLAY_TARGET_ID.to_string(),
@@ -279,12 +309,80 @@ pub(super) fn managed_chunk_read_window_from_conn(
             through_sequence,
         },
         chunks,
+        window_start_sequence,
         turn_headers,
         total_turn_count,
         total_event_count,
         has_older,
         stats: ReplayStats::default(),
     })
+}
+
+fn read_managed_exact_turn_chunks(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn: &ReplayTurnHeader,
+    limits: ReplayLimits,
+) -> Result<(Vec<ReplayIndexedChunk>, Option<i64>), String> {
+    let end_sequence = turn.end_sequence.unwrap_or(turn.start_sequence);
+    let anchor_limits = ReplayLimits {
+        max_turns: 1,
+        max_events: 1,
+        max_ipc_bytes: limits.max_ipc_bytes,
+    };
+    let mut chunks = query_managed_chunks(
+        conn,
+        session_id,
+        "sequence >= ?2",
+        turn.start_sequence,
+        Some(end_sequence),
+        anchor_limits,
+        false,
+    )?;
+    let Some(anchor_sequence) = chunks.first().map(|chunk| chunk.sequence) else {
+        return Ok((chunks, None));
+    };
+    let anchor_bytes = chunks.first().map_or(0, managed_indexed_chunk_bytes);
+    let Some(tail_limits) = limits.after_exact_turn_anchor(anchor_bytes) else {
+        return Ok((chunks, Some(anchor_sequence)));
+    };
+    let mut tail = query_managed_chunks(
+        conn,
+        session_id,
+        "sequence > ?2",
+        anchor_sequence,
+        Some(end_sequence),
+        tail_limits,
+        true,
+    )?;
+    let tail_start_sequence = tail.first().map(|chunk| chunk.sequence);
+    let has_gap = if let Some(tail_start_sequence) = tail_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM code_session_chunks
+                WHERE session_id=?1 AND sequence>?2 AND sequence<?3
+             )",
+            rusqlite::params![session_id, anchor_sequence, tail_start_sequence],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|err| format!("query exact managed replay turn gap: {err}"))?
+            != 0
+    } else {
+        false
+    };
+    let window_start_sequence = if has_gap {
+        tail_start_sequence
+    } else {
+        Some(anchor_sequence)
+    };
+    chunks.append(&mut tail);
+    Ok((chunks, window_start_sequence))
+}
+
+fn managed_indexed_chunk_bytes(indexed: &ReplayIndexedChunk) -> usize {
+    serde_json::to_vec(&indexed.chunk)
+        .map_or(0, |bytes| bytes.len())
+        .saturating_add(serde_json::to_vec(&indexed.payloads).map_or(0, |bytes| bytes.len()))
 }
 
 pub(super) fn managed_chunk_total_counts(
@@ -637,9 +735,7 @@ pub(super) fn query_managed_chunks(
             chunk,
             payloads,
         };
-        let next_bytes = serde_json::to_vec(&indexed.chunk)
-            .map_or(0, |bytes| bytes.len())
-            .saturating_add(serde_json::to_vec(&indexed.payloads).map_or(0, |bytes| bytes.len()));
+        let next_bytes = managed_indexed_chunk_bytes(&indexed);
         if !chunks.is_empty() && bytes.saturating_add(next_bytes) > limits.max_ipc_bytes {
             break;
         }

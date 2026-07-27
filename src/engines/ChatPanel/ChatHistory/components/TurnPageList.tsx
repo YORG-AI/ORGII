@@ -16,6 +16,7 @@ import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared";
 import { stripExpandedPillContent } from "../../InputArea/utils/pillContentParser";
 import type { ChatGroupMeta, UseChatGroupsReturn } from "../hooks";
 import type { UseChatTurnPaginationReturn } from "../hooks/useChatTurnPagination";
+import { useVisibleExternalReplayTurnMetadata } from "../hooks/useVisibleExternalReplayTurnMetadata";
 import {
   formatReplayTurnPageTimeLabel,
   formatTurnPageTimeLabel,
@@ -23,6 +24,7 @@ import {
 } from "../utils/turnPageFormatting";
 
 interface TurnPageListProps {
+  sessionId: string | null;
   surfaceBgClass: string;
   /** Reserved space for the overlapping composer at the bottom of the pane. */
   bottomInset: number;
@@ -43,6 +45,7 @@ interface TurnPageListProps {
 // from `useChatTurnPagination` / `useTurnPageNavigation`.
 const TurnPageList: React.FC<TurnPageListProps> = memo(
   ({
+    sessionId,
     surfaceBgClass,
     bottomInset,
     pages,
@@ -64,9 +67,21 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
       estimateSize: () => 36,
       overscan: 12,
     });
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const visiblePageIndices = virtualItems.map((virtualItem) =>
+      turnPageSortAscending
+        ? virtualItem.index
+        : pages.length - virtualItem.index - 1
+    );
+    const compactReplaySummaries = useVisibleExternalReplayTurnMetadata({
+      sessionId,
+      pages,
+      visiblePageIndices,
+    });
 
     return (
       <div
+        data-testid="turn-page-list"
         className={`absolute inset-x-0 top-0 z-30 ${surfaceBgClass}`}
         style={bottomInset > 0 ? { bottom: bottomInset } : { bottom: 0 }}
       >
@@ -108,7 +123,7 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                 className="relative w-full"
                 style={{ height: rowVirtualizer.getTotalSize() }}
               >
-                {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+                {virtualItems.map((virtualItem) => {
                   const pageIndex = turnPageSortAscending
                     ? virtualItem.index
                     : pages.length - virtualItem.index - 1;
@@ -116,8 +131,13 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                   if (!page) return null;
                   const header = groupHeaders[page.startGroupIndex];
                   const meta = groupMeta[page.startGroupIndex];
+                  const replayTurnSummary = page.replayTurnSummary?.userPreview
+                    ? page.replayTurnSummary
+                    : (compactReplaySummaries.get(
+                        page.replayTurnSummary?.turnIndex ?? pageIndex
+                      ) ?? page.replayTurnSummary);
                   const rawPreviewText =
-                    page.replayTurnSummary?.userPreview ??
+                    replayTurnSummary?.userPreview ??
                     (header?.event?.displayText
                       ? stripExpandedPillContent(
                           String(header.event.displayText)
@@ -130,8 +150,8 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                     t("common:pagination.round", {
                       current: pageIndex + 1,
                     });
-                  const time = page.replayTurnSummary
-                    ? formatReplayTurnPageTimeLabel(page.replayTurnSummary)
+                  const time = replayTurnSummary
+                    ? formatReplayTurnPageTimeLabel(replayTurnSummary)
                     : formatTurnPageTimeLabel(
                         groupMeta.slice(
                           page.startGroupIndex,
@@ -151,6 +171,8 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                     >
                       <button
                         type="button"
+                        data-testid="turn-page-list-item"
+                        data-turn-page-index={pageIndex}
                         className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left ${
                           isCurrent
                             ? DROPDOWN_CLASSES.itemSelected

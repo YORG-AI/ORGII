@@ -4,7 +4,7 @@
  * a focused hook so this entry point only wires their contracts together.
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
@@ -83,6 +83,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   const historyState = useChatHistoryState();
   const isAgentWorking = useAtomValue(isSessionActiveAtom);
   const groupChat = useGroupChatContext();
+  const historyNavigationAtRef = useRef(0);
 
   const [planningIndicatorCount, setPlanningIndicatorCount] = useState<0 | 1>(
     0
@@ -120,11 +121,13 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     displayGroupMeta: projection.displayGroupMeta,
     displaySourceGroupIndices: projection.displaySourceGroupIndices,
     displayTotalFlatItems: projection.displayTotalFlatItems,
+    pageIndexByGroupIndex: projection.pageIndexByGroupIndex,
     pages: projection.pages,
     setTurnPageListOpen: projection.setTurnPageListOpen,
     setTurnPageSortAscending: projection.setTurnPageSortAscending,
     turnPageListOpen: projection.turnPageListOpen,
     turnPaginationEnabled,
+    manualNavigationAtRef: historyNavigationAtRef,
     virtualListRef: historyState.virtualListRef,
   });
   const emptyState = useChatEmptyState({
@@ -153,11 +156,13 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     browserAddToConversationNav,
     currentPageIndex: projection.currentPageIndex,
     disableTailCollapse,
-    displayGroupCounts: projection.displayGroupCounts,
+    displayTurnIds: projection.displayTurnIds,
     displayLastGroupFirstFlatIndex: projection.displayLastGroupFirstFlatIndex,
     displayTotalFlatItems: projection.displayTotalFlatItems,
     followAgentNav,
     isPendingCancelRef: emptyState.isPendingCancelRef,
+    manualScrollAtRef: historyNavigationAtRef,
+    onHistoryStartReached: projection.loadPreviousExternalReplayTurn,
     onScrollNavChange,
     planningIndicatorCount,
     sessionLoadStatus: historyState.sessionLoadStatus,

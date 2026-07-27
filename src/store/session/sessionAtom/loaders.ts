@@ -16,6 +16,7 @@
 import {
   type ImportedHistorySource,
   getImportedHistorySourceByListCategory,
+  getImportedHistorySourceBySessionId,
   isImportedHistoryListCategory,
   isImportedHistorySourceSession,
 } from "@src/api/tauri/externalHistory";
@@ -32,10 +33,13 @@ import { createLogger } from "@src/hooks/logger";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import {
   SESSION_DATE_BUCKET_KEYS,
+  getSessionDateBucket,
   getSessionDateBucketRanges,
 } from "@src/util/session/sessionDateBuckets";
+import { getRustAgentType } from "@src/util/session/sessionDispatch";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
+import { DEFAULT_SESSION_ORG_ID } from "../creatorStateAtom";
 import {
   dataSourceConfigAtom,
   externalSessionsEnabledAtom,
@@ -50,16 +54,25 @@ import {
 } from "./atoms";
 import { mergeGuestImportedSessions } from "./guestImportRegistry";
 import {
+  type CategoryPaginationState,
   type DateBucketPaginationMap,
+  type NativeSidebarPageCursor,
   SESSION_LIST_CATEGORIES,
   SESSION_SIDEBAR_PAGE_SIZE,
   type SessionListCategory,
   type SessionPaginationMap,
+  type SessionPaginationScope,
+  categoryCanLoadInScope,
   emptyDateBucketPagination,
+  parseSessionPaginationScopeKey,
   resetPaginationState,
+  scopedSessionPaginationAtom,
   sessionPaginationAtom,
+  sessionRosterGenerationAtom,
 } from "./paginationAtoms";
 import { persistSessions } from "./persistence";
+import { normalizeSidebarDiscoveryOrgIds } from "./sidebarDiscoveryAtoms";
+import { invalidateSidebarDiscovery } from "./sidebarDiscoveryLoaders";
 import type { Session, SessionStatus } from "./types";
 
 const log = createLogger("SessionAtom");
@@ -165,13 +178,42 @@ function setPaginationFor(
   }));
 }
 
+function isCurrentRosterGeneration(generation: number): boolean {
+  return getStore().get(sessionRosterGenerationAtom) === generation;
+}
+
+function isCurrentCategoryRequest(
+  category: SessionListCategory,
+  generation: number,
+  requestToken: number
+): boolean {
+  const store = getStore();
+  const state = store.get(sessionPaginationAtom)[category];
+  return (
+    store.get(sessionRosterGenerationAtom) === generation &&
+    state.generation === generation &&
+    state.requestToken === requestToken
+  );
+}
+
+function invalidateSessionRosterLoads(): number {
+  const store = getStore();
+  const generation = store.get(sessionRosterGenerationAtom) + 1;
+  store.set(sessionRosterGenerationAtom, generation);
+  store.set(sessionPaginationAtom, resetPaginationState(generation));
+  store.set(scopedSessionPaginationAtom, {});
+  invalidateSidebarDiscovery();
+  return generation;
+}
+
 async function loadImportedHistorySourcePage(
   source: ImportedHistorySource,
   currentBuckets: DateBucketPaginationMap | undefined,
-  pageSize: number
+  pageSize: number,
+  scope?: SessionPaginationScope
 ): Promise<FetchPageResult> {
   const pages = await loadImportedHistorySourcePages(
-    [{ source, currentBuckets }],
+    [{ source, currentBuckets, scope }],
     pageSize
   );
   return (
@@ -186,24 +228,46 @@ async function loadImportedHistorySourcePage(
 interface ImportedHistoryPageInput {
   source: ImportedHistorySource;
   currentBuckets?: DateBucketPaginationMap;
+  scope?: SessionPaginationScope;
 }
 
 function buildImportedHistorySourceRequest(
   source: ImportedHistorySource,
   currentBuckets: DateBucketPaginationMap | undefined,
-  pageSize: number
+  pageSize: number,
+  scope?: SessionPaginationScope
 ): ExternalHistorySidebarSourceRequest | null {
+  if (
+    scope &&
+    !normalizeSidebarDiscoveryOrgIds(scope.orgIds).includes(
+      DEFAULT_SESSION_ORG_ID
+    )
+  ) {
+    return null;
+  }
   const ranges = getSessionDateBucketRanges();
   const buckets = ranges
+    .filter(({ bucket }) => scope?.kind !== "time" || scope.bucket === bucket)
     .filter(({ bucket }) => !currentBuckets || currentBuckets[bucket].hasMore)
     .map(({ bucket, startMs, endMs }) => ({
       bucket,
       startMs,
       endMs,
       limit: pageSize,
-      offset: currentBuckets?.[bucket].loaded ?? 0,
+      offset: currentBuckets?.[bucket].cursor
+        ? 0
+        : (currentBuckets?.[bucket].loaded ?? 0),
+      before: currentBuckets?.[bucket].cursor,
     }));
-  return buckets.length > 0 ? { source: source.sourceId, buckets } : null;
+  if (buckets.length === 0) return null;
+  return {
+    source: source.sourceId,
+    repoPath:
+      scope?.kind === "workspace" ? (scope.repoPath ?? undefined) : undefined,
+    missingRepoPath:
+      scope?.kind === "workspace" && scope.repoPath === null ? true : undefined,
+    buckets,
+  };
 }
 
 function importedHistoryPageResult(
@@ -256,11 +320,12 @@ async function loadImportedHistorySourcePages(
   pageSize: number
 ): Promise<Map<string, FetchPageResult>> {
   const results = new Map<string, FetchPageResult>();
-  const pending = inputs.flatMap(({ source, currentBuckets }) => {
+  const pending = inputs.flatMap(({ source, currentBuckets, scope }) => {
     const request = buildImportedHistorySourceRequest(
       source,
       currentBuckets,
-      pageSize
+      pageSize,
+      scope
     );
     if (!request) {
       results.set(source.sourceId, {
@@ -309,6 +374,7 @@ function mergeDateBucketPagination(
     next[page.bucket] = {
       loaded: previous.loaded + page.sessions.length,
       hasMore: page.hasMore,
+      cursor: page.nextCursor ?? previous.cursor,
     };
   }
   return next;
@@ -398,18 +464,49 @@ interface FetchPageResult {
   sessions: Session[];
   hasMore: boolean;
   dateBuckets?: DateBucketPaginationMap;
+  cursor?: NativeSidebarPageCursor;
 }
 
 async function fetchAggregatePage(
-  wireCategory: "cli" | "agent" | "human",
+  wireCategory:
+    | "cli"
+    | "sde"
+    | "agent_org"
+    | "os"
+    | "wingman"
+    | "custom"
+    | "human",
   offset: number,
-  pageSize: number
+  pageSize: number,
+  scope?: SessionPaginationScope,
+  cursor?: NativeSidebarPageCursor
 ): Promise<FetchPageResult> {
+  const dateRange =
+    scope?.kind === "time"
+      ? getSessionDateBucketRanges().find(
+          ({ bucket }) => bucket === scope.bucket
+        )
+      : undefined;
   const response = await sessionAggregateList({
     category: wireCategory,
+    orgIds: [
+      ...normalizeSidebarDiscoveryOrgIds(
+        scope?.orgIds ?? [DEFAULT_SESSION_ORG_ID]
+      ),
+    ],
+    repoPath:
+      scope?.kind === "workspace" ? (scope.repoPath ?? undefined) : undefined,
+    repoPathExact:
+      scope?.kind === "workspace" && scope.repoPath !== null ? true : undefined,
+    missingRepoPath:
+      scope?.kind === "workspace" && scope.repoPath === null ? true : undefined,
+    updatedAfterMs: dateRange?.startMs,
+    updatedBeforeMs: dateRange?.endMs,
     includeExternalHistory: false,
     limit: pageSize + 1,
-    offset,
+    offset: cursor ? 0 : offset,
+    beforeUpdatedAt: cursor?.updatedAt,
+    beforeSessionId: cursor?.sessionId,
     sortBy: "updated_at",
     sortOrder: "desc",
   });
@@ -419,6 +516,12 @@ async function fetchAggregatePage(
   return {
     sessions: primarySessions,
     hasMore: response.sessions.length > pageSize,
+    cursor: primarySessions.at(-1)
+      ? {
+          updatedAt: primarySessions.at(-1)!.updated_at,
+          sessionId: primarySessions.at(-1)!.session_id,
+        }
+      : cursor,
   };
 }
 
@@ -426,21 +529,31 @@ async function loadCategoryPage(
   category: SessionListCategory,
   offset: number,
   pageSize: number,
-  dateBuckets?: DateBucketPaginationMap
+  dateBuckets?: DateBucketPaginationMap,
+  scope?: SessionPaginationScope,
+  cursor?: NativeSidebarPageCursor
 ): Promise<FetchPageResult> {
   if (isImportedHistoryListCategory(category)) {
     const source = getImportedHistorySourceByListCategory(category);
     if (!source) return { sessions: [], hasMore: false };
-    return loadImportedHistorySourcePage(source, dateBuckets, pageSize);
+    return loadImportedHistorySourcePage(source, dateBuckets, pageSize, scope);
   }
 
   switch (category) {
     case "cli_agent":
-      return fetchAggregatePage("cli", offset, pageSize);
-    case "rust_agent":
-      return fetchAggregatePage("agent", offset, pageSize);
+      return fetchAggregatePage("cli", offset, pageSize, scope, cursor);
+    case "rust_agent:sde":
+      return fetchAggregatePage("sde", offset, pageSize, scope, cursor);
+    case "rust_agent:agent_org":
+      return fetchAggregatePage("agent_org", offset, pageSize, scope, cursor);
+    case "rust_agent:os":
+      return fetchAggregatePage("os", offset, pageSize, scope, cursor);
+    case "rust_agent:wingman":
+      return fetchAggregatePage("wingman", offset, pageSize, scope, cursor);
+    case "rust_agent:custom":
+      return fetchAggregatePage("custom", offset, pageSize, scope, cursor);
     case "human_session":
-      return fetchAggregatePage("human", offset, pageSize);
+      return fetchAggregatePage("human", offset, pageSize, scope, cursor);
   }
 }
 
@@ -467,12 +580,15 @@ function replaceFirstPageForCategory(
 interface SidebarLoadOptions {
   pageSize?: number;
   forceRefresh?: boolean;
+  generation?: number;
 }
 
 const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
   const store = getStore();
   const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   const { forceRefresh = false } = options ?? {};
+  const generation =
+    options?.generation ?? store.get(sessionRosterGenerationAtom);
 
   const lastLoaded = store.get(sessionLastLoadedAtom);
   const now = Date.now();
@@ -487,7 +603,8 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
 
   store.set(sessionLoadingAtom, true);
   store.set(sessionErrorAtom, null);
-  store.set(sessionPaginationAtom, resetPaginationState());
+  store.set(sessionPaginationAtom, resetPaginationState(generation));
+  store.set(scopedSessionPaginationAtom, {});
 
   // Sources the user has disabled in the Data Sources panel must not load;
   // the master external-sessions switch disables all of them at once.
@@ -500,8 +617,16 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     return source ? isSourceDisabled(dataSourceConfig, source.sourceId) : false;
   };
 
+  const requestTokens = new Map<SessionListCategory, number>();
   for (const category of SESSION_LIST_CATEGORIES) {
-    setPaginationFor(category, { loading: true });
+    const requestToken =
+      (store.get(sessionPaginationAtom)[category].requestToken ?? 0) + 1;
+    requestTokens.set(category, requestToken);
+    setPaginationFor(category, {
+      generation,
+      requestToken,
+      loading: true,
+    });
   }
 
   const enabledCategories = SESSION_LIST_CATEGORIES.filter((category) => {
@@ -510,6 +635,8 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
       replaceFirstPageForCategory(category, prev, [], false)
     );
     setPaginationFor(category, {
+      generation,
+      requestToken: requestTokens.get(category),
       loaded: 0,
       hasMore: false,
       loading: false,
@@ -519,8 +646,15 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
 
   const applyInitialPage = (
     category: SessionListCategory,
-    { sessions, hasMore, dateBuckets }: FetchPageResult
+    { sessions, hasMore, dateBuckets, cursor }: FetchPageResult
   ) => {
+    const requestToken = requestTokens.get(category);
+    if (
+      requestToken === undefined ||
+      !isCurrentCategoryRequest(category, generation, requestToken)
+    ) {
+      return;
+    }
     store.set(sessionsAtom, (prev) =>
       replaceFirstPageForCategory(category, prev, sessions)
     );
@@ -528,7 +662,11 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
       loaded: sessions.length,
       hasMore,
       loading: false,
+      generation,
+      requestToken,
+      loadedSessionIds: sessions.map((session) => session.session_id),
       dateBuckets,
+      cursor,
     });
   };
 
@@ -536,11 +674,27 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     .filter((category) => !isImportedHistoryListCategory(category))
     .map(async (category) => {
       try {
-        const result = await loadCategoryPage(category, 0, pageSize);
+        const result = await loadCategoryPage(
+          category,
+          0,
+          pageSize,
+          undefined,
+          {
+            kind: "category",
+            category,
+            orgIds: [DEFAULT_SESSION_ORG_ID],
+          }
+        );
         applyInitialPage(category, result);
       } catch (error) {
         log.warn(`[SessionAtom] ${category} initial page failed:`, error);
-        setPaginationFor(category, { loading: false });
+        const requestToken = requestTokens.get(category);
+        if (
+          requestToken !== undefined &&
+          isCurrentCategoryRequest(category, generation, requestToken)
+        ) {
+          setPaginationFor(category, { loading: false });
+        }
       }
     });
 
@@ -568,17 +722,25 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     } catch (error) {
       log.warn("[SessionAtom] external history initial pages failed:", error);
       for (const { category } of importedCategories) {
-        setPaginationFor(category, { loading: false });
+        const requestToken = requestTokens.get(category);
+        if (
+          requestToken !== undefined &&
+          isCurrentCategoryRequest(category, generation, requestToken)
+        ) {
+          setPaginationFor(category, { loading: false });
+        }
       }
     }
   })();
 
   await Promise.allSettled([...nativeTasks, importedTask]);
 
-  const merged = store.get(sessionsAtom);
-  persistSessions(merged);
-  store.set(sessionLastLoadedAtom, now);
-  store.set(sessionLoadingAtom, false);
+  if (isCurrentRosterGeneration(generation)) {
+    const merged = store.get(sessionsAtom);
+    persistSessions(merged);
+    store.set(sessionLastLoadedAtom, now);
+    store.set(sessionLoadingAtom, false);
+  }
 };
 
 function mergeSidebarLoadOptions(
@@ -592,6 +754,7 @@ function mergeSidebarLoadOptions(
     ),
     forceRefresh:
       (current?.forceRefresh ?? false) || (requested.forceRefresh ?? false),
+    generation: Math.max(current?.generation ?? 0, requested.generation ?? 0),
   };
 }
 
@@ -603,6 +766,7 @@ function sidebarLoadCovers(
   const activePageSize = active.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   const requestedPageSize = requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   return (
+    active.generation === requested.generation &&
     activePageSize >= requestedPageSize &&
     ((active.forceRefresh ?? false) || !(requested.forceRefresh ?? false))
   );
@@ -621,10 +785,11 @@ function createSidebarLoadCoordinator(
   let pending: SidebarLoadOptions | null = null;
 
   return (options: SidebarLoadOptions = {}): Promise<void> => {
-    if (inFlight && sidebarLoadCovers(active, options)) {
+    const requested = mergeSidebarLoadOptions(null, options);
+    if (inFlight && sidebarLoadCovers(active, requested)) {
       return inFlight;
     }
-    pending = mergeSidebarLoadOptions(pending, options);
+    pending = mergeSidebarLoadOptions(pending, requested);
     if (inFlight) return inFlight;
 
     const run = async () => {
@@ -648,9 +813,18 @@ function createSidebarLoadCoordinator(
  * active read; a stronger request (forced or larger page) is merged into one
  * follow-up pass instead of starting a parallel category fan-out.
  */
-export const loadSessionRoster = createSidebarLoadCoordinator(
+const coordinatedSessionRosterLoad = createSidebarLoadCoordinator(
   performSidebarSessionLoad
 );
+
+export const loadSessionRoster = (
+  options: SidebarLoadOptions = {}
+): Promise<void> => {
+  const generation = options.forceRefresh
+    ? invalidateSessionRosterLoads()
+    : getStore().get(sessionRosterGenerationAtom);
+  return coordinatedSessionRosterLoad({ ...options, generation });
+};
 
 /**
  * Compatibility alias for callers outside the roster surfaces. New Sidebar
@@ -724,35 +898,296 @@ export const loadSidebarSessionById = async (
   );
 };
 
+function listCategoryForSession(session: Session): SessionListCategory | null {
+  const importedSource = getImportedHistorySourceBySessionId(
+    session.session_id
+  );
+  if (importedSource) return importedSource.listCategory;
+  if (session.agentOrgId) return "rust_agent:agent_org";
+  if (session.category === "cli_agent") return "cli_agent";
+  if (session.category === "human_session") return "human_session";
+  if (session.category !== "rust_agent") return null;
+  switch (getRustAgentType(session.session_id)) {
+    case "sde":
+      return "rust_agent:sde";
+    case "os":
+      return "rust_agent:os";
+    case "wingman":
+      return "rust_agent:wingman";
+    case "custom":
+      return "rust_agent:custom";
+  }
+}
+
+function normalizedWorkspacePath(path: string | undefined): string | null {
+  const normalized = path?.trim().replace(/\/+$/, "") ?? "";
+  return normalized || null;
+}
+
+function sessionMatchesPaginationScope(
+  session: Session,
+  scope: SessionPaginationScope
+): boolean {
+  const orgIds = normalizeSidebarDiscoveryOrgIds(scope.orgIds);
+  const sessionOrgId = session.orgId?.trim() || DEFAULT_SESSION_ORG_ID;
+  if (!orgIds.includes(sessionOrgId)) return false;
+  if (scope.kind === "category") {
+    return listCategoryForSession(session) === scope.category;
+  }
+  if (scope.kind === "time") {
+    return getSessionDateBucket(session) === scope.bucket;
+  }
+  return normalizedWorkspacePath(session.repoPath) === scope.repoPath;
+}
+
+function initialScopedCategoryState(
+  category: SessionListCategory,
+  scope: SessionPaginationScope,
+  globalState: CategoryPaginationState,
+  sessions: readonly Session[]
+): CategoryPaginationState {
+  const normalizedOrgIds = normalizeSidebarDiscoveryOrgIds(scope.orgIds);
+  const canReusePersonalPrefix =
+    normalizedOrgIds.length === 1 &&
+    normalizedOrgIds[0] === DEFAULT_SESSION_ORG_ID;
+  if (!canReusePersonalPrefix) {
+    return {
+      loaded: 0,
+      hasMore: true,
+      loading: false,
+      loadedSessionIds: [],
+      ...(isImportedHistoryListCategory(category)
+        ? { dateBuckets: emptyDateBucketPagination() }
+        : {}),
+    };
+  }
+  const globallyConsumedIds = new Set(globalState.loadedSessionIds ?? []);
+  const matchingSessions = sessions.filter(
+    (session) =>
+      globallyConsumedIds.has(session.session_id) &&
+      listCategoryForSession(session) === category &&
+      sessionMatchesPaginationScope(session, scope)
+  );
+  if (!isImportedHistoryListCategory(category)) {
+    return {
+      loaded: matchingSessions.length,
+      hasMore: globalState.hasMore,
+      loading: false,
+      loadedSessionIds: matchingSessions.map((session) => session.session_id),
+      cursor: globalState.cursor,
+    };
+  }
+
+  const dateBuckets = { ...emptyDateBucketPagination() };
+  for (const bucket of SESSION_DATE_BUCKET_KEYS) {
+    const bucketInScope = scope.kind !== "time" || scope.bucket === bucket;
+    dateBuckets[bucket] = {
+      loaded: matchingSessions.filter(
+        (session) => getSessionDateBucket(session) === bucket
+      ).length,
+      hasMore:
+        bucketInScope && (globalState.dateBuckets?.[bucket].hasMore ?? false),
+      cursor: bucketInScope
+        ? globalState.dateBuckets?.[bucket].cursor
+        : undefined,
+    };
+  }
+  return {
+    loaded: matchingSessions.length,
+    hasMore: SESSION_DATE_BUCKET_KEYS.some(
+      (bucket) => dateBuckets[bucket].hasMore
+    ),
+    loading: false,
+    loadedSessionIds: matchingSessions.map((session) => session.session_id),
+    dateBuckets,
+  };
+}
+
+/**
+ * Load one bounded backend page for a visible By Time / By Workspace group.
+ *
+ * Each source keeps an offset within this exact scope. A request for Older or
+ * `/repo-a` therefore cannot consume rows belonging to Today or `/repo-b`.
+ * The merged session atom still deduplicates rows already discovered by the
+ * global roster or another view.
+ */
+export const loadMoreSessionScope = async (
+  scopeKey: string,
+  pageSize: number = SESSION_SIDEBAR_PAGE_SIZE
+) => {
+  const scope = parseSessionPaginationScopeKey(scopeKey);
+  if (!scope) return;
+
+  const store = getStore();
+  const generation = store.get(sessionRosterGenerationAtom);
+  const existingScopeState = store.get(scopedSessionPaginationAtom)[scopeKey];
+  if (existingScopeState?.loading) return;
+  const pagination = store.get(sessionPaginationAtom);
+  const sessions = store.get(sessionsAtom);
+  const categories = SESSION_LIST_CATEGORIES.filter((category) =>
+    categoryCanLoadInScope(
+      category,
+      scope,
+      pagination[category],
+      existingScopeState?.categories[category]
+    )
+  );
+  if (categories.length === 0) return;
+  const requestToken = (existingScopeState?.requestToken ?? 0) + 1;
+
+  const initialCategories = { ...existingScopeState?.categories };
+  for (const category of categories) {
+    const current =
+      initialCategories[category] ??
+      initialScopedCategoryState(
+        category,
+        scope,
+        pagination[category],
+        sessions
+      );
+    initialCategories[category] = {
+      ...current,
+      generation,
+      requestToken,
+      loading: true,
+    };
+  }
+  store.set(scopedSessionPaginationAtom, (previous) => ({
+    ...previous,
+    [scopeKey]: {
+      scope,
+      loading: true,
+      generation,
+      requestToken,
+      categories: initialCategories,
+    },
+  }));
+
+  const results = await Promise.allSettled(
+    categories.map(async (category) => {
+      const current = initialCategories[category]!;
+      const result = await loadCategoryPage(
+        category,
+        current.loaded,
+        pageSize,
+        current.dateBuckets,
+        scope,
+        current.cursor
+      );
+      return { category, current, result };
+    })
+  );
+
+  const latestScopeState = store.get(scopedSessionPaginationAtom)[scopeKey];
+  if (
+    store.get(sessionRosterGenerationAtom) !== generation ||
+    latestScopeState?.generation !== generation ||
+    latestScopeState.requestToken !== requestToken
+  ) {
+    return;
+  }
+
+  let loadedAny = false;
+  const nextCategories = { ...initialCategories };
+  for (const result of results) {
+    if (result.status === "rejected") {
+      log.warn("[SessionAtom] scoped sidebar page failed:", result.reason);
+      continue;
+    }
+    const { category, current, result: page } = result.value;
+    const primarySessions = page.sessions.filter(isPrimarySessionListSession);
+    if (primarySessions.length > 0) {
+      loadedAny = true;
+      store.set(sessionsAtom, (previous) =>
+        mergeSessions(previous, primarySessions)
+      );
+    }
+    nextCategories[category] = {
+      loaded: current.loaded + page.sessions.length,
+      hasMore: page.hasMore,
+      loading: false,
+      loadedSessionIds: [
+        ...(current.loadedSessionIds ?? []),
+        ...page.sessions.map((session) => session.session_id),
+      ],
+      dateBuckets: page.dateBuckets,
+      cursor: page.cursor ?? current.cursor,
+    };
+  }
+  for (const category of categories) {
+    const state = nextCategories[category];
+    if (state?.loading) {
+      nextCategories[category] = { ...state, loading: false };
+    }
+  }
+  store.set(scopedSessionPaginationAtom, (previous) => ({
+    ...previous,
+    [scopeKey]: {
+      scope,
+      loading: false,
+      generation,
+      requestToken,
+      categories: nextCategories,
+    },
+  }));
+  if (loadedAny) {
+    persistSessions(store.get(sessionsAtom));
+  }
+};
+
 export const loadMoreCategory = async (
   category: SessionListCategory,
   pageSize: number = SESSION_SIDEBAR_PAGE_SIZE
 ) => {
   const store = getStore();
+  const generation = store.get(sessionRosterGenerationAtom);
   const current = store.get(sessionPaginationAtom)[category];
   if (current.loading || !current.hasMore) return;
 
-  setPaginationFor(category, { loading: true });
+  const requestToken = (current.requestToken ?? 0) + 1;
+  setPaginationFor(category, {
+    generation,
+    requestToken,
+    loading: true,
+  });
 
   try {
     const { sessions, hasMore, dateBuckets } = await loadCategoryPage(
       category,
       current.loaded,
       pageSize,
-      current.dateBuckets
+      current.dateBuckets,
+      undefined,
+      current.cursor
     );
     const primarySessions = sessions.filter(isPrimarySessionListSession);
+    if (!isCurrentCategoryRequest(category, generation, requestToken)) return;
     store.set(sessionsAtom, (prev) => mergeSessions(prev, primarySessions));
     setPaginationFor(category, {
       loaded: current.loaded + sessions.length,
       hasMore,
       loading: false,
+      generation,
+      requestToken,
+      loadedSessionIds: [
+        ...(current.loadedSessionIds ?? []),
+        ...sessions.map((session) => session.session_id),
+      ],
       dateBuckets,
+      cursor:
+        sessions.length > 0
+          ? {
+              updatedAt: sessions[sessions.length - 1]!.updated_at,
+              sessionId: sessions[sessions.length - 1]!.session_id,
+            }
+          : current.cursor,
     });
     persistSessions(store.get(sessionsAtom));
   } catch (error) {
     log.warn(`[SessionAtom] loadMoreCategory(${category}) failed:`, error);
-    setPaginationFor(category, { loading: false });
+    if (isCurrentCategoryRequest(category, generation, requestToken)) {
+      setPaginationFor(category, { loading: false });
+    }
   }
 };
 

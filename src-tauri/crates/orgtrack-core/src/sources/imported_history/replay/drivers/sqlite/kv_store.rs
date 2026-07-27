@@ -1,6 +1,94 @@
 use super::*;
 use std::collections::HashSet;
 
+const KV_TURN_PREVIEW_MAX_CHARS: usize = 160;
+// Read a little beyond the rendered preview so whitespace normalization can
+// still find useful words without ever copying a provider-sized user bubble.
+const KV_TURN_PREVIEW_SCAN_CHARS: usize = KV_TURN_PREVIEW_MAX_CHARS * 16;
+
+/// Read only the user-bubble fields needed by the virtual turn catalog.
+///
+/// `imported_replay_turns` already retains the provider user-bubble id for
+/// each Cursor/Windsurf turn. Exact primary-key lookups avoid scanning the
+/// composer or hydrating assistant/tool bubbles, and SQL `substr` bounds the
+/// text copied from the provider database before it reaches Rust.
+pub(in crate::sources::imported_history::replay) fn read_kv_turn_previews(
+    source_path: &Path,
+    source: ImportedHistorySourceId,
+    source_session_id: &str,
+    requested_turns: &[(i64, String)],
+) -> Result<Vec<KvTurnPreview>, String> {
+    if !matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    ) {
+        return Err(format!(
+            "{} is not a SQLite/KV replay source",
+            source.as_str()
+        ));
+    }
+    if requested_turns.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let source_conn = open_source_db(source_path)?;
+    validate_schema(&source_conn, source)?;
+    let mut statement = source_conn
+        .prepare(
+            "SELECT
+                 CASE WHEN json_valid(value)
+                      THEN COALESCE(CAST(json_extract(value, '$.createdAt') AS TEXT), '')
+                      ELSE '' END,
+                 CASE WHEN json_valid(value)
+                      THEN COALESCE(
+                          substr(
+                              trim(CAST(json_extract(value, '$.text') AS TEXT)),
+                              1,
+                              ?2
+                          ),
+                          ''
+                      )
+                      ELSE '' END
+             FROM cursorDiskKV
+             WHERE key=?1",
+        )
+        .map_err(|err| format!("prepare compact {} turn previews: {err}", source.as_str()))?;
+    let mut previews = Vec::with_capacity(requested_turns.len());
+    for (turn_index, user_bubble_id) in requested_turns {
+        if !is_valid_kv_bubble_id(user_bubble_id) {
+            continue;
+        }
+        let key = format!("bubbleId:{source_session_id}:{user_bubble_id}");
+        let selected = statement
+            .query_row(params![key, KV_TURN_PREVIEW_SCAN_CHARS as i64], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .optional()
+            .map_err(|err| {
+                format!(
+                    "read compact {} turn preview {turn_index}: {err}",
+                    source.as_str()
+                )
+            })?;
+        let Some((created_at, text)) = selected else {
+            continue;
+        };
+        let user_preview = text
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(KV_TURN_PREVIEW_MAX_CHARS)
+            .collect();
+        previews.push(KvTurnPreview {
+            turn_index: *turn_index,
+            created_at,
+            user_preview,
+        });
+    }
+    Ok(previews)
+}
+
 #[allow(
     clippy::too_many_arguments,
     reason = "KV hydration boundary keeps the pinned generation and turn range explicit"

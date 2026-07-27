@@ -14,6 +14,11 @@ export const sessionAggregate = {
     .output(schemas.sessionAggregate.ExternalHistorySidebarBatchResponseSchema)
     .build(),
 
+  workspaceFacets: defineProcedure("session_sidebar_workspace_facets")
+    .input(schemas.sessionAggregate.SessionWorkspaceFacetListInput)
+    .output(schemas.sessionAggregate.SessionWorkspaceFacetResponseSchema)
+    .build(),
+
   /**
    * Patch in-session mutable fields for a single session row.
    *

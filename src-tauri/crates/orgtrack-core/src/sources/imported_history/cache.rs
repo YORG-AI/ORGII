@@ -387,6 +387,67 @@ pub fn query_imported_sidebar_page_from_conn(
     limit: usize,
     offset: usize,
 ) -> Result<ImportedHistorySidebarPage, String> {
+    query_imported_sidebar_scoped_page_from_conn(
+        conn,
+        ImportedHistorySidebarPageQuery {
+            source,
+            start_ms,
+            end_ms,
+            repo_path: None,
+            missing_repo_path: false,
+            before_updated_at_ms: None,
+            before_session_id: None,
+            limit,
+            offset,
+        },
+    )
+}
+
+pub struct ImportedHistorySidebarPageQuery<'a> {
+    pub source: &'a str,
+    pub start_ms: Option<i64>,
+    pub end_ms: Option<i64>,
+    pub repo_path: Option<&'a str>,
+    pub missing_repo_path: bool,
+    pub before_updated_at_ms: Option<i64>,
+    pub before_session_id: Option<&'a str>,
+    pub limit: usize,
+    pub offset: usize,
+}
+
+/// Query a bounded sidebar page within one optional workspace scope.
+///
+/// Date and workspace predicates are applied before `LIMIT`/`OFFSET`. This is
+/// important for the grouped sidebar: advancing the `/repo-a` cursor must not
+/// consume rows that belong to `/repo-b`, and loading Older must not consume
+/// Today rows. `missing_repo_path` is distinct from no workspace filter.
+pub fn query_imported_sidebar_scoped_page_from_conn(
+    conn: &Connection,
+    query: ImportedHistorySidebarPageQuery<'_>,
+) -> Result<ImportedHistorySidebarPage, String> {
+    let ImportedHistorySidebarPageQuery {
+        source,
+        start_ms,
+        end_ms,
+        repo_path,
+        missing_repo_path,
+        before_updated_at_ms,
+        before_session_id,
+        limit,
+        offset,
+    } = query;
+    if repo_path.is_some() && missing_repo_path {
+        return Err(
+            "Imported sidebar scope cannot request both repo_path and missing_repo_path"
+                .to_string(),
+        );
+    }
+    if before_updated_at_ms.is_some() != before_session_id.is_some() {
+        return Err(
+            "Imported sidebar before_updated_at_ms and before_session_id must be provided together"
+                .to_string(),
+        );
+    }
     let limit = effective_limit(limit);
     let mut range_sql = String::new();
     let mut values = vec![SqlValue::from(source.to_string())];
@@ -398,10 +459,36 @@ pub fn query_imported_sidebar_page_from_conn(
         values.push(SqlValue::from(end_ms));
         range_sql.push_str(&format!(" AND updated_at_ms < ?{}", values.len()));
     }
+    if let Some(repo_path) = repo_path {
+        values.push(SqlValue::from(repo_path.to_string()));
+        range_sql.push_str(&format!(
+            " AND RTRIM(cache.repo_path, '/') = RTRIM(?{}, '/')",
+            values.len()
+        ));
+    } else if missing_repo_path {
+        range_sql.push_str(" AND TRIM(cache.repo_path) = ''");
+    }
+    if let Some(before_updated_at_ms) = before_updated_at_ms {
+        values.push(SqlValue::from(before_updated_at_ms));
+        let updated_param = values.len();
+        values.push(SqlValue::from(
+            before_session_id.unwrap_or_default().to_string(),
+        ));
+        let session_param = values.len();
+        range_sql.push_str(&format!(
+            " AND (cache.updated_at_ms < ?{updated_param}
+                    OR (cache.updated_at_ms = ?{updated_param}
+                        AND cache.session_id < ?{session_param}))"
+        ));
+    }
     let limit_param = values.len() + 1;
     let offset_param = values.len() + 2;
     values.push(SqlValue::from(limit.saturating_add(1) as i64));
-    values.push(SqlValue::from(offset as i64));
+    values.push(SqlValue::from(if before_updated_at_ms.is_some() {
+        0
+    } else {
+        offset as i64
+    }));
     let sql = format!(
         "SELECT session_id, name, created_at_ms, updated_at_ms, cache.repo_path,
                 model, files_changed, lines_added, lines_removed, touched_files_json,
@@ -414,8 +501,7 @@ pub fn query_imported_sidebar_page_from_conn(
            AND cache.listable = 1
            AND cache.parent_session_id = ''
            {range_sql}
-         ORDER BY cache.updated_at_ms DESC, cache.created_at_ms DESC,
-                  cache.source_session_id ASC
+         ORDER BY cache.updated_at_ms DESC, cache.session_id DESC
          LIMIT ?{limit_param} OFFSET ?{offset_param}"
     );
     let mut stmt = conn
@@ -440,36 +526,53 @@ pub fn query_imported_sidebar_page_from_conn(
                     .map_err(|err| {
                         rusqlite::Error::FromSqlConversionFailure(14, Type::Text, Box::new(err))
                     })?;
-            Ok(ImportedHistorySidebarRow {
-                session_id: row.get(0)?,
-                name: row.get(1)?,
-                created_at: super::epoch_ms_to_iso(row.get(2)?),
-                updated_at: super::epoch_ms_to_iso(row.get(3)?),
-                status: None,
-                is_active: None,
-                repo_path: non_empty_string(repo_path),
-                repo_root_path: repo_root_path.and_then(non_empty_string),
-                repo_remote_urls,
-                storage_path: non_empty_string(source_path),
-                model: non_empty_string(model),
-                total_tokens: input_tokens + output_tokens,
-                files_changed: row.get(6)?,
-                lines_added: row.get(7)?,
-                lines_removed: row.get(8)?,
-                touched_files,
-            })
+            let session_id: String = row.get(0)?;
+            let updated_at_ms: i64 = row.get(3)?;
+            Ok((
+                ImportedHistorySidebarRow {
+                    session_id: session_id.clone(),
+                    name: row.get(1)?,
+                    created_at: super::epoch_ms_to_iso(row.get(2)?),
+                    updated_at: super::epoch_ms_to_iso(updated_at_ms),
+                    status: None,
+                    is_active: None,
+                    repo_path: non_empty_string(repo_path),
+                    repo_root_path: repo_root_path.and_then(non_empty_string),
+                    repo_remote_urls,
+                    storage_path: non_empty_string(source_path),
+                    model: non_empty_string(model),
+                    total_tokens: input_tokens + output_tokens,
+                    files_changed: row.get(6)?,
+                    lines_added: row.get(7)?,
+                    lines_removed: row.get(8)?,
+                    touched_files,
+                },
+                super::ImportedHistorySidebarCursor {
+                    updated_at_ms,
+                    session_id,
+                },
+            ))
         })
         .map_err(|err| format!("Failed to query imported sidebar rows for {source}: {err}"))?;
 
-    let mut sessions = Vec::new();
+    let mut rows_with_cursors = Vec::new();
     for row in rows {
-        sessions.push(
+        rows_with_cursors.push(
             row.map_err(|err| format!("Failed to read imported sidebar row for {source}: {err}"))?,
         );
     }
-    let has_more = sessions.len() > limit;
-    sessions.truncate(limit);
-    Ok(ImportedHistorySidebarPage { sessions, has_more })
+    let has_more = rows_with_cursors.len() > limit;
+    rows_with_cursors.truncate(limit);
+    let next_cursor = rows_with_cursors.last().map(|(_, cursor)| cursor.clone());
+    let sessions = rows_with_cursors
+        .into_iter()
+        .map(|(session, _)| session)
+        .collect();
+    Ok(ImportedHistorySidebarPage {
+        sessions,
+        has_more,
+        next_cursor,
+    })
 }
 
 pub fn query_imported_recent_paths_from_conn(

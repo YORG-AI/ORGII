@@ -1,5 +1,57 @@
 use super::*;
 
+pub(super) fn open_foreground_imported_window(
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    limits: ReplayLimits,
+) -> Result<ReplayChunkWindow, String> {
+    let limits = replay_storage_limits_with_normalization_headroom(limits);
+    // A visible open is authoritative: synchronize the provider before
+    // returning the newest compact window. Use an independent connection so
+    // this does not queue behind the process-wide multi-provider catalog
+    // mutex; SQLite's IMMEDIATE transaction remains the cross-process writer
+    // boundary.
+    with_foreground_replay_connection("replay index open", |conn| {
+        replay::open_window(conn, source, session_id, limits)
+    })
+}
+
+pub(super) fn read_foreground_imported_window(
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    before_sequence: Option<i64>,
+    turn_id: Option<&str>,
+    turn_index: Option<i64>,
+    limits: ReplayLimits,
+) -> Result<ReplayChunkWindow, String> {
+    let limits = replay_storage_limits_with_normalization_headroom(limits);
+    let cached = {
+        let mut conn = database::db::get_connection()
+            .map_err(|error| format!("open cached replay page DB: {error}"))?;
+        if let Some(turn_id) = turn_id {
+            replay::read_cached_turn_window(&mut conn, source, session_id, turn_id, limits)
+        } else if let Some(turn_index) = turn_index {
+            replay::read_cached_turn_window_at_index(
+                &mut conn, source, session_id, turn_index, limits,
+            )
+        } else {
+            replay::read_cached_window(&conn, source, session_id, before_sequence, limits)
+        }?
+    };
+    if let Some(window) = cached {
+        return Ok(window);
+    }
+    with_sessions_replay_writer("replay index", |conn| {
+        if let Some(turn_id) = turn_id {
+            replay::read_turn_window(conn, source, session_id, turn_id, limits)
+        } else if let Some(turn_index) = turn_index {
+            replay::read_turn_window_at_index(conn, source, session_id, turn_index, limits)
+        } else {
+            replay::read_window(conn, source, session_id, before_sequence, limits)
+        }
+    })
+}
+
 pub(super) fn load_replay_query_window(
     source_id: &str,
     session_id: &str,
@@ -19,6 +71,7 @@ pub(super) fn load_replay_query_window(
             source,
             imported_session_id,
         } => with_sessions_replay_writer("replay query index", |conn| {
+            let limits = replay_storage_limits_with_normalization_headroom(limits);
             if let Some(turn_id) = turn_id {
                 replay::read_turn_window(conn, source, &imported_session_id, turn_id, limits)
             } else if let Some(turn_index) = turn_index {
@@ -47,10 +100,14 @@ pub(super) fn load_replay_query_window(
             )
             .map(ResolvedReplayWindow::CollaborationSnapshot)
         }
-        ResolvedReplayTarget::ManagedChunkStore => {
-            managed_chunk_read_window(session_id, before_sequence, turn_id, turn_index, limits)
-                .map(ResolvedReplayWindow::ManagedChunks)
-        }
+        ResolvedReplayTarget::ManagedChunkStore => managed_chunk_read_window(
+            session_id,
+            before_sequence,
+            turn_id,
+            turn_index,
+            replay_storage_limits_with_normalization_headroom(limits),
+        )
+        .map(ResolvedReplayWindow::ManagedChunks),
         ResolvedReplayTarget::NotReady => Ok(ResolvedReplayWindow::NotReady),
     }
 }

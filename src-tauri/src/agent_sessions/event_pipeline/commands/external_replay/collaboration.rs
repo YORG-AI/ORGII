@@ -567,6 +567,7 @@ pub(super) fn collaboration_snapshot_read_window_from_conn(
     limits: ReplayLimits,
 ) -> Result<ExternalReplayWindow, String> {
     let limits = limits.bounded();
+    let exact_turn = turn_id.is_some() || turn_index.is_some();
     let state = collaboration_snapshot_state(conn, session_id)?;
     let (lower_exclusive, upper_exclusive) = if let Some(turn_id) = turn_id {
         let start = collaboration_snapshot_turn_id_sequence(conn, session_id, turn_id)?
@@ -601,29 +602,53 @@ pub(super) fn collaboration_snapshot_read_window_from_conn(
             .unwrap_or(-1);
         (start.saturating_sub(1), i64::MAX)
     };
-    let indexed = query_collaboration_snapshot_events(
-        conn,
-        session_id,
-        &state.generation,
-        lower_exclusive,
-        upper_exclusive,
-        limits,
-        true,
-    )?;
+    let (indexed, window_start_sequence) = if exact_turn {
+        read_collaboration_exact_turn_events(
+            conn,
+            session_id,
+            &state.generation,
+            lower_exclusive,
+            upper_exclusive,
+            limits,
+        )?
+    } else {
+        let indexed = query_collaboration_snapshot_events(
+            conn,
+            session_id,
+            &state.generation,
+            lower_exclusive,
+            upper_exclusive,
+            limits,
+            true,
+        )?;
+        let window_start_sequence = indexed.first().map(|(sequence, _)| *sequence);
+        (indexed, window_start_sequence)
+    };
     let through_sequence = indexed.last().map_or(-1, |(sequence, _)| *sequence);
-    let min_sequence = indexed.first().map_or(-1, |(sequence, _)| *sequence);
-    let has_older = min_sequence >= 0
-        && conn
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM events
+    let has_older = if let Some(continuation_sequence) = window_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM events
                  WHERE session_id=?1 AND history_sequence<?2)",
-                rusqlite::params![session_id, min_sequence],
-                |row| row.get::<_, i64>(0),
-            )
-            .map_err(|error| format!("query older collaboration replay events: {error}"))?
-            != 0;
-    let window_start_sequence = indexed.iter().map(|(sequence, _)| *sequence).min();
-    let turn_headers = collaboration_snapshot_turn_headers(conn, session_id, &indexed)?;
+            rusqlite::params![session_id, continuation_sequence],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| format!("query older collaboration replay events: {error}"))?
+            != 0
+    } else {
+        false
+    };
+    let turn_headers = if exact_turn {
+        collaboration_snapshot_exact_turn_header(
+            conn,
+            session_id,
+            lower_exclusive.saturating_add(1),
+            upper_exclusive,
+        )?
+        .into_iter()
+        .collect()
+    } else {
+        collaboration_snapshot_turn_headers(conn, session_id, &indexed)?
+    };
     let total_turn_count = collaboration_snapshot_turn_count(conn, session_id, state.event_count)?;
     let parsed_rows = indexed.len() as u64;
     let events = indexed
@@ -660,6 +685,132 @@ pub(super) fn collaboration_snapshot_read_window_from_conn(
         },
         watcher_available: false,
     })
+}
+
+fn read_collaboration_exact_turn_events(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    generation: &str,
+    lower_exclusive: i64,
+    upper_exclusive: i64,
+    limits: ReplayLimits,
+) -> Result<(Vec<(i64, SessionEvent)>, Option<i64>), String> {
+    let anchor_limits = ReplayLimits {
+        max_turns: 1,
+        max_events: 1,
+        max_ipc_bytes: limits.max_ipc_bytes,
+    };
+    let mut indexed = query_collaboration_snapshot_events(
+        conn,
+        session_id,
+        generation,
+        lower_exclusive,
+        upper_exclusive,
+        anchor_limits,
+        false,
+    )?;
+    let Some(anchor_sequence) = indexed.first().map(|(sequence, _)| *sequence) else {
+        return Ok((indexed, None));
+    };
+    let anchor_bytes = indexed
+        .first()
+        .and_then(|(_, event)| serde_json::to_vec(event).ok())
+        .map_or(0, |bytes| bytes.len());
+    let Some(tail_limits) = limits.after_exact_turn_anchor(anchor_bytes) else {
+        return Ok((indexed, Some(anchor_sequence)));
+    };
+    let mut tail = query_collaboration_snapshot_events(
+        conn,
+        session_id,
+        generation,
+        anchor_sequence,
+        upper_exclusive,
+        tail_limits,
+        true,
+    )?;
+    let tail_start_sequence = tail.first().map(|(sequence, _)| *sequence);
+    let has_gap = if let Some(tail_start_sequence) = tail_start_sequence {
+        conn.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM events
+                WHERE session_id=?1 AND history_sequence>?2 AND history_sequence<?3
+             )",
+            rusqlite::params![session_id, anchor_sequence, tail_start_sequence],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| format!("query exact collaboration replay turn gap: {error}"))?
+            != 0
+    } else {
+        false
+    };
+    let window_start_sequence = if has_gap {
+        tail_start_sequence
+    } else {
+        Some(anchor_sequence)
+    };
+    indexed.append(&mut tail);
+    Ok((indexed, window_start_sequence))
+}
+
+fn collaboration_snapshot_exact_turn_header(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    start_sequence: i64,
+    upper_exclusive: i64,
+) -> Result<Option<ReplayTurnHeader>, String> {
+    let anchor = conn
+        .query_row(
+            "SELECT id,created_at FROM events
+             WHERE session_id=?1 AND history_sequence=?2
+             ORDER BY id ASC LIMIT 1",
+            rusqlite::params![session_id, start_sequence],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()
+        .map_err(|error| format!("query collaboration replay turn anchor: {error}"))?;
+    let Some((turn_id, started_at)) = anchor else {
+        return Ok(None);
+    };
+    let turn_index = conn
+        .query_row(
+            &format!(
+                "SELECT COUNT(*) FROM events WHERE session_id=?1
+                 AND history_sequence<?2 AND {}",
+                snapshot_user_predicate()
+            ),
+            rusqlite::params![session_id, start_sequence],
+            |row| row.get::<_, i64>(0),
+        )
+        .map_err(|error| format!("index collaboration replay exact turn: {error}"))?;
+    let (end_sequence, ended_at, event_count) = conn
+        .query_row(
+            "SELECT MAX(history_sequence),
+                    (SELECT tail.created_at FROM events AS tail
+                     WHERE tail.session_id=?1 AND tail.history_sequence>=?2
+                       AND tail.history_sequence<?3
+                     ORDER BY tail.history_sequence DESC,tail.id DESC LIMIT 1),
+                    COUNT(*)
+             FROM events
+             WHERE session_id=?1 AND history_sequence>=?2 AND history_sequence<?3",
+            rusqlite::params![session_id, start_sequence, upper_exclusive],
+            |row| {
+                Ok((
+                    row.get::<_, Option<i64>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            },
+        )
+        .map_err(|error| format!("summarize collaboration replay exact turn: {error}"))?;
+    Ok(Some(ReplayTurnHeader {
+        turn_id,
+        turn_index,
+        start_sequence,
+        end_sequence,
+        started_at,
+        ended_at,
+        event_count: event_count.max(0) as u64,
+    }))
 }
 
 pub(super) fn collaboration_snapshot_poll_delta_from_conn(

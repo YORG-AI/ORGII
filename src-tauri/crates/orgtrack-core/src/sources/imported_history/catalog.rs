@@ -168,11 +168,23 @@ impl ReplayCatalogProjection {
         source_session_id: &str,
     ) {
         self.observe_timestamp(timestamp.map(Value::from).as_ref());
-        if let Some(title) = ["title", "name", "threadName", "thread_name"]
+        // `name` is overloaded across Codex payloads: function/tool calls use
+        // it for values such as `exec`, `update_plan`, and `js`. Only the
+        // session metadata envelope owns session-title fields.
+        if line_type == "session_meta" {
+            if let Some(title) = [
+                "title",
+                "name",
+                "threadName",
+                "thread_name",
+                "conversationTitle",
+                "conversation_title",
+            ]
             .into_iter()
             .find_map(|key| nonempty_value(payload.get(key)))
-        {
-            self.set_title(title, 3);
+            {
+                self.set_title(title, 3);
+            }
         }
         if let Some(model) = nonempty_value(payload.get("model")) {
             self.model = Some(model.to_string());
@@ -180,7 +192,9 @@ impl ReplayCatalogProjection {
         if let Some(cwd) = nonempty_value(payload.get("cwd")) {
             self.repo_path = Some(cwd.to_string());
         }
-        if payload.get("type").and_then(Value::as_str) == Some("user_message") {
+        if self.title_priority < 1
+            && payload.get("type").and_then(Value::as_str) == Some("user_message")
+        {
             if let Some(message) = nonempty_value(payload.get("message")) {
                 let message = imported_history::strip_orgii_exec_mode_bridge(message);
                 if !message.trim().is_empty() {
@@ -603,13 +617,43 @@ pub(crate) fn publish_from_replay_tx(
             .sum();
     }
 
-    let title = projection.title.as_deref().or(first_user_title.as_deref());
-    let title_priority = if projection.title.is_some() {
-        projection.title_priority
-    } else if first_user_title.is_some() {
-        1
+    let replay_title = projection.title.as_deref().or(first_user_title.as_deref());
+    let (title, title_priority) = if source == ImportedHistorySourceId::CodexApp {
+        // Codex's session index owns the user-visible title. Replay may only
+        // fill an adapter placeholder; this also recovers the adapter value
+        // when an older projection polluted the live row with a tool name.
+        let title = catalog_baseline
+            .as_ref()
+            .and_then(|baseline| {
+                (!is_catalog_name_placeholder(baseline, source_session_id))
+                    .then_some(baseline.name.as_str())
+            })
+            .or(replay_title)
+            .or_else(|| {
+                catalog_baseline
+                    .as_ref()
+                    .map(|baseline| baseline.name.trim())
+                    .filter(|name| !name.is_empty())
+            });
+        // The selected title has already passed the source-vs-replay
+        // ownership check above. Use the strong-update branch so an old
+        // replay overlay is replaced atomically by its recovered baseline.
+        let title_priority = if title.is_some() { 2 } else { 0 };
+        (title, title_priority)
     } else {
-        0
+        // Other providers retain their existing catalog-enrichment contract:
+        // explicit provider metadata can replace discovery names, while the
+        // first user prompt only fills an empty title.
+        (
+            replay_title,
+            if projection.title.is_some() {
+                projection.title_priority
+            } else if first_user_title.is_some() {
+                1
+            } else {
+                0
+            },
+        )
     };
     let source_mtime_ms = source_mtime_ns.saturating_div(1_000_000);
     let projected_updated_at = projection.updated_at_ms.unwrap_or_default();
@@ -734,6 +778,18 @@ fn compact_user_title(args_json: &str, result_json: &str) -> Option<String> {
     .filter(|title| !title.is_empty())
     .map(|title| imported_history::truncate_name(title, 200));
     title
+}
+
+fn is_catalog_name_placeholder(
+    snapshot: &ReplayCatalogRowSnapshot,
+    source_session_id: &str,
+) -> bool {
+    let name = snapshot.name.trim();
+    name.is_empty()
+        || name == snapshot.source_record_key
+        || name == source_session_id
+        || name == snapshot.session_id
+        || matches!(name, "New Agent" | "Untitled")
 }
 
 fn nonempty_value(value: Option<&Value>) -> Option<&str> {
@@ -891,6 +947,186 @@ mod tests {
         // The exhaustive match in `refresh_source` is the compile-time guard;
         // this assertion also documents the external-history contract count.
         assert_eq!(ImportedHistorySourceId::ALL.len(), 15);
+    }
+
+    #[test]
+    fn codex_catalog_uses_only_session_metadata_or_the_first_user_message_for_titles() {
+        let mut projection = ReplayCatalogProjection::default();
+        projection.observe_codex(
+            "event_msg",
+            None,
+            &serde_json::json!({
+                "type": "user_message",
+                "message": "First genuine request"
+            }),
+            "fixture",
+        );
+        for (payload_type, tool_name) in [
+            ("function_call", "exec"),
+            ("function_call", "exec_command"),
+            ("custom_tool_call", "update_plan"),
+            ("custom_tool_call", "js"),
+        ] {
+            projection.observe_codex(
+                "response_item",
+                None,
+                &serde_json::json!({
+                    "type": payload_type,
+                    "name": tool_name
+                }),
+                "fixture",
+            );
+        }
+        projection.observe_codex(
+            "event_msg",
+            None,
+            &serde_json::json!({
+                "type": "user_message",
+                "message": "Later request must not replace the first"
+            }),
+            "fixture",
+        );
+
+        assert_eq!(projection.title.as_deref(), Some("First genuine request"));
+        assert_eq!(projection.title_priority, 1);
+
+        projection.observe_codex(
+            "session_meta",
+            None,
+            &serde_json::json!({
+                "title": "Transcript session title",
+                "name": "not selected because title is explicit"
+            }),
+            "fixture",
+        );
+        projection.observe_codex(
+            "response_item",
+            None,
+            &serde_json::json!({
+                "type": "function_call",
+                "name": "exec"
+            }),
+            "fixture",
+        );
+        assert_eq!(
+            projection.title.as_deref(),
+            Some("Transcript session title")
+        );
+        assert_eq!(projection.title_priority, 3);
+    }
+
+    #[test]
+    fn replay_catalog_preserves_authoritative_source_title() {
+        let mut conn = catalog_fixture();
+        conn.execute(
+            "UPDATE imported_history_session_cache
+             SET name='Session index title'
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+        )
+        .expect("set authoritative source title");
+        let cursor = serde_json::json!({
+            "catalog": ReplayCatalogProjection {
+                title: Some("Replay-derived title".to_string()),
+                title_priority: 3,
+                ..ReplayCatalogProjection::default()
+            }
+        })
+        .to_string();
+        let tx = conn.transaction().expect("catalog transaction");
+        publish_from_replay_tx(
+            &tx,
+            ImportedHistorySourceId::CodexApp,
+            "fixture",
+            "g1",
+            2,
+            true,
+            1_774_137_600_000_000_000,
+            &cursor,
+        )
+        .expect("publish catalog");
+        tx.commit().expect("commit catalog");
+
+        let name: String = conn
+            .query_row(
+                "SELECT name FROM imported_history_session_cache
+                 WHERE source='codex_app' AND source_session_id='fixture'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read source title");
+        assert_eq!(name, "Session index title");
+    }
+
+    #[test]
+    fn adapter_title_refresh_rebases_a_polluted_replay_derivation() {
+        let mut conn = catalog_fixture();
+        conn.execute(
+            "UPDATE imported_history_session_cache
+             SET name='js'
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+        )
+        .expect("set already-polluted baseline");
+        let baseline = current_catalog_snapshot(&mut conn);
+        conn.execute(
+            "UPDATE imported_history_session_cache SET name='update_plan'
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+        )
+        .expect("simulate old polluted replay title");
+        let polluted = current_catalog_snapshot(&mut conn);
+        let tx = conn.transaction().expect("store old projection ownership");
+        store_replay_catalog_derivation(
+            &tx,
+            ImportedHistorySourceId::CodexApp,
+            "fixture",
+            &baseline,
+            &polluted,
+        )
+        .expect("store old replay derivation");
+        tx.commit().expect("commit old replay derivation");
+
+        // A Codex catalog rescan now reasserts its source-owned title directly
+        // instead of restoring the already-polluted replay baseline.
+        conn.execute(
+            "UPDATE imported_history_session_cache SET name='Session index title'
+             WHERE source='codex_app' AND source_session_id='fixture'",
+            [],
+        )
+        .expect("apply authoritative adapter refresh");
+
+        let corrected_cursor = serde_json::json!({
+            "catalog": ReplayCatalogProjection {
+                title: Some("First genuine request".to_string()),
+                title_priority: 1,
+                ..ReplayCatalogProjection::default()
+            }
+        })
+        .to_string();
+        let tx = conn.transaction().expect("catalog repair transaction");
+        publish_from_replay_tx(
+            &tx,
+            ImportedHistorySourceId::CodexApp,
+            "fixture",
+            "g1",
+            2,
+            true,
+            1_774_137_600_000_000_000,
+            &corrected_cursor,
+        )
+        .expect("publish corrected catalog");
+        tx.commit().expect("commit corrected catalog");
+
+        assert_eq!(
+            current_catalog_snapshot(&mut conn).name,
+            "Session index title"
+        );
+        assert_eq!(
+            derivation_count(&conn),
+            1,
+            "the repaired replay overlay must retain its ownership guard"
+        );
     }
 
     #[test]

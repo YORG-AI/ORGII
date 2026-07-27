@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 use std::collections::BTreeSet;
+#[cfg(test)]
 use std::fs;
-use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -27,9 +27,11 @@ use crate::sources::imported_history::{
 
 #[cfg(test)]
 use super::impact::{collect_codex_impact_from_patch_apply_end, collect_codex_impact_from_payload};
+#[cfg(test)]
+use super::index::codex_session_index_title_for_record;
 use super::index::{
-    codex_session_index_title_for_record, codex_sessions_dir_for_session_path,
-    codex_thread_id_from_file_stem, collect_codex_session_files,
+    codex_sessions_dir_for_session_path, codex_thread_id_from_file_stem,
+    collect_codex_session_files,
 };
 use super::transcript::user_message_from_payload;
 #[cfg(test)]
@@ -41,6 +43,7 @@ use super::{CodexAppSourceMetadata, CodexJsonlLine, CODEX_APP_METADATA_PARSER_VE
 /// walk 300 MiB again. Exact turns, tokens, and impact come from the persistent
 /// bounded replay index.
 const CODEX_CATALOG_PREFIX_BYTES: u64 = 1024 * 1024;
+const CODEX_UNTITLED_SESSION_NAME: &str = "Untitled";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodexTranscriptLocator {
@@ -236,7 +239,7 @@ impl CodexSessionMetaState {
         let name = if !title.is_empty() {
             title
         } else if self.first_prompt.is_empty() {
-            record.source_record_key.clone()
+            CODEX_UNTITLED_SESSION_NAME.to_string()
         } else {
             imported_history::truncate_name(&self.first_prompt, 200)
         };
@@ -366,26 +369,35 @@ pub(crate) fn parse_codex_session_meta(
     Ok(parse_codex_session_meta_incremental(record, None)?.meta)
 }
 
+#[cfg(test)]
 pub(super) fn parse_codex_catalog_input(
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<Option<ImportedHistoryCacheInput>, String> {
-    let file = fs::File::open(&record.source_path).map_err(|err| {
-        format!(
-            "Failed to open Codex catalog prefix {}: {err}",
-            record.source_path.display()
-        )
-    })?;
-    let reader = BufReader::new(file.take(CODEX_CATALOG_PREFIX_BYTES));
+    let external_title = codex_session_index_title_for_record(record)?;
+    parse_codex_catalog_input_with_title(record, Some(&external_title))
+}
+
+pub(super) fn parse_codex_catalog_input_with_title(
+    record: &ImportedHistoryDiscoveredRecord,
+    authoritative_title: Option<&str>,
+) -> Result<Option<ImportedHistoryCacheInput>, String> {
     let mut created_at_ms = 0;
-    let mut external_title = codex_session_index_title_for_record(record)?;
+    let mut external_title = authoritative_title
+        .map(str::trim)
+        .filter(|title| !title.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_default();
     let mut first_prompt = String::new();
     let mut model = None;
     let mut repo_path = None;
     let mut parent_thread_id = None;
     let mut source_metadata = CodexAppSourceMetadata::default();
 
-    for line in reader.lines() {
-        let line = line.map_err(|err| format!("Failed to read Codex catalog prefix: {err}"))?;
+    for line in imported_history::read_complete_jsonl_prefix_lines(
+        &record.source_path,
+        "Codex",
+        CODEX_CATALOG_PREFIX_BYTES,
+    )? {
         let Ok(parsed) = serde_json::from_str::<CodexJsonlLine>(line.trim()) else {
             continue;
         };
@@ -445,7 +457,7 @@ pub(super) fn parse_codex_catalog_input(
     } else if !first_prompt.is_empty() {
         imported_history::truncate_name(&first_prompt, 200)
     } else {
-        record.source_record_key.clone()
+        CODEX_UNTITLED_SESSION_NAME.to_string()
     };
     source_metadata.first_prompt = (!first_prompt.trim().is_empty()).then_some(first_prompt);
     let parent_session_id = parent_thread_id
@@ -675,5 +687,79 @@ mod catalog_tests {
         assert!(CODEX_CATALOG_PREFIX_BYTES < size);
 
         fs::remove_file(path).expect("remove fixture");
+    }
+
+    #[test]
+    fn catalog_reads_complete_final_record_without_a_trailing_newline() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-codex-catalog-no-newline-{}-{}.jsonl",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let record_json = serde_json::json!({
+            "timestamp":"2026-07-22T00:00:00Z",
+            "type":"session_meta",
+            "payload":{"title":"natural EOF Codex catalog","cwd":"/work/orgii"}
+        })
+        .to_string();
+        fs::write(&path, &record_json).expect("write no-newline Codex fixture");
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: "catalog-no-newline".to_string(),
+            source_path: path.clone(),
+            source_record_key: "catalog-no-newline".to_string(),
+            source_mtime_ms: 1_774_137_600_000_000_000,
+            source_size_bytes: record_json.len() as i64,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        };
+
+        let input = parse_codex_catalog_input(&record)
+            .expect("parse no-newline Codex catalog")
+            .expect("Codex catalog row");
+
+        assert_eq!(input.name, "natural EOF Codex catalog");
+        fs::remove_file(path).expect("remove no-newline Codex fixture");
+    }
+
+    #[test]
+    fn catalog_uses_untitled_when_only_tool_and_system_records_exist() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-codex-catalog-tool-only-{}-{}.jsonl",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let body = [
+            serde_json::json!({
+                "timestamp":"2026-07-22T00:00:00Z",
+                "type":"session_meta",
+                "payload":{"cwd":"/work/orgii"}
+            }),
+            serde_json::json!({
+                "timestamp":"2026-07-22T00:00:01Z",
+                "type":"response_item",
+                "payload":{"type":"custom_tool_call","name":"update_plan"}
+            }),
+        ]
+        .into_iter()
+        .map(|value| value.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+        fs::write(&path, format!("{body}\n")).expect("write tool-only Codex fixture");
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: "catalog-tool-only".to_string(),
+            source_path: path.clone(),
+            source_record_key: "catalog-tool-only".to_string(),
+            source_mtime_ms: 1_774_137_600_000_000_000,
+            source_size_bytes: body.len() as i64 + 1,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        };
+
+        let input = parse_codex_catalog_input_with_title(&record, None)
+            .expect("parse tool-only Codex catalog")
+            .expect("Codex catalog row");
+
+        assert_eq!(input.name, "Untitled");
+        fs::remove_file(path).expect("remove tool-only Codex fixture");
     }
 }

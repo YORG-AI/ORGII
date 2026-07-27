@@ -24,8 +24,7 @@ fn listing_lines(rendered: &str) -> Vec<&str> {
 fn per_entry_description_capped_at_250_chars() {
     let long_desc = "x".repeat(SKILL_LISTING_MAX_DESC_CHARS + 150);
     let entries = vec![entry("verbose", &long_desc)];
-    let rendered =
-        SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
+    let rendered = SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
     let line = listing_lines(&rendered)[0];
     assert!(
         line.contains('\u{2026}'),
@@ -49,8 +48,7 @@ fn total_budget_trims_descriptions_evenly() {
     let entries: Vec<SkillListingEntry> = (0..50)
         .map(|i| entry(&format!("s-{i:03}"), &desc))
         .collect();
-    let rendered =
-        SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
+    let rendered = SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
     let lines = listing_lines(&rendered);
     assert_eq!(lines.len(), 50, "no entry may be dropped");
     let total_chars: usize =
@@ -77,8 +75,7 @@ fn names_only_floor_never_drops_entries() {
     let entries: Vec<SkillListingEntry> = (0..400)
         .map(|i| entry(&format!("s-{i:03}"), &desc))
         .collect();
-    let rendered =
-        SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
+    let rendered = SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
     let lines = listing_lines(&rendered);
     assert_eq!(lines.len(), 400, "floor keeps every invocable name");
     for (i, line) in lines.iter().enumerate() {
@@ -93,8 +90,7 @@ fn names_only_floor_never_drops_entries() {
 #[test]
 fn under_budget_listing_keeps_full_descriptions() {
     let entries = vec![entry("alpha", "first"), entry("beta", "second")];
-    let rendered =
-        SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
+    let rendered = SkillsLoader::format_skill_listing_entries(&entries).expect("listing populated");
     assert!(rendered.contains("- **alpha** (workspace): first [available]"));
     assert!(rendered.contains("- **beta** (workspace): second [available]"));
 }

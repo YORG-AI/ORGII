@@ -132,6 +132,27 @@ pub fn open_window(
     Ok(window)
 }
 
+/// Read the newest bounded window from an already-published compact index.
+///
+/// This is an explicitly stale-tolerant read for secondary consumers that do
+/// not own source synchronization. Visible UI opens must call [`open_window`]
+/// on a short-lived foreground connection so a provider append is reflected
+/// immediately. A cache miss remains explicit.
+pub fn open_cached_window(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayChunkWindow>, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    if index::load_state(conn, source, &resolved.source_session_id)?.is_none() {
+        return Ok(None);
+    }
+    index::read_recent_window(conn, source, session_id, limits.bounded()).map(Some)
+}
+
 pub fn poll_delta(
     conn: &mut Connection,
     source: ImportedHistorySourceId,
@@ -162,6 +183,32 @@ pub fn read_window(
     Ok(window)
 }
 
+/// Read a bounded older window from the last atomically published generation.
+///
+/// Cursor IDE and Windsurf cold indexes intentionally omit older turn bodies,
+/// so their foreground pager must retain the synchronized hydration path.
+pub fn read_cached_window(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    before_sequence: Option<i64>,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayChunkWindow>, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    if matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    ) {
+        return Ok(None);
+    }
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    if index::load_state(conn, source, &resolved.source_session_id)?.is_none() {
+        return Ok(None);
+    }
+    index::read_window_before(conn, source, session_id, before_sequence, limits.bounded()).map(Some)
+}
+
 /// Read one compact-index turn by its stable header id. This is the bounded
 /// replacement for Cursor IDE's legacy lazy `cursorIdeTurnWindow` hydration.
 pub fn read_turn_window(
@@ -177,6 +224,29 @@ pub fn read_turn_window(
     index::read_window_for_turn(conn, source, session_id, turn_id, limits.bounded())
 }
 
+/// Read one already-materialized turn without synchronizing the provider.
+pub fn read_cached_turn_window(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    turn_id: &str,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayChunkWindow>, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    if matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    ) {
+        return Ok(None);
+    }
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    if index::load_state(conn, source, &resolved.source_session_id)?.is_none() {
+        return Ok(None);
+    }
+    index::read_window_for_turn(conn, source, session_id, turn_id, limits.bounded()).map(Some)
+}
+
 pub fn read_turn_window_at_index(
     conn: &mut Connection,
     source: ImportedHistorySourceId,
@@ -190,6 +260,30 @@ pub fn read_turn_window_at_index(
     index::read_window_for_turn_index(conn, source, session_id, turn_index, limits.bounded())
 }
 
+/// Read one already-materialized turn index without synchronizing the provider.
+pub fn read_cached_turn_window_at_index(
+    conn: &mut Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    turn_index: i64,
+    limits: ReplayLimits,
+) -> Result<Option<ReplayChunkWindow>, String> {
+    source.validate_session_id(session_id)?;
+    ensure_supported(source)?;
+    if matches!(
+        source,
+        ImportedHistorySourceId::CursorIde | ImportedHistorySourceId::Windsurf
+    ) {
+        return Ok(None);
+    }
+    let resolved = index::resolve_source(conn, source, session_id)?;
+    if index::load_state(conn, source, &resolved.source_session_id)?.is_none() {
+        return Ok(None);
+    }
+    index::read_window_for_turn_index(conn, source, session_id, turn_index, limits.bounded())
+        .map(Some)
+}
+
 /// Project compact metadata for visible imported-history turns without
 /// materializing an `ActivityChunk` transcript or applying the 200-event
 /// renderer window limit.
@@ -201,6 +295,20 @@ pub fn project_turn_metadata(
 ) -> Result<Vec<crate::projectors::turn_metadata::ProjectedTurnMetadata>, String> {
     ensure_supported(source)?;
     metadata_projection::project_turn_metadata(conn, source, session_id, requested_turn_ids)
+}
+
+/// Project compact metadata without synchronizing the provider or taking a
+/// write transaction. Most adapters read only ORGII's published index;
+/// Cursor/Windsurf additionally perform bounded, exact user-bubble lookups
+/// against their read-only KV store. `None` means no compact index exists yet.
+pub fn project_cached_turn_metadata(
+    conn: &Connection,
+    source: ImportedHistorySourceId,
+    session_id: &str,
+    requested_turn_ids: Option<&[String]>,
+) -> Result<Option<Vec<crate::projectors::turn_metadata::ProjectedTurnMetadata>>, String> {
+    ensure_supported(source)?;
+    metadata_projection::project_cached_turn_metadata(conn, source, session_id, requested_turn_ids)
 }
 
 pub fn scan_window_after(

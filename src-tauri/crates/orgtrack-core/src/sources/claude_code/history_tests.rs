@@ -87,6 +87,46 @@ fn catalog_prefix_is_bounded_for_a_thirty_mib_claude_transcript() {
 }
 
 #[test]
+fn catalog_reads_complete_final_record_without_a_trailing_newline() {
+    let path = std::env::temp_dir().join(format!(
+        "orgii-claude-catalog-no-newline-{}-{}.jsonl",
+        std::process::id(),
+        chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+    let record_json = serde_json::json!({
+        "type":"user",
+        "uuid":"first-user-id",
+        "sessionId":"claude-no-newline",
+        "cwd":"/work/claude",
+        "gitBranch":"develop",
+        "timestamp":"2026-07-22T00:00:00Z",
+        "message":{
+            "role":"user",
+            "content":"natural EOF Claude catalog",
+            "model":"claude-sonnet-4"
+        }
+    })
+    .to_string();
+    std::fs::write(&path, &record_json).expect("write no-newline Claude fixture");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "claude-no-newline".to_string(),
+        source_path: path.clone(),
+        source_record_key: "claude-no-newline".to_string(),
+        source_mtime_ms: 1_774_137_600_000_000_000,
+        source_size_bytes: record_json.len() as i64,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+
+    let input = parse_claude_catalog_input(&record)
+        .expect("parse no-newline Claude catalog")
+        .expect("Claude catalog row");
+
+    assert_eq!(input.name, "natural EOF Claude catalog");
+    std::fs::remove_file(path).expect("remove no-newline Claude fixture");
+}
+
+#[test]
 fn parses_claude_jsonl_into_replay_chunks() {
     let temp_dir =
         std::env::temp_dir().join(format!("orgii-claude-history-test-{}", std::process::id()));

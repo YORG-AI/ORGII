@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { execFileSync, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   cpSync,
   existsSync,
@@ -7,11 +8,19 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+import { seedSidebarCursorFixtures } from "./support/core/sidebarCursorFixtures.mjs";
+import {
+  assertSidebarFixtureRoot,
+  prepareSidebarFixtureRoot,
+} from "./support/core/sidebarFixtureIsolation.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..");
@@ -44,6 +53,13 @@ const isolatedRun = process.env.E2E_ISOLATED_RUN === "1";
 const allowPortCleanup = process.env.E2E_ALLOW_PORT_CLEANUP === "1";
 const providerMode = process.env.E2E_PROVIDER_MODE ?? "mock";
 const oauthLiveMode = providerMode === "oauth-live";
+if (
+  process.argv.some((value) =>
+    value.includes("sidebar-session-discovery-ui.spec.mjs")
+  )
+) {
+  process.env.E2E_SIDEBAR_DISCOVERY_EXPLICIT = "1";
+}
 process.env.ORGII_E2E = "1";
 process.env.ORGII_E2E_DISABLE_BACKGROUND_LLM ??= "1";
 
@@ -276,6 +292,7 @@ if (orgiiHome) {
 }
 
 function seedBoundedExternalReplayFixture(targetHome) {
+  assertSidebarFixtureRoot(targetHome);
   const sourceSessionId =
     "rollout-2026-07-25T00-00-00-00000000-0000-4000-8000-000000000443";
   const sessionsDir = join(
@@ -288,46 +305,304 @@ function seedBoundedExternalReplayFixture(targetHome) {
   );
   const transcriptPath = join(sessionsDir, `${sourceSessionId}.jsonl`);
   mkdirSync(sessionsDir, { recursive: true });
-  const rows = [
-    {
-      timestamp: "2026-07-25T00:00:00Z",
-      type: "event_msg",
-      payload: {
-        type: "user_message",
-        message: "E2E bounded replay fixture question",
-      },
-    },
-    {
-      timestamp: "2026-07-25T00:00:01Z",
-      type: "event_msg",
-      payload: {
-        type: "agent_message",
-        message: "E2E bounded replay fixture answer",
-      },
-    },
-    {
-      timestamp: "2026-07-25T00:00:02Z",
-      type: "event_msg",
-      payload: {
-        type: "user_message",
-        message: "E2E bounded replay fixture follow-up",
-      },
-    },
-    {
-      timestamp: "2026-07-25T00:00:03Z",
-      type: "event_msg",
-      payload: {
-        type: "agent_message",
-        message: "E2E bounded replay fixture final answer",
-      },
-    },
-  ];
+  const rows = [];
+  // Keep the large replay and the 20 sidebar catalog rows in one local date
+  // bucket. The imported-history loader intentionally fetches a bounded page
+  // per bucket; crossing midnight here would test 1+10 bucket fan-out rather
+  // than the category's 10→20→21 Load more contract.
+  const baseTimestamp = Date.parse("2026-07-25T12:00:00Z");
+  const largePayloadPrefix = "E2E bounded replay large payload start\n";
+  const largePayloadSuffix = "\nE2E bounded replay large payload end";
+  const largePayloadBytes = 6 * 1024 * 1024;
+  const largePayload =
+    largePayloadPrefix +
+    "x".repeat(
+      largePayloadBytes -
+        Buffer.byteLength(largePayloadPrefix) -
+        Buffer.byteLength(largePayloadSuffix)
+    ) +
+    largePayloadSuffix;
+  let rowIndex = 0;
+  const pushRow = (type, payload) => {
+    rows.push({
+      timestamp: new Date(baseTimestamp + rowIndex * 1_000).toISOString(),
+      type,
+      payload,
+    });
+    rowIndex += 1;
+  };
+
+  // Fifteen turns exceed ChatHistory's four-row virtualizer overscan. This
+  // makes the rendered acceptance fail when selecting an unloaded early round
+  // only materializes its DOM without actually scrolling it into the viewport.
+  for (let turnIndex = 0; turnIndex < 15; turnIndex += 1) {
+    const roundNumber = String(turnIndex + 1).padStart(2, "0");
+    const question =
+      turnIndex === 0
+        ? "E2E bounded replay fixture question"
+        : turnIndex === 12
+          ? "E2E bounded replay fixture earlier question"
+          : turnIndex === 13
+            ? "E2E bounded replay fixture middle question"
+            : turnIndex === 14
+              ? "E2E bounded replay fixture latest question"
+              : `E2E bounded replay fixture history turn ${roundNumber} question`;
+    pushRow("event_msg", { type: "user_message", message: question });
+
+    if (turnIndex === 13) {
+      pushRow("response_item", {
+        type: "function_call",
+        name: "shell_command",
+        arguments: JSON.stringify({ command: "printf middle-marker" }),
+        call_id: "e2e-middle-call",
+      });
+      pushRow("response_item", {
+        type: "function_call_output",
+        call_id: "e2e-middle-call",
+        // A real >4 MiB JSONL payload pins the production payload-ref/range
+        // path. If the ordinary replay window ever hydrates this body again,
+        // the rendered test fails at the 4 MiB wire budget before it can claim
+        // a green user flow.
+        output: largePayload,
+      });
+    }
+
+    const answer =
+      turnIndex === 0
+        ? "E2E bounded replay fixture answer"
+        : turnIndex === 12
+          ? "E2E bounded replay fixture earlier answer"
+          : turnIndex === 13
+            ? [
+                "E2E bounded replay fixture middle answer",
+                ...Array.from(
+                  { length: 80 },
+                  (_, index) =>
+                    `Rendered scroll fixture detail ${String(index + 1).padStart(2, "0")}: bounded history remains readable.`
+                ),
+              ].join("\n\n")
+            : turnIndex === 14
+              ? "E2E bounded replay fixture final answer"
+              : `E2E bounded replay fixture history turn ${roundNumber} answer`;
+    pushRow("event_msg", { type: "agent_message", message: answer });
+  }
   writeFileSync(
     transcriptPath,
     `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`,
     "utf8"
   );
+  const transcriptUpdatedAtMs = baseTimestamp + rowIndex * 1_000;
+  utimesSync(
+    transcriptPath,
+    new Date(transcriptUpdatedAtMs),
+    new Date(transcriptUpdatedAtMs)
+  );
   process.env.E2E_ISSUE_443_FIXTURE_CODEX_SESSION_ID = `codexapp-${sourceSessionId}`;
+  process.env.E2E_ISSUE_443_FIXTURE_LARGE_PAYLOAD_BYTES = String(
+    Buffer.byteLength(largePayload)
+  );
+  process.env.E2E_ISSUE_443_FIXTURE_LARGE_PAYLOAD_SHA256 = createHash("sha256")
+    .update(largePayload)
+    .digest("hex");
+  process.env.E2E_ISSUE_443_FIXTURE_JSONL_BYTES = String(
+    statSync(transcriptPath).size
+  );
+
+  const fixtures = [
+    {
+      sessionId: `codexapp-${sourceSessionId}`,
+      sourceSessionId,
+      title: "E2E bounded replay fixture question",
+      marker: "E2E bounded replay fixture final answer",
+      updatedAtMs: transcriptUpdatedAtMs,
+      largePayload: true,
+      searchSentinel: false,
+    },
+  ];
+  const catalogBaseTimestamp = Date.parse("2026-07-25T10:00:00Z");
+  const catalogSessionsDir = join(
+    targetHome,
+    ".codex",
+    "sessions",
+    "2026",
+    "07",
+    "25"
+  );
+  mkdirSync(catalogSessionsDir, { recursive: true });
+  for (let index = 1; index <= 20; index += 1) {
+    const suffix = String(index).padStart(12, "0");
+    const minute = String(index).padStart(2, "0");
+    const fixtureTimestamp = catalogBaseTimestamp + index * 60_000;
+    const fixtureSourceSessionId =
+      `rollout-2026-07-25T10-${minute}-00-` +
+      `00000000-0000-4000-8000-${suffix}`;
+    const title =
+      index === 1
+        ? "E2E Sidebar Codex Search Sentinel"
+        : `E2E Sidebar Codex Architecture Review ${String(index).padStart(2, "0")}`;
+    const marker = `E2E Sidebar Codex response ${String(index).padStart(2, "0")}`;
+    const fixtureRows = [
+      {
+        timestamp: new Date(fixtureTimestamp).toISOString(),
+        type: "event_msg",
+        payload: { type: "user_message", message: title },
+      },
+      {
+        timestamp: new Date(fixtureTimestamp + 1_000).toISOString(),
+        type: "event_msg",
+        payload: { type: "agent_message", message: marker },
+      },
+    ];
+    const fixturePath = join(
+      catalogSessionsDir,
+      `${fixtureSourceSessionId}.jsonl`
+    );
+    writeFileSync(
+      fixturePath,
+      `${fixtureRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+      "utf8"
+    );
+    utimesSync(
+      fixturePath,
+      new Date(fixtureTimestamp + 1_000),
+      new Date(fixtureTimestamp + 1_000)
+    );
+    fixtures.push({
+      sessionId: `codexapp-${fixtureSourceSessionId}`,
+      sourceSessionId: fixtureSourceSessionId,
+      title,
+      marker,
+      updatedAtMs: fixtureTimestamp + 1_000,
+      largePayload: false,
+      searchSentinel: index === 1,
+    });
+  }
+  process.env.E2E_SIDEBAR_CODEX_FIXTURES = JSON.stringify(fixtures);
+}
+
+function sqlLiteral(value) {
+  return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function seedSidebarOpenCodeFixtures(targetHome) {
+  assertSidebarFixtureRoot(targetHome);
+  const openCodeDir = join(targetHome, ".local", "share", "opencode");
+  const dbPath = join(openCodeDir, "opencode.db");
+  mkdirSync(openCodeDir, { recursive: true });
+  rmSync(dbPath, { force: true });
+  rmSync(`${dbPath}-shm`, { force: true });
+  rmSync(`${dbPath}-wal`, { force: true });
+
+  const fixtures = [];
+  const statements = [
+    "PRAGMA journal_mode=WAL;",
+    `CREATE TABLE session (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      directory TEXT NOT NULL,
+      model TEXT,
+      tokens_input INTEGER NOT NULL,
+      tokens_output INTEGER NOT NULL,
+      tokens_reasoning INTEGER NOT NULL,
+      tokens_cache_read INTEGER NOT NULL,
+      tokens_cache_write INTEGER NOT NULL,
+      time_created INTEGER NOT NULL,
+      time_updated INTEGER NOT NULL,
+      time_archived INTEGER,
+      parent_id TEXT
+    );`,
+    `CREATE TABLE message (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      data TEXT NOT NULL
+    );`,
+    `CREATE TABLE part (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      data TEXT NOT NULL,
+      time_created INTEGER NOT NULL
+    );`,
+  ];
+  const baseTimestamp = Date.parse("2026-07-25T12:00:00Z");
+  for (let index = 1; index <= 21; index += 1) {
+    const ordinal = String(index).padStart(2, "0");
+    const sourceSessionId = `ses_e2e_sidebar_${ordinal}`;
+    const sessionId = `opencodeapp-${sourceSessionId}`;
+    const title = `E2E Sidebar OpenCode Dependency Review ${ordinal}`;
+    const marker = `E2E Sidebar OpenCode response ${ordinal}`;
+    const createdAt = baseTimestamp + index * 60_000;
+    const updatedAt = createdAt + 5_000;
+    const userMessageId = `msg_e2e_sidebar_user_${ordinal}`;
+    const assistantMessageId = `msg_e2e_sidebar_assistant_${ordinal}`;
+    fixtures.push({
+      sessionId,
+      sourceSessionId,
+      title,
+      marker,
+      updatedAtMs: updatedAt,
+    });
+    statements.push(
+      `INSERT INTO session (
+        id, title, directory, model, tokens_input, tokens_output,
+        tokens_reasoning, tokens_cache_read, tokens_cache_write,
+        time_created, time_updated, time_archived, parent_id
+      ) VALUES (
+        ${sqlLiteral(sourceSessionId)},
+        ${sqlLiteral(title)},
+        ${sqlLiteral(fixtureRepoPath)},
+        ${sqlLiteral(
+          JSON.stringify({
+            id: "e2e-opencode",
+            providerID: "e2e",
+            variant: "test",
+          })
+        )},
+        10, 20, 0, 0, 0, ${createdAt}, ${updatedAt}, NULL, NULL
+      );`,
+      `INSERT INTO message (id, session_id, data) VALUES (
+        ${sqlLiteral(userMessageId)},
+        ${sqlLiteral(sourceSessionId)},
+        ${sqlLiteral(
+          JSON.stringify({ role: "user", time: { created: createdAt } })
+        )}
+      );`,
+      `INSERT INTO message (id, session_id, data) VALUES (
+        ${sqlLiteral(assistantMessageId)},
+        ${sqlLiteral(sourceSessionId)},
+        ${sqlLiteral(
+          JSON.stringify({
+            role: "assistant",
+            modelID: "e2e-opencode",
+          })
+        )}
+      );`,
+      `INSERT INTO part (
+        id, message_id, session_id, data, time_created
+      ) VALUES (
+        ${sqlLiteral(`prt_e2e_sidebar_user_${ordinal}`)},
+        ${sqlLiteral(userMessageId)},
+        ${sqlLiteral(sourceSessionId)},
+        ${sqlLiteral(JSON.stringify({ type: "text", text: title }))},
+        ${createdAt + 1}
+      );`,
+      `INSERT INTO part (
+        id, message_id, session_id, data, time_created
+      ) VALUES (
+        ${sqlLiteral(`prt_e2e_sidebar_assistant_${ordinal}`)},
+        ${sqlLiteral(assistantMessageId)},
+        ${sqlLiteral(sourceSessionId)},
+        ${sqlLiteral(JSON.stringify({ type: "text", text: marker }))},
+        ${createdAt + 2}
+      );`
+    );
+  }
+  execFileSync("/usr/bin/sqlite3", [dbPath], {
+    encoding: "utf8",
+    input: `${statements.join("\n")}\n`,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  process.env.E2E_SIDEBAR_OPENCODE_FIXTURES = JSON.stringify(fixtures);
 }
 
 // The default rendered suite must exercise an actual external-history driver
@@ -336,15 +611,29 @@ function seedBoundedExternalReplayFixture(targetHome) {
 const realIssue443SessionConfigured = Boolean(
   process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID
 );
+let externalProviderHome = null;
 if (
   orgiiHome &&
+  !reuseServices &&
   !useRealHome &&
   !realIssue443SessionConfigured &&
   !process.env.ORGII_EXTERNAL_HISTORY_HOME
 ) {
-  const externalHistoryHome = join(orgiiHome, "external-history-home");
-  process.env.ORGII_EXTERNAL_HISTORY_HOME = externalHistoryHome;
-  seedBoundedExternalReplayFixture(externalHistoryHome);
+  externalProviderHome = prepareSidebarFixtureRoot({
+    orgiiHome,
+    candidateHome:
+      process.env.E2E_EXTERNAL_PROVIDER_HOME ??
+      join(
+        orgiiHome,
+        `external-provider-home-${process.pid}-${Date.now().toString(36)}`
+      ),
+    realUserHome: homedir(),
+  });
+  process.env.ORGII_EXTERNAL_HISTORY_HOME = externalProviderHome;
+  seedBoundedExternalReplayFixture(externalProviderHome);
+  seedSidebarOpenCodeFixtures(externalProviderHome);
+  seedSidebarCursorFixtures(externalProviderHome);
+  process.env.E2E_SIDEBAR_DISCOVERY_FIXTURE_READY = "1";
 }
 
 function ensureBenchmarkDockerFixtureRepo() {
@@ -751,6 +1040,21 @@ function buildWebDriverApp() {
 function startTauriWebDriver() {
   tauriWebDriverProcess = spawn("tauri-wd", ["--port", String(webDriverPort)], {
     stdio: "inherit",
+    env: externalProviderHome
+      ? {
+          ...process.env,
+          // Only tauri-wd and the ORGII child inherit this HOME. The WDIO
+          // launcher keeps its real HOME, while provider discovery is forced
+          // into a disposable tree containing only the deterministic fixtures.
+          HOME: externalProviderHome,
+          XDG_CONFIG_HOME: join(externalProviderHome, ".config"),
+          XDG_DATA_HOME: join(externalProviderHome, ".local", "share"),
+          XDG_CACHE_HOME: join(externalProviderHome, ".cache"),
+          XDG_STATE_HOME: join(externalProviderHome, ".local", "state"),
+          ORGII_EXTERNAL_HISTORY_HOME: externalProviderHome,
+          ORGII_HOME: orgiiHome,
+        }
+      : process.env,
   });
   waitForPort(webDriverPort, 10_000);
 }

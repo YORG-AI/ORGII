@@ -11,7 +11,7 @@ import { getChatContentBottomScrollTop } from "../config/chatFooterSpacer";
 
 export interface UseChatScrollPinOptions {
   activeId: string | null;
-  groupCounts: number[];
+  groupTurnIds: readonly (string | null)[];
   totalFlatItems: number;
   footerSpacerHeight: number;
   bottomInset: number;
@@ -37,6 +37,26 @@ export interface UseChatScrollPinOptions {
   staticScrollerRef?: MutableRefObject<HTMLDivElement | null>;
 }
 
+export function didAppendGroupAtTail(
+  previousGroupIds: readonly (string | null)[],
+  currentGroupIds: readonly (string | null)[]
+): boolean {
+  if (
+    previousGroupIds.length === 0 ||
+    currentGroupIds.length <= previousGroupIds.length
+  ) {
+    return false;
+  }
+  const previousFirst = previousGroupIds[0];
+  const previousLast = previousGroupIds[previousGroupIds.length - 1];
+  return (
+    previousFirst !== null &&
+    previousLast !== null &&
+    currentGroupIds[0] === previousFirst &&
+    currentGroupIds[previousGroupIds.length - 1] === previousLast
+  );
+}
+
 export interface UseChatScrollPinReturn {
   scrollToEnd: () => void;
   programmaticScrollAtRef: MutableRefObject<number>;
@@ -57,7 +77,7 @@ export interface UseChatScrollPinReturn {
  */
 export function useChatScrollPin({
   activeId,
-  groupCounts,
+  groupTurnIds,
   totalFlatItems: _totalFlatItems,
   footerSpacerHeight,
   bottomInset,
@@ -147,21 +167,29 @@ export function useChatScrollPin({
     programmaticScrollAtRef,
   ]);
 
-  // Effect 2: scroll to bottom only when a new user-message group is added.
-  const prevGroupLenRef = useRef(groupCounts.length);
+  // Effect 2: follow only a proven tail append. A bounded replay prepend also
+  // increases the group count, but must preserve the user's scroll anchor.
+  const previousGroupsRef = useRef<{
+    activeId: string | null;
+    turnIds: readonly (string | null)[];
+  }>({ activeId, turnIds: groupTurnIds });
 
   useEffect(() => {
-    const prevGroupLen = prevGroupLenRef.current;
-    prevGroupLenRef.current = groupCounts.length;
-
-    const newGroupAdded = groupCounts.length > prevGroupLen;
-    if (!newGroupAdded) return;
+    const previous = previousGroupsRef.current;
+    previousGroupsRef.current = { activeId, turnIds: groupTurnIds };
+    if (
+      previous.activeId !== activeId ||
+      !didAppendGroupAtTail(previous.turnIds, groupTurnIds)
+    ) {
+      return;
+    }
 
     pinLastGroupRef.current = false;
     onPinToTopChange?.(false);
     return scheduleFollowToEnd();
   }, [
-    groupCounts.length,
+    activeId,
+    groupTurnIds,
     onPinToTopChange,
     pinLastGroupRef,
     scheduleFollowToEnd,

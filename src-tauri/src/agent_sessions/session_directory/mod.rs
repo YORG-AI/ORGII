@@ -11,16 +11,21 @@
 //! - `display`         — Display label generation and text search
 //! - `conversion`      — Backend record → directory record conversion
 //! - `aggregation`     — Core merge + filter + sort + paginate logic
+//! - `sidebar_queries` — Bounded search, pinned, grouping, and facet queries
+//! - `sidebar_discovery`— Bounded search/pinned candidate hydration
 //! - `orgtrack_adapter`— Write-path mirror of session rows into orgtrack
 //! - `patch`           — Per-session field mutations
 //! - `commands`        — Tauri command handlers
 
+mod agent_org_annotations;
 pub mod aggregation;
 pub mod commands;
 pub mod conversion;
 pub mod display;
 pub mod orgtrack_adapter;
 pub mod patch;
+mod sidebar_discovery;
+mod sidebar_queries;
 pub mod status;
 pub mod types;
 

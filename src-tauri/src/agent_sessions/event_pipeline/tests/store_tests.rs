@@ -1576,6 +1576,64 @@ fn external_replay_resident_budget_keeps_selected_older_turn_and_prefetch_neighb
 }
 
 #[test]
+fn external_replay_preserving_cap_keeps_each_newly_prepended_page_visible() {
+    const STORE_BUDGET: usize = 16 * 1024 * 1024;
+    const PAGE_BODY_BYTES: usize = 3 * 1024 * 1024 + 256 * 1024;
+
+    fn large_turn(turn: u32, minute: u32) -> Vec<SessionEvent> {
+        let created_at = format!("2026-01-01T00:{minute:02}:00Z");
+        let mut body = make_event(&format!("turn-{turn}-body"), "assistant");
+        body.created_at = created_at.clone();
+        body.display_text = format!("turn {turn} {}", "w".repeat(PAGE_BODY_BYTES));
+        vec![
+            make_user_turn_header(&format!("turn-{turn}"), &created_at),
+            body,
+        ]
+    }
+
+    let mut store = EventStore::new();
+    store.set_external_replay_window(large_turn(99, 59));
+    store
+        .cap_external_replay_bytes(STORE_BUDGET)
+        .expect("cap latest external turn");
+
+    let mut previous_turn = None;
+    for turn in (4..=10_u32).rev() {
+        let page = large_turn(turn, turn);
+        let preserved_ids = page
+            .iter()
+            .map(|event| event.id.clone())
+            .collect::<std::collections::HashSet<_>>();
+        store.merge_round_window_events(page);
+        let bytes = store
+            .cap_external_replay_bytes_preserving(STORE_BUDGET, &preserved_ids)
+            .expect("cap prepended external replay page");
+
+        assert!(bytes <= STORE_BUDGET);
+        assert!(store.get_by_id(&format!("turn-{turn}")).is_some());
+        assert!(store.get_by_id(&format!("turn-{turn}-body")).is_some());
+        assert!(store.get_by_id("turn-99").is_some());
+        if let Some(previous_turn) = previous_turn {
+            assert!(
+                store
+                    .get_by_id(&format!("turn-{previous_turn}-body"))
+                    .is_some(),
+                "the immediately newer page must remain as the prepend anchor"
+            );
+        }
+        previous_turn = Some(turn);
+    }
+
+    let retained_old_pages = (4..=10_u32)
+        .filter(|turn| store.get_by_id(&format!("turn-{turn}-body")).is_some())
+        .count();
+    assert!(
+        retained_old_pages < 7,
+        "non-adjacent historical pages must still be evicted under the resident cap"
+    );
+}
+
+#[test]
 fn test_unload_turn_body_restores_placeholder_and_preserves_headers() {
     let mut store = EventStore::new();
     store.set_round_window(vec![

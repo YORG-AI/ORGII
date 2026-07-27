@@ -29,7 +29,10 @@ describe("groupKeyToWireCategory", () => {
   it("maps existing non-imported groups to their loader categories", () => {
     expect(groupKeyToWireCategory("cli")).toBe("cli_agent");
     expect(groupKeyToWireCategory("human")).toBe("human_session");
-    expect(groupKeyToWireCategory("os")).toBe("rust_agent");
+    expect(groupKeyToWireCategory("sde")).toBe("rust_agent:sde");
+    expect(groupKeyToWireCategory("os")).toBe("rust_agent:os");
+    expect(groupKeyToWireCategory("wingman")).toBe("rust_agent:wingman");
+    expect(groupKeyToWireCategory("custom")).toBe("rust_agent:custom");
   });
 
   it("keeps Human sessions in the Work Logs sidebar group", () => {

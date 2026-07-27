@@ -6,14 +6,17 @@ import {
   type Session,
   type SessionListCategory,
   type SessionPaginationMap,
+  sessionPaginationScopeKey,
 } from "@src/store/session";
 
 import {
   UNIFIED_LOAD_MORE_ID,
   appendSessionGroup,
+  getLoadMoreScopeKey,
   getUnifiedLoadMoreState,
   isUnifiedLoadMoreId,
   loadUnifiedReadyCategories,
+  scopedLoadMoreRow,
   unifiedLoadMoreRow,
 } from "../paginationHelpers";
 
@@ -85,6 +88,25 @@ describe("appendSessionGroup", () => {
 });
 
 describe("unified backend load-more helpers", () => {
+  it("keeps the legacy category DOM id while routing through the scoped cursor", () => {
+    const scope = {
+      kind: "category" as const,
+      category: "rust_agent:sde" as const,
+      orgIds: ["personal-org"],
+    };
+    const row = scopedLoadMoreRow(
+      scope,
+      { visible: true, loading: false, disabled: false },
+      "Load more"
+    );
+
+    expect(row.dataMenuItemId).toBe("load-more-rust_agent:sde");
+    expect(getLoadMoreScopeKey(row.id)).toBe(sessionPaginationScopeKey(scope));
+    expect(row.dataTestId).toContain(
+      encodeURIComponent(sessionPaginationScopeKey(scope))
+    );
+  });
+
   it("returns all ready categories while exposing one visible unified state", () => {
     const firstCategory = SESSION_LIST_CATEGORIES[0] as SessionListCategory;
     const secondCategory = SESSION_LIST_CATEGORIES[1] as SessionListCategory;

@@ -5,6 +5,37 @@
 
 use agent_core::session::SessionStatus;
 
+use super::types::SessionAggregateRecord;
+
+/// How long a hook-less imported CLI still counts as active after its
+/// transcript changed. The focused scan cadence is 60 seconds, so this covers
+/// roughly one to two scan ticks without inventing a durable running state.
+const IMPORTED_MTIME_ACTIVE_WINDOW_MS: i64 = 60_000;
+
+pub(super) fn decorate_imported_live_status(records: &mut [SessionAggregateRecord]) {
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    for record in records.iter_mut() {
+        if let Some((status, _entry)) =
+            crate::orgtrack::agent_live_status::effective_live_status(&record.session_id)
+        {
+            record.status = status.to_string();
+            record.is_active = is_active_status(status);
+            continue;
+        }
+        if record.status == orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED {
+            let recently_updated = chrono::DateTime::parse_from_rfc3339(&record.updated_at)
+                .map(|updated| {
+                    now_ms - updated.timestamp_millis() < IMPORTED_MTIME_ACTIVE_WINDOW_MS
+                })
+                .unwrap_or(false);
+            if recently_updated {
+                record.status = "running".to_string();
+                record.is_active = true;
+            }
+        }
+    }
+}
+
 // ============================================================================
 // Status Classification
 // ============================================================================

@@ -9,13 +9,37 @@
  */
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useAtom, useAtomValue } from "jotai";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { buildOrg2CloudLoginUrl } from "@src/features/Org2Cloud/config";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { createLogger } from "@src/hooks/logger";
 import { repoMapAtom } from "@src/store/repo";
-import type { Session } from "@src/store/session";
+import {
+  BASE_SESSION_LIST_CATEGORIES,
+  DEFAULT_SESSION_ORG_ID,
+  type Session,
+  beginSidebarSearchRequest,
+  loadMoreSessionScope,
+  loadMoreSidebarPinnedPage,
+  loadMoreSidebarWorkspaceFacetPage,
+  loadSessionRoster,
+  loadSidebarSearchResults,
+  normalizeSidebarDiscoveryOrgIds,
+  scopedSessionPaginationAtom,
+  sessionPaginationScopeKey,
+  sidebarDiscoveryGenerationAtom,
+  sidebarPinnedPagesAtom,
+  sidebarPinnedScopeKey,
+  sidebarSearchQueryKey,
+  sidebarSearchResultsAtom,
+  sidebarWorkspaceFacetPagesAtom,
+  sidebarWorkspaceFacetScopeKey,
+} from "@src/store/session";
+import {
+  dataSourceConfigAtom,
+  externalSessionsEnabledAtom,
+} from "@src/store/session/dataSourceConfigAtom";
 
 import {
   sidebarGroupByAtom,
@@ -70,6 +94,144 @@ export function useWorkstationSidebarScopeAndPagination({
   const [includeExternal, setIncludeExternal] = useAtom(
     sidebarIncludeExternalAtom
   );
+  const externalSessionsEnabled = useAtomValue(externalSessionsEnabledAtom);
+  const dataSourceConfig = useAtomValue(dataSourceConfigAtom);
+  const searchResults = useAtomValue(sidebarSearchResultsAtom);
+  const discoveryGeneration = useAtomValue(sidebarDiscoveryGenerationAtom);
+  const pinnedPages = useAtomValue(sidebarPinnedPagesAtom);
+  const workspaceFacetPages = useAtomValue(sidebarWorkspaceFacetPagesAtom);
+  const scopedSessionPagination = useAtomValue(scopedSessionPaginationAtom);
+  const sidebarOrgIds = useMemo(
+    () =>
+      normalizeSidebarDiscoveryOrgIds(
+        sessionFilterOrgIds ? Array.from(sessionFilterOrgIds) : []
+      ),
+    [sessionFilterOrgIds]
+  );
+  const sidebarOrgIdsKey = sidebarOrgIds.join("\u001f");
+  const isPersonalOrgScope =
+    sidebarOrgIds.length === 1 && sidebarOrgIds[0] === DEFAULT_SESSION_ORG_ID;
+  useEffect(() => {
+    if (isPersonalOrgScope) return;
+    for (const category of BASE_SESSION_LIST_CATEGORIES) {
+      const scopeKey = sessionPaginationScopeKey({
+        kind: "category",
+        category,
+        orgIds: sidebarOrgIds,
+      });
+      if (!scopedSessionPagination[scopeKey]) {
+        void loadMoreSessionScope(scopeKey);
+      }
+    }
+  }, [
+    isPersonalOrgScope,
+    scopedSessionPagination,
+    sidebarOrgIds,
+    sidebarOrgIdsKey,
+  ]);
+  const disabledExternalHistorySources = useMemo(
+    () =>
+      Object.entries(dataSourceConfig)
+        .filter(([, config]) => config?.enabled === false)
+        .map(([sourceId]) => sourceId)
+        .sort(),
+    [dataSourceConfig]
+  );
+  const disabledExternalHistorySourcesKey =
+    disabledExternalHistorySources.join("\u001f");
+  const sourcePolicyKey = `${externalSessionsEnabled ? "external" : "native"}\u001e${disabledExternalHistorySourcesKey}`;
+  const previousSourcePolicyKey = useRef(sourcePolicyKey);
+  useEffect(() => {
+    if (previousSourcePolicyKey.current === sourcePolicyKey) return;
+    previousSourcePolicyKey.current = sourcePolicyKey;
+    void loadSessionRoster({ forceRefresh: true });
+  }, [sourcePolicyKey]);
+  const includeExternalHistory = includeExternal && externalSessionsEnabled;
+  const activeSearchQueryKey = sidebarSearchQueryKey({
+    query: workstationSearchQuery,
+    orgIds: sidebarOrgIds,
+    includeExternalHistory,
+    disabledExternalHistorySources,
+  });
+  useEffect(() => {
+    const request = {
+      query: workstationSearchQuery,
+      orgIds: sidebarOrgIds,
+      includeExternal,
+    };
+    const requestToken = beginSidebarSearchRequest(request);
+    if (!workstationSearchQuery.trim()) return;
+    const timeout = window.setTimeout(() => {
+      void loadSidebarSearchResults(request, requestToken);
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [
+    activeSearchQueryKey,
+    discoveryGeneration,
+    disabledExternalHistorySources,
+    disabledExternalHistorySourcesKey,
+    externalSessionsEnabled,
+    includeExternal,
+    includeExternalHistory,
+    sidebarOrgIds,
+    sidebarOrgIdsKey,
+    workstationSearchQuery,
+  ]);
+
+  const pinnedScopeKey = sidebarPinnedScopeKey(sidebarOrgIds);
+  const activePinnedPage = pinnedPages[pinnedScopeKey];
+  useEffect(() => {
+    if (activePinnedPage) return;
+    void loadMoreSidebarPinnedPage({ orgIds: sidebarOrgIds });
+  }, [activePinnedPage, pinnedScopeKey, sidebarOrgIds, sidebarOrgIdsKey]);
+
+  const workspaceFacetScopeKey = sidebarWorkspaceFacetScopeKey({
+    orgIds: sidebarOrgIds,
+    includeExternalHistory,
+    disabledExternalHistorySources,
+  });
+  const activeWorkspaceFacetPage = workspaceFacetPages[workspaceFacetScopeKey];
+  useEffect(() => {
+    if (groupByMode !== "byWorkspace" || activeWorkspaceFacetPage) return;
+    void loadMoreSidebarWorkspaceFacetPage({
+      orgIds: sidebarOrgIds,
+      includeExternal,
+    });
+  }, [
+    activeWorkspaceFacetPage,
+    groupByMode,
+    includeExternal,
+    sidebarOrgIds,
+    sidebarOrgIdsKey,
+    workspaceFacetScopeKey,
+  ]);
+
+  const sortedSidebarSessions = useMemo(() => {
+    const sessionsById = new Map<string, Session>();
+    for (const session of activePinnedPage?.sessions ?? []) {
+      sessionsById.set(session.session_id, session);
+    }
+    if (
+      activeSearchQueryKey &&
+      searchResults.queryKey === activeSearchQueryKey
+    ) {
+      for (const session of searchResults.sessions) {
+        sessionsById.set(session.session_id, session);
+      }
+    }
+    // Ordinary/live rows win so pin toggles and status updates immediately
+    // override a discovery snapshot of the same session.
+    for (const session of sortedSessions) {
+      sessionsById.set(session.session_id, session);
+    }
+    return sortSessionsByActivity(Array.from(sessionsById.values()));
+  }, [
+    activePinnedPage?.sessions,
+    activeSearchQueryKey,
+    searchResults.queryKey,
+    searchResults.sessions,
+    sortedSessions,
+  ]);
   const cloudMyPaginationScopeKey = activeCloudOrgId
     ? [
         activeCloudOrgId,
@@ -104,7 +266,7 @@ export function useWorkstationSidebarScopeAndPagination({
   }, []);
 
   return {
-    sortedSessions,
+    sortedSessions: sortedSidebarSessions,
     activeCloudOrgId,
     activeOrgId,
     activeProjectOrgId,
@@ -116,6 +278,11 @@ export function useWorkstationSidebarScopeAndPagination({
     orgSelectorOptions,
     personalHiddenCloudTaggedIds,
     sessionFilterOrgIds,
+    sidebarOrgIds,
+    activePinnedPage,
+    activeWorkspaceFacetPage,
+    pinnedScopeKey,
+    workspaceFacetScopeKey,
     setSelectedOrgId,
     repoPathToName,
     groupByMode,

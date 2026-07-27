@@ -8,7 +8,9 @@ import { rpc } from "@src/api/tauri/rpc";
 import { normalizeAgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
   clearSessionAtom,
+  loadErrorAtom,
   loadSessionAtom,
+  loadStatusAtom,
   sessionIdAtom,
 } from "@src/engines/SessionCore";
 import { resetTurnLifecycleForTests } from "@src/engines/SessionCore/control/turnLifecycle";
@@ -20,10 +22,6 @@ import {
   loadInitialTurnWindow,
   saveEvents,
 } from "@src/engines/SessionCore/storage/cacheAdapter";
-import {
-  type ExternalReplaySessionLease,
-  deactivateExternalReplaySession,
-} from "@src/engines/SessionCore/sync/externalReplayTransport";
 import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
   chatPanelTabsAtom,
@@ -88,7 +86,6 @@ import { LAYOUT_STORAGE_KEY } from "@src/store/workstation/tabs/storage";
 import { asError } from "../result";
 import type { E2EStore, Json, Result } from "../types";
 import { createInspectChatStateHelper } from "./sessionHelpers/inspectChatState";
-import { openBoundedReplaySessionForE2E } from "./sessionHelpers/openBoundedReplaySession";
 import { createSessionSeederHelpers } from "./sessionHelpers/seeders";
 import { waitForSessionSurface } from "./sessionHelpers/waitForSessionSurface";
 
@@ -160,13 +157,6 @@ function toStoreSession(record: {
 }
 
 export function createSessionHelpers(store: E2EStore) {
-  let activeE2EReplayLease: ExternalReplaySessionLease | null = null;
-  const releaseActiveE2EReplayLease = () => {
-    if (!activeE2EReplayLease) return;
-    deactivateExternalReplaySession(activeE2EReplayLease);
-    activeE2EReplayLease = null;
-  };
-
   const promptDumpHelper = async (sessionId: string) => {
     try {
       if (!sessionId) {
@@ -281,7 +271,6 @@ export function createSessionHelpers(store: E2EStore) {
   };
 
   const resetToNewSession = async (): Promise<{ ok: true } | Result<never>> => {
-    releaseActiveE2EReplayLease();
     try {
       store.set(clearSessionAtom);
       store.set(activeSessionIdAtom, null);
@@ -440,7 +429,6 @@ export function createSessionHelpers(store: E2EStore) {
   const openSession = async (
     sessionId: string
   ): Promise<Result<{ sessionId: string; eventCount: number }>> => {
-    releaseActiveE2EReplayLease();
     try {
       if (!sessionId) {
         return { ok: false, error: "openSession: `sessionId` is required" };
@@ -473,54 +461,76 @@ export function createSessionHelpers(store: E2EStore) {
         sessionName,
         repoPath,
       });
+      const adapter = getAdapterForSession(sessionId);
+      if (adapter?.historyMode === "bounded-replay") {
+        // Exercise the same ownership graph as a real sidebar click. The
+        // SessionSyncProvider alone creates the foreground replay lease,
+        // opens the bounded window, publishes it to EventStore and releases
+        // it on navigation. The former helper opened a second lease before
+        // activating the UI session, so the product effect immediately
+        // superseded it and could replace a just-loaded older page.
+        store.set(sessionRuntimeStatusAtom, "idle");
+        store.set(jumpToSessionAtom, { sessionId, sessionName, repoPath });
+        await waitForSessionSurface(sessionId);
+
+        const timeoutAt = Date.now() + 60_000;
+        while (Date.now() < timeoutAt) {
+          const status = store.get(loadStatusAtom);
+          if (status === "loaded" && store.get(sessionIdAtom) === sessionId) {
+            const events = await eventStoreProxy.getEvents(sessionId);
+            return { ok: true, sessionId, eventCount: events.length };
+          }
+          if (status === "error") {
+            return {
+              ok: false,
+              error:
+                store.get(loadErrorAtom) ??
+                `bounded replay failed to load ${sessionId}`,
+            };
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 50));
+        }
+        return {
+          ok: false,
+          error: `bounded replay did not finish loading ${sessionId}`,
+        };
+      }
+
       store.set(sessionIdAtom, sessionId);
       store.set(sessionRuntimeStatusAtom, "idle");
       await eventStoreProxy.switchSession(sessionId);
 
-      // Every replay source restores through the real foreground transport.
-      // Its backend open owns EventStore application, watcher setup and request
-      // epochs; the E2E helper only mirrors the returned bounded projection.
-      let events: SessionEvent[] = [];
-      let replayAppliedByBackend = false;
-      const openedReplay = await openBoundedReplaySessionForE2E(sessionId);
-      if (openedReplay) {
-        activeE2EReplayLease = openedReplay.lease;
-        events = openedReplay.events;
-        replayAppliedByBackend = true;
-      } else {
-        const initialWindow = await loadInitialTurnWindow(sessionId);
-        events =
-          initialWindow.turns.length > 0
-            ? initialWindow.events
-            : await loadEvents(sessionId);
-        // Mirror the production reload guard (`handleCacheHit` in
-        // sessionSwitchOrchestrator): fall back to a fresh adapter load
-        // whenever the cached events are empty OR contain nothing renderable
-        // in chat, instead of only when the array is strictly length 0.
-        const cachedEventsRenderable =
-          events.length > 0 && events.some(isVisibleInChat);
-        if (!cachedEventsRenderable) {
-          const adapter = getAdapterForSession(sessionId);
-          if (adapter?.historyMode === "persisted-db") {
-            const ADAPTER_LOAD_ATTEMPTS = 5;
-            for (let attempt = 1; attempt <= ADAPTER_LOAD_ATTEMPTS; attempt++) {
-              const controller = new AbortController();
-              const loaded = await adapter.loadHistory(
-                sessionId,
-                controller.signal
-              );
-              if (loaded.length > 0) {
-                events = loaded;
-                break;
-              }
-              if (attempt < ADAPTER_LOAD_ATTEMPTS) {
-                await new Promise((resolve) => window.setTimeout(resolve, 400));
-              }
+      const initialWindow = await loadInitialTurnWindow(sessionId);
+      let events =
+        initialWindow.turns.length > 0
+          ? initialWindow.events
+          : await loadEvents(sessionId);
+      // Mirror the production reload guard (`handleCacheHit` in
+      // sessionSwitchOrchestrator): fall back to a fresh adapter load
+      // whenever the cached events are empty OR contain nothing renderable
+      // in chat, instead of only when the array is strictly length 0.
+      const cachedEventsRenderable =
+        events.length > 0 && events.some(isVisibleInChat);
+      if (!cachedEventsRenderable) {
+        if (adapter?.historyMode === "persisted-db") {
+          const ADAPTER_LOAD_ATTEMPTS = 5;
+          for (let attempt = 1; attempt <= ADAPTER_LOAD_ATTEMPTS; attempt++) {
+            const controller = new AbortController();
+            const loaded = await adapter.loadHistory(
+              sessionId,
+              controller.signal
+            );
+            if (loaded.length > 0) {
+              events = loaded;
+              break;
+            }
+            if (attempt < ADAPTER_LOAD_ATTEMPTS) {
+              await new Promise((resolve) => window.setTimeout(resolve, 400));
             }
           }
         }
       }
-      if (events.length > 0 && !replayAppliedByBackend) {
+      if (events.length > 0) {
         await eventStoreProxy.set(events, sessionId);
       }
       store.set(loadSessionAtom, { sessionId, events, isFromCache: true });
@@ -539,7 +549,6 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(workstationActiveSessionIdAtom, sessionId);
       return { ok: true, sessionId, eventCount: events.length };
     } catch (err) {
-      releaseActiveE2EReplayLease();
       return asError(err);
     }
   };

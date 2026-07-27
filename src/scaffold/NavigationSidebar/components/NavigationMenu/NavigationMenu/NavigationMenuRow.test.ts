@@ -87,4 +87,29 @@ describe("NavigationMenuRow", () => {
       `lucide-refresh-cw ${REFRESH_ICON_TOKENS.oneShot}`
     );
   });
+
+  it("can expose a stable DOM id without replacing the logical routing id", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationMenuLeafRow, {
+        item: {
+          ...baseItem,
+          id: "load-more-scope-v1%3Ainternal",
+          dataMenuItemId: "load-more-rust_agent:sde",
+        },
+        isChild: false,
+        isSelected: false,
+        collapsed: false,
+        t: (key: string) => key,
+        renderIcon: () => null,
+        onMenuItemClick: vi.fn(),
+        onRowMouseEnter: vi.fn(),
+        onRowActionClick: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-menu-item-id="load-more-rust_agent:sde"');
+    expect(markup).not.toContain(
+      'data-menu-item-id="load-more-scope-v1%3Ainternal"'
+    );
+  });
 });

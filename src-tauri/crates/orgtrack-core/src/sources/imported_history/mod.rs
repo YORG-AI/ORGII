@@ -11,6 +11,8 @@ pub mod router;
 pub mod watermark;
 
 use std::collections::{BTreeSet, HashMap};
+use std::fs;
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 use chrono::TimeZone;
@@ -39,6 +41,72 @@ pub const FUNCTION_CODE_SEARCH: &str = "grep";
 pub const FUNCTION_GLOB_FILE_SEARCH: &str = "glob_file_search";
 pub const FUNCTION_AWAIT_OUTPUT: &str = "await_output";
 pub const DEFAULT_LIST_LIMIT: usize = 200;
+
+/// Read only complete UTF-8 JSONL records from a bounded file prefix.
+///
+/// `BufRead::lines()` attempts to decode the final buffer even when
+/// `Read::take()` stopped in the middle of a multi-byte character. Large
+/// external transcripts commonly hit that byte boundary, so catalog scans
+/// must ignore the partial tail instead of rejecting the whole source.
+pub(crate) fn read_complete_jsonl_prefix_lines(
+    path: &Path,
+    source_label: &str,
+    max_bytes: u64,
+) -> Result<Vec<String>, String> {
+    let file = fs::File::open(path)
+        .map_err(|error| format!("Failed to open {source_label} catalog prefix: {error}"))?;
+    let source_len = file
+        .metadata()
+        .map_err(|error| format!("Failed to inspect {source_label} catalog prefix: {error}"))?
+        .len();
+    let prefix_is_capped = source_len > max_bytes;
+    // Pin this read to the size observed above. If the active provider appends
+    // concurrently, that new record belongs to the next catalog refresh.
+    let mut reader = BufReader::new(file.take(source_len.min(max_bytes)));
+    let mut lines = Vec::new();
+    let mut buffer = Vec::new();
+
+    loop {
+        buffer.clear();
+        let bytes_read = reader
+            .read_until(b'\n', &mut buffer)
+            .map_err(|error| format!("Failed to read {source_label} catalog prefix: {error}"))?;
+        if bytes_read == 0 {
+            break;
+        }
+        if !buffer.ends_with(b"\n") {
+            // A byte-capped prefix cannot prove that this is a complete
+            // record. At natural EOF, however, JSONL producers commonly omit
+            // the final newline; preserve that record only when both UTF-8
+            // and JSON are complete.
+            if prefix_is_capped {
+                break;
+            }
+            if buffer.ends_with(b"\r") {
+                buffer.pop();
+            }
+            let Ok(line) = std::str::from_utf8(&buffer) else {
+                break;
+            };
+            if serde_json::from_str::<serde_json::Value>(line).is_ok() {
+                lines.push(line.to_string());
+            }
+            break;
+        }
+        buffer.pop();
+        if buffer.ends_with(b"\r") {
+            buffer.pop();
+        }
+        let line = std::str::from_utf8(&buffer)
+            .map_err(|error| {
+                format!("Failed to read {source_label} catalog prefix as UTF-8: {error}")
+            })?
+            .to_string();
+        lines.push(line);
+    }
+
+    Ok(lines)
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,9 +182,18 @@ pub struct ImportedHistorySidebarRow {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ImportedHistorySidebarCursor {
+    pub updated_at_ms: i64,
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportedHistorySidebarPage {
     pub sessions: Vec<ImportedHistorySidebarRow>,
     pub has_more: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<ImportedHistorySidebarCursor>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -656,6 +733,92 @@ pub fn truncate_name(name: &str, max_len: usize) -> String {
         .collect::<String>();
     result.push('…');
     result
+}
+
+#[cfg(test)]
+mod jsonl_prefix_tests {
+    use std::io::Write;
+
+    use super::*;
+
+    fn jsonl_prefix_fixture(label: &str, bytes: &[u8]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-jsonl-prefix-{label}-{}-{}.jsonl",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::write(&path, bytes).expect("write JSONL prefix fixture");
+        path
+    }
+
+    #[test]
+    fn bounded_jsonl_prefix_ignores_a_partial_utf8_tail() {
+        let path = std::env::temp_dir().join(format!(
+            "orgii-jsonl-prefix-{}-{}.jsonl",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let first_line = "{\"type\":\"session_meta\"}\n";
+        let partial_line_prefix = "{\"message\":\"";
+        let mut file = fs::File::create(&path).expect("create JSONL prefix fixture");
+        file.write_all(first_line.as_bytes())
+            .expect("write complete prefix line");
+        file.write_all(partial_line_prefix.as_bytes())
+            .expect("write partial prefix line");
+        file.write_all("中\"}\n".as_bytes())
+            .expect("write multibyte prefix tail");
+        file.flush().expect("flush JSONL prefix fixture");
+        drop(file);
+
+        let max_bytes = (first_line.len() + partial_line_prefix.len() + 1) as u64;
+        let lines = read_complete_jsonl_prefix_lines(&path, "test", max_bytes)
+            .expect("read bounded JSONL prefix");
+
+        assert_eq!(lines, vec!["{\"type\":\"session_meta\"}"]);
+        fs::remove_file(path).expect("remove JSONL prefix fixture");
+    }
+
+    #[test]
+    fn natural_eof_accepts_a_complete_json_record_without_newline() {
+        let record = br#"{"type":"session_meta","payload":{"id":"no-newline"}}"#;
+        let path = jsonl_prefix_fixture("natural-eof", record);
+
+        let lines = read_complete_jsonl_prefix_lines(&path, "test", 1024)
+            .expect("read natural-EOF JSONL prefix");
+
+        assert_eq!(
+            lines,
+            vec!["{\"type\":\"session_meta\",\"payload\":{\"id\":\"no-newline\"}}"]
+        );
+        fs::remove_file(path).expect("remove JSONL prefix fixture");
+    }
+
+    #[test]
+    fn natural_eof_ignores_an_incomplete_json_record_without_newline() {
+        let path = jsonl_prefix_fixture(
+            "partial-json",
+            b"{\"type\":\"session_meta\"}\n{\"payload\":{\"id\":\"partial\"",
+        );
+
+        let lines = read_complete_jsonl_prefix_lines(&path, "test", 1024)
+            .expect("read partial natural-EOF JSONL prefix");
+
+        assert_eq!(lines, vec!["{\"type\":\"session_meta\"}"]);
+        fs::remove_file(path).expect("remove JSONL prefix fixture");
+    }
+
+    #[test]
+    fn natural_eof_ignores_a_partial_utf8_record_without_newline() {
+        let mut bytes = b"{\"type\":\"session_meta\"}\n{\"payload\":\"".to_vec();
+        bytes.extend_from_slice(&[0xe4, 0xb8]);
+        let path = jsonl_prefix_fixture("partial-utf8", &bytes);
+
+        let lines = read_complete_jsonl_prefix_lines(&path, "test", 1024)
+            .expect("read partial UTF-8 natural-EOF JSONL prefix");
+
+        assert_eq!(lines, vec!["{\"type\":\"session_meta\"}"]);
+        fs::remove_file(path).expect("remove JSONL prefix fixture");
+    }
 }
 
 #[cfg(test)]

@@ -176,6 +176,118 @@ describe("external replay transport coordinator", () => {
     expect(getExternalReplayCursorForTest(currentLease)?.revision).toBe(2);
   });
 
+  it("retries one Shell manifest snapshot race during foreground open", async () => {
+    currentLease = activateExternalReplaySession("codexapp-session-1");
+    mocks.openWindow
+      .mockRejectedValueOnce(
+        new Error(
+          "Imported Shell replay changed while publishing manifests: expected generation-1@34, found generation-1@35; retry the bounded replay request"
+        )
+      )
+      .mockResolvedValueOnce(windowResult(currentLease.sessionId, 35));
+
+    await expect(openExternalReplaySession(currentLease)).resolves.toEqual(
+      windowResult(currentLease.sessionId, 35)
+    );
+    expect(mocks.openWindow).toHaveBeenCalledTimes(2);
+    expect(getExternalReplayCursorForTest(currentLease)?.revision).toBe(35);
+  });
+
+  it("keeps the one-turn open default when retrying an oversized window", async () => {
+    currentLease = activateExternalReplaySession("codexapp-session-1");
+    mocks.openWindow
+      .mockRejectedValueOnce(
+        new Error(
+          "Bounded replay window requires 4807401 serialized bytes after normalization; limit is 4194304. Reduce maxEvents/maxTurns or read payloads by range"
+        )
+      )
+      .mockResolvedValueOnce(windowResult(currentLease.sessionId, 1));
+
+    await expect(openExternalReplaySession(currentLease)).resolves.toEqual(
+      windowResult(currentLease.sessionId, 1)
+    );
+    expect(mocks.openWindow).toHaveBeenNthCalledWith(
+      1,
+      currentLease.sessionId,
+      currentLease.episodeId,
+      undefined
+    );
+    expect(mocks.openWindow).toHaveBeenNthCalledWith(
+      2,
+      currentLease.sessionId,
+      currentLease.episodeId,
+      {
+        maxTurns: 1,
+        maxEvents: 100,
+        maxIpcBytes: 4 * 1024 * 1024,
+      }
+    );
+  });
+
+  it("retries one Shell manifest snapshot race during an older-page read", async () => {
+    currentLease = activateExternalReplaySession("codexapp-session-1");
+    mocks.openWindow.mockResolvedValue(
+      windowResult(currentLease.sessionId, 34)
+    );
+    await openExternalReplaySession(currentLease);
+    mocks.readWindow
+      .mockRejectedValueOnce(
+        new Error(
+          "Imported Shell replay changed while publishing manifests: expected generation-1@34, found generation-1@35; retry the bounded replay request"
+        )
+      )
+      .mockResolvedValueOnce(windowResult(currentLease.sessionId, 35));
+
+    await expect(
+      readExternalReplaySession(currentLease, { turnIndex: 163 })
+    ).resolves.toEqual(windowResult(currentLease.sessionId, 35));
+    expect(mocks.readWindow).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries an oversized normalized page with progressively smaller event slices", async () => {
+    currentLease = activateExternalReplaySession("codexapp-session-1");
+    mocks.openWindow.mockResolvedValue(windowResult(currentLease.sessionId, 1));
+    await openExternalReplaySession(currentLease);
+    mocks.readWindow
+      .mockRejectedValueOnce(
+        new Error(
+          "Bounded replay window requires 4807401 serialized bytes after normalization; limit is 4194304. Reduce maxEvents/maxTurns or read payloads by range"
+        )
+      )
+      .mockResolvedValueOnce(windowResult(currentLease.sessionId, 1));
+
+    await expect(
+      readExternalReplaySession(currentLease, {
+        beforeSequence: 4_000,
+        limits: {
+          maxTurns: 1,
+          maxEvents: 200,
+          maxIpcBytes: 4 * 1024 * 1024,
+        },
+      })
+    ).resolves.toEqual(windowResult(currentLease.sessionId, 1));
+    expect(mocks.readWindow).toHaveBeenNthCalledWith(1, {
+      sessionId: currentLease.sessionId,
+      episodeId: currentLease.episodeId,
+      beforeSequence: 4_000,
+      limits: {
+        maxTurns: 1,
+        maxEvents: 200,
+        maxIpcBytes: 4 * 1024 * 1024,
+      },
+    });
+    expect(mocks.readWindow).toHaveBeenNthCalledWith(2, {
+      sessionId: currentLease.sessionId,
+      episodeId: currentLease.episodeId,
+      beforeSequence: 4_000,
+      limits: {
+        maxTurns: 1,
+        maxEvents: 100,
+        maxIpcBytes: 4 * 1024 * 1024,
+      },
+    });
+  });
+
   it("queues different older pages and suppresses polls until both finish", async () => {
     currentLease = activateExternalReplaySession("codexapp-session-1");
     mocks.openWindow.mockResolvedValue(windowResult(currentLease.sessionId, 3));

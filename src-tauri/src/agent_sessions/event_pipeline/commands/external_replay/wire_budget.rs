@@ -1,10 +1,32 @@
 use super::*;
 
+const NORMALIZED_REPLAY_STORAGE_BUDGET_DIVISOR: usize = 2;
+
+/// Reserve room for the `ActivityChunk -> SessionEvent` projection.
+///
+/// Compact index rows do not include the renderer-only EventStore fields or
+/// the payload-ref previews added during normalization. Budgeting raw rows
+/// all the way to the public IPC ceiling therefore lets a valid compact page
+/// grow past that ceiling after projection (the real Issue 272 transcript
+/// reproduced a 4.8 MiB response from a 4 MiB raw request). Keep the public
+/// hard limit unchanged and stop the storage read earlier instead.
+pub(super) fn replay_storage_limits_with_normalization_headroom(
+    limits: ReplayLimits,
+) -> ReplayLimits {
+    ReplayLimits {
+        max_ipc_bytes: limits
+            .max_ipc_bytes
+            .div_ceil(NORMALIZED_REPLAY_STORAGE_BUDGET_DIVISOR)
+            .max(1),
+        ..limits
+    }
+}
+
 pub(super) fn normalize_window(
     window: ReplayChunkWindow,
     session_id: &str,
 ) -> ExternalReplayWindow {
-    let window_start_sequence = window.chunks.iter().map(|chunk| chunk.sequence).min();
+    let window_start_sequence = window.window_start_sequence;
     let (events, ipc_bytes) = normalize_indexed_chunks(
         window.chunks,
         session_id,
