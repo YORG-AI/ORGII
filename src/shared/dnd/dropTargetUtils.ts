@@ -6,6 +6,8 @@ import type {
 } from "@src/components/ComposerInput";
 import Message from "@src/components/Message";
 import { capPillText, storePillText } from "@src/config/pillTokens";
+import { parseCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
+import { referenceInsertText } from "@src/features/Org2Cloud/referenceInsertText";
 import i18n from "@src/i18n";
 import { loadWorkItemPillContent } from "@src/util/contextPillContent";
 
@@ -53,6 +55,17 @@ export function insertPillFromTabPayload(
 ): void {
   if (!composerInputRef.current) return;
   if (!payload.path) return;
+
+  // A teammate's cloud session goes in as reference TEXT, matching what
+  // the `@` menu inserts. As a pill it would ride the session-pill path,
+  // which assumes a bare local id and mangles the reference in three
+  // places: icon lookup, serialization, and the agent context line.
+  if (parseCloudSessionReference(payload.path)) {
+    composerInputRef.current.insertMentionText(
+      referenceInsertText(payload.path, payload.name)
+    );
+    return;
+  }
 
   const iconType = payload.iconType ?? (payload.isFolder ? "folder" : "file");
   const isFolder = payload.isFolder ?? iconType === "folder";
