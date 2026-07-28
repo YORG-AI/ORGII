@@ -16,6 +16,12 @@
 //! Nothing here reads message text. Signal rows hold aggregates only, so the
 //! "your go-to prompt" style of card (a literal quote) is deliberately absent;
 //! it would need a separate path that reads transcripts and persists nothing.
+//!
+//! **No prose here.** A card carries an id and raw numbers; the panel renders
+//! the wording from `builderProfile.cards.<id>`. Formatting has to happen there
+//! too — thousands separators, dates, and whether an hour reads as "5pm" or
+//! "17:00" are all locale decisions that a Rust `format!` would get wrong for
+//! every user outside en-US.
 
 use chrono::{DateTime, Datelike, Local, TimeZone, Timelike};
 use serde::{Deserialize, Serialize};
@@ -42,75 +48,37 @@ pub enum HighlightKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Highlight {
-    /// Stable id, for test selectors and for the panel's keys.
+    /// Selects `cards.<id>.question` and `cards.<id>.headline`.
     pub id: String,
+    /// Selects `cards.<id>.detail`. Usually the same as `id`; a few cards swap
+    /// only their closing line depending on the numbers.
+    pub detail_id: String,
     pub kind: HighlightKind,
-    /// The question the card answers, e.g. "Your longest single session?".
-    pub question: String,
-    /// The answer, large: "14h 55m".
-    pub headline: String,
-    /// One line of context under it.
-    pub detail: String,
+    /// Interpolation values, raw. The panel formats them for the locale.
+    pub params: serde_json::Value,
 }
 
-fn card(
+fn card(id: &'static str, kind: HighlightKind, params: serde_json::Value) -> Highlight {
+    Highlight {
+        id: id.to_string(),
+        detail_id: id.to_string(),
+        kind,
+        params,
+    }
+}
+
+/// Same card, but its closing line comes from a different key.
+fn card_with_detail(
     id: &'static str,
+    detail_id: &'static str,
     kind: HighlightKind,
-    question: &'static str,
-    headline: String,
-    detail: String,
+    params: serde_json::Value,
 ) -> Highlight {
     Highlight {
         id: id.to_string(),
+        detail_id: detail_id.to_string(),
         kind,
-        question: question.to_string(),
-        headline,
-        detail,
-    }
-}
-
-fn plural(n: i64, one: &str, many: &str) -> String {
-    if n == 1 {
-        one.to_string()
-    } else {
-        many.replace("{}", &thousands(n))
-    }
-}
-
-/// 232098 -> "232,098". Big numbers are the whole point of these cards.
-fn thousands(n: i64) -> String {
-    let s = n.abs().to_string();
-    let mut out = String::new();
-    for (i, c) in s.chars().enumerate() {
-        if i > 0 && (s.len() - i) % 3 == 0 {
-            out.push(',');
-        }
-        out.push(c);
-    }
-    if n < 0 {
-        format!("-{out}")
-    } else {
-        out
-    }
-}
-
-fn duration(secs: f64) -> String {
-    let total = secs.max(0.0) as i64;
-    let (h, m) = (total / 3600, (total % 3600) / 60);
-    match (h, m) {
-        (0, 0) => format!("{total}s"),
-        (0, m) => format!("{m}m"),
-        (h, 0) => format!("{h}h"),
-        (h, m) => format!("{h}h {m}m"),
-    }
-}
-
-fn hour_label(hour: u32) -> String {
-    match hour {
-        0 => "midnight".into(),
-        12 => "noon".into(),
-        h if h < 12 => format!("{h}am"),
-        h => format!("{}pm", h - 12),
+        params,
     }
 }
 
@@ -126,6 +94,8 @@ fn day(ms: i64) -> Option<DateTime<Local>> {
 /// Build the deck. `parallel` is the per-session concurrency share, in the same
 /// order as `sessions`.
 pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
+    use serde_json::json;
+
     if sessions.is_empty() {
         return Vec::new();
     }
@@ -138,9 +108,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "total_time",
             HighlightKind::Scale,
-            "How much time did you put in?",
-            format!("{} hours", thousands((total_secs / 3600.0).round() as i64)),
-            plural(n, "In a single session.", "Across {} sessions."),
+            json!({ "hours": (total_secs / 3600.0).round() as i64, "sessions": n }),
         ));
     }
     let added: i64 = sessions.iter().map(|s| s.lines_added).sum();
@@ -150,13 +118,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "lines",
             HighlightKind::Scale,
-            "How much did you ship?",
-            format!("{} lines", thousands(added)),
-            format!(
-                "Added across {} sessions, with {} removed.",
-                thousands(touched),
-                thousands(removed)
-            ),
+            json!({ "added": added, "sessions": touched, "removed": removed }),
         ));
     }
     let tools: i64 = sessions.iter().map(|s| s.tool_calls).sum();
@@ -164,12 +126,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "tool_calls",
             HighlightKind::Scale,
-            "How much did the agent do?",
-            format!("{} tool calls", thousands(tools)),
-            format!(
-                "About {} per session.",
-                thousands((tools / n.max(1)).max(1))
-            ),
+            json!({ "total": tools, "perSession": (tools / n.max(1)).max(1) }),
         ));
     }
 
@@ -182,9 +139,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "longest_session",
             HighlightKind::Extreme,
-            "Your longest single session?",
-            duration(longest.longest_span_secs),
-            "Your deepest uninterrupted stretch with an agent.".into(),
+            json!({ "seconds": longest.longest_span_secs.round() as i64 }),
         ));
     }
     if let Some(run) = sessions
@@ -196,9 +151,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "longest_run",
             HighlightKind::Extreme,
-            "How far does the agent get on its own?",
-            format!("{run} steps"),
-            "Its longest run without a word from you.".into(),
+            json!({ "steps": run }),
         ));
     }
     if let Some(peak) = parallel
@@ -210,9 +163,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "parallel_peak",
             HighlightKind::Extreme,
-            "How often is more than one agent running?",
-            format!("{}% of your time", (peak * 100.0).round() as i64),
-            "In your most parallel session, that share of it had company.".into(),
+            json!({ "percent": (peak * 100.0).round() as i64 }),
         ));
     }
 
@@ -225,9 +176,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "streak",
             HighlightKind::Rhythm,
-            "What's your longest streak?",
-            format!("{streak} days straight"),
-            "Consecutive days you worked with an agent.".into(),
+            json!({ "days": streak }),
         ));
     }
     let mut by_hour: HashMap<u32, i64> = HashMap::new();
@@ -241,38 +190,27 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
             out.push(card(
                 "peak_hour",
                 HighlightKind::Rhythm,
-                "When do you work?",
-                hour_label(*hour),
-                format!("You started {} sessions in that hour.", thousands(*count)),
+                json!({ "hour": hour, "sessions": count }),
             ));
         }
     }
-    let deep = sessions
+    let deep: Vec<&SessionSignals> = sessions
         .iter()
         .filter(|s| s.longest_span_secs > 5_400.0)
-        .count() as i64;
-    if deep > 0 {
-        let mean = sessions
-            .iter()
-            .filter(|s| s.longest_span_secs > 5_400.0)
-            .map(|s| s.longest_span_secs)
-            .sum::<f64>()
-            / deep as f64;
+        .collect();
+    if !deep.is_empty() {
+        let mean = deep.iter().map(|s| s.longest_span_secs).sum::<f64>() / deep.len() as f64;
         out.push(card(
             "deep_sessions",
             HighlightKind::Rhythm,
-            "How do you work?",
-            plural(deep, "1 deep session", "{} deep sessions"),
-            format!("Averaging {} of unbroken focus.", duration(mean)),
+            json!({ "count": deep.len() as i64, "seconds": mean.round() as i64 }),
         ));
     }
-    if let Some(busiest) = busiest_day(sessions) {
+    if let Some((date_ms, count)) = busiest_day(sessions) {
         out.push(card(
             "busiest_day",
             HighlightKind::Rhythm,
-            "Your busiest day?",
-            plural(busiest.1, "1 session", "{} sessions"),
-            format!("All on {}.", busiest.0),
+            json!({ "sessions": count, "dateMs": date_ms }),
         ));
     }
 
@@ -284,37 +222,33 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
     if !with_words.is_empty() {
         let turns: i64 = with_words.iter().map(|s| s.user_turns).sum();
         let words: i64 = with_words.iter().map(|s| s.prompt_words).sum();
-        out.push(card(
+        let mean_words = (words / turns.max(1)).max(1);
+        out.push(card_with_detail(
             "prompt_length",
-            HighlightKind::Style,
-            "How long are your prompts?",
-            format!("{} words on average", (words / turns.max(1)).max(1)),
-            if words / turns.max(1) < 30 {
-                "Short and conversational.".into()
+            if mean_words < 30 {
+                "prompt_length"
             } else {
-                "You brief in paragraphs, not one-liners.".into()
+                "prompt_length_long"
             },
+            HighlightKind::Style,
+            json!({ "words": mean_words }),
         ));
         out.push(card(
             "prompts_per_session",
             HighlightKind::Style,
-            "How much do you talk to your agent?",
-            format!(
-                "{} prompts a session",
-                (turns / with_words.len() as i64).max(1)
-            ),
-            "How often you step in over a session.".into(),
+            json!({ "prompts": (turns / with_words.len() as i64).max(1) }),
         ));
-        if let Some(longest) = with_words.iter().map(|s| s.longest_prompt_words).max() {
-            if longest > 80 {
-                out.push(card(
-                    "longest_prompt",
-                    HighlightKind::Style,
-                    "Your longest single prompt?",
-                    format!("{} words", thousands(longest)),
-                    "One message, everything in it.".into(),
-                ));
-            }
+        if let Some(longest) = with_words
+            .iter()
+            .map(|s| s.longest_prompt_words)
+            .max()
+            .filter(|v| *v > 80)
+        {
+            out.push(card(
+                "longest_prompt",
+                HighlightKind::Style,
+                json!({ "words": longest }),
+            ));
         }
     }
     let redirects = mean_of(sessions, |s| s.redirect_rate);
@@ -322,25 +256,22 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "redirects",
             HighlightKind::Style,
-            "How often do you change course?",
-            format!("{}% of messages", (redirects * 100.0).round() as i64),
-            "Where you stop and point the agent somewhere else.".into(),
+            json!({ "percent": (redirects * 100.0).round() as i64 }),
         ));
     }
-    // The question asks how often a run *lands*, so the headline has to be the
+    // The question asks how often a run *lands*, so the headline is the
     // complement of the interrupt rate, not the rate itself.
     let interrupts = mean_of(sessions, |s| s.interrupt_rate).clamp(0.0, 1.0);
     let finished = ((1.0 - interrupts) * 100.0).round() as i64;
-    out.push(card(
+    out.push(card_with_detail(
         "interrupts",
-        HighlightKind::Style,
-        "Do you let it finish?",
-        format!("{finished}% of the time"),
         if interrupts < 0.005 {
-            "You almost never cut a run short.".into()
+            "interrupts_never"
         } else {
-            format!("You interrupt the other {}%.", (100 - finished).max(1))
+            "interrupts"
         },
+        HighlightKind::Style,
+        json!({ "percent": finished, "rest": (100 - finished).max(1) }),
     ));
 
     // ---- craft ----
@@ -353,16 +284,11 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "plan_first",
             HighlightKind::Craft,
-            "How often do you plan first?",
-            format!(
-                "{}% of build sessions",
-                (planned * 100 / builders.max(1)).max(0)
-            ),
-            format!(
-                "{} of {} sessions that changed code started from a plan.",
-                thousands(planned),
-                thousands(builders)
-            ),
+            json!({
+                "percent": (planned * 100 / builders.max(1)).max(0),
+                "planned": planned,
+                "builders": builders,
+            }),
         ));
     }
     let harness = mean_of(sessions, |s| s.harness_edit_share);
@@ -370,9 +296,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "harness",
             HighlightKind::Craft,
-            "Do you sharpen your own tools?",
-            format!("{}% of edits", (harness * 100.0).round().max(1.0) as i64),
-            "Changes to your agent's own instructions — CLAUDE.md, rules, skills.".into(),
+            json!({ "percent": (harness * 100.0).round().max(1.0) as i64 }),
         ));
     }
     let fanout = sessions.iter().filter(|s| s.delegate_calls > 0).count() as i64;
@@ -380,9 +304,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "fanout",
             HighlightKind::Craft,
-            "Do you fan out to subagents?",
-            format!("{}% of sessions", (fanout * 100 / n.max(1)).max(1)),
-            "Where one agent spawned others to work in parallel.".into(),
+            json!({ "percent": (fanout * 100 / n.max(1)).max(1) }),
         ));
     }
     let mut tools_used: Vec<&str> = sessions.iter().map(|s| s.source.as_str()).collect();
@@ -392,9 +314,7 @@ pub fn build(sessions: &[SessionSignals], parallel: &[f64]) -> Vec<Highlight> {
         out.push(card(
             "tool_spread",
             HighlightKind::Craft,
-            "How many agents do you keep?",
-            format!("{} different tools", tools_used.len()),
-            "Your work is spread across all of them.".into(),
+            json!({ "tools": tools_used.len() as i64 }),
         ));
     }
 
@@ -423,15 +343,21 @@ fn longest_streak(days: &BTreeSet<i32>) -> Option<i64> {
     (best > 0).then_some(best)
 }
 
-fn busiest_day(sessions: &[SessionSignals]) -> Option<(String, i64)> {
-    let mut counts: HashMap<String, i64> = HashMap::new();
+/// Busiest local calendar day as `(timestamp_ms, sessions)`. The timestamp is
+/// returned raw so the panel can render it in the user's own date format.
+fn busiest_day(sessions: &[SessionSignals]) -> Option<(i64, i64)> {
+    let mut counts: HashMap<i32, (i64, i64)> = HashMap::new();
     for s in sessions {
         if let Some(d) = day(s.started_at_ms) {
-            *counts.entry(d.format("%-d %B").to_string()).or_default() += 1;
+            let entry = counts
+                .entry(d.num_days_from_ce())
+                .or_insert((s.started_at_ms, 0));
+            entry.0 = entry.0.min(s.started_at_ms);
+            entry.1 += 1;
         }
     }
     counts
-        .into_iter()
+        .into_values()
         .max_by_key(|(_, c)| *c)
         .filter(|(_, c)| *c > 2)
 }
@@ -464,6 +390,32 @@ fn interleave(cards: Vec<Highlight>) -> Vec<Highlight> {
     out
 }
 
+/// Every id `build` can emit. The panel needs a translation for each, so this
+/// doubles as the contract between the deck and `builderProfile.cards.*`.
+pub const CARD_IDS: [&str; 21] = [
+    "total_time",
+    "lines",
+    "tool_calls",
+    "longest_session",
+    "longest_run",
+    "parallel_peak",
+    "streak",
+    "peak_hour",
+    "deep_sessions",
+    "busiest_day",
+    "prompt_length",
+    "prompt_length_long",
+    "prompts_per_session",
+    "longest_prompt",
+    "redirects",
+    "interrupts",
+    "interrupts_never",
+    "plan_first",
+    "harness",
+    "fanout",
+    "tool_spread",
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -487,18 +439,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn thousands_separator() {
-        assert_eq!(thousands(232_098), "232,098");
-        assert_eq!(thousands(999), "999");
-        assert_eq!(thousands(1_000), "1,000");
-    }
-
-    #[test]
-    fn duration_reads_like_a_person_wrote_it() {
-        assert_eq!(duration(53_700.0), "14h 55m");
-        assert_eq!(duration(3_600.0), "1h");
-        assert_eq!(duration(90.0), "1m");
+    fn find<'a>(cards: &'a [Highlight], id: &str) -> &'a Highlight {
+        cards
+            .iter()
+            .find(|c| c.id == id)
+            .unwrap_or_else(|| panic!("no {id} card"))
     }
 
     #[test]
@@ -517,45 +462,6 @@ mod tests {
                 "{id} should not appear without real data"
             );
         }
-    }
-
-    #[test]
-    fn a_finished_run_is_reported_as_finished_not_as_its_complement() {
-        let mut v: Vec<_> = (0..30).map(sess).collect();
-        for s in v.iter_mut() {
-            s.interrupt_rate = 0.05; // you cut 5% of runs short
-        }
-        let cards = build(&v, &vec![0.0; v.len()]);
-        let c = cards.iter().find(|c| c.id == "interrupts").expect("card");
-        assert_eq!(
-            c.headline, "95% of the time",
-            "the question asks how often it lands"
-        );
-        assert!(c.detail.contains('5'), "and the detail names the other 5%");
-    }
-
-    #[test]
-    fn the_working_hour_is_the_users_own_clock_not_utc() {
-        use chrono::{Local, TimeZone, Timelike};
-        // 09:00 local, whatever the machine's zone is.
-        let local_nine = Local
-            .with_ymd_and_hms(2026, 3, 10, 9, 0, 0)
-            .single()
-            .expect("valid local time");
-        let v: Vec<_> = (0..6)
-            .map(|i| SessionSignals {
-                session_id: format!("s{i}"),
-                started_at_ms: local_nine.timestamp_millis() + i * 60_000,
-                ..sess(i)
-            })
-            .collect();
-        let cards = build(&v, &vec![0.0; v.len()]);
-        let c = cards.iter().find(|c| c.id == "peak_hour").expect("card");
-        assert_eq!(
-            c.headline,
-            hour_label(local_nine.hour()),
-            "reported hour must match the local clock"
-        );
     }
 
     #[test]
@@ -583,12 +489,77 @@ mod tests {
     }
 
     #[test]
-    fn every_card_answers_a_question_and_carries_a_detail() {
+    fn cards_carry_numbers_only_so_the_panel_owns_the_wording() {
         let v: Vec<_> = (0..30).map(sess).collect();
         for c in build(&v, &vec![0.5; v.len()]) {
-            assert!(c.question.ends_with('?'), "{} has no question", c.id);
-            assert!(!c.headline.is_empty(), "{} has no headline", c.id);
-            assert!(!c.detail.is_empty(), "{} has no detail", c.id);
+            assert!(CARD_IDS.contains(&c.id.as_str()), "unlisted id {}", c.id);
+            assert!(
+                CARD_IDS.contains(&c.detail_id.as_str()),
+                "unlisted detail id {}",
+                c.detail_id
+            );
+            let obj = c.params.as_object().expect("params must be an object");
+            assert!(!obj.is_empty(), "{} has no params", c.id);
+            for (k, v) in obj {
+                assert!(
+                    v.is_number(),
+                    "{}.{k} is {v}; prose belongs in the locale files",
+                    c.id
+                );
+            }
         }
+    }
+
+    #[test]
+    fn a_finished_run_is_reported_as_finished_not_as_its_complement() {
+        let mut v: Vec<_> = (0..30).map(sess).collect();
+        for s in v.iter_mut() {
+            s.interrupt_rate = 0.05; // you cut 5% of runs short
+        }
+        let cards = build(&v, &vec![0.0; v.len()]);
+        let c = find(&cards, "interrupts");
+        assert_eq!(
+            c.params["percent"], 95,
+            "the question asks how often it lands"
+        );
+        assert_eq!(c.params["rest"], 5);
+        assert_eq!(c.detail_id, "interrupts");
+    }
+
+    #[test]
+    fn a_run_that_is_never_cut_short_swaps_only_its_closing_line() {
+        let v: Vec<_> = (0..30).map(sess).collect(); // interrupt_rate defaults to 0
+        let cards = build(&v, &vec![0.0; v.len()]);
+        let c = find(&cards, "interrupts");
+        assert_eq!(c.params["percent"], 100);
+        assert_eq!(c.detail_id, "interrupts_never");
+    }
+
+    #[test]
+    fn the_working_hour_is_the_users_own_clock_not_utc() {
+        use chrono::TimeZone;
+        let local_nine = Local
+            .with_ymd_and_hms(2026, 3, 10, 9, 0, 0)
+            .single()
+            .expect("valid local time");
+        let v: Vec<_> = (0..6)
+            .map(|i| SessionSignals {
+                session_id: format!("s{i}"),
+                started_at_ms: local_nine.timestamp_millis() + i * 60_000,
+                ..sess(i)
+            })
+            .collect();
+        let cards = build(&v, &vec![0.0; v.len()]);
+        let c = find(&cards, "peak_hour");
+        assert_eq!(c.params["hour"], 9, "hour must be the local clock, not UTC");
+    }
+
+    #[test]
+    fn the_busiest_day_carries_a_timestamp_for_the_panel_to_format() {
+        let v: Vec<_> = (0..30).map(|i| SessionSignals { ..sess(i / 10) }).collect();
+        let cards = build(&v, &vec![0.0; v.len()]);
+        let c = find(&cards, "busiest_day");
+        assert!(c.params["dateMs"].as_i64().unwrap_or(0) > 0);
+        assert!(c.params["sessions"].as_i64().unwrap_or(0) > 2);
     }
 }

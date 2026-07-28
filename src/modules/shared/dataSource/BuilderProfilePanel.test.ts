@@ -23,6 +23,8 @@ vi.mock("@src/api/tauri/builderProfile", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
+    // HighlightCards formats numbers, dates and clock time per locale.
+    i18n: { language: "en" },
     // Echo interpolation so assertions can see the values that were passed.
     t: (key: string, vars?: Record<string, unknown>) =>
       vars ? `${key}:${Object.values(vars).join(",")}` : key,
@@ -154,10 +156,9 @@ function overview(over: Partial<BuilderProfileOverview> = {}) {
     highlights: [
       {
         id: "longest_session",
+        detailId: "longest_session",
         kind: "extreme" as const,
-        question: "Your longest single session?",
-        headline: "14h 55m",
-        detail: "Your deepest uninterrupted stretch with an agent.",
+        params: { seconds: 53_700 },
       },
     ],
     coverage: { extracted: 394, known: 394, stale: 0, unreadable: 0 },
@@ -309,9 +310,11 @@ describe("BuilderProfilePanel", () => {
     const card = container.querySelector(
       '[data-testid="highlight-longest_session"]'
     );
-    expect(card?.textContent).toContain("Your longest single session?");
-    expect(card?.textContent).toContain("14h 55m");
-    expect(card?.textContent).toContain("uninterrupted stretch");
+    // The mocked `t` echoes key:values, so this asserts the card reaches for
+    // its three locale keys rather than carrying prose from the backend.
+    expect(card?.textContent).toContain("cards.longest_session.question");
+    expect(card?.textContent).toContain("cards.longest_session.headline");
+    expect(card?.textContent).toContain("cards.longest_session.detail");
   });
 
   it("stops extracting once the backlog is drained", async () => {

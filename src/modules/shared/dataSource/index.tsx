@@ -33,6 +33,14 @@ const WorkspaceDashboardPanelView = lazy(
   () => import("@src/engines/ChatPanel/panels/WorkspaceDashboardPanelView")
 );
 
+/**
+ * Sections that lay themselves out inside the full pane height instead of
+ * flowing through the shared padded wrapper. That wrapper ends in a `pb-[50vh]`
+ * scroll affordance, which is right for long content but leaves a
+ * placeholder-only section unable to fill — and centred in the top half.
+ */
+const SELF_MANAGED = new Set<RuntimeSection>(["assets", "profile"]);
+
 interface RuntimeSectionTabsProps {
   activeView: RuntimeSection;
   onChange: (view: RuntimeSection) => void;
@@ -140,21 +148,18 @@ const RuntimeDataSourcePanel: React.FC = () => {
       <ScrollPreservation
         data-testid="data-source-scroll-region"
         className={
-          panelView === "assets"
+          SELF_MANAGED.has(panelView)
             ? "min-h-0 flex-1 overflow-hidden scrollbar-hide"
             : "min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container"
         }
       >
-        {panelView === "assets" ? (
+        {SELF_MANAGED.has(panelView) ? (
           <Suspense key={panelView} fallback={loadingFallback}>
             <RuntimeSectionContent activeView={panelView} />
           </Suspense>
         ) : (
           <div
-            // min-h-full so a section that renders only a placeholder can
-            // stretch: `fillParentHeight` is `flex-1`, which needs a parent
-            // with real height to fill.
-            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES} min-h-full`}
+            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
           >
             <Suspense key={panelView} fallback={loadingFallback}>
               <RuntimeSectionContent activeView={panelView} />

@@ -48,5 +48,108 @@
     "moderate": "preferencia moderada",
     "clear": "preferencia clara",
     "veryClear": "preferencia muy clara"
+  },
+  "cards": {
+    "total_time": {
+      "question": "¿Cuánto tiempo le dedicaste?",
+      "headline": "{{hours}} horas",
+      "detail": "A lo largo de {{sessions}} sesiones."
+    },
+    "lines": {
+      "question": "¿Cuánto entregaste?",
+      "headline": "{{added}} líneas",
+      "detail": "Añadidas en {{sessions}} sesiones, con {{removed}} eliminadas."
+    },
+    "tool_calls": {
+      "question": "¿Cuánto hizo el agente?",
+      "headline": "{{total}} llamadas a herramientas",
+      "detail": "Unas {{perSession}} por sesión."
+    },
+    "longest_session": {
+      "question": "¿Tu sesión más larga?",
+      "headline": "{{duration}}",
+      "detail": "Tu tramo más largo sin interrupciones con un agente."
+    },
+    "longest_run": {
+      "question": "¿Hasta dónde llega el agente solo?",
+      "headline": "{{steps}} pasos",
+      "detail": "Su racha más larga sin una palabra tuya."
+    },
+    "parallel_peak": {
+      "question": "¿Con qué frecuencia corre más de un agente?",
+      "headline": "El {{percent}} % de tu tiempo",
+      "detail": "En tu sesión más paralela, esa parte tuvo compañía."
+    },
+    "streak": {
+      "question": "¿Tu racha más larga?",
+      "headline": "{{days}} días seguidos",
+      "detail": "Días consecutivos trabajando con un agente."
+    },
+    "peak_hour": {
+      "question": "¿Cuándo trabajas?",
+      "headline": "{{hour}}",
+      "detail": "Iniciaste {{sessions}} sesiones en esa hora."
+    },
+    "deep_sessions": {
+      "question": "¿Cómo trabajas?",
+      "headline": "{{count}} sesiones profundas",
+      "detail": "Con {{duration}} de concentración sin cortes de media."
+    },
+    "busiest_day": {
+      "question": "¿Tu día más intenso?",
+      "headline": "{{sessions}} sesiones",
+      "detail": "Todas el {{date}}."
+    },
+    "prompt_length": {
+      "question": "¿Cuánto miden tus prompts?",
+      "headline": "{{words}} palabras de media",
+      "detail": "Cortos y conversacionales."
+    },
+    "prompt_length_long": {
+      "detail": "Explicas en párrafos, no en una línea."
+    },
+    "prompts_per_session": {
+      "question": "¿Cuánto hablas con tu agente?",
+      "headline": "{{prompts}} prompts por sesión",
+      "detail": "Cada cuánto intervienes a lo largo de una sesión."
+    },
+    "longest_prompt": {
+      "question": "¿Tu prompt más largo?",
+      "headline": "{{words}} palabras",
+      "detail": "Un solo mensaje, con todo dentro."
+    },
+    "redirects": {
+      "question": "¿Con qué frecuencia cambias de rumbo?",
+      "headline": "El {{percent}} % de los mensajes",
+      "detail": "Donde paras y rediriges al agente."
+    },
+    "interrupts": {
+      "question": "¿Lo dejas terminar?",
+      "headline": "El {{percent}} % de las veces",
+      "detail": "Interrumpes el {{rest}} % restante."
+    },
+    "interrupts_never": {
+      "detail": "Casi nunca cortas una ejecución."
+    },
+    "plan_first": {
+      "question": "¿Con qué frecuencia planificas primero?",
+      "headline": "El {{percent}} % de las sesiones de código",
+      "detail": "{{planned}} de {{builders}} sesiones que cambiaron código empezaron con un plan."
+    },
+    "harness": {
+      "question": "¿Afilas tus propias herramientas?",
+      "headline": "El {{percent}} % de las ediciones",
+      "detail": "Cambios en las instrucciones de tu agente: CLAUDE.md, rules, skills."
+    },
+    "fanout": {
+      "question": "¿Te ramificas en subagentes?",
+      "headline": "El {{percent}} % de las sesiones",
+      "detail": "Donde un agente lanzó otros para trabajar en paralelo."
+    },
+    "tool_spread": {
+      "question": "¿Cuántos agentes usas?",
+      "headline": "{{tools}} herramientas distintas",
+      "detail": "Tu trabajo se reparte entre todas."
+    }
   }
 }

@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { Highlight, HighlightKind } from "@src/api/tauri/builderProfile";
 import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
@@ -12,6 +13,10 @@ import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
  * style and totals rather than marching through five blocks of the same shape.
  * `kind` only tints the question line; the card layout stays identical so the
  * grid reads as one set.
+ *
+ * The backend sends ids and raw numbers, never prose. Everything a locale can
+ * disagree about is decided here: thousands separators, date format, and
+ * whether an hour reads as "5 PM" or "17:00".
  */
 const KIND_TINT: Record<HighlightKind, string> = {
   extreme: "text-primary-6",
@@ -21,35 +26,89 @@ const KIND_TINT: Record<HighlightKind, string> = {
   scale: "text-text-3",
 };
 
+/** Params that are not plain counts and need locale-aware rendering. */
+function formatParams(
+  params: Record<string, number>,
+  locale: string,
+  hourLabel: (hour: number) => string
+): Record<string, string | number> {
+  const out: Record<string, string | number> = {};
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "seconds") {
+      out.duration = formatDuration(value, locale);
+    } else if (key === "dateMs") {
+      out.date = new Date(value).toLocaleDateString(locale, {
+        day: "numeric",
+        month: "long",
+      });
+    } else if (key === "hour") {
+      out.hour = hourLabel(value);
+    } else {
+      out[key] = value.toLocaleString(locale);
+    }
+  }
+  return out;
+}
+
+function formatDuration(seconds: number, locale: string): string {
+  const total = Math.max(0, Math.round(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  // Intl.NumberFormat carries each locale's own unit abbreviation ("2 hr",
+  // "2 Std.", "2 時間"), which a hand-rolled "2h" would get wrong everywhere.
+  const unit = (value: number, u: "hour" | "minute") =>
+    new Intl.NumberFormat(locale, {
+      style: "unit",
+      unit: u,
+      unitDisplay: "narrow",
+    }).format(value);
+  if (hours && minutes)
+    return `${unit(hours, "hour")} ${unit(minutes, "minute")}`;
+  if (hours) return unit(hours, "hour");
+  return unit(Math.max(minutes, 1), "minute");
+}
+
 const HighlightCards = memo(function HighlightCards({
   highlights,
 }: {
   highlights: Highlight[];
 }) {
+  const { t, i18n } = useTranslation("builderProfile");
+  const locale = i18n.language || "en";
+
   if (highlights.length === 0) return null;
+
+  // 12-hour vs 24-hour is a locale property, not a preference we should guess.
+  const hourLabel = (hour: number) =>
+    new Date(2000, 0, 1, hour).toLocaleTimeString(locale, { hour: "numeric" });
 
   return (
     <div
       className={STAT_GRID_TOKENS.cols3}
       data-testid="builder-profile-highlights"
     >
-      {highlights.map((card) => (
-        <div
-          key={card.id}
-          className="flex flex-col gap-1 rounded-lg bg-bg-2 px-3 py-3"
-          data-testid={`highlight-${card.id}`}
-        >
-          <span className={`text-xs ${KIND_TINT[card.kind] ?? "text-text-3"}`}>
-            {card.question}
-          </span>
-          <span className="text-lg font-semibold leading-tight text-text-1">
-            {card.headline}
-          </span>
-          <span className="text-xs leading-snug text-text-3">
-            {card.detail}
-          </span>
-        </div>
-      ))}
+      {highlights.map((card) => {
+        const values = formatParams(card.params, locale, hourLabel);
+        return (
+          <div
+            key={card.id}
+            className="flex flex-col gap-1 rounded-lg bg-bg-2 px-3 py-3"
+            data-testid={`highlight-${card.id}`}
+          >
+            <span
+              className={`text-xs ${KIND_TINT[card.kind] ?? "text-text-3"}`}
+            >
+              {t(`cards.${card.id}.question`)}
+            </span>
+            <span className="text-lg font-semibold leading-tight text-text-1">
+              {t(`cards.${card.id}.headline`, values)}
+            </span>
+            <span className="text-xs leading-snug text-text-3">
+              {t(`cards.${card.detailId}.detail`, values)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 });

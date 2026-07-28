@@ -18,6 +18,7 @@ import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
   SECTION_GAP_CLASSES,
@@ -222,41 +223,15 @@ export default function BuilderProfilePanel() {
     [t]
   );
 
-  // Placeholders own the whole panel: detail-panel sizing, and stretched so the
-  // spinner sits in the middle of the pane rather than pinned under the tabs.
-  if (loading && !data)
-    return (
-      <Placeholder
-        variant="loading"
-        placement="detail-panel"
-        fillParentHeight
-      />
-    );
-  if (error && !data)
-    return (
-      <Placeholder
-        variant="error"
-        placement="detail-panel"
-        fillParentHeight
-        title={error}
-        onRetry={onRefresh}
-      />
-    );
-  if (!profile)
-    return (
-      <Placeholder
-        variant="empty"
-        placement="detail-panel"
-        fillParentHeight
-        title={t("noSessionsYet")}
-      />
-    );
-
-  const letters = profile.code.split("");
-
-  return (
-    <div className={SECTION_GAP_CLASSES} data-testid="builder-profile-panel">
-      <div className="flex items-center justify-between gap-2">
+  // The header stays put in every state — loading, error and empty included —
+  // so the panel never collapses to a bare spinner. Everything below it
+  // scrolls; the shell owns the pane height so placeholders can fill it.
+  const shell = (children: React.ReactNode) => (
+    <div
+      className="flex h-full min-h-0 flex-col"
+      data-testid="builder-profile-panel"
+    >
+      <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-2">
         <h2 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h2>
         <Button
           variant="tertiary"
@@ -268,156 +243,195 @@ export default function BuilderProfilePanel() {
           {t("refresh")}
         </Button>
       </div>
+      {children}
+    </div>
+  );
 
-      {/* The code. Soft letters render dimmed, with the reason in the tooltip.
+  if (loading && !data)
+    return shell(
+      <Placeholder
+        variant="loading"
+        placement="detail-panel"
+        fillParentHeight
+      />
+    );
+  if (error && !data)
+    return shell(
+      <Placeholder
+        variant="error"
+        placement="detail-panel"
+        fillParentHeight
+        title={error}
+        onRetry={onRefresh}
+      />
+    );
+  if (!profile)
+    return shell(
+      <Placeholder
+        variant="empty"
+        placement="detail-panel"
+        fillParentHeight
+        title={t("noSessionsYet")}
+      />
+    );
+
+  const letters = profile.code.split("");
+
+  return shell(
+    <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container">
+      <div
+        className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
+      >
+        {/* The code. Soft letters render dimmed, with the reason in the tooltip.
           Before any session has been read there is no evidence at all, so no
           letters — a default code would present as a confident type. */}
-      <div className="flex flex-col items-center gap-2 rounded-lg bg-bg-2 px-4 py-6">
-        {profile.sessions === 0 ? (
-          <div
-            className="py-2 text-sm text-text-3"
-            data-testid="builder-profile-empty-code"
-          >
-            {t("noSessionsYet")}
-          </div>
-        ) : (
-          <>
+        <div className="flex flex-col items-center gap-2 rounded-lg bg-bg-2 px-4 py-6">
+          {profile.sessions === 0 ? (
             <div
-              className="flex items-end gap-1"
-              data-testid="builder-profile-code"
+              className="py-2 text-sm text-text-3"
+              data-testid="builder-profile-empty-code"
             >
-              {letters.map((letter, i) => {
-                const axis = profile.axes[i];
-                // Every letter is real; a soft one is dimmed, never replaced.
-                const soft =
-                  axis?.clarity === "slight" || axis?.clarity === "moderate";
-                return (
-                  <Tooltip
-                    key={axis?.key ?? i}
-                    content={[
-                      `${axis?.negativeName} · ${axis?.positiveName}`,
-                      axis ? t(`clarity.${axis.clarity}`) : "",
-                      axis?.caveat ?? "",
-                    ]
-                      .filter(Boolean)
-                      .join(" — ")}
-                  >
-                    <span
-                      className={`font-mono text-4xl leading-none ${
-                        soft ? "text-text-3" : "text-text-1"
-                      }`}
+              {t("noSessionsYet")}
+            </div>
+          ) : (
+            <>
+              <div
+                className="flex items-end gap-1"
+                data-testid="builder-profile-code"
+              >
+                {letters.map((letter, i) => {
+                  const axis = profile.axes[i];
+                  // Every letter is real; a soft one is dimmed, never replaced.
+                  const soft =
+                    axis?.clarity === "slight" || axis?.clarity === "moderate";
+                  return (
+                    <Tooltip
+                      key={axis?.key ?? i}
+                      content={[
+                        `${axis?.negativeName} · ${axis?.positiveName}`,
+                        axis ? t(`clarity.${axis.clarity}`) : "",
+                        axis?.caveat ?? "",
+                      ]
+                        .filter(Boolean)
+                        .join(" — ")}
                     >
-                      {letter}
-                    </span>
-                  </Tooltip>
-                );
-              })}
-            </div>
-            <div className="text-sm text-text-2">{profile.archetype}</div>
-            <div className="text-xs text-text-3">
-              {t("summaryLine", { sessions: profile.sessions })}
-            </div>
-            {!profile.hasEnoughSessions && (
-              <div className="text-xs text-warning-5">
-                {t("tooFewSessions")}
+                      <span
+                        className={`font-mono text-4xl leading-none ${
+                          soft ? "text-text-3" : "text-text-1"
+                        }`}
+                      >
+                        {letter}
+                      </span>
+                    </Tooltip>
+                  );
+                })}
               </div>
-            )}
-          </>
-        )}
-      </div>
+              <div className="text-sm text-text-2">{profile.archetype}</div>
+              <div className="text-xs text-text-3">
+                {t("summaryLine", { sessions: profile.sessions })}
+              </div>
+              {!profile.hasEnoughSessions && (
+                <div className="text-xs text-warning-5">
+                  {t("tooFewSessions")}
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-      <SectionContainer title={t("highlights")}>
-        <SectionRow description={t("highlightsHint")} layout="vertical">
-          <HighlightCards highlights={data.highlights} />
-        </SectionRow>
-      </SectionContainer>
+        <SectionContainer title={t("highlights")}>
+          <SectionRow description={t("highlightsHint")} layout="vertical">
+            <HighlightCards highlights={data.highlights} />
+          </SectionRow>
+        </SectionContainer>
 
-      <SectionContainer title={t("status")}>
-        <SectionRow
-          label={t("coverage")}
-          description={
-            stillReading ? t("coverageReading") : t("coverageComplete")
-          }
-        >
-          <div
-            className="flex w-44 items-center gap-2"
-            data-testid="builder-profile-coverage"
-          >
-            <ProgressBar percent={percent} animated={stillReading} />
-            <span className="w-10 shrink-0 text-right text-xs text-text-3">
-              {percent}%
-            </span>
-          </div>
-        </SectionRow>
-        <SectionRow label={t("confidence")} description={t("confidenceHint")}>
-          <div className="flex w-44 items-center gap-2">
-            <ProgressBar percent={Math.round(profile.confidence * 100)} />
-            <span className="w-10 shrink-0 text-right text-xs text-text-3">
-              {Math.round(profile.confidence * 100)}%
-            </span>
-          </div>
-        </SectionRow>
-      </SectionContainer>
-
-      <SectionContainer title={t("axesTitle")}>
-        {profile.axes.map((axis) => (
-          <AxisMeter
-            key={axis.key}
-            axis={axis}
-            expanded={openAxis === axis.key}
-            onToggle={() =>
-              setOpenAxis((cur) => (cur === axis.key ? null : axis.key))
+        <SectionContainer title={t("status")}>
+          <SectionRow
+            label={t("coverage")}
+            description={
+              stillReading ? t("coverageReading") : t("coverageComplete")
             }
-          />
-        ))}
-      </SectionContainer>
+          >
+            <div
+              className="flex w-44 items-center gap-2"
+              data-testid="builder-profile-coverage"
+            >
+              <ProgressBar percent={percent} animated={stillReading} />
+              <span className="w-10 shrink-0 text-right text-xs text-text-3">
+                {percent}%
+              </span>
+            </div>
+          </SectionRow>
+          <SectionRow label={t("confidence")} description={t("confidenceHint")}>
+            <div className="flex w-44 items-center gap-2">
+              <ProgressBar percent={Math.round(profile.confidence * 100)} />
+              <span className="w-10 shrink-0 text-right text-xs text-text-3">
+                {Math.round(profile.confidence * 100)}%
+              </span>
+            </div>
+          </SectionRow>
+        </SectionContainer>
 
-      {profile.secondary.length > 0 && (
-        <SectionContainer title={t("secondary")}>
-          {profile.secondary.map((axis) => (
-            <SectionRow
+        <SectionContainer title={t("axesTitle")}>
+          {profile.axes.map((axis) => (
+            <AxisMeter
               key={axis.key}
-              label={axis.score >= 0 ? axis.positiveName : axis.negativeName}
-              description={t("secondaryNote")}
+              axis={axis}
+              expanded={openAxis === axis.key}
+              onToggle={() =>
+                setOpenAxis((cur) => (cur === axis.key ? null : axis.key))
+              }
             />
           ))}
-          <SectionRow label={t("fanoutLabel")} description={t("fanoutHint")}>
-            <span className="text-xs text-text-3">
-              {Math.round(profile.subagentSessionShare * 100)}%
-            </span>
-          </SectionRow>
         </SectionContainer>
-      )}
 
-      {data.bySource.length > 1 && (
-        <SectionContainer title={t("byTool")}>
-          <SectionRow description={t("byToolHint")} layout="vertical">
-            <SettingsTable
-              columns={sourceColumns}
-              rows={data.bySource}
-              getRowKey={(row) => row.source}
-              headerHeight="compact"
-              dense
-              surfaceVariant="transparent"
-            />
-          </SectionRow>
-        </SectionContainer>
-      )}
+        {profile.secondary.length > 0 && (
+          <SectionContainer title={t("secondary")}>
+            {profile.secondary.map((axis) => (
+              <SectionRow
+                key={axis.key}
+                label={axis.score >= 0 ? axis.positiveName : axis.negativeName}
+                description={t("secondaryNote")}
+              />
+            ))}
+            <SectionRow label={t("fanoutLabel")} description={t("fanoutHint")}>
+              <span className="text-xs text-text-3">
+                {Math.round(profile.subagentSessionShare * 100)}%
+              </span>
+            </SectionRow>
+          </SectionContainer>
+        )}
 
-      {data.drift.length > 1 && (
-        <SectionContainer title={t("overTime")}>
-          <SectionRow description={t("overTimeHint")} layout="vertical">
-            <SettingsTable
-              columns={driftColumns}
-              rows={data.drift}
-              getRowKey={(row) => String(row.endedAtMs)}
-              headerHeight="compact"
-              dense
-              surfaceVariant="transparent"
-            />
-          </SectionRow>
-        </SectionContainer>
-      )}
+        {data.bySource.length > 1 && (
+          <SectionContainer title={t("byTool")}>
+            <SectionRow description={t("byToolHint")} layout="vertical">
+              <SettingsTable
+                columns={sourceColumns}
+                rows={data.bySource}
+                getRowKey={(row) => row.source}
+                headerHeight="compact"
+                dense
+                surfaceVariant="transparent"
+              />
+            </SectionRow>
+          </SectionContainer>
+        )}
+
+        {data.drift.length > 1 && (
+          <SectionContainer title={t("overTime")}>
+            <SectionRow description={t("overTimeHint")} layout="vertical">
+              <SettingsTable
+                columns={driftColumns}
+                rows={data.drift}
+                getRowKey={(row) => String(row.endedAtMs)}
+                headerHeight="compact"
+                dense
+                surfaceVariant="transparent"
+              />
+            </SectionRow>
+          </SectionContainer>
+        )}
+      </div>
     </div>
   );
 }

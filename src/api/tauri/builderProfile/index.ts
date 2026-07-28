@@ -86,14 +86,17 @@ export interface DriftPoint {
 export type HighlightKind = "scale" | "extreme" | "rhythm" | "style" | "craft";
 
 export interface Highlight {
+  /** Selects `cards.<id>.question` and `cards.<id>.headline`. */
   id: string;
+  /** Selects `cards.<id>.detail` — a few cards swap only their closing line. */
+  detailId: string;
   kind: HighlightKind;
-  /** The question the card answers. */
-  question: string;
-  /** The answer, large. */
-  headline: string;
-  /** One line of context under it. */
-  detail: string;
+  /**
+   * Raw interpolation values. Formatting is the panel's job: thousands
+   * separators, date format and clock format are locale decisions the backend
+   * cannot make.
+   */
+  params: Record<string, number>;
 }
 
 export interface BuilderProfileOverview {

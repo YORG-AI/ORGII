@@ -77,12 +77,7 @@ pub fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
         ",
     )?;
     // Columns added after the table shipped.
-    ensure_column(
-        conn,
-        TABLE,
-        "unreadable",
-        "INTEGER NOT NULL DEFAULT 0",
-    )?;
+    ensure_column(conn, TABLE, "unreadable", "INTEGER NOT NULL DEFAULT 0")?;
     Ok(())
 }
 
@@ -629,7 +624,10 @@ mod tests {
             "unreadable sessions must still count as processed, or the drain loop stops with a stranded backlog"
         );
         let second = backfill_session_signals(&conn, 10).expect("second pass");
-        assert_eq!(second, 0, "tombstoned sessions must leave the candidate set");
+        assert_eq!(
+            second, 0,
+            "tombstoned sessions must leave the candidate set"
+        );
         assert_eq!(coverage(&conn).expect("coverage").unreadable, 3);
     }
 }
@@ -722,10 +720,7 @@ mod real_data {
         let cards = profile::highlights::build(&all, &shares);
         eprintln!("\n  {} highlight cards:", cards.len());
         for c in &cards {
-            eprintln!(
-                "   [{:?}] {}\n      {}\n      {}",
-                c.kind, c.question, c.headline, c.detail
-            );
+            eprintln!("   [{:?}] {} / {}  {}", c.kind, c.id, c.detail_id, c.params);
         }
         assert_eq!(p.code.chars().count(), 4);
     }

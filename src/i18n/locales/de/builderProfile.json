@@ -48,5 +48,108 @@
     "moderate": "mäßige Präferenz",
     "clear": "klare Präferenz",
     "veryClear": "sehr klare Präferenz"
+  },
+  "cards": {
+    "total_time": {
+      "question": "Wie viel Zeit haben Sie investiert?",
+      "headline": "{{hours}} Stunden",
+      "detail": "Über {{sessions}} Sitzungen hinweg."
+    },
+    "lines": {
+      "question": "Wie viel haben Sie ausgeliefert?",
+      "headline": "{{added}} Zeilen",
+      "detail": "Hinzugefügt über {{sessions}} Sitzungen, {{removed}} entfernt."
+    },
+    "tool_calls": {
+      "question": "Wie viel hat der Agent erledigt?",
+      "headline": "{{total}} Werkzeugaufrufe",
+      "detail": "Etwa {{perSession}} pro Sitzung."
+    },
+    "longest_session": {
+      "question": "Ihre längste einzelne Sitzung?",
+      "headline": "{{duration}}",
+      "detail": "Ihre längste ununterbrochene Strecke mit einem Agenten."
+    },
+    "longest_run": {
+      "question": "Wie weit kommt der Agent allein?",
+      "headline": "{{steps}} Schritte",
+      "detail": "Sein längster Lauf ohne ein Wort von Ihnen."
+    },
+    "parallel_peak": {
+      "question": "Wie oft läuft mehr als ein Agent?",
+      "headline": "{{percent}} % Ihrer Zeit",
+      "detail": "In Ihrer parallelsten Sitzung lief dieser Anteil in Gesellschaft."
+    },
+    "streak": {
+      "question": "Ihre längste Serie?",
+      "headline": "{{days}} Tage am Stück",
+      "detail": "Aufeinanderfolgende Tage, an denen Sie mit einem Agenten gearbeitet haben."
+    },
+    "peak_hour": {
+      "question": "Wann arbeiten Sie?",
+      "headline": "{{hour}}",
+      "detail": "Sie haben {{sessions}} Sitzungen in dieser Stunde begonnen."
+    },
+    "deep_sessions": {
+      "question": "Wie arbeiten Sie?",
+      "headline": "{{count}} tiefe Sitzungen",
+      "detail": "Im Schnitt {{duration}} ununterbrochene Konzentration."
+    },
+    "busiest_day": {
+      "question": "Ihr vollster Tag?",
+      "headline": "{{sessions}} Sitzungen",
+      "detail": "Alle am {{date}}."
+    },
+    "prompt_length": {
+      "question": "Wie lang sind Ihre Prompts?",
+      "headline": "{{words}} Wörter im Schnitt",
+      "detail": "Kurz und im Gesprächston."
+    },
+    "prompt_length_long": {
+      "detail": "Sie briefen in Absätzen, nicht in Einzeilern."
+    },
+    "prompts_per_session": {
+      "question": "Wie viel reden Sie mit Ihrem Agenten?",
+      "headline": "{{prompts}} Prompts pro Sitzung",
+      "detail": "Wie oft Sie im Lauf einer Sitzung eingreifen."
+    },
+    "longest_prompt": {
+      "question": "Ihr längster einzelner Prompt?",
+      "headline": "{{words}} Wörter",
+      "detail": "Eine Nachricht, alles darin."
+    },
+    "redirects": {
+      "question": "Wie oft ändern Sie den Kurs?",
+      "headline": "{{percent}} % der Nachrichten",
+      "detail": "Wo Sie stoppen und den Agenten woandershin lenken."
+    },
+    "interrupts": {
+      "question": "Lassen Sie ihn zu Ende arbeiten?",
+      "headline": "{{percent}} % der Zeit",
+      "detail": "Die übrigen {{rest}} % brechen Sie ab."
+    },
+    "interrupts_never": {
+      "detail": "Sie brechen fast nie einen Lauf ab."
+    },
+    "plan_first": {
+      "question": "Wie oft planen Sie zuerst?",
+      "headline": "{{percent}} % der Bau-Sitzungen",
+      "detail": "{{planned}} von {{builders}} Sitzungen mit Codeänderungen begannen mit einem Plan."
+    },
+    "harness": {
+      "question": "Schärfen Sie Ihr eigenes Werkzeug?",
+      "headline": "{{percent}} % der Änderungen",
+      "detail": "Änderungen an den Anweisungen Ihres Agenten – CLAUDE.md, rules, skills."
+    },
+    "fanout": {
+      "question": "Verzweigen Sie in Subagenten?",
+      "headline": "{{percent}} % der Sitzungen",
+      "detail": "Wo ein Agent andere gestartet hat, um parallel zu arbeiten."
+    },
+    "tool_spread": {
+      "question": "Wie viele Agenten nutzen Sie?",
+      "headline": "{{tools}} verschiedene Werkzeuge",
+      "detail": "Ihre Arbeit verteilt sich auf alle."
+    }
   }
 }

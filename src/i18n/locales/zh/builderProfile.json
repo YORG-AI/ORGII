@@ -48,5 +48,108 @@
     "moderate": "中等倾向",
     "clear": "明确倾向",
     "veryClear": "非常明确的倾向"
+  },
+  "cards": {
+    "total_time": {
+      "question": "你投入了多少时间？",
+      "headline": "{{hours}} 小时",
+      "detail": "分布在 {{sessions}} 个会话中。"
+    },
+    "lines": {
+      "question": "你交付了多少？",
+      "headline": "{{added}} 行",
+      "detail": "在 {{sessions}} 个会话中新增，同时删除了 {{removed}} 行。"
+    },
+    "tool_calls": {
+      "question": "代理做了多少事？",
+      "headline": "{{total}} 次工具调用",
+      "detail": "每个会话约 {{perSession}} 次。"
+    },
+    "longest_session": {
+      "question": "你最长的一次会话？",
+      "headline": "{{duration}}",
+      "detail": "你与代理不间断相处最久的一段。"
+    },
+    "longest_run": {
+      "question": "代理自己能走多远？",
+      "headline": "{{steps}} 步",
+      "detail": "在你一言不发时，它跑得最久的一次。"
+    },
+    "parallel_peak": {
+      "question": "有多少时候不止一个代理在跑？",
+      "headline": "{{percent}}% 的时间",
+      "detail": "在你并行度最高的那个会话里，这么大比例的时间不止一个代理。"
+    },
+    "streak": {
+      "question": "你最长的连续记录是多久？",
+      "headline": "连续 {{days}} 天",
+      "detail": "你连续与代理协作的天数。"
+    },
+    "peak_hour": {
+      "question": "你什么时候工作？",
+      "headline": "{{hour}}",
+      "detail": "你在这个时段开启了 {{sessions}} 个会话。"
+    },
+    "deep_sessions": {
+      "question": "你怎么工作？",
+      "headline": "{{count}} 个深度会话",
+      "detail": "平均每次不间断专注 {{duration}}。"
+    },
+    "busiest_day": {
+      "question": "你最忙的一天？",
+      "headline": "{{sessions}} 个会话",
+      "detail": "全部在 {{date}}。"
+    },
+    "prompt_length": {
+      "question": "你的提示词有多长？",
+      "headline": "平均 {{words}} 个词",
+      "detail": "简短，像对话。"
+    },
+    "prompt_length_long": {
+      "detail": "你用整段来交代，而不是一句话。"
+    },
+    "prompts_per_session": {
+      "question": "你和代理说多少话？",
+      "headline": "每个会话 {{prompts}} 条提示词",
+      "detail": "你在一个会话中介入的频率。"
+    },
+    "longest_prompt": {
+      "question": "你最长的一条提示词？",
+      "headline": "{{words}} 个词",
+      "detail": "一条消息，把话都说完。"
+    },
+    "redirects": {
+      "question": "你多久改一次方向？",
+      "headline": "{{percent}}% 的消息",
+      "detail": "你叫停并把代理指向别处的那些消息。"
+    },
+    "interrupts": {
+      "question": "你会让它跑完吗？",
+      "headline": "{{percent}}% 的时候",
+      "detail": "另外 {{rest}}% 你会打断。"
+    },
+    "interrupts_never": {
+      "detail": "你几乎从不中途叫停。"
+    },
+    "plan_first": {
+      "question": "你多久会先做计划？",
+      "headline": "{{percent}}% 的开发会话",
+      "detail": "改动过代码的 {{builders}} 个会话中，有 {{planned}} 个是从计划开始的。"
+    },
+    "harness": {
+      "question": "你会打磨自己的工具吗？",
+      "headline": "{{percent}}% 的编辑",
+      "detail": "对代理自身指令的改动——CLAUDE.md、rules、skills。"
+    },
+    "fanout": {
+      "question": "你会分叉出子代理吗？",
+      "headline": "{{percent}}% 的会话",
+      "detail": "一个代理派生出其他代理并行工作的那些会话。"
+    },
+    "tool_spread": {
+      "question": "你手上有多少个代理？",
+      "headline": "{{tools}} 种不同工具",
+      "detail": "你的工作分散在这些工具上。"
+    }
   }
 }
