@@ -57,6 +57,8 @@ interface ProjectSidebarTreeContentProps {
   activeRepoView:
     | "projects"
     | "work-items"
+    | "project-tree"
+    | "project-journey"
     | "linear-projects"
     | "linear-work-items"
     | "settings"

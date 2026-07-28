@@ -976,7 +976,9 @@
     "empty": "未找到 Workspace 项目",
     "issues": "Issues",
     "views": "Views",
-    "more": "More"
+    "more": "More",
+    "projectTree": "项目树",
+    "projectJourney": "项目旅程"
   },
   "teams": {
     "title": "你的团队",

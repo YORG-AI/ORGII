@@ -36,10 +36,12 @@ import {
   STORY_PERSONAL_ORG_FILTER_ID,
   STORY_PERSONAL_ORG_NAME,
   createProjectDashboardTab,
+  createProjectJourneyTab,
   createProjectLinearProjectsTab,
   createProjectLinearWorkItemsTab,
   createProjectOrgTab,
   createProjectSettingsTab,
+  createProjectTreeTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
   createWorkItemDetailTab,
@@ -251,6 +253,24 @@ export function useProjectTabActions({
     );
   }, [navigateWorkspaceTab]);
 
+  const handleOpenProjectTree = useCallback(() => {
+    navigateWorkspaceTab(createProjectTreeTab());
+  }, [navigateWorkspaceTab]);
+
+  const handleOpenProjectJourney = useCallback(
+    (projectId?: string, projectSlug?: string, projectName?: string) => {
+      navigateWorkspaceTab(
+        createProjectJourneyTab({
+          projectId,
+          projectSlug,
+          projectName,
+          forceDemo: !projectId && !projectSlug,
+        })
+      );
+    },
+    [navigateWorkspaceTab]
+  );
+
   const handleOpenPersonalOrg = useCallback(
     (view: ProjectOrgSurfaceView = PROJECT_ORG_SURFACE_VIEW.WORK_ITEMS) => {
       navigateWorkspaceTab(
@@ -448,6 +468,8 @@ export function useProjectTabActions({
     handleCreateWorkItem,
     handleOpenProjects,
     handleOpenWorkItems,
+    handleOpenProjectTree,
+    handleOpenProjectJourney,
     handleOpenPersonalOrg,
     handleOpenProjectOrg,
     handleOpenPersonalOrgProjects,

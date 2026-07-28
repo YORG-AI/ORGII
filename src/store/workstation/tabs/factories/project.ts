@@ -98,6 +98,16 @@ export function resolveProjectManagerTabTitle(
     return `${orgName} ${workItemsLabel}`;
   }
 
+  if (tab.type === "project-tree") {
+    return translate("projects:workspace.projectTree");
+  }
+
+  if (tab.type === "project-journey") {
+    const name = tab.data.projectName as string | undefined;
+    const journeyLabel = translate("projects:workspace.projectJourney");
+    return name ? `${name} ${journeyLabel}` : journeyLabel;
+  }
+
   if (
     tab.type === "project-linear-projects" ||
     tab.type === "project-linear-work-items"
@@ -506,4 +516,46 @@ export function createWorkItemDetailTab(
       Object.keys(pendingUpdates).length > 0 && { pendingUpdates }),
     ...(returnTabId && { returnTabId }),
   });
+}
+
+// ============================================
+// ORG2-patch: Project Tree + Journey
+// ============================================
+
+export interface ProjectJourneyTabData {
+  projectId?: string;
+  projectSlug?: string;
+  projectName?: string;
+  forceDemo?: boolean;
+}
+
+export const projectTreeTabFactory = defineTabFactory<Record<string, never>>({
+  tabType: "project-tree",
+  idStrategy: { type: "singleton", id: "project-tree:main" },
+  getTitle: () => "Project Tree",
+  icon: "FolderTree",
+});
+
+export function createProjectTreeTab(): WorkStationTab {
+  return projectTreeTabFactory({});
+}
+
+export const projectJourneyTabFactory = defineTabFactory<ProjectJourneyTabData>(
+  {
+    tabType: "project-journey",
+    idStrategy: {
+      type: "keyed",
+      prefix: "project-journey",
+      getKey: (data) => data.projectId || data.projectSlug || "main",
+    },
+    getTitle: (data) =>
+      data.projectName ? `${data.projectName} Journey` : "Project Journey",
+    icon: "GitFork",
+  }
+);
+
+export function createProjectJourneyTab(
+  data: ProjectJourneyTabData = {}
+): WorkStationTab {
+  return projectJourneyTabFactory(data);
 }

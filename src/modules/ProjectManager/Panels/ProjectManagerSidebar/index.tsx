@@ -28,6 +28,8 @@ export interface ProjectManagerSidebarProps {
   onImportOrgs: () => void;
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree?: () => void;
+  onOpenProjectJourney?: () => void;
   onOpenPersonalOrg: (
     view?: import("@src/store/workstation/tabs").ProjectOrgSurfaceView
   ) => void;
@@ -41,6 +43,8 @@ export interface ProjectManagerSidebarProps {
   activeRepoView:
     | "projects"
     | "work-items"
+    | "project-tree"
+    | "project-journey"
     | "linear-projects"
     | "linear-work-items"
     | "settings"
@@ -61,6 +65,8 @@ export const ProjectManagerSidebar: React.FC<ProjectManagerSidebarProps> = memo(
     onImportOrgs,
     onOpenProjects,
     onOpenWorkItems,
+    onOpenProjectTree,
+    onOpenProjectJourney,
     onOpenPersonalOrg,
     onOpenProjectOrg,
     onOpenLinearProjects,
@@ -84,6 +90,8 @@ export const ProjectManagerSidebar: React.FC<ProjectManagerSidebarProps> = memo(
       onImportOrgs,
       onOpenProjects,
       onOpenWorkItems,
+      onOpenProjectTree,
+      onOpenProjectJourney,
       onOpenPersonalOrg,
       onOpenProjectOrg,
       onOpenLinearProjects,

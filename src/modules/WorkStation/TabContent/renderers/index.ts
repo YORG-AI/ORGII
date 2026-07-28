@@ -19,6 +19,8 @@ export { default as ProjectOrgTabRenderer } from "./projectOrg";
 export { default as ProjectOrgSettingsTabRenderer } from "./projectOrgSettings";
 export { default as ProjectSettingsTabRenderer } from "./projectSettings";
 export { default as ProjectWorkItemsTabRenderer } from "./projectWorkItems";
+export { default as ProjectTreeTabRenderer } from "./projectTree";
+export { default as ProjectJourneyTabRenderer } from "./projectJourney";
 export { default as ProjectWorkitemsCompatTabRenderer } from "./projectWorkitemsCompat";
 export { default as SearchTabRenderer } from "./search";
 export { default as SettingsTabRenderer } from "./settings";

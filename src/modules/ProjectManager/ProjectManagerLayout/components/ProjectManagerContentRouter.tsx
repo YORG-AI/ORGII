@@ -168,6 +168,8 @@ function renderActiveContent({
     case "project-org":
     case "project-org-settings":
     case "project-settings":
+    case "project-tree":
+    case "project-journey":
     case "workItem-detail":
       return <UnifiedTabContent tab={activeTab} paneId="main" isActive />;
 
