@@ -351,6 +351,7 @@ fn build_unloaded_turn_placeholder_chunk(
         .ended_at
         .clone()
         .unwrap_or_else(|| turn.started_at.clone());
+    let duration_ms = codex_turn_duration_ms(&turn.started_at, turn.ended_at.as_deref());
     chunk.result = json!({
         "observation": format!("Codex turn {} is not loaded yet.", turn.turn_id),
         "role": "assistant",
@@ -361,12 +362,36 @@ fn build_unloaded_turn_placeholder_chunk(
             "nextTurnId": next_turn_id,
             "startedAt": turn.started_at,
             "endedAt": turn.ended_at,
-            "durationMs": Value::Null,
+            "durationMs": duration_ms.map_or(Value::Null, Value::from),
             "eventCount": turn.event_count,
             "bodyEventCount": turn.body_event_count,
         },
     });
     chunk
+}
+
+/// Byte bound for skeleton user bubbles (Tier-1 data). Full text arrives when
+/// the round hydrates and replaces the chunk (same chunk id).
+const CODEX_SKELETON_USER_PREVIEW_MAX_BYTES: usize = 2048;
+
+fn bounded_codex_user_preview(message: &str) -> std::borrow::Cow<'_, str> {
+    if message.len() <= CODEX_SKELETON_USER_PREVIEW_MAX_BYTES {
+        return std::borrow::Cow::Borrowed(message);
+    }
+    let mut cut = CODEX_SKELETON_USER_PREVIEW_MAX_BYTES;
+    while !message.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    std::borrow::Cow::Owned(format!("{}…", &message[..cut]))
+}
+
+/// Wall-clock span between two RFC3339 timestamps, for the collapsed round
+/// card's "worked for X" label. None when either side is missing/unparsable.
+fn codex_turn_duration_ms(started_at: &str, ended_at: Option<&str>) -> Option<i64> {
+    let started = chrono::DateTime::parse_from_rfc3339(started_at).ok()?;
+    let ended = chrono::DateTime::parse_from_rfc3339(ended_at?).ok()?;
+    let millis = ended.signed_duration_since(started).num_milliseconds();
+    (millis >= 0).then_some(millis)
 }
 
 /// Codex can repeat a screenshot's base64 payload in thousands of tool-output
@@ -442,10 +467,10 @@ pub fn load_codex_app_initial_window_from_path(
         )?;
         let offsets = recent_offsets
             .iter()
-            .map(|byte_offset| CodexTurnOffset {
-                turn_id: codex_lazy_turn_id(*byte_offset),
-                byte_offset: *byte_offset,
-                sequence: codex_lazy_turn_sequence(*byte_offset),
+            .map(|boundary| CodexTurnOffset {
+                turn_id: codex_lazy_turn_id(boundary.byte_offset),
+                byte_offset: boundary.byte_offset,
+                sequence: codex_lazy_turn_sequence(boundary.byte_offset),
             })
             .collect();
         remember_codex_turn_offsets(path, signature_before, offsets)?;
@@ -498,6 +523,7 @@ pub fn load_codex_app_turn_from_path(
         if let Some(previous_offset) = find_recent_codex_user_offsets(path, start_offset, 1)?
             .into_iter()
             .next()
+            .map(|boundary| boundary.byte_offset)
         {
             if let Some((previous_user, previous_summary)) =
                 load_codex_turn_header(session_id, path, previous_offset)?
@@ -541,49 +567,87 @@ fn load_codex_app_initial_tail_window(
     session_id: &str,
     path: &Path,
     recent_turn_count: usize,
-    newest_first_offsets: &[u64],
+    newest_first_boundaries: &[CodexRoundBoundary],
 ) -> Result<CodexAppInitialWindow, String> {
-    let mut ascending_offsets = newest_first_offsets.to_vec();
-    ascending_offsets.sort_unstable();
-    let body_start = ascending_offsets.len().saturating_sub(recent_turn_count);
-    let mut chunks = Vec::new();
-    let mut turns = Vec::new();
+    let mut ascending = newest_first_boundaries.to_vec();
+    ascending.sort_unstable_by_key(|boundary| boundary.byte_offset);
+    let body_start = ascending.len().saturating_sub(recent_turn_count);
 
     // Every turn before the hydrated tail contributes its user bubble plus a
     // collapsed unloaded-turn placeholder. Each header read is one bounded
     // seek+probe, so this scales with turn count, not file size; the existing
     // turn loader hydrates any of these on click/page-navigation via the byte
     // offset encoded in the lazy turn id.
-    for (index, placeholder_offset) in ascending_offsets[..body_start].iter().enumerate() {
-        if let Some((user_chunk, summary)) =
-            load_codex_turn_header(session_id, path, *placeholder_offset)?
+    let mut skeleton: Vec<(ActivityChunk, ProjectedTurnMetadata)> = Vec::new();
+    for boundary in &ascending[..body_start] {
+        if let Some((user_chunk, mut summary)) =
+            load_codex_turn_header(session_id, path, boundary.byte_offset)?
         {
-            let next_turn_id = ascending_offsets
-                .get(index + 1)
-                .copied()
-                .map(codex_lazy_turn_id);
-            chunks.push(user_chunk);
-            chunks.push(build_unloaded_turn_placeholder_chunk(
-                session_id,
-                &summary,
-                next_turn_id,
-            ));
-            turns.push(summary);
+            // The reverse scan counted the JSONL lines belonging to this
+            // round; surface them so the collapsed card shows real activity
+            // instead of an empty summary (#443 follow-up).
+            summary.body_event_count =
+                i64::try_from(boundary.following_line_count).unwrap_or(i64::MAX);
+            summary.event_count =
+                i64::try_from(boundary.following_line_count.saturating_add(1)).unwrap_or(i64::MAX);
+            skeleton.push((user_chunk, summary));
         }
     }
 
-    for byte_offset in ascending_offsets.into_iter().skip(body_start) {
-        let turn_id = codex_lazy_turn_id(byte_offset);
+    let mut hydrated_chunks = Vec::new();
+    let mut hydrated_turns = Vec::new();
+    for boundary in ascending.iter().skip(body_start) {
+        let turn_id = codex_lazy_turn_id(boundary.byte_offset);
         let (turn_chunks, _, _) = load_codex_app_from_path_with_mode(
             session_id,
             path,
             CodexTranscriptCollectionMode::Turn { turn_id: &turn_id },
-            byte_offset,
-            codex_lazy_turn_sequence(byte_offset),
+            boundary.byte_offset,
+            codex_lazy_turn_sequence(boundary.byte_offset),
         )?;
-        turns.extend(project_activity_chunks(&turn_chunks));
-        chunks.extend(turn_chunks);
+        hydrated_turns.extend(project_activity_chunks(&turn_chunks));
+        hydrated_chunks.extend(turn_chunks);
     }
+
+    // A skeleton round's end is the next round's start (header timestamps are
+    // all we have without parsing bodies). The last skeleton round ends where
+    // the first hydrated round starts.
+    let first_hydrated_start = hydrated_turns.first().map(|turn| turn.started_at.clone());
+    let next_starts: Vec<Option<String>> = (0..skeleton.len())
+        .map(|index| {
+            skeleton
+                .get(index + 1)
+                .map(|(_, summary)| summary.started_at.clone())
+                .or_else(|| first_hydrated_start.clone())
+        })
+        .collect();
+    for ((_, summary), next_start) in skeleton.iter_mut().zip(next_starts) {
+        if let Some(next_start) = next_start {
+            summary.ended_at = Some(next_start);
+        }
+    }
+
+    let mut chunks = Vec::new();
+    let mut turns = Vec::new();
+    let first_hydrated_turn_id = ascending
+        .get(body_start)
+        .map(|boundary| codex_lazy_turn_id(boundary.byte_offset));
+    for index in 0..skeleton.len() {
+        let next_turn_id = skeleton
+            .get(index + 1)
+            .map(|(user_chunk, _)| user_chunk.chunk_id.clone())
+            .or_else(|| first_hydrated_turn_id.clone());
+        let (user_chunk, summary) = &skeleton[index];
+        chunks.push(user_chunk.clone());
+        chunks.push(build_unloaded_turn_placeholder_chunk(
+            session_id,
+            summary,
+            next_turn_id,
+        ));
+        turns.push(summary.clone());
+    }
+    turns.extend(hydrated_turns);
+    chunks.extend(hydrated_chunks);
 
     Ok(CodexAppInitialWindow { chunks, turns })
 }
@@ -629,12 +693,19 @@ fn load_codex_turn_header(
             .map(imported_history::normalize_created_at)
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let sequence = codex_lazy_turn_sequence(byte_offset);
+        // Skeleton bubbles are Tier-1 data: bound them to a preview. Codex
+        // user messages can carry hundreds of KB of injected context
+        // (<recommended_plugins>, delegation payloads); inlining them for
+        // every round made a 179-round initial window multi-MB and slow to
+        // open. Hydrating the round replaces this chunk (same chunk id) with
+        // the full text.
+        let preview = bounded_codex_user_preview(&message);
         let user_chunk = imported_history::user_message_chunk(
             session_id,
             CODEX_PROVIDER_SLUG,
             sequence,
             &created_at,
-            &message,
+            &preview,
         );
         let mut summary = project_activity_chunks(std::slice::from_ref(&user_chunk))
             .into_iter()
@@ -659,11 +730,22 @@ fn load_codex_turn_header(
     Ok(None)
 }
 
+/// A round boundary found by the reverse scan, plus how many JSONL lines sit
+/// between it and the next (later) boundary. The line count is a byte-level
+/// side-product of the scan — no JSON parsing — and approximates the round's
+/// event count so skeleton placeholders can render "worked for X · N events"
+/// instead of an empty summary.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CodexRoundBoundary {
+    pub(crate) byte_offset: u64,
+    pub(crate) following_line_count: usize,
+}
+
 fn find_recent_codex_user_offsets(
     path: &Path,
     before_exclusive: u64,
     limit: usize,
-) -> Result<Vec<u64>, String> {
+) -> Result<Vec<CodexRoundBoundary>, String> {
     if limit == 0 || before_exclusive == 0 {
         return Ok(Vec::new());
     }
@@ -676,9 +758,13 @@ fn find_recent_codex_user_offsets(
     let mut cursor = before_exclusive.min(file_len);
     let mut suffix = Vec::<u8>::new();
     let mut discarding_oversized_line = false;
-    let mut offsets = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
+    let mut boundaries = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
+    // Complete lines seen since the most recently recorded (later-in-file)
+    // boundary; becomes that round's body-line count when the next boundary
+    // (earlier in the file) is found.
+    let mut lines_since_boundary = 0usize;
 
-    while cursor > 0 && offsets.len() < limit {
+    while cursor > 0 && boundaries.len() < limit {
         let block_start = cursor.saturating_sub(CODEX_REVERSE_SCAN_BLOCK_BYTES as u64);
         let block_len = usize::try_from(cursor - block_start).unwrap_or_default();
         file.seek(SeekFrom::Start(block_start)).map_err(|err| {
@@ -702,29 +788,36 @@ fn find_recent_codex_user_offsets(
             };
             let line_start = newline_index + 1;
             if skipped_boundary_fragment {
-                maybe_record_codex_user_offset(
+                observe_codex_scan_line(
                     &combined[line_start..line_end],
                     block_start.saturating_add(line_start as u64),
-                    &mut offsets,
+                    &mut boundaries,
                     limit,
+                    &mut lines_since_boundary,
                 );
             } else {
                 skipped_boundary_fragment = true;
                 discarding_oversized_line = false;
             }
-            if offsets.len() >= limit {
+            if boundaries.len() >= limit {
                 break;
             }
             line_end = newline_index;
         }
-        if offsets.len() >= limit {
+        if boundaries.len() >= limit {
             break;
         }
 
         let leading_fragment = &combined[..line_end];
         if block_start == 0 {
             if !discarding_oversized_line {
-                maybe_record_codex_user_offset(leading_fragment, 0, &mut offsets, limit);
+                observe_codex_scan_line(
+                    leading_fragment,
+                    0,
+                    &mut boundaries,
+                    limit,
+                    &mut lines_since_boundary,
+                );
             }
         } else if discarding_oversized_line {
             suffix.clear();
@@ -737,28 +830,37 @@ fn find_recent_codex_user_offsets(
         cursor = block_start;
     }
 
-    Ok(offsets)
+    Ok(boundaries)
 }
 
-fn maybe_record_codex_user_offset(
+fn observe_codex_scan_line(
     line: &[u8],
     byte_offset: u64,
-    offsets: &mut Vec<u64>,
+    boundaries: &mut Vec<CodexRoundBoundary>,
     limit: usize,
+    lines_since_boundary: &mut usize,
 ) {
     const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
-    if offsets.len() >= limit
-        || !line
-            .windows(USER_MESSAGE_NEEDLE.len())
-            .any(|window| window == USER_MESSAGE_NEEDLE)
-    {
+    if boundaries.len() >= limit {
         return;
     }
-    let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) else {
-        return;
-    };
-    if parsed.payload.get("type").and_then(Value::as_str) == Some("user_message") {
-        offsets.push(byte_offset);
+    if line
+        .windows(USER_MESSAGE_NEEDLE.len())
+        .any(|window| window == USER_MESSAGE_NEEDLE)
+    {
+        if let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) {
+            if parsed.payload.get("type").and_then(Value::as_str) == Some("user_message") {
+                boundaries.push(CodexRoundBoundary {
+                    byte_offset,
+                    following_line_count: *lines_since_boundary,
+                });
+                *lines_since_boundary = 0;
+                return;
+            }
+        }
+    }
+    if !line.is_empty() {
+        *lines_since_boundary = lines_since_boundary.saturating_add(1);
     }
 }
 

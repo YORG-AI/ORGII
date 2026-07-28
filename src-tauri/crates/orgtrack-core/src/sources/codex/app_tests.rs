@@ -201,7 +201,32 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
             .and_then(Value::as_str),
         Some("first")
     );
-    assert!(window.chunks[1].result.get("unloadedTurn").is_some());
+    // Skeleton summaries must carry REAL activity metadata so the collapsed
+    // card can render "worked for X · N events": duration spans to the next
+    // round's start, and the event count comes from the reverse scan's
+    // per-round line tally (#443 follow-up).
+    let first_placeholder = window.chunks[1]
+        .result
+        .get("unloadedTurn")
+        .expect("first placeholder");
+    assert_eq!(
+        first_placeholder.get("durationMs").and_then(Value::as_i64),
+        Some(60_000)
+    );
+    assert_eq!(
+        first_placeholder.get("eventCount").and_then(Value::as_u64),
+        Some(2)
+    );
+    assert_eq!(
+        first_placeholder
+            .get("bodyEventCount")
+            .and_then(Value::as_u64),
+        Some(1)
+    );
+    assert!(first_placeholder
+        .get("endedAt")
+        .and_then(Value::as_str)
+        .is_some());
     assert_eq!(
         window.chunks[2]
             .result
@@ -216,6 +241,13 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
             .and_then(|value| value.get("nextTurnId"))
             .and_then(Value::as_str),
         Some(window.chunks[4].chunk_id.as_str())
+    );
+    assert_eq!(
+        window.chunks[3]
+            .result
+            .pointer("/unloadedTurn/durationMs")
+            .and_then(Value::as_i64),
+        Some(60_000)
     );
     assert_eq!(
         window.chunks[4]

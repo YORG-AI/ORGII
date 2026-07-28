@@ -126,6 +126,14 @@ fn is_visible_in_simulator_or_messages(event: &SessionEvent) -> bool {
         return false;
     }
 
+    // Unloaded-turn placeholders are chat-structural: the chat's collapsed
+    // round card consumes result.unloadedTurn, but the simulator/messages
+    // apps have no renderer for them and would print the raw internal
+    // "turn ... is not loaded yet" observation (#443 follow-up).
+    if event.result.get("unloadedTurn").is_some() {
+        return false;
+    }
+
     // Hide standalone tool_result events (orphans of tool_call_merger).
     if event.action_type == "tool_result" {
         return false;
