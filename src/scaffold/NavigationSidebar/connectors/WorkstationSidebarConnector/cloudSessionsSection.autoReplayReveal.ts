@@ -160,6 +160,12 @@ interface UseCloudSessionAutoReplayRevealParams {
   localOwnSessionIds: ReadonlySet<string>;
   refresh: () => void;
   runReplay: (row: RemoteTeammateSessionMetadata) => void;
+  /**
+   * Open the viewer's own local session. A bare sidebar reveal is not
+   * enough here: the chip's contract is "take me to this transcript", and
+   * the highlight path is gated on the session already being active.
+   */
+  onRevealLocal: (sessionId: string) => void;
   onSkip: (reason: CloudAutoReplaySkipReason) => void;
 }
 
@@ -173,6 +179,7 @@ export function useCloudSessionAutoReplayReveal({
   localOwnSessionIds,
   refresh,
   runReplay,
+  onRevealLocal,
   onSkip,
 }: UseCloudSessionAutoReplayRevealParams): void {
   const store = useStore();
@@ -214,6 +221,7 @@ export function useCloudSessionAutoReplayReveal({
       store.set(requestSessionSidebarRevealAtom, {
         sessionId: decision.sessionId,
       });
+      onRevealLocal(decision.sessionId);
       return;
     }
     onSkip(decision.reason);
@@ -221,6 +229,7 @@ export function useCloudSessionAutoReplayReveal({
     busySessionRowId,
     fetchedAt,
     localOwnSessionIds,
+    onRevealLocal,
     onSkip,
     orgId,
     refresh,
