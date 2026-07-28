@@ -202,6 +202,69 @@ describe("resolveSessionDisplayMetadata", () => {
     });
   });
 
+  it("marks a native session with the brand its model names", () => {
+    const remote = resolveSessionDisplayMetadata({
+      kind: "remote",
+      session: {
+        sourceSessionId: "remote-native-claude",
+        model: "claude-sonnet-5",
+        origin: { kind: "orgii" },
+      },
+    });
+
+    // The mark names the provider actually behind the run; the label keeps
+    // naming the runtime, which is what the Agent filter groups on.
+    expect(remote).toMatchObject({
+      agentIconId: "claude",
+      agentLabel: "ORG2",
+    });
+
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "local",
+        session: {
+          session_id: "imported-session-native-claude",
+          agentIconId: "archive",
+          importedFrom: {
+            orgId: "org-1",
+            sourceSessionId: "remote-native-claude",
+            ownerMemberId: "member-1",
+            epoch: 1,
+            seq: 0,
+            count: 1,
+            sourceDisplay: { model: "claude-sonnet-5" },
+          },
+        },
+      }).agentIconId
+    ).toBe(remote.agentIconId);
+  });
+
+  it("keeps the ORG2 mark when no model names a brand", () => {
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "remote",
+        session: {
+          sourceSessionId: "remote-native-unknown-model",
+          model: "house-blend-7",
+          origin: { kind: "orgii" },
+        },
+      }).agentIconId
+    ).toBe("orgii");
+  });
+
+  it("keeps a chosen agent icon ahead of the model brand", () => {
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "local",
+        session: {
+          session_id: "local-agent-session",
+          agentIconId: "brain",
+          model: "claude-sonnet-5",
+        },
+      }).agentIconId
+    ).toBe("brain");
+  });
+
   it("keeps a native imported replay labeled ORG2 instead of its definition name", () => {
     const display = resolveSessionDisplayMetadata({
       kind: "local",
