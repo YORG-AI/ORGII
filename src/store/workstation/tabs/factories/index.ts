@@ -142,7 +142,6 @@ export type {
   ProjectGitSyncReviewTabData,
   ProjectWorkItemsTabData,
   WorkItemDetailTabData,
-} from "./project,
   ProjectJourneyTabData,
 } from "./project";
 export type { NewWorkItemTabData } from "../types";
