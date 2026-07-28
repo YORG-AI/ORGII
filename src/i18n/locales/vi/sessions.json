@@ -1196,6 +1196,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Trò chuyện",
+      "timeline": "Dòng thời gian",
+      "changes": "Thay đổi",
+      "raw": "Thô",
+      "timelineSummary_one": "{{count}} lượt trong {{duration}}",
+      "timelineSummary_other": "{{count}} lượt trong {{duration}}",
+      "timelineEmpty": "Chưa có lượt nào để hiển thị.",
+      "changesEmpty": "Phiên này không ghi tệp nào.",
+      "fileCount_one": "{{count}} tệp",
+      "fileCount_other": "{{count}} tệp",
+      "turnCount_one": "{{count}} lượt",
+      "turnCount_other": "{{count}} lượt"
     }
   },
   "chatStatus": {

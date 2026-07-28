@@ -1248,6 +1248,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Chat",
+      "timeline": "Timeline",
+      "changes": "Changes",
+      "raw": "Raw",
+      "timelineSummary_one": "{{count}} turn over {{duration}}",
+      "timelineSummary_other": "{{count}} turns over {{duration}}",
+      "timelineEmpty": "No turns to show yet.",
+      "changesEmpty": "This session did not write any files.",
+      "fileCount_one": "{{count}} file",
+      "fileCount_other": "{{count}} files",
+      "turnCount_one": "{{count}} turn",
+      "turnCount_other": "{{count}} turns"
     }
   },
   "chatStatus": {

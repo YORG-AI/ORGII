@@ -1199,6 +1199,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Sohbet",
+      "timeline": "Zaman çizelgesi",
+      "changes": "Değişiklikler",
+      "raw": "Ham",
+      "timelineSummary_one": "{{duration}} içinde {{count}} tur",
+      "timelineSummary_other": "{{duration}} içinde {{count}} tur",
+      "timelineEmpty": "Henüz gösterilecek tur yok.",
+      "changesEmpty": "Bu oturum hiçbir dosya yazmadı.",
+      "fileCount_one": "{{count}} dosya",
+      "fileCount_other": "{{count}} dosya",
+      "turnCount_one": "{{count}} tur",
+      "turnCount_other": "{{count}} tur"
     }
   },
   "chatStatus": {

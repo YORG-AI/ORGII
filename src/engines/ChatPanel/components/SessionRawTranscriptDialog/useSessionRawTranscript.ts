@@ -63,11 +63,26 @@ export function useSessionRawTranscript(
     };
   }, [enabled, loadTranscript, sessionId]);
 
+  // Release the transcript when the Raw view closes. For a large imported
+  // session the snapshot holds the complete raw entry array (tens of MB);
+  // keeping it pinned in React state for the panel's lifetime was one of the
+  // #443 retention leaks. Re-entering Raw reloads it from source.
+  useEffect(() => {
+    if (enabled) return;
+    requestIdRef.current += 1;
+    setLoadingSessionId(null);
+    setState(null);
+  }, [enabled]);
+
   const snapshot = state?.sessionId === sessionId ? state.snapshot : null;
   const error = state?.sessionId === sessionId ? state.error : null;
   const loading = loadingSessionId === sessionId;
+  // Both memos are gated on `enabled`: once a session has loaded its snapshot,
+  // an ungated merge + JSON.stringify of the whole transcript would re-run on
+  // every streaming event for as long as the hook stays mounted — including
+  // while the host is showing the GUI view and nothing reads these values.
   const entries = useMemo(() => {
-    if (!snapshot) return [];
+    if (!enabled || !snapshot) return [];
     if (snapshot.source.kind !== "orgii-event-store") {
       return snapshot.entries;
     }
@@ -76,7 +91,7 @@ export function useSessionRawTranscript(
       liveEvents,
       snapshot.sessionId
     );
-  }, [liveEvents, snapshot]);
+  }, [enabled, liveEvents, snapshot]);
   const transcriptJson = useMemo(
     () => JSON.stringify(entries, null, 2),
     [entries]

@@ -71,7 +71,11 @@ import {
   ChatPanelTabBar,
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
-import SessionHeaderBreadcrumb from "./components/SessionHeaderBreadcrumb";
+import {
+  SessionAlternateSurface,
+  SessionHeaderViewControls,
+  SessionRawToolbarActions,
+} from "./components/SessionViewSwitcher";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
 import { useChatPanelCreateTarget } from "./hooks/useChatPanelCreateTarget";
@@ -82,6 +86,7 @@ import { useChatPanelSessionModals } from "./hooks/useChatPanelSessionModals";
 import { useChatPanelTabsController } from "./hooks/useChatPanelTabsController";
 import { usePanelTitle } from "./hooks/usePanelTitle";
 import { useProjectWorkItemHandlers } from "./hooks/useProjectWorkItemHandlers";
+import { useSessionViewMode } from "./hooks/useSessionViewMode";
 import { useViewportWidth } from "./hooks/useViewportWidth";
 import type { ChatPanelProps, ChatPanelRegionNotice } from "./types";
 
@@ -109,6 +114,10 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       currentSession?.category === "human_session" ||
       isHumanSession(currentSessionId);
     const handleReloadSession = useReloadSession(currentSessionId ?? null);
+    const sessionView = useSessionViewMode({
+      sessionId: currentSessionId ?? null,
+      humanSession: humanSessionActive,
+    });
 
     const [contentMode, setContentMode] = useAtom(chatPanelContentModeAtom);
     const [createTarget, setCreateTarget] = useAtom(chatPanelCreateTargetAtom);
@@ -411,7 +420,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleOpenExportSessionJson,
       handleOpenLinkWorkItem,
       handleOpenCloudShareSettings,
-      handleOpenRawTranscript,
       showCloudShareSettings,
       sessionModals,
     } = useChatPanelSessionModals({
@@ -492,7 +500,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         handleOpenExportSessionJson={handleOpenExportSessionJson}
         handleOpenLinkWorkItem={handleOpenLinkWorkItem}
         handleOpenCloudShareSettings={handleOpenCloudShareSettings}
-        handleOpenRawTranscript={handleOpenRawTranscript}
+        handleOpenRawTranscript={sessionView.showRaw}
         handleMoveToWorkstation={handleMoveToWorkstation}
         handleOpenSearch={handleOpenSearch}
         handlePaginationToggle={handlePaginationToggle}
@@ -528,17 +536,23 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
                   non-cloud sessions, exactly like the fork extras. */}
             <SessionCommentsHeaderExtras session={currentSession ?? null} />
             <SessionForkHeaderExtras session={currentSession ?? null} />
+            <SessionRawToolbarActions
+              view={sessionView}
+              testIdPrefix="chat-panel-session"
+            />
           </>
         }
         sessionHeaderContent={
           contentState.showSessionContent &&
           !isStandaloneToolTabActive &&
           currentSessionId ? (
-            <SessionHeaderBreadcrumb
+            <SessionHeaderViewControls
               session={currentSession}
               sessionId={currentSessionId}
               fallbackName={panelTitle}
               onParentSessionClick={handleSessionContinuation}
+              view={sessionView}
+              testIdPrefix="chat-panel-session"
             />
           ) : null
         }
@@ -562,6 +576,13 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         }
         showPanelContent={contentState.showPanelContent}
         showSessionContent={contentState.showSessionContent}
+        sessionViewMode={sessionView.mode}
+        alternateSessionView={
+          <SessionAlternateSurface
+            sessionId={currentSessionId ?? null}
+            view={sessionView}
+          />
+        }
       />
     );
 

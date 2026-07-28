@@ -1212,6 +1212,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Czat",
+      "timeline": "Oś czasu",
+      "changes": "Zmiany",
+      "raw": "Surowe",
+      "timelineSummary_one": "{{count}} runda w ciągu {{duration}}",
+      "timelineSummary_other": "{{count}} rund w ciągu {{duration}}",
+      "timelineEmpty": "Brak rund do wyświetlenia.",
+      "changesEmpty": "Ta sesja nie zapisała żadnych plików.",
+      "fileCount_one": "{{count}} plik",
+      "fileCount_other": "{{count}} plików",
+      "turnCount_one": "{{count}} runda",
+      "turnCount_other": "{{count}} rund"
     }
   },
   "chatStatus": {

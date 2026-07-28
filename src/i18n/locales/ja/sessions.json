@@ -1198,6 +1198,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "チャット",
+      "timeline": "タイムライン",
+      "changes": "変更",
+      "raw": "生データ",
+      "timelineSummary_one": "{{count}} ラウンド / {{duration}}",
+      "timelineSummary_other": "{{count}} ラウンド / {{duration}}",
+      "timelineEmpty": "表示できるラウンドがありません。",
+      "changesEmpty": "このセッションはファイルを書き込んでいません。",
+      "fileCount_one": "{{count}} ファイル",
+      "fileCount_other": "{{count}} ファイル",
+      "turnCount_one": "{{count}} ラウンド",
+      "turnCount_other": "{{count}} ラウンド"
     }
   },
   "chatStatus": {
