@@ -1,0 +1,52 @@
+{
+  "title": "Perfil de criador",
+  "refresh": "Atualizar",
+  "summaryLine": "{{sessions}} sessões analisadas",
+  "tooFewSessions": "Menos de 25 sessões — o tipo ainda não está estabelecido.",
+  "noSessionsYet": "Nenhuma sessão analisada ainda — as letras aparecem conforme o histórico é lido.",
+  "axisStats": "{{sessions}} sessões · {{consistency}}% concordam",
+  "anchorFlip": "o ponto neutro teria de mudar {{factor}}×",
+  "anchorNeverFlips": "o veredito vale em qualquer ponto neutro",
+  "evidenceHint": "A sua mediana por sinal, face ao valor neutro de comparação.",
+  "secondary": "Medido, mas não o suficiente para uma letra",
+  "secondaryNote": "— a maioria das verificações não deixa rasto, por isso a confiança é baixa.",
+  "fanout": "{{percent}}% das suas sessões ramificam em subagentes.",
+  "byTool": "Por ferramenta",
+  "byToolHint": "Os pontos neutros são iguais em todo o lado, por isso estas linhas são comparáveis. Uma letra que só se sustenta numa ferramenta merece dúvida.",
+  "sessionCount": "{{count}} sessões",
+  "overTime": "Ao longo do tempo",
+  "overTimeHint": "Janelas móveis, as mais recentes primeiro.",
+  "status": "Estado",
+  "coverage": "Sessões lidas",
+  "coverageReading": "Ainda a ler o seu histórico — o perfil afina-se à medida que avança.",
+  "coverageComplete": "Todas as sessões desta máquina foram lidas.",
+  "confidence": "Confiança",
+  "confidenceHint": "O quanto as suas sessões concordam com as letras acima.",
+  "axesTitle": "Eixos",
+  "evidenceCol": {
+    "signal": "Sinal",
+    "yours": "Você",
+    "neutral": "Neutro"
+  },
+  "byToolCol": {
+    "tool": "Ferramenta",
+    "code": "Tipo",
+    "sessions": "Sessões"
+  },
+  "overTimeCol": {
+    "window": "Fim da janela",
+    "code": "Tipo",
+    "sessions": "Sessões"
+  },
+  "fanoutLabel": "Ramificação em subagentes",
+  "fanoutHint": "Proporção de sessões que ramificam em subagentes. Mantida à parte de Focado/Enxame: é o outro nível de paralelismo e aponta ao contrário.",
+  "highlights": "Destaques",
+  "highlightsHint": "Um facto por cartão, retirado das suas próprias sessões.",
+  "caveat": "pouco firme: {{reason}}",
+  "clarity": {
+    "slight": "preferência ligeira",
+    "moderate": "preferência moderada",
+    "clear": "preferência clara",
+    "veryClear": "preferência muito clara"
+  }
+}

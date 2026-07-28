@@ -126,6 +126,8 @@ pub const TASK_GET: &str = "task_get";
 /// Record a coordinator completion request at the current durable work
 /// revision. Finality checks remain authoritative.
 pub const ORG_RUN_COMPLETE: &str = "org_run_complete";
+/// Inspect or explicitly resolve an undeliverable Agent Org Inbox row.
+pub const ORG_INBOX_REPAIR: &str = "org_inbox_repair";
 
 // ── Channel workspace tools ─────────────────────────────────────────
 /// List known workspace paths seen in recent sessions.

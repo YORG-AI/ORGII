@@ -1,0 +1,52 @@
+{
+  "title": "Profil twórcy",
+  "refresh": "Odśwież",
+  "summaryLine": "Przeanalizowano sesji: {{sessions}}",
+  "tooFewSessions": "Mniej niż 25 sesji — typ jeszcze się nie ustalił.",
+  "noSessionsYet": "Nie przeanalizowano jeszcze sesji — litery pojawią się w miarę czytania historii.",
+  "axisStats": "{{sessions}} sesji · {{consistency}}% zgodnych",
+  "anchorFlip": "punkt neutralny musiałby przesunąć się {{factor}}×",
+  "anchorNeverFlips": "wynik utrzymuje się przy każdym punkcie neutralnym",
+  "evidenceHint": "Twoja mediana dla każdego sygnału wobec neutralnej wartości odniesienia.",
+  "secondary": "Zmierzone, ale nie na tyle, by dostać literę",
+  "secondaryNote": "— większość weryfikacji nie zostawia śladu, więc pewność jest niska.",
+  "fanout": "{{percent}}% Twoich sesji rozgałęzia się na podagentów.",
+  "byTool": "Wg narzędzia",
+  "byToolHint": "Punkty neutralne są wszędzie takie same, więc te wiersze są porównywalne. Litera prawdziwa tylko w jednym narzędziu budzi wątpliwości.",
+  "sessionCount": "{{count}} sesji",
+  "overTime": "W czasie",
+  "overTimeHint": "Okna kroczące, od najnowszych.",
+  "status": "Stan",
+  "coverage": "Odczytane sesje",
+  "coverageReading": "Wciąż czytamy Twoją historię — profil wyostrza się w miarę postępu.",
+  "coverageComplete": "Wszystkie sesje na tym komputerze zostały odczytane.",
+  "confidence": "Pewność",
+  "confidenceHint": "Jak mocno Twoje sesje zgadzają się z powyższymi literami.",
+  "axesTitle": "Osie",
+  "evidenceCol": {
+    "signal": "Sygnał",
+    "yours": "Twoje",
+    "neutral": "Neutralnie"
+  },
+  "byToolCol": {
+    "tool": "Narzędzie",
+    "code": "Typ",
+    "sessions": "Sesje"
+  },
+  "overTimeCol": {
+    "window": "Koniec okna",
+    "code": "Typ",
+    "sessions": "Sesje"
+  },
+  "fanoutLabel": "Rozgałęzienie na podagentów",
+  "fanoutHint": "Udział sesji rozgałęziających się na podagentów. Trzymany osobno od Skupiony/Rój: to drugi poziom równoległości i wskazuje w przeciwną stronę.",
+  "highlights": "Najciekawsze",
+  "highlightsHint": "Jeden fakt na kartę, prosto z Twoich sesji.",
+  "caveat": "słabo utrzymane: {{reason}}",
+  "clarity": {
+    "slight": "słaba preferencja",
+    "moderate": "umiarkowana preferencja",
+    "clear": "wyraźna preferencja",
+    "veryClear": "bardzo wyraźna preferencja"
+  }
+}

@@ -145,7 +145,8 @@
         "hooks": "Hooks",
         "usage": "Kullanım",
         "quota": "Kota",
-        "assets": "Varlıklar"
+        "assets": "Varlıklar",
+        "profile": "Profil"
       },
       "usage": {
         "title": "Kullanım ve maliyet",

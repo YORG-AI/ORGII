@@ -6,6 +6,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
+};
 use crate::coordination::agent_org_tasks::{
     self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskExecutionMode,
     TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
@@ -48,7 +51,7 @@ pub struct TaskGraphNodeParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskGraphCreateParams {
-    /// Complete graph patch to create atomically. Use 1..=32 nodes.
+    /// Complete graph patch to create atomically. Use at most 32 nodes.
     pub tasks: Vec<TaskGraphNodeParams>,
     /// Required only when this graph intentionally starts a new independent
     /// branch while older open tasks remain outside the graph.
@@ -115,11 +118,19 @@ impl Tool for TaskGraphCreateTool {
                 "Only the coordinator may create a cross-member task graph. Send the proposed graph to the coordinator.",
             );
         }
-        if params.tasks.is_empty() || params.tasks.len() > 32 {
-            return Err(ToolError::InvalidParams(
-                "task_graph_create requires 1..=32 tasks".to_string(),
-            ));
+        if params.tasks.is_empty() || params.tasks.len() > TASK_GRAPH_CREATE_MAX_TASKS {
+            return Err(ToolError::InvalidParams(format!(
+                "task_graph_create requires 1..={TASK_GRAPH_CREATE_MAX_TASKS} tasks per request"
+            )));
         }
+        for (index, node) in params.tasks.iter().enumerate() {
+            validate_task_identifier_list(
+                &format!("task_graph_create.tasks[{index}].depends_on"),
+                &node.depends_on,
+            )
+            .map_err(ToolError::InvalidParams)?;
+        }
+
         let read_run_id = self.ctx.org_context.run_id.clone();
         let existing_tasks =
             tokio::task::spawn_blocking(move || AgentOrgTaskStore::list(&read_run_id))

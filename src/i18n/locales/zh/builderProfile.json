@@ -1,0 +1,52 @@
+{
+  "title": "构建者画像",
+  "refresh": "刷新",
+  "summaryLine": "已分析 {{sessions}} 个会话",
+  "tooFewSessions": "不足 25 个会话，类型尚未稳定。",
+  "noSessionsYet": "尚未分析任何会话——随着历史被读取，字母会逐步出现。",
+  "axisStats": "{{sessions}} 个会话 · {{consistency}}% 一致",
+  "anchorFlip": "中性点需移动 {{factor}}× 才会翻转",
+  "anchorNeverFlips": "无论中性点定在哪都不翻转",
+  "evidenceHint": "每项信号你的中位数，与它所对照的中性值。",
+  "secondary": "已测量，但不足以占一个字母",
+  "secondaryNote": "——大部分验证不会在记录里留下痕迹，所以置信度低。",
+  "fanout": "{{percent}}% 的会话会派生子代理。",
+  "byTool": "按工具",
+  "byToolHint": "各处中性点相同，所以这些行可以横向比较。只在一个工具里成立的字母值得怀疑。",
+  "sessionCount": "{{count}} 个会话",
+  "overTime": "随时间变化",
+  "overTimeHint": "滚动窗口，最新在前。",
+  "status": "状态",
+  "coverage": "已读取的会话",
+  "coverageReading": "仍在读取你的历史——随着进度推进，画像会越来越准。",
+  "coverageComplete": "本机上的所有会话都已读取。",
+  "confidence": "置信度",
+  "confidenceHint": "你的会话与上面这些字母的一致程度。",
+  "axesTitle": "维度",
+  "evidenceCol": {
+    "signal": "信号",
+    "yours": "你的",
+    "neutral": "中性值"
+  },
+  "byToolCol": {
+    "tool": "工具",
+    "code": "类型",
+    "sessions": "会话数"
+  },
+  "overTimeCol": {
+    "window": "窗口结束于",
+    "code": "类型",
+    "sessions": "会话数"
+  },
+  "fanoutLabel": "子代理分叉",
+  "fanoutHint": "分叉出子代理的会话占比。与「专注／集群」分开计：那是另一层并行，而且方向相反。",
+  "highlights": "亮点",
+  "highlightsHint": "每张卡片一个事实，全部来自你自己的会话。",
+  "caveat": "把握不牢：{{reason}}",
+  "clarity": {
+    "slight": "轻微倾向",
+    "moderate": "中等倾向",
+    "clear": "明确倾向",
+    "veryClear": "非常明确的倾向"
+  }
+}

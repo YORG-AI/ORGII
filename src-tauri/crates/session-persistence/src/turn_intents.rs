@@ -178,6 +178,7 @@ pub struct TurnIntentRow {
     pub session_id: String,
     pub turn_intent_id: String,
     pub client_message_id: Option<String>,
+    pub org_run_id: Option<String>,
     pub source: TurnIntentSource,
     pub status: TurnIntentStatus,
     pub created_at: String,
@@ -197,6 +198,15 @@ pub enum IntentError {
     NotFound(String, String),
     #[error("invalid stored status {0:?} for turn intent {1}")]
     InvalidStoredStatus(String, String),
+    #[error(
+        "turn intent {turn_intent_id} for session {session_id} already belongs to Agent Org run {existing_org_run_id}, not {requested_org_run_id}"
+    )]
+    OrgRunMismatch {
+        session_id: String,
+        turn_intent_id: String,
+        existing_org_run_id: String,
+        requested_org_run_id: String,
+    },
 }
 
 /// Whitelist of state transitions. Anything outside this list is rejected.
@@ -232,18 +242,18 @@ fn transition_allowed(from: TurnIntentStatus, to: TurnIntentStatus) -> bool {
 // ============================================
 
 fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
-    let source_str: String = row.get(3)?;
-    let status_str: String = row.get(4)?;
+    let source_str: String = row.get(4)?;
+    let status_str: String = row.get(5)?;
     let source = TurnIntentSource::parse(&source_str).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
-            3,
+            4,
             rusqlite::types::Type::Text,
             format!("unknown turn_intents.source value: {source_str}").into(),
         )
     })?;
     let status = TurnIntentStatus::parse(&status_str).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
-            4,
+            5,
             rusqlite::types::Type::Text,
             format!("unknown turn_intents.status value: {status_str}").into(),
         )
@@ -252,10 +262,11 @@ fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
         session_id: row.get(0)?,
         turn_intent_id: row.get(1)?,
         client_message_id: row.get(2)?,
+        org_run_id: row.get(3)?,
         source,
         status,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
     })
 }
 
@@ -269,6 +280,7 @@ pub fn upsert_initial(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentSource,
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
@@ -278,6 +290,7 @@ pub fn upsert_initial(
         session_id,
         turn_intent_id,
         client_message_id,
+        org_run_id,
         source,
         status,
     )
@@ -290,19 +303,21 @@ pub fn upsert_initial_on(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentSource,
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
     let now = Utc::now().to_rfc3339();
     let inserted = conn.execute(
         "INSERT OR IGNORE INTO session_turn_intents
-            (session_id, turn_intent_id, client_message_id, source, status,
-             created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            (session_id, turn_intent_id, client_message_id, org_run_id,
+             source, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
         params![
             session_id,
             turn_intent_id,
             client_message_id,
+            org_run_id,
             source.as_str(),
             status.as_str(),
             now,
@@ -313,14 +328,38 @@ pub fn upsert_initial_on(
             session_id: session_id.to_string(),
             turn_intent_id: turn_intent_id.to_string(),
             client_message_id: client_message_id.map(str::to_string),
+            org_run_id: org_run_id.map(str::to_string),
             source,
             status,
             created_at: now.clone(),
             updated_at: now,
         });
     }
-    get_intent(conn, session_id, turn_intent_id)?
-        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))
+    // A row may have been created by an earlier bridge stage or by an older
+    // app version before explicit run ownership existed. Backfill only NULL;
+    // never overwrite a different durable run id.
+    if let Some(org_run_id) = org_run_id {
+        conn.execute(
+            "UPDATE session_turn_intents SET org_run_id=?3
+             WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id IS NULL",
+            params![session_id, turn_intent_id, org_run_id],
+        )?;
+    }
+    let existing = get_intent(&conn, session_id, turn_intent_id)?
+        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
+    if let (Some(existing_org_run_id), Some(requested_org_run_id)) =
+        (existing.org_run_id.as_deref(), org_run_id)
+    {
+        if existing_org_run_id != requested_org_run_id {
+            return Err(IntentError::OrgRunMismatch {
+                session_id: session_id.to_string(),
+                turn_intent_id: turn_intent_id.to_string(),
+                existing_org_run_id: existing_org_run_id.to_string(),
+                requested_org_run_id: requested_org_run_id.to_string(),
+            });
+        }
+    }
+    Ok(existing)
 }
 
 /// Patch the status of an existing intent. Transition must be in the
@@ -411,8 +450,8 @@ pub fn get_intent(
     turn_intent_id: &str,
 ) -> SqliteResult<Option<TurnIntentRow>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, turn_intent_id, client_message_id, source, status,
-                created_at, updated_at
+        "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
+                source, status, created_at, updated_at
            FROM session_turn_intents
           WHERE session_id = ?1 AND turn_intent_id = ?2",
     )?;
@@ -425,8 +464,8 @@ pub fn get_intent(
 pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
     let conn = get_connection()?;
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, turn_intent_id, client_message_id, source, status,
-                created_at, updated_at
+        "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
+                source, status, created_at, updated_at
            FROM session_turn_intents
           WHERE session_id = ?1
           ORDER BY created_at ASC, turn_intent_id ASC",
@@ -497,6 +536,7 @@ mod tests {
             session,
             intent,
             Some("client-1"),
+            None,
             TurnIntentSource::UserSubmit,
             TurnIntentStatus::Queued,
         )
@@ -541,6 +581,7 @@ mod tests {
                 session,
                 intent,
                 Some("client-2"),
+                None,
                 TurnIntentSource::Queue,
                 TurnIntentStatus::Running,
             )
@@ -548,6 +589,59 @@ mod tests {
             assert_eq!(again.status, TurnIntentStatus::Queued);
             assert_eq!(again.client_message_id.as_deref(), Some("client-1"));
             assert_eq!(again.source, TurnIntentSource::UserSubmit);
+        });
+    }
+
+    #[test]
+    fn retry_can_backfill_missing_org_run_but_cannot_reassign_it() {
+        with_temp_orgii_home(|| {
+            let session = "test-session-org-run-ownership";
+            let intent = "intent-org-run-ownership";
+            let original = upsert_initial(
+                session,
+                intent,
+                None,
+                None,
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect("legacy-style upsert succeeds");
+            assert_eq!(original.org_run_id, None);
+
+            let backfilled = upsert_initial(
+                session,
+                intent,
+                None,
+                Some("run-a"),
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect("retry may fill a previously unknown run owner");
+            assert_eq!(backfilled.org_run_id.as_deref(), Some("run-a"));
+
+            let error = upsert_initial(
+                session,
+                intent,
+                None,
+                Some("run-b"),
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect_err("a durable intent must never move between runs");
+            assert!(matches!(
+                error,
+                IntentError::OrgRunMismatch {
+                    existing_org_run_id,
+                    requested_org_run_id,
+                    ..
+                } if existing_org_run_id == "run-a" && requested_org_run_id == "run-b"
+            ));
+
+            let conn = get_connection().expect("open sessions DB");
+            let stored = get_intent(&conn, session, intent)
+                .expect("read intent")
+                .expect("intent exists");
+            assert_eq!(stored.org_run_id.as_deref(), Some("run-a"));
         });
     }
 
@@ -652,6 +746,7 @@ mod tests {
                 session,
                 "pending-a",
                 None,
+                None,
                 TurnIntentSource::UserSubmit,
                 TurnIntentStatus::Queued,
             )
@@ -660,6 +755,7 @@ mod tests {
                 session,
                 "pending-b",
                 None,
+                None,
                 TurnIntentSource::Queue,
                 TurnIntentStatus::Optimistic,
             )
@@ -667,6 +763,7 @@ mod tests {
             let _ = upsert_initial(
                 session,
                 "running-c",
+                None,
                 None,
                 TurnIntentSource::UserSubmit,
                 TurnIntentStatus::Queued,
@@ -730,6 +827,7 @@ mod tests {
                 let _ = upsert_initial(
                     session,
                     intent,
+                    None,
                     None,
                     TurnIntentSource::AgentOrg,
                     TurnIntentStatus::Queued,

@@ -162,7 +162,8 @@
         "hooks": "Hooks",
         "usage": "Usage",
         "quota": "Quota",
-        "assets": "Assets"
+        "assets": "Assets",
+        "profile": "Profile"
       },
       "usage": {
         "title": "Usage & cost",

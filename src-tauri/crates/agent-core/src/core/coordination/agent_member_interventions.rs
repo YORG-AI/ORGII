@@ -208,7 +208,11 @@ impl AgentMemberInterventionStore {
                     "SELECT MAX(id) FROM agent_inbox
                      WHERE recipient_member_id=?1
                        AND org_run_id=?2
-                       AND read_at IS NULL",
+                       AND read_at IS NULL
+                       AND NOT EXISTS (
+                           SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                           WHERE resolution.inbox_id=agent_inbox.id
+                       )",
                     params![member_id, org_run_id],
                     |row| row.get(0),
                 )

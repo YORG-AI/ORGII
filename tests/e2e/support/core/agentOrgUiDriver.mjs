@@ -1642,33 +1642,64 @@ export async function selectRenderedTurnPageByPreview(previewSnippet, label) {
 
 async function waitForAgentOrgMentionMenuOption(memberName, label) {
   let state = null;
-  await browser.waitUntil(
-    async () => {
-      state = await execJS(`
-        const menu = document.querySelector('.context-menu');
-        const options = Array.from(document.querySelectorAll('[data-testid="agent-org-mention-option"]'));
-        return {
-          menuText: menu?.textContent || '',
-          options: options.map((option) => ({
-            text: option.textContent || '',
-            mentionId: option.getAttribute('data-mention-id') || '',
-          })),
-        };
-      `);
-      const hasMember = (state?.options ?? []).some((option) =>
-        String(option.text ?? "").includes(memberName)
-      );
-      const hasNormalContextEntry = String(state?.menuText ?? "").includes(
-        "Files & Folders"
-      );
-      return hasMember && hasNormalContextEntry;
-    },
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      interval: 250,
-      timeoutMsg: `Agent Org mention menu did not include both member and normal context options for ${label}: ${JSON.stringify(state)}`,
-    }
-  );
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await execJS(`
+          const menus = Array.from(document.querySelectorAll('.context-menu'));
+          const menu = menus.find((candidate) => candidate.closest('[data-context-menu-portal]')) ?? menus[menus.length - 1] ?? null;
+          const options = Array.from(menu?.querySelectorAll('[data-testid="agent-org-mention-option"]') ?? []);
+          return {
+            menuText: menu?.textContent || '',
+            options: options.map((option) => ({
+              text: option.textContent || '',
+              mentionId: option.getAttribute('data-mention-id') || '',
+            })),
+          };
+        `);
+        const hasMember = (state?.options ?? []).some((option) =>
+          String(option.text ?? "").includes(memberName)
+        );
+        const hasNormalContextEntry = String(state?.menuText ?? "").includes(
+          "Files & Folders"
+        );
+        return hasMember && hasNormalContextEntry;
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `Agent Org mention menu did not become ready for ${label}`,
+      }
+    );
+  } catch (error) {
+    const diagnostic = await execJS(`
+      const isVisible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const shells = Array.from(document.querySelectorAll('[data-testid="chat-input"]'))
+        .filter(isVisible)
+        .map((shell, index) => {
+          const editor = shell.querySelector('[contenteditable="true"]');
+          return {
+            index,
+            text: editor?.textContent || '',
+            active: document.activeElement === editor,
+            memberPills: Array.from(shell.querySelectorAll('[data-composer-pill="true"][data-icon-type="member"]'))
+              .map((pill) => pill.getAttribute('data-file-name') || ''),
+          };
+        });
+      return {
+        shells,
+        triggerText: document.querySelector('[data-testid="agent-org-member-switcher-trigger"]')?.textContent || '',
+        portalPresent: Boolean(document.querySelector('[data-context-menu-portal]')),
+      };
+    `);
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; lastMenu=${JSON.stringify(state)}; composer=${JSON.stringify(diagnostic)}`
+    );
+  }
 }
 
 export async function sendRenderedGroupChatMentionPrompt(
@@ -1686,7 +1717,37 @@ export async function sendRenderedGroupChatMentionPrompt(
   if (clearResult !== "typed") {
     throw new Error(`chat input did not clear for ${label}: ${clearResult}`);
   }
+  const focusResult = await execJS(`
+    const visibleInputShells = Array.from(document.querySelectorAll('[data-testid="chat-input"]')).filter((inputShell) => {
+      const rect = inputShell.getBoundingClientRect();
+      const style = window.getComputedStyle(inputShell);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    });
+    const editor = visibleInputShells[visibleInputShells.length - 1]?.querySelector('[contenteditable="true"]') ?? null;
+    if (!editor) return "missing";
+    editor.focus();
+    return document.activeElement === editor ? "focused" : "focus-failed";
+  `);
+  if (focusResult !== "focused") {
+    throw new Error(`chat input did not focus for ${label}: ${focusResult}`);
+  }
   await browser.keys("@");
+  await browser.pause(100);
+  let mentionTriggerText = await execJS(js.editorText(inputSelector));
+  if (!String(mentionTriggerText ?? "").includes("@")) {
+    const mentionTriggerResult = await execJS(js.type(inputSelector, "@"));
+    if (mentionTriggerResult !== "typed") {
+      throw new Error(
+        `chat input did not accept @ mention trigger for ${label}: ${mentionTriggerResult}`
+      );
+    }
+    mentionTriggerText = await execJS(js.editorText(inputSelector));
+  }
+  if (!String(mentionTriggerText ?? "").includes("@")) {
+    throw new Error(
+      `chat input did not render @ mention trigger for ${label}: ${mentionTriggerText}`
+    );
+  }
   await waitForAgentOrgMentionMenuOption(memberName, label);
   const clickResult = await execJS(`
     const options = Array.from(document.querySelectorAll('[data-testid="agent-org-mention-option"]'));
@@ -1882,31 +1943,43 @@ export async function waitForGroupChatPendingTarget(targetName, label) {
 
 export async function waitForGroupChatPausedBanner(label) {
   let state = null;
-  await browser.waitUntil(
-    async () => {
-      state = await execJS(`
-        const banner = document.querySelector('[data-testid="agent-org-group-chat-paused-banner"]');
-        const resume = document.querySelector('[data-testid="agent-org-group-chat-resume-button"]');
-        return {
-          bannerText: banner ? (banner.textContent || '') : '',
-          resumeVisible: Boolean(resume),
-          resumeDisabled: resume ? Boolean(resume.disabled) : null,
-        };
-      `);
-      const text = String(state?.bannerText ?? "").toLowerCase();
-      return (
-        text.includes("new work is paused") &&
-        text.includes("pause stops active replies") &&
-        state?.resumeVisible === true &&
-        state?.resumeDisabled === false
-      );
-    },
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      interval: 250,
-      timeoutMsg: `group chat paused banner did not render for ${label}: ${JSON.stringify(state)}`,
-    }
-  );
+  try {
+    await browser.waitUntil(
+      async () => {
+        try {
+          state = await execJS(`
+            const banner = document.querySelector('[data-testid="agent-org-group-chat-paused-banner"]');
+            const resume = document.querySelector('[data-testid="agent-org-group-chat-resume-button"]');
+            return {
+              bannerText: banner ? (banner.textContent || '') : '',
+              resumeVisible: Boolean(resume),
+              resumeDisabled: resume ? Boolean(resume.disabled) : null,
+              bodyText: document.body?.textContent?.slice(0, 1200) || '',
+            };
+          `);
+        } catch (error) {
+          state = { error: String(error?.message ?? error) };
+          return false;
+        }
+        const text = String(state?.bannerText ?? "").toLowerCase();
+        return (
+          text.includes("new work is paused") &&
+          text.includes("pause stops active replies") &&
+          state?.resumeVisible === true &&
+          state?.resumeDisabled === false
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `group chat paused banner did not render for ${label}`,
+      }
+    );
+  } catch (_error) {
+    throw new Error(
+      `group chat paused banner did not render for ${label}: ${JSON.stringify(state)}`
+    );
+  }
 }
 
 export async function clickGroupChatResumeButton(label) {

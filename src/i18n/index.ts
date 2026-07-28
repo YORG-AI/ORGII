@@ -188,6 +188,7 @@ export function getFollowSystemLanguageLabel(
  * - geo: Countries, timezone labels, timezone aliases
  * - profile: User profile (dev passport, bio, skills, education, experience)
  * - integrations: Integrations (channels, code accounts), Extensions (skills), ATC
+ * - builderProfile: Runtime → Profile (axes, highlights, evidence)
  * - terms: Legal notices, third-party disclaimers, responsible use notices
  * - workflow: Workflow page (design, explore, task view, status bar)
  */
@@ -203,6 +204,7 @@ export const NAMESPACES = [
   "projects",
   "geo",
   "profile",
+  "builderProfile",
   "terms",
   "workflow",
 ] as const;
@@ -243,6 +245,8 @@ async function loadLanguageResources(
         common: (await import("./locales/en/common.json")).default,
         geo: (await import("./locales/en/geo.json")).default,
         profile: (await import("./locales/en/profile.json")).default,
+        builderProfile: (await import("./locales/en/builderProfile.json"))
+          .default,
         market: (await import("./locales/en/market.json")).default,
         integrations: (await import("./locales/en/integrations.json")).default,
         navigation: (await import("./locales/en/navigation.json")).default,
@@ -259,6 +263,8 @@ async function loadLanguageResources(
         common: (await import("./locales/zh/common.json")).default,
         geo: (await import("./locales/zh/geo.json")).default,
         profile: (await import("./locales/zh/profile.json")).default,
+        builderProfile: (await import("./locales/zh/builderProfile.json"))
+          .default,
         market: (await import("./locales/zh/market.json")).default,
         integrations: (await import("./locales/zh/integrations.json")).default,
         navigation: (await import("./locales/zh/navigation.json")).default,
@@ -275,6 +281,8 @@ async function loadLanguageResources(
         common: (await import("./locales/fr/common.json")).default,
         geo: (await import("./locales/fr/geo.json")).default,
         profile: (await import("./locales/fr/profile.json")).default,
+        builderProfile: (await import("./locales/fr/builderProfile.json"))
+          .default,
         market: (await import("./locales/fr/market.json")).default,
         integrations: (await import("./locales/fr/integrations.json")).default,
         navigation: (await import("./locales/fr/navigation.json")).default,
@@ -291,6 +299,8 @@ async function loadLanguageResources(
         common: (await import("./locales/de/common.json")).default,
         geo: (await import("./locales/de/geo.json")).default,
         profile: (await import("./locales/de/profile.json")).default,
+        builderProfile: (await import("./locales/de/builderProfile.json"))
+          .default,
         market: (await import("./locales/de/market.json")).default,
         integrations: (await import("./locales/de/integrations.json")).default,
         navigation: (await import("./locales/de/navigation.json")).default,
@@ -307,6 +317,8 @@ async function loadLanguageResources(
         common: (await import("./locales/es/common.json")).default,
         geo: (await import("./locales/es/geo.json")).default,
         profile: (await import("./locales/es/profile.json")).default,
+        builderProfile: (await import("./locales/es/builderProfile.json"))
+          .default,
         market: (await import("./locales/es/market.json")).default,
         integrations: (await import("./locales/es/integrations.json")).default,
         navigation: (await import("./locales/es/navigation.json")).default,
@@ -323,6 +335,8 @@ async function loadLanguageResources(
         common: (await import("./locales/ja/common.json")).default,
         geo: (await import("./locales/ja/geo.json")).default,
         profile: (await import("./locales/ja/profile.json")).default,
+        builderProfile: (await import("./locales/ja/builderProfile.json"))
+          .default,
         market: (await import("./locales/ja/market.json")).default,
         integrations: (await import("./locales/ja/integrations.json")).default,
         navigation: (await import("./locales/ja/navigation.json")).default,
@@ -339,6 +353,8 @@ async function loadLanguageResources(
         common: (await import("./locales/ko/common.json")).default,
         geo: (await import("./locales/ko/geo.json")).default,
         profile: (await import("./locales/ko/profile.json")).default,
+        builderProfile: (await import("./locales/ko/builderProfile.json"))
+          .default,
         market: (await import("./locales/ko/market.json")).default,
         integrations: (await import("./locales/ko/integrations.json")).default,
         navigation: (await import("./locales/ko/navigation.json")).default,
@@ -355,6 +371,8 @@ async function loadLanguageResources(
         common: (await import("./locales/ru/common.json")).default,
         geo: (await import("./locales/ru/geo.json")).default,
         profile: (await import("./locales/ru/profile.json")).default,
+        builderProfile: (await import("./locales/ru/builderProfile.json"))
+          .default,
         market: (await import("./locales/ru/market.json")).default,
         integrations: (await import("./locales/ru/integrations.json")).default,
         navigation: (await import("./locales/ru/navigation.json")).default,
@@ -371,6 +389,8 @@ async function loadLanguageResources(
         common: (await import("./locales/tr/common.json")).default,
         geo: (await import("./locales/tr/geo.json")).default,
         profile: (await import("./locales/tr/profile.json")).default,
+        builderProfile: (await import("./locales/tr/builderProfile.json"))
+          .default,
         market: (await import("./locales/tr/market.json")).default,
         integrations: (await import("./locales/tr/integrations.json")).default,
         navigation: (await import("./locales/tr/navigation.json")).default,
@@ -387,6 +407,8 @@ async function loadLanguageResources(
         common: (await import("./locales/vi/common.json")).default,
         geo: (await import("./locales/vi/geo.json")).default,
         profile: (await import("./locales/vi/profile.json")).default,
+        builderProfile: (await import("./locales/vi/builderProfile.json"))
+          .default,
         market: (await import("./locales/vi/market.json")).default,
         integrations: (await import("./locales/vi/integrations.json")).default,
         navigation: (await import("./locales/vi/navigation.json")).default,
@@ -403,6 +425,8 @@ async function loadLanguageResources(
         common: (await import("./locales/pt/common.json")).default,
         geo: (await import("./locales/pt/geo.json")).default,
         profile: (await import("./locales/pt/profile.json")).default,
+        builderProfile: (await import("./locales/pt/builderProfile.json"))
+          .default,
         market: (await import("./locales/pt/market.json")).default,
         integrations: (await import("./locales/pt/integrations.json")).default,
         navigation: (await import("./locales/pt/navigation.json")).default,
@@ -419,6 +443,8 @@ async function loadLanguageResources(
         common: (await import("./locales/pl/common.json")).default,
         geo: (await import("./locales/pl/geo.json")).default,
         profile: (await import("./locales/pl/profile.json")).default,
+        builderProfile: (await import("./locales/pl/builderProfile.json"))
+          .default,
         market: (await import("./locales/pl/market.json")).default,
         integrations: (await import("./locales/pl/integrations.json")).default,
         navigation: (await import("./locales/pl/navigation.json")).default,
@@ -435,6 +461,8 @@ async function loadLanguageResources(
         common: (await import("./locales/zh-Hant/common.json")).default,
         geo: (await import("./locales/zh-Hant/geo.json")).default,
         profile: (await import("./locales/zh-Hant/profile.json")).default,
+        builderProfile: (await import("./locales/zh-Hant/builderProfile.json"))
+          .default,
         market: (await import("./locales/zh-Hant/market.json")).default,
         integrations: (await import("./locales/zh-Hant/integrations.json"))
           .default,

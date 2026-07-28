@@ -7,6 +7,10 @@ use std::collections::HashSet;
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::params;
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_dependency_ids, validate_task_identifier,
+};
+
 use super::super::helpers::{
     encode_json_array, encode_metadata, insert_task_history_event, list_tasks_with_conn,
     now_rfc3339,
@@ -17,8 +21,8 @@ use super::super::{
 };
 use super::dependencies::{canonicalize_dependencies, persist_dependency_projection};
 use super::validation::{
-    ensure_run_allows_task_mutation, reject_writable_blocks, validate_task_persistence_invariants,
-    validate_task_text_fields,
+    ensure_run_allows_task_mutation, ensure_task_run_capacity, reject_writable_blocks,
+    validate_task_persistence_invariants, validate_task_text_fields,
 };
 use super::AgentOrgTaskStore;
 
@@ -66,9 +70,8 @@ impl AgentOrgTaskStore {
         scheduling_policy: Option<TaskCreateSchedulingPolicy>,
         effects: impl FnOnce(&rusqlite::Connection, &Task, &[Task]) -> Result<T, String>,
     ) -> Result<(Task, T), String> {
-        if params.id.trim().is_empty() {
-            return Err("task id must be non-empty".into());
-        }
+        validate_task_identifier("task id", &params.id)?;
+        validate_task_dependency_ids("blocked_by", &params.blocked_by)?;
         if params.org_run_id.trim().is_empty() {
             return Err("org_run_id must be non-empty".into());
         }
@@ -100,6 +103,7 @@ impl AgentOrgTaskStore {
             )?;
             let mut candidate_tasks = list_tasks_with_conn(&tx, &params.org_run_id)?;
             let existing_task_count = candidate_tasks.len();
+            ensure_task_run_capacity(existing_task_count, 1)?;
             candidate_tasks.push(Task {
                 id: params.id.clone(),
                 org_run_id: params.org_run_id.clone(),
@@ -208,6 +212,7 @@ impl AgentOrgTaskStore {
         if params_list.is_empty() {
             return Err("task graph must contain at least one task".to_string());
         }
+        ensure_task_run_capacity(0, params_list.len())?;
         let org_run_id = params_list[0].org_run_id.clone();
         if org_run_id.trim().is_empty() {
             return Err("org_run_id must be non-empty".to_string());
@@ -216,9 +221,8 @@ impl AgentOrgTaskStore {
             if params.org_run_id != org_run_id {
                 return Err("every task in a graph must belong to the same org run".to_string());
             }
-            if params.id.trim().is_empty() {
-                return Err("task id must be non-empty".to_string());
-            }
+            validate_task_identifier("task id", &params.id)?;
+            validate_task_dependency_ids("blocked_by", &params.blocked_by)?;
             validate_task_text_fields(
                 &params.subject,
                 &params.description,
@@ -238,6 +242,7 @@ impl AgentOrgTaskStore {
             ensure_run_allows_task_mutation(&tx, &org_run_id)?;
 
             let existing_tasks = list_tasks_with_conn(&tx, &org_run_id)?;
+            ensure_task_run_capacity(existing_tasks.len(), params_list.len())?;
             if !allow_parallel_with_existing_open_tasks {
                 let existing_ids = existing_tasks
                     .iter()

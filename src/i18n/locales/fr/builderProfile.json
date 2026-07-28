@@ -1,0 +1,52 @@
+{
+  "title": "Profil de créateur",
+  "refresh": "Actualiser",
+  "summaryLine": "{{sessions}} sessions analysées",
+  "tooFewSessions": "Moins de 25 sessions : le type n'est pas encore stabilisé.",
+  "noSessionsYet": "Aucune session analysée pour l'instant — les lettres apparaissent à mesure que l'historique est lu.",
+  "axisStats": "{{sessions}} sessions · {{consistency}} % concordent",
+  "anchorFlip": "le point neutre devrait bouger de {{factor}}×",
+  "anchorNeverFlips": "le verdict tient quel que soit le point neutre",
+  "evidenceHint": "Votre médiane pour chaque signal, face à la valeur neutre de comparaison.",
+  "secondary": "Mesuré, mais pas au point de mériter une lettre",
+  "secondaryNote": "— la plupart des vérifications ne laissent aucune trace, d'où une confiance faible.",
+  "fanout": "{{percent}} % de vos sessions se ramifient en sous-agents.",
+  "byTool": "Par outil",
+  "byToolHint": "Les points neutres sont identiques partout : ces lignes sont comparables. Une lettre vraie dans un seul outil mérite le doute.",
+  "sessionCount": "{{count}} sessions",
+  "overTime": "Dans le temps",
+  "overTimeHint": "Fenêtres glissantes, les plus récentes d'abord.",
+  "status": "État",
+  "coverage": "Sessions lues",
+  "coverageReading": "Lecture de votre historique en cours — le profil s'affine à mesure.",
+  "coverageComplete": "Toutes les sessions de cette machine ont été lues.",
+  "confidence": "Confiance",
+  "confidenceHint": "À quel point vos sessions concordent avec les lettres ci-dessus.",
+  "axesTitle": "Axes",
+  "evidenceCol": {
+    "signal": "Signal",
+    "yours": "Vous",
+    "neutral": "Neutre"
+  },
+  "byToolCol": {
+    "tool": "Outil",
+    "code": "Type",
+    "sessions": "Sessions"
+  },
+  "overTimeCol": {
+    "window": "Fin de fenêtre",
+    "code": "Type",
+    "sessions": "Sessions"
+  },
+  "fanoutLabel": "Essaimage en sous-agents",
+  "fanoutHint": "Part des sessions qui se ramifient en sous-agents. Tenu à l'écart de Concentré/Essaim : c'est l'autre niveau de parallélisme, et il pointe dans l'autre sens.",
+  "highlights": "Points marquants",
+  "highlightsHint": "Un fait par carte, tiré de vos propres sessions.",
+  "caveat": "peu affirmé : {{reason}}",
+  "clarity": {
+    "slight": "préférence légère",
+    "moderate": "préférence modérée",
+    "clear": "préférence nette",
+    "veryClear": "préférence très nette"
+  }
+}

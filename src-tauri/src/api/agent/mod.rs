@@ -695,6 +695,10 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_drain_inbox),
         )
         .route(
+            "/test/agent-org/session-return-to-work",
+            post(test::agent_org::test_agent_org_session_return_to_work),
+        )
+        .route(
             "/test/agent-org/post-member-idle",
             post(test::agent_org::test_agent_org_post_member_idle),
         )
