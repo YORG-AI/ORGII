@@ -28,9 +28,13 @@ import { invalidateProjectCache, projectApi } from "@src/api/http/project";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { cloudSyncLevelSessionAtom } from "@src/features/Org2Cloud/CloudSyncLevelDialog/useCloudSyncLevelDialog";
 import { collectAddressableThreads } from "@src/features/Org2Cloud/addressComments";
+import { org2CloudSharingFloorAtom } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { Org2CloudAuthState } from "@src/features/Org2Cloud/org2CloudAuthAtom";
-import { listMyOrgs } from "@src/features/Org2Cloud/org2CloudClient";
+import {
+  listMyOrgs,
+  listOrgMembers,
+} from "@src/features/Org2Cloud/org2CloudClient";
 import {
   org2CloudCommentsSignalAtom,
   orgCommentsKey,
@@ -45,10 +49,11 @@ import {
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
   org2CloudOrgsRequestEpochAtom,
+  org2CloudRosterVersionAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import type { Org2CloudOrg } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { org2CloudPendingInviteAtom } from "@src/features/Org2Cloud/org2CloudPendingInviteAtom";
-import { org2CloudPendingShareAtom } from "@src/features/Org2Cloud/org2CloudPendingShareAtom";
+import { queueOrg2CloudPendingShareAtom } from "@src/features/Org2Cloud/org2CloudPendingShareAtom";
 import {
   org2CloudPresenceAtom,
   org2CloudPresenceOutboundAtom,
@@ -70,7 +75,7 @@ import {
 import { projectDataChangedSignalAtom } from "@src/hooks/project";
 import { RemoteTeammateSessionMetadataSchema } from "@src/store/collaboration/protocol";
 import { sessionsAtom } from "@src/store/session/sessionAtom";
-import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
+import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import {
   chatPanelSelectedCloudOrgAtom,
   chatPanelSelectedWorkItemAtom,
@@ -207,6 +212,41 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           name: org.name,
           role: org.role,
         })),
+      };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
+  /**
+   * E2E-only roster diagnostic. Reads the rendered store's invalidation
+   * generation and the same authoritative member RPC used by the panel, but
+   * never mutates either. Returning only public roster fields keeps tokens out
+   * of failure logs.
+   */
+  const cloudInspectMemberRoster = async (opts: {
+    orgId: string;
+  }): Promise<
+    Result<{
+      rosterVersion: number;
+      members: Json[] | null;
+    }>
+  > => {
+    try {
+      const auth = store.get(org2CloudAuthAtom);
+      const members = auth
+        ? await listOrgMembers(auth.accessToken, opts.orgId)
+        : null;
+      return {
+        ok: true,
+        rosterVersion: store.get(org2CloudRosterVersionAtom)[opts.orgId] ?? 0,
+        members:
+          members?.map((member) => ({
+            userId: member.userId,
+            displayName: member.displayName ?? null,
+            role: member.role,
+            status: member.status,
+          })) ?? null,
       };
     } catch (err) {
       return asError(err);
@@ -419,6 +459,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     sessionId?: string;
   }): Promise<Result<{ debug: Json }>> => {
     try {
+      const sharingFloorByOrg = store.get(org2CloudSharingFloorAtom);
       const remoteEntries = store.get(org2CloudRemoteSessionsAtom);
       const remote = Object.fromEntries(
         Object.entries(remoteEntries).map(([orgId, entry]) => [
@@ -431,12 +472,13 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
               accessMode: row.accessMode ?? null,
               eventsEpoch: row.eventsEpoch ?? null,
               unresolvedCommentCount: row.unresolvedCommentCount ?? null,
-              openAgentTaskCount: row.openAgentTaskCount ?? null,
             })),
           },
         ])
       );
-      if (!opts.sessionId) return { ok: true, debug: { remote } };
+      if (!opts.sessionId) {
+        return { ok: true, debug: { remote, sharingFloorByOrg } };
+      }
 
       const session = store
         .get(sessionsAtom)
@@ -478,6 +520,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           comments: commentEntry
             ? {
                 state: commentEntry.state,
+                errorMessage: commentEntry.errorMessage ?? null,
                 count: commentEntry.comments.length,
                 rows: commentEntry.comments.map((comment) => ({
                   id: comment.id,
@@ -518,7 +561,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     }>
   > => {
     try {
-      const activeSessionId = store.get(workstationActiveSessionIdAtom);
+      const activeSessionId = store.get(activeSessionIdAtom);
       const activeSession = activeSessionId
         ? store
             .get(sessionsAtom)
@@ -629,7 +672,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
           error: `cloudSeedPendingShare: not a valid orgii://cloud/session?share= link: ${opts.link}`,
         };
       }
-      store.set(org2CloudPendingShareAtom, parsed);
+      store.set(queueOrg2CloudPendingShareAtom, parsed);
       return { ok: true, shareToken: parsed.shareToken };
     } catch (err) {
       return asError(err);
@@ -691,6 +734,7 @@ export function createCloudHelpers({ store }: CloudHelperDeps) {
     cloudSeedProjectOrgAlias,
     cloudSeedOrgs,
     cloudListOrgs,
+    cloudInspectMemberRoster,
     cloudInspectRosterState,
     cloudInspectProjectState,
     cloudSeedRepoScopes,

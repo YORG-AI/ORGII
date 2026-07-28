@@ -43,6 +43,12 @@ struct PendingToolCall {
     arguments_json: String,
 }
 
+impl Default for ResponsesStreamNormalizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResponsesStreamNormalizer {
     pub fn new() -> Self {
         Self {

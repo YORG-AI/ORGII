@@ -203,7 +203,7 @@ pub fn get_distinct_functions(events: &[SessionEvent]) -> Vec<FunctionUsageCount
             count,
         })
         .collect();
-    result.sort_by(|a, b| b.count.cmp(&a.count));
+    result.sort_by_key(|entry| std::cmp::Reverse(entry.count));
     result
 }
 

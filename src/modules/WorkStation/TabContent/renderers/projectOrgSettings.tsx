@@ -4,6 +4,7 @@
  * Same org hub surface as `project-org`, with the org view forced to
  * SETTINGS — mirroring `ProjectManagerContentRouter`.
  */
+import { useSetAtom } from "jotai";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +14,7 @@ import {
   getTabDataString,
 } from "@src/modules/ProjectManager/ProjectManagerLayout/components/projectManagerRouterUtils";
 import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManagerLayout/context/projectHostContext";
+import { closeProjectOrgWorkStationTabsAtom } from "@src/store/workstation/tabRegistry";
 import {
   PROJECT_ORG_SURFACE_VIEW,
   STORY_ORG_SCOPE,
@@ -24,6 +26,7 @@ import type { UnifiedTabContentProps } from "../types";
 const ProjectOrgSettingsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => {
     const { t } = useTranslation("projects");
+    const closeProjectOrgTabs = useSetAtom(closeProjectOrgWorkStationTabsAtom);
     const {
       onUpdateTabData,
       onSelectProject,
@@ -53,6 +56,7 @@ const ProjectOrgSettingsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         onCreateWorkItem={onCreateWorkItem}
         onExpandWorkItemToTab={onExpandWorkItemToTab}
         onOpenLinearProjects={onOpenLinearProjects}
+        onOrgDeleted={closeProjectOrgTabs}
       />
     );
   }

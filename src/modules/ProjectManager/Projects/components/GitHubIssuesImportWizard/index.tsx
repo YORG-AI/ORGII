@@ -23,12 +23,12 @@ import Input from "@src/components/Input";
 import { Message } from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { createLogger } from "@src/hooks/logger";
 import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { PANEL_FOOTER_TOKENS } from "@src/modules/shared/layouts/blocks";
 import WizardShell from "@src/scaffold/WizardSystem/primitives/WizardShell";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs";
 
@@ -114,6 +114,14 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
     projectName.trim() && parsedRepo && connectionId && !saving
   );
 
+  const handleClear = useCallback(() => {
+    setProjectName("");
+    setRepoInput("");
+    setConnectionId("");
+    setRepoInputTouched(false);
+    setSubmitAttempted(false);
+  }, []);
+
   const handleSubmit = useCallback(async () => {
     setSubmitAttempted(true);
     if (!canSubmit || !parsedRepo) return;
@@ -185,10 +193,10 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
       <div className="flex h-full w-full min-w-0 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-hidden">
           <div
-            className="mx-auto flex h-full w-full max-w-[932px] flex-col gap-4 overflow-y-auto px-4"
+            className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-full flex-col gap-4 overflow-y-auto px-4`}
             data-testid="github-issues-import-form"
           >
-            <SectionContainer bare>
+            <SectionContainer>
               <SectionRow
                 label={t("projects:githubIssuesImport.fields.projectName")}
                 layout="vertical"
@@ -255,6 +263,27 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
                   </InlineAlert>
                 )}
               </SectionRow>
+              <SectionRow showHeader={false}>
+                <div className="flex w-full justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="small"
+                    onClick={handleClear}
+                    disabled={saving}
+                  >
+                    {t("common:actions.clear")}
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="small"
+                    onClick={() => void handleSubmit()}
+                    loading={saving}
+                    disabled={!canSubmit}
+                  >
+                    {t("projects:githubIssuesImport.importButton")}
+                  </Button>
+                </div>
+              </SectionRow>
             </SectionContainer>
 
             {repoName ? (
@@ -265,21 +294,6 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
               </p>
             ) : null}
           </div>
-        </div>
-
-        <div className={`${PANEL_FOOTER_TOKENS.container} justify-end`}>
-          <Button variant="secondary" size="small" onClick={onCancel}>
-            {t("common:actions.cancel")}
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            onClick={() => void handleSubmit()}
-            loading={saving}
-            disabled={!canSubmit}
-          >
-            {t("projects:githubIssuesImport.importButton")}
-          </Button>
         </div>
       </div>
     </WizardShell>

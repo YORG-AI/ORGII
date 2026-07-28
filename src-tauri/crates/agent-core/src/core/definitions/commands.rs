@@ -130,11 +130,13 @@ pub async fn agent_org_run_list(limit: Option<usize>) -> Result<Vec<InboxRunSumm
     use crate::core::coordination::agent_org_runs::AgentOrgRunStore;
     const MAX_LIMIT: usize = 200;
     let effective_limit = limit.map(|n| n.min(MAX_LIMIT)).unwrap_or(MAX_LIMIT);
-    let runs = AgentOrgRunStore::list_runs(effective_limit)?;
-    for run in &runs {
-        AgentOrgRunStore::reconcile_run_finality(&run.id)?;
-    }
-    let runs = AgentOrgRunStore::list_runs(effective_limit)?;
+    // This command backs a read-only Inbox list. Finality reconciliation is a
+    // lifecycle/watchdog responsibility: doing it here used to turn one UI
+    // refresh into as many as 200 global writer-lock + IMMEDIATE
+    // transactions. Keep the read off the async command executor as well.
+    let runs = tokio::task::spawn_blocking(move || AgentOrgRunStore::list_runs(effective_limit))
+        .await
+        .map_err(|err| format!("Agent Org run list worker failed: {err}"))??;
     Ok(runs
         .into_iter()
         .filter_map(|run| {

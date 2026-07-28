@@ -254,6 +254,7 @@ export function workItemDataToUI(
 
   return {
     session_id: frontmatter.id,
+    shortId: frontmatter.short_id,
     user_id: frontmatter.created_by ?? "",
     name: frontmatter.title,
     target_date: frontmatter.target_date ?? null,
@@ -446,6 +447,7 @@ export function buildMemberMap(
 export function enrichedWorkItemToUI(item: EnrichedWorkItem): UIWorkItem {
   return {
     session_id: item.id,
+    shortId: item.shortId,
     user_id: item.createdBy ?? "",
     name: item.title,
     target_date: item.targetDate ?? null,

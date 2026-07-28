@@ -99,6 +99,10 @@ pub struct ScheduledMessage {
     /// id. Empty only on the rare turn paths that intentionally skip
     /// user-message persistence (resume with empty content).
     pub turn_intent_id: String,
+    /// Durable Agent Org run that owns this turn, when any. The scheduler
+    /// uses this only after the intent reaches a terminal state so finality
+    /// is rechecked after (not before) the current intent stops blocking it.
+    pub org_run_id: Option<String>,
     /// The user content to process.
     pub content: String,
     /// Opaque processing callback.  Boxed future factory so the scheduler
@@ -464,6 +468,7 @@ impl WorkerTask {
 
             let client_message_id = msg.client_message_id.clone();
             let turn_intent_id = msg.turn_intent_id.clone();
+            let org_run_id = msg.org_run_id.clone();
             let execute_future = (msg.execute)();
             let result = std::panic::AssertUnwindSafe(execute_future)
                 .catch_unwind()
@@ -492,6 +497,28 @@ impl WorkerTask {
                         &turn_intent_id,
                         crate::foundation::session_bridge::TurnIntentBridgeStatus::Completed,
                     );
+                    if let Some(run_id) = org_run_id {
+                        let reconcile_run_id = run_id.clone();
+                        match tokio::task::spawn_blocking(move || {
+                            crate::coordination::agent_org_runs::AgentOrgRunStore::reconcile_run_finality(
+                                &reconcile_run_id,
+                            )
+                        })
+                        .await
+                        {
+                            Ok(Ok(_)) => {}
+                            Ok(Err(error)) => warn!(
+                                run_id = %run_id,
+                                error = %error,
+                                "[scheduler] post-intent Agent Org finality reconcile failed"
+                            ),
+                            Err(error) => warn!(
+                                run_id = %run_id,
+                                error = %error,
+                                "[scheduler] post-intent Agent Org finality reconcile task failed"
+                            ),
+                        }
+                    }
                     // agent:complete is already broadcast by processor; we
                     // only broadcast the updated queue status here.
                 }
@@ -569,6 +596,7 @@ mod tests {
                 generation: 0,
                 client_message_id: None,
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "running".to_string(),
                 execute: Box::new(move || {
                     Box::pin(async move {
@@ -588,6 +616,7 @@ mod tests {
                 generation: 0,
                 client_message_id: None,
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "stale".to_string(),
                 execute: Box::new(move || {
                     Box::pin(async move {
@@ -620,6 +649,7 @@ mod tests {
                 generation: 0,
                 client_message_id: Some("client-1".to_string()),
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "running".to_string(),
                 execute: Box::new(move || {
                     Box::pin(async move {
@@ -638,6 +668,7 @@ mod tests {
                 generation: 0,
                 client_message_id: Some("client-1".to_string()),
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "duplicate".to_string(),
                 execute: Box::new(|| Box::pin(async { Ok("duplicate ran".to_string()) })),
             })
@@ -669,6 +700,7 @@ mod tests {
                         generation: 0,
                         client_message_id: Some("agent-org-wake:run-1:member-a".to_string()),
                         turn_intent_id: String::new(),
+                        org_run_id: None,
                         content: String::new(),
                         execute: Box::new(move || {
                             Box::pin(async move {
@@ -725,6 +757,7 @@ mod tests {
                 generation: 0,
                 client_message_id: None,
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "[manual compact]".to_string(),
                 execute: Box::new(move || {
                     Box::pin(async move {
@@ -771,6 +804,7 @@ mod tests {
                 generation: 0,
                 client_message_id: None,
                 turn_intent_id: String::new(),
+                org_run_id: None,
                 content: "fresh".to_string(),
                 execute: Box::new(move || {
                     Box::pin(async move {

@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token karar",
     "tooltip": "Tahmini araç atfı. Yöntem: {{method}}. Girdi: {{inputBytes}} bytes. Çıktı: {{outputBytes}} bytes. Karar: {{decisionTokens}} Token. Bağlam: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. İlgili LLM cache read: {{cacheReadTokens}} Token. İlgili LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Başlık (isteğe bağlı)"
+  },
   "history": {
     "untitledSession": "Adsız Session",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Oluşturulma",
       "updated": "Güncellendi",
       "lastUpdated": "Son güncelleme",
+      "external": "Harici",
+      "internal": "Dahili",
       "rounds": "Turlar",
       "roundCount_one": "{{count}} tur",
       "roundCount_other": "{{count}} tur",
@@ -124,9 +129,10 @@
         "default": "Varsayılan",
         "manual": "Manuel",
         "60s": "60 saniyede bir",
-        "5m": "5 dakikada bir",
-        "1h": "Saatlik",
-        "1d": "Günlük"
+        "120s": "120 saniyede bir",
+        "10m": "10 dakikada bir",
+        "30m": "30 dakikada bir",
+        "1h": "Saatlik"
       },
       "openFolder": "Klasörü aç",
       "tabs": {
@@ -136,7 +142,103 @@
       },
       "views": {
         "scanning": "Tarama",
-        "hooks": "Hooks"
+        "hooks": "Hooks",
+        "usage": "Kullanım",
+        "quota": "Kota",
+        "assets": "Varlıklar",
+        "profile": "Profil"
+      },
+      "usage": {
+        "title": "Kullanım ve maliyet",
+        "subtitle": "Taranan kodlama oturumlarınızdaki token'lar ve tahmini maliyet. Veriler yerel veritabanından okunur ve cihazınızdan ayrılmaz.",
+        "allSources": "Tüm kaynaklar",
+        "refresh": "Yenile",
+        "estimatedNote": "Maliyet, abonelikler ve kendi anahtarlarınız için liste fiyatı tahminidir; ölçülen harcama kaydedildiğinde gösterilir.",
+        "range": {
+          "today": "Bugün",
+          "24h": "24 saat",
+          "7d": "7 gün",
+          "30d": "30 gün",
+          "all": "Tüm zamanlar"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "Diğer"
+        },
+        "cards": {
+          "realTokens": "Toplam token",
+          "cost": "Toplam maliyet (tah.)",
+          "sessions": "Oturumlar",
+          "requests": "İstekler",
+          "cacheHit": "Önbellek isabet oranı",
+          "input": "Girdi",
+          "output": "Çıktı",
+          "cacheCreate": "Önbelleğe yazma",
+          "cacheRead": "Önbellekten okuma"
+        },
+        "trends": {
+          "title": "Kullanım eğilimleri",
+          "input": "Girdi",
+          "output": "Çıktı",
+          "cacheCreate": "Önbelleğe yazma",
+          "cacheRead": "Önbellekten okuma",
+          "cost": "Maliyet"
+        },
+        "table": {
+          "title": "Oturumlar",
+          "name": "Oturum",
+          "agent": "Agent",
+          "model": "Model",
+          "tokens": "Token'lar",
+          "cost": "Maliyet",
+          "cacheHit": "Önbellek isabeti",
+          "turns": "Turlar",
+          "lastActive": "Son etkinlik",
+          "sort": {
+            "recent": "En yeni",
+            "cost": "En yüksek maliyet",
+            "tokens": "En fazla token"
+          }
+        },
+        "roundsTable": {
+          "title": "İstekler",
+          "time": "Zaman",
+          "session": "Oturum",
+          "agent": "Agent",
+          "model": "Model",
+          "input": "Girdi",
+          "output": "Çıktı",
+          "cache": "Önbellekten okuma",
+          "cost": "Maliyet",
+          "filterBySession": "Bu oturuma göre filtrele"
+        },
+        "pricing": {
+          "input": "Girdi",
+          "cache": "Önbellek",
+          "output": "Çıktı",
+          "total": "Toplam",
+          "estimate": "Liste fiyatı tahmini",
+          "hint": "Ayrıntıları görmek için imleci bir isteğin maliyetinin üzerine getirin.",
+          "loading": "Hesaplanıyor…"
+        },
+        "detail": {
+          "title": "Çağrı başına döküm",
+          "perTurn": "LLM çağrıları",
+          "perTool": "Araç çağrıları",
+          "close": "Kapat",
+          "noData": "Bu oturumda yalnızca oturum düzeyi toplamlar var; çağrı başına ilişkilendirme ORGII'nin kendi agent çalıştırmaları için kaydedilir.",
+          "turnHeader": "Tur {{turn}}",
+          "promptTokens": "Prompt",
+          "completionTokens": "Tamamlama"
+        },
+        "empty": {
+          "title": "Henüz kullanım yok",
+          "subtitle": "Kodlama oturumlarını çalıştırın veya tarayın; token kullanımları burada görünsün."
+        },
+        "loadError": "Kullanım verileri yüklenemedi"
       },
       "sessions_one": "{{count}} oturum",
       "sessions_other": "{{count}} oturum",
@@ -794,6 +896,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Oturum",
+        "workItem": "İş öğesi",
+        "more": "Daha fazla",
         "work": "Çalışma",
         "manage": "Yönet",
         "heatmap": "Trendler",
@@ -845,7 +950,6 @@
     "defaultTitle": "Sohbet",
     "hideChatPanel": "Sohbet panelini gizle",
     "showTokenUsage": "Token göster",
-    "showStatusBar": "Durum çubuğunu göster",
     "compactDisplayMode": "Kompakt mod",
     "replay": {
       "follow": "Takip et"
@@ -891,6 +995,28 @@
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",
     "copyEventJsonFailed": "Kopyalama başarısız",
+    "moveToWorkstation": "Workstation'ıma taşı",
+    "moveToChatPanel": "Sohbet paneline taşı",
+    "rawTranscript": {
+      "title": "Ham oturum dökümü",
+      "menuItem": "Ham dökümü görüntüle",
+      "guiTab": "GUI",
+      "rawTab": "Ham veri",
+      "entryCount_one": "{{count}} girdi",
+      "entryCount_other": "{{count}} girdi",
+      "copySuccess": "Ham döküm kopyalandı",
+      "copyFailed": "Ham döküm kopyalanamadı"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item'a bağla…",
+      "title": "Oturumu Work Item'a bağla",
+      "description": "Bu oturumun gösterileceği Work Item'ı seçin.",
+      "searchPlaceholder": "Work Item kimliği, başlığı, durumu veya projesine göre ara",
+      "loading": "Work Items yükleniyor…",
+      "empty": "Work Item bulunamadı.",
+      "linking": "Bağlanıyor…",
+      "link": "Bağla"
+    },
     "historyTitle": "Geçmiş",
     "historyEmpty": "Henüz oturum yok",
     "historyGroupTime": "Zaman",
@@ -1020,6 +1146,8 @@
     "turnMetadata": {
       "noChanges": "Bu turda dosya değişikliği yok",
       "earlierRound": "Önceki tur",
+      "editsTab": "Düzenlemeler",
+      "readsTab": "Okumalar",
       "files_one": "{{count}} dosya",
       "files_other": "{{count}} dosya",
       "reads_one": "{{count}} okuma",
@@ -1194,6 +1322,8 @@
     "terminalSummary": {
       "command_one": "{{count}} komut",
       "command_other": "{{count}} komut",
+      "mcp_one": "{{count}} MCP çağrısı",
+      "mcp_other": "{{count}} MCP çağrısı",
       "wait_one": "{{count}} bekleme",
       "wait_other": "{{count}} bekleme",
       "check_one": "{{count}} kontrol",
@@ -1290,45 +1420,6 @@
     "searchSymbolsRunning": "Semboller aranıyor",
     "searchSymbolsDone": "Semboller arandı",
     "searchSymbolsFailed": "Sembol araması başarısız",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "Index status kontrol ediliyor",
     "searchCheckStatusDone": "Index status kontrol edildi",
     "searchCheckStatusFailed": "Index status kontrolü başarısız",
@@ -2010,7 +2101,10 @@
     "categoryLabel": "Oturum kategorisi",
     "categoryTemplate": "{category} seçin",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Yerleşik Agent'lar",
+    "builtIns": "Yerleşik",
+    "humanSession": {
+      "name": "Çalışma günlüğü"
+    },
     "cliAgents": "CLI Agent'lar",
     "customAgents": "Özel Agent'lar",
     "agentOrgs": "Agent Ekipleri",
@@ -2429,67 +2523,6 @@
     "myApiKeys": "{{count}} Key'im",
     "addApiKey": "API Anahtarı ekle",
     "noRepoSelected": "Depo seçilmedi",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Code Map durumu: {{status}}",
-      "neverIndexed": "Hiç indekslenmedi",
-      "lastIndexed": "Son indeksleme {{time}}",
-      "progressFiles": "{{processed}} / {{total}} dosya",
-      "errorTitle": "Code Map hatası",
-      "status": {
-        "notIndexed": "İndekslenmedi",
-        "indexing": "İndeksleniyor",
-        "ready": "Hazır",
-        "stale": "Eski",
-        "failed": "Başarısız",
-        "cancelled": "İptal edildi"
-      },
-      "phase": {
-        "queued": "Sırada",
-        "scanning": "Taranıyor",
-        "extracting": "Çıkarılıyor",
-        "storing": "Kaydediliyor",
-        "resolving": "Çözümleniyor",
-        "complete": "Tamamlandı",
-        "failed": "Başarısız",
-        "cancelled": "İptal edildi"
-      },
-      "stats": {
-        "files": "Dosyalar",
-        "symbols": "Semboller",
-        "relationships": "İlişkiler",
-        "indexSize": "Dizin boyutu",
-        "unresolved": "Çözümlenmemiş",
-        "staleFiles": "Bayat dosyalar"
-      },
-      "actions": {
-        "index": "İndeksle",
-        "reindex": "Yeniden indeksle",
-        "cancel": "İptal",
-        "stop": "Durdur",
-        "clear": "Temizle",
-        "refresh": "Yenile"
-      },
-      "progressChanges": "Eklenen {{added}} · Değişen {{modified}} · Silinen {{deleted}}",
-      "browser": {
-        "title": "Code Map tarayıcısı",
-        "searchTitle": "Code Map ara",
-        "searchPlaceholder": "Semboller, dosyalar veya imzalar ara",
-        "search": "Ara",
-        "resultSummary": "{{count}} sonuç · {{unresolved}} çözümlenmemiş · {{stale}} bayat",
-        "noResults": "Code Map sonucu yok.",
-        "selectNode": "Kaynağı ve ilişkileri incelemek için bir sonuç seçin.",
-        "loadingDetails": "Code Map ayrıntıları yükleniyor…",
-        "noRelationships": "İlişki bulunamadı.",
-        "incoming": "Gelen",
-        "outgoing": "Giden",
-        "source": "Kaynak",
-        "confidence": "Güven: {{value}}",
-        "extraction": "Çıkarma: {{value}}",
-        "resolution": "Çözüm: {{value}}",
-        "relationshipCounts": "{{incoming}} gelen · {{outgoing}} giden"
-      }
-    },
     "diff": {
       "untitledSession": "İsimsiz oturum",
       "singleFile": "Tek dosya",

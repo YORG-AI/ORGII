@@ -195,6 +195,7 @@ pub async fn agent_session_manual_compact(
             // no-ops — compaction is not a turn and must not appear in the
             // turn indexer.
             turn_intent_id: String::new(),
+            org_run_id: None,
             content: "[manual compact]".to_string(),
             execute: Box::new(move || {
                 Box::pin(async move {

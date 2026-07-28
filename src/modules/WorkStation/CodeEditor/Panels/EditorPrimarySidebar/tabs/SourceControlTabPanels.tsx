@@ -157,6 +157,7 @@ export const SourceControlTabContent = forwardRef<
       repoPath,
       repoId,
       onGitFileSelect,
+      autoLoadStashes: showOnlyStashes,
     });
 
     useEffect(() => {
@@ -305,6 +306,7 @@ export const MainRepoSectionContent = forwardRef<
       repoPath,
       repoId,
       onGitFileSelect,
+      autoLoadStashes: showOnlyStashes,
     });
 
     useEffect(() => {

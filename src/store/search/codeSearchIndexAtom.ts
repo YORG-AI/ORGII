@@ -127,14 +127,6 @@ export const touchIndexUpdatedAtom = atom(null, (get, set, repoId: string) => {
   set(indexLastUpdatedAtom, { ...current, [repoId]: Date.now() });
 });
 
-export const autoIndexingEnabledAtom = atomWithStorage<boolean>(
-  "orgii:autoIndexingEnabled",
-  false,
-  undefined,
-  { getOnInit: true }
-);
-autoIndexingEnabledAtom.debugLabel = "autoIndexingEnabledAtom";
-
 export const clearIndexStatusAtom = atom(null, (_get, set) => {
   set(indexedReposAtom, new Map());
   clearIndexStatusAtom.debugLabel = "clearIndexStatusAtom";

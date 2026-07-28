@@ -7,6 +7,7 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
 import { TerminalCommand } from "@src/components/TerminalDisplay";
 import {
   TERMINAL_OUTPUT_MAX_LENGTH,
@@ -25,13 +26,14 @@ export const TerminalContent: React.FC<{
 
   // Process and truncate output - memoized to avoid reprocessing on re-renders
   const truncatedOutput = useMemo(() => {
+    if (shellOp.replayRef) return "";
     const suffix = t("simulator.replay.ide.codePanel.truncatedSuffix");
     return processTerminalOutput(
       shellOp.output,
       TERMINAL_OUTPUT_MAX_LENGTH,
       suffix
     );
-  }, [shellOp.output, t]);
+  }, [shellOp.output, shellOp.replayRef, t]);
 
   if (shellOp.customOutputComponent) {
     return (
@@ -48,6 +50,37 @@ export const TerminalContent: React.FC<{
         ) : null}
         <div className="min-h-0 flex-1">{shellOp.customOutputComponent}</div>
       </div>
+    );
+  }
+
+  if (shellOp.replayRef && shellOp.replayState) {
+    const replayIdentity = JSON.stringify([
+      shellOp.replayCursorEventId ?? "live",
+      shellOp.replayRef.sessionId,
+      shellOp.replayRef.callId,
+      shellOp.replayState.bookmark.visibleThroughSequence,
+      shellOp.replayState.bookmark.visibleBytes,
+    ]);
+    return (
+      <ShellReplayOutput
+        key={replayIdentity}
+        command={shellOp.command}
+        replayRef={shellOp.replayRef}
+        replayState={shellOp.replayState}
+        cursorEventId={shellOp.replayCursorEventId}
+        exitCode={shellOp.exitCode}
+        hideCommandLine={hideCommandLine}
+      />
+    );
+  }
+
+  if (shellOp.replayRef) {
+    return (
+      <SimulatorShellCssOutput
+        command={shellOp.command}
+        output={shellOp.output ?? ""}
+        hideCommandLine={hideCommandLine}
+      />
     );
   }
 

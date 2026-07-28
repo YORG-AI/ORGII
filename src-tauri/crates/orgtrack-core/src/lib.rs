@@ -13,6 +13,7 @@ mod edit_extraction_tests;
 pub mod hook_adapter;
 pub mod policy;
 pub mod pricing;
+pub mod profile;
 pub mod privacy;
 pub mod projectors;
 pub mod repo_sync;
@@ -23,6 +24,8 @@ pub mod sources;
 pub mod status_adapter;
 pub mod store;
 pub mod sync_export;
+#[cfg(feature = "sqlite")]
+pub mod usage_dashboard;
 
 pub use canonical::*;
 pub use privacy::*;

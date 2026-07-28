@@ -37,15 +37,9 @@ import {
 import { lastUserMessageAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
-import { selectedWorktreePathAtom } from "@src/store/session/selectedWorktreePathAtom";
-import { worktreeLaunchSourceAtom } from "@src/store/session/worktreeLaunchSourceAtom";
+import { worktreeLaunchSelectionAtom } from "@src/store/session/worktreeLaunchSourceAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { triggerSessionExpired } from "@src/store/ui/uiAtom";
-import type { ViewModeType } from "@src/store/ui/viewModeAtom";
-import {
-  viewModeAtom,
-  viewModeSwitchingAtom,
-} from "@src/store/ui/viewModeAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { emitOpenWorkspace } from "@src/util/ui/window/windowManager";
 
@@ -108,11 +102,8 @@ export function useSessionLaunch(
   const selectedAgentOrgId = useAtomValue(selectedAgentOrgIdAtom);
   const agentExecMode = useAtomValue(creatorDefaultExecModeAtom);
   const runningLocation = useAtomValue(runningLocationAtom);
-  const selectedWorktreePath = useAtomValue(selectedWorktreePathAtom);
-  const worktreeLaunchSource = useAtomValue(worktreeLaunchSourceAtom);
+  const worktreeLaunchSelection = useAtomValue(worktreeLaunchSelectionAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
-  const setViewMode = useSetAtom(viewModeAtom);
-  const setIsSwitching = useSetAtom(viewModeSwitchingAtom);
   const clearDraft = useSetAtom(sessionCreatorDraftAtom);
   const dispatchLoadSession = useSetAtom(loadSessionAtom);
   const setPendingSyntheticEvent = useSetAtom(pendingSyntheticEventAtom);
@@ -135,8 +126,6 @@ export function useSessionLaunch(
         navigate,
         setActiveSessionId,
         setWorkstationActiveSessionId,
-        setViewMode: (viewMode: ViewModeType) => setViewMode(viewMode),
-        setIsSwitching,
         clearDraft,
         setStationMode,
         forceNavigate,
@@ -149,9 +138,7 @@ export function useSessionLaunch(
       navigate,
       onLaunchSuccess,
       setActiveSessionId,
-      setIsSwitching,
       setStationMode,
-      setViewMode,
       setWorkstationActiveSessionId,
     ]
   );
@@ -217,11 +204,10 @@ export function useSessionLaunch(
           runningLocation,
           selectedAgentDefId,
           selectedAgentOrgId,
-          selectedWorktreePath,
           sessionName,
           targetKind,
           workspaceFolders,
-          worktreeLaunchSource,
+          worktreeLaunchSelection,
         });
 
       const result = await sessionLaunch({
@@ -355,11 +341,10 @@ export function useSessionLaunch(
     runningLocation,
     selectedAgentDefId,
     selectedAgentOrgId,
-    selectedWorktreePath,
     sessionName,
     targetKind,
     workspaceFolders,
-    worktreeLaunchSource,
+    worktreeLaunchSelection,
     clearImages,
     dispatchLoadSession,
     setLastUserMessage,

@@ -250,7 +250,11 @@ pub fn parse_etc_shells(content: &str) -> Vec<String> {
         .lines()
         .map(|line| line.trim())
         .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .filter(|line| std::path::Path::new(line).is_absolute())
+        // `/etc/shells` is a POSIX file format even when this pure parser is
+        // exercised from a Windows test host. `Path::is_absolute()` applies
+        // the host platform's rules and rejects valid entries such as
+        // `/bin/bash` on Windows, so validate the format itself instead.
+        .filter(|line| line.starts_with('/'))
         .map(|line| line.to_string())
         .collect()
 }

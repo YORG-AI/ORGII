@@ -97,8 +97,12 @@ export function useAutoReview(options: UseAutoReviewOptions): void {
 
         const { sessionId: createdSessionId } = await SessionService.create({
           task: reviewPrompt,
-          repoPath: resolveSessionRepoPath(),
+          repoPath: projectRepoPath,
           projectRepoPath,
+          worktreePath:
+            resolveSessionRepoPath() !== projectRepoPath
+              ? resolveSessionRepoPath()
+              : undefined,
           accountId,
           model: modelId,
           workItemId: shortId,

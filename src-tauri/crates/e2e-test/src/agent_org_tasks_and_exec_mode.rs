@@ -7,11 +7,11 @@
 //!   `/test/agent-org/drain-inbox`, and assert on post-state via
 //!   `/test/agent-org/tasks/list` and `/test/agent-org/inbox/list-by-run`.
 //!   These pin the tool/store/helper contract only.
-//! - caller-path: `agent_org.rs` launch/run-view scenarios drive
-//!   `/test/agent-org/launch-coordinator`, `/test/agent-org/follow-up-message`,
-//!   or the wake path in `agent_org_session_return_to_work`; those prove a real
-//!   session launch/follow-up/wake reaches the helper instead of just the debug
-//!   endpoint.
+//! - caller-path: `agent_org.rs`'s production return-to-work scenario drives
+//!   `/test/agent-org/launch-coordinator` followed by the same
+//!   `agent_org_session_return_to_work_impl` used by the Tauri command. That
+//!   scenario proves a real materialized member scheduler/turn reaches the
+//!   production drain instead of calling this file's drain helper endpoint.
 //! - rendered UI: frontend rendered E2E must assert user-visible history and
 //!   run-view badges/cards. Helper endpoints may seed or inspect, but must not
 //!   be the side-effect path for rendered history assertions.
@@ -23,12 +23,15 @@ use super::harness;
 const TASK_DEPENDENCY_CYCLE_ERROR: &str = "task_dependency_cycle";
 const TOOL_ERROR_INVALID_PARAMS: &str = "invalid_params";
 const TASK_TOOL_DIRECT_PATH: &str = "/agent/test/agent-org/task-tool-direct";
+const RUN_SEED_PATH: &str = "/agent/test/agent-org/run/seed";
+const RUN_CLEANUP_PATH: &str = "/agent/test/agent-org/run/cleanup";
+const RUN_VIEW_PATH: &str = "/agent/test/agent-org/run-view";
 const TASKS_SEED_PATH: &str = "/agent/test/agent-org/tasks/seed";
 const TASKS_LIST_PATH: &str = "/agent/test/agent-org/tasks/list";
 const STALE_WORKERS_SEED_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-run";
-const STALE_WORKERS_RELEASE_TASKS_PATH: &str = "/agent/test/agent-org/stale-workers/release-tasks";
 const INBOX_SEED_PATH: &str = "/agent/test/agent-org/inbox/seed";
 const DRAIN_INBOX_PATH: &str = "/agent/test/agent-org/drain-inbox";
+const RUN_FIXTURE_ORG_PREFIX: &str = "e2e-agent-org-fixture:";
 
 fn default_org_context(run_id: &str) -> serde_json::Value {
     serde_json::json!({
@@ -122,6 +125,40 @@ async fn task_tool_direct(
     post_json(cfg, TASK_TOOL_DIRECT_PATH, body).await
 }
 
+async fn seed_running_run(cfg: &Config, prefix: &str) -> Result<String, String> {
+    let fixture_id = unique_run_id(prefix);
+    let mut body = default_org_context(&fixture_id);
+    body.as_object_mut().expect("object").insert(
+        "org_id".to_string(),
+        serde_json::Value::String(format!("{RUN_FIXTURE_ORG_PREFIX}{fixture_id}")),
+    );
+    let response = post_json(cfg, RUN_SEED_PATH, body).await?;
+    if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+        return Err(format!("run/seed rejected payload: {response}"));
+    }
+    response
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .ok_or_else(|| format!("run/seed omitted org_run_id: {response}"))
+}
+
+/// Best-effort fixture boundary used by the main harness before and after
+/// every scenario. The server only deletes runs carrying the reserved test
+/// org prefix, so an E2E failure cannot leave a Running row for the real
+/// watchdog and cannot remove user-created Agent Org history.
+pub async fn cleanup_agent_org_fixture_runs(cfg: &Config) -> Result<usize, String> {
+    let response = post_json(cfg, RUN_CLEANUP_PATH, serde_json::json!({})).await?;
+    if response.get("ok").and_then(serde_json::Value::as_bool) != Some(true) {
+        return Err(format!("run/cleanup rejected request: {response}"));
+    }
+    response
+        .get("deleted_count")
+        .and_then(serde_json::Value::as_u64)
+        .map(|count| count as usize)
+        .ok_or_else(|| format!("run/cleanup omitted deleted_count: {response}"))
+}
+
 async fn seed_task(
     cfg: &Config,
     run_id: &str,
@@ -143,6 +180,72 @@ async fn seed_task_with_dependencies(
     blocks: &[&str],
     blocked_by: &[&str],
 ) -> Result<serde_json::Value, String> {
+    seed_task_fixture(
+        cfg,
+        TaskSeedFixture {
+            run_id,
+            id,
+            subject,
+            owner,
+            status,
+            blocks,
+            blocked_by,
+            eligible_member_ids: None,
+        },
+    )
+    .await
+}
+
+async fn seed_task_with_eligibility(
+    cfg: &Config,
+    run_id: &str,
+    id: &str,
+    subject: &str,
+    owner: Option<&str>,
+    status: &str,
+    eligible_member_ids: &[&str],
+) -> Result<serde_json::Value, String> {
+    seed_task_fixture(
+        cfg,
+        TaskSeedFixture {
+            run_id,
+            id,
+            subject,
+            owner,
+            status,
+            blocks: &[],
+            blocked_by: &[],
+            eligible_member_ids: Some(eligible_member_ids),
+        },
+    )
+    .await
+}
+
+struct TaskSeedFixture<'a> {
+    run_id: &'a str,
+    id: &'a str,
+    subject: &'a str,
+    owner: Option<&'a str>,
+    status: &'a str,
+    blocks: &'a [&'a str],
+    blocked_by: &'a [&'a str],
+    eligible_member_ids: Option<&'a [&'a str]>,
+}
+
+async fn seed_task_fixture(
+    cfg: &Config,
+    fixture: TaskSeedFixture<'_>,
+) -> Result<serde_json::Value, String> {
+    let TaskSeedFixture {
+        run_id,
+        id,
+        subject,
+        owner,
+        status,
+        blocks,
+        blocked_by,
+        eligible_member_ids,
+    } = fixture;
     let mut body = serde_json::json!({
         "id": id,
         "org_run_id": run_id,
@@ -156,6 +259,12 @@ async fn seed_task_with_dependencies(
         body.as_object_mut().unwrap().insert(
             "owner".into(),
             serde_json::Value::String(owner_agent_id.to_string()),
+        );
+    }
+    if let Some(eligible_member_ids) = eligible_member_ids {
+        body.as_object_mut().expect("object").insert(
+            "eligible_member_ids".into(),
+            serde_json::json!(eligible_member_ids),
         );
     }
     let resp = post_json(cfg, TASKS_SEED_PATH, body).await?;
@@ -238,7 +347,10 @@ fn tasks_array(resp: &serde_json::Value) -> Result<&Vec<serde_json::Value>, Stri
 /// coordinator task mutation may assign work.
 pub async fn worker_drain_does_not_assign_ownerless_tasks(cfg: &Config) -> bool {
     let label = "Agent-Org: worker drain leaves ownerless tasks for coordinator";
-    let run_id = unique_run_id("team-tasks-ownerless");
+    let run_id = match seed_running_run(cfg, "team-tasks-ownerless").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(cfg, &run_id, "task-A", "Refactor auth", None, "pending").await {
         return harness::print_error(label, &err);
@@ -329,7 +441,10 @@ pub async fn worker_drain_does_not_assign_ownerless_tasks(cfg: &Config) -> bool 
 /// Coordinator drain is also read-only with respect to task ownership.
 pub async fn coordinator_drain_does_not_assign_ownerless_task(cfg: &Config) -> bool {
     let label = "Agent-Org: coordinator drain leaves ownerless task unassigned";
-    let run_id = unique_run_id("team-tasks-coord-skip");
+    let run_id = match seed_running_run(cfg, "team-tasks-coord-skip").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(cfg, &run_id, "task-X", "Lead-only", None, "pending").await {
         return harness::print_error(label, &err);
@@ -390,7 +505,10 @@ pub async fn coordinator_drain_does_not_assign_ownerless_task(cfg: &Config) -> b
 /// parked until the coordinator assigns it.
 pub async fn owned_work_does_not_make_ownerless_task_assignable(cfg: &Config) -> bool {
     let label = "Agent-Org: owned work does not auto-assign ownerless peer work";
-    let run_id = unique_run_id("team-tasks-busy");
+    let run_id = match seed_running_run(cfg, "team-tasks-busy").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(
         cfg,
@@ -463,7 +581,10 @@ pub async fn owned_work_does_not_make_ownerless_task_assignable(cfg: &Config) ->
 /// respect to ownerless task state.
 pub async fn concurrent_worker_drains_leave_ownerless_task_unassigned(cfg: &Config) -> bool {
     let label = "Agent-Org: concurrent worker drains leave ownerless task unassigned";
-    let run_id = unique_run_id("team-tasks-concurrent-ownerless");
+    let run_id = match seed_running_run(cfg, "team-tasks-concurrent-ownerless").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(
         cfg,
@@ -554,7 +675,10 @@ pub async fn concurrent_worker_drains_leave_ownerless_task_unassigned(cfg: &Conf
 /// task remains pending until explicit coordinator assignment.
 pub async fn dependency_state_never_auto_assigns_ownerless_task(cfg: &Config) -> bool {
     let label = "Agent-Org: dependency readiness never auto-assigns ownerless task";
-    let blocked_run_id = unique_run_id("team-tasks-blocked-dep");
+    let blocked_run_id = match seed_running_run(cfg, "team-tasks-blocked-dep").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task_with_dependencies(
         cfg,
@@ -563,7 +687,7 @@ pub async fn dependency_state_never_auto_assigns_ownerless_task(cfg: &Config) ->
         "Finish API contract",
         None,
         "pending",
-        &["dependent"],
+        &[],
         &[],
     )
     .await
@@ -612,7 +736,10 @@ pub async fn dependency_state_never_auto_assigns_ownerless_task(cfg: &Config) ->
     let blocked_dependent_pending =
         blocked_dependent.and_then(|t| t.get("status").and_then(|v| v.as_str())) == Some("pending");
 
-    let ready_run_id = unique_run_id("team-tasks-unblocked-dep");
+    let ready_run_id = match seed_running_run(cfg, "team-tasks-unblocked-dep").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
     if let Err(err) = seed_task_with_dependencies(
         cfg,
         &ready_run_id,
@@ -620,7 +747,7 @@ pub async fn dependency_state_never_auto_assigns_ownerless_task(cfg: &Config) ->
         "Finish API contract",
         Some("m2"),
         "completed",
-        &["dependent"],
+        &[],
         &[],
     )
     .await
@@ -703,7 +830,10 @@ pub async fn dependency_state_never_auto_assigns_ownerless_task(cfg: &Config) ->
 /// not merely by debug seed helpers or later claim-time behavior.
 pub async fn dependency_cycle_rejected_by_task_tool(cfg: &Config) -> bool {
     let label = "Agent-Org: task tool rejects dependency cycle with typed error";
-    let run_id = unique_run_id("team-tasks-cycle");
+    let run_id = match seed_running_run(cfg, "team-tasks-cycle").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     let create_first = match task_tool_direct(
         cfg,
@@ -815,7 +945,10 @@ pub async fn dependency_cycle_rejected_by_task_tool(cfg: &Config) -> bool {
 /// pins `find_available`'s `is_resolved()` filter end-to-end.
 pub async fn no_pending_tasks_means_no_claim(cfg: &Config) -> bool {
     let label = "Agent-Org: no pending tasks → drain does not claim";
-    let run_id = unique_run_id("team-tasks-no-work");
+    let run_id = match seed_running_run(cfg, "team-tasks-no-work").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(
         cfg,
@@ -882,13 +1015,15 @@ pub async fn no_pending_tasks_means_no_claim(cfg: &Config) -> bool {
 // Unassign-on-shutdown
 // ────────────────────────────────────────────────────────────────────────
 
-/// Happy path. When a worker accepts a shutdown handshake, the
-/// coordinator's drain releases that worker's open tasks back to the
-/// pool (owner cleared, status reset to `pending`) so the next idle
-/// peer can claim them.
+/// When a worker accepts a shutdown handshake but the task has no legal
+/// eligible peer, the coordinator becomes the explicit pending owner. The
+/// task must not be parked ownerless with no valid recovery path.
 pub async fn accepted_shutdown_releases_owned_open_tasks(cfg: &Config) -> bool {
-    let label = "Agent-Org: accepted shutdown releases dying worker's open tasks";
-    let run_id = unique_run_id("team-tasks-release");
+    let label = "Agent-Org: accepted shutdown escalates task with no eligible peer";
+    let run_id = match seed_running_run(cfg, "team-tasks-release").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(cfg, &run_id, "task-alive", "WIP", Some("m1"), "in_progress").await
     {
@@ -975,10 +1110,8 @@ pub async fn accepted_shutdown_releases_owned_open_tasks(cfg: &Config) -> bool {
     let alive = tasks
         .iter()
         .find(|t| t.get("id").and_then(|v| v.as_str()) == Some("task-alive"));
-    let alive_owner_cleared = alive
-        .and_then(|t| t.get("owner"))
-        .map(|v| v.is_null())
-        .unwrap_or(false);
+    let alive_owner_escalated =
+        alive.and_then(|t| t.get("owner").and_then(|v| v.as_str())) == Some("coordinator");
     let alive_status_pending =
         alive.and_then(|t| t.get("status").and_then(|v| v.as_str())) == Some("pending");
 
@@ -1002,7 +1135,10 @@ pub async fn accepted_shutdown_releases_owned_open_tasks(cfg: &Config) -> bool {
         &tasks_resp.to_string(),
         &[
             ("drain endpoint returned ok", drain_ok),
-            ("alice's open task owner cleared", alive_owner_cleared),
+            (
+                "alice's open task escalated to coordinator",
+                alive_owner_escalated,
+            ),
             (
                 "alice's open task status reset to pending",
                 alive_status_pending,
@@ -1015,22 +1151,24 @@ pub async fn accepted_shutdown_releases_owned_open_tasks(cfg: &Config) -> bool {
     )
 }
 
-/// Negative pin. A REJECTED shutdown_response (the worker pushes
-/// back) must NOT release that worker's tasks — the worker is still
-/// alive. Without this pin a refactor that conditions task release
-/// on the kind alone would lose the in-flight work whenever a worker
-/// stalls a shutdown.
-pub async fn released_task_can_be_claimed_by_idle_peer(cfg: &Config) -> bool {
-    let label = "Agent-Org: released shutdown task can be claimed by idle peer";
-    let run_id = unique_run_id("team-tasks-release-reclaim");
+/// A shutdown may release work to an eligible peer pool, but an idle worker
+/// still cannot self-claim it. The coordinator must explicitly assign the
+/// owner, after which the normal TaskAssigned delivery becomes drainable.
+pub async fn released_task_requires_explicit_peer_assignment(cfg: &Config) -> bool {
+    let label = "Agent-Org: released task waits for explicit peer assignment";
+    let run_id = match seed_running_run(cfg, "team-tasks-release-reclaim").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
-    if let Err(err) = seed_task(
+    if let Err(err) = seed_task_with_eligibility(
         cfg,
         &run_id,
         "task-released",
         "Released handoff",
         Some("m1"),
         "in_progress",
+        &["m1", "m2"],
     )
     .await
     {
@@ -1084,42 +1222,85 @@ pub async fn released_task_can_be_claimed_by_idle_peer(cfg: &Config) -> bool {
         return harness::print_error(label, &release_drain_resp.to_string());
     }
 
-    let bob_drain_resp = match drain(cfg, &run_id, "bob-agent").await {
+    let bob_drain_before_assignment = match drain(cfg, &run_id, "bob-agent").await {
         Err(err) => return harness::print_error(label, &err),
         Ok(json) => json,
     };
-    let bob_drain_ok = bob_drain_resp
+    let bob_drain_before_ok = bob_drain_before_assignment
         .get("ok")
         .and_then(|value| value.as_bool())
         .unwrap_or(false);
-    let bob_attachment = bob_drain_resp
+    let bob_received_nothing_before_assignment = bob_drain_before_assignment
         .get("messages")
         .and_then(|value| value.as_array())
-        .and_then(|messages| messages.first())
-        .and_then(|message| message.get("content"))
-        .and_then(|value| value.as_str())
-        .unwrap_or_default();
-    let bob_saw_reclaimed_task = bob_attachment.contains("<task_assigned")
-        && bob_attachment.contains("task_id=\"task-released\"")
-        && bob_attachment.contains("subject=\"Released handoff\"")
-        && bob_attachment.contains("assigned_by=\"system\"");
+        .is_some_and(Vec::is_empty);
 
-    let tasks_resp = match list_tasks(cfg, &run_id).await {
+    let tasks_before_assignment = match list_tasks(cfg, &run_id).await {
         Err(err) => return harness::print_error(label, &err),
         Ok(json) => json,
     };
-    let tasks = match tasks_array(&tasks_resp) {
+    let tasks = match tasks_array(&tasks_before_assignment) {
         Err(err) => return harness::print_error(label, &err),
         Ok(items) => items,
     };
     let task = tasks
         .iter()
         .find(|item| item.get("id").and_then(|value| value.as_str()) == Some("task-released"));
-    let task_owner_bob =
-        task.and_then(|item| item.get("owner").and_then(|value| value.as_str())) == Some("m2");
-    let task_status_in_progress = task
+    let task_waits_ownerless = task
+        .and_then(|item| item.get("owner"))
+        .is_some_and(serde_json::Value::is_null);
+    let task_waits_pending = task
         .and_then(|item| item.get("status").and_then(|value| value.as_str()))
-        == Some("in_progress");
+        == Some("pending");
+
+    let assignment = match task_tool_direct(
+        cfg,
+        &run_id,
+        "update",
+        serde_json::json!({
+            "id": "task-released",
+            "owner_member_id": "m2"
+        }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let assignment_ok = assignment.get("ok").and_then(|value| value.as_bool()) == Some(true);
+
+    let bob_drain_after_assignment = match drain(cfg, &run_id, "bob-agent").await {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let bob_attachment = bob_drain_after_assignment
+        .get("messages")
+        .and_then(|value| value.as_array())
+        .and_then(|messages| messages.first())
+        .and_then(|message| message.get("content"))
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    let bob_saw_assigned_task = bob_attachment.contains("<task_assigned")
+        && bob_attachment.contains("task_id=\"task-released\"")
+        && bob_attachment.contains("subject=\"Released handoff\"");
+
+    let tasks_after_assignment = match list_tasks(cfg, &run_id).await {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let tasks = match tasks_array(&tasks_after_assignment) {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(items) => items,
+    };
+    let assigned_task = tasks
+        .iter()
+        .find(|item| item.get("id").and_then(|value| value.as_str()) == Some("task-released"));
+    let task_owner_bob = assigned_task
+        .and_then(|item| item.get("owner").and_then(|value| value.as_str()))
+        == Some("m2");
+    let task_status_pending = assigned_task
+        .and_then(|item| item.get("status").and_then(|value| value.as_str()))
+        == Some("pending");
 
     let inbox = match list_inbox(cfg, &run_id).await {
         Err(err) => return harness::print_error(label, &err),
@@ -1143,8 +1324,11 @@ pub async fn released_task_can_be_claimed_by_idle_peer(cfg: &Config) -> bool {
     });
     let output = serde_json::json!({
         "release_drain": release_drain_resp,
-        "bob_drain": bob_drain_resp,
-        "tasks": tasks_resp,
+        "bob_drain_before_assignment": bob_drain_before_assignment,
+        "tasks_before_assignment": tasks_before_assignment,
+        "assignment": assignment,
+        "bob_drain_after_assignment": bob_drain_after_assignment,
+        "tasks_after_assignment": tasks_after_assignment,
         "inbox": inbox,
     });
 
@@ -1152,20 +1336,27 @@ pub async fn released_task_can_be_claimed_by_idle_peer(cfg: &Config) -> bool {
         label,
         &output.to_string(),
         &[
-            ("Bob drain endpoint returned ok", bob_drain_ok),
+            ("Bob drain endpoint returned ok", bob_drain_before_ok),
             (
-                "Bob received reclaimed task attachment",
-                bob_saw_reclaimed_task,
+                "Bob received nothing before explicit assignment",
+                bob_received_nothing_before_assignment,
             ),
-            ("task owner changed to bob-agent", task_owner_bob),
-            ("task status is in_progress", task_status_in_progress),
-            ("task_assigned row targets bob-agent", bob_task_assigned_row),
+            ("released task stayed ownerless", task_waits_ownerless),
+            ("released task stayed pending", task_waits_pending),
+            ("coordinator assignment succeeded", assignment_ok),
+            (
+                "Bob received TaskAssigned after assignment",
+                bob_saw_assigned_task,
+            ),
+            ("task owner changed to m2", task_owner_bob),
+            ("assigned task remains pending", task_status_pending),
+            ("task_assigned row targets m2", bob_task_assigned_row),
         ],
     )
 }
 
-pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
-    let label = "Agent-Org: stale worker timeout releases open tasks";
+pub async fn stale_running_worker_keeps_open_tasks_assigned(cfg: &Config) -> bool {
+    let label = "Agent-Org: stale Running worker keeps open task assignment";
     let stale_updated_at = (chrono::Utc::now() - chrono::Duration::minutes(20)).to_rfc3339();
     let fresh_updated_at = chrono::Utc::now().to_rfc3339();
 
@@ -1173,6 +1364,7 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
         cfg,
         STALE_WORKERS_SEED_RUN_PATH,
         serde_json::json!({
+            "org_id": format!("{RUN_FIXTURE_ORG_PREFIX}{}", unique_run_id("stale-worker")),
             "root_session_id": format!("{}-root", unique_run_id("stale-worker")),
             "coordinator_agent_id": "coord",
             "workers": [
@@ -1201,6 +1393,13 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
     }
     let Some(run_id) = seed_run_resp
         .get("org_run_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_string)
+    else {
+        return harness::print_error(label, &seed_run_resp.to_string());
+    };
+    let Some(root_session_id) = seed_run_resp
+        .get("root_session_id")
         .and_then(|value| value.as_str())
         .map(str::to_string)
     else {
@@ -1244,13 +1443,12 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
         return harness::print_error(label, &err);
     }
 
-    let release_resp = match post_json(
+    // Reading the run view must remain side-effect free. In particular it must
+    // not revive the removed "stale Running means release ownership" policy.
+    let run_view_resp = match post_json(
         cfg,
-        STALE_WORKERS_RELEASE_TASKS_PATH,
-        serde_json::json!({
-            "org_run_id": run_id,
-            "stale_before": (chrono::Utc::now() - chrono::Duration::minutes(5)).to_rfc3339(),
-        }),
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": root_session_id }),
     )
     .await
     {
@@ -1277,11 +1475,11 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
         .iter()
         .find(|item| item.get("id").and_then(|value| value.as_str()) == Some("task-fresh-open"));
 
-    let stale_open_released = stale_open
-        .and_then(|item| item.get("owner"))
-        .map_or(true, serde_json::Value::is_null)
+    let stale_open_preserved = stale_open
+        .and_then(|item| item.get("owner").and_then(|value| value.as_str()))
+        == Some("m1")
         && stale_open.and_then(|item| item.get("status").and_then(|value| value.as_str()))
-            == Some("pending");
+            == Some("in_progress");
     let completed_preserved = stale_completed
         .and_then(|item| item.get("owner").and_then(|value| value.as_str()))
         == Some("m1")
@@ -1292,18 +1490,9 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
         == Some("m2")
         && fresh_open.and_then(|item| item.get("status").and_then(|value| value.as_str()))
             == Some("in_progress");
-    let release_count_ok = release_resp
-        .get("released_worker_count")
-        .and_then(|value| value.as_u64())
-        == Some(1)
-        && release_resp
-            .get("released_task_count")
-            .and_then(|value| value.as_u64())
-            == Some(1);
-
     let output = serde_json::json!({
         "seed_run": seed_run_resp,
-        "release": release_resp,
+        "run_view": run_view_resp,
         "tasks": tasks_resp,
     });
     harness::print_result(
@@ -1311,13 +1500,12 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
         &output.to_string(),
         &[
             (
-                "release endpoint returned ok",
-                release_resp.get("ok").and_then(|value| value.as_bool()) == Some(true),
+                "run view endpoint returned ok",
+                run_view_resp.get("ok").and_then(|value| value.as_bool()) == Some(true),
             ),
-            ("only stale worker open task was released", release_count_ok),
             (
-                "stale worker open task became unowned pending",
-                stale_open_released,
+                "stale Running worker kept its open task",
+                stale_open_preserved,
             ),
             (
                 "stale worker completed task stayed completed and owned",
@@ -1333,7 +1521,10 @@ pub async fn stale_worker_timeout_releases_open_tasks(cfg: &Config) -> bool {
 
 pub async fn rejected_shutdown_keeps_owned_tasks_assigned(cfg: &Config) -> bool {
     let label = "Agent-Org: rejected shutdown keeps worker's tasks assigned";
-    let run_id = unique_run_id("team-tasks-rejected");
+    let run_id = match seed_running_run(cfg, "team-tasks-rejected").await {
+        Ok(run_id) => run_id,
+        Err(err) => return harness::print_error(label, &err),
+    };
 
     if let Err(err) = seed_task(
         cfg,

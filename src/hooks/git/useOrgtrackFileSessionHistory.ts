@@ -3,12 +3,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   type OrgtrackFileSessionHistory,
   getOrgtrackFileSessionHistory,
-  getOrgtrackFileSessionHistoryRevision,
 } from "@src/api/tauri/lineage";
-import { useTauriListen } from "@src/hooks/platform/useTauriListen";
 
 const FILE_SESSION_HISTORY_PAGE_SIZE = 30;
-const FILE_SESSION_HISTORY_REVISION_POLL_MS = 5_000;
 
 export interface UseOrgtrackFileSessionHistoryOptions {
   repoPath: string;
@@ -39,7 +36,6 @@ export function useOrgtrackFileSessionHistory({
   const [error, setError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const loadMoreRequestIdRef = useRef(0);
-  const revisionProbeInFlightRef = useRef(false);
   const queryKey = `${repoPath}\u0000${filePath ?? ""}`;
   const queryKeyRef = useRef(queryKey);
   queryKeyRef.current = queryKey;
@@ -137,43 +133,6 @@ export function useOrgtrackFileSessionHistory({
     }
   }, [filePath, history, loadingMore, refresh, repoPath]);
 
-  const checkForRevision = useCallback(async () => {
-    if (
-      !autoLoad ||
-      !history ||
-      !filePath ||
-      !repoPath ||
-      revisionProbeInFlightRef.current
-    ) {
-      return;
-    }
-    const requestQueryKey = `${repoPath}\u0000${filePath}`;
-    revisionProbeInFlightRef.current = true;
-    try {
-      const revision = await getOrgtrackFileSessionHistoryRevision({
-        repoPath,
-        filePath,
-      });
-      if (
-        requestQueryKey === queryKeyRef.current &&
-        revision !== history.revision
-      ) {
-        await refresh();
-      }
-    } catch {
-      // The next invalidation, probe, or explicit refresh can recover. A
-      // freshness check must never replace valid history with an error state.
-    } finally {
-      revisionProbeInFlightRef.current = false;
-    }
-  }, [autoLoad, filePath, history, refresh, repoPath]);
-
-  useTauriListen(
-    "orgtrack:resource-interactions-changed",
-    () => void checkForRevision(),
-    { enabled: autoLoad && Boolean(history && filePath && repoPath) }
-  );
-
   useEffect(() => {
     if (autoLoad) {
       setHistory(null);
@@ -194,15 +153,6 @@ export function useOrgtrackFileSessionHistory({
     }, 1_000);
     return () => window.clearTimeout(timeout);
   }, [autoLoad, history, refresh]);
-
-  useEffect(() => {
-    if (!autoLoad || !history || !filePath || !repoPath) return;
-    const interval = window.setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      await checkForRevision();
-    }, FILE_SESSION_HISTORY_REVISION_POLL_MS);
-    return () => window.clearInterval(interval);
-  }, [autoLoad, checkForRevision, filePath, history, repoPath]);
 
   return {
     history,

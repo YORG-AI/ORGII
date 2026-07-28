@@ -8,7 +8,7 @@ import {
   createIssueCommentLocal,
   createIssueLocal,
   getIssueLocal,
-  listIssueCommentsLocal,
+  listIssueTimelineLocal,
   listIssuesLocal,
   listRepoCollaboratorsLocal,
   listRepoLabelsLocal,
@@ -19,6 +19,7 @@ import type {
   GitHubIssueComment,
   GitHubIssueLabel,
   GitHubIssueListResponse,
+  GitHubIssueTimelineItem,
   GitHubIssueUser,
 } from "@src/api/tauri/github";
 
@@ -30,6 +31,7 @@ export type {
   GitHubIssueComment,
   GitHubIssueLabel,
   GitHubIssueListResponse,
+  GitHubIssueTimelineItem,
   GitHubIssueUser,
 };
 
@@ -150,18 +152,38 @@ export async function addIssueComment(params: {
   }
 }
 
-export async function fetchIssueComments(params: {
+export async function fetchIssueTimeline(params: {
   remoteUrl: string;
   issueNumber: number;
-}): Promise<IssueResult<GitHubIssueComment[]>> {
+}): Promise<IssueResult<GitHubIssueTimelineItem[]>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
     if (!repoFullName) return { error: "not_authenticated" };
-    const data = await listIssueCommentsLocal(repoFullName, params.issueNumber);
+    const data = await listIssueTimelineLocal(repoFullName, params.issueNumber);
     return { data };
   } catch (e) {
     return { error: String(e) };
   }
+}
+
+export function issueCommentToTimelineItem(
+  comment: GitHubIssueComment
+): GitHubIssueTimelineItem {
+  return {
+    id: comment.id,
+    event: "commented",
+    created_at: comment.created_at,
+    actor: comment.user,
+    body: comment.body,
+    html_url: comment.html_url,
+    assignee: null,
+    label: null,
+    milestone: null,
+    rename: null,
+    source: null,
+    commit_id: null,
+    lock_reason: null,
+  };
 }
 
 export async function updateIssue(params: {

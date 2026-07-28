@@ -19,7 +19,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import Input from "@src/components/Input";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
+import { ROUTES } from "@src/config/routes";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -43,8 +43,6 @@ import {
   setWorkspaceFoldersAtom,
 } from "@src/store/ui/workspaceFoldersAtom";
 import type { WorkspaceFolder } from "@src/types/workspace";
-
-const SELECT_REPO_BODY_CLASS = "select-repo-mode";
 
 const log = createLogger("SelectRepoPage");
 
@@ -356,7 +354,7 @@ const SelectRepoPage: React.FC = () => {
 
   useEffect(() => {
     if (selectedRepoId && !repoLoading) {
-      navigate("/orgii/app/start-page", { replace: true });
+      navigate(ROUTES.workStation.base.path, { replace: true });
     }
   }, [navigate, repoLoading, selectedRepoId]);
 
@@ -386,7 +384,7 @@ const SelectRepoPage: React.FC = () => {
       }));
       dispatchSetFolders(folders, ws.workspaceId);
       setActiveWorkspaceName(ws.name);
-      navigate("/orgii/app/start-page");
+      navigate(ROUTES.workStation.base.path);
     },
     [dispatchSetFolders, setActiveWorkspaceName, navigate]
   );
@@ -437,7 +435,7 @@ const SelectRepoPage: React.FC = () => {
         }
 
         selectRepo(repoId);
-        navigate("/orgii/app/start-page");
+        navigate(ROUTES.workStation.base.path);
       } catch (error) {
         log.error("[SelectRepoPage] Failed to open repo", repoId, error);
       }
@@ -464,32 +462,15 @@ const SelectRepoPage: React.FC = () => {
     (repoId: string, _repo: RepoItem) => {
       selectRepo(repoId);
       setIsSelectorOpen(false);
-      navigate("/orgii/app/start-page");
+      navigate(ROUTES.workStation.base.path);
     },
     [selectRepo, navigate]
   );
 
   return (
     <>
-      {/* Global styles to hide toolbar elements when in select-repo mode */}
-      <style nonce={CODEMIRROR_STYLE_NONCE}>{`
-        body.select-repo-mode .tab-bar {
-          display: none !important;
-        }
-        body.select-repo-mode [data-toolbar-section="view-mode-switch"] {
-          display: none !important;
-        }
-        body.select-repo-mode [data-toolbar-section="right-actions"] {
-          display: none !important;
-        }
-        body.select-repo-mode [data-toolbar-section="sidebar-toggle"] {
-          display: none !important;
-        }
-      `}</style>
-
       <OnboardingLayout
         variant="contained"
-        bodyClass={SELECT_REPO_BODY_CLASS}
         leftContent={
           <LeftColumnContent onOpenPalette={handleOpenWorkspacePalette} />
         }

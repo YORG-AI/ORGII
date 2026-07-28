@@ -1,7 +1,112 @@
 use crate::agent_tool::*;
+use portable_pty::{Child, ChildKiller, ExitStatus};
+use std::{
+    io,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc, Mutex,
+    },
+};
 
 #[cfg(any(target_os = "windows", unix))]
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+#[derive(Debug, Clone, Copy)]
+enum TestChildPoll {
+    Exited,
+    Failed,
+}
+
+#[derive(Debug)]
+struct TestChild {
+    poll: TestChildPoll,
+    kills: Arc<AtomicUsize>,
+    waits: Arc<AtomicUsize>,
+}
+
+impl ChildKiller for TestChild {
+    fn kill(&mut self) -> io::Result<()> {
+        self.kills.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+
+    fn clone_killer(&self) -> Box<dyn ChildKiller + Send + Sync> {
+        Box::new(TestChildKiller)
+    }
+}
+
+#[derive(Debug)]
+struct TestChildKiller;
+
+impl ChildKiller for TestChildKiller {
+    fn kill(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+
+    fn clone_killer(&self) -> Box<dyn ChildKiller + Send + Sync> {
+        Box::new(Self)
+    }
+}
+
+impl Child for TestChild {
+    fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        match self.poll {
+            TestChildPoll::Exited => Ok(Some(ExitStatus::with_exit_code(0))),
+            TestChildPoll::Failed => Err(io::Error::other("poll failed")),
+        }
+    }
+
+    fn wait(&mut self) -> io::Result<ExitStatus> {
+        self.waits.fetch_add(1, Ordering::SeqCst);
+        Ok(ExitStatus::with_exit_code(0))
+    }
+
+    fn process_id(&self) -> Option<u32> {
+        Some(1)
+    }
+
+    #[cfg(windows)]
+    fn as_raw_handle(&self) -> Option<std::os::windows::io::RawHandle> {
+        None
+    }
+}
+
+fn test_child(poll: TestChildPoll) -> (ManagedPtyChild, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+    let kills = Arc::new(AtomicUsize::new(0));
+    let waits = Arc::new(AtomicUsize::new(0));
+    let child: ManagedPtyChild = Arc::new(Mutex::new(Some(Box::new(TestChild {
+        poll,
+        kills: Arc::clone(&kills),
+        waits: Arc::clone(&waits),
+    }))));
+    (child, kills, waits)
+}
+
+// ============================================
+// PTY child lifecycle
+// ============================================
+
+#[test]
+fn child_reaper_takes_an_exited_child_atomically() {
+    let (child, _kills, _waits) = test_child(TestChildPoll::Exited);
+
+    assert!(matches!(poll_pty_child(&child), PtyChildPoll::Exited));
+    assert!(child.lock().unwrap().is_none());
+}
+
+#[test]
+fn child_reaper_terminates_and_reaps_after_a_poll_failure() {
+    let (shared_child, kills, waits) = test_child(TestChildPoll::Failed);
+
+    let PtyChildPoll::PollFailed(child) = poll_pty_child(&shared_child) else {
+        panic!("failed child poll must preserve the child for cleanup");
+    };
+    PtySession::terminate_and_reap(child);
+
+    assert!(shared_child.lock().unwrap().is_none());
+    assert_eq!(kills.load(Ordering::SeqCst), 1);
+    assert_eq!(waits.load(Ordering::SeqCst), 1);
+}
 
 // ============================================
 // default_shell_path

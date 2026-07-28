@@ -21,13 +21,15 @@ import type {
 } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
-import Textarea from "@src/components/Textarea";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ConnectedTimelineItem,
-  GithubMarkdown,
+  MarkdownContent,
   TimelineCard,
-} from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/shared/githubTimeline";
-import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+  TimelineCardHeader,
+  TimelineStack,
+} from "@src/modules/shared/components/ActivityTimeline";
+import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
@@ -204,26 +206,24 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   return (
     <div className="allow-select-deep flex h-full min-h-0 select-text flex-col overflow-hidden">
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-        <div className="mx-auto flex w-full max-w-[920px] flex-col px-4 py-4">
-          <div className="flex flex-col">
+        <div
+          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col px-4 py-4`}
+        >
+          <TimelineStack>
             {/* PR description */}
             <ConnectedTimelineItem isLast={timeline.length === 0 && !loading}>
               <TimelineCard
                 copyBody={body}
                 header={
-                  <span className="flex min-w-0 items-center gap-2">
-                    <Avatar size={18} src={author.avatarUrl} />
-                    <span className="min-w-0 truncate text-[12px] text-text-3">
-                      <span className="font-medium text-text-1">
-                        {author.login || identity.title}
-                      </span>{" "}
-                      opened this pull request{" "}
-                      {createdAt ? formatTimeAgo(createdAt) : ""}
-                    </span>
-                  </span>
+                  <TimelineCardHeader
+                    avatar={<Avatar size={18} src={author.avatarUrl} />}
+                    actor={author.login || identity.title}
+                    action="opened this pull request"
+                    timestamp={createdAt}
+                  />
                 }
               >
-                <GithubMarkdown
+                <MarkdownContent
                   body={body}
                   emptyText={t(
                     "git.pr.noDescription",
@@ -254,18 +254,17 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                       <TimelineCard
                         copyBody={comment.body}
                         header={
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Avatar size={18} src={comment.user.avatar_url} />
-                            <span className="min-w-0 truncate text-[12px] text-text-3">
-                              <span className="font-medium text-text-1">
-                                {comment.user.login}
-                              </span>{" "}
-                              commented {formatTimeAgo(comment.created_at)}
-                            </span>
-                          </span>
+                          <TimelineCardHeader
+                            avatar={
+                              <Avatar size={18} src={comment.user.avatar_url} />
+                            }
+                            actor={comment.user.login}
+                            action="commented"
+                            timestamp={comment.created_at}
+                          />
                         }
                       >
-                        <GithubMarkdown body={comment.body} />
+                        <MarkdownContent body={comment.body} />
                       </TimelineCard>
                     </ConnectedTimelineItem>
                   );
@@ -278,23 +277,21 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                     <TimelineCard
                       copyBody={review.body}
                       header={
-                        <span className="flex min-w-0 items-center gap-2">
-                          <Avatar size={18} src={review.user.avatar_url} />
-                          <span className="shrink-0">{verb.icon}</span>
-                          <span className="min-w-0 truncate text-[12px] text-text-3">
-                            <span className="font-medium text-text-1">
-                              {review.user.login}
-                            </span>{" "}
-                            {verb.label}{" "}
-                            {review.submitted_at
-                              ? formatTimeAgo(review.submitted_at)
-                              : ""}
-                          </span>
-                        </span>
+                        <TimelineCardHeader
+                          avatar={
+                            <Avatar size={18} src={review.user.avatar_url} />
+                          }
+                          indicator={
+                            <span className="shrink-0">{verb.icon}</span>
+                          }
+                          actor={review.user.login}
+                          action={verb.label}
+                          timestamp={review.submitted_at}
+                        />
                       }
                     >
                       {review.body.trim() ? (
-                        <GithubMarkdown body={review.body} />
+                        <MarkdownContent body={review.body} />
                       ) : (
                         <div className="text-[12px] italic text-text-3">
                           {t("git.pr.reviewNoBody", "Left review comments.")}
@@ -306,21 +303,24 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 );
               })
             )}
-          </div>
+          </TimelineStack>
         </div>
       </div>
 
       {/* Composer */}
       <div className="bg-surface-1 flex-shrink-0 border-t border-border-1 px-4 py-3">
-        <div className="mx-auto flex w-full max-w-[920px] flex-col gap-2">
-          <Textarea
+        <div
+          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-2`}
+        >
+          <RichMarkdownEditor
             value={draft}
-            onChange={setDraft}
+            onChange={(markdown) => setDraft(markdown)}
             placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
-            rows={3}
-            size="mini"
-            resize="none"
-            className="min-h-[64px]"
+            minHeight={64}
+            maxHeight={180}
+            appearance="outlined"
+            onSubmit={() => void handleComment()}
+            dataTestId="pr-comment-editor"
           />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">

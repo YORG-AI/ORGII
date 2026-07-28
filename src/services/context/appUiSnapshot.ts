@@ -1,4 +1,3 @@
-import { getViewModeForRoute } from "@src/config/routeViewModeConfig";
 import {
   activeSessionIdAtom,
   sessionMapAtom,
@@ -30,7 +29,6 @@ function getWindowLocationSnapshot(): AppUiSnapshot["route"] {
     search,
     hash,
     href,
-    viewMode: getViewModeForRoute(pathname),
   };
 }
 

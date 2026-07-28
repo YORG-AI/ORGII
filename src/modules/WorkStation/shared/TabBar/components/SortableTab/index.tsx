@@ -5,6 +5,7 @@
  * and close button with unsaved indicator.
  */
 import { useSortable } from "@dnd-kit/sortable";
+import { useAtomValue } from "jotai";
 import {
   Infinity,
   BookLock,
@@ -43,6 +44,10 @@ import {
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  type ProjectSyncAdapterType,
+  STORY_SYNC_ADAPTER,
+} from "@src/api/http/integrations/syncConnections";
 import { FaviconIcon } from "@src/components/FaviconIcon";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import IntegrationIcon from "@src/components/IntegrationIcon";
@@ -53,8 +58,11 @@ import {
 } from "@src/config/gitStatus";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import SessionIdentityIcon from "@src/engines/ChatPanel/components/SessionIdentityIcon";
+import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import type { GitFileInfo } from "@src/store/git";
+import { sessionByIdAtom } from "@src/store/session";
 import {
   isPlaceholderBrowserSessionTitle,
   translatePlaceholderBrowserSessionTitle,
@@ -111,6 +119,45 @@ type WorkstationTabIconName = keyof typeof WORKSTATION_TAB_ICONS;
 function resolveWorkstationTabIcon(name: string): LucideIcon | null {
   return WORKSTATION_TAB_ICONS[name as WorkstationTabIconName] ?? null;
 }
+
+export function resolveWorkstationTabIntegrationIcon(
+  tab: WorkStationTab
+): ProjectSyncAdapterType | null {
+  if (
+    tab.type === "project-linear-projects" ||
+    tab.type === "project-linear-work-items"
+  ) {
+    return STORY_SYNC_ADAPTER.LINEAR;
+  }
+  if (
+    tab.type === "github-issue-detail" ||
+    (tab.type === "workItem-detail" &&
+      isGitHubIssueStatus(tab.data.workItemStatus as string | undefined))
+  ) {
+    return STORY_SYNC_ADAPTER.GITHUB;
+  }
+  return null;
+}
+
+interface ChatSessionTabIconProps {
+  isActive: boolean;
+  sessionId: string;
+}
+
+const ChatSessionTabIcon: React.FC<ChatSessionTabIconProps> = memo(
+  ({ isActive, sessionId }) => {
+    const session = useAtomValue(sessionByIdAtom(sessionId));
+    return (
+      <SessionIdentityIcon
+        session={session}
+        sessionId={sessionId}
+        isSelected={isActive}
+      />
+    );
+  }
+);
+
+ChatSessionTabIcon.displayName = "ChatSessionTabIcon";
 
 export interface SortableTabProps {
   tab: WorkStationTab;
@@ -172,11 +219,21 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
 
     // Get tab-specific display info - render icon based on type
     const renderTabIcon = (): JSX.Element => {
-      if (
-        tab.type === "project-linear-projects" ||
-        tab.type === "project-linear-work-items"
-      ) {
-        return <IntegrationIcon type="linear" size={16} />;
+      const integrationIcon = resolveWorkstationTabIntegrationIcon(tab);
+      if (integrationIcon) {
+        return (
+          <IntegrationIcon
+            type={integrationIcon}
+            size={16}
+            className={
+              integrationIcon === STORY_SYNC_ADAPTER.GITHUB
+                ? isActive
+                  ? "text-primary-6"
+                  : "text-text-2"
+                : undefined
+            }
+          />
+        );
       }
 
       if (tab.type === "benchmark") {
@@ -185,6 +242,15 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
             size={16}
             strokeWidth={1.75}
             className={isActive ? "text-primary-6" : "text-text-2"}
+          />
+        );
+      }
+
+      if (tab.type === "chat-session") {
+        return (
+          <ChatSessionTabIcon
+            isActive={isActive}
+            sessionId={String(tab.data.sessionId ?? "")}
           />
         );
       }

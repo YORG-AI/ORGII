@@ -173,6 +173,7 @@ export function useSessionMenuItems({
   excludedSessionIds,
   includeExternal,
   groupVisibleCounts,
+  showAllLoadedGroupSessions = false,
   expandedSubagentParentIds = new Set(),
   revealedSessionIds = new Set(),
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
@@ -486,9 +487,10 @@ export function useSessionMenuItems({
       groupId: string,
       groupSessions: readonly Session[]
     ): boolean => {
-      const visibleCount = isFiltering
-        ? groupSessions.length
-        : (groupVisibleCounts.get(groupId) ?? DEFAULT_GROUP_VISIBLE_COUNT);
+      const visibleCount =
+        isFiltering || showAllLoadedGroupSessions
+          ? groupSessions.length
+          : (groupVisibleCounts.get(groupId) ?? DEFAULT_GROUP_VISIBLE_COUNT);
       const revealedIndex = groupSessions.reduce(
         (lastIndex, session, index) =>
           revealedSessionIds.has(session.session_id) ? index : lastIndex,
@@ -508,6 +510,7 @@ export function useSessionMenuItems({
       groupVisibleCounts,
       isFiltering,
       revealedSessionIds,
+      showAllLoadedGroupSessions,
       tCommon,
     ]
   );

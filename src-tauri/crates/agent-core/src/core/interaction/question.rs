@@ -179,6 +179,7 @@ impl QuestionManager {
     /// presence change so a mid-wait mode switch takes effect immediately:
     ///   * switch to a mode with auto-resolve Off → keeps waiting forever,
     ///   * switch to a shorter window that already elapsed → resolves now.
+    ///
     /// Exits silently when the pending entry disappears (user answered,
     /// cancel, reject) — `take_pending` makes resolution idempotent.
     fn spawn_auto_resolve_watcher(&self, request_id: String, created_at_ms: i64) {

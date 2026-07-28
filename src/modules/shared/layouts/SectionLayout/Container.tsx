@@ -12,14 +12,14 @@
 import React, { memo } from "react";
 
 import {
-  SECTION_CONTAINER_BASE_CLASSES,
-  SECTION_CONTAINER_COLOR_CLASSES,
+  SECTION_CONTAINER_CLASSES,
   SECTION_PADDING,
   SECTION_SUBHEADING_CLASSES,
-  type SectionContainerColor,
 } from "./tokens";
 
 export interface SectionContainerProps {
+  /** Stable selector for rendered tests and external UI drivers. */
+  dataTestId?: string;
   /** Container content */
   children: React.ReactNode;
   /** Optional sub-section title above the card */
@@ -32,10 +32,6 @@ export interface SectionContainerProps {
   titleSlot?: React.ReactNode;
   /** Optional className for additional styling */
   className?: string;
-  /** Container color surface. */
-  color?: SectionContainerColor;
-  /** Render only the section layout shell, with no painted surface or padding. */
-  bare?: boolean;
   /** Vertical padding variant (default: "none" — px-4 is always applied) */
   padding?: "none" | "default" | "compact";
 }
@@ -45,18 +41,14 @@ const SectionContainer: React.FC<SectionContainerProps> = memo(
     children,
     title,
     titleSlot,
+    dataTestId,
     className = "",
-    color = "default",
-    bare = false,
     padding = "none",
   }) => {
-    const surfaceClass = bare
-      ? ""
-      : `${SECTION_CONTAINER_COLOR_CLASSES[color]} border border-border-1`;
-    const paddingClass = bare ? "" : SECTION_PADDING[padding];
     const card = (
       <div
-        className={`${SECTION_CONTAINER_BASE_CLASSES} ${surfaceClass} ${paddingClass} ${className}`.trim()}
+        data-testid={dataTestId}
+        className={`${SECTION_CONTAINER_CLASSES} ${SECTION_PADDING[padding]} ${className}`.trim()}
       >
         {children}
       </div>

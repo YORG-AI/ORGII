@@ -9,10 +9,13 @@ import {
   claudeCodeHistoryStat,
 } from "../sources/claudeCode";
 import { clineHistoryChunks } from "../sources/cline";
-import { codexAppChunks } from "../sources/codexApp";
+import { codexAppChunks, codexAppInitialWindow } from "../sources/codexApp";
 import { cursorCliHistoryChunks } from "../sources/cursorCli";
+import { mimoCodeHistoryChunks } from "../sources/mimoCode";
+import { ompHistoryChunks } from "../sources/omp";
 import { opencodeHistoryChunks } from "../sources/opencode";
 import { qoderHistoryChunks } from "../sources/qoder";
+import { qoderCliHistoryChunks } from "../sources/qoderCli";
 import { traeHistoryChunks } from "../sources/trae";
 import { warpHistoryChunks } from "../sources/warp";
 import { windsurfHistoryChunks } from "../sources/windsurf";
@@ -90,7 +93,9 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     ...descriptorFor("codex_app"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("codex_app", sessionId),
-    loadPreviewChunks: codexAppChunks,
+    async loadPreviewChunks(sessionId) {
+      return (await codexAppInitialWindow(sessionId)).chunks;
+    },
     loadFullTranscriptChunks: codexAppChunks,
   },
   {
@@ -155,6 +160,27 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     statTranscript: (sessionId) => importedHistoryStat("qoder", sessionId),
     loadPreviewChunks: qoderHistoryChunks,
     loadFullTranscriptChunks: qoderHistoryChunks,
+  },
+  {
+    ...descriptorFor("mimo_code"),
+    dispatchCategory: "external_history",
+    statTranscript: (sessionId) => importedHistoryStat("mimo_code", sessionId),
+    loadPreviewChunks: mimoCodeHistoryChunks,
+    loadFullTranscriptChunks: mimoCodeHistoryChunks,
+  },
+  {
+    ...descriptorFor("omp"),
+    dispatchCategory: "external_history",
+    statTranscript: (sessionId) => importedHistoryStat("omp", sessionId),
+    loadPreviewChunks: ompHistoryChunks,
+    loadFullTranscriptChunks: ompHistoryChunks,
+  },
+  {
+    ...descriptorFor("qoder_cli"),
+    dispatchCategory: "external_history",
+    statTranscript: (sessionId) => importedHistoryStat("qoder_cli", sessionId),
+    loadPreviewChunks: qoderCliHistoryChunks,
+    loadFullTranscriptChunks: qoderCliHistoryChunks,
   },
 ];
 

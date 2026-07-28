@@ -223,7 +223,7 @@ export interface TaskUpdateCardData {
 }
 
 export interface TaskListCardData {
-  kind: "get" | "list";
+  kind: "get" | "list" | "graph";
   tasks: TaskUpdateCardData[];
   total?: number;
   orgRunId?: string;

@@ -120,7 +120,7 @@ pub fn compute_session_statistics(sessions: &[SessionRecord]) -> SessionStatisti
             percentage: count as f64 / total as f64 * 100.0,
         })
         .collect();
-    by_status.sort_by(|a, b| b.count.cmp(&a.count));
+    by_status.sort_by_key(|entry| std::cmp::Reverse(entry.count));
 
     // Type counts
     let mut type_map: HashMap<String, usize> = HashMap::new();
@@ -135,7 +135,7 @@ pub fn compute_session_statistics(sessions: &[SessionRecord]) -> SessionStatisti
             percentage: count as f64 / total as f64 * 100.0,
         })
         .collect();
-    by_type.sort_by(|a, b| b.count.cmp(&a.count));
+    by_type.sort_by_key(|entry| std::cmp::Reverse(entry.count));
 
     // File changes aggregate
     let mut total_file_changes = FileChangeStats::default();
@@ -180,7 +180,7 @@ pub fn compute_session_statistics(sessions: &[SessionRecord]) -> SessionStatisti
             total_deletions: acc.total_deletions,
         })
         .collect();
-    top_repos.sort_by(|a, b| b.session_count.cmp(&a.session_count));
+    top_repos.sort_by_key(|repo| std::cmp::Reverse(repo.session_count));
     top_repos.truncate(10);
 
     // Model usage
@@ -197,7 +197,7 @@ pub fn compute_session_statistics(sessions: &[SessionRecord]) -> SessionStatisti
             session_count: count,
         })
         .collect();
-    top_models.sort_by(|a, b| b.session_count.cmp(&a.session_count));
+    top_models.sort_by_key(|model| std::cmp::Reverse(model.session_count));
 
     // Daily activity
     let mut daily_map: HashMap<String, DailyAccum> = HashMap::new();
@@ -242,7 +242,7 @@ pub fn compute_session_statistics(sessions: &[SessionRecord]) -> SessionStatisti
             }
         })
         .collect();
-    impactful.sort_by(|a, b| b.total_changes.cmp(&a.total_changes));
+    impactful.sort_by_key(|file| std::cmp::Reverse(file.total_changes));
     impactful.truncate(10);
 
     SessionStatistics {

@@ -3,10 +3,11 @@ use super::section_builders::{
     cap_rule_content, format_user_profile,
 };
 use crate::coordination::agent_org_runs::{
-    AgentOrgContextMember, AgentOrgRunContext, COORDINATOR_MEMBER_ID,
+    AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunEntryMode, AgentOrgRunStatus,
+    AgentOrgRunStore, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
-use crate::definitions::orgs::{HierarchyMode, PlanApprovalPolicy};
+use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy};
 use serial_test::serial;
 use test_helpers::test_env;
 
@@ -58,6 +59,42 @@ fn prompt_test_agent_org_context() -> AgentOrgRunContext {
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
         root_session_id: Some("root-prompt-test".to_string()),
     }
+}
+
+fn materialize_prompt_test_run(context: &AgentOrgRunContext) -> String {
+    AgentOrgRunStore::create(CreateAgentOrgRunParams {
+        org_id: context.org_id.clone(),
+        coordinator_agent_id: context.coordinator_agent_id.clone(),
+        root_session_id: context.root_session_id.clone(),
+        org_snapshot: OrgDefinition {
+            id: context.org_id.clone(),
+            name: context.org_name.clone(),
+            role: context.org_role.clone(),
+            agent_id: context.coordinator_agent_id.clone(),
+            description: None,
+            hierarchy_mode: context.hierarchy_mode,
+            plan_approval_policy: context.plan_approval_policy,
+            children: context
+                .members
+                .iter()
+                .map(|member| OrgMember {
+                    id: member.member_id.clone(),
+                    name: member.name.clone(),
+                    role: member.role.clone(),
+                    agent_id: member.agent_id.clone(),
+                    runtime_config: None,
+                    children: Vec::new(),
+                })
+                .collect(),
+        },
+        entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+        status: AgentOrgRunStatus::Running,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+    })
+    .expect("materialize prompt test run")
+    .id
 }
 
 #[test]
@@ -186,7 +223,8 @@ fn agent_org_prompt_worker_cannot_confuse_soft_chat_with_peer_delegation() {
 #[serial]
 fn agent_org_prompt_includes_bounded_task_snapshot() {
     let _sandbox = prompt_task_sandbox();
-    let context = prompt_test_agent_org_context();
+    let mut context = prompt_test_agent_org_context();
+    context.run_id = materialize_prompt_test_run(&context);
     AgentOrgTaskStore::create(CreateTaskParams {
         id: "prompt-open".to_string(),
         org_run_id: context.run_id.clone(),

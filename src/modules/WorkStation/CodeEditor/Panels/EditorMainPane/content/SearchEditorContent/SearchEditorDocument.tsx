@@ -264,7 +264,7 @@ const searchEditorTheme = EditorView.theme({
   ".cm-search-file-path": {
     fontWeight: "600",
     color: "var(--color-primary-6)",
-    cursor: "pointer",
+    cursor: "var(--interactive-cursor, default)",
     "&:hover": {
       textDecoration: "underline",
     },

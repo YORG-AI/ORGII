@@ -1,10 +1,17 @@
 import { createStore } from "jotai/vanilla";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  captureLoadedTurnRegistryGeneration,
+  clearLoadedTurnRegistry,
+  getLoadedTurnRegistryStats,
+  markTurnBodyLoaded,
+} from "../../../turns/loadedTurnRegistry";
 import { eventStoreProxy } from "../../store/EventStoreProxy";
 import type { SessionEvent } from "../../types";
 import type {
   appendEventsAtom as AppendEventsAtomType,
+  clearSessionAtom as ClearSessionAtomType,
   loadSessionAtom as LoadSessionAtomType,
 } from "../actions";
 import type { eventsAtom as EventsAtomType } from "../events";
@@ -15,6 +22,7 @@ vi.mock("../../store/EventStoreProxy", () => ({
     set: vi.fn().mockResolvedValue(undefined),
     mergeEvents: vi.fn().mockResolvedValue(undefined),
     removeSyntheticUserInputEvents: vi.fn().mockResolvedValue(0),
+    releaseSessionSnapshot: vi.fn(),
     scheduleSessionSnapshotRelease: vi.fn(),
     cancelScheduledSnapshotRelease: vi.fn(),
   },
@@ -36,19 +44,24 @@ vi.stubGlobal("localStorage", {
 });
 
 let appendEventsAtom: typeof AppendEventsAtomType;
+let clearSessionAtom: typeof ClearSessionAtomType;
 let loadSessionAtom: typeof LoadSessionAtomType;
 let eventsAtom: typeof EventsAtomType;
 
 beforeAll(async () => {
-  ({ appendEventsAtom, loadSessionAtom } = await import("../actions"));
+  ({ appendEventsAtom, clearSessionAtom, loadSessionAtom } =
+    await import("../actions"));
   ({ eventsAtom } = await import("../events"));
 });
 
 beforeEach(() => {
+  clearLoadedTurnRegistry("session-1");
+  clearLoadedTurnRegistry("session-2");
   vi.mocked(eventStoreProxy.append).mockClear();
   vi.mocked(eventStoreProxy.set).mockClear();
   vi.mocked(eventStoreProxy.mergeEvents).mockClear();
   vi.mocked(eventStoreProxy.removeSyntheticUserInputEvents).mockClear();
+  vi.mocked(eventStoreProxy.releaseSessionSnapshot).mockClear();
   vi.mocked(eventStoreProxy.scheduleSessionSnapshotRelease).mockClear();
   vi.mocked(eventStoreProxy.cancelScheduledSnapshotRelease).mockClear();
 });
@@ -191,6 +204,63 @@ describe("loadSessionAtom", () => {
     expect(eventStoreProxy.cancelScheduledSnapshotRelease).toHaveBeenCalledWith(
       "session-2"
     );
+  });
+
+  it("clears loaded historical turns on a direct session switch", () => {
+    const store = createStore();
+    const generation = captureLoadedTurnRegistryGeneration("session-1");
+    markTurnBodyLoaded("session-1", "turn-1", generation);
+
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [makeMessageEvent("user-round-1", "session-1")],
+    });
+    store.set(loadSessionAtom, {
+      sessionId: "session-2",
+      events: [makeMessageEvent("user-round-1", "session-2")],
+    });
+
+    expect(getLoadedTurnRegistryStats()).toMatchObject({
+      sessions: 0,
+      loadedTurns: 0,
+    });
+  });
+
+  it("immediately releases a read-only imported snapshot when switching away", () => {
+    const store = createStore();
+
+    store.set(loadSessionAtom, {
+      sessionId: "codexapp-session-1",
+      events: [makeMessageEvent("user-round-1", "codexapp-session-1")],
+    });
+    store.set(loadSessionAtom, {
+      sessionId: "session-2",
+      events: [makeMessageEvent("user-round-1", "session-2")],
+    });
+
+    expect(eventStoreProxy.releaseSessionSnapshot).toHaveBeenCalledWith(
+      "codexapp-session-1"
+    );
+    expect(
+      eventStoreProxy.scheduleSessionSnapshotRelease
+    ).not.toHaveBeenCalledWith("codexapp-session-1");
+  });
+
+  it("immediately releases a read-only imported snapshot when clearing", () => {
+    const store = createStore();
+
+    store.set(loadSessionAtom, {
+      sessionId: "claudecodeapp-session-1",
+      events: [makeMessageEvent("user-round-1", "claudecodeapp-session-1")],
+    });
+    store.set(clearSessionAtom);
+
+    expect(eventStoreProxy.releaseSessionSnapshot).toHaveBeenCalledWith(
+      "claudecodeapp-session-1"
+    );
+    expect(
+      eventStoreProxy.scheduleSessionSnapshotRelease
+    ).not.toHaveBeenCalledWith("claudecodeapp-session-1");
   });
 
   it("carries optimistic user images onto the persisted echo during load", () => {

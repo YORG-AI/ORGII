@@ -1,6 +1,11 @@
-import type { TFunction } from "i18next";
-import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -18,54 +23,19 @@ import {
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
-import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
+import {
+  SECTION_GAP_CLASSES,
+  SECTION_SUBHEADING_CLASSES,
+} from "@src/modules/shared/layouts/SectionLayout";
 
 const logger = createLogger("StartPageQuotaGrid");
 
-// Quota cards live in the Manage dashboard, so they use the standard settings
-// surface (bg-surface-container) to match its other management sections rather
-// than the translucent trend surface.
+// Quota cards use the standard settings surface (bg-primary-container) rather
+// than the translucent trend surface used by the Usage tab.
 const START_PAGE_QUOTA_SURFACE_CLASS =
-  "rounded-lg border border-border-1 bg-surface-container";
+  "rounded-lg border border-border-1 bg-primary-container";
 
-const REFRESH_AGO_TICK_MS = 30_000;
 const QUOTA_REFRESH_GAP_MS = 1_000;
-
-function formatQuotaRefreshElapsed(
-  date: Date,
-  now: Date,
-  t: TFunction<"sessions">
-): string {
-  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-  const diffMin = Math.floor(diffSec / 60);
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffSec < 60) return t("chat.startPage.quota.justNow");
-  if (diffMin < 60) {
-    return t("chat.startPage.quota.minutesAgo", { count: diffMin });
-  }
-  return t("chat.startPage.quota.hoursAgo", { count: diffHr });
-}
-
-function StartPageQuotaNavButton({
-  label,
-  children,
-  onClick,
-}: {
-  label: string;
-  children: React.ReactNode;
-  onClick: () => void;
-}): React.ReactNode {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="inline-flex h-6 w-6 items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
 
 function StartPageQuotaCard({
   entry,
@@ -75,8 +45,8 @@ function StartPageQuotaCard({
   const { t: tIntegrations } = useTranslation("integrations");
 
   return (
-    <div className={`min-w-0 p-2 ${START_PAGE_QUOTA_SURFACE_CLASS}`}>
-      <div className="mb-1 flex min-w-0 items-center gap-1.5">
+    <div className={`min-w-0 p-3 ${START_PAGE_QUOTA_SURFACE_CLASS}`}>
+      <div className="mb-2 flex min-w-0 items-center gap-2">
         <ModelIcon agentType={entry.modelType} size="small" />
         <div
           className="min-w-0 flex-1"
@@ -86,15 +56,15 @@ function StartPageQuotaCard({
               : entry.accountName
           }
         >
-          <div className="truncate text-[11px] font-semibold leading-4 text-text-1">
+          <div className="truncate text-xs font-semibold leading-4 text-text-1">
             {entry.accountName}
           </div>
-          <div className="truncate text-[10px] leading-3 text-text-3">
+          <div className="truncate text-[11px] leading-4 text-text-3">
             {entry.accountPlan ?? "-"}
           </div>
         </div>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-2.5">
         {entry.metrics.map((metric) => {
           const textColorClass = getQuotaTextColorClass(
             metric.remainingPercent
@@ -107,8 +77,8 @@ function StartPageQuotaCard({
             tIntegrations
           );
           return (
-            <div key={metric.key} className="space-y-0.5">
-              <div className="flex items-center justify-between gap-2 text-[10px]">
+            <div key={metric.key} className="space-y-1">
+              <div className="flex items-center justify-between gap-2 text-[11px] leading-4">
                 <span className="min-w-0 truncate text-text-3">
                   {metric.label}
                   {resetHint ? (
@@ -149,56 +119,61 @@ export function StartPageQuotaGrid({
   const { accounts, getAccount, refresh, refreshAccount } = useKeyVault({
     autoLoad: true,
   });
-  const [pageIndex, setPageIndex] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  const refreshRunRef = useRef(0);
+  const refreshWaitRef = useRef<{
+    timeoutId: number;
+    resolve: () => void;
+  } | null>(null);
 
-  // Quota cards render as a compact 2×2 grid (4 cards per page).
-  const pageSize = 4;
-  const gridClassName = "grid-cols-2";
+  useEffect(
+    () => () => {
+      refreshRunRef.current += 1;
+      const pendingWait = refreshWaitRef.current;
+      if (pendingWait) {
+        window.clearTimeout(pendingWait.timeoutId);
+        refreshWaitRef.current = null;
+        pendingWait.resolve();
+      }
+    },
+    []
+  );
+
+  const gridClassName = "grid grid-cols-1 gap-3 @[640px]/quota:grid-cols-2";
 
   const entries = useMemo(
     () => collectAccountQuotaCards(accounts, t, tIntegrations),
     [accounts, t, tIntegrations]
   );
 
-  const pageCount = Math.max(1, Math.ceil(entries.length / pageSize));
-  const safePageIndex = pageIndex % pageCount;
-
-  const visibleEntries = useMemo(() => {
-    const start = safePageIndex * pageSize;
-    return entries.slice(start, start + pageSize);
-  }, [entries, pageSize, safePageIndex]);
-
-  const switchPage = useCallback(
-    (direction: "previous" | "next") => {
-      setPageIndex((currentIndex) => {
-        const delta = direction === "previous" ? -1 : 1;
-        return (currentIndex + delta + pageCount) % pageCount;
-      });
-    },
-    [pageCount]
-  );
-
   const handleRefreshAll = useCallback(async () => {
+    const refreshRun = refreshRunRef.current + 1;
+    refreshRunRef.current = refreshRun;
     setRefreshing(true);
     let refreshedCount = 0;
     try {
       for (let index = 0; index < entries.length; index += 1) {
+        if (refreshRunRef.current !== refreshRun) return;
         const entry = entries[index];
         if (index > 0) {
           await new Promise<void>((resolve) => {
-            window.setTimeout(resolve, QUOTA_REFRESH_GAP_MS);
+            const timeoutId = window.setTimeout(() => {
+              refreshWaitRef.current = null;
+              resolve();
+            }, QUOTA_REFRESH_GAP_MS);
+            refreshWaitRef.current = { timeoutId, resolve };
           });
+          if (refreshRunRef.current !== refreshRun) return;
         }
         try {
           const refreshed = await refreshAccount(entry.id, true);
+          if (refreshRunRef.current !== refreshRun) return;
           if (!refreshed) {
             throw new Error("Usage refresh failed");
           }
           refreshedCount += 1;
         } catch (err) {
+          if (refreshRunRef.current !== refreshRun) return;
           const name = getAccount(entry.id)?.name || entry.accountName;
           const detail = err instanceof Error ? err.message : String(err);
           Message.error(
@@ -211,13 +186,13 @@ export function StartPageQuotaGrid({
           logger.error("[RefreshUsage] Error:", err);
         }
       }
-      if (refreshedCount > 0) {
+      if (refreshedCount > 0 && refreshRunRef.current === refreshRun) {
         await refresh();
-        setLastRefreshedAt(new Date());
-        setNowMs(Date.now());
       }
     } finally {
-      setRefreshing(false);
+      if (refreshRunRef.current === refreshRun) {
+        setRefreshing(false);
+      }
     }
   }, [entries, getAccount, refresh, refreshAccount, tIntegrations]);
 
@@ -226,82 +201,44 @@ export function StartPageQuotaGrid({
     refreshing
   );
 
-  useEffect(() => {
-    if (!lastRefreshedAt) return;
-
-    const intervalId = window.setInterval(() => {
-      setNowMs(Date.now());
-    }, REFRESH_AGO_TICK_MS);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [lastRefreshedAt]);
-
-  const lastRefreshedLabel = lastRefreshedAt
-    ? formatQuotaRefreshElapsed(lastRefreshedAt, new Date(nowMs), t)
-    : null;
-
   return (
-    <CollapsibleSection
-      title={tIntegrations("keyVault.quota.quotaUsage")}
-      compact
-      className={className}
-      titleButtonTestId="chat-panel-start-page-quota-toggle"
-      actions={
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="mini"
-          iconOnly={!lastRefreshedLabel}
-          disabled={refreshing || entries.length === 0}
-          aria-label={t("chat.startPage.quota.refresh")}
-          title={
-            lastRefreshedLabel
-              ? `${t("chat.startPage.quota.refresh")} · ${lastRefreshedLabel}`
-              : t("chat.startPage.quota.refresh")
-          }
-          onClick={handleRefreshClick}
-          icon={<RefreshCw size={13} strokeWidth={1.8} className={spinClass} />}
-        >
-          {lastRefreshedLabel ? (
-            <span className="tabular-nums">{lastRefreshedLabel}</span>
-          ) : null}
-        </Button>
-      }
+    <div
+      className={`${SECTION_GAP_CLASSES} @container/quota ${className ?? ""}`}
     >
+      <div
+        className="sticky top-0 z-20 -mx-4 bg-chat-pane px-4 pb-1"
+        data-testid="quota-refresh-controls"
+      >
+        <div className="flex min-h-9 items-center justify-between gap-3">
+          <h3 className={SECTION_SUBHEADING_CLASSES}>
+            {t("kanban.dataSource.views.quota")}
+          </h3>
+          <Button
+            htmlType="button"
+            variant="tertiary"
+            appearance="ghost"
+            size="small"
+            disabled={refreshing || entries.length === 0}
+            aria-label={t("chat.startPage.quota.refresh")}
+            title={t("chat.startPage.quota.refresh")}
+            onClick={handleRefreshClick}
+            icon={<RefreshCw size={14} className={spinClass} />}
+          >
+            {t("chat.startPage.quota.refresh")}
+          </Button>
+        </div>
+      </div>
       {entries.length === 0 ? (
         <p className="px-1 text-center text-[13px] text-text-3">
           {t("chat.startPage.quota.empty")}
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
-          <div className={`grid gap-2 ${gridClassName}`}>
-            {visibleEntries.map((entry) => (
-              <StartPageQuotaCard key={entry.id} entry={entry} />
-            ))}
-          </div>
-          {entries.length > pageSize ? (
-            <div className="group flex items-center justify-center gap-1 px-1 text-center text-[13px] leading-6 text-text-3">
-              <StartPageQuotaNavButton
-                label={t("chat.startPage.hints.previous")}
-                onClick={() => switchPage("previous")}
-              >
-                <ChevronLeft size={14} strokeWidth={1.8} />
-              </StartPageQuotaNavButton>
-              <p className="min-w-0 flex-1 truncate tabular-nums">
-                {safePageIndex + 1} / {pageCount}
-              </p>
-              <StartPageQuotaNavButton
-                label={t("chat.startPage.hints.next")}
-                onClick={() => switchPage("next")}
-              >
-                <ChevronRight size={14} strokeWidth={1.8} />
-              </StartPageQuotaNavButton>
-            </div>
-          ) : null}
+        <div className={gridClassName}>
+          {entries.map((entry) => (
+            <StartPageQuotaCard key={entry.id} entry={entry} />
+          ))}
         </div>
       )}
-    </CollapsibleSection>
+    </div>
   );
 }

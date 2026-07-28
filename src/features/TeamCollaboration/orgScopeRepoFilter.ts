@@ -1,5 +1,6 @@
-import { normalizeRepoScopeKey, pickMatchingOrgScope } from "./collabSyncUtils";
+import { normalizeRepoScopeKey } from "./collabSyncUtils";
 import {
+  peekMatchingOrgRepoScope,
   peekShareableScopeKeys,
   primeShareableScopeKey,
 } from "./repoScopeResolver";
@@ -11,6 +12,10 @@ export interface OrgScopeFilterRepo {
 
 type ScopeKeysPeek = (input: string) => string[] | null | undefined;
 type ScopePrime = (input: string) => void;
+type ScopeMatcher = (
+  repoScopeKeys: string[] | null | undefined,
+  orgScopes: string[] | null | undefined
+) => string | null | undefined;
 
 function stripFileScheme(path: string): string {
   return path.startsWith("file://") ? path.slice("file://".length) : path;
@@ -36,7 +41,8 @@ function evaluateOrgScope(
   orgScopes: string[] | undefined,
   unresolvedResult: boolean,
   peekKeys: ScopeKeysPeek,
-  prime: ScopePrime
+  prime: ScopePrime,
+  match: ScopeMatcher
 ): boolean {
   if (!orgScopes || orgScopes.length === 0) return false;
   const keys = getRepoScopeKeysForOrgFilter(repo, peekKeys);
@@ -45,7 +51,8 @@ function evaluateOrgScope(
     return unresolvedResult;
   }
   if (!keys || keys.length === 0) return false;
-  return pickMatchingOrgScope(keys, orgScopes) !== null;
+  const matched = match(keys, orgScopes);
+  return matched === undefined ? unresolvedResult : matched !== null;
 }
 
 /** STRICT: only a resolved scope match counts (session grouping). */
@@ -53,9 +60,10 @@ export function repoMatchesOrgScopes(
   repo: OrgScopeFilterRepo,
   orgScopes: string[] | undefined,
   peekKeys: ScopeKeysPeek = peekShareableScopeKeys,
-  prime: ScopePrime = primeShareableScopeKey
+  prime: ScopePrime = primeShareableScopeKey,
+  match: ScopeMatcher = peekMatchingOrgRepoScope
 ): boolean {
-  return evaluateOrgScope(repo, orgScopes, false, peekKeys, prime);
+  return evaluateOrgScope(repo, orgScopes, false, peekKeys, prime, match);
 }
 
 /** OPTIMISTIC: a still-resolving checkout stays visible and is primed. */
@@ -63,9 +71,10 @@ export function repoEligibleForOrgScopedPicker(
   repo: OrgScopeFilterRepo,
   orgScopes: string[] | undefined,
   peekKeys: ScopeKeysPeek = peekShareableScopeKeys,
-  prime: ScopePrime = primeShareableScopeKey
+  prime: ScopePrime = primeShareableScopeKey,
+  match: ScopeMatcher = peekMatchingOrgRepoScope
 ): boolean {
-  return evaluateOrgScope(repo, orgScopes, true, peekKeys, prime);
+  return evaluateOrgScope(repo, orgScopes, true, peekKeys, prime, match);
 }
 
 /** A workspace is eligible when ANY member folder is; matches launch, which

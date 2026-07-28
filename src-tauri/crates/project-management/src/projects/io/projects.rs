@@ -495,6 +495,7 @@ pub fn delete_project(slug: &str) -> Result<(), String> {
     ))?;
     map_db(tx.execute("DELETE FROM projects WHERE id = ?1", params![&project_id]))?;
     map_db(tx.commit())?;
+    crate::projects::events::notify_work_item_schedule_changed();
 
     // Collab orgs propagate one project tombstone; the server atomically
     // cascades it to the remote work-item rows.

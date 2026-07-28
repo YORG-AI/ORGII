@@ -74,12 +74,11 @@ pub(crate) fn detect_error_type_from_output(output: &str, operation: &str) -> &'
                 return "merge_conflicts";
             }
         }
-        "fetch" => {
+        "fetch"
             // Check for deleted branches
-            if lower.contains("[deleted]") {
+            if lower.contains("[deleted]") => {
                 return "remote_branch_deleted";
             }
-        }
         _ => {}
     }
 

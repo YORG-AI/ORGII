@@ -29,6 +29,7 @@ export const PILL_TYPE_LIST = [
   "dom-component",
   "skill",
   "paste",
+  "link",
   "pr",
   "issue",
 ] as const;

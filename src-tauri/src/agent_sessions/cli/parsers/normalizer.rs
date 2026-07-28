@@ -79,7 +79,9 @@ pub fn normalize_tool_name(agent: CliAgentType, raw_name: &str) -> String {
         | CliAgentType::MistralVibe
         | CliAgentType::Autohand
         | CliAgentType::Omp
-        | CliAgentType::Pi => return raw_name.to_string(),
+        | CliAgentType::Pi
+        | CliAgentType::QoderCli
+        | CliAgentType::TraeCli => return raw_name.to_string(),
     };
 
     map.get(raw_name)

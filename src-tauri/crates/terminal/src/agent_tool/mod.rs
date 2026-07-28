@@ -15,7 +15,7 @@ pub(crate) use exec::{extract_done_marker, strip_command_echo, ExecPhase};
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use chrono::Utc;
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Write},
@@ -52,7 +52,10 @@ const MAX_REDACTED_SNAPSHOT_CHARS: usize = 80_000;
 /// Default PTY dimensions for agent sessions (no visible terminal yet).
 const DEFAULT_AGENT_ROWS: u16 = 40;
 const DEFAULT_AGENT_COLS: u16 = 120;
-const AGENT_OUTPUT_TAP_CAPACITY: usize = 8192;
+// Replay is a mandatory subscriber for agent-owned PTYs. Sixteen 16 KiB
+// chunks bound the shared broadcast backlog to 256 KiB; lag is surfaced as
+// an incomplete replay rather than silently retaining or dropping output.
+const AGENT_OUTPUT_TAP_CAPACITY: usize = 16;
 
 /// npm injects these into any process it spawns (e.g. when ORGII is launched via
 /// `npm run tauri:dev`). They leak into PTY shells through env inheritance and
@@ -182,6 +185,49 @@ pub struct CreateSessionParams {
     pub output_tap: Option<broadcast::Sender<Arc<[u8]>>>,
 }
 
+type ManagedPtyChild = Arc<Mutex<Option<Box<dyn Child + Send>>>>;
+
+/// Result of a non-blocking poll of the child owned by a PTY session.
+///
+/// Both terminal exit and polling failure take the handle while holding the
+/// mutex. That leaves exactly one owner responsible for the next action and
+/// prevents another cleanup path from acting on a stale PID.
+enum PtyChildPoll {
+    Running,
+    Exited,
+    PollFailed(Box<dyn Child + Send>),
+    Missing,
+}
+
+fn poll_pty_child(child: &ManagedPtyChild) -> PtyChildPoll {
+    let mut guard = child
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    let Some(child) = guard.as_mut() else {
+        return PtyChildPoll::Missing;
+    };
+
+    match child.try_wait() {
+        Ok(Some(_)) => {
+            let _ = guard.take();
+            PtyChildPoll::Exited
+        }
+        Ok(None) => PtyChildPoll::Running,
+        Err(err) => {
+            warn!(
+                "[terminal] Failed to poll PTY child; terminating it: {}",
+                err
+            );
+            PtyChildPoll::PollFailed(
+                guard
+                    .take()
+                    .expect("PTY child is present while its poll is running"),
+            )
+        }
+    }
+}
+
 /// Create a new PTY session and start the shell process.
 ///
 /// This is the shared implementation used by both:
@@ -216,6 +262,18 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
             pixel_height: 0,
         })
         .map_err(|err| format!("Failed to create PTY: {}", err))?;
+
+    // Acquire the master handles before spawning the shell. Any failure here
+    // therefore drops an empty PTY pair rather than leaving a just-spawned
+    // child without a session-owned cleanup path.
+    let reader = pty_pair
+        .master
+        .try_clone_reader()
+        .map_err(|err| format!("Failed to clone PTY reader: {}", err))?;
+    let writer = pty_pair
+        .master
+        .take_writer()
+        .map_err(|err| format!("Failed to take PTY writer: {}", err))?;
 
     // Determine shell to use
     let shell_path = shell.unwrap_or_else(default_shell_path);
@@ -301,7 +359,7 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
     }
 
     // Spawn the shell
-    let mut child = pty_pair
+    let child = pty_pair
         .slave
         .spawn_command(cmd)
         .map_err(|err| format!("Failed to spawn shell: {}", err))?;
@@ -309,19 +367,81 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
     // Get the actual child process ID
     let pid: Option<u32> = child.process_id();
 
-    // Spawn a thread to wait for the child process (prevents zombie processes)
-    std::thread::spawn(move || {
-        let _ = child.wait();
-    });
+    // Capture the shell's start_time (seconds since boot) once, immediately
+    // after spawn. Used both for the exit-sweep registry and stored on the
+    // session so in-map sessions can be identity-checked the same way: the
+    // reaper may have already reaped the shell (freeing the PID for reuse)
+    // while the reader task still holds the session in the map, so a live
+    // in-map session is NOT proof its PID is still ours.
+    #[cfg(unix)]
+    let start_time: u64 = match pid {
+        Some(pid) => {
+            use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
+            let mut sys = System::new();
+            sys.refresh_processes_specifics(
+                ProcessesToUpdate::Some(&[Pid::from_u32(pid)]),
+                true,
+                ProcessRefreshKind::nothing(),
+            );
+            sys.process(Pid::from_u32(pid))
+                .map(|p| p.start_time())
+                .unwrap_or(0)
+        }
+        None => 0,
+    };
+    #[cfg(not(unix))]
+    let start_time: u64 = 0;
 
-    let reader = pty_pair
-        .master
-        .try_clone_reader()
-        .map_err(|err| format!("Failed to clone PTY reader: {}", err))?;
-    let writer = pty_pair
-        .master
-        .take_writer()
-        .map_err(|err| format!("Failed to take PTY writer: {}", err))?;
+    // Record the shell's PID (== Unix session-leader id, since spawn calls
+    // setsid()) together with its start_time, so the app-exit sweep can still
+    // find HUP-immune descendants after this session leaves the map (closed
+    // tab or natural shell exit) AND can tell our shell apart from a later
+    // PID-reuse holder.
+    #[cfg(unix)]
+    if let Some(pid) = pid {
+        crate::pty_commands::pty::register_session_leader(pid, start_time);
+    }
+
+    // Hold the child behind a shared Option so close_session/Drop can take()
+    // and kill it. Previously the child was moved into a detached wait()
+    // thread — that reaped natural exits but left NO kill path, so on Windows
+    // ConPTY (where ClosePseudoConsole only signals, never kills) the
+    // conhost.exe host and shell were orphaned whenever the app exited
+    // without an explicit close_pty. The reaper thread below preserves
+    // natural-exit cleanup using try_wait() (a blocking wait() would own the
+    // only handle and make kill impossible again).
+    let child: ManagedPtyChild = Arc::new(Mutex::new(Some(child)));
+    let child_exited = Arc::new(AtomicBool::new(false));
+
+    // Reaper: poll try_wait() and, when the shell exits on its own, take it
+    // out while still holding the lock. If close_session/Drop take() the
+    // child first to kill it, this thread sees None and exits. Keeping the
+    // observation and take atomic prevents Drop from trying to kill a child
+    // that the reaper already observed as exited.
+    {
+        let child_reaper = Arc::clone(&child);
+        let child_exited_reaper = Arc::clone(&child_exited);
+        std::thread::spawn(move || {
+            loop {
+                match poll_pty_child(&child_reaper) {
+                    PtyChildPoll::Running => std::thread::sleep(Duration::from_millis(200)),
+                    PtyChildPoll::Exited => {
+                        child_exited_reaper.store(true, Ordering::Release);
+                        return;
+                    }
+                    PtyChildPoll::Missing => return,
+                    PtyChildPoll::PollFailed(child) => {
+                        // A failed poll is not evidence of exit. Keep the
+                        // cleanup guarantee by terminating and reaping the
+                        // child rather than discarding its only handle.
+                        PtySession::terminate_and_reap(child);
+                        child_exited_reaper.store(true, Ordering::Release);
+                        return;
+                    }
+                }
+            }
+        });
+    }
 
     let unacked_bytes = Arc::new(AtomicUsize::new(0));
     let ack_notify = Arc::new(Notify::new());
@@ -340,6 +460,8 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
             reader,
         ))),
         pid,
+        start_time,
+        child: Arc::clone(&child),
         shell: shell_path.clone(),
         shell_kind,
         cwd: cwd.clone(),
@@ -360,15 +482,19 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
     let reader_arc = session.reader.clone();
 
     // Store session
-    {
+    let replaced_session = {
         let mut session_map = sessions.lock().await;
-        session_map.insert(session_id.clone(), session);
-    }
+        session_map.insert(session_id.clone(), session)
+    };
+    // Drop an overwritten same-ID session only after releasing the map lock:
+    // its synchronous kill may take portable-pty's Unix grace period.
+    drop(replaced_session);
 
     // Start reading from PTY and emitting events
     let event_session_id = session_id.clone();
     let app_clone = app_handle.clone();
     let sessions_clone = sessions.clone();
+    let child_exited_reader = Arc::clone(&child_exited);
 
     task::spawn(async move {
         // Pre-allocate event names to avoid repeated string formatting
@@ -468,7 +594,11 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
                         // frontend scheduler's adaptive chunk sizing has room to work.
                         // At render_ms == 0 (no telemetry yet) we use the full buffer.
                         let render_ms = frontend_render_ms.load(Ordering::Relaxed);
-                        let emit_cap: usize = if render_ms > 8 {
+                        let emit_cap: usize = if output_tap.is_some() {
+                            // Keep each replay/tap slot within its 16 KiB
+                            // writer budget regardless of frontend speed.
+                            16 * 1024
+                        } else if render_ms > 8 {
                             // Slow renderer — cap at 16 KB per PTY read
                             16 * 1024
                         } else if render_ms > 4 {
@@ -560,6 +690,17 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
                         empty_reads = 0;
                     } else {
                         drop(reader_lock);
+
+                        // On macOS a closed PTY commonly reports EOF as an
+                        // empty successful read rather than an I/O error.
+                        // The child reaper is the authoritative process
+                        // signal; once it has observed exit, end this reader
+                        // so it removes the backend session and emits
+                        // pty-exit instead of spinning on empty reads.
+                        if child_exited_reader.load(Ordering::Acquire) {
+                            break;
+                        }
+
                         empty_reads = empty_reads.saturating_add(1);
 
                         let sleep_ms = match empty_reads {
@@ -577,12 +718,29 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
             }
         }
 
-        if let Err(err) = app_clone.emit(&exit_event, ()) {
-            warn!(
-                "[terminal] Failed to emit exit event {}: {}",
-                exit_event, err
-            );
+        // A PTY read EOF/error means this particular session has ended. Remove
+        // only if the map still points at the same reader: a rapid recreate
+        // may already have replaced this session ID with a new PTY.
+        let finished_session = {
+            let mut session_map = sessions_clone.lock().await;
+            if session_map
+                .get(&event_session_id)
+                .is_some_and(|session| Arc::ptr_eq(&session.reader, &reader_arc))
+            {
+                session_map.remove(&event_session_id)
+            } else {
+                None
+            }
+        };
+        if finished_session.is_some() {
+            if let Err(err) = app_clone.emit(&exit_event, ()) {
+                warn!(
+                    "[terminal] Failed to emit exit event {}: {}",
+                    exit_event, err
+                );
+            }
         }
+        drop(finished_session);
     });
 
     Ok(())
@@ -619,9 +777,16 @@ pub async fn close_session(
     sessions: Arc<AsyncMutex<HashMap<String, PtySession>>>,
 ) -> Result<(), String> {
     tokio::time::sleep(Duration::from_millis(CLOSE_FLUSH_MS)).await;
-    let mut session_map = sessions.lock().await;
-    // Dropping the session closes the PTY master, terminating the child process.
-    session_map.remove(session_id);
+    let session = {
+        let mut session_map = sessions.lock().await;
+        // Removing drops the PtySession; its Drop impl kills + reaps the child
+        // (dropping the PTY master alone does NOT terminate the child on Windows
+        // ConPTY — ClosePseudoConsole only signals).
+        session_map.remove(session_id)
+    };
+    // Drop after unlocking so a synchronous child kill cannot block other
+    // terminal operations. It remains synchronous with respect to app exit.
+    drop(session);
     Ok(())
 }
 

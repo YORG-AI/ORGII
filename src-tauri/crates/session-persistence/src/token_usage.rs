@@ -94,9 +94,11 @@ pub fn insert_token_usage_record(
 /// its own statements) and never fails the primary write — a stale projection
 /// row is repaired by the next write or the startup backfill.
 pub(crate) fn recompute_usage_projection(session_id: &str) {
-    let result = get_connection().map_err(|err| err.to_string()).and_then(|conn| {
-        orgtrack_core::session_usage::recompute_session_usage(&conn, session_id).map(|_| ())
-    });
+    let result = get_connection()
+        .map_err(|err| err.to_string())
+        .and_then(|conn| {
+            orgtrack_core::session_usage::recompute_session_usage(&conn, session_id).map(|_| ())
+        });
     if let Err(err) = result {
         tracing::warn!(
             session_id = %session_id,

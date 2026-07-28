@@ -24,16 +24,7 @@ import { useSyncBrowserTabs } from "@src/hooks/ui/tabs/useSyncGlobalTabs";
 import {
   NEW_PRIVATE_TAB_TITLE,
   NEW_TAB_TITLE,
-  createBrowserSessionTabId,
-  extractSessionId,
-  isBrowserSessionTab as isBrowserSessionTabId,
 } from "@src/store/workstation/browser/tabs";
-import { LAYOUT_STORAGE_KEY } from "@src/store/workstation/tabs/storage";
-import type {
-  PanelState,
-  WorkStationLayoutState,
-  WorkStationTab,
-} from "@src/store/workstation/tabs/types";
 import type { BrowserSession } from "@src/types/ui/tabs";
 
 interface BrowserContextValue {
@@ -62,135 +53,10 @@ const getTitleFromUrl = (url: string): string => {
   }
 };
 
-// localStorage key for fallback persistence
+// Browser sessions are the durable source for live browser resources. The
+// WorkStation `browserTabsAtom` is a shared-resource projection synchronized
+// from this state; it must never be used as a second persistence owner.
 const BROWSER_SESSIONS_STORAGE_KEY = "browser-explorer-sessions";
-
-function isBrowserSessionTab(tab: WorkStationTab): boolean {
-  return tab.type === "browser-session" && isBrowserSessionTabId(tab.id);
-}
-
-function getBrowserSessionIdFromTab(tab: WorkStationTab): string {
-  const sessionId =
-    typeof tab.data.sessionId === "string" ? tab.data.sessionId : "";
-  return sessionId || extractSessionId(tab.id);
-}
-
-function createBrowserSessionFromTab(
-  tab: WorkStationTab
-): BrowserSession | null {
-  const url = typeof tab.data.url === "string" ? tab.data.url : "";
-  if (!url) return null;
-
-  const id = getBrowserSessionIdFromTab(tab);
-  if (!id) return null;
-
-  return {
-    id,
-    title: tab.title || getTitleFromUrl(url),
-    url,
-    history: [url],
-    historyIndex: 0,
-    historyEntries: [
-      { url, title: tab.title || getTitleFromUrl(url), visitedAt: Date.now() },
-    ],
-    isLoading: false,
-    error: null,
-    incognito:
-      typeof tab.data.incognito === "boolean" ? tab.data.incognito : false,
-  };
-}
-
-function loadBrowserTabsFromStorage(): PanelState | null {
-  try {
-    const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!stored) return null;
-    const parsed = JSON.parse(stored) as Partial<WorkStationLayoutState>;
-    const mainPane = parsed.mainPane;
-    if (!mainPane || !Array.isArray(mainPane.tabs)) return null;
-    const browserTabs = mainPane.tabs.filter(isBrowserSessionTab);
-    const activeId =
-      mainPane.activeTabId && isBrowserSessionTabId(mainPane.activeTabId)
-        ? mainPane.activeTabId
-        : null;
-    return { tabs: browserTabs, activeTabId: activeId };
-  } catch {
-    return null;
-  }
-}
-
-function persistBrowserPane(nextPane: PanelState): void {
-  try {
-    const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (!stored) return;
-    const parsed = JSON.parse(stored) as WorkStationLayoutState;
-    const existing = parsed.mainPane ?? { tabs: [], activeTabId: null };
-    const nonBrowserTabs = existing.tabs.filter(
-      (tab) => !isBrowserSessionTab(tab)
-    );
-    const mergedTabs: WorkStationTab[] = [...nonBrowserTabs, ...nextPane.tabs];
-    const nextLayout: WorkStationLayoutState = {
-      ...parsed,
-      mainPane: {
-        tabs: mergedTabs,
-        activeTabId: nextPane.activeTabId ?? existing.activeTabId ?? null,
-      },
-    };
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(nextLayout));
-  } catch {
-    // ignore storage write errors
-  }
-}
-
-function reconcileStoredBrowserTabs(
-  sessions: BrowserSession[],
-  activeSessionId: string
-): { sessions: BrowserSession[]; activeSessionId: string } {
-  const storedTabs = loadBrowserTabsFromStorage();
-  if (!storedTabs) return { sessions, activeSessionId };
-
-  const sessionById = new Map(sessions.map((session) => [session.id, session]));
-  const reconciledTabs: WorkStationTab[] = [];
-
-  for (const tab of storedTabs.tabs) {
-    if (!isBrowserSessionTab(tab)) {
-      reconciledTabs.push(tab);
-      continue;
-    }
-
-    const sessionId = getBrowserSessionIdFromTab(tab);
-    const existingSession = sessionById.get(sessionId);
-    if (existingSession) {
-      reconciledTabs.push(tab);
-      continue;
-    }
-
-    const restoredSession = createBrowserSessionFromTab(tab);
-    if (restoredSession) {
-      sessionById.set(restoredSession.id, restoredSession);
-      reconciledTabs.push(tab);
-    }
-  }
-
-  const nextSessions = Array.from(sessionById.values());
-  const validSessionIds = new Set(nextSessions.map((session) => session.id));
-  const activeTabSessionId =
-    storedTabs.activeTabId && isBrowserSessionTabId(storedTabs.activeTabId)
-      ? extractSessionId(storedTabs.activeTabId)
-      : null;
-  const nextActiveSessionId = validSessionIds.has(activeSessionId)
-    ? activeSessionId
-    : activeTabSessionId && validSessionIds.has(activeTabSessionId)
-      ? activeTabSessionId
-      : (nextSessions[0]?.id ?? "");
-
-  const nextActiveTabId = nextActiveSessionId
-    ? createBrowserSessionTabId(nextActiveSessionId)
-    : (reconciledTabs[0]?.id ?? null);
-
-  persistBrowserPane({ tabs: reconciledTabs, activeTabId: nextActiveTabId });
-
-  return { sessions: nextSessions, activeSessionId: nextActiveSessionId };
-}
 
 // Load sessions from localStorage
 const loadFromStorage = (): {
@@ -203,9 +69,13 @@ const loadFromStorage = (): {
     const sessions = Array.isArray(parsed?.sessions) ? parsed.sessions : [];
     const activeSessionId =
       typeof parsed?.activeSessionId === "string" ? parsed.activeSessionId : "";
-    const reconciled = reconcileStoredBrowserTabs(sessions, activeSessionId);
-    if (reconciled.sessions.length > 0) {
-      return reconciled;
+    if (sessions.length > 0) {
+      const validActiveSessionId = sessions.some(
+        (session: BrowserSession) => session.id === activeSessionId
+      )
+        ? activeSessionId
+        : (sessions[0]?.id ?? "");
+      return { sessions, activeSessionId: validActiveSessionId };
     }
   } catch {
     return null;

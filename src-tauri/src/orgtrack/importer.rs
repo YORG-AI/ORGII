@@ -51,9 +51,7 @@ pub fn read_file_timeline(
         return Ok(None);
     }
     let mut timeline: OrgtrackFileTimeline = paths::read_json(&legacy_path)?;
-    timeline
-        .entries
-        .sort_by(|first, second| first.timestamp.cmp(&second.timestamp));
+    timeline.entries.sort_by_key(|first| first.timestamp);
     Ok(Some(timeline))
 }
 

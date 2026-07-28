@@ -12,6 +12,9 @@ export const IMPORTED_HISTORY_SOURCE_IDS = [
   "warp",
   "zcode",
   "qoder",
+  "mimo_code",
+  "omp",
+  "qoder_cli",
 ] as const;
 
 export type ImportedHistorySourceId =

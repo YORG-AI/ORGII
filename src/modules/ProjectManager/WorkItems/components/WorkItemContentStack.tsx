@@ -16,6 +16,7 @@ interface WorkItemContentStackProps {
   todosClassName?: string;
   lowerClassName?: string;
   separatorClassName?: string;
+  showDividers?: boolean;
 }
 
 export default function WorkItemContentStack({
@@ -34,6 +35,7 @@ export default function WorkItemContentStack({
   todosClassName = "px-4 pb-4",
   lowerClassName = "px-4 pt-4",
   separatorClassName = "px-4",
+  showDividers = true,
 }: WorkItemContentStackProps) {
   const scrollClassName = scrollable
     ? "overflow-y-auto scrollbar-hide"
@@ -59,12 +61,12 @@ export default function WorkItemContentStack({
           {titleContent}
         </div>
       ) : null}
-      {titleContent && hasMetaContent ? separator : null}
+      {showDividers && titleContent && hasMetaContent ? separator : null}
       {hasMetaContent ? (
         <div className={`shrink-0 ${metaClassName}`.trim()}>
           <div className="flex min-w-0 max-w-full items-center overflow-x-auto overflow-y-visible scrollbar-hide">
             {pathContent ? <div className="shrink-0">{pathContent}</div> : null}
-            {pathContent && propertiesContent ? (
+            {showDividers && pathContent && propertiesContent ? (
               <div
                 className="mx-2 h-4 shrink-0 border-l border-border-2"
                 aria-hidden
@@ -76,7 +78,7 @@ export default function WorkItemContentStack({
           </div>
         </div>
       ) : null}
-      {hasTopSeparator ? separator : null}
+      {showDividers && hasTopSeparator ? separator : null}
       {descriptionContent ? (
         <div
           className={`${descriptionLayoutClassName} ${descriptionClassName}`.trim()}
@@ -91,7 +93,7 @@ export default function WorkItemContentStack({
       ) : null}
       {lowerContent ? (
         <>
-          {separator}
+          {showDividers ? separator : null}
           <div className={`min-h-0 flex-1 ${lowerClassName}`.trim()}>
             {lowerContent}
           </div>

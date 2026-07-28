@@ -20,12 +20,6 @@ interface CapturedButtonProps {
   onClick?: () => void | Promise<void>;
 }
 
-interface CapturedCheckboxProps {
-  children?: ReactNode;
-  checked?: boolean;
-  onChange?: (checked: boolean) => void;
-}
-
 interface CapturedModalProps {
   children?: ReactNode;
   footer?: ReactNode;
@@ -45,10 +39,8 @@ const mocks = vi.hoisted(() => ({
   storeValues: new Map<unknown, unknown>(),
   useAtom: vi.fn(),
   useAtomValue: vi.fn(),
-  setAutoUpdateEnabled: vi.fn(),
   setInstallPromptVisible: vi.fn(),
   buttons: [] as CapturedButtonProps[],
-  checkbox: null as CapturedCheckboxProps | null,
   modal: null as CapturedModalProps | null,
 }));
 
@@ -66,7 +58,6 @@ vi.mock("react-i18next", () => ({
     t: (key: string, values?: { version?: string }) => {
       const labels: Record<string, string> = {
         "common:actions.later": "Later",
-        "update.autoDownloadUpdates": "Automatically download future updates",
         "update.installAndRestart": "Install and restart",
         "update.installConfirmDesc": `Version ${values?.version ?? ""} is ready.`,
         "update.installConfirmTitle": "Update ready to install",
@@ -90,16 +81,6 @@ vi.mock("@src/components/Button", async () => {
     default: (props: CapturedButtonProps) => {
       mocks.buttons.push(props);
       return React.createElement("button", null, props.children);
-    },
-  };
-});
-
-vi.mock("@src/components/Checkbox", async () => {
-  const React = await import("react");
-  return {
-    default: (props: CapturedCheckboxProps) => {
-      mocks.checkbox = props;
-      return React.createElement("label", null, props.children);
     },
   };
 });
@@ -172,7 +153,6 @@ describe("AppUpdater", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.buttons.length = 0;
-    mocks.checkbox = null;
     mocks.modal = null;
     mocks.storeValues.clear();
     mocks.storeGet.mockImplementation((target) =>
@@ -186,9 +166,7 @@ describe("AppUpdater", () => {
   });
 
   function renderPreparedUpdate(update: Update): string {
-    mocks.useAtom
-      .mockReturnValueOnce([true, mocks.setAutoUpdateEnabled])
-      .mockReturnValueOnce([true, mocks.setInstallPromptVisible]);
+    mocks.useAtom.mockReturnValueOnce([true, mocks.setInstallPromptVisible]);
     mocks.useAtomValue
       .mockReturnValueOnce(update)
       .mockReturnValueOnce({ active: false })
@@ -347,7 +325,7 @@ describe("AppUpdater", () => {
     expect(mocks.relaunch).toHaveBeenCalledOnce();
   });
 
-  it("renders the update choices and wires later and automatic downloads", async () => {
+  it("renders the update choices without an automatic-download preference", async () => {
     const update = createUpdate();
     mocks.check.mockResolvedValue(update);
     await installAvailableAppUpdate();
@@ -358,13 +336,12 @@ describe("AppUpdater", () => {
     expect(markup).toContain("Skip this version");
     expect(markup).toContain("Later");
     expect(markup).toContain("Install and restart");
+    expect(markup).not.toContain("Automatically download future updates");
+    expect(markup).not.toContain("update.autoDownloadUpdates");
     expect(mocks.modal?.visible).toBe(true);
-    expect(mocks.checkbox?.checked).toBe(true);
 
-    mocks.checkbox?.onChange?.(false);
     capturedButton("Later").onClick?.();
 
-    expect(mocks.setAutoUpdateEnabled).toHaveBeenCalledWith(false);
     expect(mocks.setInstallPromptVisible).toHaveBeenCalledWith(false);
     expect(update.install).not.toHaveBeenCalled();
     expect(mocks.relaunch).not.toHaveBeenCalled();

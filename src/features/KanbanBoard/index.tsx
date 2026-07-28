@@ -117,6 +117,11 @@ export interface KanbanBoardProps {
   /** ID of the task whose preview panel is currently open (drives the
    * selected card accent). `null` / undefined means no card is selected. */
   selectedTaskId?: string | null;
+  /**
+   * Remount column render windows when the consumer changes data scope or
+   * filters. Live task updates within the same key preserve scroll progress.
+   */
+  taskRenderWindowKey?: string;
   /** Additional className for the board container */
   className?: string;
 }
@@ -140,6 +145,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onAddTask,
   onColumnOrderChange,
   selectedTaskId,
+  taskRenderWindowKey,
   className = "",
 }) => {
   const { t } = useTranslation();
@@ -435,7 +441,13 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
             }}
           >
             {columnOrder.map((column, index) => (
-              <React.Fragment key={column.id}>
+              <React.Fragment
+                key={
+                  taskRenderWindowKey == null
+                    ? column.id
+                    : `${column.id}:${taskRenderWindowKey}`
+                }
+              >
                 <KanbanColumn
                   column={column}
                   tasks={groupedTasks.get(column.id) || []}
@@ -511,6 +523,7 @@ export default KanbanBoard;
 export type {
   KanbanColumnConfig,
   KanbanTask,
+  KanbanTaskCreator,
   TaskPriority,
   TaskStatus,
 } from "./types";

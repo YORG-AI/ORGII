@@ -65,3 +65,9 @@ export type {
 // ============================================
 
 export { useHostedKeyActivitySync } from "./hostedKey";
+
+// ============================================
+// Streaming delta (per-session selector)
+// ============================================
+
+export { useStreamingDeltaForSession } from "./useStreamingDeltaForSession";

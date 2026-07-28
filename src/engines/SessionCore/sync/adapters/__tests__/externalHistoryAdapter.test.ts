@@ -34,6 +34,18 @@ describe("external history initial window", () => {
     ).toBe(chunks);
   });
 
+  it("preserves source-level placeholders for windowed sources", () => {
+    const chunks = Array.from({ length: 250 }, (_, index) =>
+      chunk(index, index % 2 === 0 ? "raw" : "tool_call", "user_message")
+    );
+
+    expect(
+      selectExternalHistoryInitialWindow(chunks, {
+        supportsWindowedReplay: true,
+      })
+    ).toBe(chunks);
+  });
+
   it("expands the tail window back to the current user round", () => {
     const chunks = [
       chunk(0, "raw", "user_message"),

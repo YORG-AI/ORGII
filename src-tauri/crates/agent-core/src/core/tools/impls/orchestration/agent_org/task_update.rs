@@ -3,8 +3,11 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier, validate_task_identifier_list,
+};
 use crate::coordination::agent_org_tasks::{
     task_output, AgentOrgTaskStore, Task, TaskOutput, TaskStatus, UpdateTaskPatch,
 };
@@ -12,8 +15,8 @@ use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, merge_task_metadata, parse_status, task_dependencies_resolved,
-    task_to_json, validate_freeform_task_metadata, TaskToolsContext,
+    map_task_write_error, merge_task_metadata, parse_status, task_to_json,
+    validate_freeform_task_metadata, TaskToolsContext,
 };
 
 /// Params for `task_update`. Every mutable field is optional; only
@@ -22,7 +25,7 @@ use super::{
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskUpdateParams {
-    /// Task UUID to update. Required.
+    /// Durable task identifier to update. Required.
     pub id: String,
     #[serde(default)]
     pub subject: Option<String>,
@@ -38,10 +41,12 @@ pub struct TaskUpdateParams {
     /// special sentinel `deleted` (which removes the row).
     #[serde(default)]
     pub status: Option<String>,
-    #[serde(default)]
-    pub blocks: Option<Vec<String>>,
+    /// Canonical dependency ids this task waits for. The reciprocal `blocks`
+    /// projection is derived by the store and is not independently writable.
     #[serde(default)]
     pub blocked_by: Option<Vec<String>>,
+    /// Free-form metadata patch. Object keys are merged into the existing
+    /// metadata; reserved Agent Org fields must use their typed parameters.
     #[serde(default)]
     pub metadata: Option<Value>,
     #[serde(default)]
@@ -133,6 +138,38 @@ fn output_has_missing_or_non_string_summary(params: &Value) -> bool {
         .is_some_and(|output| output.get("summary").and_then(Value::as_str).is_none())
 }
 
+/// Merge caller-controlled metadata keys onto the durable task metadata.
+///
+/// Reserved fields have already been rejected by
+/// `validate_freeform_task_metadata`, so starting from `prior` guarantees a
+/// free-form patch cannot accidentally erase scheduling mode, eligibility, or
+/// a completed task's durable output. Non-object metadata keeps the historical
+/// `merge_task_metadata` representation under the free-form `value` key.
+fn merge_freeform_metadata_patch(
+    prior: Option<&Value>,
+    freeform_patch: Option<Value>,
+) -> Option<Value> {
+    let mut merged = match prior {
+        Some(Value::Object(object)) => object.clone(),
+        Some(other) => {
+            let mut object = Map::new();
+            object.insert("value".to_string(), other.clone());
+            object
+        }
+        None => Map::new(),
+    };
+
+    match freeform_patch {
+        Some(Value::Object(patch)) => merged.extend(patch),
+        Some(other) => {
+            merged.insert("value".to_string(), other);
+        }
+        None => {}
+    }
+
+    (!merged.is_empty()).then_some(Value::Object(merged))
+}
+
 #[async_trait]
 impl Tool for TaskUpdateTool {
     fn name(&self) -> &str {
@@ -207,7 +244,13 @@ impl Tool for TaskUpdateTool {
             let task = if task_id_hint.is_empty() {
                 None
             } else {
-                AgentOrgTaskStore::get(&self.ctx.org_context.run_id, &task_id_hint)
+                let run_id = self.ctx.org_context.run_id.clone();
+                let read_task_id = task_id_hint.clone();
+                tokio::task::spawn_blocking(move || AgentOrgTaskStore::get(&run_id, &read_task_id))
+                    .await
+                    .map_err(|err| {
+                        ToolError::ExecutionFailed(format!("task_update read worker failed: {err}"))
+                    })?
                     .map_err(ToolError::ExecutionFailed)?
             };
             return task_update_rejected_response(
@@ -228,6 +271,7 @@ impl Tool for TaskUpdateTool {
                 "task_update requires a non-empty `id`".into(),
             ));
         }
+        validate_task_identifier("task_update.id", &task_id).map_err(ToolError::InvalidParams)?;
         let org_run_id = self.ctx.org_context.run_id.clone();
         let output_requested = params.output.is_some();
         let output_params = params.output;
@@ -274,26 +318,31 @@ impl Tool for TaskUpdateTool {
         {
             patch.status = Some(parse_status(status).map_err(ToolError::InvalidParams)?);
         }
-        if let Some(blocks) = params.blocks {
-            patch.blocks = Some(blocks);
-        }
         if let Some(blocked_by) = params.blocked_by {
+            validate_task_identifier_list("task_update.blocked_by", &blocked_by)
+                .map_err(ToolError::InvalidParams)?;
             patch.blocked_by = Some(blocked_by);
         }
-        if let Some(metadata) = params.metadata {
-            patch.metadata = Some(Some(metadata));
-        }
+        let freeform_metadata_patch = params.metadata;
 
         // Capture the prior owner so we know whether to dispatch a
         // TaskAssigned row when the patch resolves to a new owner. We
         // do this before applying so we don't have to re-query after.
-        let prior = AgentOrgTaskStore::get(&org_run_id, &task_id)
-            .map_err(ToolError::ExecutionFailed)?
-            .ok_or_else(|| {
-                ToolError::ExecutionFailed(format!(
-                    "task_update: task '{task_id}' not found in run '{org_run_id}'"
-                ))
-            })?;
+        let read_run_id = org_run_id.clone();
+        let read_task_id = task_id.clone();
+        let prior = tokio::task::spawn_blocking(move || {
+            AgentOrgTaskStore::get(&read_run_id, &read_task_id)
+        })
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_update read worker failed: {err}"))
+        })?
+        .map_err(ToolError::ExecutionFailed)?
+        .ok_or_else(|| {
+            ToolError::ExecutionFailed(format!(
+                "task_update: task '{task_id}' not found in run '{org_run_id}'"
+            ))
+        })?;
         let prior_owner = prior.owner.clone();
         let caller_member_id = self.ctx.caller_owner_member_id();
         if output_params.is_some() && params.status.as_deref() != Some("completed") {
@@ -344,9 +393,21 @@ impl Tool for TaskUpdateTool {
         // authorization. Previously every member with task_update could delete
         // any shared-board row before ownership was even read.
         if delete_requested {
-            let removed =
-                AgentOrgTaskStore::delete_if_unchanged(&org_run_id, &task_id, &prior.updated_at)
-                    .map_err(map_task_write_error)?;
+            let delete_run_id = org_run_id.clone();
+            let delete_task_id = task_id.clone();
+            let expected_updated_at = prior.updated_at.clone();
+            let removed = tokio::task::spawn_blocking(move || {
+                AgentOrgTaskStore::delete_if_unchanged(
+                    &delete_run_id,
+                    &delete_task_id,
+                    &expected_updated_at,
+                )
+            })
+            .await
+            .map_err(|err| {
+                ToolError::ExecutionFailed(format!("task_update delete worker failed: {err}"))
+            })?
+            .map_err(map_task_write_error)?;
             let body = json!({
                 "deleted": removed,
                 "id": task_id,
@@ -415,7 +476,8 @@ impl Tool for TaskUpdateTool {
             },
             None => None,
         };
-        if params.eligible_member_ids.is_some()
+        if freeform_metadata_patch.is_some()
+            || params.eligible_member_ids.is_some()
             || params.required_role.is_some()
             || output.is_some()
         {
@@ -434,7 +496,8 @@ impl Tool for TaskUpdateTool {
                     );
                 }
             }
-            let base_metadata = patch.metadata.take().flatten().or(prior.metadata.clone());
+            let base_metadata =
+                merge_freeform_metadata_patch(prior.metadata.as_ref(), freeform_metadata_patch);
             patch.metadata = Some(merge_task_metadata(
                 base_metadata,
                 eligible_member_ids,
@@ -518,7 +581,7 @@ impl Tool for TaskUpdateTool {
                         &task_id,
                         Some(&prior),
                         TaskUpdateRejectionCode::LifecycleOwnerOnly,
-                        "An ownerless task cannot be marked in progress by the coordinator. Assign it to a member, or let an eligible member claim it and record its own start.",
+                        "An ownerless task cannot be marked in progress. The coordinator must assign it to a member first; workers never self-claim ownerless work.",
                         json!({
                             "requested_status": "in_progress",
                             "caller_member_id": caller_member_id,
@@ -571,46 +634,39 @@ impl Tool for TaskUpdateTool {
             }
         }
 
-        let outcome = AgentOrgTaskStore::update_with_outcome_if_unchanged(
-            &org_run_id,
-            &task_id,
-            &prior.updated_at,
-            patch,
-        )
+        let update_context = Arc::clone(&self.ctx);
+        let update_run_id = org_run_id.clone();
+        let update_task_id = task_id.clone();
+        let expected_updated_at = prior.updated_at.clone();
+        let (outcome, outbox) = tokio::task::spawn_blocking(move || {
+            AgentOrgTaskStore::update_with_outcome_if_unchanged_and_transactional_effects(
+                &update_run_id,
+                &update_task_id,
+                &expected_updated_at,
+                patch,
+                |tx, outcome, tasks| {
+                    update_context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                },
+            )
+        })
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_update mutation worker failed: {err}"))
+        })?
         .map_err(map_task_write_error)?;
+        self.ctx.wake_committed_task_outbox(&outbox);
         let updated = outcome.current;
         let owner_changed = outcome.owner_changed;
         let status_changed = outcome.status_changed;
-        let completed_now = outcome.became_completed;
-        let became_ready = outcome.became_ready;
-        let updated_tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
-            .map_err(ToolError::ExecutionFailed)?;
-        let updated_ready = updated.owner.is_some()
-            && updated.status == TaskStatus::Pending
-            && task_dependencies_resolved(&updated_tasks, &updated);
-        let task_assigned_dispatched = updated_ready
-            && (owner_changed || became_ready)
-            && self.ctx.dispatch_task_assigned(&updated);
-        let unblocked_task_assigned_ids = if completed_now {
-            self.ctx
-                .dispatch_ready_assigned_tasks_unblocked_by(&updated.id)
-        } else {
-            Vec::new()
-        };
-        let assignment_required_task_ids: Vec<String> = updated_tasks
+        let task_assigned_dispatched = outbox
+            .task_assigned_ids
             .iter()
-            .filter(|task| task.owner.is_none() && !task.status.is_resolved())
-            .map(|task| task.id.clone())
-            .collect();
+            .any(|task_id| task_id == &updated.id);
+        let unblocked_task_assigned_ids = outbox.unblocked_task_assigned_ids;
+        let assignment_required_task_ids = outbox.assignment_required_task_ids;
         let has_assignment_required = !assignment_required_task_ids.is_empty();
-        let remaining_open_task_count = updated_tasks
-            .iter()
-            .filter(|task| !task.status.is_resolved())
-            .count();
-        let task_completed_notified = completed_now
-            && self
-                .ctx
-                .dispatch_task_completed(&updated, remaining_open_task_count);
+        let remaining_open_task_count = outbox.remaining_open_task_count;
+        let task_completed_notified = outbox.task_completed_notified;
 
         let body = json!({
             "task": task_to_json(&updated),

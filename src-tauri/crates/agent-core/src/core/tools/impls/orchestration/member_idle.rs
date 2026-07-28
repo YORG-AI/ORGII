@@ -28,9 +28,10 @@ use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopIn
 
 /// Production hook: persist a `MemberIdle` envelope into the inbox, then wake the coordinator.
 ///
-/// The insert is synchronous (a single `AgentInboxStore::insert` SQL
-/// statement) so we do not spawn a task — keeping the call cheap means
-/// the worker's post-turn dispatch path never blocks on idle emission.
+/// The hook contract is synchronous because finality must observe this durable
+/// notification before it can complete the Run. When called from Tokio's
+/// multi-thread runtime we therefore use an explicit `block_in_place` section:
+/// executor capacity is handed to another worker while ordering is preserved.
 pub struct InboxStoreMemberIdleHook {
     wake_hook: Arc<dyn InboxWakeHook>,
 }
@@ -50,8 +51,8 @@ impl Default for InboxStoreMemberIdleHook {
 }
 
 fn has_unread_member_inbox(org_run_id: &str, member_id: &str) -> bool {
-    match AgentInboxStore::list_unread_for_member(member_id, org_run_id) {
-        Ok(rows) => !rows.is_empty(),
+    match AgentInboxStore::has_unread_for_member(member_id, org_run_id) {
+        Ok(has_unread) => has_unread,
         Err(err) => {
             warn!(
                 run_id = %org_run_id,
@@ -61,6 +62,18 @@ fn has_unread_member_inbox(org_run_id: &str, member_id: &str) -> bool {
             );
             false
         }
+    }
+}
+
+/// Run short synchronous Agent Org persistence without panicking when the
+/// caller happens to be inside Tokio's current-thread runtime. Lifecycle
+/// finalization and MemberIdle delivery share this exact boundary.
+pub(crate) fn run_agent_org_blocking_section<T>(work: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::try_current() {
+        Ok(handle) if handle.runtime_flavor() == tokio::runtime::RuntimeFlavor::MultiThread => {
+            tokio::task::block_in_place(work)
+        }
+        _ => work(),
     }
 }
 
@@ -107,8 +120,15 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
             org_run_id: Some(org_run_id.to_string()),
             message,
         };
-        match AgentInboxStore::insert(params) {
-            Ok(record) => {
+        let persisted = run_agent_org_blocking_section(|| {
+            let record = AgentInboxStore::insert_if_run_running(params)?;
+            let member_has_unread = record
+                .as_ref()
+                .is_some_and(|_| has_unread_member_inbox(org_run_id, member_id));
+            Ok::<_, String>((record, member_has_unread))
+        });
+        match persisted {
+            Ok((Some(record), member_has_unread)) => {
                 debug!(
                     run_id = %org_run_id,
                     member_id = %member_id,
@@ -120,9 +140,16 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
                     crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
                     org_run_id,
                 );
-                if has_unread_member_inbox(org_run_id, member_id) {
+                if member_has_unread {
                     self.wake_hook.wake_member(member_id, org_run_id);
                 }
+            }
+            Ok((None, _)) => {
+                debug!(
+                    run_id = %org_run_id,
+                    member_id = %member_id,
+                    "[member_idle] run is paused or terminal; skipping stale idle notification"
+                );
             }
             Err(err) => {
                 warn!(
@@ -130,7 +157,7 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
                     member_id = %member_id,
                     coordinator = %coordinator_agent_id,
                     error = %err,
-                    "[member_idle] AgentInboxStore::insert failed; coordinator will not see this idle"
+                    "[member_idle] atomic inbox insert failed; coordinator will not see this idle"
                 );
             }
         }
@@ -181,11 +208,36 @@ mod tests {
         .expect("insert member inbox row");
     }
 
+    fn seed_run(conn: &rusqlite::Connection, run_id: &str, status: &str) {
+        crate::coordination::agent_org_runs::init_schema(conn).expect("Agent Org run schema");
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id,
+                 entry_mode, status, created_at, updated_at
+             ) VALUES (?1, 'org-1', 'coord', 'root-1', 'build', ?2, ?3, ?3)",
+            rusqlite::params![run_id, status, now],
+        )
+        .expect("seed Agent Org run");
+    }
+
+    #[test]
+    fn blocking_section_is_safe_inside_current_thread_runtime() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("current-thread runtime");
+        runtime.block_on(async {
+            assert_eq!(run_agent_org_blocking_section(|| 42), 42);
+        });
+    }
+
     #[test]
     fn member_idle_posts_row_and_wakes_coordinator() {
         let _sandbox = test_env::sandbox();
         let conn = database::db::get_connection().expect("test connection");
         agent_inbox::init_schema(&conn).expect("agent inbox schema");
+        seed_run(&conn, "run-1", "running");
         let wake_hook = Arc::new(RecordingWakeHook::default());
         let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
 
@@ -223,6 +275,7 @@ mod tests {
         let _sandbox = test_env::sandbox();
         let conn = database::db::get_connection().expect("test connection");
         agent_inbox::init_schema(&conn).expect("agent inbox schema");
+        seed_run(&conn, "run-1", "running");
         insert_member_inbox_row("run-1", "member-worker");
         let wake_hook = Arc::new(RecordingWakeHook::default());
         let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
@@ -250,5 +303,36 @@ mod tests {
                 ("member-worker".into(), "run-1".into())
             ]
         );
+    }
+
+    #[test]
+    fn member_idle_does_not_reopen_terminal_run_inbox() {
+        let _sandbox = test_env::sandbox();
+        let conn = database::db::get_connection().expect("test connection");
+        agent_inbox::init_schema(&conn).expect("agent inbox schema");
+        seed_run(&conn, "run-terminal", "completed");
+        let wake_hook = Arc::new(RecordingWakeHook::default());
+        let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
+
+        hook.post_member_idle(
+            "run-terminal",
+            "coord",
+            "member-worker",
+            "worker-1",
+            "Worker",
+            MemberIdleReason::Available,
+            Some(crate::session::AgentExecMode::Build),
+            None,
+            None,
+            Vec::new(),
+        );
+
+        assert!(AgentInboxStore::list_unread_for_member(
+            crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+            "run-terminal",
+        )
+        .expect("coordinator inbox")
+        .is_empty());
+        assert!(wake_hook.snapshot().is_empty());
     }
 }

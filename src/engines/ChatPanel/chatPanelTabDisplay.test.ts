@@ -11,7 +11,8 @@ import {
 
 const labels: ChatPanelTabDisplayLabels = {
   launchpad: "Launchpad",
-  cloudOrg: "Manage ORG",
+  runtime: "Runtime",
+  organization: "Manage ORG",
   workManagement: {
     kanban: "Kanban",
     projects: "Projects",
@@ -30,6 +31,12 @@ function tab(
 }
 
 describe("resolveChatPanelTabDisplayTitle", () => {
+  it("uses the localized Runtime title", () => {
+    expect(resolveChatPanelTabDisplayTitle(tab("runtime"), null, labels)).toBe(
+      "Runtime"
+    );
+  });
+
   it("uses the active management destination as the localized tab title", () => {
     expect(
       resolveChatPanelTabDisplayTitle(tab("work-management"), null, labels)
@@ -80,7 +87,7 @@ describe("resolveChatPanelTabDisplayTitle", () => {
   it("keeps organization management distinct from Launchpad", () => {
     expect(
       resolveChatPanelTabDisplayTitle(
-        tab("cloud-org", "Manage ORG"),
+        tab("organization", "Manage ORG"),
         null,
         labels
       )

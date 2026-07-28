@@ -150,10 +150,7 @@ impl HealthMonitor {
             }
 
             // Check if repo still exists
-            let repo_path = {
-                let states = state_store.get_all_states();
-                states.get(&repo_id).map(|s| s.repo_path.clone())
-            };
+            let repo_path = state_store.get_repo_path(&repo_id);
 
             if let Some(repo_path) = repo_path {
                 // Run git status

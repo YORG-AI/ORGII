@@ -186,7 +186,7 @@ pub(super) fn member_runtime_key_source(
 ) -> Result<KeySource, String> {
     match config.and_then(|cfg| clean_runtime_value(cfg.key_source.as_ref())) {
         Some(raw) => KeySource::parse(&raw).ok_or_else(|| format!("Unknown key_source: {raw:?}")),
-        None => Ok(fallback.clone()),
+        None => Ok(*fallback),
     }
 }
 

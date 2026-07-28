@@ -52,6 +52,8 @@ export interface SelectProps {
   onFocus?: (event: FocusEvent) => void;
   onBlur?: (event: FocusEvent) => void;
   prefix?: ReactNode;
+  /** Whether the selected option's icon is shown in the trigger. */
+  showTriggerIcon?: boolean;
   /** @default 'auto' */
   placement?: "top" | "bottom" | "auto";
   /** Horizontal alignment of dropdown panel: "right" aligns right edges */

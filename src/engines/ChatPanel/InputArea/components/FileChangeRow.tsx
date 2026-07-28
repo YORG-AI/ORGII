@@ -10,7 +10,9 @@
 import { type KeyboardEvent, memo } from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
-import FileTypeIcon from "@src/components/FileTypeIcon";
+import FileTypeIcon, {
+  type FileTypeIconProps,
+} from "@src/components/FileTypeIcon";
 import {
   COMPOSER_STACK_ROW_BASE,
   COMPOSER_STACK_ROW_HOVER,
@@ -23,51 +25,55 @@ export interface FileChangeRowProps {
   file: FileChangeInfo;
   /** Optional click handler — when provided the filename becomes a button. */
   onFileClick?: (filePath: string) => void;
+  /** File icon size. Compact stack rows use small by default. */
+  fileIconSize?: FileTypeIconProps["size"];
 }
 
-const FileChangeRow = memo(({ file, onFileClick }: FileChangeRowProps) => {
-  const handleClick = onFileClick ? () => onFileClick(file.path) : undefined;
-  const handleKeyDown = onFileClick
-    ? (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onFileClick(file.path);
+const FileChangeRow = memo(
+  ({ file, onFileClick, fileIconSize = "small" }: FileChangeRowProps) => {
+    const handleClick = onFileClick ? () => onFileClick(file.path) : undefined;
+    const handleKeyDown = onFileClick
+      ? (event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onFileClick(file.path);
+          }
         }
-      }
-    : undefined;
+      : undefined;
 
-  const stats = (
-    <DiffStatsBadge
-      additions={file.additions}
-      deletions={file.deletions}
-      variant="chat"
-    />
-  );
+    const stats = (
+      <DiffStatsBadge
+        additions={file.additions}
+        deletions={file.deletions}
+        variant="chat"
+      />
+    );
 
-  return (
-    <div
-      key={file.path}
-      className={`group ${COMPOSER_STACK_ROW_BASE} ${
-        onFileClick ? `${COMPOSER_STACK_ROW_HOVER} cursor-pointer` : ""
-      }`}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      role={onFileClick ? "button" : undefined}
-      tabIndex={onFileClick ? 0 : undefined}
-    >
-      <FileTypeIcon fileName={file.fileName} size="small" />
-      <span
-        className={`${COMPOSER_STACK_ROW_LABEL} ${
-          onFileClick ? "group-hover:text-text-1" : ""
+    return (
+      <div
+        key={file.path}
+        className={`group ${COMPOSER_STACK_ROW_BASE} ${
+          onFileClick ? `${COMPOSER_STACK_ROW_HOVER} cursor-pointer` : ""
         }`}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        role={onFileClick ? "button" : undefined}
+        tabIndex={onFileClick ? 0 : undefined}
       >
-        {file.fileName}
-      </span>
+        <FileTypeIcon fileName={file.fileName} size={fileIconSize} />
+        <span
+          className={`${COMPOSER_STACK_ROW_LABEL} ${
+            onFileClick ? "group-hover:text-text-1" : ""
+          }`}
+        >
+          {file.fileName}
+        </span>
 
-      {stats}
-    </div>
-  );
-});
+        {stats}
+      </div>
+    );
+  }
+);
 
 FileChangeRow.displayName = "FileChangeRow";
 

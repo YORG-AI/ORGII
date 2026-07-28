@@ -16,8 +16,6 @@ pub const RUN_SHELL: &str = "run_shell";
 pub const AWAIT_OUTPUT: &str = "await_output";
 pub const INSPECT_TERMINALS: &str = "inspect_terminals";
 pub const CODE_SEARCH: &str = "code_search";
-pub const USE_CODE_MAP: &str = "use_code_map";
-pub const MANAGE_CODE_MAP: &str = "manage_code_map";
 pub const EDIT_FILE: &str = "edit_file";
 pub const DELETE_FILE: &str = "delete_file";
 pub const APPLY_PATCH: &str = "apply_patch";
@@ -125,6 +123,11 @@ pub const TASK_LIST: &str = "task_list";
 /// active_form, owner, status, blocks, blocked_by, metadata).
 /// Read-only. Only available inside an Agent Org run.
 pub const TASK_GET: &str = "task_get";
+/// Record a coordinator completion request at the current durable work
+/// revision. Finality checks remain authoritative.
+pub const ORG_RUN_COMPLETE: &str = "org_run_complete";
+/// Inspect or explicitly resolve an undeliverable Agent Org Inbox row.
+pub const ORG_INBOX_REPAIR: &str = "org_inbox_repair";
 
 // ── Channel workspace tools ─────────────────────────────────────────
 /// List known workspace paths seen in recent sessions.

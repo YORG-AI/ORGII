@@ -38,12 +38,12 @@ describe("FallbackAdapter generic tool rendering", () => {
     expect(markup).not.toContain("output details");
   });
 
-  it("keeps uncategorized errors expanded", () => {
+  it("collapses uncategorized errors by default", () => {
     const markup = renderFallbackEvent(
       { error: "fallback failure details" },
       "failed"
     );
 
-    expect(markup).toContain("fallback failure details");
+    expect(markup).not.toContain("fallback failure details");
   });
 });

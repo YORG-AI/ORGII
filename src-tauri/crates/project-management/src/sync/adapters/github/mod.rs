@@ -123,6 +123,11 @@ impl SyncAdapter for GitHubAdapter {
         ADAPTER_ID
     }
 
+    fn preferred_work_item_short_id(&self, external_id: &str) -> Option<String> {
+        let issue_number = external_id.parse::<u64>().ok()?;
+        (issue_number > 0).then(|| issue_number.to_string())
+    }
+
     /// Push one outbox row to GitHub.
     /// - `Create` → `POST /repos/{owner}/{repo}/issues`
     /// - `Update` → `PATCH /repos/{owner}/{repo}/issues/{number}` —
@@ -536,6 +541,16 @@ mod tests {
             descriptor.auth_methods,
             vec![AuthMethod::OAuth, AuthMethod::ApiKey]
         );
+    }
+
+    #[test]
+    fn github_issue_number_is_the_preferred_local_short_id() {
+        assert_eq!(
+            GitHubAdapter.preferred_work_item_short_id("210"),
+            Some("210".to_string())
+        );
+        assert_eq!(GitHubAdapter.preferred_work_item_short_id("0"), None);
+        assert_eq!(GitHubAdapter.preferred_work_item_short_id("ORG-0210"), None);
     }
 
     #[test]

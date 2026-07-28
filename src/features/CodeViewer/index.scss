@@ -99,7 +99,7 @@ $font-mono: var(
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: all 0.15s ease;
   background: var(--color-fill-2);
   flex-shrink: 0;
@@ -126,7 +126,7 @@ $font-mono: var(
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s ease;
   color: transparent;
 
@@ -184,7 +184,7 @@ $font-mono: var(
   align-items: center;
   justify-content: center;
   background: var(--color-bg-3);
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s ease;
   color: transparent;
 
@@ -478,7 +478,7 @@ $font-mono: var(
 
   // Collapsed lines
   &-collapse {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     background: transparent;
     margin: 0;
     min-height: 32px;

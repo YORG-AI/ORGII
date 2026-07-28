@@ -118,6 +118,9 @@ const SegmentView: React.FC<SegmentViewProps> = ({
   const resolvedDiff = displayDiff || syntheticAddDiff;
   const resolvedContent = resolvedDiff || displayContent;
 
+  // Note: the React Compiler auto-memoizes this from its inputs; a manual
+  // useMemo here is redundant and blocks the compiler from optimizing the
+  // component.
   const diffPayload = (() => {
     if (segment.oldContent !== undefined && segment.newContent !== undefined) {
       return {

@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use app_paths::{
-    agent_worktrees_root, claude_code_cli_profile_root, code_map_root, codex_cli_profile_root,
+    agent_worktrees_root, claude_code_cli_profile_root, codex_cli_profile_root,
     cursor_cli_profile_root, cursor_config_root, diagnostics_dir, extensions_dir,
     file_history_root, kiro_cli_profile_root, logs_dir, lsp_bin_dir, models_dir,
     opencode_cli_profile_root, orgii_root, personal_workspace, screenshots_dir, semantic_index_dir,
@@ -124,7 +124,6 @@ pub fn get_disk_usage() -> DiskUsageReport {
         ("toolResults", "Oversized Tool Results", tool_results_root()),
         ("diagnostics", "Diagnostics Queue", diagnostics_dir()),
         ("models", "Downloaded Models", models_dir()),
-        ("codeMap", "Code Map Indexes", code_map_root()),
         (
             "semanticIndex",
             "Semantic Search Index",
@@ -187,7 +186,6 @@ fn category_path(key: &str) -> Option<PathBuf> {
         "toolResults" => Some(tool_results_root()),
         "diagnostics" => Some(diagnostics_dir()),
         "models" => Some(models_dir()),
-        "codeMap" => Some(code_map_root()),
         "semanticIndex" => Some(semantic_index_dir()),
         "lspBin" => Some(lsp_bin_dir()),
         "sidecarBin" => Some(sidecar_bin_dir()),
@@ -262,7 +260,6 @@ mod tests {
             "toolResults",
             "diagnostics",
             "models",
-            "codeMap",
             "semanticIndex",
             "cursorCliProfiles",
             "kiroCliProfiles",

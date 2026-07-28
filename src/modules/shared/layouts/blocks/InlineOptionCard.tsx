@@ -42,7 +42,7 @@ export function InlineOptionPill({
       className={`flex size-3.5 shrink-0 items-center justify-center rounded-full border ${
         selected
           ? "border-primary-6 bg-primary-6"
-          : "border-border-3 bg-surface-container"
+          : "border-border-3 bg-primary-container"
       }`}
     >
       {selected && <Check size={10} className="text-white" />}

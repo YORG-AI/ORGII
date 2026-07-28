@@ -1,10 +1,11 @@
 /**
  * Worktree-source GitHub cache atom
  *
- * Caches the WorktreeSourceModal's GitHub PR/issue data per repo key so
+ * Caches the WorktreeSourceModal's GitHub PR/issue data per auth + repo key so
  * switching tabs / reopening the modal within the TTL window reuses the
- * result instead of re-fetching + spinning. Keyed by the repo key from
- * `resolveWorktreeRepoKey` (`id:<repoId>` or `path:<repoPath>`).
+ * result instead of re-fetching + spinning. The key combines the authenticated
+ * GitHub connection identity with `resolveWorktreeRepoKey`, preventing private
+ * data from leaking across account switches.
  *
  * Raw PR/issue payloads are cached (not the rendered rows) so the cache stays
  * serializable and the Smart tab can derive its own view from the same data.
@@ -38,7 +39,7 @@ export interface WorktreeGithubCacheEntry {
   fetchedAt: number;
 }
 
-/** Map keyed by repo key → cached GitHub entry. Mutated immutably via helpers. */
+/** Map keyed by auth scope + repo key → cached GitHub entry. */
 export const worktreeGithubCacheAtom = atom<
   Map<string, WorktreeGithubCacheEntry>
 >(new Map());

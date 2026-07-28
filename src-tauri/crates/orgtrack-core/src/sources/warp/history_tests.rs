@@ -143,14 +143,8 @@ fn metadata_uses_summary_usage_parent_and_invalidates_cache_signatures() {
         .expect("record");
     let blobs = load_task_blobs(&conn, "conversation-1").expect("task blobs");
     let analysis = analyze_task_blobs("warpapp-conversation-1", &blobs, 0);
-    let input = conversation_to_cache_input(
-        record.clone(),
-        analysis,
-        Path::new("/tmp/warp.sqlite"),
-        100,
-        200,
-        "wal:10",
-    );
+    let input =
+        conversation_to_cache_input(record.clone(), analysis, Path::new("/tmp/warp.sqlite"));
 
     assert_eq!(input.session_id, "warpapp-conversation-1");
     assert_eq!(input.name, "Warp importer");
@@ -186,7 +180,7 @@ fn metadata_uses_summary_usage_parent_and_invalidates_cache_signatures() {
         ..record
     };
     let mut content_changed = cached_signature.clone();
-    content_changed.source_fingerprint = warp_source_fingerprint(&changed, "wal:10");
+    content_changed.source_fingerprint = warp_source_fingerprint(&changed);
     assert!(!imported_cache::record_matches_cached_signature(
         &cached_signature,
         &content_changed

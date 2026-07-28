@@ -17,6 +17,7 @@ type AgentOrgE2EHelpers = Pick<
   | "listAgentOrgSessionInbox"
   | "debugAgentOrgTasksList"
   | "agentOrgSessionRunView"
+  | "agentOrgGroupChatHistoryPage"
   | "agentOrgSessionInterventionState"
   | "agentOrgSessionEnterIntervention"
   | "agentOrgSessionReturnToWork"
@@ -290,6 +291,29 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     }
   };
 
+  const agentOrgGroupChatHistoryPage = async (
+    sessionId: string,
+    beforeId?: number | null,
+    limit?: number
+  ): Promise<Result<{ page: Json }>> => {
+    try {
+      if (!sessionId) {
+        return {
+          ok: false,
+          error: "agentOrgGroupChatHistoryPage: `sessionId` is required",
+        };
+      }
+      const page = (await invoke("agent_org_group_chat_history_page", {
+        sessionId,
+        beforeId: beforeId ?? null,
+        limit: limit ?? 100,
+      })) as Json;
+      return { ok: true, page };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   const agentOrgSessionInterventionState = async (
     sessionId: string
   ): Promise<Result<{ state: Json }>> => {
@@ -522,6 +546,7 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     listAgentOrgSessionInbox,
     debugAgentOrgTasksList,
     agentOrgSessionRunView,
+    agentOrgGroupChatHistoryPage,
     agentOrgSessionInterventionState,
     agentOrgSessionEnterIntervention,
     agentOrgSessionReturnToWork,

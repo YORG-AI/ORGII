@@ -22,82 +22,32 @@
  * - Session tab bar / header
  * - Session creator (shown when no session)
  */
-import { useAtomValue, useSetAtom, useStore } from "jotai";
-import { ArrowDown } from "lucide-react";
-import React, {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useAtomValue, useStore } from "jotai";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type CoreSessionSummary,
-  getOrgtrackSessionSummary,
-} from "@src/api/tauri/lineage";
-import Button from "@src/components/Button";
 import Message from "@src/components/Message";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useShowInteractArea } from "@src/contexts/workspace/ChatContext";
-import { AgentMessageClampProvider } from "@src/engines/ChatPanel/blocks";
-import { GroupChatPausedBanner } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 import { forkExternalHistoryIntoOrgiiSession } from "@src/engines/ChatPanel/externalHistoryFork";
-import { useAgentOrgGroupChatController } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatController";
-import { AgentOrgGroupChatLiveSessions } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatLiveSessions";
-import { replayModeAtom } from "@src/engines/SessionCore";
 import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanApprovalViewState } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync";
-import { waitForSessionChannelReady } from "@src/engines/SessionCore/sync/useSessionChannel";
-import { AppType } from "@src/engines/Simulator/types/appTypes";
-import { SessionCommentsProvider } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
 import { ForkCancelledError } from "@src/features/TeamCollaboration/forkSession";
-import type { ForkImportedErrorKind } from "@src/features/TeamCollaboration/useForkImportedSession";
-import { useForkImportedSession } from "@src/features/TeamCollaboration/useForkImportedSession";
 import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 import { useSessionWorkspaceSync } from "@src/hooks/session/useSessionWorkspaceSync";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
-import {
-  activeSessionIdAtom,
-  claimPipelineSessionAtom,
-  loadSessions,
-  sessionByIdAtom,
-} from "@src/store/session";
-import type { Session } from "@src/store/session";
+import { loadSessions, sessionByIdAtom } from "@src/store/session";
 import {
   isSessionActiveAtom,
   restoreToInputAtom,
   sessionRuntimeStatusAtom,
   streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
-import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
-import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
-import {
-  chatPanelMaximizedAtom,
-  chatStatusBarVisibleAtom,
-} from "@src/store/ui/chatPanelAtom";
-import {
-  dequeueMessageAtom,
-  editMessageAtom,
-  enqueueCountAtom,
-  forceSendMessageAtom,
-  messageQueueAtom,
-  queueFlushRequestAtom,
-  reorderQueueAtom,
-} from "@src/store/ui/messageQueueAtom";
-import {
-  STATION_MODE,
-  bumpSimulatorDiffRefreshNonceAtom,
-  simulatorDiffScopeRequestAtom,
-  simulatorSelectedAppAtom,
-  stationModeAtom,
-} from "@src/store/ui/simulatorAtom";
-import { getFileName } from "@src/util/file/pathUtils";
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { STATION_MODE, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   isCursorIdeSession,
   isExternalHistorySession,
@@ -105,148 +55,34 @@ import {
 } from "@src/util/session/sessionDispatch";
 
 import ChatFloatingComposer from "./ChatFloatingComposer";
-import ChatHistory, { type ScrollNavState } from "./ChatHistory";
-import { GroupChatProvider } from "./ChatHistory/GroupChatView/GroupChatContext";
-import { AgentEventsTap } from "./ChatHistory/GroupChatView/useGroupChatMergedEvents";
-import { ChatHistoryOverrideContext } from "./ChatHistoryOverrideContext";
-import {
-  CHAT_SESSION_CONTEXT_NONE,
-  ChatSessionContext,
-} from "./ChatSessionContext";
-import InputArea from "./InputArea";
-import AgentOrgOverviewPanel from "./InputArea/components/AgentOrgOverviewPanel";
-import type { FileChangesResult } from "./InputArea/components/CompactFileChanges";
-import GitDiffActionsMenu from "./InputArea/components/GitDiffActionsMenu";
+import { ChatSessionContext } from "./ChatSessionContext";
+import { ChatViewHistorySurface } from "./ChatViewHistorySurface";
+import { ChatViewPostHistoryOverlays } from "./ChatViewPostHistoryOverlays";
+import type { ChatViewProps } from "./ChatViewTypes";
 import {
   buildCompactFilesReloadKey,
   countChatRounds,
 } from "./InputArea/components/compactFileChangesHelpers";
-import { useAgentOrgIntervention } from "./InputArea/components/useAgentOrgIntervention";
-import { useAgentOrgMemberSessionJump } from "./InputArea/components/useAgentOrgMemberSessionJump";
-import { useAgentOrgRunView } from "./InputArea/components/useAgentOrgRunView";
 import { useComposerSections } from "./InputArea/hooks/useComposerSections";
-import { useGitDiffActions } from "./InputArea/hooks/useGitDiffActions";
-import { useQueueEditMode } from "./InputArea/hooks/useQueueEditMode";
-import { useCanvasForTurn } from "./blocks/CanvasInlineCard/useCanvasForTurn";
-import { useJumpToSimulatorCanvas } from "./blocks/CanvasInlineCard/useJumpToSimulatorCanvas";
+import { resolveInitialFileChanges } from "./chatViewFileChanges";
 import { useBrowserAddToConversationAction } from "./hooks/useBrowserAddToConversationAction";
+import { useChatViewAgentOrgSurface } from "./hooks/useChatViewAgentOrgSurface";
+import { useChatViewAgentStationDiff } from "./hooks/useChatViewAgentStationDiff";
+import { useChatViewCanvasPreview } from "./hooks/useChatViewCanvasPreview";
+import { useChatViewFilesMenu } from "./hooks/useChatViewFilesMenu";
+import { useChatViewFloatingComposerInset } from "./hooks/useChatViewFloatingComposerInset";
+import { useChatViewOrgtrackSummary } from "./hooks/useChatViewOrgtrackSummary";
+import { useChatViewPipelineClaim } from "./hooks/useChatViewPipelineClaim";
+import { useChatViewPlanPillState } from "./hooks/useChatViewPlanPillState";
+import { useChatViewScrollToBottom } from "./hooks/useChatViewScrollToBottom";
 import { useFollowAgent } from "./hooks/useFollowAgent";
 import type { SubmitOverrideInput } from "./hooks/useInputArea/types";
-import { useUserIntentSubmit } from "./hooks/useWorkspaceChat/useUserIntentSubmit";
 
 const logger = createLogger("ChatView");
 
-const CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX = 72;
-
-const IMPORTED_FORK_ERROR_KEYS: Record<
-  Exclude<ForkImportedErrorKind, "cancelled">,
-  string
-> = {
-  retention: "collaboration.forkImported.retentionError",
-  gone: "collaboration.forkImported.goneError",
-  generic: "collaboration.forkImported.error",
-};
 const EMPTY_CHAT_EVENTS: SessionEvent[] = [];
 
-function formatPlanPillLabel(
-  autoApproveAt: number | null | undefined,
-  nowMs = Date.now()
-): string {
-  if (!autoApproveAt) return "Plan";
-  const seconds = Math.max(0, Math.ceil((autoApproveAt - nowMs) / 1000));
-  return `Plan · ${seconds}s`;
-}
-
-function impactFileChanges(input: {
-  filesChanged?: number;
-  linesAdded?: number;
-  linesRemoved?: number;
-  touchedFiles?: readonly string[];
-}): FileChangesResult | undefined {
-  const touchedFiles = input.touchedFiles ?? [];
-  const filesChanged = input.filesChanged ?? touchedFiles.length;
-  const totalAdditions = input.linesAdded ?? 0;
-  const totalDeletions = input.linesRemoved ?? 0;
-  if (filesChanged === 0 && totalAdditions === 0 && totalDeletions === 0) {
-    return undefined;
-  }
-
-  const displayPaths =
-    touchedFiles.length > 0
-      ? touchedFiles
-      : Array.from(
-          { length: filesChanged },
-          (_unused, fileIndex) => `Changed file ${fileIndex + 1}`
-        );
-  const files = displayPaths.map((path, fileIndex) => ({
-    path,
-    fileName: getFileName(path),
-    status: "M",
-    additions: fileIndex === 0 ? totalAdditions : 0,
-    deletions: fileIndex === 0 ? totalDeletions : 0,
-    lineCount: fileIndex === 0 ? totalAdditions + totalDeletions : 0,
-  }));
-
-  return {
-    files,
-    totalAdditions,
-    totalDeletions,
-    stats: { added: 0, modified: filesChanged, deleted: 0 },
-  };
-}
-
-function sourceImpactFileChanges(
-  session: Session | undefined
-): FileChangesResult | undefined {
-  return impactFileChanges({
-    filesChanged: session?.filesChanged,
-    linesAdded: session?.linesAdded,
-    linesRemoved: session?.linesRemoved,
-    touchedFiles: session?.touchedFiles,
-  });
-}
-
-function summaryImpactFileChanges(
-  summary: CoreSessionSummary | null
-): FileChangesResult | undefined {
-  if (!summary) return undefined;
-  return impactFileChanges({
-    filesChanged: summary.filesChanged,
-    linesAdded: summary.linesAdded,
-    linesRemoved: summary.linesRemoved,
-  });
-}
-
-export interface ChatViewProps {
-  /** Session ID to display. Sync bridges and events load for this session. */
-  sessionId: string;
-  onRegisterSearchOpen?: (handler: (() => void) | null) => void;
-  displayMode?: ChatHistoryDisplayMode;
-  turnPaginationEnabled?: boolean;
-  /** Dock side for the containing chat panel, used to place side previews inward. */
-  position?: "left" | "right";
-  /** Opaque background class for sticky headers (must match the container surface).
-   *  Defaults to "bg-chat-pane" (side panel). Pass EDITOR_TAB_CANVAS_BG_CLASS for WorkStation. */
-  surfaceBgClass?: string;
-  /**
-   * Passive replay mode: this ChatView does NOT write the pipeline
-   * atom AND does NOT mirror the IDE workspace folders into the
-   * session's backend workspace. Use for editor-tab session inspection
-   * where the chat is a read-only artifact.
-   */
-  readOnly?: boolean;
-  /**
-   * Secondary/inspect mode: this ChatView DOES claim the pipeline
-   * (so live events stream and the user can interact), but does NOT
-   * mutate the session's persisted backend workspace via
-   * `useSessionWorkspaceSync`. Use when showing another session's
-   * chat in a non-primary surface (kanban detail, project-manager
-   * tab) — those sessions may belong to a totally different repo and
-   * we must not silently rewrite their workspace footprint to match
-   * the IDE's current folders.
-   */
-  secondary?: boolean;
-}
+export type { ChatViewProps } from "./ChatViewTypes";
 
 const ChatView: React.FC<ChatViewProps> = memo(
   ({
@@ -258,12 +94,11 @@ const ChatView: React.FC<ChatViewProps> = memo(
     surfaceBgClass = "bg-chat-pane",
     readOnly = false,
     secondary = false,
+    onSessionContinuation,
   }) => {
-    const { t } = useTranslation("sessions");
     const { t: tNavigation } = useTranslation("navigation");
-    const setActiveSessionId = useSetAtom(activeSessionIdAtom);
-    const claimPipelineSession = useSetAtom(claimPipelineSessionAtom);
     const store = useStore();
+    const { openSession } = useSessionView();
     const rootRef = useRef<HTMLDivElement>(null);
     const inputBoxRef = useRef<HTMLDivElement>(null);
     const [pinnedHeaderHost, setPinnedHeaderHost] =
@@ -280,71 +115,21 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const isImportedHistory = isImportedHistorySession(sessionId);
     const isReadOnlySurface = readOnly || isImportedHistory;
 
-    useEffect(() => {
-      // Imported history is immutable at its source, but it still owns the
-      // event pipeline while visible. Only explicit passive replay skips the
-      // claim. Secondary surfaces also need the canonical clear/loading
-      // transition because they do not navigate through jumpToSessionAtom.
-      if (readOnly) return;
-      if (secondary) {
-        claimPipelineSession(sessionId);
-      } else {
-        setActiveSessionId(sessionId);
-      }
-
-      // Secondary surfaces (e.g. kanban detail panel) must release the
-      // pipeline when the embedding closes, otherwise event streaming
-      // would keep running for a session no surface is showing. We
-      // only release if the pipeline is still pointing at this view's
-      // session — another surface may already have taken over.
-      // Primary (WorkStation) surfaces don't release on unmount: the
-      // pipeline atom is owned by WorkStation memory, which the bridge
-      // re-asserts whenever WorkStation is active.
-      if (!secondary) return;
-      return () => {
-        const current = store.get(activeSessionIdAtom);
-        if (current === sessionId) {
-          setActiveSessionId(null);
-        }
-      };
-    }, [
-      claimPipelineSession,
-      readOnly,
-      secondary,
-      sessionId,
-      setActiveSessionId,
-      store,
-    ]);
+    useChatViewPipelineClaim({ sessionId, readOnly, secondary });
 
     useTodoSync(isReadOnlySurface ? undefined : sessionId);
     useFileReviewSync(sessionId, !isReadOnlySurface && !secondary);
     const currentSession = useAtomValue(sessionByIdAtom(sessionId));
-    const [orgtrackSummary, setOrgtrackSummary] =
-      useState<CoreSessionSummary | null>(null);
-
-    useEffect(() => {
-      let cancelled = false;
-      void getOrgtrackSessionSummary(sessionId)
-        .then((summary) => {
-          if (!cancelled) setOrgtrackSummary(summary);
-        })
-        .catch((error: unknown) => {
-          if (!cancelled) {
-            logger.warn("failed to load orgtrack session summary", error);
-            setOrgtrackSummary(null);
-          }
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, [sessionId]);
+    const orgtrackSummary = useChatViewOrgtrackSummary(sessionId);
 
     const initialFileChanges = useMemo(
       () =>
-        isCursorIde || isExternalHistory
-          ? (summaryImpactFileChanges(orgtrackSummary) ??
-            sourceImpactFileChanges(currentSession))
-          : undefined,
+        resolveInitialFileChanges({
+          currentSession,
+          isCursorIde,
+          isExternalHistory,
+          orgtrackSummary,
+        }),
       [currentSession, isCursorIde, isExternalHistory, orgtrackSummary]
     );
 
@@ -388,7 +173,21 @@ const ChatView: React.FC<ChatViewProps> = memo(
             imageDataUrls: input.imageDataUrls,
           });
           await loadSessions({ forceRefresh: true });
-          setActiveSessionId(newSessionId);
+          const continuationSession = store.get(sessionByIdAtom(newSessionId));
+          const continuation = {
+            sessionId: newSessionId,
+            sessionName: continuationSession?.name,
+            repoPath: continuationSession?.repoPath,
+          };
+          if (onSessionContinuation) {
+            onSessionContinuation(continuation);
+          } else {
+            openSession(
+              continuation.sessionId,
+              continuation.sessionName,
+              continuation.repoPath
+            );
+          }
         } catch (error) {
           // InputArea clears a handled override. Restore the exact draft on
           // cancel/failure so choosing credentials is never destructive.
@@ -407,8 +206,9 @@ const ChatView: React.FC<ChatViewProps> = memo(
       [
         currentSession,
         isImportedHistory,
+        onSessionContinuation,
+        openSession,
         sessionId,
-        setActiveSessionId,
         store,
         tNavigation,
       ]
@@ -416,46 +216,8 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const showFloatingComposer =
       (showInteractArea && !isReadOnlySurface) ||
       showExternalHistoryForkComposer;
-    const [floatingComposerNode, setFloatingComposerNode] =
-      useState<HTMLDivElement | null>(null);
-    const [floatingComposerHeight, setFloatingComposerHeight] = useState(
-      CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
-    );
-    const setMeasuredFloatingComposerRef = useCallback(
-      (node: HTMLDivElement | null) => {
-        setFloatingComposerNode(node);
-      },
-      []
-    );
-
-    useEffect(() => {
-      if (!showFloatingComposer || !floatingComposerNode) return;
-
-      const updateHeight = () => {
-        const nextHeight = Math.ceil(
-          floatingComposerNode.getBoundingClientRect().height
-        );
-        setFloatingComposerHeight(
-          nextHeight > 0 ? nextHeight : CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX
-        );
-      };
-
-      updateHeight();
-      const observer = new ResizeObserver(updateHeight);
-      observer.observe(floatingComposerNode);
-      window.addEventListener("resize", updateHeight);
-      return () => {
-        observer.disconnect();
-        window.removeEventListener("resize", updateHeight);
-      };
-    }, [floatingComposerNode, showFloatingComposer]);
-
-    const historyBottomInset = showFloatingComposer
-      ? Math.max(
-          CHAT_FLOATING_COMPOSER_FALLBACK_INSET_PX,
-          floatingComposerHeight
-        )
-      : 0;
+    const { setMeasuredFloatingComposerRef, historyBottomInset } =
+      useChatViewFloatingComposerInset(showFloatingComposer);
     const {
       showFollowAgent,
       followAgentLabel,
@@ -482,7 +244,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const browserAddToConversationNav = useBrowserAddToConversationAction();
     const stationMode = useAtomValue(stationModeAtom);
     const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
-    const statusBarVisible = useAtomValue(chatStatusBarVisibleAtom);
     const agentMessageClampEligible =
       stationMode === STATION_MODE.AGENT_STATION && !chatPanelMaximized;
 
@@ -490,46 +251,8 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const streamRetry =
       streamRetryStatus?.sessionId === sessionId ? streamRetryStatus : null;
     const snapshot = useAtomValue(derivedSnapshotAtom);
-    const { snapshot: canvasForTurn } = useCanvasForTurn(sessionId);
-    const latestCanvasPreview = snapshot?.latestCanvasPreview ?? null;
-    const latestCanvasPayload = useMemo(
-      () =>
-        canvasForTurn.latestPayload
-          ? canvasForTurn.latestPayload
-          : latestCanvasPreview
-            ? {
-                mode: latestCanvasPreview.mode,
-                url: latestCanvasPreview.url,
-                title: latestCanvasPreview.title,
-                streaming: latestCanvasPreview.streaming,
-                eventId: latestCanvasPreview.eventId,
-              }
-            : null,
-      [canvasForTurn.latestPayload, latestCanvasPreview]
-    );
-    const openLatestCanvas = useJumpToSimulatorCanvas(
-      sessionId,
-      latestCanvasPayload
-    );
-    const canvasPreviewPill = useMemo(
-      () =>
-        latestCanvasPayload &&
-        canvasForTurn.allowsLatestCanvasShortcut &&
-        openLatestCanvas
-          ? {
-              label: "Canvas",
-              onOpen: openLatestCanvas,
-            }
-          : null,
-      [
-        canvasForTurn.allowsLatestCanvasShortcut,
-        latestCanvasPayload,
-        openLatestCanvas,
-      ]
-    );
-    const currentPlanApproval = useAtomValue(pendingPlanApprovalsAtom).get(
-      sessionId
-    )?.current;
+    const canvasPreviewPill = useChatViewCanvasPreview(sessionId, snapshot);
+    const currentPlanApproval = usePendingPlanApproval(sessionId);
     const chatEvents = snapshot?.chatEvents ?? EMPTY_CHAT_EVENTS;
     const isAgentWorking = useAtomValue(isSessionActiveAtom);
 
@@ -554,58 +277,15 @@ const ChatView: React.FC<ChatViewProps> = memo(
       ? planViewState.getEventState(planViewState.activePendingEvent, "current")
       : undefined;
 
-    const [scrollNav, setScrollNav] = useState<ScrollNavState | null>(null);
-    const handleScrollNavChange = useCallback((state: ScrollNavState) => {
-      setScrollNav(state);
-    }, []);
-    const externalScrollToBottomButton = scrollNav?.showScrollToBottom ? (
-      <Button
-        variant="secondary"
-        appearance="outline"
-        size="small"
-        shape="round"
-        icon={<ArrowDown size={14} />}
-        iconOnly
-        aria-label={t("common:chat.scrollToBottom")}
-        title={t("common:chat.scrollToBottom")}
-        onClick={scrollNav.onScrollToBottom}
-        className="shrink-0"
-      />
-    ) : null;
+    const { scrollNav, handleScrollNavChange, externalScrollToBottomButton } =
+      useChatViewScrollToBottom();
 
     const {
-      view: agentOrgRunView,
-      error: agentOrgRunViewError,
-      refresh: refreshAgentOrgRunView,
-    } = useAgentOrgRunView(sessionId);
-    // The dropdown's "current member" highlight should follow the
-    // pipeline session, not the backend's `currentMemberId`. The
-    // member selector now flips only the pipeline atom (via
-    // `useAgentOrgMemberSessionJump`) so the parent ChatView keeps
-    // rendering the org session — meaning the run view is fetched
-    // against the parent and its `currentMemberId` would stick to
-    // coordinator no matter which member the user picks. Match the
-    // pipeline session against `sessionRuntime.sessionId` first; fall
-    // back to the backend hint when no member matches (e.g. before
-    // members hydrate or for the bare coordinator session).
-    const pipelineSessionId = useAtomValue(activeSessionIdAtom);
-    const currentAgentOrgMember = useMemo(() => {
-      if (!agentOrgRunView) return null;
-      const members = agentOrgRunView.members;
-      if (pipelineSessionId) {
-        const byPipeline = members.find(
-          (member) => member.sessionRuntime?.sessionId === pipelineSessionId
-        );
-        if (byPipeline) return byPipeline;
-      }
-      if (!agentOrgRunView.currentMemberId) return null;
-      return (
-        members.find(
-          (member) => member.memberId === agentOrgRunView.currentMemberId
-        ) ?? null
-      );
-    }, [agentOrgRunView, pipelineSessionId]);
-    const {
+      agentOrgRunView,
+      agentOrgRunViewError,
+      refreshAgentOrgRunView,
+      pipelineSessionId,
+      currentAgentOrgMember,
       agentOrgInteractionSessionId,
       queueSessionId,
       groupChatViewActive,
@@ -614,292 +294,41 @@ const ChatView: React.FC<ChatViewProps> = memo(
       groupChatAgents,
       handleGroupChatTapEvents,
       groupChatMentionOptions,
-      groupChatRunPaused,
       groupChatPendingMessage,
-      isResumingGroupChat,
-      handleResumeGroupChatRun,
       handleGroupChatViewToggle,
-      handleGroupChatSubmitOverride,
-    } = useAgentOrgGroupChatController({
+      handleAgentOrgMemberSessionJump,
+      handleMainComposerSubmitOverride,
+      cancelQueuedMessage,
+      enqueueCount,
+      handleReorderSessionQueue,
+      handleSendNow,
+      queueEditProps,
+      sessionMessageQueue,
+      groupChatPausedBottomContent,
+      shouldShowCurrentPlanSurface,
+      agentOrgInterventionSlot,
+      groupChatHistoryAction,
+    } = useChatViewAgentOrgSurface({
       sessionId,
-      agentOrgRunView,
-      currentAgentOrgMember,
-      refreshAgentOrgRunView,
+      currentSession,
+      onSessionContinuation,
+      showCurrentPlanSurface,
     });
-
-    const handleAgentOrgMemberSessionJump =
-      useAgentOrgMemberSessionJump(sessionId);
-
-    // ── Imported-session intercept-send (fork & continue) ──────────────────
-    // Imported teammate copies (`Session.importedFrom`) keep a fully
-    // writable composer, but they have no dispatch adapter — the send is
-    // intercepted here: the fork flow opens the mandatory same-remote
-    // workspace picker, then the captured message becomes the fork's first
-    // send (which SessionService wraps with the one-shot handoff digest; do
-    // NOT bypass SessionService.sendMessage). There is no redundant
-    // "read-only/fork" confirmation before the actionable picker.
-    const { openSession } = useSessionView();
-    const setRestoreToInput = useSetAtom(restoreToInputAtom);
-    const { fork: forkImportedSession } = useForkImportedSession(
-      currentSession ?? null
-    );
-    const forkSubmitInFlightRef = useRef(false);
-    // Post-fork dispatch target: useUserIntentSubmit reads the session id
-    // through this ref so both the synthetic user event and the dispatch
-    // land in the FORKED session, not the (still-mounted) imported one.
-    const forkDispatchSessionIdRef = useRef<string | null>(null);
-    const submitIntoForkedSession = useUserIntentSubmit({
-      getSessionId: () => forkDispatchSessionIdRef.current,
-    });
-
-    const isImportedTeammateCopy = Boolean(currentSession?.importedFrom);
-
-    const restorePendingDraft = useCallback(
-      (pending: SubmitOverrideInput, targetSessionId: string) => {
-        setRestoreToInput({
-          sessionId: targetSessionId,
-          displayContent: pending.displayText,
-          imageDataUrls: pending.imageDataUrls,
-        });
-      },
-      [setRestoreToInput]
-    );
-
-    const handleMainComposerSubmitOverride = useCallback(
-      async (input: SubmitOverrideInput): Promise<boolean> => {
-        if (isImportedTeammateCopy) {
-          if (forkSubmitInFlightRef.current) {
-            // A picker/fork is already in flight. Never clobber the captured
-            // send; retain any second submission as the imported draft.
-            restorePendingDraft(input, sessionId);
-            return true;
-          }
-          forkSubmitInFlightRef.current = true;
-          try {
-            const outcome = await forkImportedSession();
-            if (!outcome.ok) {
-              restorePendingDraft(input, sessionId);
-              if (outcome.errorKind !== "cancelled") {
-                Message.error(
-                  tNavigation(IMPORTED_FORK_ERROR_KEYS[outcome.errorKind])
-                );
-              }
-              return true;
-            }
-            forkDispatchSessionIdRef.current = outcome.localSessionId;
-            openSession(outcome.localSessionId, outcome.name, outcome.repoPath);
-            try {
-              // The fork's first turn can finish before React's
-              // SessionSyncProvider has registered its new IPC channel. Wait
-              // for that readiness edge so agent:complete cannot be lost.
-              await waitForSessionChannelReady(outcome.localSessionId);
-              await submitIntoForkedSession({
-                sessionId: outcome.localSessionId,
-                displayContent: input.displayText,
-                agentContent: input.agentContent,
-                imageDataUrls: input.imageDataUrls,
-              });
-            } catch (error) {
-              logger.error("failed to send captured message into fork", error);
-              restorePendingDraft(input, outcome.localSessionId);
-              Message.error(
-                tNavigation("collaboration.forkImported.sendFailed")
-              );
-            } finally {
-              forkDispatchSessionIdRef.current = null;
-            }
-          } finally {
-            forkSubmitInFlightRef.current = false;
-          }
-          return true;
-        }
-        return handleGroupChatSubmitOverride(input);
-      },
-      [
-        forkImportedSession,
-        handleGroupChatSubmitOverride,
-        isImportedTeammateCopy,
-        openSession,
-        restorePendingDraft,
-        sessionId,
-        submitIntoForkedSession,
-        tNavigation,
-      ]
-    );
-
-    // Message queue — keep this aligned with InputArea.sessionId so queued
-    // follow-ups written by the composer are visible on the same surface.
-    // Promoted "now" messages stay VISIBLE with a "sending now…" state: the
-    // force-send interrupt window can last seconds (provider cancelled-
-    // terminal latency), and hiding the message made Send Now look like it
-    // silently swallowed the input.
-    const messageQueue = useAtomValue(messageQueueAtom);
-    const sessionMessageQueue = useMemo(
-      () =>
-        messageQueue.filter(
-          (message) =>
-            message.sessionId === queueSessionId ||
-            message.sessionId === pipelineSessionId
-        ),
-      [messageQueue, pipelineSessionId, queueSessionId]
-    );
-    const enqueueCount = useAtomValue(enqueueCountAtom);
-    const cancelQueuedMessage = useSetAtom(dequeueMessageAtom);
-    const editQueuedMessage = useSetAtom(editMessageAtom);
-    const reorderQueue = useSetAtom(reorderQueueAtom);
-    const forceSendQueuedMessage = useSetAtom(forceSendMessageAtom);
-    const setQueueFlushRequest = useSetAtom(queueFlushRequestAtom);
-
-    const handleSendNow = useCallback(
-      (messageId: string) => {
-        const message = messageQueue.find((item) => item.id === messageId);
-        if (!message) return;
-        forceSendQueuedMessage(messageId);
-        setQueueFlushRequest((requestId) => requestId + 1);
-      },
-      [messageQueue, forceSendQueuedMessage, setQueueFlushRequest]
-    );
-
-    const handleCommitQueueEdit = useCallback(
-      (messageId: string, content: string, imageDataUrls?: string[]) => {
-        editQueuedMessage({ messageId, content, imageDataUrls });
-      },
-      [editQueuedMessage]
-    );
-
-    const handleReorderSessionQueue = useCallback(
-      (fromIndex: number, toIndex: number) => {
-        const fromMessage = sessionMessageQueue[fromIndex];
-        const toMessage = sessionMessageQueue[toIndex];
-        if (!fromMessage || !toMessage) return;
-        const globalFromIndex = messageQueue.findIndex(
-          (message) => message.id === fromMessage.id
-        );
-        const globalToIndex = messageQueue.findIndex(
-          (message) => message.id === toMessage.id
-        );
-        reorderQueue({ fromIndex: globalFromIndex, toIndex: globalToIndex });
-      },
-      [messageQueue, reorderQueue, sessionMessageQueue]
-    );
-    const queueEditProps = useQueueEditMode({
-      onCommit: handleCommitQueueEdit,
-      onCommitSendNow: handleSendNow,
-    });
-
-    const groupChatPausedBottomContent = groupChatRunPaused ? (
-      <GroupChatPausedBanner
-        disabled={isResumingGroupChat}
-        onResume={handleResumeGroupChatRun}
-      />
-    ) : null;
-
-    const {
-      intervention: agentOrgIntervention,
-      error: agentOrgInterventionError,
-      returning: agentOrgInterventionReturning,
-      returnToWork: returnAgentOrgMemberToWork,
-    } = useAgentOrgIntervention(
-      agentOrgInteractionSessionId,
-      agentOrgRunView,
-      refreshAgentOrgRunView
-    );
-    const isViewingAgentOrgMemberPlan =
-      currentAgentOrgMember !== null && !currentAgentOrgMember.isCoordinator;
-    const shouldShowCurrentPlanSurface =
-      showCurrentPlanSurface && !isViewingAgentOrgMemberPlan;
 
     // Primary card active-data state (reported up by each card)
     const [hasQuestion, setHasQuestion] = useState(false);
     const [hasPermission, setHasPermission] = useState(false);
     const [hasModeSwitch, setHasModeSwitch] = useState(false);
-    const hasPlan = Boolean(
-      currentPlanApproval && shouldShowCurrentPlanSurface
-    );
-    const [planPillNowMs, setPlanPillNowMs] = useState(() => Date.now());
-    const currentPlanAutoApproveAt = currentPlanApproval?.autoApproveAt ?? null;
-    useEffect(() => {
-      if (!hasPlan || !currentPlanAutoApproveAt) return;
-      const timer = window.setInterval(
-        () => setPlanPillNowMs(Date.now()),
-        1000
-      );
-      return () => window.clearInterval(timer);
-    }, [currentPlanAutoApproveAt, hasPlan]);
-    const planPillLabel = useMemo(
-      () =>
-        formatPlanPillLabel(
-          hasPlan ? currentPlanAutoApproveAt : null,
-          planPillNowMs
-        ),
-      [currentPlanAutoApproveAt, hasPlan, planPillNowMs]
-    );
-    const setStationMode = useSetAtom(stationModeAtom);
-    const setSelectedSimulatorApp = useSetAtom(simulatorSelectedAppAtom);
-    const setReplayMode = useSetAtom(replayModeAtom);
-    const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
-    const setDiffScope = useSetAtom(simulatorDiffScopeRequestAtom);
-    const refreshDiff = useSetAtom(bumpSimulatorDiffRefreshNonceAtom);
-    const openAgentStationDiff = useCallback(() => {
-      // Un-maximize the chat panel so ActivitySimulator becomes visible.
-      // When chatPanelMaximized is true, AppShellContent suppresses the
-      // simulator pane entirely (chatPanelFocused guard), so switching to
-      // the Diff app would have no visible effect.
-      //
-      // Clear any per-round scope set by a chat `TurnMetadataFooter` so this
-      // composer-level entry point always shows the whole-session diff.
-      setDiffScope(null);
-      // Force a fresh read of the canonical diffs so the full-session view
-      // reflects edits made since the Diff app last cached them.
-      refreshDiff();
-      setChatPanelMaximized(false);
-      setStationMode(STATION_MODE.AGENT_STATION);
-      setSelectedSimulatorApp(AppType.DIFF);
-      setReplayMode("replay");
-    }, [
-      setDiffScope,
-      refreshDiff,
-      setChatPanelMaximized,
-      setReplayMode,
-      setSelectedSimulatorApp,
-      setStationMode,
-    ]);
+    const { hasPlan, planPillLabel } = useChatViewPlanPillState({
+      currentPlanApproval,
+      shouldShowCurrentPlanSurface,
+    });
+    const openAgentStationDiff = useChatViewAgentStationDiff();
 
-    const {
-      onCommit,
-      onCommitPush,
-      onPush,
-      onCreatePr,
-      onViewMyStation,
-      onViewAgentStation,
-      hasCommitsToPush,
-      gitActionsDisabled,
-    } = useGitDiffActions({ sessionId, openAgentStationDiff });
-
-    const filesMenu = useMemo(
-      () => (
-        <GitDiffActionsMenu
-          onCommit={onCommit}
-          onCommitPush={onCommitPush}
-          onPush={onPush}
-          onCreatePr={onCreatePr}
-          onViewMyStation={onViewMyStation}
-          onViewAgentStation={onViewAgentStation}
-          hasCommitsToPush={hasCommitsToPush}
-          gitActionsDisabled={gitActionsDisabled}
-        />
-      ),
-      [
-        onCommit,
-        onCommitPush,
-        onPush,
-        onCreatePr,
-        onViewMyStation,
-        onViewAgentStation,
-        hasCommitsToPush,
-        gitActionsDisabled,
-      ]
-    );
+    const { filesMenu } = useChatViewFilesMenu({
+      sessionId,
+      openAgentStationDiff,
+    });
 
     const {
       questionCollapsed,
@@ -931,9 +360,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
       filesMenu,
       includeFileSections: false,
     });
-
-    const hasAgentOrgIntervention =
-      agentOrgInterventionError !== null || agentOrgIntervention !== null;
 
     // ChatSessionContext provides the *content* session id — pipeline,
     // chat history, pinned bars, reload, etc. all key off this value.
@@ -979,137 +405,54 @@ const ChatView: React.FC<ChatViewProps> = memo(
           <div
             ref={handlePinnedHeaderHostRef}
             className={
-              turnPaginationEnabled
+              turnPaginationEnabled || groupChatViewActive
                 ? "flex flex-shrink-0 flex-col"
                 : "absolute inset-x-0 top-0 z-40 flex flex-col"
             }
             data-chat-pinned-header-portal-host
           />
           <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
-            {/* Session comments (cloud-parity Phase F): resolves the cloud
-                comment target once per surface; null for every non-cloud
-                session, so the per-turn chrome stays inert. events=null
-                until the snapshot hydrates (presence unknown — an empty
-                pre-load set would bucket every thread as an orphan); turn
-                chrome hides in group-chat view (merged member-session
-                event ids can never anchor into this session). */}
-            <SessionCommentsProvider
-              session={currentSession ?? null}
-              events={snapshot ? chatEvents : null}
-              turnAnchorsVisible={!groupChatViewActive}
-            >
-              <ChatHistoryOverrideContext.Provider
-                value={groupChatViewActive ? groupChatMergedEvents : undefined}
-              >
-                <GroupChatProvider
-                  enabled={groupChatViewActive}
-                  coordinatorSessionId={sessionId}
-                  orgMembers={agentOrgRunView?.members ?? []}
-                >
-                  {groupChatViewActive && (
-                    <AgentOrgGroupChatLiveSessions
-                      enabled={groupChatViewActive}
-                      excludeSessionId={pipelineSessionId}
-                      members={agentOrgRunView?.members ?? []}
-                    />
-                  )}
-                  {groupChatViewActive &&
-                    groupChatAgents
-                      .filter(
-                        (agent) =>
-                          !agent.sessionId.startsWith(
-                            "agent-org-member-pending:"
-                          )
-                      )
-                      .map((agent) => (
-                        <AgentEventsTap
-                          key={agent.sessionId}
-                          sessionId={agent.sessionId}
-                          onEvents={handleGroupChatTapEvents}
-                        />
-                      ))}
-                  <AgentMessageClampProvider value={agentMessageClampEligible}>
-                    <ChatHistory
-                      surfaceBgClass={surfaceBgClass}
-                      chatPanelPosition={position}
-                      agentOrgCurrentMemberName={
-                        currentAgentOrgMember?.name ?? null
-                      }
-                      agentOrgCurrentMemberId={
-                        currentAgentOrgMember?.memberId ?? null
-                      }
-                      agentOrgMembers={agentOrgRunView?.members ?? []}
-                      mutationActionsDisabled={isReadOnlySurface}
-                      agentOrgOverviewPanel={
-                        agentOrgRunView || agentOrgRunViewError ? (
-                          <AgentOrgOverviewPanel
-                            view={agentOrgRunView}
-                            error={agentOrgRunViewError}
-                            currentSessionId={sessionId}
-                            onRefresh={refreshAgentOrgRunView}
-                          />
-                        ) : null
-                      }
-                      onAgentOrgMemberSelect={handleAgentOrgMemberSessionJump}
-                      onAgentOrgRunViewRefresh={refreshAgentOrgRunView}
-                      onScrollNavChange={handleScrollNavChange}
-                      followAgentNav={followAgentNav}
-                      browserAddToConversationNav={browserAddToConversationNav}
-                      onRegisterSearchOpen={onRegisterSearchOpen}
-                      displayMode={displayMode}
-                      turnPaginationEnabled={turnPaginationEnabled}
-                      pinnedHeaderPortalHost={pinnedHeaderHost}
-                      bottomInset={historyBottomInset}
-                      groupChatViewAvailable={groupChatViewAvailable}
-                      groupChatViewActive={groupChatViewActive}
-                      onGroupChatViewToggle={handleGroupChatViewToggle}
-                    />
-                  </AgentMessageClampProvider>
-                </GroupChatProvider>
-              </ChatHistoryOverrideContext.Provider>
-            </SessionCommentsProvider>
+            <ChatViewHistorySurface
+              sessionId={sessionId}
+              currentSession={currentSession}
+              snapshotHydrated={Boolean(snapshot)}
+              chatEvents={chatEvents}
+              groupChatViewActive={groupChatViewActive}
+              groupChatMergedEvents={groupChatMergedEvents}
+              groupChatAgents={groupChatAgents}
+              pipelineSessionId={pipelineSessionId}
+              handleGroupChatTapEvents={handleGroupChatTapEvents}
+              agentMessageClampEligible={agentMessageClampEligible}
+              surfaceBgClass={surfaceBgClass}
+              position={position}
+              currentAgentOrgMember={currentAgentOrgMember}
+              agentOrgRunView={agentOrgRunView}
+              agentOrgRunViewError={agentOrgRunViewError}
+              refreshAgentOrgRunView={refreshAgentOrgRunView}
+              handleAgentOrgMemberSessionJump={handleAgentOrgMemberSessionJump}
+              handleScrollNavChange={handleScrollNavChange}
+              followAgentNav={followAgentNav}
+              browserAddToConversationNav={browserAddToConversationNav}
+              onRegisterSearchOpen={onRegisterSearchOpen}
+              displayMode={displayMode}
+              turnPaginationEnabled={turnPaginationEnabled}
+              paginationTrailingSlot={groupChatHistoryAction}
+              pinnedHeaderHost={pinnedHeaderHost}
+              historyBottomInset={historyBottomInset}
+              groupChatViewAvailable={groupChatViewAvailable}
+              handleGroupChatViewToggle={handleGroupChatViewToggle}
+              isReadOnlySurface={isReadOnlySurface}
+            />
           </div>
-          {showExternalHistoryForkComposer && (
-            <div
-              ref={setMeasuredFloatingComposerRef}
-              data-testid="external-history-fork-composer"
-              className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${
-                statusBarVisible ? "pb-0" : "pb-2"
-              }`}
-            >
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
-              <div
-                className={`${DETAIL_PANEL_TOKENS.contentMaxWidth} relative z-10 w-full`}
-              >
-                <ChatSessionContext.Provider value={CHAT_SESSION_CONTEXT_NONE}>
-                  <InputArea
-                    omitChatHeader
-                    placeholder={tNavigation(
-                      "collaboration.forkImported.continuePlaceholder"
-                    )}
-                    chatPanelPosition={position}
-                    sessionScope="none"
-                    onSubmitOverride={handleExternalHistoryForkSubmit}
-                    topRowTrailingContent={externalScrollToBottomButton}
-                    bottomAnchored
-                  />
-                </ChatSessionContext.Provider>
-              </div>
-            </div>
-          )}
-          {isImportedHistory &&
-            !showExternalHistoryForkComposer &&
-            externalScrollToBottomButton && (
-              <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-50">
-                <div
-                  className={`mx-auto flex w-full justify-end px-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-                >
-                  <span className="pointer-events-auto">
-                    {externalScrollToBottomButton}
-                  </span>
-                </div>
-              </div>
-            )}
+          <ChatViewPostHistoryOverlays
+            showExternalHistoryForkComposer={showExternalHistoryForkComposer}
+            composerRef={setMeasuredFloatingComposerRef}
+            position={position}
+            onSubmitOverride={handleExternalHistoryForkSubmit}
+            externalScrollToBottomButton={externalScrollToBottomButton}
+            isImportedHistory={isImportedHistory}
+            sessionId={sessionId}
+          />
           {showInteractArea && !isReadOnlySurface && (
             <ChatFloatingComposer
               composerRef={setMeasuredFloatingComposerRef}
@@ -1151,17 +494,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
               canvasPreview={canvasPreviewPill}
               inlineSections={inlineSections}
               hasModeSwitch={hasModeSwitch}
-              agentOrgIntervention={
-                hasAgentOrgIntervention
-                  ? {
-                      intervention: agentOrgIntervention,
-                      memberName: currentAgentOrgMember?.name,
-                      error: agentOrgInterventionError,
-                      returning: agentOrgInterventionReturning,
-                      onReturnToWork: returnAgentOrgMemberToWork,
-                    }
-                  : null
-              }
+              agentOrgIntervention={agentOrgInterventionSlot}
               streamRetry={streamRetry}
               groupChatPausedBottomContent={groupChatPausedBottomContent}
               onSubmitOverride={handleMainComposerSubmitOverride}

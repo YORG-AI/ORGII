@@ -33,8 +33,12 @@ import React, {
 
 import { useChatHistoryOverride } from "@src/engines/ChatPanel/ChatHistoryOverrideContext";
 import { useChatSessionId } from "@src/engines/ChatPanel/ChatSessionContext";
+import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { chatEventsAtom } from "@src/engines/SessionCore/derived/chatEvents";
-import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import {
+  chatEventsForSessionAtomFamily,
+  sessionScopedPlanningMetaAtomFamily,
+} from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { activeSessionIdAtom } from "@src/store/session";
 import { chatWidthAtom } from "@src/store/ui/chatPanelAtom";
 import { FeedBackInfo } from "@src/types/session/steps";
@@ -214,17 +218,41 @@ export const useChatHistory = () => {
   const selectorAtom = useMemo(() => {
     if (usePerSession && contextSessionId) {
       const source = chatEventsForSessionAtomFamily(contextSessionId);
-      return atom((get) => get(source));
+      const meta = sessionScopedPlanningMetaAtomFamily(contextSessionId);
+      return atom((get) => ({
+        chatHistory: get(source),
+        sourceSessionId: contextSessionId,
+        sourceVersion: get(meta).version,
+      }));
     }
-    return atom((get) => get(chatEventsAtom));
-  }, [usePerSession, contextSessionId]);
-  const atomChatHistory = useAtomValue(selectorAtom);
+    return atom((get) => {
+      const snapshot = get(derivedSnapshotAtom);
+      const snapshotSessionId =
+        snapshot?.lastEvent?.sessionId ??
+        snapshot?.chatEvents[0]?.sessionId ??
+        null;
+      return {
+        chatHistory: get(chatEventsAtom),
+        // An empty freshly-cleared snapshot is still authoritative for the
+        // active pipeline. A non-empty mismatched snapshot remains identifiable
+        // so projection never renders another session during a switch.
+        sourceSessionId: snapshotSessionId ?? activeSessionId,
+        sourceVersion: snapshot?.version ?? 0,
+      };
+    });
+  }, [activeSessionId, usePerSession, contextSessionId]);
+  const atomSource = useAtomValue(selectorAtom);
   // Override takes precedence: lets a parent (e.g. the subagent grid
   // cell) inject a cursor-sliced event array so ChatHistory renders only
   // events up to the replay timestamp without us touching the shared
   // atom family or its `_prev` cache.
-  const chatHistory = override ?? atomChatHistory;
-  return { chatHistory };
+  const chatHistory = override ?? atomSource.chatHistory;
+  return {
+    chatHistory,
+    sourceIsOverride: override !== undefined,
+    sourceSessionId: atomSource.sourceSessionId,
+    sourceVersion: atomSource.sourceVersion,
+  };
 };
 
 export const useChatWidth = () => {

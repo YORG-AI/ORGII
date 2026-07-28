@@ -27,6 +27,10 @@ pub mod session_type {
     /// inbound channel messages to OS/SDE downstream agents. Never exposed
     /// in the frontend session list (filtered out by `list_sessions`).
     pub const GATEWAY: &str = "gateway";
+    /// User-authored proof-of-work log. Human sessions share the canonical
+    /// session directory row, while their document and evidence live in
+    /// dedicated tables.
+    pub const HUMAN: &str = "human";
 }
 
 /// Database record for a unified session.

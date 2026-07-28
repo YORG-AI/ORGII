@@ -12,6 +12,7 @@
     "drafts": "下書き",
     "browser": "ブラウザ",
     "editor": "エディタ",
+    "environment": "環境",
     "workspace": "ワークスペース",
     "codeEditor": "コードエディター",
     "databaseManager": "データベースマネージャー",
@@ -60,15 +61,9 @@
     "startSession": "セッションを開始",
     "sessions": "Session一覧",
     "selectProject": "Projectを選択",
-    "startPage": "スタートページ",
     "inbox": "受信トレイ",
     "login": "ログイン",
     "setup": "セットアップ",
-    "devJourney": "Dev Journey",
-    "devRecord": "開発記録",
-    "gitDashboard": "Git ダッシュボード",
-    "devActivity": "Dev アクティビティ",
-    "usageHistory": "利用履歴",
     "tokenMarket": "Token マーケット",
     "taskMarket": "タスクマーケット",
     "channels": "Channel",
@@ -84,20 +79,8 @@
     "ideaArea": "アイデアエリア",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "グリッドのカスタマイズ",
-    "horizontalGap": "水平間隔",
-    "verticalGap": "垂直間隔",
-    "resetToDefault": "デフォルトにリセット"
-  },
-  "greetings": {
-    "morning": "おはようございます",
-    "afternoon": "こんにちは",
-    "evening": "こんばんは"
-  },
   "sidebar": {
     "tabs": {
-      "build": "ホーム",
       "workstation": "Workstation",
       "manage": "管理",
       "core": "コア",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "新規追加",
       "collapseAll": "すべて折りたたむ",
-      "markAllRead": "すべて既読にする",
-      "openHome": "ホームを開く",
-      "openWorkstation": "Workstation を開く"
+      "markAllRead": "すべて既読にする"
     },
     "search": {
       "folders": "ワークスペースを検索...",
@@ -357,22 +338,13 @@
       "projects": "プロジェクト"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "製品アップデート",
-    "commitCount": "{{count}} 件のコミット",
-    "commitCount_one": "{{count}} 件のコミット",
-    "details": "詳細",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG を切り替え",
     "addOrg": "ORG を追加",
     "createOrg": "作成",
     "joinOrg": "参加",
     "orgSource": "Org ソース",
-    "localOrg": "Local",
+    "localOrg": "ローカル",
     "orgName": "ORG 名",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "招待リンクまたはコード",
@@ -397,7 +369,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -417,14 +393,21 @@
       "error": "セッションのフォークに失敗しました",
       "sendFailed": "フォークしましたが、メッセージの送信に失敗しました。内容は入力欄に復元されました",
       "forkedChipTooltip": "{{name}} さんからフォーク",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 クラウド",
     "signIn": "ログイン",
     "signOut": "ログアウト",
+    "signedInAs": "{{name}} としてログイン中",
     "signedInToast": "ORG2 クラウドにサインインしました",
+    "sessionExpired": "ORG2 Cloud のセッションが期限切れです。続行するには再度サインインしてください。",
     "recommendedBadge": "おすすめ",
     "recommendedDesc": "マネージドなセッション共有、リプレイ保存、チーム権限、安全な共有リンク。Supabase のセットアップは不要です。Auth、データベースマイグレーション、RLS ポリシー、課金、保持期間、クォータ、バックエンドのアップグレードは ORG2 が管理します",
     "customEndpoint": {
@@ -464,12 +447,15 @@
       "retentionUpgrade": "このセッションはプランのリプレイ期間外です — 表示するにはアップグレードしてください",
       "importError": "セッションをインポートできませんでした",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "自分について"
     },
     "sidebar": {
       "teamSessions": "チームセッション",
+      "mySessions": "自分のセッション",
       "memberFilter": "メンバーで絞り込み",
       "sessionFilter": "セッションを絞り込み",
+      "copyId": "IDをコピー",
       "directlySharedWithMe": "自分に直接共有",
       "everyone": "全員",
       "forkedFrom": "@{{name}} からフォーク",
@@ -543,7 +529,8 @@
         "youTag": "自分",
         "ownerTag": "オーナー",
         "floorOff": "最低要件なし",
-        "floorTooltip": "このメンバーの最低共有レベル。これと組織全体の下限のうち、より厳しい方が適用されます。"
+        "floorTooltip": "このメンバーの最低共有レベル。これと組織全体の下限のうち、より厳しい方が適用されます。",
+        "floorOrgMinimum": "組織の最低要件（{{mode}}）"
       },
       "leave": {
         "action": "組織を退出",
@@ -584,7 +571,7 @@
         "joinedFallbackToast": "クラウド組織に参加しました"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud（マネージド）",
+        "sourceCloud": "クラウド",
         "signInFirst": "マネージド組織を作成・参加するには ORG2 Cloud にサインインしてください。",
         "openSettings": "サインイン設定を開く",
         "createdToast": "クラウド組織を作成しました"
@@ -601,25 +588,22 @@
         "inviteInvalid": "この招待コードは無効です。",
         "inviteRevoked": "この招待は取り消されています。",
         "inviteExpired": "この招待は期限切れです。",
-        "inviteExhausted": "この招待は使用回数を使い切りました。"
+        "inviteExhausted": "この招待は使用回数を使い切りました。",
+        "network": "クラウドサービスに接続できません。ネットワークを確認して再試行してください。"
       }
-    },
-    "defaultAccess": {
-      "label": "デフォルト同期レベル",
-      "help": "リポジトリスコープに一致した、個別設定のないこの端末のセッションに適用されます。「オフ」の場合、オプトインするまでセッションはローカルに留まります"
     },
     "syncLevel": {
       "menuItem": "クラウド同期レベル…",
       "title": "クラウド同期レベル",
       "hint": "このセッションを各クラウド組織へ何を共有するか（共有しない・メタデータのみ・フルリプレイ）と、公開範囲を選択します。",
-      "orgDefaultOption": "組織のデフォルト（{{mode}}）",
       "modeOff": "オフ",
       "modeMetadata": "メタデータのみ",
       "modeFullReplay": "フルリプレイ",
       "visibilityOrg": "組織の全員",
       "visibilityRestricted": "自分のみ",
       "taggedNote": "このセッションはこの組織に移動されているため、タグが付いている間は少なくともメタデータが共有されます。",
-      "floorNote": "組織の管理者が少なくとも{{mode}}での共有を必須にしています。"
+      "floorNote": "組織の管理者が少なくとも{{mode}}での共有を必須にしています。",
+      "orgMinimumOption": "組織の最低要件（{{mode}}）"
     },
     "share": {
       "menuItem": "クラウド共有…",
@@ -650,33 +634,23 @@
       "importPasteClipboard": "クリップボードから貼り付け",
       "importSubmit": "インポート",
       "importInvalidInput": "有効な共有リンクまたはトークンではないようです。",
-      "selectAll": "全員（{{count}}）"
-    },
-    "agentRunner": {
-      "title": "エージェントタスクランナー",
-      "desc": "セッションスレッドから実行するコメントタスク（「ここで実行」）の既定設定です",
-      "machineNotice": "実行はこのマシン上で、このアカウントのトークンを使って行われます",
-      "orgLabel": "組織",
-      "accountLabel": "アカウント",
-      "accountPlaceholder": "既定のアカウント",
-      "modelLabel": "モデル",
-      "modelPlaceholder": "既定のモデル",
-      "modeLabel": "モード",
-      "autoRunLabel": "@agent タスクを自動実行",
-      "autoRunDesc": "自分が所有するセッションで、未処理の @agent コメントタスクを自動的に引き受けて実行します。デフォルトはオフです。オンにするまで、チームメンバーの @agent メンションがあなたのトークンを消費することはありません。"
+      "selectAll": "全員（{{count}}）",
+      "incomingEndpointMismatch": "この共有は別のカスタムクラウドに属しています。インポート前にそのエンドポイントを設定してください。",
+      "incomingConnectionError": "クラウドサービスに接続できません。ネットワークを確認して再試行してください。",
+      "incomingIncompatibleError": "クラウドから互換性のない共有応答が返されました。ORGII を更新するか、クラウド構成を確認してください。",
+      "incomingServerError": "クラウドサービスがこの共有を解決できませんでした。再試行してください。",
+      "incomingAlreadyOnDevice": "このセッションはすでにこのデバイスにあります。重複してインポートせず、元のセッションを開いてください。",
+      "incomingOpenExisting": "セッションを開く",
+      "incomingRetry": "再試行"
     },
     "comments": {
       "task": {
         "assignFailed": "コメントは投稿されましたが、エージェントの割り当てに失敗しました — スレッドから再試行してください",
         "assignUnavailableHere": "コメントは投稿されました — このビューではエージェントの割り当ては利用できません",
-        "turnBadge": "エージェントがこのターンを対応中",
         "addressingChip": "対応中のコメント:「{{excerpt}}」",
         "addressingChipGeneric": "コメントに対応中",
         "addressingChipTooltip": "元セッションのコメントスレッドに対応するためにフォークされました",
-        "openBadge_one": "対応待ちのエージェントタスク {{count}} 件",
-        "openBadge": "対応待ちのエージェントタスク {{count}} 件",
-        "activeBadge_one": "このセッションで {{count}} 個のエージェントが作業中",
-        "activeBadge": "このセッションで {{count}} 個のエージェントが作業中"
+        "mentionSuggestion": "このコメントをエージェントに割り当てる"
       },
       "toggleLabel": "コメント",
       "notesButton": "セッションノート",

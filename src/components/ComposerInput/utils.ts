@@ -94,6 +94,7 @@ export function serializePillNode(
   if (iconTypeStr === "folder") return `${displayName} [folder:${path}]`;
   if (iconTypeStr === "project") return `${displayName} [project:${path}]`;
   if (iconTypeStr === "skill") return `${displayName} [skill:${path}]`;
+  if (iconTypeStr === "link") return `${displayName} [link:${path}]`;
   if (
     (iconTypeStr === "pr" || iconTypeStr === "issue") &&
     path.startsWith("https://github.com/")

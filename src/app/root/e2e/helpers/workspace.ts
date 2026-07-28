@@ -315,7 +315,7 @@ export function createWorkspaceHelpers(store: E2EStore) {
   };
 
   // ============================================================
-  // Git non-repo + code-map folder-workspace e2e support
+  // Git non-repo folder-workspace e2e support
   // ============================================================
 
   /**
@@ -362,8 +362,8 @@ export function createWorkspaceHelpers(store: E2EStore) {
 
   /**
    * Pin a NON-git folder as the active workspace (kind=folder). Mirrors
-   * `ensureRepoSelected` but registers a folder workspace so code-map and
-   * git-status code paths exercise the folder branch.
+   * `ensureRepoSelected` but registers a folder workspace so git-status code
+   * paths exercise the folder branch.
    */
   const pinFolderWorkspace = async (
     folderPath: string,
@@ -398,39 +398,6 @@ export function createWorkspaceHelpers(store: E2EStore) {
     }
   };
 
-  /**
-   * Read code-map status for a path (read-only). Lets specs assert that the
-   * code map is usable for folder workspaces and that auto-indexing moves the
-   * status off `not_indexed`.
-   */
-  const getCodeMapStatusForPath = async (
-    workspacePath: string
-  ): Promise<Result<{ status: Json }>> => {
-    try {
-      const status = (await invoke("code_map_get_status", {
-        workspacePath,
-      })) as Json;
-      return { ok: true, status };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  /** Trigger a (non-forced) code-map index for a path. */
-  const startCodeMapIndexForPath = async (
-    workspacePath: string
-  ): Promise<Result<{ status: Json }>> => {
-    try {
-      const status = (await invoke("code_map_start_index", {
-        workspacePath,
-        force: false,
-      })) as Json;
-      return { ok: true, status };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
   return {
     getOrgiiRoot,
     getSelectedRepoPath,
@@ -441,7 +408,5 @@ export function createWorkspaceHelpers(store: E2EStore) {
     readSessionWorkspaceFromDb,
     getGitStatusForPath,
     pinFolderWorkspace,
-    getCodeMapStatusForPath,
-    startCodeMapIndexForPath,
   };
 }

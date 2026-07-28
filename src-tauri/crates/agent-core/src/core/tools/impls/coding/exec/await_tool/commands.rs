@@ -5,6 +5,8 @@
 //! `Tool` trait surface.
 
 use ::regex::Regex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -20,10 +22,64 @@ use super::AwaitTool;
 use crate::tools::traits::ToolError;
 use serde_json::Value;
 
+const MAX_ACCUMULATED_OUTPUT_BYTES: usize = 256 * 1024;
+const AWAIT_CANCELLED_MESSAGE: &str = "await_output cancelled by turn boundary";
+
+async fn sleep_or_cancel(duration: Duration, cancel_flag: Option<&Arc<AtomicBool>>) -> bool {
+    let Some(cancel_flag) = cancel_flag else {
+        tokio::time::sleep(duration).await;
+        return false;
+    };
+    if cancel_flag.load(Ordering::Relaxed) {
+        return true;
+    }
+    tokio::select! {
+        _ = tokio::time::sleep(duration) => false,
+        _ = async {
+            loop {
+                if cancel_flag.load(Ordering::Relaxed) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(25)).await;
+            }
+        } => true,
+    }
+}
+
+fn replay_body_is_authoritative(kind: &registry::JobKind) -> bool {
+    matches!(
+        kind,
+        registry::JobKind::Shell {
+            replay_session_id: Some(_),
+            replay_call_id: Some(_),
+            ..
+        }
+    )
+}
+
+fn append_bounded_output_tail(output: &mut String, chunk: &str) {
+    output.push_str(chunk);
+    if output.len() <= MAX_ACCUMULATED_OUTPUT_BYTES {
+        return;
+    }
+    let mut remove = output.len().saturating_sub(MAX_ACCUMULATED_OUTPUT_BYTES);
+    while remove < output.len() && !output.is_char_boundary(remove) {
+        remove += 1;
+    }
+    output.drain(..remove);
+}
+
 impl AwaitTool {
     /// `command=wait_for` — block until some termination / pattern-match condition
     /// is met across one or many handles, or the block timeout elapses.
     pub(super) async fn run_wait_for(&self, params: &Value) -> Result<String, ToolError> {
+        let cancel_flag = self.cancel_flag.lock().await.clone();
+        if cancel_flag
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            return Ok(AWAIT_CANCELLED_MESSAGE.to_string());
+        }
         let handles = parse_handles(params)?;
         let pattern_str = params.get("pattern").and_then(|v| v.as_str());
         let block_ms = params
@@ -87,8 +143,16 @@ impl AwaitTool {
         // Subscribe to every handle before we start checking so we don't miss
         // output chunks emitted between the initial `read_body` and the poll
         // loop.
-        let mut receivers: Vec<Option<tokio::sync::broadcast::Receiver<String>>> =
-            jobs.iter().map(|(h, _)| registry::subscribe(h)).collect();
+        let mut receivers: Vec<Option<tokio::sync::broadcast::Receiver<String>>> = jobs
+            .iter()
+            .map(|(h, kind)| {
+                if replay_body_is_authoritative(kind) {
+                    None
+                } else {
+                    registry::subscribe(h)
+                }
+            })
+            .collect();
         let mut accumulated: Vec<String> =
             jobs.iter().map(|(h, kind)| read_body(h, kind)).collect();
         let start = Instant::now();
@@ -124,7 +188,9 @@ impl AwaitTool {
                 break;
             }
             let poll_dur = remaining.min(Duration::from_millis(POLL_INTERVAL_MS));
-            tokio::time::sleep(poll_dur).await;
+            if sleep_or_cancel(poll_dur, cancel_flag.as_ref()).await {
+                return Ok(AWAIT_CANCELLED_MESSAGE.to_string());
+            }
 
             // Drain any buffered output chunks from each handle's receiver
             // and re-check termination/pattern.
@@ -135,7 +201,10 @@ impl AwaitTool {
 
                 if let Some(receiver) = receivers[idx].as_mut() {
                     while let Ok(chunk) = receiver.try_recv() {
-                        accumulated[idx].push_str(&chunk);
+                        // Pattern matching intentionally operates on the most
+                        // recent 256 KiB window; complete shell history lives
+                        // in Session Replay and is never accumulated here.
+                        append_bounded_output_tail(&mut accumulated[idx], &chunk);
                     }
                 } else {
                     accumulated[idx] = read_body(h, kind);
@@ -286,5 +355,45 @@ impl AwaitTool {
 
         let snapshots = registry::list_jobs(session_filter.as_deref());
         Ok(build_list_response(&snapshots))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tools::traits::Tool;
+
+    #[tokio::test]
+    async fn wait_for_returns_promptly_when_turn_is_cancelled() {
+        let tool = AwaitTool::new();
+        let cancel_flag = Arc::new(AtomicBool::new(false));
+        tool.set_cancel_flag(Arc::clone(&cancel_flag)).await;
+
+        let pid = 4_294_000_001_u32;
+        let handle = pid.to_string();
+        registry::register_shell(
+            pid,
+            "test wait".to_string(),
+            std::env::temp_dir().join("orgii-await-cancel-test.log"),
+            "await-cancel-test-session".to_string(),
+        );
+
+        let cancel = tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            cancel_flag.store(true, Ordering::Relaxed);
+        });
+        let started = Instant::now();
+        let result = tool
+            .run_wait_for(&serde_json::json!({
+                "handles": [handle],
+                "block_until_ms": 60_000,
+            }))
+            .await
+            .expect("cancelled wait should return a result");
+        cancel.await.expect("cancel task");
+        registry::remove(&pid.to_string());
+
+        assert_eq!(result, AWAIT_CANCELLED_MESSAGE);
+        assert!(started.elapsed() < Duration::from_secs(1));
     }
 }

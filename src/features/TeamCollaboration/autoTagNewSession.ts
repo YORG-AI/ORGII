@@ -12,8 +12,10 @@ import {
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
 
-import { pickMatchingOrgScope } from "./collabSyncUtils";
-import { resolveShareableScopeKeys } from "./repoScopeResolver";
+import {
+  resolveMatchingOrgRepoScope,
+  resolveShareableScopeKeys,
+} from "./repoScopeResolver";
 import {
   cloudOrgToken,
   sessionOrgTagsAtom,
@@ -46,7 +48,9 @@ export async function autoTagLaunchedSessionToActiveCloudOrg({
 
   const scopeKeys = await resolveShareableScopeKeys(repoPath);
   const orgScopes = store.get(org2CloudRepoScopesAtom)[orgId];
-  if (pickMatchingOrgScope(scopeKeys, orgScopes) === null) return false;
+  if ((await resolveMatchingOrgRepoScope(scopeKeys, orgScopes)) === null) {
+    return false;
+  }
 
   store.set(sessionOrgTagsAtom, (current) =>
     withTag(current, sessionId, cloudOrgToken(orgId))

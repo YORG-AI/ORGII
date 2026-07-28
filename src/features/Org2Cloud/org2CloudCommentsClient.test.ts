@@ -7,6 +7,7 @@ import {
 } from "./config";
 import {
   Org2CloudCommentError,
+  __SESSION_COMMENTS_DELTA_INTERNALS,
   addSessionComment,
   deleteSessionComment,
   editSessionComment,
@@ -49,6 +50,7 @@ const WIRE_COMMENT = {
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue(jsonResponse(null));
+  __SESSION_COMMENTS_DELTA_INTERNALS.resetDeltaSupport();
 });
 
 afterEach(() => {
@@ -92,6 +94,54 @@ describe("addSessionComment", () => {
       kind: "agent_report",
     });
     expect(lastBody().p_kind).toBe("agent_report");
+  });
+
+  it("sends the additive origin argument only when set", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+    await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "from a fork",
+      originSessionId: "fork-local-1",
+    });
+    expect(lastBody().p_origin_session_id).toBe("fork-local-1");
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+    await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "from the source",
+    });
+    expect(lastBody()).not.toHaveProperty("p_origin_session_id");
+  });
+
+  it("retries without the origin arg against a pre-origin backend", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ message: "Could not find the function" }, 404)
+      )
+      .mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
+    const comment = await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "from a fork",
+      originSessionId: "fork-local-1",
+    });
+    expect(comment.id).toBe("comment-1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastBody()).not.toHaveProperty("p_origin_session_id");
+  });
+
+  it("does not retry a 404 when no origin arg was sent", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: "nope" }, 404));
+    await expect(
+      addSessionComment("jwt-1", {
+        orgId: "org-1",
+        sessionId: "sess-1",
+        body: "plain",
+      })
+    ).rejects.toThrow();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("sends the turn anchor when provided", async () => {
@@ -299,6 +349,7 @@ describe("listSessionComments", () => {
   it("parses entries and normalizes nullish fields", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
+        viewerOwnsSession: true,
         comments: [
           WIRE_COMMENT,
           {
@@ -317,7 +368,12 @@ describe("listSessionComments", () => {
         ],
       })
     );
-    const { comments } = await listSessionComments("jwt-1", "org-1", "sess-1");
+    const { comments, viewerOwnsSession } = await listSessionComments(
+      "jwt-1",
+      "org-1",
+      "sess-1"
+    );
+    expect(viewerOwnsSession).toBe(true);
     expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
     expect(comments).toHaveLength(2);
     expect(comments[0].authorDisplayName).toBe("Alice");
@@ -348,55 +404,24 @@ describe("listSessionComments", () => {
     expect(comments[0].resolution).toBe("wont_fix");
   });
 
-  it("defaults absent comments AND tasks arrays (pre-0002 backend)", async () => {
+  it("defaults absent additive fields closed", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}));
     await expect(
       listSessionComments("jwt-1", "org-1", "sess-1")
-    ).resolves.toEqual({ comments: [], tasks: [] });
+    ).resolves.toEqual({ comments: [], viewerOwnsSession: false });
   });
 
-  it("parses the 0002 tasks embed and per-comment kind", async () => {
+  it("parses per-comment agent attribution and ignores unknown fields", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         comments: [{ ...WIRE_COMMENT, kind: "agent_report" }],
-        tasks: [
-          {
-            id: "task-1",
-            sessionId: "sess-1",
-            commentId: "comment-1",
-            state: "claimed",
-            leaseExpired: false,
-            claimedByUserId: "user-b",
-            claimedByDisplayName: null,
-            createdByUserId: "user-a",
-            attempt: 1,
-            forkSessionId: null,
-            instruction: null,
-            progress: null,
-            result: null,
-            errorCode: null,
-            createdAt: "2026-07-07T10:00:00.000Z",
-            updatedAt: "2026-07-07T10:01:00.000Z",
-            // The embed never carries it (invariant 1) — but even a
-            // misbehaving backend gets stripped structurally by zod.
-            lease_token: "must-never-surface",
-          },
-        ],
+        unknownLegacyField: [{ secret: "must-never-surface" }],
       })
     );
-    const { comments, tasks } = await listSessionComments(
-      "jwt-1",
-      "org-1",
-      "sess-1"
-    );
+    const result = await listSessionComments("jwt-1", "org-1", "sess-1");
+    const { comments } = result;
     expect(comments[0].kind).toBe("agent_report");
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].commentId).toBe("comment-1");
-    expect(tasks[0].state).toBe("claimed");
-    expect(tasks[0].claimedByDisplayName).toBeUndefined();
-    // Structural lease-token strip: no key survives parsing.
-    expect(Object.keys(tasks[0])).not.toContain("lease_token");
-    expect(Object.keys(tasks[0])).not.toContain("leaseToken");
+    expect(result).not.toHaveProperty("unknownLegacyField");
   });
 
   it("maps ORG2_RETENTION_EXPIRED into a coded error", async () => {
@@ -407,6 +432,80 @@ describe("listSessionComments", () => {
       (caught: unknown) => caught
     );
     expect(isOrg2CommentErrorCode(error, "ORG2_RETENTION_EXPIRED")).toBe(true);
+  });
+
+  it("parses the 0004 serverTime anchor on a full listing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [WIRE_COMMENT],
+        viewerOwnsSession: false,
+        serverTime: "2026-07-24T10:00:00.000Z",
+      })
+    );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1");
+    expect(listing.serverTime).toBe("2026-07-24T10:00:00.000Z");
+    expect(listing.appliedSince).toBeUndefined();
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+  });
+
+  it("sends p_since and echoes the honored cursor on a delta listing", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comments: [WIRE_COMMENT],
+        viewerOwnsSession: true,
+        serverTime: "2026-07-24T10:05:00.000Z",
+      })
+    );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(lastBody()).toEqual({
+      p_org_id: "org-1",
+      p_session_id: "sess-1",
+      p_since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(listing.appliedSince).toBe("2026-07-24T09:59:58.000Z");
+    expect(listing.serverTime).toBe("2026-07-24T10:05:00.000Z");
+  });
+
+  it("degrades to a full listing on a pre-delta backend and pins the endpoint", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ message: "Could not find the function" }, 404)
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ comments: [WIRE_COMMENT], viewerOwnsSession: false })
+      );
+    const listing = await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T09:59:58.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+    // The caller MUST see this as a full listing, not the delta it asked for.
+    expect(listing.appliedSince).toBeUndefined();
+
+    // The endpoint is pinned: the next delta request goes straight to the
+    // legacy signature without a probing 404 round-trip.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ comments: [], viewerOwnsSession: false })
+    );
+    await listSessionComments("jwt-1", "org-1", "sess-1", {
+      since: "2026-07-24T10:04:58.000Z",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(lastBody()).toEqual({ p_org_id: "org-1", p_session_id: "sess-1" });
+  });
+
+  it("does not treat a non-signature 404 as missing delta support", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ message: "ORG2_SESSION_NOT_FOUND" }, 404)
+    );
+    await expect(
+      listSessionComments("jwt-1", "org-1", "sess-1", {
+        since: "2026-07-24T09:59:58.000Z",
+      })
+    ).rejects.toMatchObject({ code: "ORG2_SESSION_NOT_FOUND" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -2,16 +2,10 @@ import { homeDir } from "@tauri-apps/api/path";
 
 import { parseGitArtifactsFromText } from "@src/shared/git/sessionGitArtifacts";
 import { createSessionIdTextPattern } from "@src/util/session/sessionDispatch";
-import { normalizeHttpUrlCandidate } from "@src/util/url/validation";
 
-const WEB_URL_PATTERN = /https?:\/\/[^\s<>"'`\])}]+/gi;
 const MAX_REFERENCE_CARDS = 4;
 
-export type MessageReferenceKind =
-  | "web_url"
-  | "local_path"
-  | "git_commit"
-  | "session";
+export type MessageReferenceKind = "local_path" | "git_commit" | "session";
 
 export interface MessageReferenceItem {
   kind: MessageReferenceKind;
@@ -43,41 +37,6 @@ function stripFencedCodeBlocks(content: string): string {
 
 function stripInlineCodeSpans(content: string): string {
   return content.replace(/(`+)[^\n]*?\1/g, "");
-}
-
-function normalizeUrlCandidate(candidate: string): string | null {
-  return normalizeHttpUrlCandidate(candidate, { stripTextBoundaries: true });
-}
-
-function isUrlCitedInParentheses(
-  content: string,
-  matchIndex: number,
-  matchLength: number
-): boolean {
-  const before = content[matchIndex - 1];
-  const twoCharsBefore = content.slice(Math.max(0, matchIndex - 2), matchIndex);
-  const after = content[matchIndex + matchLength];
-  return before === "(" && twoCharsBefore !== "](" && after === ")";
-}
-
-function getUrlHost(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-}
-
-function isGitHubCommitUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.hostname === "github.com" &&
-      /\/[^/]+\/[^/]+\/commit\/[0-9a-f]{7,40}$/i.test(parsed.pathname)
-    );
-  } catch {
-    return false;
-  }
 }
 
 function makeCommitReferenceItem(artifact: {
@@ -153,8 +112,7 @@ function addReference(
 }
 
 export function extractMessageReferences(
-  content: string,
-  excludeUrls?: ReadonlySet<string>
+  content: string
 ): MessageReferenceItem[] {
   const searchableContent = stripInlineCodeSpans(
     stripFencedCodeBlocks(content)
@@ -186,32 +144,6 @@ export function extractMessageReferences(
     if (artifact.kind !== "commit") continue;
     const item = makeCommitReferenceItem(artifact);
     if (!item) continue;
-    const key = makeReferenceKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    references.push(item);
-    if (references.length >= MAX_REFERENCE_CARDS) return references;
-  }
-
-  for (const match of searchableContent.matchAll(WEB_URL_PATTERN)) {
-    const url = normalizeUrlCandidate(match[0]);
-    if (!url) continue;
-    if (isGitHubCommitUrl(url)) continue;
-    if (excludeUrls?.has(url)) continue;
-    if (
-      isUrlCitedInParentheses(
-        searchableContent,
-        match.index ?? 0,
-        match[0].length
-      )
-    )
-      continue;
-    const item: MessageReferenceItem = {
-      kind: "web_url",
-      value: url,
-      title: getUrlHost(url),
-      subtitle: url,
-    };
     const key = makeReferenceKey(item);
     if (seen.has(key)) continue;
     seen.add(key);

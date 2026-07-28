@@ -23,6 +23,7 @@ import type {
   StreamRetryStatus,
 } from "@src/store/session/cliSessionStatusAtom";
 import type { CliSessionStatus } from "@src/types/session/session";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 import { toCliSessionStatus } from "./sessionSyncUtils";
 import type {
@@ -54,6 +55,10 @@ export interface SessionSwitchStateActions {
   setSessionRuntimeError: (value: string | null) => void;
   setPendingCancel: (value: boolean) => void;
   setStreamRetryStatus: (value: StreamRetryStatus | null) => void;
+  clearCanvasPreviewOnSessionSwitch: (
+    leavingSessionId: string | null,
+    enteringSessionId: string
+  ) => void;
 }
 
 export interface SessionLoadStateActions {
@@ -103,7 +108,8 @@ const RUNNING_HANDLER_STATUSES = new Set<string>([
 ]);
 export function resetSessionSwitchState(
   actions: SessionSwitchStateActions,
-  sessionId?: string
+  sessionId?: string,
+  leavingSessionId?: string | null
 ): void {
   actions.setWpReadOnly(false);
   actions.clearSessionLoadError();
@@ -124,6 +130,12 @@ export function resetSessionSwitchState(
   actions.setSessionContextTokens(0);
   actions.setSessionContextUsage(null);
   actions.setSessionContextBreakdown(null);
+  if (sessionId) {
+    actions.clearCanvasPreviewOnSessionSwitch(
+      leavingSessionId ?? null,
+      sessionId
+    );
+  }
 }
 
 export function applyPostLoadResult(
@@ -235,7 +247,7 @@ export function createSessionEventHandlerCallbacks(
         updateSessionStatus(sessionId, status as SessionStatus);
         actions.scheduleNativeTranscriptReconcile?.(sessionId);
       }
-      if (status === "running") {
+      if (isSessionRuntimeExecuting(status)) {
         markTurnRunning(sessionId);
         actions.setSessionRuntimeError(null);
         eventStoreProxy.pinSession(sessionId);

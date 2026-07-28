@@ -1,13 +1,12 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 
 import {
   activeChatPanelTabAtom,
   addChatPanelTerminalTabAtom,
   chatPanelTabsAtom,
-  openKanbanChatPanelTabAtom,
   openOrFocusChatPanelStartPageTabAtom,
-  setChatPanelTabSessionIdAtom,
+  openWorkManagementChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
@@ -15,44 +14,22 @@ import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 import type { ChatPanelCliTerminalLaunchOptions } from "../types";
 
 interface UseChatPanelTabsControllerOptions {
-  currentSessionId: string | null;
   launchpadTitle: string;
   kanbanTitle: string;
   showSessionSurface: () => void;
 }
 
 export function useChatPanelTabsController({
-  currentSessionId,
   launchpadTitle,
   kanbanTitle,
   showSessionSurface,
 }: UseChatPanelTabsControllerOptions) {
-  const setTabSessionId = useSetAtom(setChatPanelTabSessionIdAtom);
   const activeTab = useAtomValue(activeChatPanelTabAtom);
   const allTabs = useAtomValue(chatPanelTabsAtom).tabs;
   const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
   const addTerminalTab = useSetAtom(addChatPanelTerminalTabAtom);
-  const openKanbanTab = useSetAtom(openKanbanChatPanelTabAtom);
+  const openKanbanTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const createTerminalSession = useSetAtom(createChatPanelTerminalAtom);
-  const activeTabId = activeTab?.id;
-  const activeTabSessionId = activeTab?.sessionId;
-  const activeTabType = activeTab?.type;
-
-  useEffect(() => {
-    if (!activeTabId || activeTabType !== "session") return;
-    if (!activeTabSessionId && currentSessionId) {
-      setTabSessionId({
-        tabId: activeTabId,
-        sessionId: currentSessionId,
-      });
-    }
-  }, [
-    activeTabId,
-    activeTabSessionId,
-    activeTabType,
-    currentSessionId,
-    setTabSessionId,
-  ]);
 
   const handleNewTerminalTab = useCallback(() => {
     const terminalSessionId = createTerminalSession("Terminal");

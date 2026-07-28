@@ -14,7 +14,7 @@ import React from "react";
 
 import { openFileInEditor as openFileInEditorShared } from "@src/util/ui/openFileInEditor";
 
-type InlineCodeType = "file" | "directory" | "identifier" | null;
+type InlineCodeType = "file" | "directory" | null;
 
 const FILE_CONTENT_PATTERN =
   /((Here's the content of|Content of|Read\.?\s*Highlights? from|Read)\s+`([^`]+)`\s*:)\s*\n*([^]*?)(?=\n\n[A-Z]|$)/gi;
@@ -380,8 +380,6 @@ export function detectCodeType(text: string): InlineCodeType {
     !/[=<>!&|]/.test(trimmed)
   ) {
     const hasPathSignal = trimmed.includes("/") || trimmed.endsWith("/");
-    const hasIdentifierSignal =
-      trimmed.length > 2 && /^[A-Z][a-zA-Z0-9]*$/.test(trimmed);
 
     if (hasPathSignal && /^[\w./-]+\/$/.test(trimmed)) {
       result = "directory";
@@ -397,8 +395,6 @@ export function detectCodeType(text: string): InlineCodeType {
       !/\.\w+$/.test(trimmed)
     ) {
       result = "directory";
-    } else if (hasIdentifierSignal) {
-      result = "identifier";
     }
   }
 

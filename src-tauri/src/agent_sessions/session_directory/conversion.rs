@@ -11,7 +11,8 @@ use agent_core::session::persistence as session_persistence;
 use core_types::key_source::KeySource;
 use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionRow;
 use orgtrack_core::sources::imported_history::metadata::{
-    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_OPENCODE,
+    SOURCE_CLAUDE_CODE, SOURCE_CODEX_APP, SOURCE_CURSOR_IDE, SOURCE_MIMO_CODE, SOURCE_OMP,
+    SOURCE_OPENCODE, SOURCE_QODER_CLI,
 };
 use orgtrack_core::sources::imported_history::ImportedHistorySessionRow;
 
@@ -56,6 +57,12 @@ fn native_impact_fields(
             tracing::debug!(session_id = %session_id, error = %err, "[session_directory] source impact unavailable");
             (None, None, None, None)
         }
+    }
+}
+
+impl Default for AgentMetadataResolver {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -124,6 +131,8 @@ pub fn cli_session_to_aggregate_record(
         external_history_source: None,
         user_input: session.user_input,
         repo_path: session.repo_path,
+        repo_root_path: None,
+        repo_remote_urls: None,
         storage_path: Some(app_paths::sessions_db().to_string_lossy().to_string()),
         repo_name,
         branch: session.branch,
@@ -171,6 +180,9 @@ fn imported_history_cli_agent_type(source_label: &str) -> Option<String> {
         SOURCE_CODEX_APP => Some(CliAgentType::Codex.as_str().to_string()),
         SOURCE_CURSOR_IDE => Some(CliAgentType::CursorCli.as_str().to_string()),
         SOURCE_OPENCODE => Some(CliAgentType::OpenCode.as_str().to_string()),
+        SOURCE_MIMO_CODE => Some(CliAgentType::MimoCode.as_str().to_string()),
+        SOURCE_OMP => Some(CliAgentType::Omp.as_str().to_string()),
+        SOURCE_QODER_CLI => Some(CliAgentType::QoderCli.as_str().to_string()),
         _ => None,
     }
 }
@@ -191,6 +203,8 @@ pub fn imported_history_to_aggregate_record(
         external_history_source: Some(source_label.to_string()),
         user_input: None,
         repo_path: row.repo_path,
+        repo_root_path: row.repo_root_path,
+        repo_remote_urls: (!row.repo_remote_urls.is_empty()).then_some(row.repo_remote_urls),
         storage_path: row.storage_path,
         repo_name: row.repo_name,
         branch: row.branch,
@@ -247,6 +261,8 @@ pub fn cursor_ide_history_to_aggregate_record(
         external_history_source: Some(source_label.to_string()),
         user_input: None,
         repo_path: row.repo_path,
+        repo_root_path: row.repo_root_path,
+        repo_remote_urls: (!row.repo_remote_urls.is_empty()).then_some(row.repo_remote_urls),
         storage_path: row.storage_path,
         repo_name: row.repo_name,
         branch: row.branch,
@@ -320,6 +336,8 @@ pub fn sde_session_to_aggregate_record(
         external_history_source: None,
         user_input: session.user_input,
         repo_path: session.workspace_path.clone(),
+        repo_root_path: None,
+        repo_remote_urls: None,
         storage_path: Some(app_paths::sessions_db().to_string_lossy().to_string()),
         repo_name,
         branch: None,
@@ -386,6 +404,8 @@ pub fn os_session_to_aggregate_record(
         external_history_source: None,
         user_input: session.user_input,
         repo_path: None,
+        repo_root_path: None,
+        repo_remote_urls: None,
         storage_path: Some(app_paths::sessions_db().to_string_lossy().to_string()),
         repo_name: None,
         branch: None,
@@ -424,5 +444,73 @@ pub fn os_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+    }
+}
+
+// ============================================================================
+// Human session conversion
+// ============================================================================
+
+/// Convert a user-authored proof-of-work session into the unified directory row.
+pub fn human_session_to_aggregate_record(
+    session: session_persistence::UnifiedSessionRecord,
+) -> SessionAggregateRecord {
+    let repo_name = session
+        .workspace_path
+        .as_ref()
+        .and_then(|path| std::path::Path::new(path).file_name())
+        .and_then(|name| name.to_str())
+        .map(String::from);
+    let display_label = generate_display_label(&session.name, session.user_input.as_deref());
+    SessionAggregateRecord {
+        session_id: session.session_id,
+        name: session.name,
+        status: session.status,
+        created_at: session.created_at,
+        updated_at: session.updated_at,
+        category: SessionCategory::Human,
+        external_history_source: None,
+        user_input: session.user_input,
+        repo_path: session.workspace_path,
+        repo_root_path: None,
+        repo_remote_urls: None,
+        storage_path: Some(app_paths::sessions_db().to_string_lossy().to_string()),
+        repo_name,
+        branch: None,
+        model: session.model,
+        account_id: session.account_id,
+        cli_agent_type: None,
+        key_source: session.key_source,
+        tier: None,
+        pid: None,
+        total_tokens: session.total_tokens,
+        worktree_path: None,
+        worktree_branch: None,
+        base_branch: None,
+        merge_status: None,
+        background: false,
+        org_id: session.org_id,
+        project_id: session.project_id,
+        project_name: session.project_name,
+        project_slug: session.project_slug,
+        work_item_id: session.work_item_id,
+        agent_role: session.agent_role,
+        is_active: false,
+        display_label,
+        parent_session_id: None,
+        org_member_id: None,
+        agent_org_id: None,
+        agent_org_name: None,
+        agent_definition_id: None,
+        agent_icon_id: Some("clipboard-list".to_string()),
+        agent_display_name: Some("Human".to_string()),
+        agent_exec_mode: None,
+        draft_text: None,
+        reply_target_event_id: None,
+        pinned: session.pinned,
+        files_changed: None,
+        lines_added: None,
+        lines_removed: None,
+        touched_files: None,
     }
 }

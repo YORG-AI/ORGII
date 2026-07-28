@@ -17,6 +17,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { LanguagePreference } from "@src/i18n";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import {
   chatPanelMaximizedAtom,
   chatTurnPaginationEnabledAtom,
@@ -135,6 +136,7 @@ export function useSpotlightItems(
   const agentStationChatPosition = useAtomValue(sessionChatPositionAtom);
   const chatTurnPaginationEnabled = useAtomValue(chatTurnPaginationEnabledAtom);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const workstationSidebarPosition = useAtomValue(workStationLayoutModeAtom);
   const currentLanguage = useAtomValue(languageAtom);
   const recentActionIds = useAtomValue(spotlightRecentActionsAtom);
@@ -209,6 +211,7 @@ export function useSpotlightItems(
         onSelectEditorAction,
         onSelectPath,
         translate,
+        devModeEnabled,
       });
     }
 
@@ -283,7 +286,9 @@ export function useSpotlightItems(
       translate
     );
     const navActionItems = NAV_DESTINATIONS.filter(
-      (destination) => destination.group === "actions"
+      (destination) =>
+        destination.group === "actions" &&
+        (devModeEnabled || !destination.devOnly)
     ).map((destination) =>
       buildNavDestinationItem(destination, onSelectPath, translate)
     );
@@ -336,6 +341,7 @@ export function useSpotlightItems(
     workstationSidebarPosition,
     currentLanguage,
     recentActionIds,
+    devModeEnabled,
     isEditorRoute,
     isWorkStationRoute,
     filteredRepos,

@@ -10,7 +10,7 @@ import { useZoomShortcuts } from "./useZoomShortcuts";
  * Handles:
  * - Backspace: Prevented from triggering any navigation (only works in input fields)
  * - Command+Q (Meta+Q): Open quit confirmation modal
- * - Command+W (Meta+W): Close current tab with special home page logic
+ * - Command+W (Meta+W): Close the current domain-owned tab
  * - Command+M (Meta+M): Hide the window (minimize to background)
  * - Command+N (Meta+N): Create a new Agent Station session
  * - Command+T (Meta+T): Context-aware navigation

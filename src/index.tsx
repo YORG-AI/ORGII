@@ -1,7 +1,9 @@
 import { createRoot } from "react-dom/client";
 
-import App from "@src/App";
+import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
+import { configureIdeServerForIdentifier } from "@src/config/ideServer";
 import { applyHostDesktopWindowChromeRadius } from "@src/config/windowChromeRadius";
+import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
 import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTauriSelectAllShortcut";
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
@@ -132,8 +134,44 @@ if (isDev && module.hot) {
 // Timeout for overall initialization to prevent hanging forever
 const INIT_TIMEOUT_MS = 10000;
 
+async function initializeRuntimeInstanceIdentity(): Promise<void> {
+  try {
+    const { getIdentifier } = await import("@tauri-apps/api/app");
+    const identifier = await getIdentifier();
+    configureIdeServerForIdentifier(identifier);
+    configureCloudAuthCallbackForIdentifier(identifier);
+  } catch {
+    // Browser/unit-test builds retain the compile-time/default callback.
+  }
+}
+
 // PERFORMANCE: Initialize all critical services in parallel before render
 async function initializeApp() {
+  // Runtime identity must be known before loading App: several API modules
+  // derive local HTTP/WebSocket constants at module evaluation time.
+  await initializeRuntimeInstanceIdentity();
+  // Tauri dev and bundled WebViews have different origins. Hydrate the shared
+  // app-data auth store before App imports initialize auth atoms and guards.
+  try {
+    await initializeSharedServiceAuthStorage();
+  } catch (error) {
+    // Fall back to this origin's local session if the store is unavailable.
+    // A focus event retries synchronization after React mounts.
+    log.warn("[Init] Shared auth storage unavailable:", error);
+  }
+  // In dev, bundle App into main.js (webpackMode: "eager") instead of emitting
+  // it as a separate runtime chunk. App is the aggregate entry and pulls in
+  // most of the app; with eval-cheap-module-source-map that chunk balloons to
+  // ~77MB and WebKitGTK fails the dynamic import → "Initialization Failed".
+  // eager keeps the Promise-returning import() semantics (so the await below
+  // still defers App module-tree evaluation until after the runtime-identity
+  // config above has run) without emitting a loadable chunk. Production keeps
+  // the normal dynamic import — prod minifies and has no eval source maps, so
+  // the App chunk is small there.
+  const appModulePromise = isDev
+    ? import(/* webpackMode: "eager" */ "@src/App")
+    : import("@src/App");
+
   // Clear stale opened repos from previous app session (main window only)
   // Secondary windows should not clear, as they'd wipe main window's registration
   try {
@@ -153,11 +191,18 @@ async function initializeApp() {
   // - Background: loads from IndexedDB + decodes (disk + GPU)
   //
   // Wrap in timeout to prevent hanging forever if any init hangs
+  // i18n is NOT degradable: App calls useTranslation() at render, which crashes
+  // (this.store undefined → "undefined is not an object evaluating
+  // 'this.store.hasLanguageSomeTranslations'") if i18n.init() hasn't completed.
+  // Keep it out of the bounded race below and await it unconditionally before
+  // mount. i18nReady already started at module load and runs in parallel with
+  // the other ops; this await only blocks when cold start is slow enough that
+  // locale bundles are still loading.
   const initPromise = Promise.all([
-    i18nReady,
     initTheme(),
     initializeTauriAPIs(),
     initBackgroundImage(),
+    appModulePromise,
   ]);
 
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -172,6 +217,23 @@ async function initializeApp() {
     // Log but continue - we want to mount React even if some init failed
     log.warn("[Init] Initialization issue:", error);
   }
+
+  // i18n must be fully initialized before React mounts — a half-initialized
+  // i18next instance crashes the first useTranslation() call. A rejection here
+  // means language resources couldn't load at all; surface it rather than
+  // mounting a guaranteed-to-crash React tree.
+  try {
+    await i18nReady;
+  } catch (error) {
+    log.critical("[Init] i18n initialization failed:", error);
+    showEmergencyError(
+      "Initialization Failed",
+      "The application could not initialize its language resources. Please try restarting."
+    );
+    return;
+  }
+
+  const App = (await appModulePromise).default;
 
   // Mount React app
   const rootElement = document.getElementById("root");

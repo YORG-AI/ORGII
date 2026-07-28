@@ -34,6 +34,11 @@ const WorkItemDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
           onUpdateTabData(tab.id, { workItemName });
           onUpdateTabMeta(tab.id, getWorkItemDetailTabChrome(workItemName));
         }}
+        onWorkItemStatusResolved={(workItemStatus) => {
+          if (tab.data.workItemStatus !== workItemStatus) {
+            onUpdateTabData(tab.id, { workItemStatus });
+          }
+        }}
       />
     );
   }

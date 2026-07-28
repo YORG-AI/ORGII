@@ -21,6 +21,7 @@ import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import { createAnimationFrameScheduler } from "./animationFrameScheduler";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "./generalLayoutTourConfig";
 
 type GeneralLayoutTourTarget =
@@ -270,16 +271,20 @@ const GeneralLayoutTour: React.FC<GeneralLayoutTourProps> = ({
   useEffect(() => {
     if (!open) return;
 
-    const frameId = window.requestAnimationFrame(updateTargetRect);
-    const retryId = window.setTimeout(updateTargetRect, 180);
-    window.addEventListener("resize", updateTargetRect);
-    window.addEventListener("scroll", updateTargetRect, true);
+    const scheduler = createAnimationFrameScheduler(updateTargetRect, {
+      requestFrame: window.requestAnimationFrame.bind(window),
+      cancelFrame: window.cancelAnimationFrame.bind(window),
+    });
+    const retryId = window.setTimeout(scheduler.schedule, 180);
+    scheduler.schedule();
+    window.addEventListener("resize", scheduler.schedule);
+    window.addEventListener("scroll", scheduler.schedule, true);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      scheduler.cancel();
       window.clearTimeout(retryId);
-      window.removeEventListener("resize", updateTargetRect);
-      window.removeEventListener("scroll", updateTargetRect, true);
+      window.removeEventListener("resize", scheduler.schedule);
+      window.removeEventListener("scroll", scheduler.schedule, true);
     };
   }, [open, updateTargetRect]);
 

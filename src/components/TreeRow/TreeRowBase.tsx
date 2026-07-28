@@ -56,6 +56,7 @@ export const TreeRowBase = React.memo(
         onPointerDown,
         showIndentGuides,
         showPathHint = false,
+        showNativeTitle = true,
         rounded = true,
       },
       ref
@@ -187,7 +188,11 @@ export const TreeRowBase = React.memo(
               isSelected ? "font-medium" : ""
             } ${getTextColorClass()}`}
             title={
-              isSymlink ? `${node.name} (symlink)` : node.path || node.name
+              showNativeTitle
+                ? isSymlink
+                  ? `${node.name} (symlink)`
+                  : node.path || node.name
+                : undefined
             }
           >
             {showPathHint && !isDirectory && node.path.includes("/") ? (

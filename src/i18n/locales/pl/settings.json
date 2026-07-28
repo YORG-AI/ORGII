@@ -139,10 +139,13 @@
       "helveticaNeue": "Styl Helvetica Neue"
     },
     "uiScale": "Skala interfejsu",
+    "preferences": "Preferencje",
+    "usePointerCursors": "Używaj kursora wskazującego",
+    "usePointerCursorsDesc": "Zmieniaj kursor na wskazujący po najechaniu na elementy interaktywne",
     "timezoneAuto": "Auto (przeglądarka)",
     "timezoneSearchPlaceholder": "Szukaj najbliższych miast",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter",
     "language": "Język",
     "languageSearchPlaceholder": "Szukaj języków...",
     "languageNames": {
@@ -803,6 +806,23 @@
     "currentVersion": "Aktualna wersja"
   },
   "monitor": {
+    "appMemory": "App memory",
+    "appBackend": "ORG2 backend",
+    "appWebviewHelpers": "Owned WebView helpers",
+    "rssMappedDiagnostic": "RSS / mapped memory (diagnostic)",
+    "measurement": "Measurement",
+    "measurementKinds": {
+      "native": "Native effective memory",
+      "compatibility": "Compatibility metric",
+      "mixed": "Mixed native / fallback metrics",
+      "rss_fallback": "RSS fallback",
+      "unavailable": "Unavailable"
+    },
+    "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
+    "excludedFromAppMemory": "excluded from App memory",
+    "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",
+    "categoryAgentCli": "CLI agent",
+    "categoryMcpOrTool": "MCP / tool process",
     "categoryTerminal": "Proces terminala/narzędzia",
     "categoryWebview": "Renderer WebView",
     "categoryGpu": "GPU WebKit",
@@ -994,7 +1014,7 @@
     "decryptEffect": "Efekt deszyfrowania",
     "decryptEffectDesc": "Włącz animację deszyfrowania dla wiadomości Agent",
     "sendOnEnter": "Wysyłaj wiadomości klawiszem Enter",
-    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter wstawia nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
+    "sendOnEnterDesc": "Po włączeniu Enter wysyła, a Shift+Enter i Ctrl/Cmd+Enter wstawiają nową linię. Po wyłączeniu wysyła Ctrl/Cmd+Enter"
   },
   "languageServers": {
     "languageServersDesc": "Zarządzaj serwerami LSP dla autouzupełniania, diagnostyki i inteligencji kodu",

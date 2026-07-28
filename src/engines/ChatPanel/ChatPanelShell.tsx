@@ -5,11 +5,7 @@ import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
-import { ChatPanelTerminalContent } from "./ChatPanelTerminalContent";
-
-const WorkManagement = React.lazy(
-  () => import("@src/modules/MainApp/WorkManagement")
-);
+import { UnifiedChatPanelTabContent } from "./TabContent/UnifiedChatPanelTabContent";
 
 type ChatPanelShellStyle = React.CSSProperties;
 
@@ -52,7 +48,6 @@ export function ChatPanelShell({
   terminalTabs,
   useExternalWidth,
 }: ChatPanelShellProps): React.ReactNode {
-  const isManagementTabActive = activeTab?.type === "work-management";
   const dragHandle = showResizeHandle && (
     <VerticalResizeHandle
       key="chat-panel-resize-handle"
@@ -86,40 +81,12 @@ export function ChatPanelShell({
       }}
     >
       {headerSection}
-      <div
-        style={{
-          display:
-            isTerminalTabActive || isManagementTabActive ? "none" : "contents",
-        }}
-      >
-        {chatColumn}
-      </div>
-      {isManagementTabActive && (
-        <div className="min-h-0 w-full flex-1 overflow-hidden">
-          <React.Suspense fallback={null}>
-            <WorkManagement />
-          </React.Suspense>
-        </div>
-      )}
-      {terminalTabs.map((tab) => {
-        const terminalSessionId = tab.terminalSessionId;
-        if (!terminalSessionId) return null;
-        const isActive = isTerminalTabActive && tab.id === activeTab?.id;
-        return (
-          <div
-            key={tab.id}
-            style={{ display: isActive ? "flex" : "none" }}
-            className="min-h-0 w-full flex-1 flex-col overflow-hidden"
-          >
-            <ChatPanelTerminalContent
-              tabId={tab.id}
-              terminalSessionId={terminalSessionId}
-              cliCommand={tab.cliCommand}
-              visible={isActive}
-            />
-          </div>
-        );
-      })}
+      <UnifiedChatPanelTabContent
+        activeTab={activeTab}
+        chatColumn={chatColumn}
+        isTerminalTabActive={isTerminalTabActive}
+        terminalTabs={terminalTabs}
+      />
     </div>
   );
 

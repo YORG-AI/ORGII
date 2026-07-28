@@ -41,6 +41,8 @@ export function runAgentOrgScenarioWithTimeout(label, operation) {
   );
 }
 const WORKSTATION_CODE_PATH = "/orgii/workstation/code";
+const E2E_IDE_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
+const E2E_PROVIDER_MODE = process.env.E2E_PROVIDER_MODE ?? "mock";
 const API_ACCOUNT_NAME = process.env.E2E_OPENAI_ACCOUNT;
 export const API_AGENT_TYPE = process.env.E2E_API_AGENT_TYPE ?? "openai_api";
 const PREFERRED_API_MODEL_ID = process.env.E2E_OPENAI_MODEL ?? "op-4.6-relay";
@@ -147,6 +149,26 @@ export async function invokeE2E(method, ...args) {
       error: "invokeE2E returned no envelope",
     }
   );
+}
+
+async function postDebugJson(pathname, body, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${E2E_IDE_BASE_URL}${pathname}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json = await response.json();
+    if (!response.ok || json?.ok !== true) {
+      throw new Error(`${pathname} failed: ${JSON.stringify(json)}`);
+    }
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function unwrap(result, label) {
@@ -375,6 +397,26 @@ async function listAccounts() {
   return unwrap(await invokeE2E("listAccounts"), "listAccounts").accounts;
 }
 
+async function getAgentOrgMockAccount() {
+  const accountName = "E2E Agent Org Mock";
+  const model = "e2e-fake-provider-agent-org-ui";
+  const accounts = await listAccounts();
+  const account = accounts.find(
+    (row) =>
+      row.agent_type === "openai_api" &&
+      row.enabled &&
+      row.has_api_key &&
+      (row.enabled_models ?? []).includes(model) &&
+      row.name === accountName
+  );
+  if (!account) {
+    throw new Error(
+      `Mock API account was not seeded before app startup: ${accountName}/${model}`
+    );
+  }
+  return account;
+}
+
 function accountDisplayName(account) {
   return account.name || account.id;
 }
@@ -385,18 +427,31 @@ function matchesOptionalAccountName(account, requestedName) {
 }
 
 export async function getApiAccount() {
+  if (E2E_PROVIDER_MODE === "mock") {
+    return getAgentOrgMockAccount();
+  }
+
   const accounts = await listAccounts();
   const account = accounts.find(
     (row) =>
       row.agent_type === API_AGENT_TYPE &&
       row.enabled &&
-      row.has_api_key &&
+      (row.has_api_key || row.has_session_token) &&
       (row.enabled_models ?? []).length > 0 &&
       matchesOptionalAccountName(row, API_ACCOUNT_NAME)
   );
   if (!account) {
     throw new Error(
-      `No enabled API account found. requested=${API_ACCOUNT_NAME ?? "<any>"} agentType=${API_AGENT_TYPE}`
+      `No enabled runnable account found. requested=${API_ACCOUNT_NAME ?? "<any>"} agentType=${API_AGENT_TYPE} rows=${JSON.stringify(
+        accounts.map((row) => ({
+          id: row.id,
+          name: row.name,
+          type: row.agent_type,
+          enabled: row.enabled,
+          hasCredential: Boolean(row.has_api_key || row.has_session_token),
+          models: row.enabled_models,
+        }))
+      )}`
     );
   }
   return account;
@@ -1422,35 +1477,229 @@ async function assertTurnPageListShowsPreview(previewSnippet, label) {
   }
 }
 
-async function waitForAgentOrgMentionMenuOption(memberName, label) {
+export async function clickRenderedGroupChatLoadOlder(label) {
+  const loadOlderLabels = new Set(["Load older messages", "加载更早消息"]);
   let state = null;
   await browser.waitUntil(
     async () => {
       state = await execJS(`
-        const menu = document.querySelector('.context-menu');
-        const options = Array.from(document.querySelectorAll('[data-testid="agent-org-mention-option"]'));
-        return {
-          menuText: menu?.textContent || '',
-          options: options.map((option) => ({
-            text: option.textContent || '',
-            mentionId: option.getAttribute('data-mention-id') || '',
-          })),
+        const isVisible = (element) => {
+          const rect = element.getBoundingClientRect();
+          const style = window.getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
         };
+        return Array.from(document.querySelectorAll('button'))
+          .filter(isVisible)
+          .map((button) => ({
+            text: (button.textContent || '').trim(),
+            title: button.getAttribute('title') || '',
+            disabled: button.disabled,
+          }));
       `);
-      const hasMember = (state?.options ?? []).some((option) =>
-        String(option.text ?? "").includes(memberName)
+      return (state ?? []).some(
+        (button) =>
+          !button.disabled &&
+          (loadOlderLabels.has(button.text) ||
+            loadOlderLabels.has(button.title))
       );
-      const hasNormalContextEntry = String(state?.menuText ?? "").includes(
-        "Files & Folders"
-      );
-      return hasMember && hasNormalContextEntry;
     },
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 250,
-      timeoutMsg: `Agent Org mention menu did not include both member and normal context options for ${label}: ${JSON.stringify(state)}`,
+      timeoutMsg: `Load older Group Chat history button was unavailable for ${label}: ${JSON.stringify(state)}`,
     }
   );
+  const clickResult = await execJS(`
+    const labels = new Set(["Load older messages", "加载更早消息"]);
+    const isVisible = (element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    };
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (candidate) =>
+        isVisible(candidate) &&
+        !candidate.disabled &&
+        (labels.has((candidate.textContent || '').trim()) || labels.has(candidate.getAttribute('title') || ''))
+    );
+    if (!button) return "missing";
+    button.click();
+    return "clicked";
+  `);
+  if (clickResult !== "clicked") {
+    throw new Error(
+      `Load older Group Chat history button did not click for ${label}: ${clickResult}`
+    );
+  }
+  // Let the click enter React's loading state, then wait until that request
+  // has settled. Without this, a fast next-page assertion can render before
+  // the async callback clears its in-flight guard, and the following click is
+  // correctly coalesced as a duplicate request.
+  await browser.pause(100);
+  await browser.waitUntil(
+    async () => {
+      const buttonState = await execJS(`
+        const labels = new Set(["Load older messages", "加载更早消息"]);
+        const isVisible = (element) => {
+          const rect = element.getBoundingClientRect();
+          const style = window.getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+        };
+        const button = Array.from(document.querySelectorAll('button')).find(
+          (candidate) =>
+            isVisible(candidate) &&
+            (labels.has((candidate.textContent || '').trim()) || labels.has(candidate.getAttribute('title') || ''))
+        );
+        return button ? { present: true, disabled: button.disabled } : { present: false, disabled: false };
+      `);
+      return buttonState?.present === false || buttonState?.disabled === false;
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: `Load older Group Chat history did not settle for ${label}`,
+    }
+  );
+}
+
+export async function selectRenderedTurnPageByPreview(previewSnippet, label) {
+  const triggerSelector = '[data-testid="turn-pagination-current-round"]';
+  await browser.waitUntil(async () => execJS(js.exists(triggerSelector)), {
+    timeout: RENDER_TIMEOUT_MS,
+    timeoutMsg: `turn pagination trigger missing for ${label}`,
+  });
+  const openClick = await execJS(js.visibleClick(triggerSelector));
+  if (openClick !== "clicked") {
+    throw new Error(
+      `turn pagination trigger did not click for ${label}: ${openClick}`
+    );
+  }
+
+  const matchingVisibleRow = async () =>
+    execJS(`
+      const snippet = ${JSON.stringify(previewSnippet)};
+      const isVisible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const rows = Array.from(document.querySelectorAll('button'))
+        .filter(isVisible)
+        .filter((button) => (button.textContent || '').trim().startsWith('#'));
+      const matching = rows.find((button) => (button.textContent || '').includes(snippet));
+      return {
+        found: Boolean(matching),
+        rows: rows.map((button) => (button.textContent || '').trim()),
+      };
+    `);
+
+  let state = await matchingVisibleRow();
+  if (!state?.found) {
+    const sortClick = await execJS(
+      js.visibleClick('[aria-label="Sort"], [aria-label="排序"]')
+    );
+    if (sortClick !== "clicked") {
+      throw new Error(
+        `turn page sort did not click for ${label}: ${sortClick} ${JSON.stringify(state)}`
+      );
+    }
+  }
+
+  await browser.waitUntil(
+    async () => {
+      state = await matchingVisibleRow();
+      return state?.found === true;
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 250,
+      timeoutMsg: `turn page preview did not appear for ${label}: ${JSON.stringify(state)}`,
+    }
+  );
+  const selectResult = await execJS(`
+    const snippet = ${JSON.stringify(previewSnippet)};
+    const isVisible = (element) => {
+      const rect = element.getBoundingClientRect();
+      const style = window.getComputedStyle(element);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    };
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (candidate) =>
+        isVisible(candidate) &&
+        (candidate.textContent || '').trim().startsWith('#') &&
+        (candidate.textContent || '').includes(snippet)
+    );
+    if (!button) return "missing";
+    button.click();
+    return "clicked";
+  `);
+  if (selectResult !== "clicked") {
+    throw new Error(
+      `turn page preview did not select for ${label}: ${selectResult}`
+    );
+  }
+}
+
+async function waitForAgentOrgMentionMenuOption(memberName, label) {
+  let state = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await execJS(`
+          const menus = Array.from(document.querySelectorAll('.context-menu'));
+          const menu = menus.find((candidate) => candidate.closest('[data-context-menu-portal]')) ?? menus[menus.length - 1] ?? null;
+          const options = Array.from(menu?.querySelectorAll('[data-testid="agent-org-mention-option"]') ?? []);
+          return {
+            menuText: menu?.textContent || '',
+            options: options.map((option) => ({
+              text: option.textContent || '',
+              mentionId: option.getAttribute('data-mention-id') || '',
+            })),
+          };
+        `);
+        const hasMember = (state?.options ?? []).some((option) =>
+          String(option.text ?? "").includes(memberName)
+        );
+        const hasNormalContextEntry = String(state?.menuText ?? "").includes(
+          "Files & Folders"
+        );
+        return hasMember && hasNormalContextEntry;
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `Agent Org mention menu did not become ready for ${label}`,
+      }
+    );
+  } catch (error) {
+    const diagnostic = await execJS(`
+      const isVisible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = window.getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+      };
+      const shells = Array.from(document.querySelectorAll('[data-testid="chat-input"]'))
+        .filter(isVisible)
+        .map((shell, index) => {
+          const editor = shell.querySelector('[contenteditable="true"]');
+          return {
+            index,
+            text: editor?.textContent || '',
+            active: document.activeElement === editor,
+            memberPills: Array.from(shell.querySelectorAll('[data-composer-pill="true"][data-icon-type="member"]'))
+              .map((pill) => pill.getAttribute('data-file-name') || ''),
+          };
+        });
+      return {
+        shells,
+        triggerText: document.querySelector('[data-testid="agent-org-member-switcher-trigger"]')?.textContent || '',
+        portalPresent: Boolean(document.querySelector('[data-context-menu-portal]')),
+      };
+    `);
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; lastMenu=${JSON.stringify(state)}; composer=${JSON.stringify(diagnostic)}`
+    );
+  }
 }
 
 export async function sendRenderedGroupChatMentionPrompt(
@@ -1468,7 +1717,37 @@ export async function sendRenderedGroupChatMentionPrompt(
   if (clearResult !== "typed") {
     throw new Error(`chat input did not clear for ${label}: ${clearResult}`);
   }
+  const focusResult = await execJS(`
+    const visibleInputShells = Array.from(document.querySelectorAll('[data-testid="chat-input"]')).filter((inputShell) => {
+      const rect = inputShell.getBoundingClientRect();
+      const style = window.getComputedStyle(inputShell);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+    });
+    const editor = visibleInputShells[visibleInputShells.length - 1]?.querySelector('[contenteditable="true"]') ?? null;
+    if (!editor) return "missing";
+    editor.focus();
+    return document.activeElement === editor ? "focused" : "focus-failed";
+  `);
+  if (focusResult !== "focused") {
+    throw new Error(`chat input did not focus for ${label}: ${focusResult}`);
+  }
   await browser.keys("@");
+  await browser.pause(100);
+  let mentionTriggerText = await execJS(js.editorText(inputSelector));
+  if (!String(mentionTriggerText ?? "").includes("@")) {
+    const mentionTriggerResult = await execJS(js.type(inputSelector, "@"));
+    if (mentionTriggerResult !== "typed") {
+      throw new Error(
+        `chat input did not accept @ mention trigger for ${label}: ${mentionTriggerResult}`
+      );
+    }
+    mentionTriggerText = await execJS(js.editorText(inputSelector));
+  }
+  if (!String(mentionTriggerText ?? "").includes("@")) {
+    throw new Error(
+      `chat input did not render @ mention trigger for ${label}: ${mentionTriggerText}`
+    );
+  }
   await waitForAgentOrgMentionMenuOption(memberName, label);
   const clickResult = await execJS(`
     const options = Array.from(document.querySelectorAll('[data-testid="agent-org-mention-option"]'));
@@ -1664,31 +1943,43 @@ export async function waitForGroupChatPendingTarget(targetName, label) {
 
 export async function waitForGroupChatPausedBanner(label) {
   let state = null;
-  await browser.waitUntil(
-    async () => {
-      state = await execJS(`
-        const banner = document.querySelector('[data-testid="agent-org-group-chat-paused-banner"]');
-        const resume = document.querySelector('[data-testid="agent-org-group-chat-resume-button"]');
-        return {
-          bannerText: banner ? (banner.textContent || '') : '',
-          resumeVisible: Boolean(resume),
-          resumeDisabled: resume ? Boolean(resume.disabled) : null,
-        };
-      `);
-      const text = String(state?.bannerText ?? "").toLowerCase();
-      return (
-        text.includes("new work is paused") &&
-        text.includes("pause stops active replies") &&
-        state?.resumeVisible === true &&
-        state?.resumeDisabled === false
-      );
-    },
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      interval: 250,
-      timeoutMsg: `group chat paused banner did not render for ${label}: ${JSON.stringify(state)}`,
-    }
-  );
+  try {
+    await browser.waitUntil(
+      async () => {
+        try {
+          state = await execJS(`
+            const banner = document.querySelector('[data-testid="agent-org-group-chat-paused-banner"]');
+            const resume = document.querySelector('[data-testid="agent-org-group-chat-resume-button"]');
+            return {
+              bannerText: banner ? (banner.textContent || '') : '',
+              resumeVisible: Boolean(resume),
+              resumeDisabled: resume ? Boolean(resume.disabled) : null,
+              bodyText: document.body?.textContent?.slice(0, 1200) || '',
+            };
+          `);
+        } catch (error) {
+          state = { error: String(error?.message ?? error) };
+          return false;
+        }
+        const text = String(state?.bannerText ?? "").toLowerCase();
+        return (
+          text.includes("new work is paused") &&
+          text.includes("pause stops active replies") &&
+          state?.resumeVisible === true &&
+          state?.resumeDisabled === false
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: `group chat paused banner did not render for ${label}`,
+      }
+    );
+  } catch (_error) {
+    throw new Error(
+      `group chat paused banner did not render for ${label}: ${JSON.stringify(state)}`
+    );
+  }
 }
 
 export async function clickGroupChatResumeButton(label) {
@@ -1884,7 +2175,9 @@ export async function waitForAgentOrgRunView(
             activeSessionId: activeSessionResult?.sessionId ?? null,
             view: runViewResult.view,
           };
-          return Boolean(runViewResult.view && predicate(runViewResult.view));
+          return Boolean(
+            runViewResult.view && (await predicate(runViewResult.view))
+          );
         },
         {
           timeout,
@@ -1909,8 +2202,20 @@ export async function waitForInboxRow(sessionId, predicate, label) {
   let latestRow = null;
   await waitForAgentOrgRunView(
     sessionId,
-    (view) => {
-      latestRow = (view?.inbox ?? []).find((row) => predicate(row)) ?? null;
+    async (view) => {
+      const fullResult = await invokeE2E(
+        "debugAgentOrgInboxList",
+        view?.context?.runId
+      );
+      const fullRows = fullResult?.ok ? (fullResult.rows ?? []) : [];
+      const fullById = new Map(fullRows.map((row) => [row.id, row]));
+      latestRow =
+        (view?.inbox ?? [])
+          .map((preview) => ({
+            ...preview,
+            ...(fullById.get(preview.id) ?? {}),
+          }))
+          .find((row) => predicate(row)) ?? null;
       return Boolean(latestRow);
     },
     label
@@ -2115,32 +2420,20 @@ export async function waitForPlanApprovalRequest(
   content,
   label
 ) {
-  let requestRow = null;
-  await browser.waitUntil(
-    async () => {
-      const view = unwrap(
-        await invokeE2E("agentOrgSessionRunView", sessionId),
-        `agentOrgSessionRunView(plan approval request ${label})`
-      ).view;
-      requestRow = (view?.inbox ?? []).find((row) => {
-        const payload = parseInboxPayload(row, label);
-        return (
-          row.payloadKind === "plan_approval_request" &&
-          row.senderMemberId === memberId &&
-          row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-          payload.plan_title === title &&
-          String(payload.plan_content ?? "").includes(content)
-        );
-      });
-      return Boolean(requestRow);
+  return waitForInboxRow(
+    sessionId,
+    (row) => {
+      const payload = parseInboxPayload(row, label);
+      return (
+        row.payloadKind === "plan_approval_request" &&
+        row.senderMemberId === memberId &&
+        row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
+        payload.plan_title === title &&
+        String(payload.plan_content ?? "").includes(content)
+      );
     },
-    {
-      timeout: PERSIST_TIMEOUT_MS,
-      interval: 500,
-      timeoutMsg: `plan approval request did not appear for ${label}: ${JSON.stringify(requestRow)}`,
-    }
+    `plan approval request ${label}`
   );
-  return requestRow;
 }
 
 export async function waitForPromptDump(sessionId) {
@@ -2225,25 +2518,43 @@ export async function ensureMemberHasSwitchableInbox(
   memberId,
   label
 ) {
-  await sendCoordinatorOrgMessage(
-    sessionId,
-    {
-      recipient_member_id: memberId,
-      kind: "plain",
-      summary: `E2E switchable member ${RUN_ID}`,
-      text: `E2E switchable member ${label} ${RUN_ID}`,
-    },
-    `make ${label} switchable`
+  const runView = unwrap(
+    await invokeE2E("agentOrgSessionRunView", sessionId),
+    `agentOrgSessionRunView(make ${label} switchable)`
+  ).view;
+  const runId = runView?.context?.runId;
+  const member = (runView?.members ?? []).find(
+    (candidate) => candidate.memberId === memberId
   );
+  if (!runId || !member?.agentId || member.memberId !== memberId) {
+    throw new Error(
+      `could not resolve Agent Org run/member for ${label}: ${JSON.stringify({ runId, member })}`
+    );
+  }
+
+  // Fixture setup only: this endpoint inserts one canonical unread row and
+  // does not itself enqueue a Wake. The subsequent navigation and user turn
+  // still exercise the rendered UI and production intervention path.
+  await postDebugJson("/agent/test/agent-org/inbox/seed", {
+    recipient_agent_id: member.agentId,
+    recipient_member_id: member.memberId,
+    sender_agent_id: "_system",
+    org_run_id: runId,
+    message: {
+      kind: "plain",
+      summary: `E2E switchable member fixture for ${label}`,
+      text: `E2E switchable member fixture ${RUN_ID}`,
+    },
+  });
   await waitForAgentOrgRunView(
     sessionId,
     (view) => {
-      const member = (view?.members ?? []).find(
+      const updatedMember = (view?.members ?? []).find(
         (candidate) => candidate.memberId === memberId
       );
-      return Boolean(member?.inboxActivityCount > 0);
+      return Boolean(updatedMember?.inboxActivityCount > 0);
     },
-    `${label} has inbox activity for switching`
+    `${label} has durable Inbox activity for switching`
   );
   await refreshRenderedAgentOrgOverview(`${label} switchable inbox refresh`);
 }
@@ -2468,20 +2779,41 @@ export async function createLongTaskPrecondition(
   subject,
   memberId
 ) {
+  const runView = unwrap(
+    await invokeE2E("agentOrgSessionRunView", sessionId),
+    "agentOrgSessionRunView(long task precondition)"
+  ).view;
+  const runId = runView?.context?.runId;
+  if (!runId) {
+    throw new Error("long task precondition could not resolve Agent Org run");
+  }
   const result = unwrap(
-    await invokeE2E("debugSessionExecuteOrgTool", sessionId, "task_create", {
-      id: taskId,
-      subject,
-      description: subject,
-      owner_member_id: memberId,
-      status: AGENT_ORG_TASK_STATUS.PENDING,
-      dispatch_policy: "immediate",
-      execution_mode: "build",
-    }),
-    "debugSessionExecuteOrgTool(long task precondition)"
+    await invokeE2E(
+      "debugAgentOrgExecuteToolAsAgent",
+      runId,
+      AGENT_ORG_COORDINATOR_MEMBER_ID,
+      "task_create",
+      {
+        id: taskId,
+        subject,
+        description: subject,
+        owner_member_id: memberId,
+        status: AGENT_ORG_TASK_STATUS.PENDING,
+        dispatch_policy: "immediate",
+        execution_mode: "build",
+        allow_parallel_with_unlisted_open_tasks: true,
+      }
+    ),
+    "debugAgentOrgExecuteToolAsAgent(long task precondition)"
   ).result;
   if (!result?.ok) {
     throw new Error(`long task precondition failed: ${JSON.stringify(result)}`);
+  }
+  const createdPayload = JSON.parse(String(result.result?.text ?? "{}"));
+  if (createdPayload?.task?.id !== taskId) {
+    throw new Error(
+      `long task precondition was not persisted: ${JSON.stringify(createdPayload)}`
+    );
   }
 }
 

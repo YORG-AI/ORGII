@@ -99,7 +99,7 @@ $font-mono:
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: all 0.15s ease;
   background: var(--color-fill-2);
   color: transparent;
@@ -233,7 +233,7 @@ $font-mono:
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s ease;
   color: transparent;
 
@@ -300,7 +300,7 @@ $font-mono:
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background-color 0.15s ease;
   color: transparent;
 
@@ -547,7 +547,7 @@ $font-mono:
 // ============================================
 
 .split-row-collapse {
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   background: var(--color-fill-2);
   margin: 0;
 

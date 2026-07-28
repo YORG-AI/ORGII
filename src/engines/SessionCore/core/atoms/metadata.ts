@@ -3,7 +3,7 @@
  *
  * Session ID, loading status, cache status, and other metadata.
  */
-import { atom } from "jotai";
+import { type Atom, atom } from "jotai";
 
 import type { SessionEvent, SessionLoadStatus, SessionSpec } from "../types";
 
@@ -45,6 +45,83 @@ export const triggerSessionReloadAtom = atom(
   }
 );
 triggerSessionReloadAtom.debugLabel = "session/triggerReload";
+
+/**
+ * User-requested session hydrations that are still fetching their initial
+ * transcript. Entries exist only while work is in flight; counts preserve the
+ * loading state when two surfaces request the same session concurrently.
+ */
+export interface SessionHydrationState {
+  count: number;
+  iconId?: string;
+}
+
+export const sessionHydrationCountMapAtom = atom<
+  ReadonlyMap<string, SessionHydrationState>
+>(new Map());
+sessionHydrationCountMapAtom.debugLabel = "session/hydrationCountMap";
+
+const SESSION_HYDRATION_BY_ID_CACHE_MAX = 100;
+const sessionHydrationByIdCache = new Map<
+  string,
+  Atom<SessionHydrationState | undefined>
+>();
+
+/** Narrow, LRU-bounded view used by the active Chat Pane and tab icons. */
+export function sessionHydrationByIdAtom(
+  sessionId: string
+): Atom<SessionHydrationState | undefined> {
+  const cached = sessionHydrationByIdCache.get(sessionId);
+  if (cached) {
+    sessionHydrationByIdCache.delete(sessionId);
+    sessionHydrationByIdCache.set(sessionId, cached);
+    return cached;
+  }
+  const scopedAtom = atom((get) =>
+    get(sessionHydrationCountMapAtom).get(sessionId)
+  );
+  scopedAtom.debugLabel = `session/hydration:${sessionId}`;
+  if (sessionHydrationByIdCache.size >= SESSION_HYDRATION_BY_ID_CACHE_MAX) {
+    const oldest = sessionHydrationByIdCache.keys().next().value;
+    if (oldest !== undefined) sessionHydrationByIdCache.delete(oldest);
+  }
+  sessionHydrationByIdCache.set(sessionId, scopedAtom);
+  return scopedAtom;
+}
+
+export const beginSessionHydrationAtom = atom(
+  null,
+  (get, set, payload: string | { sessionId: string; iconId?: string }) => {
+    const { sessionId, iconId } =
+      typeof payload === "string" ? { sessionId: payload } : payload;
+    if (!sessionId) return;
+    const current = get(sessionHydrationCountMapAtom);
+    const currentEntry = current.get(sessionId);
+    const next = new Map(current);
+    next.set(sessionId, {
+      count: (currentEntry?.count ?? 0) + 1,
+      iconId: iconId ?? currentEntry?.iconId,
+    });
+    set(sessionHydrationCountMapAtom, next);
+  }
+);
+beginSessionHydrationAtom.debugLabel = "session/beginHydration";
+
+export const endSessionHydrationAtom = atom(
+  null,
+  (get, set, sessionId: string) => {
+    if (!sessionId) return;
+    const current = get(sessionHydrationCountMapAtom);
+    const entry = current.get(sessionId);
+    const count = entry?.count ?? 0;
+    if (count === 0) return;
+    const next = new Map(current);
+    if (count === 1) next.delete(sessionId);
+    else next.set(sessionId, { ...entry, count: count - 1 });
+    set(sessionHydrationCountMapAtom, next);
+  }
+);
+endSessionHydrationAtom.debugLabel = "session/endHydration";
 
 // ============================================
 // Cache Status

@@ -1,5 +1,3 @@
-export { useAutoIndexing } from "./useAutoIndexing";
-
 export { useIncrementalIndexing } from "./useIncrementalIndexing";
 export type {
   UseIncrementalIndexingOptions,

@@ -6,7 +6,7 @@
  * - Deduplicates running/completed tool_call pairs
  * - Groups consecutive read file events
  * - Groups consecutive exploration tool calls
- * - Groups consecutive terminal commands and follow-up waits
+ * - Groups consecutive shell commands, MCP calls, and terminal follow-ups
  * - Groups file edits/deletions with reads performed between them
  * - Stacks consecutive browser actions
  * - Consolidates partial observations
@@ -25,10 +25,11 @@ import {
   type ActionSummaryCategory,
   getActionSummaryCategory,
   isBrowserEvent,
+  isCommandGroupActivityEvent,
   isFileModificationEvent,
   isManageTodoEvent,
+  isMcpToolEvent,
   isReadFileEvent,
-  isTerminalActivityEvent,
   isTerminalCommandEvent,
 } from "./classifiers";
 import { buildDedupMaps } from "./dedup";
@@ -90,6 +91,50 @@ function getStableActivityItemId(event: SessionEvent): string {
       : `tool:${callId}`;
   }
   return event.id;
+}
+
+/**
+ * `chunk_id` is the React key for every rendered chat row, so it has to be
+ * unique across the returned list.
+ *
+ * `getStableActivityItemId` deliberately collapses a `tool_call` and its
+ * `tool_result` onto one `tool:<sessionId>:<callId>` id, on the assumption that
+ * the backend merged the pair into a single event. When that merge doesn't
+ * happen both events reach here and claim the same id — React then warns and
+ * may drop one of the two rows outright.
+ *
+ * Disambiguate rather than drop: both events carry real content, and silently
+ * discarding one would hide the upstream merge failure instead of surfacing it.
+ * The fast path allocates nothing when ids are already unique, which is the
+ * normal case.
+ */
+function ensureUniqueChunkIds(items: OptimizedChatItem[]): OptimizedChatItem[] {
+  const seen = new Set<string>();
+  let hasCollision = false;
+  for (const item of items) {
+    if (seen.has(item.chunk_id)) {
+      hasCollision = true;
+      break;
+    }
+    seen.add(item.chunk_id);
+  }
+  if (!hasCollision) return items;
+
+  seen.clear();
+  return items.map((item) => {
+    if (!seen.has(item.chunk_id)) {
+      seen.add(item.chunk_id);
+      return item;
+    }
+    let occurrence = 2;
+    let candidate = `${item.chunk_id}#${occurrence}`;
+    while (seen.has(candidate)) {
+      occurrence++;
+      candidate = `${item.chunk_id}#${occurrence}`;
+    }
+    seen.add(candidate);
+    return { ...item, chunk_id: candidate };
+  });
 }
 
 // ============================================
@@ -262,11 +307,13 @@ export function processChatItems(
     if (terminalBuffer.length === 0) return;
 
     const minToGroup = opts.minTerminalActivitiesToGroup ?? 1;
-    const hasCommand = terminalBuffer.some(isTerminalCommandEvent);
+    const hasGroupAnchor = terminalBuffer.some(
+      (event) => isTerminalCommandEvent(event) || isMcpToolEvent(event)
+    );
     if (
       opts.groupTerminalActivities &&
       terminalBuffer.length >= minToGroup &&
-      hasCommand
+      hasGroupAnchor
     ) {
       const firstTerminal = terminalBuffer[0];
       result.push({
@@ -387,6 +434,15 @@ export function processChatItems(
       continue;
     }
 
+    // Initial hydration may inject one synthetic placeholder event. Keep it
+    // standalone so ActivityRouter can render the shared loading block instead
+    // of letting tool classification fold it into an activity group.
+    if (event.id === "loading") {
+      flushAllBuffers();
+      result.push(eventToItem(event));
+      continue;
+    }
+
     // Merge args from running event into result events with empty args
     if (
       event.actionType === "tool_call" &&
@@ -496,12 +552,12 @@ export function processChatItems(
       flushReadFileBuffer();
     }
 
-    // Buffer: consecutive terminal commands plus their wait/monitor/inspect
-    // follow-ups. Explicit infrastructure failures remain standalone error
-    // cards, matching the exploration-group failure policy.
+    // Buffer: consecutive shell commands, MCP calls, and terminal
+    // wait/monitor/inspect follow-ups. Explicit infrastructure failures remain
+    // standalone error cards, matching the exploration-group failure policy.
     if (
       opts.groupTerminalActivities &&
-      isTerminalActivityEvent(event) &&
+      isCommandGroupActivityEvent(event) &&
       !isFailedToolCall(event)
     ) {
       flushBrowserBuffer();
@@ -582,5 +638,5 @@ export function processChatItems(
   flushEditBuffer(false);
   flushPartialBuffer();
 
-  return { items: result, stats };
+  return { items: ensureUniqueChunkIds(result), stats };
 }

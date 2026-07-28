@@ -15,6 +15,7 @@ use orgtrack_core::status_adapter::AgentStatusEventV1;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_millis(500);
 const IO_TIMEOUT: Duration = Duration::from_secs(1);
+const PROVENANCE_READY_ROUTE: &str = "/hooks/provenance-ready";
 
 #[derive(serde::Deserialize)]
 pub(super) struct EndpointFile {
@@ -71,6 +72,38 @@ pub fn post_status_event(event: &AgentStatusEventV1) {
     }
     // Read (and discard) the response so the server never sees an aborted
     // connection mid-write; bounded by the read timeout either way.
+    let mut sink = [0u8; 256];
+    let _ = stream.read(&mut sink);
+}
+
+/// Best-effort wake-up for the desktop provenance drainer.
+///
+/// No provenance data rides this request; normalized envelopes are already
+/// durable in the bounded spool. Losing this poke only delays ingestion until
+/// the desktop's safety rescan.
+pub fn post_provenance_ready() {
+    let Some(endpoint) = read_endpoint() else {
+        return;
+    };
+    let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, endpoint.port));
+    let Ok(mut stream) = TcpStream::connect_timeout(&addr, CONNECT_TIMEOUT) else {
+        return;
+    };
+    let _ = stream.set_write_timeout(Some(IO_TIMEOUT));
+    let _ = stream.set_read_timeout(Some(IO_TIMEOUT));
+    let request = format!(
+        "POST {path} HTTP/1.1\r\n\
+         Host: 127.0.0.1:{port}\r\n\
+         Content-Length: 0\r\n\
+         X-Orgii-Hook-Token: {token}\r\n\
+         Connection: close\r\n\r\n",
+        path = PROVENANCE_READY_ROUTE,
+        port = endpoint.port,
+        token = endpoint.token,
+    );
+    if stream.write_all(request.as_bytes()).is_err() {
+        return;
+    }
     let mut sink = [0u8; 256];
     let _ = stream.read(&mut sink);
 }

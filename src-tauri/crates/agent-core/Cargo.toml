@@ -44,7 +44,6 @@ integrations = { path = "../integrations" }
 lsp = { path = "../lsp" }
 project_management = { path = "../project-management" }
 search = { path = "../search" }
-code_map = { path = "../code-map" }
 settings = { path = "../settings" }
 terminal = { path = "../terminal" }
 

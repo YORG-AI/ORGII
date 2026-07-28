@@ -64,13 +64,23 @@ deletion may remain recoverable, so the sync worker uses a distinct purge path.
 Deleting a Project also deletes its child Work Items; children must never be
 silently converted into standalone items by an FK default.
 
-### Comments and agent tasks
+### Comments and owner-local agent follow-up
 
 Session comments are durable cloud rows. Replies retain their thread root,
-edits and deletes converge live, and status is a typed tri-state value. An
-`@agent` mention is stored as structured task intent and rendered as a pill,
-not inferred later from plain text. The Address Comments action operates on an
-explicit selection and links agent output back to the originating comment.
+edits and deletes converge live, and status is a typed tri-state value. The
+literal `@agent ` prefix is stored verbatim and rendered as a pill. It starts
+work only when submitted on the original cloud session by that session's
+owner; on another member's import, a read-only replay, or a writable fork it
+is ordinary comment text with no suggestion, assignment, toast, or agent side
+effect.
+
+There is no cloud task/lease/claim plane. An owner submission enters the same
+local queue/send path as an ordinary message and therefore uses the owner's
+locally authenticated account and selected model. The backend returns a
+viewer-derived ownership capability, the UI and runner both fail closed on
+it, and only the owner may stamp the resulting `agent_report`. The Address
+Comments action operates on an explicit selection and links agent output back
+to the originating comment using the exact dispatched turn generation.
 Top-level comments have exactly one scope: no event anchor means a session
 note applying to the session as a whole; an event anchor means a round comment.
 Address Comments groups both scopes, selects both by default, permits
@@ -115,7 +125,7 @@ files or run shell commands.
 
 - `org2CloudClient` owns authenticated HTTP transport and token refresh.
 - Entity-specific clients own wire shapes for organizations, sessions,
-  shares, comments/tasks, Projects, and Work Items.
+  shares, comments, Projects, and Work Items.
 - `org2CloudRealtimeClient` owns subscription lifecycle and reconnect
   behavior.
 - `org2CloudSyncEngine` owns durable project-plane convergence and retry.
@@ -155,11 +165,11 @@ can leave the frontend, schemes, ports, and data home with different identity.
 ## Backend migration contract
 
 Backend RPC/schema changes live in `orgii-cloud-infra` and must be deployed
-before a desktop release that calls them. Migrations are dated, idempotent, and
-must be run against local Supabase twice before production rollout. In
-particular, production must include the Work Item lock-release delta that
-writes `executionLock: null`; the desktop cannot compensate for an old RPC
-that removes the key.
+before a desktop release that calls them. Until the first public release,
+`supabase/migrations/0001_org2_cloud_schema.sql` is the only canonical
+baseline: the disposable project is wiped, the baseline is applied once, and
+the `org2_cloud` PostgREST schema exposure is rechecked. Incremental dated
+deltas are deliberately not retained during this pre-release phase.
 
 Desktop code must not auto-run production SQL or mutate production
 organizations during tests. Production migration is an explicit operator
@@ -176,7 +186,7 @@ own gates. A skipped scenario is never reported as a pass.
   locks, and sync code.
 - Local cloud: Auth/PostgREST/Realtime/RPC assertions against disposable users.
 - Rendered single-instance UI: signed-out/in, organization scope, sharing,
-  import/fork, comments/tasks, presence policy, Projects, Work Items, and real
+  import/fork, comments, presence policy, Projects, Work Items, and real
   provider execution.
 - Rendered dual-instance UI: isolation, invite/join, direct share, link share,
   revoke, comments, Project/Work Item convergence, lock ownership, offline OCC,

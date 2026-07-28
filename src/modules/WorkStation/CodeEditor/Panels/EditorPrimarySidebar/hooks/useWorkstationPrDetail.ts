@@ -8,10 +8,9 @@
  *
  * Design mirrors `useWorkstationIssues` (repo resolution, cache-seed-then-
  * revalidate, atom publishing, unmount reset). All detail sources are fetched
- * in parallel; a per-PR snapshot is cached (stale-while-revalidate) so opening
- * a PR — or hovering it in the sidebar (`prefetchWorkstationPrDetail`) — paints
- * instantly. In-flight requests are de-duplicated by PR so hover + click don't
- * double-fetch.
+ * in parallel; a small per-PR snapshot cache provides stale-while-revalidate
+ * behavior after a PR is explicitly opened. In-flight requests are
+ * de-duplicated by PR.
  */
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -105,7 +104,7 @@ async function fetchPrDetailBundle(
   return bundle;
 }
 
-// ── In-flight de-duplication (shared by hover-prefetch and click-load) ───────
+// ── In-flight de-duplication ────────────────────────────────────────────────
 
 const inFlight = new Map<string, Promise<PrDetailBundle>>();
 
@@ -121,24 +120,6 @@ function loadBundleDeduped(
   });
   inFlight.set(key, promise);
   return promise;
-}
-
-/**
- * Warm the PR detail cache without touching any atom — called on sidebar-row
- * hover so a subsequent click renders instantly. No-op when a fresh snapshot
- * already exists. Swallows errors (best-effort).
- */
-export async function prefetchWorkstationPrDetail(
-  repoFullName: string,
-  prNumber: number
-): Promise<void> {
-  const key = prDetailKey(repoFullName, prNumber);
-  if (getCachedPrDetail(key) && !isPrDetailStale(key)) return;
-  try {
-    await loadBundleDeduped(repoFullName, prNumber);
-  } catch {
-    // best-effort prefetch; the real load will surface any error
-  }
 }
 
 export interface UseWorkstationPrDetailOptions {

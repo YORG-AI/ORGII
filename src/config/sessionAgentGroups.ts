@@ -17,12 +17,14 @@ import {
 import {
   getRustAgentType,
   isCliSession,
+  isHumanSession,
 } from "@src/util/session/sessionDispatch";
 import { isChatPanelTuiSessionId } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
 export type SessionGroupKey =
   | RustAgentType
   | "cli"
+  | "human"
   | ImportedHistoryListCategory;
 
 export function getSessionGroupKey(sessionId: string): SessionGroupKey {
@@ -30,6 +32,7 @@ export function getSessionGroupKey(sessionId: string): SessionGroupKey {
   if (importedSource) return importedSource.listCategory;
   if (isCliSession(sessionId) || isChatPanelTuiSessionId(sessionId))
     return "cli";
+  if (isHumanSession(sessionId)) return "human";
   return getRustAgentType(sessionId);
 }
 
@@ -37,6 +40,7 @@ export const SESSION_GROUP_ORDER: readonly SessionGroupKey[] = [
   RUST_AGENT_TYPE.OS,
   RUST_AGENT_TYPE.SDE,
   RUST_AGENT_TYPE.WINGMAN,
+  "human",
   "cli",
   ...IMPORTED_HISTORY_SOURCES.map((source) => source.listCategory),
 ];
@@ -55,5 +59,6 @@ export const SESSION_GROUP_LABELS: Record<SessionGroupKey, string> = {
   [RUST_AGENT_TYPE.WINGMAN]: "Wingman Agent",
   [RUST_AGENT_TYPE.CUSTOM]: "Custom Agent",
   cli: "CLI Agent",
+  human: "Work Logs",
   ...IMPORTED_HISTORY_LABELS,
 };

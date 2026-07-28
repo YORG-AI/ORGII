@@ -246,6 +246,19 @@ export const claimPipelineSessionAtom = atom(
 claimPipelineSessionAtom.debugLabel = "claimPipelineSessionAtom";
 
 /**
+ * Release the transient session pipeline without forgetting the WorkStation's
+ * remembered session tab. Non-session Chat Panel tabs use this when they take
+ * over the visible surface so background sync, Presence, and replay snapshots
+ * do not keep treating the hidden session as rendered.
+ */
+export const releasePipelineSessionAtom = atom(null, (get, set) => {
+  if (!get(activeSessionIdAtom) && !get(sessionIdAtom)) return;
+  set(clearSessionAtom);
+  set(activeSessionIdAtom, null);
+});
+releasePipelineSessionAtom.debugLabel = "releasePipelineSessionAtom";
+
+/**
  * Unified action for switching sessions. Every navigation path
  * (sidebar, history panel, Chat tool tabs, control tower) MUST
  * use this atom to avoid state leaks and timestamp jumps.

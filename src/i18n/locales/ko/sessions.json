@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token decision",
     "tooltip": "Estimated tool attribution. Method: {{method}}. Input: {{inputBytes}} bytes. Output: {{outputBytes}} bytes. Decision: {{decisionTokens}} Token. Context: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. 관련 LLM cache read: {{cacheReadTokens}} Token. 관련 LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "제목(선택 사항)"
+  },
   "history": {
     "untitledSession": "제목 없는 Session",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "생성일",
       "updated": "업데이트됨",
       "lastUpdated": "마지막 업데이트",
+      "external": "외부",
+      "internal": "내부",
       "rounds": "라운드",
       "roundCount_one": "{{count}} 라운드",
       "roundCount_other": "{{count}} 라운드",
@@ -124,9 +129,10 @@
         "default": "기본값",
         "manual": "수동",
         "60s": "60초마다",
-        "5m": "5분마다",
-        "1h": "매시간",
-        "1d": "매일"
+        "120s": "120초마다",
+        "10m": "10분마다",
+        "30m": "30분마다",
+        "1h": "매시간"
       },
       "openFolder": "폴더 열기",
       "tabs": {
@@ -136,7 +142,103 @@
       },
       "views": {
         "scanning": "스캔",
-        "hooks": "훅"
+        "hooks": "훅",
+        "usage": "사용량",
+        "quota": "할당량",
+        "assets": "자산",
+        "profile": "프로필"
+      },
+      "usage": {
+        "title": "사용량 및 비용",
+        "subtitle": "스캔된 코딩 세션의 토큰과 예상 비용입니다. 데이터는 로컬 데이터베이스에서 읽으며 기기 외부로 전송되지 않습니다.",
+        "allSources": "모든 소스",
+        "refresh": "새로 고침",
+        "estimatedNote": "비용은 구독 및 자체 키 경로의 정가 기준 예상치이며, 측정된 지출이 기록된 경우 해당 금액을 표시합니다.",
+        "range": {
+          "today": "오늘",
+          "24h": "24시간",
+          "7d": "7일",
+          "30d": "30일",
+          "all": "전체 기간"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "기타"
+        },
+        "cards": {
+          "realTokens": "총 토큰",
+          "cost": "총비용(예상)",
+          "sessions": "세션",
+          "requests": "요청",
+          "cacheHit": "캐시 적중률",
+          "input": "입력",
+          "output": "출력",
+          "cacheCreate": "캐시 쓰기",
+          "cacheRead": "캐시 읽기"
+        },
+        "trends": {
+          "title": "사용량 추이",
+          "input": "입력",
+          "output": "출력",
+          "cacheCreate": "캐시 쓰기",
+          "cacheRead": "캐시 읽기",
+          "cost": "비용"
+        },
+        "table": {
+          "title": "세션",
+          "name": "세션",
+          "agent": "에이전트",
+          "model": "모델",
+          "tokens": "토큰",
+          "cost": "비용",
+          "cacheHit": "캐시 적중",
+          "turns": "턴",
+          "lastActive": "최근 활동",
+          "sort": {
+            "recent": "최신순",
+            "cost": "비용 높은 순",
+            "tokens": "토큰 많은 순"
+          }
+        },
+        "roundsTable": {
+          "title": "요청",
+          "time": "시간",
+          "session": "세션",
+          "agent": "에이전트",
+          "model": "모델",
+          "input": "입력",
+          "output": "출력",
+          "cache": "캐시 읽기",
+          "cost": "비용",
+          "filterBySession": "이 세션으로 필터링"
+        },
+        "pricing": {
+          "input": "입력",
+          "cache": "캐시",
+          "output": "출력",
+          "total": "합계",
+          "estimate": "정가 기준 예상치",
+          "hint": "요청 비용 위에 마우스를 올리면 세부 내역을 볼 수 있습니다.",
+          "loading": "계산 중…"
+        },
+        "detail": {
+          "title": "호출별 세부 내역",
+          "perTurn": "LLM 호출",
+          "perTool": "도구 호출",
+          "close": "닫기",
+          "noData": "이 세션에는 세션 단위 합계만 있습니다. 호출별 사용량은 ORGII 자체 에이전트 실행에 대해 기록됩니다.",
+          "turnHeader": "턴 {{turn}}",
+          "promptTokens": "프롬프트",
+          "completionTokens": "완료"
+        },
+        "empty": {
+          "title": "아직 사용량이 없습니다",
+          "subtitle": "코딩 세션을 실행하거나 스캔하면 토큰 사용량이 여기에 표시됩니다."
+        },
+        "loadError": "사용량 데이터를 불러오지 못했습니다"
       },
       "sessions_other": "{{count}}개 세션",
       "details": {
@@ -793,6 +895,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "세션",
+        "workItem": "작업 항목",
+        "more": "더 보기",
         "work": "작업",
         "manage": "관리",
         "heatmap": "추세",
@@ -844,7 +949,6 @@
     "defaultTitle": "채팅",
     "hideChatPanel": "채팅 패널 숨기기",
     "showTokenUsage": "Token 표시",
-    "showStatusBar": "상태 표시줄 표시",
     "compactDisplayMode": "컴팩트 모드",
     "replay": {
       "follow": "팔로우"
@@ -890,6 +994,28 @@
     "copyEventJson": "이벤트 JSON 복사",
     "copyEventJsonCopied": "복사됨!",
     "copyEventJsonFailed": "복사 실패",
+    "moveToWorkstation": "내 Workstation으로 이동",
+    "moveToChatPanel": "채팅 패널로 이동",
+    "rawTranscript": {
+      "title": "원시 세션 트랜스크립트",
+      "menuItem": "원시 트랜스크립트 보기",
+      "guiTab": "GUI",
+      "rawTab": "원시 데이터",
+      "entryCount_one": "항목 {{count}}개",
+      "entryCount_other": "항목 {{count}}개",
+      "copySuccess": "원시 트랜스크립트를 복사했습니다",
+      "copyFailed": "원시 트랜스크립트를 복사할 수 없습니다"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item에 연결…",
+      "title": "세션을 Work Item에 연결",
+      "description": "이 세션을 표시할 Work Item을 선택하세요.",
+      "searchPlaceholder": "Work Item ID, 제목, 상태 또는 프로젝트로 검색",
+      "loading": "Work Item 불러오는 중…",
+      "empty": "Work Item을 찾을 수 없습니다.",
+      "linking": "연결 중…",
+      "link": "연결"
+    },
     "historyTitle": "기록",
     "historyEmpty": "아직 세션이 없습니다",
     "historyGroupTime": "시간",
@@ -1019,6 +1145,8 @@
     "turnMetadata": {
       "noChanges": "이번 라운드에는 파일 변경 없음",
       "earlierRound": "이전 라운드",
+      "editsTab": "편집",
+      "readsTab": "읽기",
       "files_one": "파일 {{count}}개",
       "files_other": "파일 {{count}}개",
       "reads_one": "읽기 {{count}}회",
@@ -1193,6 +1321,8 @@
     "terminalSummary": {
       "command_one": "명령 {{count}}개",
       "command_other": "명령 {{count}}개",
+      "mcp_one": "MCP 호출 {{count}}회",
+      "mcp_other": "MCP 호출 {{count}}회",
       "wait_one": "대기 {{count}}회",
       "wait_other": "대기 {{count}}회",
       "check_one": "확인 {{count}}회",
@@ -1285,45 +1415,6 @@
     "searchSymbolsRunning": "심볼 검색 중",
     "searchSymbolsDone": "심볼 검색 완료",
     "searchSymbolsFailed": "심볼 검색 실패",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "Index status 확인 중",
     "searchCheckStatusDone": "Index status 확인 완료",
     "searchCheckStatusFailed": "Index status 확인 실패",
@@ -2009,7 +2100,10 @@
     "categoryLabel": "세션 카테고리",
     "categoryTemplate": "{category} 선택",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "내장 Agent",
+    "builtIns": "기본 제공",
+    "humanSession": {
+      "name": "작업 기록"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "사용자 지정 Agent",
     "agentOrgs": "Agent 팀",
@@ -2428,67 +2522,6 @@
     "myApiKeys": "내 Key {{count}}개",
     "addApiKey": "API Key 추가",
     "noRepoSelected": "저장소가 선택되지 않았습니다",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Code Map status: {{status}}",
-      "neverIndexed": "아직 인덱싱되지 않음",
-      "lastIndexed": "마지막 인덱싱 {{time}}",
-      "progressFiles": "{{processed}} / {{total}} files",
-      "errorTitle": "Code Map 오류",
-      "status": {
-        "notIndexed": "인덱싱되지 않음",
-        "indexing": "인덱싱 중",
-        "ready": "준비됨",
-        "stale": "오래됨",
-        "failed": "실패",
-        "cancelled": "취소됨"
-      },
-      "phase": {
-        "queued": "대기 중",
-        "scanning": "스캔 중",
-        "extracting": "추출 중",
-        "storing": "저장 중",
-        "resolving": "해결 중",
-        "complete": "완료",
-        "failed": "실패",
-        "cancelled": "취소됨"
-      },
-      "stats": {
-        "files": "Files",
-        "symbols": "Symbols",
-        "relationships": "관계",
-        "indexSize": "인덱스 크기",
-        "unresolved": "미해결",
-        "staleFiles": "오래된 파일"
-      },
-      "actions": {
-        "index": "인덱스",
-        "reindex": "다시 인덱스",
-        "cancel": "취소",
-        "stop": "중지",
-        "clear": "지우기",
-        "refresh": "새로고침"
-      },
-      "progressChanges": "추가 {{added}} · 수정 {{modified}} · 삭제 {{deleted}}",
-      "browser": {
-        "title": "Code Map 브라우저",
-        "searchTitle": "Code Map 검색",
-        "searchPlaceholder": "심볼, 파일 또는 시그니처 검색",
-        "search": "검색",
-        "resultSummary": "{{count}}개 결과 · {{unresolved}} 미해결 · {{stale}} 오래됨",
-        "noResults": "Code Map 결과가 없습니다.",
-        "selectNode": "결과를 선택하여 소스와 관계를 확인하세요.",
-        "loadingDetails": "Code Map 세부 정보 로드 중…",
-        "noRelationships": "관계를 찾을 수 없습니다.",
-        "incoming": "수신",
-        "outgoing": "송신",
-        "source": "소스",
-        "confidence": "신뢰도: {{value}}",
-        "extraction": "추출: {{value}}",
-        "resolution": "해결: {{value}}",
-        "relationshipCounts": "{{incoming}} 수신 · {{outgoing}} 송신"
-      }
-    },
     "diff": {
       "untitledSession": "제목 없는 세션",
       "singleFile": "단일 파일",

@@ -1,10 +1,14 @@
-/** Live-viewer avatars for the open session, rendered in the ChatHistory pagination toolbar. */
+/** Live-viewer avatars for the open session's published header. */
 import { useAtomValue } from "jotai";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Tooltip from "@src/components/Tooltip";
-import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import {
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import {
   type Org2CloudPresenceEntry,
   org2CloudPresenceAtom,
@@ -12,35 +16,58 @@ import {
   viewersForSession,
 } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
 import {
+  org2CloudRemoteSessionsAtom,
+  remoteSessionsEntryForIdentity,
+} from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import {
   cloudOrgIdsForSession,
   sessionOrgTagsAtom,
 } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
-import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 
 const MAX_AVATARS = 3;
 
-const SessionViewersIndicator: React.FC = () => {
+interface SessionViewersIndicatorProps {
+  /** Session rendered by this ChatHistory surface. */
+  sessionId: string | null;
+}
+
+const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
+  sessionId,
+}) => {
   const { t } = useTranslation("navigation");
   const presenceMap = useAtomValue(org2CloudPresenceAtom);
-  const selfUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
-  const activeSessionId = useAtomValue(workstationActiveSessionIdAtom) ?? "";
+  const auth = useAtomValue(org2CloudAuthAtom);
+  const selfUserId = auth?.userId ?? null;
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
+  const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
   const sessions = useAtomValue(sessionsAtom) as Session[];
   const sessionOrgTags = useAtomValue(sessionOrgTagsAtom);
+  const remoteSessions = useAtomValue(org2CloudRemoteSessionsAtom);
 
   const viewers = useMemo(() => {
-    if (!activeSessionId) return [];
+    if (!sessionId || !activeCloudOrgId) return [];
     const session = sessions.find(
-      (candidate) => candidate.session_id === activeSessionId
+      (candidate) => candidate.session_id === sessionId
     );
     if (!session) return [];
+    // Same identity-filtered active-org read as Slice C in
+    // useOrg2CloudRealtime: presence refs below are gated to the active org
+    // anyway, and the filter keeps another account's cached rows out of the
+    // resolution path during a sign-out/switch commit.
     const refs = resolveCloudSessionRefs(
       session,
-      cloudOrgIdsForSession(sessionOrgTags, session.session_id)
+      cloudOrgIdsForSession(sessionOrgTags, session.session_id),
+      remoteSessionsEntryForIdentity(
+        remoteSessions[activeCloudOrgId],
+        authIdentityKey
+      )?.rows ?? [],
+      selfUserId
     );
     const byUser = new Map<string, Org2CloudPresenceEntry>();
     for (const ref of refs) {
+      if (ref.orgId !== activeCloudOrgId) continue;
       for (const viewer of viewersForSession(
         presenceMap,
         ref.orgId,
@@ -51,7 +78,16 @@ const SessionViewersIndicator: React.FC = () => {
       }
     }
     return [...byUser.values()];
-  }, [activeSessionId, presenceMap, selfUserId, sessionOrgTags, sessions]);
+  }, [
+    presenceMap,
+    remoteSessions,
+    activeCloudOrgId,
+    authIdentityKey,
+    selfUserId,
+    sessionId,
+    sessionOrgTags,
+    sessions,
+  ]);
 
   if (viewers.length === 0) return null;
 
@@ -72,7 +108,7 @@ const SessionViewersIndicator: React.FC = () => {
       <span
         data-testid="session-viewers-indicator"
         aria-label={fullRoster}
-        className="ml-1 inline-flex flex-shrink-0 items-center -space-x-1"
+        className="mx-1 inline-flex flex-shrink-0 items-center -space-x-1"
       >
         {viewers.slice(0, MAX_AVATARS).map((viewer) => (
           <span

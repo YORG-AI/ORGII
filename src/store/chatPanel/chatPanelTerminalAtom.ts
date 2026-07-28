@@ -75,6 +75,10 @@ export const createChatPanelTerminalAtom = atom(
       agentSessionId,
     } = typeof options === "string" ? { name: options } : options;
     const newId = `${CHAT_PANEL_TERMINAL_PREFIX}${crypto.randomUUID()}`;
+    const envOverride =
+      agentCommand && agentSessionId
+        ? { ORGII_SESSION_ID: agentSessionId }
+        : undefined;
     const newSession: TerminalSession = {
       id: newId,
       name,
@@ -84,6 +88,7 @@ export const createChatPanelTerminalAtom = atom(
       agentCommand,
       expectedProcess,
       agentSessionId,
+      envOverride,
       agentStatus: agentCommand ? TERMINAL_AGENT_STATUS.STARTING : undefined,
     };
     set(terminalSessionsAtom, (prev) => [...prev, newSession]);

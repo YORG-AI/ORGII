@@ -18,7 +18,7 @@ import {
   getStatusColor,
   getStatusLetterForFile,
 } from "@src/config/gitStatus";
-import { CodeMirrorDiff } from "@src/features/CodeMirror";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
@@ -60,6 +60,9 @@ const LazyPagesPreview = React.lazy(
   () =>
     import("@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/PagesPreview")
 );
+const LazyCodeMirrorDiff = React.lazy(
+  () => import("@src/features/CodeMirror/Diff")
+);
 
 export interface DiffFileSectionData {
   path: string;
@@ -87,6 +90,7 @@ export interface DiffFileSectionProps {
   sectionRef?: React.RefObject<HTMLDivElement | null>;
   onFileSelect?: (path: string) => void;
   onRequestContent?: (file: DiffFileSectionData) => void;
+  onExpansionChange?: (expanded: boolean) => void;
   hideDirectory?: boolean;
   showBottomBorder?: boolean;
   dataPath?: string;
@@ -129,6 +133,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   repoPath,
   sectionRef,
   onRequestContent,
+  onExpansionChange,
   hideDirectory = false,
   showBottomBorder = true,
   dataPath,
@@ -145,6 +150,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
     manualExpanded?.signal === expansionSignal
       ? manualExpanded.value
       : defaultExpanded;
+  const previousExpandedRef = useRef(expanded);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const setAddToAgent = useSetAtom(addToAgentAtom);
@@ -191,6 +197,12 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
     }
     onRequestContent?.(file);
   }, [expanded, file, isDeleted, onRequestContent]);
+
+  useEffect(() => {
+    if (previousExpandedRef.current === expanded) return;
+    previousExpandedRef.current = expanded;
+    onExpansionChange?.(expanded);
+  }, [expanded, onExpansionChange]);
 
   const statusLetter = getStatusLetterForFile(file.status, file.staged);
   const statusColor = getStatusColor(statusLetter);
@@ -323,21 +335,31 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
           subtitle={displayPath}
         />
       ) : hasContent ? (
-        <CodeMirrorDiff
-          oldValue={resolvedDiff.oldContent || ""}
-          newValue={resolvedDiff.newContent || ""}
-          filePath={file.path}
-          changeType={file.status}
-          oldStartLine={resolvedDiff.oldStartLine}
-          newStartLine={resolvedDiff.newStartLine}
-          showLineNumbers={file.showLineNumbers !== false}
-          viewMode="unified"
-          readOnly={true}
-          mergeControls={false}
-          collapseUnchanged={true}
-          noBottomPadding={noBottomPadding}
-          autoHeight
-        />
+        <Suspense
+          fallback={
+            <Placeholder
+              variant="loading"
+              placement="detail-panel"
+              title={t("placeholders.loadingChanges")}
+            />
+          }
+        >
+          <LazyCodeMirrorDiff
+            oldValue={resolvedDiff.oldContent || ""}
+            newValue={resolvedDiff.newContent || ""}
+            filePath={file.path}
+            changeType={file.status}
+            oldStartLine={resolvedDiff.oldStartLine}
+            newStartLine={resolvedDiff.newStartLine}
+            showLineNumbers={file.showLineNumbers !== false}
+            viewMode="unified"
+            readOnly={true}
+            mergeControls={false}
+            collapseUnchanged={true}
+            noBottomPadding={noBottomPadding}
+            autoHeight
+          />
+        </Suspense>
       ) : file.isUnavailable ? (
         <Placeholder
           variant="empty"
@@ -391,7 +413,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
         data-diff-section-path={dataPath}
       >
         <button
-          className="sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 bg-[var(--cm-editor-background)] px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent"
+          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${EDITOR_TAB_CANVAS_BG_CLASS}`}
           onClick={toggleExpanded}
           disabled={isDeleted}
         >

@@ -726,7 +726,11 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       );
     }
     const retainedTaskId = `e2e-restart-retained-task-${RUN_ID}`;
-    const retainedTaskSubject = `E2E retained historical task ${RUN_ID} must remain visible in the Agent Org task board after the user reopens the historical session from the sidebar, including the owner, status chip, and collapsed long-task presentation.`;
+    const retainedTaskSubject =
+      `E2E retained historical task ${RUN_ID} must remain visible in the Agent Org task board after reopening the historical session, including owner, status, and collapsed presentation.`.slice(
+        0,
+        190
+      );
     await createLongTaskPrecondition(
       sessionId,
       retainedTaskId,
@@ -738,6 +742,22 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       (view) =>
         Boolean(view?.tasks?.some((task) => task.id === retainedTaskId)),
       "retained task appears in run view before restart"
+    );
+    const retainedTaskAssignedRow = await waitForInboxRow(
+      sessionId,
+      (row) => {
+        const payload = parseInboxPayload(
+          row,
+          "retained task assignment before restart"
+        );
+        return (
+          row.payloadKind === "task_assigned" &&
+          row.recipientMemberId === firstWorker.memberId &&
+          payload.task_id === retainedTaskId &&
+          !row.readAt
+        );
+      },
+      "retained task assignment stays unread before restart"
     );
     if (!firstWorker.sessionRuntime?.sessionId) {
       throw new Error(
@@ -864,6 +884,7 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       );
     }
 
+    await openRenderedGroupChatView();
     await waitForGroupChatPausedBanner(
       "historical paused run after reopening from sidebar"
     );
@@ -886,6 +907,11 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       (status) => Boolean(status && status !== "abandoned"),
       "coordinator session was revived after rendered resume post-restart"
     );
+    await waitForInboxRowRead(
+      sessionId,
+      retainedTaskAssignedRow.id,
+      "retained task assignment was drained after rendered resume post-restart"
+    );
     await waitForAgentOrgRunView(
       sessionId,
       (view) => {
@@ -896,15 +922,17 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         const workerRuntime = view?.members?.find(
           (member) => member.memberId === firstWorker.memberId
         )?.sessionRuntime;
+        const ownerRuntimeStatus =
+          retainedOwnerRuntime?.status ?? workerRuntime?.status;
         return Boolean(
           view?.runStatus === "running" &&
             retainedTask?.owner === firstWorker.memberId &&
             retainedTask?.status === AGENT_ORG_TASK_STATUS.PENDING &&
-            (retainedOwnerRuntime?.status === "running" ||
-              workerRuntime?.status === "running")
+            ownerRuntimeStatus &&
+            ownerRuntimeStatus !== "abandoned"
         );
       },
-      "retained open task owner runtime was active after rendered resume post-restart",
+      "retained open task owner runtime was revived after rendered resume post-restart",
       REPLY_TIMEOUT_MS
     );
     await assertNoFalseFinality(

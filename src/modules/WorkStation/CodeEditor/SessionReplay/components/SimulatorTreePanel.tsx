@@ -1,6 +1,8 @@
 import { ChevronDown } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
+import FilePathBreadcrumb from "@src/components/FilePathBreadcrumb";
+import Tooltip from "@src/components/Tooltip";
 import { TREE_ROW_HEIGHT, TreeRowBase } from "@src/components/TreeRow";
 import type {
   FlattenedTreeNode,
@@ -20,6 +22,9 @@ import {
   buildFileTree,
   flattenFileTree,
 } from "../fileTreeUtils";
+
+/** Long enough that scanning down the list doesn't flash a card per row. */
+const PATH_HOVER_DELAY_MS = 400;
 
 interface SimulatorTreePanelProps {
   items: FileTreeInput[];
@@ -76,12 +81,13 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
 
   const renderItem = useCallback(
     (item: FlattenedTreeNode<SimulatorTreeNode>, _index: number) => {
+      const isFile = item.node.type === "file";
       const isAgentSelected =
-        item.node.type === "file" &&
+        isFile &&
         !!item.node.eventId &&
         agentSelectedIds.has(item.node.eventId);
 
-      return (
+      const row = (
         <TreeRowBase
           node={item.node}
           depth={item.depth}
@@ -89,12 +95,8 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
           onClick={() => handleNodeClick(item.node)}
           showIndentGuides={false}
           showPathHint={false}
+          showNativeTitle={!isFile}
         >
-          {item.node.secondaryInfo && item.node.type === "file" && (
-            <span className="flex-shrink-0 text-[11px] text-text-3">
-              {item.node.secondaryInfo}
-            </span>
-          )}
           {item.node.statusLabel && (
             <div
               className={`flex h-5 w-5 flex-shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
@@ -108,6 +110,25 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
             </div>
           )}
         </TreeRowBase>
+      );
+
+      // The row itself only shows the file name — the full path lives in a
+      // hover card so long paths never squeeze the name out of the sidebar.
+      if (!isFile) return row;
+
+      return (
+        <Tooltip
+          content={
+            <FilePathBreadcrumb path={item.node.path} maxSegments={null} />
+          }
+          position="right"
+          smartPlacement
+          framedPanel
+          framedPanelWide
+          mouseEnterDelay={PATH_HOVER_DELAY_MS}
+        >
+          {row}
+        </Tooltip>
       );
     },
     [selectedId, handleNodeClick, agentSelectedIds]

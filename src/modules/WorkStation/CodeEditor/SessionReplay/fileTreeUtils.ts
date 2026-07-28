@@ -30,7 +30,6 @@ export interface SimulatorTreeNode extends TreeNodeBase {
   statusColorClass?: string;
   isAgentSelected?: boolean;
   icon?: ReactNode;
-  secondaryInfo?: string;
   children: SimulatorTreeNode[];
 }
 
@@ -45,7 +44,6 @@ export interface FileTreeInput {
   statusLabel?: string;
   statusColorClass?: string;
   icon?: ReactNode;
-  secondaryInfo?: string;
 }
 
 // ============================================
@@ -95,7 +93,6 @@ export function buildFileTree(items: FileTreeInput[]): SimulatorTreeNode[] {
       isAgentSelected: item.isAgentSelected,
       statusLabel: item.statusLabel,
       statusColorClass: item.statusColorClass,
-      secondaryInfo: item.secondaryInfo,
       children: [],
     };
 

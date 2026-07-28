@@ -90,6 +90,27 @@ export const closeActiveWorkStationTabAtom = atom(null, (get, set) => {
 });
 closeActiveWorkStationTabAtom.debugLabel = "closeActiveWorkStationTabAtom";
 
+/** Close every WorkStation surface whose durable payload belongs to an org. */
+export const closeProjectOrgWorkStationTabsAtom = atom(
+  null,
+  (get, set, orgId: string) => {
+    const layout = get(workstationLayoutAtom);
+    if (!layout) return;
+    const tabIds = layout.mainPane.tabs
+      .filter((tab) => tab.data.orgId === orgId)
+      .map((tab) => tab.id);
+    if (tabIds.length === 0) return;
+
+    let nextPane = layout.mainPane;
+    for (const tabId of tabIds) {
+      nextPane = closeTabMutation(nextPane, tabId);
+    }
+    set(workstationLayoutAtom, setMainPane(layout, nextPane));
+  }
+);
+closeProjectOrgWorkStationTabsAtom.debugLabel =
+  "closeProjectOrgWorkStationTabsAtom";
+
 export const reorderTabAtom = atom(
   null,
   (get, set, request: TabReorderRequest) => {

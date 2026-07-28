@@ -251,6 +251,7 @@ export function normalizeEventProps(
       shellProcessStatus: sessionEvent.shellProcessStatus,
       shellExitCode: sessionEvent.shellExitCode,
       shellLogPath: sessionEvent.shellLogPath,
+      shellReplay: sessionEvent.shellReplay,
       variant,
       context,
       isSelected: input.isSelected,

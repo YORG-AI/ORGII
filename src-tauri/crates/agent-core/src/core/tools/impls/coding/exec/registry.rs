@@ -30,6 +30,10 @@ pub enum JobKind {
     Shell {
         pid: u32,
         log_path: PathBuf,
+        /// Exact durable replay identity for new run_shell jobs. `None` is
+        /// retained only for legacy/test `.txt` jobs.
+        replay_session_id: Option<String>,
+        replay_call_id: Option<String>,
     },
     Subagent {
         subagent_type: String,
@@ -192,13 +196,46 @@ pub fn register_shell(
     log_path: PathBuf,
     session_id: String,
 ) -> broadcast::Sender<String> {
+    register_shell_inner(pid, command, log_path, session_id, None)
+}
+
+/// Register a new durable shell replay job by exact Session/call identity.
+pub fn register_shell_replay(
+    pid: u32,
+    command: String,
+    log_path: PathBuf,
+    session_id: String,
+    call_id: String,
+) -> broadcast::Sender<String> {
+    let replay_session_id = session_id.clone();
+    register_shell_inner(
+        pid,
+        command,
+        log_path,
+        session_id,
+        Some((replay_session_id, call_id)),
+    )
+}
+
+fn register_shell_inner(
+    pid: u32,
+    command: String,
+    log_path: PathBuf,
+    session_id: String,
+    replay_identity: Option<(String, String)>,
+) -> broadcast::Sender<String> {
     let handle = pid.to_string();
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
     let job = BackgroundJob {
         handle: handle.clone(),
         label: command,
-        kind: JobKind::Shell { pid, log_path },
+        kind: JobKind::Shell {
+            pid,
+            log_path,
+            replay_session_id: replay_identity.as_ref().map(|value| value.0.clone()),
+            replay_call_id: replay_identity.map(|value| value.1),
+        },
         session_id,
         started_at: Instant::now(),
         status: JobStatus::Running,
@@ -546,9 +583,9 @@ pub fn release_subagent_wake_for_session(session_id: &str) {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunningShellJob {
     pub session_id: String,
+    pub call_id: String,
     pub pid: u32,
     pub command: String,
-    pub log_path: Option<String>,
 }
 
 /// List all currently running shell jobs across all sessions.
@@ -560,12 +597,20 @@ pub fn list_running_shell_jobs() -> Vec<RunningShellJob> {
     reg.values()
         .filter(|job| job.is_running())
         .filter_map(|job| match &job.kind {
-            JobKind::Shell { pid, log_path } => Some(RunningShellJob {
-                session_id: job.session_id.clone(),
+            JobKind::Shell {
+                pid,
+                log_path: _,
+                replay_session_id: Some(replay_session_id),
+                replay_call_id: Some(replay_call_id),
+            } if replay_session_id == &job.session_id => Some(RunningShellJob {
+                session_id: replay_session_id.clone(),
+                call_id: replay_call_id.clone(),
                 pid: *pid,
                 command: job.label.clone(),
-                log_path: Some(log_path.to_string_lossy().into_owned()),
             }),
+            // Legacy jobs lack an exact call identity and cannot safely reseed
+            // a per-call frontend process row.
+            JobKind::Shell { .. } => None,
             JobKind::Subagent { .. } => None,
         })
         .collect()

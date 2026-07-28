@@ -53,6 +53,31 @@ export function mergeStreamingText(current: string, incoming: string): string {
 }
 
 const MIN_REPLAY_TEXT_LENGTH = 12;
+export const MAX_TOOL_CALL_DELTA_CHARS = 1_000_000;
+export const MAX_TOOL_CALL_DELTA_BUFFERS = 64;
+
+export function appendBoundedToolCallArgs(
+  current: string,
+  incoming: string
+): string {
+  const remaining = MAX_TOOL_CALL_DELTA_CHARS - current.length;
+  if (remaining <= 0 || !incoming) return current;
+  return current + incoming.slice(0, remaining);
+}
+
+export function makeRoomForToolCallDelta<T>(
+  buffers: Map<number, T>,
+  incomingIndex: number
+): void {
+  if (
+    buffers.has(incomingIndex) ||
+    buffers.size < MAX_TOOL_CALL_DELTA_BUFFERS
+  ) {
+    return;
+  }
+  const oldestIndex = buffers.keys().next().value;
+  if (oldestIndex !== undefined) buffers.delete(oldestIndex);
+}
 
 function findSuffixPrefixOverlap(current: string, incoming: string): number {
   const max = Math.min(current.length, incoming.length);

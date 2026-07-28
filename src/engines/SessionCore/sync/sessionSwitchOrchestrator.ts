@@ -5,6 +5,7 @@ import { isVisibleInChat } from "@src/engines/SessionCore/ingestion/visibilityFi
 import type { Logger } from "@src/hooks/logger";
 import {
   composerIdFromSessionId,
+  isCollaborationImportedSession,
   isImportedHistorySession,
 } from "@src/util/session/sessionDispatch";
 
@@ -132,7 +133,10 @@ async function handleCacheHit(
 
   if (!cacheHitInFlight) {
     if (adapter.category === "agent") {
-      await eventStoreProxy.loadInitialTurnWindow(sessionId);
+      await eventStoreProxy.loadInitialTurnWindow(
+        sessionId,
+        isCollaborationImportedSession(sessionId) ? 0 : undefined
+      );
       if (abortController.signal.aborted) return;
       displayEvents = await eventStoreProxy.getEvents(sessionId);
       // The round-window load can resolve to zero chat-visible events when
@@ -180,7 +184,11 @@ async function handleCacheHit(
     abortController,
     setPendingPlanApprovals
   );
-  if (!isImportedHistorySession(sessionId)) {
+  if (
+    cacheHitInFlight &&
+    !isImportedHistorySession(sessionId) &&
+    !isCollaborationImportedSession(sessionId)
+  ) {
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
   applyPostLoadResult(sessionId, postResult, actions);
@@ -257,7 +265,11 @@ async function handleCacheMiss(
   if (abortController.signal.aborted) return;
 
   actions.dispatchLoadSession({ sessionId, events });
-  if (!isImportedHistorySession(sessionId)) {
+  if (
+    missInFlight &&
+    !isImportedHistorySession(sessionId) &&
+    !isCollaborationImportedSession(sessionId)
+  ) {
     reconcileInFlightHistory(sessionId, adapter, refs, actions);
   }
 

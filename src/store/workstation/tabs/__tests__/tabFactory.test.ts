@@ -21,6 +21,7 @@ import {
   createSourceControlTab,
   createSubagentDetailTab,
   createTerminalTab,
+  createWorkItemDetailTab,
   fileTabFactory,
   settingsTabFactory,
 } from "../factories";
@@ -317,7 +318,7 @@ describe("Chat Factories", () => {
       expect(tab.id).toBe("chat-session:session-1");
       expect(tab.type).toBe("chat-session");
       expect(tab.title).toBe("Chat Title");
-      expect(tab.icon).toBe("MessageSquare");
+      expect(tab.icon).toBeUndefined();
       expect(tab.data.workItemId).toBe("work-1");
     });
   });
@@ -378,6 +379,23 @@ describe("Project Manager Factories", () => {
       expect(tab.id).toBe("project-workitems:project-1");
       expect(tab.title).toBe("My Project");
       expect(tab.icon).toBe("ChartNoAxesGantt");
+    });
+  });
+
+  describe("createWorkItemDetailTab", () => {
+    it("preserves GitHub issue status for tab icon selection", () => {
+      const tab = createWorkItemDetailTab(
+        "project-1",
+        "ORGII issues",
+        "issue-128",
+        "community issue",
+        "orgii-issues",
+        undefined,
+        undefined,
+        "open"
+      );
+
+      expect(tab.data.workItemStatus).toBe("open");
     });
   });
 });

@@ -5,6 +5,7 @@
 //! watcher, health monitor, and Tauri command handlers.
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -44,9 +45,45 @@ impl RepoStateStore {
         self.states.read().keys().cloned().collect()
     }
 
+    pub fn get_repo_path(&self, repo_id: &str) -> Option<PathBuf> {
+        self.states
+            .read()
+            .get(repo_id)
+            .map(|state| state.repo_path.clone())
+    }
+
+    pub fn get_repo_info(&self, repo_id: &str) -> Option<RepoInfo> {
+        self.states.read().get(repo_id).map(|state| RepoInfo {
+            repo_id: state.repo_id.clone(),
+            repo_path: state.repo_path.clone(),
+            repo_name: state.repo_name.clone(),
+        })
+    }
+
+    pub fn get_poll_health(&self, repo_id: &str) -> Option<(bool, u32)> {
+        self.states
+            .read()
+            .get(repo_id)
+            .map(|state| (state.watch_enabled, state.consecutive_failures))
+    }
+
     /// Get all repo states (for health monitoring)
     pub fn get_all_states(&self) -> HashMap<String, RepoState> {
         self.states.read().clone()
+    }
+
+    /// Return only the small health fields needed by the background monitor.
+    ///
+    /// `RepoState` can own a complete cached `GitStatus`; cloning every state
+    /// once per minute made health checks allocate in proportion to all
+    /// changed files even when every watcher was healthy.
+    pub fn get_unhealthy_watcher_ids(&self) -> Vec<(String, u32)> {
+        self.states
+            .read()
+            .iter()
+            .filter(|(_, state)| state.consecutive_failures >= 3 && state.watch_enabled)
+            .map(|(repo_id, state)| (repo_id.clone(), state.consecutive_failures))
+            .collect()
     }
 
     // ============================================

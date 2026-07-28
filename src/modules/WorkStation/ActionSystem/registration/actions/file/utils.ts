@@ -3,7 +3,10 @@
  */
 
 export function resolvePath(path: string, repoPath: string): string {
-  if (path.startsWith("/")) {
+  const isWindowsAbsolute =
+    /^[A-Za-z]:[\\/]/.test(path) || path.startsWith("\\\\");
+
+  if (path.startsWith("/") || isWindowsAbsolute) {
     return path;
   }
   return `${repoPath}/${path}`;

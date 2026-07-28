@@ -17,6 +17,7 @@
 import { isLiveRuntimeResourceEvent } from "@src/engines/SessionCore/core/runningEventGate";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { isSyntheticUserInputEvent } from "@src/engines/SessionCore/sync/utils/activityIds";
+import { isCodexAppSession } from "@src/util/session/sessionDispatch";
 
 export interface DedupResult {
   /** Chunk IDs of transient tool-call rows that should be skipped once a result row exists */
@@ -198,7 +199,21 @@ function isThinkingMessage(event: SessionEvent): boolean {
   );
 }
 
+const assistantTextCache = new WeakMap<SessionEvent, string>();
+
+// Memoized on the (immutable) event: `extractAssistantText` is called once per
+// event in each of `buildTextSegment` and `buildAssistantDedupSet`, and the
+// whole dedup pass re-runs on every projection. Caching keeps the trim/read
+// off already-seen events so a re-projection only pays for the changed tail.
 function extractAssistantText(event: SessionEvent): string {
+  const cached = assistantTextCache.get(event);
+  if (cached !== undefined) return cached;
+  const text = computeAssistantText(event);
+  assistantTextCache.set(event, text);
+  return text;
+}
+
+function computeAssistantText(event: SessionEvent): string {
   const result = event.result;
   if (!result) return event.displayText?.trim() ?? "";
   const content =
@@ -210,6 +225,26 @@ function extractAssistantText(event: SessionEvent): string {
 
 function isTurnTextEvent(event: SessionEvent): boolean {
   return isAssistantMessage(event) || isThinkingMessage(event);
+}
+
+interface ThinkingSnapshot {
+  id: string;
+  text: string;
+}
+
+function containsThinkingSnapshot(
+  container: string,
+  candidate: string
+): boolean {
+  if (container === candidate) return true;
+
+  const start = container.indexOf(candidate);
+  if (start < 0) return false;
+
+  const end = start + candidate.length;
+  const startsAtBoundary = start === 0 || /\s/.test(container[start - 1]);
+  const endsAtBoundary = end === container.length || /\s/.test(container[end]);
+  return startsAtBoundary && endsAtBoundary;
 }
 
 interface TextSegment {
@@ -243,11 +278,13 @@ function buildAssistantDedupSet(events: SessionEvent[]): Set<string> {
   let prevText = "";
   let prevId = "";
   let thinkingByTextInTurn = new Map<string, string>();
+  let codexThinkingSnapshotsInRun: ThinkingSnapshot[] = [];
   let assistantByTextInTurn = new Map<string, string>();
 
   for (const event of events) {
     if (event.source === "user") {
       thinkingByTextInTurn = new Map();
+      codexThinkingSnapshotsInRun = [];
       assistantByTextInTurn = new Map();
       prevText = "";
       prevId = "";
@@ -262,9 +299,43 @@ function buildAssistantDedupSet(events: SessionEvent[]): Set<string> {
           duplicates.add(previousThinkingId);
         }
         thinkingByTextInTurn.set(text, event.id);
+
+        // Codex App rollouts can persist one reasoning summary several times
+        // while it streams: first as individual `agent_reasoning` updates,
+        // then as progressively wider cumulative `reasoning.summary`
+        // snapshots. Each snapshot has a fresh ID, so exact-text dedup alone
+        // leaves the growing copies visible. Within one uninterrupted run,
+        // keep only maximal snapshots; unrelated thoughts remain separate.
+        if (isCodexAppSession(event.sessionId)) {
+          let currentIsContained = false;
+          const survivingSnapshots: ThinkingSnapshot[] = [];
+
+          for (const snapshot of codexThinkingSnapshotsInRun) {
+            if (snapshot.text === text) {
+              // Exact duplicates already prefer the newest event above.
+              continue;
+            }
+            if (containsThinkingSnapshot(text, snapshot.text)) {
+              duplicates.add(snapshot.id);
+              continue;
+            }
+            if (containsThinkingSnapshot(snapshot.text, text)) {
+              currentIsContained = true;
+              duplicates.add(event.id);
+            }
+            survivingSnapshots.push(snapshot);
+          }
+
+          if (!currentIsContained) {
+            survivingSnapshots.push({ id: event.id, text });
+          }
+          codexThinkingSnapshotsInRun = survivingSnapshots;
+        }
       }
       continue;
     }
+
+    codexThinkingSnapshotsInRun = [];
 
     if (!isAssistantMessage(event)) {
       prevText = "";

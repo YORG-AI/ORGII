@@ -24,7 +24,7 @@ import {
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AgentOrgTask } from "@src/api/tauri/agent";
+import { type AgentOrgTask, TOOL_NAMES } from "@src/api/tauri/agent";
 import type { RustOrgTaskItem } from "@src/engines/SessionCore/core/types";
 import { isPersistedOrgTaskEvent } from "@src/engines/SessionCore/rendering/orgTaskOutcome";
 import { extractTodoData } from "@src/engines/SessionCore/rendering/props";
@@ -236,9 +236,9 @@ function todosFromMessage(message: MessageEntry): TodoLike[] {
     ) {
       return [];
     }
-    if (extracted.action === "delete" && extracted.task) {
-      return [{ ...orgTaskToTodo(extracted.task), status: "cancelled" }];
-    }
+    // Deletion is an operation on the task row, not a task lifecycle status.
+    // `buildTimeline` removes the referenced row explicitly below.
+    if (extracted.action === "delete") return [];
     if (extracted.tasks && extracted.tasks.length > 0) {
       return extracted.tasks.map(orgTaskToTodo);
     }
@@ -269,7 +269,12 @@ function todosFromMessage(message: MessageEntry): TodoLike[] {
 // final todo snapshot (the list rendered in the kanban).
 function isSnapshotMessage(message: MessageEntry): boolean {
   const extracted = message.event.extracted;
-  if (extracted?.kind !== "orgTask") return true;
+  if (extracted?.kind !== "orgTask") {
+    // Old persisted graph-create events may predate Rust extraction. They are
+    // additive mutations, never authoritative snapshots; treating their empty
+    // generic-todo projection as a snapshot would erase the replay board.
+    return message.event.functionName !== TOOL_NAMES.TASK_GRAPH_CREATE;
+  }
   return (
     extracted.action === "list" &&
     isPersistedOrgTaskEvent(
@@ -293,6 +298,25 @@ export function buildTimeline(messages: MessageEntry[]): {
   for (const message of messages) {
     const snapshot = todosFromMessage(message);
     const ts = message.timestamp;
+    const extracted = message.event.extracted;
+    if (
+      extracted?.kind === "orgTask" &&
+      extracted.action === "delete" &&
+      isPersistedOrgTaskEvent(
+        extracted,
+        message.event.result,
+        message.event.displayStatus
+      )
+    ) {
+      const deletedIds = [
+        ...(extracted.task ? [extracted.task.id] : []),
+        ...(extracted.tasks ?? []).map((task) => task.id),
+      ];
+      for (const deletedId of deletedIds) {
+        if (deletedId) todoMap.delete(deletedId);
+      }
+      continue;
+    }
     const previousTodos = Array.from(todoMap.values());
     const reconciledSnapshot = preserveTodoContent(previousTodos, snapshot);
     if (isSnapshotMessage(message)) {

@@ -18,6 +18,7 @@ import {
   customRefToLaunchSource,
   filterBranchOptions,
   shouldOfferCustomRef,
+  sourceKey,
 } from "./worktreeBranchSource";
 
 /**
@@ -245,15 +246,6 @@ export function nameToLaunchSource(
     sourceRef: `name:${slugFragment(trimmed)}`,
     title: trimmed,
   };
-}
-
-function sourceKey(source: WorktreeLaunchSource): string {
-  return [
-    source.kind,
-    source.sourceRef ?? "",
-    source.baseBranch ?? "",
-    source.label,
-  ].join(":");
 }
 
 // ---------------------------------------------------------------------------

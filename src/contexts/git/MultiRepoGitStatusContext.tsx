@@ -97,6 +97,23 @@ export const MultiRepoGitStatusProvider: React.FC<{
   // Concurrency limit for parallel fetches
   const MAX_CONCURRENT_FETCHES = 2;
 
+  // Latest-value refs for atom state read inside callbacks.
+  //
+  // These exist so `needsRefresh` / `fetchRepoStatus` / `executeFetch` /
+  // `requestRefresh` can all be `[]`-dep and therefore STABLE across renders.
+  // Reading `cache` / `fetchingRepos` / `repoMap` directly in a dep array
+  // rebuilt the whole callback chain on every status write (each write
+  // replaces the Map/Set), which handed consumers a new `requestRefresh` on
+  // every response.  Consumers that call it from an effect keyed on
+  // `requestRefresh` then re-entered the 800ms debounce after each fetch —
+  // an accidental TTL-paced poll driven by render churn rather than a timer.
+  const cacheRef = useRef(cache);
+  cacheRef.current = cache;
+  const fetchingReposRef = useRef(fetchingRepos);
+  fetchingReposRef.current = fetchingRepos;
+  const repoMapRef = useRef(repoMap);
+  repoMapRef.current = repoMap;
+
   // STARTUP OPTIMIZATION (Jan 24, 2026):
   // Track if initial startup is complete. During startup, only fetch selected repo
   // to prevent "bad file descriptor" errors from too many concurrent git processes.
@@ -122,9 +139,9 @@ export const MultiRepoGitStatusProvider: React.FC<{
 
   const needsRefresh = useCallback(
     (repoId: string, isPriority: boolean): boolean => {
-      return isRepoGitStatusStale(cache.get(repoId), isPriority);
+      return isRepoGitStatusStale(cacheRef.current.get(repoId), isPriority);
     },
-    [cache]
+    []
   );
 
   // ============================================
@@ -162,7 +179,7 @@ export const MultiRepoGitStatusProvider: React.FC<{
       };
 
       try {
-        const repo = repoMap.get(repoId);
+        const repo = repoMapRef.current.get(repoId);
         const repoPath = repo?.path || repo?.fs_uri;
 
         if (!repoPath) {
@@ -255,12 +272,16 @@ export const MultiRepoGitStatusProvider: React.FC<{
         writeErrorEntry();
       }
     },
-    [repoMap, setCache]
+    [setCache]
   );
 
   // ============================================
   // Execute batch fetch
   // ============================================
+
+  // Declared before `executeFetch` so the batch-chain recursion below can
+  // reach it without a use-before-define.
+  const executeFetchRef = useRef<(() => Promise<void>) | null>(null);
 
   const executeFetch = useCallback(async () => {
     // Prevent overlapping fetches
@@ -281,7 +302,7 @@ export const MultiRepoGitStatusProvider: React.FC<{
 
     // Filter repos that actually need refresh
     const reposToFetch = repoIds.filter((repoId) => {
-      if (fetchingRepos.has(repoId)) return false;
+      if (fetchingReposRef.current.has(repoId)) return false;
       const isPriority = repoId === selectedRepoId;
       return needsRefresh(repoId, isPriority);
     });
@@ -341,20 +362,18 @@ export const MultiRepoGitStatusProvider: React.FC<{
           pendingRequestRef.current.repoIds.add(id)
         );
         pendingRequestRef.current.timeoutId = setTimeout(() => {
-          executeFetch();
+          // Self-reference through a ref: `executeFetch` is `[]`-dep, so it
+          // cannot name itself in its own dep array without churning.
+          void executeFetchRef.current?.();
         }, 1000); // Longer delay between batches
       } else {
         // Batch chain finished: evict stale/excess cache entries
         pruneCache();
       }
     }
-  }, [
-    fetchingRepos,
-    needsRefresh,
-    fetchRepoStatus,
-    setFetchingRepos,
-    pruneCache,
-  ]);
+  }, [needsRefresh, fetchRepoStatus, setFetchingRepos, pruneCache]);
+
+  executeFetchRef.current = executeFetch;
 
   // ============================================
   // Request refresh (optimized - priority repo only by default)
@@ -448,12 +467,18 @@ export const MultiRepoGitStatusProvider: React.FC<{
 
   const isLoading = fetchingRepos.size > 0;
 
-  const value: MultiRepoGitStatusContextValue = {
-    gitStatusMap,
-    requestRefresh,
-    isLoading,
-    attachGitStatus,
-  };
+  // Memoized: this provider sits at the app root, so an unmemoized object
+  // literal re-rendered every consumer on each fetch start/end — `fetchingRepos`
+  // is replaced as a new Set even when `isLoading` (a boolean) is unchanged.
+  const value = useMemo<MultiRepoGitStatusContextValue>(
+    () => ({
+      gitStatusMap,
+      requestRefresh,
+      isLoading,
+      attachGitStatus,
+    }),
+    [gitStatusMap, requestRefresh, isLoading, attachGitStatus]
+  );
 
   return (
     <MultiRepoGitStatusContext.Provider value={value}>
@@ -474,49 +499,6 @@ export function useMultiRepoGitStatusContext(): MultiRepoGitStatusContextValue {
     );
   }
   return context;
-}
-
-/**
- * Convenience hook that matches the old useRepoGitStatus API
- * for easier migration
- */
-export function useRepoGitStatusFromContext(options: {
-  repoIds: string[];
-  selectedRepoId?: string;
-  enabled?: boolean;
-}) {
-  const { repoIds, selectedRepoId, enabled = true } = options;
-  const { gitStatusMap, requestRefresh, isLoading, attachGitStatus } =
-    useMultiRepoGitStatusContext();
-
-  // Request refresh when enabled and repoIds change
-  useEffect(() => {
-    if (enabled && repoIds.length > 0) {
-      requestRefresh(repoIds, selectedRepoId);
-    }
-  }, [enabled, repoIds, selectedRepoId, requestRefresh]);
-
-  // Convert Map to Record for compatibility
-  const gitStatusRecord = useMemo(() => {
-    const record: Record<
-      string,
-      { uncommittedFiles: number; ahead: number; behind: number }
-    > = {};
-    gitStatusMap.forEach((status, repoId) => {
-      record[repoId] = {
-        uncommittedFiles: status.uncommittedFiles,
-        ahead: status.ahead,
-        behind: status.behind,
-      };
-    });
-    return record;
-  }, [gitStatusMap]);
-
-  return {
-    gitStatusMap: gitStatusRecord,
-    attachGitStatus,
-    isLoading,
-  };
 }
 
 export default MultiRepoGitStatusContext;

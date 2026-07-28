@@ -47,9 +47,21 @@ pub(super) fn cleanup_image_files_for_query(
 pub fn clear_messages(prefix: &str, session_id: &str) -> SqliteResult<i64> {
     cleanup_image_files_for_query(prefix, "session_id = ?1", &[&session_id])?;
     with_sessions_writer(|| {
-        let conn = get_connection()?;
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if prefix == "agent" && table_exists(&tx, "agent_inbox_materializations")? {
+            // Rewind/clear removes the durable transcript but intentionally
+            // leaves the source Inbox row unread. Deleting its receipt lets
+            // the next wake materialize the input again instead of pointing
+            // forever at a transcript that no longer exists.
+            tx.execute(
+                "DELETE FROM agent_inbox_materializations WHERE session_id=?1",
+                [session_id],
+            )?;
+        }
         let sql = format!("DELETE FROM {prefix}_messages WHERE session_id = ?1");
-        let deleted = conn.execute(&sql, [session_id])?;
+        let deleted = tx.execute(&sql, [session_id])?;
+        tx.commit()?;
         Ok(deleted as i64)
     })
 }
@@ -73,9 +85,32 @@ pub fn truncate_messages_from_sequence(
         &[&session_id as &dyn rusqlite::ToSql, &from_sequence],
     )?;
     with_sessions_writer(|| {
-        let conn = get_connection()?;
+        let mut conn = get_connection()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        if prefix == "agent" && table_exists(&tx, "agent_inbox_materializations")? {
+            tx.execute(
+                "DELETE FROM agent_inbox_materializations
+                 WHERE session_id=?1
+                   AND transcript_message_id IN (
+                       SELECT id FROM agent_messages
+                       WHERE session_id=?1 AND sequence>=?2
+                   )",
+                params![session_id, from_sequence],
+            )?;
+        }
         let sql = format!("DELETE FROM {prefix}_messages WHERE session_id = ?1 AND sequence >= ?2");
-        let deleted = conn.execute(&sql, params![session_id, from_sequence])?;
+        let deleted = tx.execute(&sql, params![session_id, from_sequence])?;
+        tx.commit()?;
         Ok(deleted as i64)
     })
+}
+
+fn table_exists(conn: &rusqlite::Connection, table_name: &str) -> SqliteResult<bool> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
 }

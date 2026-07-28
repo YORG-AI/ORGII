@@ -1,4 +1,4 @@
-/** Paste-a-share-link entry point: parsed token goes to `org2CloudPendingShareAtom`; `CloudShareImportDialog` owns the resolve → import flow (anon-capable). */
+/** Paste-a-share-link entry point: the parsed link is queued as a unique attempt; `CloudShareImportDialog` owns the registered-user resolve → import flow. */
 import Modal from "@/src/scaffold/ModalSystem";
 import { useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
@@ -8,7 +8,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 
 import { parseCloudShareInput } from "./org2CloudOrgManagement";
-import { org2CloudPendingShareAtom } from "./org2CloudPendingShareAtom";
+import { queueOrg2CloudPendingShareAtom } from "./org2CloudPendingShareAtom";
 
 interface ImportSharedSessionDialogProps {
   visible: boolean;
@@ -20,7 +20,7 @@ const ImportSharedSessionDialog: React.FC<ImportSharedSessionDialogProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation("navigation");
-  const setPendingShare = useSetAtom(org2CloudPendingShareAtom);
+  const queuePendingShare = useSetAtom(queueOrg2CloudPendingShareAtom);
   const [value, setValue] = useState("");
   const [invalid, setInvalid] = useState(false);
 
@@ -47,9 +47,9 @@ const ImportSharedSessionDialog: React.FC<ImportSharedSessionDialogProps> = ({
       setInvalid(true);
       return;
     }
-    setPendingShare(parsed);
+    queuePendingShare(parsed);
     handleClose();
-  }, [handleClose, setPendingShare, value]);
+  }, [handleClose, queuePendingShare, value]);
 
   return (
     <Modal

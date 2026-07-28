@@ -196,6 +196,7 @@ export function useAgentControlPalette({
             await invokeTauri("agent_send_message", {
               sessionId: existingSessionId,
               content: prompt,
+              turnIntentSource: "user_submit",
               ...(modelConfig.model ? { model: modelConfig.model } : {}),
               ...(modelConfig.accountId
                 ? { accountId: modelConfig.accountId }

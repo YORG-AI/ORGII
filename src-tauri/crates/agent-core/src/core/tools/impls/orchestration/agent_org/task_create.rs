@@ -5,16 +5,19 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier, validate_task_identifier_list,
+};
 use crate::coordination::agent_org_tasks::{
-    self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskExecutionMode,
-    TaskStatus,
+    self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskCreateSchedulingPolicy,
+    TaskExecutionMode, TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
 };
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, merge_task_metadata, parse_status, task_dependencies_resolved,
-    task_to_json, validate_freeform_task_metadata, TaskToolsContext,
+    map_task_write_error, merge_task_metadata, parse_status, task_to_json,
+    validate_freeform_task_metadata, TaskToolsContext,
 };
 
 /// Explicit decision about when a newly-created task may be dispatched.
@@ -80,8 +83,8 @@ impl TaskDispatchPolicy {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskCreateParams {
-    /// Optional caller-supplied UUID. Defaults to a freshly minted v4
-    /// UUID. Use only when porting an external task or stamping a
+    /// Optional caller-supplied bounded identifier. Defaults to a freshly
+    /// minted v4 UUID. Use only when porting an external task or stamping a
     /// deterministic id in tests.
     #[serde(default)]
     pub id: Option<String>,
@@ -125,8 +128,9 @@ pub struct TaskCreateParams {
     /// Free-form metadata bag. Stored verbatim.
     #[serde(default)]
     pub metadata: Option<Value>,
-    /// Optional hard eligibility list for unassigned tasks. Only listed worker
-    /// member_ids may autonomously claim the task.
+    /// Optional hard eligibility list for ownerless tasks. These are valid
+    /// candidates for explicit coordinator assignment; eligibility never
+    /// authorizes autonomous claim, update, or deletion.
     #[serde(default)]
     pub eligible_member_ids: Option<Vec<String>>,
     /// Optional human-readable role hint for display/prompt context only.
@@ -136,11 +140,53 @@ pub struct TaskCreateParams {
 
 pub struct TaskCreateTool {
     ctx: Arc<TaskToolsContext>,
+    #[cfg(test)]
+    pre_persist_hook: Option<Arc<TaskCreatePrePersistHook>>,
+}
+
+/// Deterministic test seam for reproducing a task-board change after the
+/// tool's advisory read but before the store starts its commit transaction.
+#[cfg(test)]
+#[derive(Default)]
+pub(super) struct TaskCreatePrePersistHook {
+    reached: tokio::sync::Notify,
+    resume: tokio::sync::Notify,
+}
+
+#[cfg(test)]
+impl TaskCreatePrePersistHook {
+    pub(super) async fn wait_until_reached(&self) {
+        self.reached.notified().await;
+    }
+
+    pub(super) fn resume(&self) {
+        self.resume.notify_one();
+    }
+
+    async fn pause(&self) {
+        self.reached.notify_one();
+        self.resume.notified().await;
+    }
 }
 
 impl TaskCreateTool {
     pub fn new(ctx: Arc<TaskToolsContext>) -> Self {
-        Self { ctx }
+        Self {
+            ctx,
+            #[cfg(test)]
+            pre_persist_hook: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(super) fn with_pre_persist_hook(
+        ctx: Arc<TaskToolsContext>,
+        hook: Arc<TaskCreatePrePersistHook>,
+    ) -> Self {
+        Self {
+            ctx,
+            pre_persist_hook: Some(hook),
+        }
     }
 }
 
@@ -305,16 +351,37 @@ impl Tool for TaskCreateTool {
             .clone()
             .filter(|s| !s.trim().is_empty())
             .unwrap_or_else(agent_org_tasks::new_task_id);
+        validate_task_identifier("task_create.id", &id).map_err(ToolError::InvalidParams)?;
+        validate_task_identifier_list("task_create.dependency_task_ids", &blocked_by)
+            .map_err(ToolError::InvalidParams)?;
         if blocked_by.iter().any(|dependency_id| dependency_id == &id) {
             return Err(ToolError::InvalidParams(format!(
                 "{}: task '{id}' cannot depend on itself",
                 crate::coordination::agent_org_tasks::TASK_DEPENDENCY_CYCLE_ERROR
             )));
         }
+        let read_run_id = self.ctx.org_context.run_id.clone();
+        let read_task_id = explicit_id.then(|| id.clone());
+        let (existing, existing_tasks) = tokio::task::spawn_blocking(move || {
+            let existing = read_task_id
+                .as_deref()
+                .map(|task_id| AgentOrgTaskStore::get(&read_run_id, task_id))
+                .transpose()?
+                .flatten();
+            let tasks = if existing.is_some() {
+                Vec::new()
+            } else {
+                AgentOrgTaskStore::list(&read_run_id)?
+            };
+            Ok::<_, String>((existing, tasks))
+        })
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_create read worker failed: {err}"))
+        })?
+        .map_err(map_task_write_error)?;
         if explicit_id {
-            if let Some(existing) = AgentOrgTaskStore::get(&self.ctx.org_context.run_id, &id)
-                .map_err(map_task_write_error)?
-            {
+            if let Some(existing) = existing {
                 let body = json!({
                     "task": task_to_json(&existing),
                     "already_exists": true,
@@ -329,8 +396,6 @@ impl Tool for TaskCreateTool {
             }
         }
 
-        let existing_tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
-            .map_err(ToolError::ExecutionFailed)?;
         if !blocked_by.is_empty() {
             let missing_dependency_ids = blocked_by
                 .iter()
@@ -418,7 +483,16 @@ impl Tool for TaskCreateTool {
             None,
         );
 
-        let task = AgentOrgTaskStore::create(CreateTaskParams {
+        #[cfg(test)]
+        if let Some(hook) = self.pre_persist_hook.as_ref() {
+            hook.pause().await;
+        }
+
+        let create_context = Arc::clone(&self.ctx);
+        let allow_parallel_with_unlisted_open_tasks =
+            params.allow_parallel_with_unlisted_open_tasks;
+        let requested_dependency_task_ids = blocked_by.clone();
+        let create_params = CreateTaskParams {
             id,
             org_run_id: self.ctx.org_context.run_id.clone(),
             subject: params.subject,
@@ -429,15 +503,61 @@ impl Tool for TaskCreateTool {
             blocks: Vec::new(),
             blocked_by,
             metadata,
+        };
+        let create_result = tokio::task::spawn_blocking(move || {
+            AgentOrgTaskStore::create_with_transactional_effects(
+                create_params,
+                TaskCreateSchedulingPolicy {
+                    allow_parallel_with_unlisted_open_tasks,
+                },
+                |tx, task, tasks| {
+                    create_context.persist_created_tasks_outbox_in_tx(
+                        tx,
+                        std::slice::from_ref(task),
+                        tasks,
+                    )
+                },
+            )
         })
-        .map_err(map_task_write_error)?;
-
-        let tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
-            .map_err(ToolError::ExecutionFailed)?;
-        let task_assigned_dispatched = task.owner.is_some()
-            && task.status == TaskStatus::Pending
-            && task_dependencies_resolved(&tasks, &task)
-            && self.ctx.dispatch_task_assigned(&task);
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_create mutation worker failed: {err}"))
+        })?;
+        let (task, outbox) = match create_result {
+            Ok(created) => created,
+            Err(error) => {
+                if let Some(task_ids) = error
+                    .strip_prefix(TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR)
+                    .and_then(|suffix| suffix.strip_prefix(':'))
+                {
+                    let unlisted_open_task_ids = task_ids
+                        .split(',')
+                        .filter(|task_id| !task_id.is_empty())
+                        .map(str::to_string)
+                        .collect::<Vec<_>>();
+                    let suggested_dependency_task_ids = requested_dependency_task_ids
+                        .iter()
+                        .cloned()
+                        .chain(unlisted_open_task_ids.iter().cloned())
+                        .collect::<Vec<_>>();
+                    return serde_json::to_string(&json!({
+                        "created": false,
+                        "requires_dependency_confirmation": true,
+                        "requires_parallel_confirmation": true,
+                        "unlisted_open_task_ids": unlisted_open_task_ids,
+                        "suggested_retry": {
+                            "dispatch_policy": "after_dependencies",
+                            "dependency_task_ids": suggested_dependency_task_ids,
+                        },
+                        "guidance": "Open work changed while this task was being validated. Add the listed durable task ids when this task consumes their output, or retry with allow_parallel_with_unlisted_open_tasks=true only when the new task is intentionally independent.",
+                    }))
+                    .map_err(|err| ToolError::ExecutionFailed(err.to_string()));
+                }
+                return Err(map_task_write_error(error));
+            }
+        };
+        self.ctx.wake_committed_task_outbox(&outbox);
+        let task_assigned_dispatched = outbox.task_assigned_ids.iter().any(|id| id == &task.id);
         let assignment_required = task.owner.is_none();
 
         let body = json!({

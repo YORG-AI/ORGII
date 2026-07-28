@@ -14,6 +14,7 @@
  * />
  * ```
  */
+import { useVirtualizer } from "@tanstack/react-virtual";
 import React, {
   useCallback,
   useEffect,
@@ -275,6 +276,40 @@ const GanttChart: React.FC<GanttChartProps> = ({
   // Calculate total width
   const totalWidth = periods.length * columnWidth;
 
+  const totalRowCount = markerRows.length + tasks.length;
+  // The timeline body is the single scroll authority. Both panes consume this
+  // exact row window, which keeps their absolute row offsets synchronized.
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
+  const rowVirtualizer = useVirtualizer({
+    count: totalRowCount,
+    getScrollElement: () => timelineBodyRef.current,
+    estimateSize: () => config.rowHeight,
+    overscan: 6,
+    getItemKey: (index) => {
+      if (index < markerRows.length) {
+        return `marker:${markerRows[index]?.id ?? index}`;
+      }
+      return `task:${tasks[index - markerRows.length]?.id ?? index}`;
+    },
+  });
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
+  const periodVirtualizer = useVirtualizer({
+    horizontal: true,
+    count: periods.length,
+    getScrollElement: () => timelineBodyRef.current,
+    estimateSize: () => columnWidth,
+    overscan: 3,
+    getItemKey: (index) => periods[index]?.date.getTime() ?? index,
+  });
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const virtualPeriods = periodVirtualizer.getVirtualItems();
+
+  // Column widths change with zoom and container resizing. Clear the horizontal
+  // size cache so visible-period offsets stay exact after either transition.
+  useEffect(() => {
+    periodVirtualizer.measure();
+  }, [columnWidth, periodVirtualizer, periods]);
+
   const initialScrollOffset = useMemo(() => {
     const msPerColumn = getMsPerColumn(viewScope);
     const targetDate = initialScrollTargetDate ?? viewStart;
@@ -306,7 +341,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   }, [initialScrollOffset]);
 
   // Hooks
-  const { handleTimelineScroll } = useGanttScroll({
+  const { handleTimelineScroll, handleSidebarScroll } = useGanttScroll({
     timelineBodyRef,
     sidebarContentRef,
     headerScrollRef,
@@ -424,6 +459,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
           transparentSurface={transparentSurface}
           showTaskIcons={showSidebarTaskIcons}
           showAssigneeLabel={showSidebarAssigneeLabels}
+          virtualRows={virtualRows}
+          totalSize={rowVirtualizer.getTotalSize()}
+          onScroll={handleSidebarScroll}
         />
 
         {/* Timeline */}
@@ -463,6 +501,9 @@ const GanttChart: React.FC<GanttChartProps> = ({
           onMilestoneClick={onMilestoneClick}
           showDependencies={showDependencies}
           highlightedTaskId={selectedTaskId}
+          virtualRows={virtualRows}
+          totalRowSize={rowVirtualizer.getTotalSize()}
+          virtualPeriods={virtualPeriods}
         />
       </div>
     </div>

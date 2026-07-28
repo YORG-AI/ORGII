@@ -185,7 +185,7 @@ const ShortcutsSection: React.FC = () => {
         emptySubtitle={searchQuery ? t("shortcuts.noResultsHint") : undefined}
       />
 
-      <div className="rounded-lg bg-surface-container p-4">
+      <div className="rounded-lg bg-primary-container p-4">
         <div className="mb-2 text-sm font-medium text-text-1">
           {t("shortcuts.tipsHeading")}
         </div>

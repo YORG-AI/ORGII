@@ -43,6 +43,11 @@ import { CodePanel } from "./CodePanel";
 import { FileSidebar } from "./FileSidebar";
 import { isGenericIDEFallbackToolEvent } from "./config";
 import { isExplorePanelTool } from "./converters/exploreTypeResolver";
+import { isShellSearchEvent } from "./converters/shellSearchConverter";
+import {
+  type EventScopedExploreSelection,
+  resolveExploreSelection,
+} from "./exploreSelection";
 import {
   CODE_PANEL_MODE,
   FILE_OPERATION_TYPE,
@@ -66,12 +71,16 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
     typeof isGenericIDEFallbackToolEvent
   >[0];
   const functionName = sessionEvent?.functionName || "";
-  const currentEventType = isExplorePanelTool(functionName)
-    ? IDE_EVENT_TYPE.EXPLORE
-    : currentEventTypeProp ||
-      (isGenericIDEFallbackToolEvent(sessionEvent)
-        ? IDE_EVENT_TYPE.TOOL
-        : getIDEEventType(functionName));
+  const currentEventType =
+    isExplorePanelTool(functionName) ||
+    // Shell commands that are really grep/rg pipelines are routed to the
+    // explore panel (see deriveIDEState) — the current event must follow.
+    isShellSearchEvent(sessionEvent)
+      ? IDE_EVENT_TYPE.EXPLORE
+      : currentEventTypeProp ||
+        (isGenericIDEFallbackToolEvent(sessionEvent)
+          ? IDE_EVENT_TYPE.TOOL
+          : getIDEEventType(functionName));
   const terminalRevealRequest = useAtomValue(
     simulatorIdeTerminalRevealRequestAtom
   );
@@ -117,11 +126,11 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
     currentShellData,
   });
 
-  // Track whether user explicitly chose file or search in the explore tab.
-  // Updated only by user clicks; auto-navigation uses currentEventType directly.
-  const [userExploreChoice, setUserExploreChoice] = useState<
-    "file" | "search" | null
-  >(null);
+  // Track whether the user explicitly chose a file or search result for the
+  // current replay event. Keying the choice by event keeps local browsing in
+  // control until the replay cursor actually moves.
+  const [userExploreSelection, setUserExploreSelection] =
+    useState<EventScopedExploreSelection | null>(null);
 
   // Track whether user explicitly selected a tool item (under terminal tab)
   const [userPickedTool, setUserPickedTool] = useState(false);
@@ -155,34 +164,39 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
   // itself sets fileViewMode elsewhere.
   const handleFileSelect = useCallback(
     (selectedEventId: string) => {
-      setUserExploreChoice("file");
+      setUserExploreSelection({ eventId, choice: "file" });
       selectFileOperation(selectedEventId);
     },
-    [selectFileOperation]
+    [eventId, selectFileOperation]
   );
 
   const handleShellSelect = useCallback(
     (selectedEventId: string) => {
+      setFileViewMode(FILE_PANEL_VIEW_MODE.TERMINAL);
       setUserPickedTool(false);
       selectShellOperation(selectedEventId);
     },
-    [selectShellOperation]
+    [setFileViewMode, selectShellOperation]
   );
 
   const handleSearchSelect = useCallback(
     (selectedEventId: string) => {
-      setUserExploreChoice("search");
+      setFileViewMode(FILE_PANEL_VIEW_MODE.EXPLORE);
+      setUserExploreSelection({ eventId, choice: "search" });
       selectExploreOperation(selectedEventId);
     },
-    [selectExploreOperation]
+    [eventId, setFileViewMode, selectExploreOperation]
   );
 
   const handleToolSelect = useCallback(
     (selectedEventId: string) => {
+      // Shell commands and generic tools share the Terminal sidebar tab, so
+      // selecting either section must also switch the content-panel mode.
+      setFileViewMode(FILE_PANEL_VIEW_MODE.TOOL);
       setUserPickedTool(true);
       selectToolOperation(selectedEventId);
     },
-    [selectToolOperation]
+    [setFileViewMode, selectToolOperation]
   );
 
   // Mixed-kind tab click: the unified replay tab strip renders entries of
@@ -233,10 +247,11 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
     ]
   );
 
-  const exploreSelection =
+  const exploreSelection = resolveExploreSelection(
+    userExploreSelection,
+    eventId,
     currentEventType === IDE_EVENT_TYPE.EXPLORE
-      ? "search"
-      : (userExploreChoice ?? "file");
+  );
 
   // When user explicitly clicks a tool in the terminal tab's "Other Tools" section,
   // override the code panel to show the tool. Auto-navigation to a non-tool event

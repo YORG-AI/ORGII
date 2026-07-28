@@ -12,8 +12,8 @@
  *   For everything else — OS files from Finder / Explorer, and internal
  *   file-tree rows routed through `@crabnebula/tauri-plugin-drag` (which uses
  *   `startDrag` to perform a native drag) — we receive the drop through
- *   Tauri's IPC as a `TauriEvent::DragDrop` and convert it here into the same
- *   `handleIdeFileDrop` / `setDroppedFolder` calls the browser path uses.
+ *   Tauri's IPC as a `TauriEvent::DragDrop` and convert it into the same
+ *   chat-file calls the browser path uses.
  *
  * Contract:
  *   - `paths` always contains real filesystem paths (not Blob URLs).
@@ -26,12 +26,10 @@ import { useEffect } from "react";
 import { createLogger } from "@src/hooks/logger";
 import { clearInternalFileTreeDrag } from "@src/shared/dnd/dragSideChannel";
 
-import type { DragDropBehavior, DroppedFolder } from "../types";
 import {
   getChatDropTargetId,
   hasVisibleChatDropTarget,
   isDropInsideChatDropTarget,
-  isRepositoryDropPage,
 } from "./utils";
 
 const log = createLogger("drag-drop");
@@ -43,9 +41,7 @@ export interface UseTauriDragDropOptions {
     isFolder?: boolean,
     dropTargetId?: string
   ) => void;
-  setDroppedFolder: (folder: DroppedFolder | null) => void;
   setIsDragging: (dragging: boolean) => void;
-  setBehavior: (behavior: DragDropBehavior | null) => void;
 }
 
 /** Path helper — last segment of a POSIX-style path. */
@@ -67,25 +63,12 @@ function looksLikeFolder(path: string): boolean {
   return !/\.[A-Za-z0-9]{1,10}$/.test(name);
 }
 
-function resolveBehavior(position: {
-  x: number;
-  y: number;
-}): DragDropBehavior | null {
-  if (isDropInsideChatDropTarget(position)) {
-    return { mode: "chat-file", location: "chat-panel" };
-  }
-  if (hasVisibleChatDropTarget()) {
-    return { mode: "chat-file", location: "chat-panel" };
-  }
-  if (isRepositoryDropPage()) {
-    return { mode: "repository", location: "center" };
-  }
-  return null;
+function hasChatDropBehavior(position: { x: number; y: number }): boolean {
+  return isDropInsideChatDropTarget(position) || hasVisibleChatDropTarget();
 }
 
 export function useTauriDragDrop(options: UseTauriDragDropOptions): void {
-  const { handleIdeFileDrop, setDroppedFolder, setIsDragging, setBehavior } =
-    options;
+  const { handleIdeFileDrop, setIsDragging } = options;
 
   useEffect(() => {
     let unlistenFn: (() => void) | undefined;
@@ -99,24 +82,17 @@ export function useTauriDragDrop(options: UseTauriDragDropOptions): void {
 
         if (payload.type === "enter" || payload.type === "over") {
           const position = payload.position;
-          const nextBehavior = resolveBehavior({
-            x: position.x,
-            y: position.y,
-          });
-          setBehavior(nextBehavior);
-          setIsDragging(nextBehavior !== null);
+          setIsDragging(hasChatDropBehavior({ x: position.x, y: position.y }));
           return;
         }
 
         if (payload.type === "leave") {
           setIsDragging(false);
-          setBehavior(null);
           return;
         }
 
         if (payload.type === "drop") {
           setIsDragging(false);
-          setBehavior(null);
 
           const paths = payload.paths;
           const position = payload.position;
@@ -133,20 +109,6 @@ export function useTauriDragDrop(options: UseTauriDragDropOptions): void {
           // initiated via `startDrag()`.  We're handling the drop here; the
           // browser-level listener must not also fire against the same paths.
           clearInternalFileTreeDrag();
-
-          // Repository drop (Start page folder → "add as repo" modal).
-          // Only fires outside the chat panel and when the payload is a
-          // single folder.
-          if (
-            isRepositoryDropPage() &&
-            !insideChatDropTarget &&
-            paths.length === 1 &&
-            looksLikeFolder(paths[0])
-          ) {
-            const path = paths[0];
-            setDroppedFolder({ path, name: basename(path) });
-            return;
-          }
 
           if (insideChatDropTarget) {
             for (const path of paths) {
@@ -175,5 +137,5 @@ export function useTauriDragDrop(options: UseTauriDragDropOptions): void {
       cancelled = true;
       if (unlistenFn) unlistenFn();
     };
-  }, [handleIdeFileDrop, setDroppedFolder, setIsDragging, setBehavior]);
+  }, [handleIdeFileDrop, setIsDragging]);
 }

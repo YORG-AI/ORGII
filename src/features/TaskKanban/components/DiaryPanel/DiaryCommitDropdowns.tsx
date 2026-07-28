@@ -7,6 +7,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Dropdown from "@src/components/Dropdown";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -168,7 +169,11 @@ export const DiaryCommitBucketDropdown: React.FC<
       hoverCloseDelayMs={0}
       position="bottom-start"
       droplist={
-        <div className={`${DROPDOWN_CLASSES.panel} w-[320px] p-1`}>
+        <DropdownPanel
+          className="w-[320px] p-1"
+          animated={false}
+          maxHeight="none"
+        >
           <div className="flex items-center justify-between gap-3 px-2 py-1.5 text-[12px]">
             <span className="truncate text-text-2">{rangeLabel}</span>
             <span className="shrink-0 rounded bg-fill-1 px-1.5 py-0.5 text-[10px] text-text-2">
@@ -207,7 +212,7 @@ export const DiaryCommitBucketDropdown: React.FC<
               );
             })}
           </div>
-        </div>
+        </DropdownPanel>
       }
       getPopupContainer={() => document.body}
       avoidViewportOverflow

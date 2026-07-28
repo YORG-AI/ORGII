@@ -60,6 +60,7 @@ describe("refreshSession", () => {
     // Plain GoTrue call — no PostgREST schema profile header.
     expect(headers["content-profile"]).toBeUndefined();
     expect(JSON.parse(String(init.body))).toEqual({ refresh_token: "rt-1" });
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("returns null on non-200", async () => {
@@ -175,6 +176,22 @@ describe("ensureFreshSession", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({}, 401));
     expect(await ensureFreshSession(baseState)).toBeNull();
   });
+
+  it("reports only a credential rejection as a permanent auth failure", async () => {
+    const rejected = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse({}, 400));
+    await expect(
+      ensureFreshSession(baseState, { onRefreshRejected: rejected })
+    ).resolves.toBeNull();
+    expect(rejected).toHaveBeenCalledTimes(1);
+
+    rejected.mockClear();
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    await expect(
+      ensureFreshSession(baseState, { onRefreshRejected: rejected })
+    ).resolves.toBeNull();
+    expect(rejected).not.toHaveBeenCalled();
+  });
 });
 
 describe("org2_cloud RPC calls", () => {
@@ -244,5 +261,115 @@ describe("org2_cloud RPC calls", () => {
       ])
     );
     await expect(listOrgMembers("at-1", "org-1")).resolves.toEqual([]);
+  });
+});
+
+describe("listMyOrgs batched entitlements (0004)", () => {
+  it("normalizes a roster row's entitlement payload", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "member",
+          entitlement: {
+            plan: "pro",
+            status: "active",
+            replayRetentionDays: null,
+            maxOrgMembers: 3,
+            sessionSyncEnabled: true,
+            orgSharingFloor: "metadata_only",
+          },
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      {
+        orgId: "org-1",
+        name: "Acme",
+        role: "member",
+        entitlement: {
+          plan: "pro",
+          status: "active",
+          maxOrgMembers: 3,
+          sessionSyncEnabled: true,
+          orgSharingFloor: "metadata_only",
+        },
+      },
+    ]);
+  });
+
+  it("keeps the org and drops only the entitlement when the payload is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "owner",
+          entitlement: { plan: 42 },
+        },
+        { orgId: "org-2", name: "Beta", role: "member", entitlement: null },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+      { orgId: "org-2", name: "Beta", role: "member" },
+    ]);
+  });
+
+  it("parses pre-0004 rows without the entitlement key", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([{ orgId: "org-1", name: "Acme", role: "owner" }])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+    ]);
+  });
+});
+
+describe("listMyOrgs homeEndpoint (0007)", () => {
+  it("carries a roster row's homeEndpoint through", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "member",
+          homeEndpoint: "https://shard-2.supabase.co",
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      {
+        orgId: "org-1",
+        name: "Acme",
+        role: "member",
+        homeEndpoint: "https://shard-2.supabase.co",
+      },
+    ]);
+  });
+
+  it("omits homeEndpoint for pre-0007 rows without the key and for null", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { orgId: "org-1", name: "Acme", role: "owner" },
+        { orgId: "org-2", name: "Beta", role: "member", homeEndpoint: null },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+      { orgId: "org-2", name: "Beta", role: "member" },
+    ]);
+  });
+
+  it("keeps the org and drops only the homeEndpoint when the value is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { orgId: "org-1", name: "Acme", role: "owner", homeEndpoint: 42 },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+    ]);
   });
 });

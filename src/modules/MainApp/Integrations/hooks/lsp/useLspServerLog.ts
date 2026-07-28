@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { LspLogLine } from "@src/modules/MainApp/Integrations/DevTools/LanguageServersPage/types";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const POLL_INTERVAL_MS = 1500;
 
@@ -76,11 +77,14 @@ export function useLspServerLog({
       return undefined;
     }
 
-    fetchOnce();
-    const handle = window.setInterval(fetchOnce, POLL_INTERVAL_MS);
+    const stopPolling = startVisibilityAwarePoller(
+      document,
+      fetchOnce,
+      POLL_INTERVAL_MS
+    );
     return () => {
       cancelledRef.current = true;
-      window.clearInterval(handle);
+      stopPolling();
     };
   }, [enabled, language, fetchOnce]);
 

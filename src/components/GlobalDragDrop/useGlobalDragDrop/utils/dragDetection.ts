@@ -17,7 +17,6 @@ import { getNativeFrameScale } from "@src/util/platform/tauri/nativeFrame";
  */
 export function isInternalDrag(
   event: Event,
-  appGridEditModeRef: MutableRefObject<boolean>,
   workflowDragActiveRef: MutableRefObject<boolean>
 ): boolean {
   const dragEvent = event as DragEvent;
@@ -27,9 +26,8 @@ export function isInternalDrag(
     return true;
   }
 
-  // If app grid is in edit mode, assume any drag could be internal
-  // If workflow is dragging, assume any drag could be internal
-  if (appGridEditModeRef.current || workflowDragActiveRef.current) {
+  // Workflow canvas drags are internal.
+  if (workflowDragActiveRef.current) {
     return true;
   }
 
@@ -77,7 +75,6 @@ export function isInternalDrag(
   if (types.length > 0) {
     // Known internal drag types
     if (
-      types.includes("application/x-app-grid-item") ||
       types.includes("application/x-workflow-node") ||
       types.includes("application/x-file-reference")
     ) {
@@ -96,7 +93,8 @@ export function isInternalDrag(
   return false;
 }
 
-const CHAT_DROP_TARGET_SELECTOR = "[data-chat-drop-target]";
+const CHAT_DROP_TARGET_SELECTOR =
+  "[data-chat-drop-target]:not([data-chat-file-drop-disabled])";
 const CHAT_DROP_TARGET_HIT_SLOP_PX = 240;
 
 function getExpandedChatDropTarget(

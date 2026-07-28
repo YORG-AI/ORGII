@@ -7,7 +7,6 @@
 // Layout shell
 export { WorkStationShell } from "./WorkStationShell";
 export type { WorkStationShellProps } from "./WorkStationShell";
-export { WorkstationTabHeaderSlotsView } from "./WorkstationTabHeaderSlotsView";
 export { WorkstationHeaderSectionSeparator } from "./WorkstationHeaderSectionSeparator";
 export { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
 export type { WorkstationToolbarTooltipProps } from "./WorkstationToolbarTooltip";
@@ -88,15 +87,12 @@ export type {
 
 // Reusable sidebar modules (tab-specific sidebar substrate)
 export {
-  useSourceControlSidebarModule,
   SourceControlTabSidebar,
   registerTabSidebar,
   getTabSidebarDescriptor,
   hasTabSidebar,
   SidebarSlot,
   useTabSidebar,
-  type UseSourceControlSidebarModuleOptions,
-  type UseSourceControlSidebarModuleResult,
   type TabSidebarComponent,
   type TabSidebarDescriptor,
   type TabSidebarProps,
@@ -133,7 +129,6 @@ export {
 export type { WorkStationTab, TabBarProps } from "./TabBar";
 export { TabBarTrailingIconButton } from "./TabBar/components/TabBarTrailingIconButton";
 export type { TabBarTrailingIconButtonProps } from "./TabBar/components/TabBarTrailingIconButton";
-export { NoDragRegion } from "./NoDragRegion";
 export { StationTabBarLeading } from "./StationTabBarLeading";
 export { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 

@@ -37,7 +37,7 @@
     background: transparent;
     color: var(--color-text-2);
     font-size: var(--cm-font-size-small, 12px);
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.15s ease;
 
     &:hover:not(:disabled) {
@@ -92,7 +92,7 @@
     border: none;
     background: transparent;
     text-align: left;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: background 0.15s ease;
 
     &:hover {

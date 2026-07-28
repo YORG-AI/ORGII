@@ -470,7 +470,7 @@ fn build_app_path_map() -> std::collections::HashMap<String, String> {
                 map.insert(id.to_string(), path.to_string());
             }
         }
-        return map;
+        map
     }
 
     #[cfg(not(target_os = "macos"))]

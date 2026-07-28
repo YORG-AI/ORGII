@@ -2,7 +2,7 @@
  * Sidebar State Atom
  *
  * Manages sidebar width and shared collapse state (localStorage).
- * Both layout types (home, session) collapse and expand together.
+ * Settings and session sidebars collapse and expand together.
  */
 import { atom } from "jotai";
 
@@ -48,7 +48,7 @@ sidebarWidthAtom.debugLabel = "sidebarWidthAtom";
 const sidebarCollapsedBaseAtom = atom<boolean>(getStoredCollapsed());
 sidebarCollapsedBaseAtom.debugLabel = "sidebarCollapsedBaseAtom";
 
-/** Shared main sidebar collapsed state for Home and Agent/session surfaces. */
+/** Shared main sidebar collapsed state for Settings and session surfaces. */
 export const sidebarCollapsedAtom = atom(
   (get) => get(sidebarCollapsedBaseAtom),
   (_get, set, value: boolean) => {

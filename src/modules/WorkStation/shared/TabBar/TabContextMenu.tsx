@@ -49,6 +49,10 @@ export interface TabContextMenuProps {
   onCloseOtherTabs: (tabId: string) => void;
   /** Callback to close all saved tabs */
   onCloseSavedTabs: () => void;
+  /** Move a chat-session tab back to the Chat Panel tab strip. */
+  onMoveSessionToChatPanel?: (tab: WorkStationTab) => void;
+  /** Open the full raw transcript for a chat-session tab. */
+  onViewRawTranscript?: (sessionId: string) => void;
   /** Dispatch function for GUI actions */
   dispatch?: DispatchFn;
 }
@@ -197,6 +201,39 @@ export function TabContextMenu(props: TabContextMenuProps) {
           closeSavedItem,
         ];
 
+        if (tab.type === "chat-session") {
+          const sessionId = tab.data.sessionId;
+          if (typeof sessionId === "string" && sessionId.length > 0) {
+            const [separator, moveItem, rawTranscriptItem] = await Promise.all([
+              PredefinedMenuItem.new({ item: "Separator" }),
+              MenuItem.new({
+                text: t("sessions:chat.moveToChatPanel", {
+                  defaultValue: "Move to Chat Panel",
+                }),
+                action: () => {
+                  const context = contextMenuRef.current;
+                  if (context) context.onMoveSessionToChatPanel?.(context.tab);
+                  context?.onClose();
+                },
+              }),
+              MenuItem.new({
+                text: t("sessions:chat.rawTranscript.menuItem", {
+                  defaultValue: "View raw transcript",
+                }),
+                action: () => {
+                  const context = contextMenuRef.current;
+                  const activeSessionId = context?.tab.data.sessionId;
+                  if (typeof activeSessionId === "string") {
+                    context?.onViewRawTranscript?.(activeSessionId);
+                  }
+                  context?.onClose();
+                },
+              }),
+            ]);
+            items.push(separator, moveItem, rawTranscriptItem);
+          }
+        }
+
         // Add file-related items if we have a file path (also in parallel)
         if (filePath) {
           const [
@@ -290,7 +327,7 @@ export function TabContextMenu(props: TabContextMenuProps) {
     }
 
     showNativeMenu();
-  }, [filePath, onClose]);
+  }, [filePath, onClose, tab.data.sessionId, tab.type]);
 
   // Native menu doesn't render anything in React
   return null;

@@ -16,7 +16,6 @@
  * `NestedActivityListForSession` convenience wrapper.
  */
 import React, { memo, useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 import {
   type OptimizedChatItem,
@@ -32,6 +31,7 @@ import { useSessionEvents } from "@src/engines/SessionCore/core/store/useSession
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { findIndexAtTime } from "@src/engines/Simulator/utils/findIndexAtTime";
 
+import { ChatLoadingBlock } from "../primitives";
 import { NestedBlockContext } from "../primitives/nestedBlockContext";
 
 const REVEAL_INTERVAL_MS = 50;
@@ -107,8 +107,6 @@ const NestedActivityList: React.FC<NestedActivityListProps> = memo(
     interactive = false,
     externalCursorMs = null,
   }) => {
-    const { t } = useTranslation("sessions");
-
     // When the parent passes a replay cursor, clip the child event stream to
     // events that existed at that timestamp. The slice happens *before*
     // processChatItems so grouping (read_file groups, action summaries) sees
@@ -154,8 +152,8 @@ const NestedActivityList: React.FC<NestedActivityListProps> = memo(
     if (visibleItems.length === 0) {
       if (loading) {
         return (
-          <div className="px-3.5 py-2 text-xs text-text-3/60">
-            {t("chat.loading")}
+          <div className="px-3.5 py-2">
+            <ChatLoadingBlock />
           </div>
         );
       }

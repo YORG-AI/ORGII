@@ -19,7 +19,7 @@ import {
   getPlanSubmittedPayloadFromResult,
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
-import { pendingPlanApprovalsAtom } from "@src/store/session/planApprovalAtom";
+import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
 
 import CreatePlanCard from "../../blocks/CreatePlanCard";
 
@@ -28,10 +28,7 @@ function asString(value: unknown): string {
 }
 
 export const PlanDocAdapter: React.FC<UniversalEventProps> = (props) => {
-  const approvalMap = useAtomValue(pendingPlanApprovalsAtom);
-  const pendingPlan = props.sessionId
-    ? approvalMap.get(props.sessionId)?.current
-    : null;
+  const pendingPlan = usePendingPlanApproval(props.sessionId);
   const chatEvents = useAtomValue(chatEventsAtom);
   const eventForIdentity = chatEvents.find(
     (event) => event.id === props.eventId

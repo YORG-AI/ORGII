@@ -1687,6 +1687,8 @@
     "sessionProvenance": {
       "masterToggle": "Hooki pochodzenia",
       "masterToggleDesc": "Po wyłączeniu wszystkie zarządzane hooki zostaną odinstalowane i żadne sygnały nie będą zbierane; wybory dla poszczególnych platform zostaną zachowane i przywrócone po ponownym włączeniu.",
+      "liveStatusToggle": "Stan agenta na żywo",
+      "liveStatusToggleDesc": "Pokazuje, czy uruchomieni agenci CLI pracują, czy czekają. Wyłączenie nie zatrzymuje rejestrowania pochodzenia.",
       "title": "Pochodzenie sesji",
       "capture": "Rejestruj interakcje z plikami",
       "description": "Rejestruje odczyty i zapisy plików jako metadane. Prompty, wyniki narzędzi i zawartość plików nie są przechowywane.",

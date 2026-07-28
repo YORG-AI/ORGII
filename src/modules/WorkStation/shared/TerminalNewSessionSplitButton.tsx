@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -76,9 +77,11 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
     if (!isShellPickerOpen || !isShellPickerPositioned) return null;
 
     return createPortal(
-      <div
+      <DropdownPanel
         ref={shellPickerDropdownRef}
-        className={`${DROPDOWN_CLASSES.panel} ${DROPDOWN_WIDTHS.sidebarMenuClass}`}
+        className={DROPDOWN_WIDTHS.sidebarMenuClass}
+        animated={false}
+        maxHeight="none"
         style={{
           position: "fixed",
           top: shellPickerPosition.top,
@@ -122,7 +125,7 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
             </>
           )}
         </div>
-      </div>,
+      </DropdownPanel>,
       document.body
     );
   }, [

@@ -2423,6 +2423,8 @@
       },
       "masterToggle": "溯源 Hooks",
       "masterToggleDesc": "关闭后将卸载所有托管 hook,不再采集任何信号;各平台的选择会保留,重新开启时恢复",
+      "liveStatusToggle": "实时 Agent 状态",
+      "liveStatusToggleDesc": "显示运行中 CLI Agent 的工作或等待状态；关闭后仍会采集溯源记录。",
       "codexApproval": {
         "title": "在 Codex 中验证 ORG2 hooks",
         "description": "正在等待 Codex 授权并执行当前的 ORG2 hooks。",

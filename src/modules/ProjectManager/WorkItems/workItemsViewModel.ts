@@ -6,7 +6,10 @@ import {
   type KanbanColumnConfig,
   type KanbanTask,
 } from "@src/features/KanbanBoard";
-import type { StatusCounts } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
+import type {
+  StatusCounts,
+  StatusFilterType,
+} from "@src/modules/ProjectManager/WorkItems/types";
 import {
   GITHUB_ISSUE_STATUS_OPTIONS,
   WORK_ITEM_STATUS_OPTIONS,
@@ -14,6 +17,7 @@ import {
 import type { DropdownOption, Person } from "@src/types/core/shared";
 import {
   GITHUB_ISSUE_STATUS,
+  WORK_ITEM_STATUS,
   type WorkItem,
   type WorkItemStatus,
 } from "@src/types/core/workItem";
@@ -24,7 +28,6 @@ import {
   STATUS_FILTER_KEYS,
   WORK_ITEMS_DEFAULT_STATUS,
 } from "./types";
-import type { StatusFilterType } from "./types";
 
 export type WorkItemGroupStatus = WorkItemStatus | "deleted";
 
@@ -124,6 +127,106 @@ export function getStatusFilterKeysForWorkItems(
     return [...GITHUB_ISSUE_STATUS_FILTER_KEYS, ...STATUS_FILTER_KEYS.slice(1)];
   }
   return STATUS_FILTER_KEYS;
+}
+
+export function isWorkspaceCompletedWorkItem(workItem: WorkItem): boolean {
+  const status = getWorkItemStatus(workItem);
+  return (
+    status === WORK_ITEM_STATUS.COMPLETED ||
+    status === GITHUB_ISSUE_STATUS.CLOSED
+  );
+}
+
+export function filterWorkspaceWorkItemsByStatus<TWorkItem extends WorkItem>(
+  workItems: TWorkItem[],
+  statusFilter: StatusFilterType
+): TWorkItem[] {
+  if (statusFilter === "done" || statusFilter === "closed") {
+    return workItems.filter(
+      (workItem) =>
+        !isDeletedWorkItem(workItem) && isWorkspaceCompletedWorkItem(workItem)
+    );
+  }
+  return filterWorkItemsByStatus(workItems, statusFilter);
+}
+
+export function getWorkspaceStatusFilterKeysForWorkItems(
+  workItems: WorkItem[]
+): readonly StatusFilterType[] {
+  const availableKeys = new Set(getStatusFilterKeysForWorkItems(workItems));
+  availableKeys.delete("closed");
+  availableKeys.add("done");
+
+  return [
+    "all",
+    ...(availableKeys.has("open") ? (["open"] as const) : []),
+    ...STATUS_FILTER_KEYS.slice(1).filter((key) => availableKeys.has(key)),
+  ];
+}
+
+function mergeWorkspaceCompletedGroups<TWorkItem extends WorkItem>(
+  groups: WorkItemGroup<TWorkItem>[]
+): WorkItemGroup<TWorkItem>[] {
+  const completedItems = groups
+    .filter(
+      (group) =>
+        group.status === WORK_ITEM_STATUS.COMPLETED ||
+        group.status === GITHUB_ISSUE_STATUS.CLOSED
+    )
+    .flatMap((group) => group.items);
+  const completedConfig = WORK_ITEM_STATUS_OPTIONS.find(
+    (option) => option.value === WORK_ITEM_STATUS.COMPLETED
+  );
+  if (!completedConfig) return groups;
+
+  const completedGroup: WorkItemGroup<TWorkItem> = {
+    status: WORK_ITEM_STATUS.COMPLETED,
+    config: completedConfig,
+    items: completedItems,
+  };
+  const mergedGroups: WorkItemGroup<TWorkItem>[] = [];
+  let insertedCompletedGroup = false;
+
+  for (const group of groups) {
+    if (group.status === GITHUB_ISSUE_STATUS.CLOSED) continue;
+    if (group.status === WORK_ITEM_STATUS.COMPLETED) {
+      mergedGroups.push(completedGroup);
+      insertedCompletedGroup = true;
+      continue;
+    }
+    if (group.status === "deleted" && !insertedCompletedGroup) {
+      mergedGroups.push(completedGroup);
+      insertedCompletedGroup = true;
+    }
+    mergedGroups.push(group);
+  }
+
+  if (!insertedCompletedGroup) mergedGroups.push(completedGroup);
+  return mergedGroups;
+}
+
+export function groupWorkspaceWorkItemsForStatusFilter<
+  TWorkItem extends WorkItem,
+>(
+  workItems: TWorkItem[],
+  statusFilter: StatusFilterType
+): WorkItemGroup<TWorkItem>[] {
+  const filteredItems = filterWorkspaceWorkItemsByStatus(
+    workItems,
+    statusFilter
+  );
+  const completedFilter = statusFilter === "done" || statusFilter === "closed";
+  const groups = groupWorkItemsForStatusFilter(
+    filteredItems,
+    completedFilter ? "all" : statusFilter
+  );
+  if (!completedFilter && statusFilter !== "all") return groups;
+  const mergedGroups = mergeWorkspaceCompletedGroups(groups);
+  return completedFilter
+    ? mergedGroups.filter(
+        (group) => group.status === WORK_ITEM_STATUS.COMPLETED
+      )
+    : mergedGroups;
 }
 
 export function groupWorkItemsForStatusFilter<TWorkItem extends WorkItem>(
@@ -361,6 +464,17 @@ export function countWorkItemsByStatus(workItems: WorkItem[]): StatusCounts {
   }
 
   return counts;
+}
+
+export function countWorkspaceWorkItemsByStatus(
+  workItems: WorkItem[]
+): StatusCounts {
+  const counts = countWorkItemsByStatus(workItems);
+  return {
+    ...counts,
+    done: counts.done + counts.closed,
+    closed: 0,
+  };
 }
 
 export function getWorkItemNavigation(

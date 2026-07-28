@@ -115,13 +115,10 @@ const VirtualizedModernDiffComponent: React.FC<ModernDiffProps> = ({
       const line = flattenedLines[index];
       if (!line) return null;
 
-      // Find collapse index if this is a collapse line
-      let collapseIndex = 0;
-      for (let prevIndex = 0; prevIndex < index; prevIndex++) {
-        if (flattenedLines[prevIndex].type === "collapse") {
-          collapseIndex++;
-        }
-      }
+      // Collapse ordinal for this row (only meaningful for `collapse` rows).
+      // Precomputed once in useDiffLines; previously this was an O(index) scan
+      // re-run for every visible row on every render and scroll frame.
+      const collapseIndex = collapseIndexMap.get(index) ?? 0;
 
       const range =
         line.index !== undefined ? lineToRange.get(line.index) : undefined;
@@ -157,6 +154,7 @@ const VirtualizedModernDiffComponent: React.FC<ModernDiffProps> = ({
     },
     [
       flattenedLines,
+      collapseIndexMap,
       language,
       cherrypicking,
       selectedLines,

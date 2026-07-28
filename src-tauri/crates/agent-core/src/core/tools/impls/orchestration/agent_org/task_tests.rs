@@ -2,12 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::{json, Value};
 
-use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage};
+use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, COORDINATOR_MEMBER_ID,
 };
 use crate::coordination::agent_org_tasks::{
-    AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_DEPENDENCY_CYCLE_ERROR,
+    eligible_member_ids, task_execution_mode, task_output, AgentOrgTaskStore, CreateTaskParams,
+    TaskExecutionMode, TaskStatus, TASK_DEPENDENCY_CYCLE_ERROR,
 };
 use crate::core::session::persistence::{upsert_session, UnifiedSessionRecord};
 use crate::definitions::orgs::HierarchyMode;
@@ -15,7 +16,7 @@ use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopIn
 use crate::tools::traits::{Tool, ToolError};
 use test_helpers::test_env;
 
-use super::task_create::TaskCreateTool as ProductionTaskCreateTool;
+use super::task_create::{TaskCreatePrePersistHook, TaskCreateTool as ProductionTaskCreateTool};
 use super::task_graph_create::TaskGraphCreateTool;
 use super::task_list_get::{TaskGetTool, TaskListTool};
 use super::task_update::TaskUpdateTool;
@@ -190,26 +191,27 @@ fn ctx_with_wake(
 }
 
 fn shared_sde_ctx(caller_member_id: Option<&str>) -> Arc<TaskToolsContext> {
+    let org_context = Arc::new(AgentOrgRunContext {
+        run_id: "run-shared-sde".into(),
+        org_id: "org-shared-sde".into(),
+        org_name: "Default Agent Org".into(),
+        org_role: "Coordinator".into(),
+        coordinator_agent_id: "builtin:sde".into(),
+        coordinator_name: "Coordinator".into(),
+        coordinator_role: "Coordinator".into(),
+        members: vec![AgentOrgContextMember {
+            member_id: "sde-planner".into(),
+            name: "Planner".into(),
+            role: "Plans".into(),
+            agent_id: "builtin:sde".into(),
+            parent_member_id: None,
+        }],
+        hierarchy_mode: Default::default(),
+        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        root_session_id: Some("root-shared-sde".into()),
+    });
     Arc::new(TaskToolsContext {
-        org_context: Arc::new(AgentOrgRunContext {
-            run_id: "run-shared-sde".into(),
-            org_id: "org-shared-sde".into(),
-            org_name: "Default Agent Org".into(),
-            org_role: "Coordinator".into(),
-            coordinator_agent_id: "builtin:sde".into(),
-            coordinator_name: "Coordinator".into(),
-            coordinator_role: "Coordinator".into(),
-            members: vec![AgentOrgContextMember {
-                member_id: "sde-planner".into(),
-                name: "Planner".into(),
-                role: "Plans".into(),
-                agent_id: "builtin:sde".into(),
-                parent_member_id: None,
-            }],
-            hierarchy_mode: Default::default(),
-            plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-            root_session_id: Some("root-shared-sde".into()),
-        }),
+        org_context,
         caller_agent_id: "builtin:sde".into(),
         caller_member_id: caller_member_id
             .unwrap_or(COORDINATOR_MEMBER_ID)
@@ -244,6 +246,7 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
             session_id TEXT NOT NULL,
             turn_intent_id TEXT NOT NULL,
             client_message_id TEXT,
+            org_run_id TEXT,
             source TEXT NOT NULL,
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
@@ -252,6 +255,31 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
         );",
     )
     .expect("cli session schema");
+    let now = chrono::Utc::now().to_rfc3339();
+    for (run_id, org_id, coordinator_agent_id, root_session_id) in [
+        ("run-tools-1", "org-tools-1", "coord-1", "root-tools-1"),
+        (
+            "run-hierarchy-tools",
+            "org-hierarchy-tools",
+            "coord-hierarchy",
+            "root-hierarchy-tools",
+        ),
+        (
+            "run-shared-sde",
+            "org-shared-sde",
+            "builtin:sde",
+            "root-shared-sde",
+        ),
+    ] {
+        conn.execute(
+            "INSERT OR IGNORE INTO agent_org_runs
+             (id, org_id, coordinator_agent_id, root_session_id, entry_mode,
+              status, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, 'standalone_session', 'running', ?5, ?5)",
+            rusqlite::params![run_id, org_id, coordinator_agent_id, root_session_id, &now],
+        )
+        .expect("seed running parent Agent Org run");
+    }
     sandbox
 }
 
@@ -371,6 +399,32 @@ async fn task_create_rejects_missing_dispatch_policy() {
     assert!(
         matches!(err, ToolError::InvalidParams(message) if message.contains("dispatch_policy"))
     );
+}
+
+#[tokio::test]
+async fn task_create_rejects_ownerless_task_with_undeliverable_id() {
+    let _sandbox = task_tools_sandbox();
+    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
+    let oversized_id =
+        "x".repeat(crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS + 1);
+    let error = tool
+        .execute_text(
+            json!({
+                "id": oversized_id,
+                "subject": "Ownerless bounded task",
+                "eligible_member_ids": ["m-alice"],
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect_err("task id must fit every TaskAssigned delivery path");
+
+    assert!(
+        matches!(error, ToolError::InvalidParams(message) if message.contains("task_create.id must be <= 1000 chars"))
+    );
+    assert!(AgentOrgTaskStore::list("run-tools-1")
+        .expect("inspect rejected board")
+        .is_empty());
 }
 
 #[test]
@@ -616,6 +670,85 @@ async fn task_create_allows_explicit_parallelism_with_unlisted_open_tasks() {
     let value: Value = serde_json::from_str(&response).unwrap();
     assert_eq!(value["already_exists"], false);
     assert_eq!(value["task"]["blocked_by"], json!(["producer-a"]));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn task_create_rechecks_open_work_after_stale_advisory_read() {
+    let _sandbox = task_tools_sandbox();
+    let hook = Arc::new(TaskCreatePrePersistHook::default());
+    let candidate_tool = ProductionTaskCreateTool::with_pre_persist_hook(
+        ctx(COORDINATOR_MEMBER_ID),
+        Arc::clone(&hook),
+    );
+
+    // Pause the first request after it has observed an empty board but before
+    // it asks the store to commit. This recreates the exact TOCTOU window that
+    // existed when the confirmation gate lived only in the tool layer.
+    let candidate = tokio::spawn(async move {
+        candidate_tool
+            .execute_text(
+                json!({
+                    "id": "candidate-after-stale-read",
+                    "subject": "Candidate created from a stale board snapshot",
+                    "owner_member_id": "m-alice",
+                    "dispatch_policy": "immediate",
+                    "execution_mode": "build"
+                }),
+                &test_ctx(),
+            )
+            .await
+    });
+    hook.wait_until_reached().await;
+
+    // A genuinely independent request commits new open work while the first
+    // request is paused. The first request's advisory read can no longer see
+    // this row, so only a transaction-time graph check can protect the gate.
+    ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(
+            json!({
+                "id": "concurrent-open-work",
+                "subject": "Concurrent independent work",
+                "owner_member_id": "m-bob",
+                "dispatch_policy": "immediate",
+                "execution_mode": "build",
+                "allow_parallel_with_unlisted_open_tasks": true
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("concurrent task commits before the stale request resumes");
+    hook.resume();
+
+    let response = candidate
+        .await
+        .expect("candidate task join")
+        .expect("transaction conflict is recoverable guidance");
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["created"], false);
+    assert_eq!(value["requires_dependency_confirmation"], true);
+    assert_eq!(value["requires_parallel_confirmation"], true);
+    assert_eq!(
+        value["unlisted_open_task_ids"],
+        json!(["concurrent-open-work"])
+    );
+    assert!(
+        AgentOrgTaskStore::get("run-tools-1", "candidate-after-stale-read")
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        AgentOrgTaskStore::list("run-tools-1")
+            .expect("list board after rejected stale create")
+            .into_iter()
+            .map(|task| task.id)
+            .collect::<Vec<_>>(),
+        vec!["concurrent-open-work"],
+        "the rejected request must leave no task or partial graph row"
+    );
+    assert!(AgentOrgTaskStore::list_history("run-tools-1")
+        .expect("list task history")
+        .iter()
+        .all(|event| event.task_id != "candidate-after-stale-read"));
 }
 
 #[tokio::test]
@@ -1112,23 +1245,22 @@ async fn task_update_rejects_dependency_cycle_as_invalid_params() {
         .unwrap();
     create
         .execute_text(
-            json!({ "id": "second-cycle", "subject": "Second", "eligible_member_ids": ["m-alice"] }),
+            json!({
+                "id": "second-cycle",
+                "subject": "Second",
+                "eligible_member_ids": ["m-alice"],
+                "dispatch_policy": "after_dependencies",
+                "dependency_task_ids": ["first-cycle"]
+            }),
             &test_ctx(),
         )
         .await
         .unwrap();
 
     let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    update
-        .execute_text(
-            json!({ "id": "first-cycle", "blocks": ["second-cycle"] }),
-            &test_ctx(),
-        )
-        .await
-        .expect("first dependency edge is acyclic");
     let err = update
         .execute_text(
-            json!({ "id": "second-cycle", "blocks": ["first-cycle"] }),
+            json!({ "id": "first-cycle", "blocked_by": ["second-cycle"] }),
             &test_ctx(),
         )
         .await
@@ -1398,6 +1530,42 @@ async fn task_authority_worker_cannot_delete_peer_task() {
 }
 
 #[tokio::test]
+async fn eligible_worker_cannot_delete_ownerless_task() {
+    let _sandbox = task_tools_sandbox();
+    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
+    create
+        .execute_text(
+            json!({
+                "id": "ownerless-delete-target",
+                "subject": "Coordinator-owned unassigned work",
+                "eligible_member_ids": ["m-alice"]
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("coordinator creates ownerless task");
+
+    let update = TaskUpdateTool::new(ctx("m-alice"));
+    let response = update
+        .execute_text(
+            json!({ "id": "ownerless-delete-target", "status": "deleted" }),
+            &test_ctx(),
+        )
+        .await
+        .expect("authorization misuse returns structured guidance");
+    let value: Value = serde_json::from_str(&response).unwrap();
+    assert_eq!(value["authorization_denied"], true);
+    assert_eq!(value["action"], "task_update.delete");
+
+    let task = AgentOrgTaskStore::get("run-tools-1", "ownerless-delete-target")
+        .expect("load protected ownerless task")
+        .expect("task remains after denied delete");
+    assert_eq!(task.owner, None);
+    assert_eq!(task.status, TaskStatus::Pending);
+    assert_eq!(eligible_member_ids(&task), vec!["m-alice"]);
+}
+
+#[tokio::test]
 async fn task_authority_worker_cannot_reassign_own_task_to_peer() {
     let _sandbox = task_tools_sandbox();
     let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
@@ -1599,6 +1767,205 @@ async fn task_update_rejects_completed_to_in_progress_reopen() {
     assert!(value["status_ignored"].as_bool().unwrap());
     assert_eq!(value["task"]["status"], "completed");
     assert!(value["guidance"].as_str().unwrap().contains("follow-up"));
+}
+
+#[tokio::test]
+async fn task_update_freeform_metadata_preserves_plan_execution_mode() {
+    let _sandbox = task_tools_sandbox();
+    let coordinator = ctx(COORDINATOR_MEMBER_ID);
+    TaskCreateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "plan-metadata-patch",
+                "subject": "Plan without losing its mode",
+                "owner_member_id": "m-alice",
+                "execution_mode": "plan",
+                "metadata": { "original_note": "keep" }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    TaskUpdateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "plan-metadata-patch",
+                "metadata": { "review_note": "added later" }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("free-form metadata patch succeeds");
+
+    let task = AgentOrgTaskStore::get("run-tools-1", "plan-metadata-patch")
+        .unwrap()
+        .unwrap();
+    assert_eq!(task_execution_mode(&task), TaskExecutionMode::Plan);
+    assert_eq!(task.metadata.as_ref().unwrap()["original_note"], "keep");
+    assert_eq!(
+        task.metadata.as_ref().unwrap()["review_note"],
+        "added later"
+    );
+}
+
+#[tokio::test]
+async fn task_update_freeform_metadata_preserves_completed_output() {
+    let _sandbox = task_tools_sandbox();
+    let coordinator = ctx(COORDINATOR_MEMBER_ID);
+    TaskCreateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "completed-metadata-patch",
+                "subject": "Keep completed output",
+                "owner_member_id": "m-alice"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    let alice = ctx("m-alice");
+    TaskUpdateTool::new(Arc::clone(&alice))
+        .execute_text(
+            json!({
+                "id": "completed-metadata-patch",
+                "status": "completed",
+                "output": {
+                    "summary": "Durable result",
+                    "content": "Full durable result"
+                }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    TaskUpdateTool::new(Arc::clone(&alice))
+        .execute_text(
+            json!({
+                "id": "completed-metadata-patch",
+                "metadata": { "audit_note": "verified" }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("completed task accepts a free-form metadata patch");
+
+    let task = AgentOrgTaskStore::get("run-tools-1", "completed-metadata-patch")
+        .unwrap()
+        .unwrap();
+    assert_eq!(task.status, TaskStatus::Completed);
+    let output = task_output(&task).expect("durable output remains present");
+    assert_eq!(output.summary, "Durable result");
+    assert_eq!(output.content.as_deref(), Some("Full durable result"));
+    assert_eq!(task.metadata.as_ref().unwrap()["audit_note"], "verified");
+}
+
+#[tokio::test]
+async fn task_update_freeform_metadata_preserves_owned_eligibility_for_safe_requeue() {
+    let _sandbox = task_tools_sandbox();
+    let coordinator = ctx(COORDINATOR_MEMBER_ID);
+    TaskCreateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "owned-requeue-metadata-patch",
+                "subject": "Requeue safely",
+                "owner_member_id": "m-alice",
+                "eligible_member_ids": ["m-alice", "m-bob"]
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    TaskUpdateTool::new(ctx("m-alice"))
+        .execute_text(
+            json!({
+                "id": "owned-requeue-metadata-patch",
+                "status": "in_progress"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+    TaskUpdateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "owned-requeue-metadata-patch",
+                "metadata": { "failure_note": "retry elsewhere" }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    TaskUpdateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "owned-requeue-metadata-patch",
+                "owner_member_id": null,
+                "status": "pending"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("preserved eligibility makes ownerless requeue valid");
+
+    let task = AgentOrgTaskStore::get("run-tools-1", "owned-requeue-metadata-patch")
+        .unwrap()
+        .unwrap();
+    assert_eq!(task.owner, None);
+    assert_eq!(task.status, TaskStatus::Pending);
+    assert_eq!(eligible_member_ids(&task), vec!["m-alice", "m-bob"]);
+    assert_eq!(
+        task.metadata.as_ref().unwrap()["failure_note"],
+        "retry elsewhere"
+    );
+}
+
+#[tokio::test]
+async fn task_update_rejects_reserved_freeform_metadata_keys() {
+    let _sandbox = task_tools_sandbox();
+    let coordinator = ctx(COORDINATOR_MEMBER_ID);
+    TaskCreateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "reserved-update-metadata",
+                "subject": "Reserved update metadata",
+                "owner_member_id": "m-alice",
+                "execution_mode": "plan"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .unwrap();
+
+    let err = TaskUpdateTool::new(Arc::clone(&coordinator))
+        .execute_text(
+            json!({
+                "id": "reserved-update-metadata",
+                "metadata": {
+                    "execution_mode": "build",
+                    "output": { "summary": "forged" }
+                }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect_err("reserved metadata keys must be rejected explicitly");
+    assert!(matches!(
+        err,
+        ToolError::InvalidParams(message)
+            if message.contains("reserved")
+                && message.contains("execution_mode")
+                && message.contains("output")
+    ));
+    let task = AgentOrgTaskStore::get("run-tools-1", "reserved-update-metadata")
+        .unwrap()
+        .unwrap();
+    assert_eq!(task_execution_mode(&task), TaskExecutionMode::Plan);
+    assert!(task_output(&task).is_none());
 }
 
 #[tokio::test]
@@ -1820,6 +2187,108 @@ async fn task_create_blocked_assigned_task_does_not_dispatch_until_unblocked() {
     );
     let alice_after = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
     assert_eq!(alice_after.len(), 1);
+}
+
+#[tokio::test]
+async fn completing_legacy_blocks_only_edge_dispatches_downstream_once() {
+    let _sandbox = task_tools_sandbox();
+    let coordinator = ctx(COORDINATOR_MEMBER_ID);
+    let create = TaskCreateTool::new(Arc::clone(&coordinator));
+    create
+        .execute_text(
+            json!({
+                "id": "legacy-upstream",
+                "subject": "Historical upstream",
+                "owner_member_id": "coordinator"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("create upstream");
+    create
+        .execute_text(
+            json!({
+                "id": "legacy-downstream",
+                "subject": "Historical downstream",
+                "owner_member_id": "m-alice"
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("create downstream");
+
+    // Simulate a historical row that stored only the reverse `blocks`
+    // direction. New writes reject that representation and canonicalize to
+    // downstream.blocked_by, so only a raw fixture can preserve it.
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_tasks SET blocks_json='[\"legacy-downstream\"]'
+         WHERE org_run_id='run-tools-1' AND id='legacy-upstream'",
+        [],
+    )
+    .expect("seed legacy blocks edge");
+    conn.execute(
+        "UPDATE agent_org_tasks SET blocked_by_json='[]'
+         WHERE org_run_id='run-tools-1' AND id='legacy-downstream'",
+        [],
+    )
+    .expect("keep downstream legacy-only");
+    conn.execute("DELETE FROM agent_inbox", [])
+        .expect("remove create-time assignment noise");
+
+    let update = TaskUpdateTool::new(Arc::clone(&coordinator));
+    let response = update
+        .execute_text(
+            json!({
+                "id": "legacy-upstream",
+                "status": "completed",
+                "output": {
+                    "summary": "Legacy blocker completed",
+                    "content": "Durable legacy dependency output"
+                }
+            }),
+            &test_ctx(),
+        )
+        .await
+        .expect("complete legacy upstream");
+    let value: Value = serde_json::from_str(&response).expect("decode update result");
+    assert_eq!(
+        value["unblocked_task_assigned_ids"],
+        json!(["legacy-downstream"])
+    );
+
+    let assignments = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
+        .expect("load downstream assignments")
+        .into_iter()
+        .filter(|row| {
+            matches!(
+                row.decode_payload(),
+                Ok(AgentMessage::TaskAssigned { ref task_id, .. })
+                    if task_id == "legacy-downstream"
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        assignments.len(),
+        1,
+        "legacy edge must dispatch exactly once"
+    );
+    match assignments[0]
+        .decode_payload()
+        .expect("decode legacy downstream assignment")
+    {
+        AgentMessage::TaskAssigned {
+            dependency_outputs, ..
+        } => {
+            assert_eq!(dependency_outputs.len(), 1);
+            assert_eq!(dependency_outputs[0].task_id, "legacy-upstream");
+            assert_eq!(
+                dependency_outputs[0].content.as_deref(),
+                Some("Durable legacy dependency output")
+            );
+        }
+        other => panic!("expected TaskAssigned, got {other:?}"),
+    }
 }
 
 #[tokio::test]
@@ -2253,12 +2722,396 @@ async fn task_list_filters_by_owner_and_mine() {
 }
 
 #[tokio::test]
+async fn task_list_pages_compact_summaries_with_a_stable_cursor() {
+    let _sandbox = task_tools_sandbox();
+    let coord = ctx(COORDINATOR_MEMBER_ID);
+    let create = TaskCreateTool::new(Arc::clone(&coord));
+    let long_description = "界".repeat(
+        crate::coordination::agent_org_payload_limits::TASK_SUMMARY_DESCRIPTION_MAX_CHARS + 20,
+    );
+    for subject in ["Page 1", "Page 2", "Page 3"] {
+        let description = if subject == "Page 1" {
+            long_description.clone()
+        } else {
+            format!("full description for {subject}")
+        };
+        create
+            .execute_text(
+                json!({
+                    "subject": subject,
+                    "description": description,
+                    "owner_member_id": "m-alice",
+                }),
+                &test_ctx(),
+            )
+            .await
+            .expect("create paged task");
+    }
+
+    let list = TaskListTool::new(Arc::clone(&coord));
+    let first: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({ "limit": 2 }), &test_ctx())
+            .await
+            .expect("first task page"),
+    )
+    .expect("decode first page");
+    assert_eq!(first["total"], 2);
+    assert_eq!(first["filtered_total"], 3);
+    assert_eq!(first["page"]["has_more"], true);
+    assert!(first["page"]["next_cursor"].is_string());
+    assert_eq!(
+        first["tasks"][0]["description"]
+            .as_str()
+            .expect("description preview")
+            .chars()
+            .count(),
+        crate::coordination::agent_org_payload_limits::TASK_SUMMARY_DESCRIPTION_MAX_CHARS
+    );
+    assert_eq!(first["tasks"][0]["description_truncated"], true);
+    assert_eq!(first["tasks"][1]["description_truncated"], false);
+    assert!(
+        first["tasks"][0].get("metadata").is_none(),
+        "task_list must not repeat raw task_get metadata"
+    );
+
+    let detail: Value = serde_json::from_str(
+        &TaskGetTool::new(Arc::clone(&coord))
+            .execute_text(json!({ "id": first["tasks"][0]["id"] }), &test_ctx())
+            .await
+            .expect("get full task detail"),
+    )
+    .expect("decode task detail");
+    assert_eq!(detail["task"]["description"], long_description);
+
+    let second: Value = serde_json::from_str(
+        &list
+            .execute_text(
+                json!({
+                    "limit": 2,
+                    "after_task_id": first["page"]["next_cursor"],
+                }),
+                &test_ctx(),
+            )
+            .await
+            .expect("second task page"),
+    )
+    .expect("decode second page");
+    assert_eq!(second["total"], 1);
+    assert_eq!(second["page"]["has_more"], false);
+    assert_eq!(second["tasks"][0]["subject"], "Page 3");
+    assert_eq!(second["run_summary"]["total"], 3);
+}
+
+#[tokio::test]
+async fn task_list_defaults_to_fifty_compact_rows() {
+    let _sandbox = task_tools_sandbox();
+    let coord = ctx(COORDINATOR_MEMBER_ID);
+    let create = TaskCreateTool::new(Arc::clone(&coord));
+    for index in 0..51 {
+        create
+            .execute_text(
+                json!({
+                    "subject": format!("Default page {index:02}"),
+                    "description": "small",
+                    "owner_member_id": "m-alice",
+                }),
+                &test_ctx(),
+            )
+            .await
+            .expect("create default-page task");
+    }
+
+    let value: Value = serde_json::from_str(
+        &TaskListTool::new(coord)
+            .execute_text(json!({}), &test_ctx())
+            .await
+            .expect("list default task page"),
+    )
+    .expect("decode default task page");
+    assert_eq!(value["total"], 50);
+    assert_eq!(value["filtered_total"], 51);
+    assert_eq!(value["page"]["limit"], 50);
+    assert_eq!(value["page"]["has_more"], true);
+    assert!(value["page"]["next_cursor"].is_string());
+}
+
+fn seed_task_list_current_turn_finality_fixture(materialize_inbox: bool) -> i64 {
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runs
+         SET root_session_id='root-tools-1', status='running', updated_at=?2
+         WHERE id=?1",
+        rusqlite::params!["run-tools-1", &now],
+    )
+    .expect("reset running Agent Org run");
+    upsert_session(&UnifiedSessionRecord {
+        session_id: "root-tools-1".to_string(),
+        name: "Coordinator".to_string(),
+        status: "running".to_string(),
+        session_type: "agent".to_string(),
+        created_at: now.clone(),
+        updated_at: now.clone(),
+        ..Default::default()
+    })
+    .expect("seed running coordinator session");
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "current-turn-finished-task".to_string(),
+        org_run_id: "run-tools-1".to_string(),
+        subject: "Finished work presented to the coordinator".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("m-alice".to_string()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .expect("seed resolved task board");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('root-tools-1', 'current-coordinator-turn', 'run-tools-1',
+                 'agent_org', 'running', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .expect("seed current coordinator turn intent");
+    let inbox = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "coord-1".to_string(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: "alice-1".to_string(),
+        sender_member_id: Some("m-alice".to_string()),
+        org_run_id: Some("run-tools-1".to_string()),
+        message: AgentMessage::Plain {
+            summary: "Worker result".to_string(),
+            text: "The finished work is in this coordinator turn.".to_string(),
+        },
+    })
+    .expect("seed unread coordinator inbox row");
+    if materialize_inbox {
+        crate::session::persistence::materialize_agent_org_inbox_transcript(
+            "root-tools-1",
+            &[inbox.id],
+            "current-turn-inbox-transcript",
+            "current-turn-inbox-intent",
+            "<agent-org-inbox>worker result</agent-org-inbox>",
+        )
+        .expect("materialize current coordinator inbox row");
+    }
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .expect("stage the current work revision");
+    inbox.id
+}
+
+fn has_finality_blocker(value: &Value, field: &str, kind: &str, count: i64) -> bool {
+    value["run_summary"][field]
+        .as_array()
+        .expect("finality blocker array")
+        .iter()
+        .any(|blocker| blocker["kind"] == kind && blocker["count"] == count)
+}
+
+#[tokio::test]
+async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
+    let _sandbox = task_tools_sandbox();
+    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-current-turn",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &call_ctx)
+        .await
+        .expect("list tasks from the current coordinator turn");
+    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
+
+    assert_eq!(value["run_summary"]["open"], 0);
+    assert_eq!(
+        value["run_summary"]["pending_worker_turn_intent_count"], 1,
+        "the raw snapshot still includes the currently running coordinator intent"
+    );
+    assert_eq!(value["run_summary"]["unread_inbox_count"], 1);
+    assert!(has_finality_blocker(
+        &value,
+        "current_finality_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &value,
+        "current_finality_blockers",
+        "unread_inbox",
+        1,
+    ));
+    assert_eq!(value["run_summary"]["completion_ready"], true);
+    assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
+}
+
+#[tokio::test]
+async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
+    let _sandbox = task_tools_sandbox();
+    let projected_inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('reviewer-session', 'unrelated-queued-turn', 'run-tools-1',
+                 'agent_org', 'queued', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .expect("seed unrelated queued turn");
+    let unrelated_inbox = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "coord-1".to_string(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: "alice-1".to_string(),
+        sender_member_id: Some("m-alice".to_string()),
+        org_run_id: Some("run-tools-1".to_string()),
+        message: AgentMessage::Plain {
+            summary: "Later worker result".to_string(),
+            text: "This row was not materialized into the current turn.".to_string(),
+        },
+    })
+    .expect("seed unrelated unread inbox row");
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-current-turn",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![projected_inbox_id],
+    );
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &call_ctx)
+        .await
+        .expect("list tasks without hiding unrelated blockers");
+    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
+
+    assert_ne!(unrelated_inbox.id, projected_inbox_id);
+    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
+    assert_eq!(value["run_summary"]["unread_inbox_count"], 2);
+    assert_eq!(value["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &value,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &value,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+}
+
+#[tokio::test]
+async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_receipt() {
+    let _sandbox = task_tools_sandbox();
+    let inbox_id = seed_task_list_current_turn_finality_fixture(true);
+    let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
+
+    let wrong_session_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-wrong-session",
+        "reviewer-session",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+    let wrong_session: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &wrong_session_ctx)
+            .await
+            .expect("wrong-session call still returns diagnostics"),
+    )
+    .expect("decode wrong-session result");
+    assert_eq!(wrong_session["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &wrong_session,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &wrong_session,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+
+    let wrong_intent_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-wrong-intent",
+        "root-tools-1",
+        "another-turn-intent",
+        vec![inbox_id],
+    );
+    let wrong_intent: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &wrong_intent_ctx)
+            .await
+            .expect("wrong-intent call still returns diagnostics"),
+    )
+    .expect("decode wrong-intent result");
+    assert_eq!(wrong_intent["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &wrong_intent,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+    assert!(has_finality_blocker(
+        &wrong_intent,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+
+    database::db::get_connection()
+        .expect("test sqlite connection")
+        .execute(
+            "DELETE FROM agent_inbox_materializations WHERE inbox_id=?1",
+            rusqlite::params![inbox_id],
+        )
+        .expect("remove the receipt to exercise fail-closed validation");
+    let missing_receipt_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-missing-receipt",
+        "root-tools-1",
+        "current-coordinator-turn",
+        vec![inbox_id],
+    );
+    let missing_receipt: Value = serde_json::from_str(
+        &list
+            .execute_text(json!({}), &missing_receipt_ctx)
+            .await
+            .expect("missing-receipt call still returns diagnostics"),
+    )
+    .expect("decode missing-receipt result");
+    assert_eq!(missing_receipt["run_summary"]["completion_ready"], false);
+    assert!(has_finality_blocker(
+        &missing_receipt,
+        "completion_blockers",
+        "unread_inbox",
+        1,
+    ));
+    assert!(!has_finality_blocker(
+        &missing_receipt,
+        "completion_blockers",
+        "in_flight_turn_intents",
+        1,
+    ));
+}
+
+#[tokio::test]
 async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
     let _sandbox = task_tools_sandbox();
     let now = chrono::Utc::now().to_rfc3339();
     let conn = database::db::get_connection().unwrap();
     conn.execute(
-        "INSERT INTO agent_org_runs
+        "INSERT OR REPLACE INTO agent_org_runs
          (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
          VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
         rusqlite::params![now],
@@ -2302,10 +3155,28 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
         metadata: None,
     })
     .unwrap();
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .expect("stage current work revision");
+    conn.execute(
+        "INSERT INTO session_turn_intents
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES ('root-tools-1', 'current-review-turn', 'run-tools-1',
+                 'agent_org', 'running', ?1, ?1)",
+        rusqlite::params![chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("seed the current coordinator intent");
+    let call_ctx = crate::tools::call_context::CallContext::for_turn(
+        "task-list-review-turn",
+        "root-tools-1",
+        "current-review-turn",
+        Vec::new(),
+    );
 
     let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
     let result = list
-        .execute_text(json!({ "status": "" }), &test_ctx())
+        .execute_text(json!({ "status": "" }), &call_ctx)
         .await
         .expect("blank optional filter is ignored");
     let value: Value = serde_json::from_str(&result).unwrap();
@@ -2318,7 +3189,8 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
     assert!(value["run_summary"]["completion_blockers"]
         .as_array()
         .unwrap()
-        .contains(&json!("active_members")));
+        .iter()
+        .any(|blocker| blocker["kind"] == "sessions_active"));
 
     conn.execute(
         "UPDATE agent_sessions SET status='idle', updated_at=?2 WHERE session_id=?1",
@@ -2327,19 +3199,20 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
     .unwrap();
     conn.execute(
         "INSERT INTO session_turn_intents
-         (session_id, turn_intent_id, source, status, created_at, updated_at)
-         VALUES (?1, 'queued-review', 'agent_org_wake', 'queued', ?2, ?2)",
+         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
+         VALUES (?1, 'queued-review', 'run-tools-1', 'resume', 'queued', ?2, ?2)",
         rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
     )
     .unwrap();
-    let result = list.execute_text(json!({}), &test_ctx()).await.unwrap();
+    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
     let value: Value = serde_json::from_str(&result).unwrap();
     assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 1);
+    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
     assert!(value["run_summary"]["completion_blockers"]
         .as_array()
         .unwrap()
-        .contains(&json!("pending_worker_turn_intent")));
+        .iter()
+        .any(|blocker| blocker["kind"] == "in_flight_turn_intents"));
 
     conn.execute(
         "UPDATE session_turn_intents SET status='completed', updated_at=?2
@@ -2347,10 +3220,73 @@ async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
         rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
     )
     .unwrap();
-    let result = list.execute_text(json!({}), &test_ctx()).await.unwrap();
+    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
     let value: Value = serde_json::from_str(&result).unwrap();
     assert_eq!(value["run_summary"]["completion_ready"], true);
     assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
+}
+
+#[tokio::test]
+async fn task_list_surfaces_corrupt_task_data_without_false_empty_completion() {
+    let _sandbox = task_tools_sandbox();
+    let now = chrono::Utc::now().to_rfc3339();
+    let conn = database::db::get_connection().unwrap();
+    conn.execute(
+        "INSERT OR REPLACE INTO agent_org_runs
+         (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
+         VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
+        rusqlite::params![&now],
+    )
+    .unwrap();
+    upsert_session(&UnifiedSessionRecord {
+        session_id: "root-tools-1".to_string(),
+        name: "Coordinator".to_string(),
+        status: "running".to_string(),
+        session_type: "agent".to_string(),
+        created_at: now.clone(),
+        updated_at: now,
+        ..Default::default()
+    })
+    .unwrap();
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "corrupt-task".to_string(),
+        org_run_id: "run-tools-1".to_string(),
+        subject: "Corrupt persisted task".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("m-alice".to_string()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .unwrap();
+    conn.execute(
+        "UPDATE agent_org_tasks SET blocks_json='not-json' WHERE id='corrupt-task'",
+        [],
+    )
+    .unwrap();
+    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
+        "run-tools-1",
+    )
+    .unwrap();
+
+    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
+        .execute_text(json!({}), &test_ctx())
+        .await
+        .expect("corrupt board still returns canonical diagnostics");
+    let value: Value = serde_json::from_str(&result).unwrap();
+    assert_eq!(value["tasks"].as_array().unwrap().len(), 1);
+    assert_eq!(value["tasks"][0]["id"], "corrupt-task");
+    assert_eq!(value["tasks"][0]["blocks"], json!([]));
+    assert_eq!(value["run_summary"]["total"], 1);
+    assert_eq!(value["run_summary"]["corrupt_task_count"], 1);
+    assert_eq!(value["run_summary"]["completion_ready"], false);
+    assert!(value["run_summary"]["completion_blockers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|blocker| blocker["kind"] == "corrupt_task_data"));
 }
 
 #[tokio::test]

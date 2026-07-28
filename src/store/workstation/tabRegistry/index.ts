@@ -11,6 +11,7 @@ export {
   focusTabAtom,
   closeTabAtom,
   closeActiveWorkStationTabAtom,
+  closeProjectOrgWorkStationTabsAtom,
   closeOtherTabsAtom,
   closeSavedTabsAtom,
   reorderTabAtom,

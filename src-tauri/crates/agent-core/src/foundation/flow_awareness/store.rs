@@ -213,7 +213,7 @@ impl FlowStore {
 
         // Filter by age, sort by timestamp (newest first), take max_count
         all_activities.retain(|a| a.timestamp >= cutoff);
-        all_activities.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        all_activities.sort_by_key(|activity| std::cmp::Reverse(activity.timestamp));
         all_activities.truncate(max_count);
 
         all_activities

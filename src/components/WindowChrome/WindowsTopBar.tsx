@@ -8,12 +8,13 @@ import { open } from "@tauri-apps/plugin-shell";
 import { Minus, Square, X } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
-import { NoDragRegion } from "@src/modules/WorkStation/shared";
 import {
   closeWindow,
   maxWindow,
   minWindow,
 } from "@src/util/platform/ipcRenderer";
+
+import { NoDragRegion } from "./NoDragRegion";
 
 const TOP_BAR_HEIGHT = 36;
 const ICON_SIZE = 14;

@@ -10,11 +10,11 @@
 //!
 //! Platform implementations:
 //! - macOS:   `IOPMAssertionCreateWithName` (`kIOPMAssertPreventUserIdleSystemSleep`).
-//!            Releasing the assertion ID is what lets the system sleep again.
+//!   Releasing the assertion ID is what lets the system sleep again.
 //! - Windows: `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)`.
-//!            Release clears with `ES_CONTINUOUS` alone.
+//!   Release clears with `ES_CONTINUOUS` alone.
 //! - Linux:   No-op for now (D-Bus `org.freedesktop.ScreenSaver.Inhibit` can
-//!            be added later if there's user demand).
+//!   be added later if there's user demand).
 
 use std::sync::Mutex;
 use tauri::State;

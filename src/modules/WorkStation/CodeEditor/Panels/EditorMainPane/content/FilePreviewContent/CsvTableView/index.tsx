@@ -21,20 +21,11 @@ import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SpreadsheetEditor, type SpreadsheetSheet } from "../SpreadsheetEditor";
 import { ROW_LOAD_INCREMENT } from "../SpreadsheetEditor/constants";
+import { clearCsvDraft, getCsvDraft, setCsvDraft } from "./csvDraftCache";
 
 const INITIAL_CSV_ROWS = 50;
 
 type PatchMap = Map<string, SpreadsheetCsvCellPatch>;
-
-interface CsvDraftState {
-  rows: string[][];
-  originalRows: string[][];
-  patches: SpreadsheetCsvCellPatch[];
-  nextRow: number;
-  hasMoreRows: boolean;
-}
-
-const csvDraftCache = new Map<string, CsvDraftState>();
 
 function cloneRows(rows: string[][]): string[][] {
   return rows.map((row) => [...row]);
@@ -180,12 +171,12 @@ export const CsvTableView: React.FC<CsvTableViewProps> = ({
   useEffect(() => {
     if (!filePath) return;
     if (!hasLocalUnsavedChanges) {
-      csvDraftCache.delete(filePath);
+      clearCsvDraft(filePath);
       return;
     }
-    csvDraftCache.set(filePath, {
-      rows: cloneRows(rows),
-      originalRows: cloneRows(originalRows),
+    setCsvDraft(filePath, {
+      rows,
+      originalRows,
       patches: Array.from(patches.values()),
       nextRow,
       hasMoreRows,
@@ -203,10 +194,10 @@ export const CsvTableView: React.FC<CsvTableViewProps> = ({
   useEffect(() => {
     if (!filePath) return;
     let cancelled = false;
-    const cachedDraft = csvDraftCache.get(filePath);
+    const cachedDraft = getCsvDraft(filePath);
     if (cachedDraft) {
-      setRows(cloneRows(cachedDraft.rows));
-      setOriginalRows(cloneRows(cachedDraft.originalRows));
+      setRows(cachedDraft.rows);
+      setOriginalRows(cachedDraft.originalRows);
       setPatches(patchesToMap(cachedDraft.patches));
       setNextRow(cachedDraft.nextRow);
       setHasMoreRows(cachedDraft.hasMoreRows);
@@ -305,7 +296,7 @@ export const CsvTableView: React.FC<CsvTableViewProps> = ({
       const savedRows = cloneRows(rows);
       setOriginalRows(savedRows);
       setPatches(new Map());
-      csvDraftCache.delete(filePath);
+      clearCsvDraft(filePath);
       invalidateFileCache(filePath);
       window.dispatchEvent(
         new CustomEvent("filesync:file-saved", {
@@ -326,7 +317,7 @@ export const CsvTableView: React.FC<CsvTableViewProps> = ({
     setRows(restoredRows);
     setPatches(new Map());
     if (filePath) {
-      csvDraftCache.delete(filePath);
+      clearCsvDraft(filePath);
       window.dispatchEvent(
         new CustomEvent("filesync:file-discarded", {
           detail: { path: filePath },

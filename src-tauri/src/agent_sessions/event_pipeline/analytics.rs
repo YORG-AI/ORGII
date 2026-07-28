@@ -328,7 +328,7 @@ pub fn compute_session_analytics(events: &[SessionEvent]) -> SessionAnalytics {
             total_duration_ms: 0, // Duration requires paired start/end — not available in single events
         })
         .collect();
-    tool_usage.sort_by(|a, b| b.call_count.cmp(&a.call_count));
+    tool_usage.sort_by_key(|tool| std::cmp::Reverse(tool.call_count));
 
     // File changes
     let mut by_operation: Vec<FileOperationEntry> = file_op_map
@@ -339,7 +339,7 @@ pub fn compute_session_analytics(events: &[SessionEvent]) -> SessionAnalytics {
             files: files.len(),
         })
         .collect();
-    by_operation.sort_by(|a, b| b.count.cmp(&a.count));
+    by_operation.sort_by_key(|operation| std::cmp::Reverse(operation.count));
 
     let mut top_files: Vec<FileFrequencyEntry> = file_freq
         .into_iter()
@@ -349,7 +349,7 @@ pub fn compute_session_analytics(events: &[SessionEvent]) -> SessionAnalytics {
             touch_count: count,
         })
         .collect();
-    top_files.sort_by(|a, b| b.touch_count.cmp(&a.touch_count));
+    top_files.sort_by_key(|file| std::cmp::Reverse(file.touch_count));
     let total_files = top_files.len();
     top_files.truncate(20);
 
@@ -417,8 +417,7 @@ pub fn compute_session_analytics(events: &[SessionEvent]) -> SessionAnalytics {
             failure_count: fails,
         })
         .collect();
-    by_tool_errors
-        .sort_by(|a, b| (b.error_count + b.failure_count).cmp(&(a.error_count + a.failure_count)));
+    by_tool_errors.sort_by_key(|tool| std::cmp::Reverse(tool.error_count + tool.failure_count));
 
     let error_stats = ErrorStats {
         total_errors,

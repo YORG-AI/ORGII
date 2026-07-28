@@ -1690,6 +1690,8 @@
     "sessionProvenance": {
       "masterToggle": "Hook truy xuất nguồn gốc",
       "masterToggleDesc": "Khi tắt, tất cả hook được quản lý sẽ bị gỡ và không có tín hiệu nào được thu thập; lựa chọn của từng nền tảng được giữ lại và khôi phục khi bật lại.",
+      "liveStatusToggle": "Trạng thái tác nhân trực tiếp",
+      "liveStatusToggleDesc": "Cho biết tác nhân CLI đang chạy đang làm việc hay chờ. Tắt vẫn giữ ghi nhận nguồn gốc.",
       "title": "Nguồn gốc phiên",
       "capture": "Ghi lại tương tác với tệp",
       "description": "Ghi các thao tác đọc và ghi tệp dưới dạng siêu dữ liệu. Không lưu câu lệnh, đầu ra công cụ hoặc nội dung tệp.",

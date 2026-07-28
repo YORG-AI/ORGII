@@ -40,7 +40,6 @@ export * as StepTypes from "./session/steps";
 export * as EditorTypes from "./editor";
 export * as DocumentTypes from "./editor/document";
 export * as FileContentTypes from "./editor/fileContent";
-export * as NavigationTypes from "./editor/navigation";
 
 // Git types
 export * as GitTypes from "./git";

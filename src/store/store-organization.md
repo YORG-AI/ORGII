@@ -46,7 +46,6 @@ Is this atom used by 2+ modules?
 | `platform/`    | 2              | MainApp, WorkStation                                  |
 | `config/`      | 2              | MainApp, WorkStation                                  |
 | `settings/`    | 2              | MainApp, ProjectManager                               |
-| `tabs/`        | 2              | shared, modules                                       |
 | `user/`        | 2              | MainApp (multiple sub-modules)                        |
 
 ---
@@ -71,7 +70,6 @@ src/store/
 │   ├── codeEditor/           # Code Editor app (includes outputIntegration/)
 │   ├── database/              # Database app
 │   └── browser/               # Browser app (includes browser automation atoms)
-├── tabs/                      # Main app tabs
 └── index.ts                   # Main barrel export
 
 # Colocated store (single-module usage):
@@ -231,15 +229,6 @@ Database connections and tabs.
 | `tokens/`   | Design tokens for previews |
 | `designer/` | Design canvas state        |
 
-### `tabs/` - Main App Tabs
-
-Main app-level tabs (not Workstation tabs).
-
-| File                    | Purpose                                |
-| ----------------------- | -------------------------------------- |
-| `mainAppTabsAtom.ts`    | Main app tab state                     |
-| `viewModeMemoryAtom.ts` | View mode memory for state restoration |
-
 ## Import Guidelines
 
 ### Direct Imports (Recommended)
@@ -257,7 +246,7 @@ import { workstationLayoutAtom } from "@src/store/workstation/tabs";
 ### From Main Barrel
 
 ```typescript
-import { sidebarAtom, userAtom } from "@src/store";
+import { sidebarCollapsedAtom, userAtom } from "@src/store";
 ```
 
 ## Migration Notes

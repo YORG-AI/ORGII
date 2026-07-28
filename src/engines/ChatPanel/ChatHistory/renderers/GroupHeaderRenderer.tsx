@@ -216,10 +216,24 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
 
     return (
       <div
-        className={`${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} ${headerPaddingBottomClass}`.trim()}
+        className={`group/turn ${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} ${headerPaddingBottomClass}`.trim()}
         style={roundGap > 0 ? { marginTop: roundGap } : undefined}
       >
-        {showUserPart && (
+        {showUserPart && header.event?.id ? (
+          <TurnCommentChrome
+            anchorEventId={header.event.id}
+            renderMessage={(toolbarAction) => (
+              <UserChatItem
+                chatItem={header}
+                onEditSubmit={onEditSubmit ? handleEdit : undefined}
+                toolbarActions={toolbarAction}
+                onRestoreCheckpoint={
+                  onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
+                }
+              />
+            )}
+          />
+        ) : showUserPart ? (
           <UserChatItem
             chatItem={header}
             onEditSubmit={onEditSubmit ? handleEdit : undefined}
@@ -227,14 +241,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
               onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
             }
           />
-        )}
-        {/* Session comments (cloud replay surfaces only): anchor = the
-            turn's leading user-message event id. The component consumes
-            SessionCommentsContext and renders NOTHING when the surface has
-            no cloud comment target, so ordinary sessions are untouched. */}
-        {showUserPart && header.event?.id && (
-          <TurnCommentChrome anchorEventId={header.event.id} />
-        )}
+        ) : null}
         {showCollapsePart && (
           <TurnCollapsePinBar
             turnId={turnId}

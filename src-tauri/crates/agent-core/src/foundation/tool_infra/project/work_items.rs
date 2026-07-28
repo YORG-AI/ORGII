@@ -363,8 +363,7 @@ pub async fn create_work_item(
 
         io::write_work_item(&slug, &short_id, &frontmatter, &body)?;
 
-        let schedule_info = if frontmatter.schedule.is_some() {
-            let sched = frontmatter.schedule.as_ref().unwrap();
+        let schedule_info = if let Some(sched) = frontmatter.schedule.as_ref() {
             if let Some(ref at) = sched.at {
                 format!(" (scheduled at {})", at)
             } else if let Some(ref cron_expr) = sched.cron {

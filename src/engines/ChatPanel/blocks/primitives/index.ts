@@ -26,6 +26,7 @@ export type {
 } from "./EventBlockHeaderTextSlots";
 export { default as EventNavigateIcon } from "./EventNavigateIcon";
 export type { EventNavigateIconProps } from "./EventNavigateIcon";
+export { default as ChatLoadingBlock } from "./ChatLoadingBlock";
 
 // Hooks
 export { useEventBlockHeader } from "./useEventBlockHeader";

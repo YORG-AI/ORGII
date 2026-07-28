@@ -28,6 +28,9 @@
  * intentional escape hatch for "the user just did something, bump
  * the row".
  */
+import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
+import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import {
@@ -35,6 +38,7 @@ import {
   sessionLastLoadedAtom,
   sessionsAtom,
 } from "./atoms";
+import { removeGuestImportedSession } from "./guestImportRegistry";
 import type { Session, SessionStatus } from "./types";
 
 const getStore = () => getInstrumentedStore();
@@ -124,6 +128,16 @@ export const removeSession = (sessionId: string) => {
   store.set(sessionsAtom, (prev) =>
     prev.filter((session) => session.session_id !== sessionId)
   );
+  // A removed session has no live viewers, so free its per-session caches.
+  // Without this they accumulate one entry per session for the app lifetime —
+  // and tuiMode additionally leaves a `orgii:tuiMode:<id>` localStorage key.
+  cursorIdeTurnSummariesAtomFamily.remove(sessionId);
+  tuiModeAtom.remove(sessionId);
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem(`orgii:tuiMode:${sessionId}`);
+  }
+  store.set(clearTodosForSessionAtom, sessionId);
+  removeGuestImportedSession(sessionId);
 };
 
 /**
@@ -146,11 +160,21 @@ export const updateSessionStatus = (
   status: SessionStatus
 ) => {
   const store = getStore();
-  store.set(sessionsAtom, (prev) =>
-    prev.map((session) =>
-      session.session_id === sessionId ? { ...session, status } : session
-    )
-  );
+  store.set(sessionsAtom, (prev) => {
+    // Short-circuit when the row already carries this status. Live-status
+    // pushes fire many times per second per running agent; without this guard
+    // every heartbeat allocated a fresh length-n array and invalidated the
+    // whole sidebar derivation cascade even when nothing changed.
+    let changed = false;
+    const next = prev.map((session) => {
+      if (session.session_id === sessionId && session.status !== status) {
+        changed = true;
+        return { ...session, status };
+      }
+      return session;
+    });
+    return changed ? next : prev;
+  });
 };
 
 /**

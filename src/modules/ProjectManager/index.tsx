@@ -1,5 +1,5 @@
 /**
- * ProjectManagerPage - Top-level page for the Project Manager view mode.
+ * ProjectManagerPage - Top-level routed Project Manager surface.
  *
  * Mounted persistently by modules/index.tsx (same pattern as WorkStationPage).
  * Visibility is controlled via CSS, not mounting/unmounting.

@@ -16,10 +16,11 @@
  *
  * Missing entries fall back to {@link DEFAULT_DATA_SOURCE_CONFIG}.
  */
+import { atom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 
 /** Concrete auto-scan cadences (usable globally and per-source). */
-export type ScanFrequency = "manual" | "60s" | "5m" | "1h" | "1d";
+export type ScanFrequency = "manual" | "60s" | "120s" | "10m" | "30m" | "1h";
 
 /** Per-source frequency: a concrete cadence, or inherit the global default. */
 export type SourceFrequency = ScanFrequency | "default";
@@ -49,8 +50,17 @@ export const DEFAULT_DATA_SOURCE_CONFIG: DataSourceConfig = {
   lastScannedAt: null,
 };
 
-/** Default global cadence when the user hasn't changed it. */
-export const DEFAULT_GLOBAL_FREQUENCY: ScanFrequency = "60s";
+/**
+ * Default global cadence when the user hasn't changed it.
+ *
+ * The open external session has its own cheap 5-second transcript-signature
+ * probe, so rescanning every provider once a minute does not improve the chat
+ * someone is watching. On a populated machine that global pass also reloads
+ * the sidebar and rechecks children for changed parent sessions, producing a
+ * visible CPU/allocation spike. Ten minutes keeps discovery reasonably fresh
+ * while leaving the explicit 60-second option available to users who need it.
+ */
+export const DEFAULT_GLOBAL_FREQUENCY: ScanFrequency = "10m";
 
 export type DataSourceConfigMap = Record<string, DataSourceConfig>;
 
@@ -60,6 +70,38 @@ const GLOBAL_FREQ_STORAGE_KEY = "orgii:dataSourceGlobalFrequency";
 const ACTIVE_SESSION_REFRESH_STORAGE_KEY =
   "orgii:activeExternalSessionRefreshFrequency";
 
+const LEGACY_FREQUENCY_MIGRATIONS: Readonly<Record<string, ScanFrequency>> = {
+  "5m": "10m",
+  "1d": "1h",
+};
+
+function parseScanFrequency(value: unknown): ScanFrequency | null {
+  switch (value) {
+    case "manual":
+    case "60s":
+    case "120s":
+    case "10m":
+    case "30m":
+    case "1h":
+      return value;
+    default:
+      return typeof value === "string"
+        ? (LEGACY_FREQUENCY_MIGRATIONS[value] ?? null)
+        : null;
+  }
+}
+
+/** Normalize persisted global values from earlier cadence menus. */
+export function normalizeScanFrequency(value: unknown): ScanFrequency {
+  return parseScanFrequency(value) ?? DEFAULT_GLOBAL_FREQUENCY;
+}
+
+/** Normalize persisted per-source values while preserving global inheritance. */
+export function normalizeSourceFrequency(value: unknown): SourceFrequency {
+  if (value === "default") return "default";
+  return parseScanFrequency(value) ?? "default";
+}
+
 export const dataSourceConfigAtom = atomWithStorage<DataSourceConfigMap>(
   CONFIG_STORAGE_KEY,
   {}
@@ -68,6 +110,18 @@ export const dataSourceConfigAtom = atomWithStorage<DataSourceConfigMap>(
 export const dataSourcePresenceAtom = atomWithStorage<
   Record<string, DataSourcePresence>
 >(PRESENCE_STORAGE_KEY, {});
+
+/**
+ * Per-source backend cache signature captured at the last rescan-driven
+ * roster reload. The auto-scan compares fresh rescan signatures against this
+ * baseline: a drift means SOME caller's sync (kanban, usage, transcript
+ * pagers — not necessarily the rescan itself) changed cached rows since the
+ * sidebar last read them, e.g. a continuation demotion, so a reload is due
+ * even when the rescan reports no changes of its own. Deliberately in-memory
+ * only: losing it merely costs one reload after relaunch, while persisting it
+ * could suppress the startup reload that heals a stale persisted sidebar.
+ */
+export const dataSourceRosterSignaturesAtom = atom<Record<string, string>>({});
 
 const EXTERNAL_SESSIONS_ENABLED_STORAGE_KEY = "orgii:externalSessionsEnabled";
 
@@ -83,9 +137,16 @@ export const externalSessionsEnabledAtom = atomWithStorage<boolean>(
   true
 );
 
-export const dataSourceGlobalFrequencyAtom = atomWithStorage<ScanFrequency>(
+const persistedDataSourceGlobalFrequencyAtom = atomWithStorage<unknown>(
   GLOBAL_FREQ_STORAGE_KEY,
   DEFAULT_GLOBAL_FREQUENCY
+);
+
+export const dataSourceGlobalFrequencyAtom = atom(
+  (get) => normalizeScanFrequency(get(persistedDataSourceGlobalFrequencyAtom)),
+  (_get, set, frequency: ScanFrequency) => {
+    set(persistedDataSourceGlobalFrequencyAtom, frequency);
+  }
 );
 
 export const DEFAULT_ACTIVE_EXTERNAL_SESSION_REFRESH_FREQUENCY: ActiveExternalSessionRefreshFrequency =
@@ -115,7 +176,11 @@ export function getSourceConfig(
   map: DataSourceConfigMap,
   sourceId: string
 ): DataSourceConfig {
-  return { ...DEFAULT_DATA_SOURCE_CONFIG, ...(map[sourceId] ?? {}) };
+  const config = { ...DEFAULT_DATA_SOURCE_CONFIG, ...(map[sourceId] ?? {}) };
+  return {
+    ...config,
+    frequency: normalizeSourceFrequency(config.frequency),
+  };
 }
 
 /** True only when the source has been explicitly disabled. */
@@ -138,18 +203,20 @@ export function effectiveFrequency(
 export const FREQUENCY_INTERVAL_MS: Record<ScanFrequency, number | null> = {
   manual: null,
   "60s": 60_000,
-  "5m": 5 * 60_000,
+  "120s": 120_000,
+  "10m": 10 * 60_000,
+  "30m": 30 * 60_000,
   "1h": 60 * 60_000,
-  "1d": 24 * 60 * 60_000,
 };
 
 /** Options offered for the global frequency control. */
 export const GLOBAL_FREQUENCIES: readonly ScanFrequency[] = [
   "manual",
   "60s",
-  "5m",
+  "120s",
+  "10m",
+  "30m",
   "1h",
-  "1d",
 ];
 
 /** Options offered per source (includes "default" = inherit global). */

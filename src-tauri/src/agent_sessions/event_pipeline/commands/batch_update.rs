@@ -1,7 +1,7 @@
 //! Batch Update Commands
 //!
 //! Bulk operations: complete last running, patch by IDs, remove by prefix,
-//! replace and remove, update task args, shell output/process updates.
+//! replace and remove, and update task args.
 //!
 //! All commands accept an optional `session_id`. When omitted, the active
 //! session is targeted.
@@ -11,17 +11,6 @@ use tauri::{AppHandle, State};
 use crate::agent_sessions::event_pipeline::types::{SessionEvent, SessionEventPatch};
 
 use super::{schedule_notify, EventStoreState};
-
-/// Shell tools list shared by output and process update commands.
-const SHELL_TOOLS: &[&str] = &[
-    "bash",
-    "shell",
-    "execute_command",
-    "run_terminal_command",
-    "terminal",
-    "terminal_command",
-    "run_shell",
-];
 
 /// Complete the last running event (mark as completed).
 #[tauri::command]
@@ -119,45 +108,6 @@ pub async fn es_update_active_task_args(
     let names_refs: Vec<&str> = names.iter().map(|s| s.as_str()).collect();
     let result = state.with_store_mut(&sid, |store| {
         store.update_spawning_tool_args(&names_refs, merge_args)
-    });
-    if result.is_some() {
-        schedule_notify(&app, &state, &sid);
-    }
-    Ok(result)
-}
-
-/// Update streamOutput on the last shell tool_call event.
-#[tauri::command]
-pub async fn es_update_last_shell_output(
-    app: AppHandle,
-    state: State<'_, EventStoreState>,
-    session_id: Option<String>,
-    stream_output: String,
-) -> Result<Option<String>, String> {
-    let sid = state.resolve_session_id(session_id)?;
-    let result = state.with_store_mut(&sid, |store| {
-        store.update_last_shell_output(stream_output, SHELL_TOOLS)
-    });
-    if result.is_some() {
-        schedule_notify(&app, &state, &sid);
-    }
-    Ok(result)
-}
-
-/// Update shell process info (pid, status, exit_code, log_path) on the last shell tool_call event.
-#[tauri::command]
-pub async fn es_update_last_shell_process(
-    app: AppHandle,
-    state: State<'_, EventStoreState>,
-    session_id: Option<String>,
-    pid: u32,
-    status: String,
-    exit_code: Option<i32>,
-    log_path: Option<String>,
-) -> Result<Option<String>, String> {
-    let sid = state.resolve_session_id(session_id)?;
-    let result = state.with_store_mut(&sid, |store| {
-        store.update_last_shell_process(pid, &status, exit_code, log_path.as_deref(), SHELL_TOOLS)
     });
     if result.is_some() {
         schedule_notify(&app, &state, &sid);

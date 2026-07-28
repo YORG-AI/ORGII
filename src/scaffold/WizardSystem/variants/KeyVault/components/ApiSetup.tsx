@@ -48,6 +48,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
   existingAccountNames,
   browserCloseSignal = 0,
   onBrowserStateChange,
+  autoStartCodexLogin = false,
 }) => {
   const { t } = useTranslation("integrations");
   const hook = useApiSetup({ data, onChange });
@@ -413,6 +414,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
               handleSessionTokenCaptured={hook.handleSessionTokenCaptured}
               handleUrlChange={hook.handleUrlChange}
               hasSessionToken={hook.hasSessionToken}
+              autoStartCodexLogin={autoStartCodexLogin}
             />
           )}
 

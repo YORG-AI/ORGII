@@ -159,7 +159,11 @@ export const SplitRow = React.memo<SplitRowProps>(
               <div
                 className={`split-row-multiselect ${getMultiSelectBgClass()}`}
                 onClick={isRangeStart ? onToggleRange : undefined}
-                style={{ cursor: isRangeStart ? "pointer" : "default" }}
+                style={{
+                  cursor: isRangeStart
+                    ? "var(--interactive-cursor, default)"
+                    : "default",
+                }}
               >
                 {isRangeStart && rangeFullySelected && (
                   <Check size={14} strokeWidth={2.5} />

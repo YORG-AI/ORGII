@@ -67,9 +67,10 @@ export function createFitTerminal({
           return;
         }
 
-        terminalRef.current.clearTextureAtlas();
+        // FitAddon resizes xterm and triggers the normal renderer update. Clearing
+        // the WebGL glyph atlas and forcing a full refresh on every ResizeObserver
+        // notification causes visible flashes while embedded terminal layouts settle.
         fitAddonRef.current.fit();
-        terminalRef.current.refresh(0, terminalRef.current.rows - 1);
       } catch (error) {
         log.warn("[Terminal] Fit error:", error);
       }

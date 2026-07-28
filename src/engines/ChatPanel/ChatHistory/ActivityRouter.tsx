@@ -10,6 +10,7 @@ import React, { Suspense, memo, useMemo } from "react";
 import { AgentMessageBlock } from "@src/engines/ChatPanel/blocks";
 import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
+import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import {
   LLM_USAGE_ARGS_KEY,
   type LlmUsageMetadata,
@@ -143,10 +144,6 @@ function arePropsEqual(
 // Loading Fallback
 // ============================================
 
-const ActivityLoadingFallback: React.FC = () => (
-  <div className="h-8 animate-pulse rounded bg-fill-2" />
-);
-
 /**
  * uiCanonical values that carry their own dedicated chat renderer AND are
  * NOT assistant prose, even though the producing event is stamped
@@ -265,6 +262,10 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
     }, [event.result]);
 
     const renderContent = () => {
+      if (event.id === "loading") {
+        return <ChatLoadingBlock />;
+      }
+
       const actionType = event.actionType;
       const functionName = event.functionName;
       const eventType = getRegistryEventType(event);
@@ -340,7 +341,7 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
         }
         return (
           <ActivityErrorBoundary eventType={eventType}>
-            <Suspense fallback={<ActivityLoadingFallback />}>
+            <Suspense fallback={<ChatLoadingBlock />}>
               <EventComponent event={event} variant="chat" {...extras} />
             </Suspense>
           </ActivityErrorBoundary>

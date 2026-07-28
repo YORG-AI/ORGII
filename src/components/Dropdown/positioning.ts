@@ -11,6 +11,134 @@ export interface DropdownCoordinates {
   transform?: string;
 }
 
+export function areDropdownCoordinatesEqual(
+  previous: DropdownCoordinates | null,
+  next: DropdownCoordinates | null
+): boolean {
+  if (previous === null || next === null) return previous === next;
+  return (
+    previous.top === next.top &&
+    previous.left === next.left &&
+    previous.transform === next.transform
+  );
+}
+
+/**
+ * Vertical counterpart of each placement. Positions that open sideways
+ * (`left*` / `right*`) have no entry — they are never flipped vertically.
+ */
+const VERTICAL_COUNTERPART: Partial<
+  Record<DropdownPosition, DropdownPosition>
+> = {
+  bottom: "top",
+  "bottom-start": "top-start",
+  "bottom-end": "top-end",
+  bl: "tl",
+  br: "tr",
+  top: "bottom",
+  "top-start": "bottom-start",
+  "top-end": "bottom-end",
+  tl: "bl",
+  tr: "br",
+};
+
+const UPWARD_POSITIONS = new Set<DropdownPosition>([
+  "top",
+  "top-start",
+  "top-end",
+  "tl",
+  "tr",
+]);
+
+/** Height assumed before the panel has been measured, matching useDropdownEngine. */
+const ESTIMATED_PANEL_HEIGHT = 240;
+
+export interface DropdownVerticalFit {
+  /** Placement to render with — the requested one, or its vertical mirror. */
+  position: DropdownPosition;
+  /** Space available on the resolved side, in px. */
+  maxHeight: number;
+  /** True when the panel is taller than `maxHeight` and needs to scroll. */
+  constrained: boolean;
+}
+
+interface ResolveVerticalFitParams {
+  position: DropdownPosition;
+  triggerElement: HTMLElement;
+  /** Null before the panel mounts; a follow-up pass re-runs with real numbers. */
+  panelElement: HTMLElement | null;
+  gap?: number;
+}
+
+/**
+ * Decides whether a vertically-placed dropdown still fits on its requested
+ * side, and how tall it may be there.
+ *
+ * The panel is flipped only when the opposite side genuinely has more room,
+ * so a panel that overflows both ways stays where the caller asked and
+ * scrolls instead. `scrollHeight` (not the rendered height) drives the
+ * decision so a `max-height` applied by an earlier pass cannot make an
+ * oversized panel look like it fits.
+ */
+export function resolveVerticalFit({
+  position,
+  triggerElement,
+  panelElement,
+  gap = DROPDOWN_PANEL.triggerGapTight,
+}: ResolveVerticalFitParams): DropdownVerticalFit {
+  const counterpart = VERTICAL_COUNTERPART[position];
+  if (counterpart === undefined) {
+    return {
+      position,
+      maxHeight: DROPDOWN_PANEL.maxHeight,
+      constrained: false,
+    };
+  }
+
+  const triggerRect = triggerElement.getBoundingClientRect();
+  const { height: viewportHeight } = getViewportSize();
+  const padding = DROPDOWN_PANEL.viewportPadding;
+
+  const spaceAbove = triggerRect.top - gap - padding;
+  const spaceBelow = viewportHeight - triggerRect.bottom - gap - padding;
+
+  const preferredHeight = panelElement
+    ? Math.max(
+        panelElement.getBoundingClientRect().height,
+        panelElement.scrollHeight
+      )
+    : ESTIMATED_PANEL_HEIGHT;
+
+  const opensUpward = UPWARD_POSITIONS.has(position);
+  const requestedSpace = opensUpward ? spaceAbove : spaceBelow;
+  const counterpartSpace = opensUpward ? spaceBelow : spaceAbove;
+
+  const shouldFlip =
+    preferredHeight > requestedSpace && counterpartSpace > requestedSpace;
+  const availableSpace = shouldFlip ? counterpartSpace : requestedSpace;
+  const maxHeight = Math.max(
+    DROPDOWN_PANEL.minAvailableHeight,
+    Math.floor(availableSpace)
+  );
+
+  return {
+    position: shouldFlip ? counterpart : position,
+    maxHeight,
+    constrained: panelElement !== null && preferredHeight > maxHeight,
+  };
+}
+
+export function areVerticalFitsEqual(
+  previous: DropdownVerticalFit,
+  next: DropdownVerticalFit
+): boolean {
+  return (
+    previous.position === next.position &&
+    previous.maxHeight === next.maxHeight &&
+    previous.constrained === next.constrained
+  );
+}
+
 export function getPositionedOverlayVisibilityStyle(
   isPositioned: boolean
 ): Pick<CSSProperties, "visibility" | "pointerEvents"> {

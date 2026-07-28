@@ -5,6 +5,7 @@ import { type Dispatch, type SetStateAction, useCallback } from "react";
 
 import { deleteSession } from "@src/api/tauri/agent";
 import { benchmarkApi } from "@src/api/tauri/benchmark";
+import { deleteHumanSession } from "@src/api/tauri/humanSession";
 import { rpc } from "@src/api/tauri/rpc";
 import Message from "@src/components/Message";
 import {
@@ -50,8 +51,16 @@ import {
   CHAT_PANEL_SURFACE_KIND,
   chatPanelNavigateAtom,
 } from "@src/store/ui/chatPanelAtom";
+import {
+  clearPendingFileOpensForSession,
+  disposeWorkstationWorkspaceAtom,
+} from "@src/store/workstation/tabs";
+import { clearPendingCodeEditorTabForSession } from "@src/store/workstation/tabs/pendingCodeEditorTab";
 import { invokeTauri } from "@src/util/platform/tauri/init";
-import { isCliSession } from "@src/util/session/sessionDispatch";
+import {
+  isCliSession,
+  isHumanSession,
+} from "@src/util/session/sessionDispatch";
 import { getSessionListDisplayName } from "@src/util/session/sessionSidebarRow";
 import {
   getChatPanelTabIdFromTuiSessionId,
@@ -93,11 +102,10 @@ interface UseWorkstationSidebarHandlersParams {
   }) => void;
   onCloseChatPanelTab: (tabId: string) => Promise<void>;
   /**
-   * Cloud-org remote session rows (`cloudremote-<orgId>|<rowId>` ids, built
-   * by cloudSessionsSection). Consulted BEFORE the sessionMap fallback —
-   * these rows have no local Session yet. Returns true when handled.
+   * Cloud-org sidebar rows that are not ordinary local session rows (remote
+   * sessions and top-level section pagers). Consulted before sessionMap.
    */
-  onCloudRemoteItemClick?: (item: NavigationMenuItem) => boolean;
+  onCloudSidebarItemClick?: (item: NavigationMenuItem) => boolean;
 }
 
 interface UseWorkstationSidebarHandlersResult {
@@ -122,7 +130,7 @@ export function useWorkstationSidebarHandlers({
   onOpenChatPanelTab,
   onOpenSessionChatPanelTab,
   onCloseChatPanelTab,
-  onCloudRemoteItemClick,
+  onCloudSidebarItemClick,
 }: UseWorkstationSidebarHandlersParams): UseWorkstationSidebarHandlersResult {
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
   const setBenchmarkAgentBatchStatus = useSetAtom(
@@ -131,6 +139,9 @@ export function useWorkstationSidebarHandlers({
   const setBenchmarkActiveBatchId = useSetAtom(benchmarkActiveBatchIdAtom);
   const setBenchmarkActiveBatchTaskId = useSetAtom(
     benchmarkActiveBatchTaskIdAtom
+  );
+  const disposeWorkstationWorkspace = useSetAtom(
+    disposeWorkstationWorkspaceAtom
   );
   const pagination = useAtomValue(sessionPaginationAtom);
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
@@ -187,11 +198,16 @@ export function useWorkstationSidebarHandlers({
         }
         if (isCliSession(sessionId)) {
           await invokeTauri("cli_agent_delete", { sessionId });
+        } else if (isHumanSession(sessionId)) {
+          await deleteHumanSession(sessionId);
         } else {
           await deleteSession(sessionId);
         }
         removeSession(sessionId);
         removeForkRelayEntry(sessionId);
+        disposeWorkstationWorkspace(sessionId);
+        clearPendingFileOpensForSession(sessionId);
+        clearPendingCodeEditorTabForSession(sessionId);
 
         if (sessionId === activeSessionId) {
           goToNewSession();
@@ -206,6 +222,7 @@ export function useWorkstationSidebarHandlers({
       cloudAuth,
       setCloudAuth,
       cloudOrgs,
+      disposeWorkstationWorkspace,
       goToNewSession,
       onCloseChatPanelTab,
       sessionMap,
@@ -298,9 +315,9 @@ export function useWorkstationSidebarHandlers({
         return;
       }
 
-      // Teammate rows in the cloud "Team sessions" section import remotely —
-      // resolve them before the local sessionMap fallback.
-      if (onCloudRemoteItemClick?.(item)) return;
+      // Cloud remote rows and top-level section pagers do not resolve through
+      // the local sessionMap, so give their owner the first chance to handle.
+      if (onCloudSidebarItemClick?.(item)) return;
 
       const originalSession = sessionMap.get(item.id);
       if (!originalSession) return;
@@ -348,7 +365,7 @@ export function useWorkstationSidebarHandlers({
       goToNewSession,
       navigateChatPanel,
       navigateTo,
-      onCloudRemoteItemClick,
+      onCloudSidebarItemClick,
       onOpenChatPanelTab,
       onOpenSessionChatPanelTab,
       promoteActiveSessionCreatorDraft,

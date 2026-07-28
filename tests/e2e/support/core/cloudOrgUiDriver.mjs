@@ -27,6 +27,9 @@
  * driver (collabOrgUiDriver.mjs) is deleted in cloud-parity Phase E and must
  * not be imported here.
  */
+import { createHash } from "node:crypto";
+import { gzipSync } from "node:zlib";
+
 import {
   E2E_REPO_PATH,
   RENDER_TIMEOUT_MS,
@@ -63,9 +66,8 @@ export const CLOUD_FETCH_TIMEOUT_MS = Number.parseInt(
  * `ORG2_CLOUD_EXPECTED_SCHEMA_VERSION` in src/features/Org2Cloud/config.ts
  * (the app gates custom-endpoint sync on an exact match, so a drifted test
  * project would silently exercise a gated app; the suite skips instead).
- * Pre-release the backend ships as ONE consolidated baseline (version 1,
- * comment + task RPCs included), so the comment scenarios H–L have their
- * RPCs whenever the gate passes.
+ * Pre-release the backend ships as ONE consolidated baseline (version 1),
+ * so the comment scenarios H–L have their RPCs whenever the gate passes.
  */
 export const CLOUD_EXPECTED_SCHEMA_VERSION = Number.parseInt(
   process.env.E2E_CLOUD_EXPECTED_SCHEMA_VERSION ?? "1",
@@ -662,7 +664,10 @@ export async function selectCloudOrgScopeFromSidebar(orgId, seedOrg = null) {
             "cloudSeedOrgs(Team sessions)"
           );
         }
-        return execJS(js.exists('[data-testid="cloud-team-sessions-empty"]'));
+        return execJS(`
+          return !!document.querySelector('[data-testid="cloud-team-sessions-empty"]') ||
+            !!document.querySelector('[data-testid^="sidebar-cloud-session-item-"]');
+        `);
       },
       {
         timeout: RENDER_TIMEOUT_MS,
@@ -726,9 +731,16 @@ export async function setCloudSessionModeViaDialog(
     await browser.waitUntil(
       async () => {
         if (await execJS(js.exists(trigger))) return true;
+        // Offline roster retries wipe seeded orgs between iterations; the
+        // wipe can also close the dialog. Re-seed AND re-open every lap so
+        // one unlucky interleave cannot exhaust the whole wait.
         unwrap(
           await invokeE2E("cloudSeedOrgs", { orgs: [seedOrg] }),
           "cloudSeedOrgs(sync-level mode)"
+        );
+        unwrap(
+          await invokeE2E("cloudOpenSyncLevelDialog", { sessionId }),
+          "cloudOpenSyncLevelDialog(re-open after seed)"
         );
         return execJS(js.exists(trigger));
       },
@@ -783,7 +795,7 @@ export async function setCloudSessionVisibilityViaDialog(
 }
 
 // ============================================================================
-// Session comments + in-place agent pickup (2026-07-11 rework)
+// Session comments + owner-local in-place agent follow-up
 // ============================================================================
 //
 // Same contract as everything above: assertions and clicks stay on the
@@ -794,13 +806,10 @@ export async function setCloudSessionVisibilityViaDialog(
 // - `publishCloudSessionMetadata` — the production push path is the sync
 //   engine's 60s pass gated on org repo scopes + the access-ladder opt-in;
 //   driving that from WebDriver would be minutes of setup for a plane the
-//   cloud integration harness already covers. The comments/tasks RPCs
+//   cloud integration harness already covers. The comment RPCs
 //   assert the session row exists and is readable, so the row is seeded
 //   server-side with the same `toRemoteMetadata` wire shape the engine
 //   pushes (accessMode full_replay: turn anchors are server-gated on it).
-// - `listCloudCommentTasks` — ground-truth read that the `@agent ` prefix
-//   created a pickup task server-side (`state`/`attempt` prove the row
-//   exists and stayed unclaimed without driving a live agent turn).
 
 /** Member-tier org2_cloud RPC as the provisioned user (throws on failure). */
 async function cloudMemberRpc(env, accessToken, functionName, body) {
@@ -878,15 +887,56 @@ export async function publishCloudSessionMetadata(
   );
 }
 
-/** Ground-truth task rows for the org (`cloud_list_comment_tasks`). */
-export async function listCloudCommentTasks(env, user, orgId) {
-  const payload = await cloudMemberRpc(
-    env,
-    user.accessToken,
-    "cloud_list_comment_tasks",
-    { p_org_id: orgId }
-  );
-  return payload?.tasks ?? [];
+/**
+ * Same canonical bytes contract as the production codec (collabGzip.ts):
+ * one JSON.stringify feeds both the gzip payload and the sha256
+ * segment_hash, so server-side rows seeded here are indistinguishable from
+ * engine-pushed ones to every client-side integrity check.
+ */
+function segmentWirePayload(events) {
+  const bytes = Buffer.from(JSON.stringify(events), "utf8");
+  return {
+    payloadGz: gzipSync(bytes).toString("base64"),
+    eventCount: events.length,
+    segmentHash: createHash("sha256").update(bytes).digest("hex"),
+  };
+}
+
+/** Owner-tier epoch rewrite via `cloud_rewrite_session_events` (fixture). */
+export async function publishCloudSessionEvents(
+  env,
+  user,
+  { orgId, sessionId, epoch, frozenSegments, tail = null }
+) {
+  const frozen = frozenSegments.map(({ seq, events }) => ({
+    seq,
+    ...segmentWirePayload(events),
+  }));
+  const tailWire = tail && tail.length > 0 ? segmentWirePayload(tail) : null;
+  const totalCount =
+    frozenSegments.reduce((sum, segment) => sum + segment.events.length, 0) +
+    (tail?.length ?? 0);
+  return cloudMemberRpc(env, user.accessToken, "cloud_rewrite_session_events", {
+    p_org_id: orgId,
+    p_session_id: sessionId,
+    new_epoch: epoch,
+    frozen_segments: frozen,
+    tail: tailWire,
+    total_count: totalCount,
+  });
+}
+
+/** Raw `cloud_get_session_events` read — the p_after_seq contract probe. */
+export async function fetchCloudSessionEvents(
+  env,
+  user,
+  { orgId, sessionId, afterSeq }
+) {
+  return cloudMemberRpc(env, user.accessToken, "cloud_get_session_events", {
+    p_org_id: orgId,
+    p_session_id: sessionId,
+    ...(afterSeq !== undefined ? { p_after_seq: afterSeq } : {}),
+  });
 }
 
 /** Turn-anchored comment toggle (TurnCommentChrome under the user turn). */
@@ -961,21 +1011,6 @@ export async function postSessionNote(body) {
 
 const CHAT_COMPOSER_SELECTOR =
   '[data-testid="chat-input"] [contenteditable="true"]';
-
-export function agentTurnBadgeSelector(anchorEventId) {
-  return `[data-testid="session-comment-agent-badge-${anchorEventId}"]`;
-}
-
-export async function waitForAgentTurnBadge(
-  anchorEventId,
-  timeout = CLOUD_FETCH_TIMEOUT_MS
-) {
-  await waitForRendered(
-    agentTurnBadgeSelector(anchorEventId),
-    `agent turn badge (${anchorEventId})`,
-    timeout
-  );
-}
 
 export function threadStatusSelector(status) {
   return `[data-testid="session-comment-status-${status}"]`;
@@ -1150,14 +1185,6 @@ export function cloudSessionRowSelector(sessionId) {
 }
 
 /**
- * Agent-task chip inside the row's trailing accessory slot; variant is
- * "attention" (open count) or "active" (live-lease pulse).
- */
-export function sessionTasksBadgeSelector(sessionId, variant) {
-  return `${cloudSessionRowSelector(sessionId)} [data-testid="session-tasks-badge"][data-variant="${variant}"]`;
-}
-
-/**
  * Clicks every sidebar section-header refresh action. The cloud
  * Team-sessions section's refresh is the production TTL-bypass for its
  * listing (the atom caches for 60s); the buttons are hover-revealed but
@@ -1180,67 +1207,6 @@ export async function clickSidebarSectionRefreshActions() {
   `);
 }
 
-/**
- * Waits for the session row's agent-task chip under the ACTIVE cloud
- * scope, re-clicking the section refresh each poll (the listing was
- * typically fetched BEFORE the task existed, and its TTL would otherwise
- * serve the stale rows for up to 60s). Resolves with the chip's rendered
- * text (the open-count for the "attention" variant).
- */
-export async function waitForSessionTasksBadge(
-  sessionId,
-  variant,
-  timeout = CLOUD_FETCH_TIMEOUT_MS
-) {
-  const selector = sessionTasksBadgeSelector(sessionId, variant);
-  // Capture the count in the SAME DOM read that proves the badge exists.
-  // A background cloud-list refresh can legitimately replace the row between
-  // `waitUntil` resolving and a follow-up query; doing a second read here
-  // turned a rendered, asserted badge into a flaky `null` (TOCTOU).
-  let renderedCount = null;
-  try {
-    await browser.waitUntil(
-      async () => {
-        const count = await execJS(`
-          return document.querySelector(${JSON.stringify(selector)})?.getAttribute('data-count') ?? null;
-        `);
-        if (count !== null) {
-          renderedCount = count;
-          return true;
-        }
-        await clickSidebarSectionRefreshActions();
-        const refreshedCount = await execJS(`
-          return document.querySelector(${JSON.stringify(selector)})?.getAttribute('data-count') ?? null;
-        `);
-        if (refreshedCount !== null) renderedCount = refreshedCount;
-        return refreshedCount !== null;
-      },
-      {
-        timeout,
-        interval: 2_000,
-        timeoutMsg: `session tasks badge (${variant}) never rendered for ${sessionId}: ${selector}`,
-      }
-    );
-  } catch (error) {
-    const debug = unwrap(
-      await invokeE2E("cloudInspectDebugState", { sessionId }),
-      "cloudInspectDebugState(session tasks badge)"
-    ).debug;
-    const diagnostic = await execJS(`
-      return {
-        refreshCount: document.querySelectorAll('[data-testid="cloud-team-sessions-refresh"]').length,
-        rowCount: document.querySelectorAll('[data-testid^="sidebar-cloud-session-item-"]').length,
-        targetRowText: document.querySelector(${JSON.stringify(cloudSessionRowSelector(sessionId))})?.textContent?.trim() ?? null,
-        sectionText: document.querySelector('[data-testid="cloud-team-sessions-empty"]')?.textContent?.trim() ?? null,
-      };
-    `);
-    throw new Error(
-      `${error instanceof Error ? error.message : String(error)}; sidebar=${JSON.stringify(diagnostic)}; cloud=${JSON.stringify(debug)}`
-    );
-  }
-  return renderedCount;
-}
-
 // ============================================================================
 // Session seeding for the dialog scenarios
 // ============================================================================
@@ -1253,7 +1219,7 @@ export async function waitForSessionTasksBadge(
 export async function seedAndOpenCloudEligibleSession(
   sessionId,
   title,
-  { touchedFilePath } = {}
+  { touchedFilePath, additionalTurns = 0 } = {}
 ) {
   // The share gate resolves git remotes through the production IDE server.
   // Register this checkout before asking that resolver to prime; a bare
@@ -1310,10 +1276,10 @@ export async function seedAndOpenCloudEligibleSession(
             actionType: "tool_call",
             args: { file_path: touchedFilePath },
             result: { success: true, call_id: toolEventId },
-            source: "tool",
+            source: "assistant",
             displayText: `Read ${touchedFilePath}`,
             displayStatus: "completed",
-            displayVariant: "tool",
+            displayVariant: "tool_call",
             activityStatus: "processed",
             isDelta: false,
           },
@@ -1342,6 +1308,55 @@ export async function seedAndOpenCloudEligibleSession(
       isDelta: false,
     },
   ];
+  for (let turn = 1; turn <= additionalTurns; turn += 1) {
+    const userId = `user-${turn}-${sessionId}`;
+    const assistantId = `assistant-${turn}-${sessionId}`;
+    events.push(
+      {
+        id: userId,
+        chunk_id: userId,
+        sessionId,
+        createdAt: new Date(base + turn * 2_000).toISOString(),
+        functionName: "user_message",
+        uiCanonical: "user_message",
+        actionType: "raw",
+        args: {},
+        result: {
+          type: "user",
+          message: `Inherited turn ${turn}`,
+          is_delta: false,
+        },
+        source: "user",
+        displayText: `Inherited turn ${turn}`,
+        displayStatus: "completed",
+        displayVariant: "message",
+        activityStatus: "processed",
+        isDelta: false,
+      },
+      {
+        id: assistantId,
+        chunk_id: assistantId,
+        sessionId,
+        createdAt: new Date(base + turn * 2_000 + 1_000).toISOString(),
+        functionName: "assistant_message",
+        uiCanonical: "agent_message",
+        actionType: "assistant",
+        args: {},
+        result: {
+          content: `Inherited answer ${turn}`,
+          observation: `Inherited answer ${turn}`,
+          is_delta: false,
+          role: "assistant",
+        },
+        source: "assistant",
+        displayText: `Inherited answer ${turn}`,
+        displayStatus: "completed",
+        displayVariant: "message",
+        activityStatus: "agent",
+        isDelta: false,
+      }
+    );
+  }
   unwrap(
     await invokeE2E("seedChatEvents", sessionId, events, {
       chatPanelMaximized: true,

@@ -1,5 +1,5 @@
 /**
- * Pure parsing for the `orgii://auth/callback` deep link that finishes the
+ * Pure parsing for the configured `<scheme>://auth/callback` deep link that finishes the
  * ORG2 Cloud browser login (design §8):
  *
  *   orgii://auth/callback#access_token=<jwt>&refresh_token=<t>&expires_at=<s>
@@ -12,6 +12,7 @@
  * Kept free of React / Jotai / Tauri imports so it can be unit tested in
  * isolation — mirrors `src/store/collaboration/deepLink.ts`.
  */
+import { ORG2_CLOUD_AUTH_CALLBACK_URL } from "./config";
 
 export const ORG2_CLOUD_AUTH_DEEP_LINK_HOST = "auth";
 export const ORG2_CLOUD_AUTH_DEEP_LINK_PATH = "callback";
@@ -24,21 +25,39 @@ export interface Org2CloudAuthCallback {
 }
 
 /**
- * Whether `url` is an `orgii://auth/callback` deep link (regardless of
- * whether its fragment is valid). Matched on the RAW `orgii://` url, BEFORE
+ * Whether `url` is the configured desktop auth callback (regardless of
+ * whether its fragment is valid). Matched on the RAW deep-link URL, BEFORE
  * the generic route normalization in useDeepLinkHandler turns it into
  * `/orgii/auth/callback` — same interception point as the collab links.
+ *
+ * Isolated desktop instances compile with schemes such as
+ * `orgii-instance2://`; accepting only the production `orgii://` scheme here
+ * makes their otherwise-correct OAuth callback silently fall through. The
+ * configured callback remains the allowlist, so arbitrary schemes are not
+ * accepted.
  */
-export function isOrg2CloudAuthCallback(url: string): boolean {
+export function isOrg2CloudAuthCallback(
+  url: string,
+  expectedCallbackUrl = ORG2_CLOUD_AUTH_CALLBACK_URL
+): boolean {
   const trimmed = url.trim();
-  if (!trimmed.toLowerCase().startsWith("orgii://")) return false;
   try {
     const parsed = new URL(trimmed);
+    const expected = new URL(expectedCallbackUrl);
     const host = parsed.hostname.toLowerCase();
     const path = parsed.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+    const expectedHost = expected.hostname.toLowerCase();
+    const expectedPath = expected.pathname
+      .replace(/^\/+|\/+$/g, "")
+      .toLowerCase();
     return (
-      host === ORG2_CLOUD_AUTH_DEEP_LINK_HOST &&
-      path === ORG2_CLOUD_AUTH_DEEP_LINK_PATH
+      parsed.protocol.toLowerCase() === expected.protocol.toLowerCase() &&
+      host === expectedHost &&
+      parsed.port === expected.port &&
+      path === expectedPath &&
+      parsed.search === expected.search &&
+      parsed.username === "" &&
+      parsed.password === ""
     );
   } catch {
     return false;
@@ -51,9 +70,10 @@ export function isOrg2CloudAuthCallback(url: string): boolean {
  * fragment, missing/empty token params, or a non-numeric `expires_at`.
  */
 export function parseAuthCallbackFragment(
-  url: string
+  url: string,
+  expectedCallbackUrl = ORG2_CLOUD_AUTH_CALLBACK_URL
 ): Org2CloudAuthCallback | null {
-  if (!isOrg2CloudAuthCallback(url)) return null;
+  if (!isOrg2CloudAuthCallback(url, expectedCallbackUrl)) return null;
   const hashIndex = url.indexOf("#");
   if (hashIndex === -1) return null;
   const params = new URLSearchParams(url.slice(hashIndex + 1));

@@ -1,49 +1,29 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::coordination::agent_member_interventions::AgentMemberInterventionStore;
-use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, TaskStatus};
+use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
+use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
 use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
+use super::finality::load_and_assess;
 use super::helpers::{
-    context_for_run_record, insert_run, load_by_id, load_by_root_session, parent_session_id_of,
-    row_to_run, validate_entry_mode, validate_status,
+    context_for_run_record, flatten_members, insert_run, load_by_id, load_by_root_session,
+    parent_session_id_of, row_to_run, validate_entry_mode, validate_status,
+};
+use super::progress::{
+    ensure_progress_in_conn, load_progress_with_conn, mark_coordinator_observed_revision_with_conn,
+    record_completion_request_in_tx, stage_coordinator_presented_with_conn,
 };
 use super::worker::{WorkerSessionInfo, WorkerSessionRuntime};
 use super::{
-    AgentOrgCompletionSnapshot, AgentOrgRunContext, AgentOrgRunRecord, AgentOrgRunStatus,
-    CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
+    AgentOrgCompletionRequestOutcome, AgentOrgFinalityAssessment, AgentOrgRunContext,
+    AgentOrgRunProgress, AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams,
+    COORDINATOR_MEMBER_ID,
 };
-
-fn session_is_quiescent_for_completed_run(status: SessionStatus) -> bool {
-    match status {
-        SessionStatus::Idle
-        | SessionStatus::Completed
-        | SessionStatus::Failed
-        | SessionStatus::Cancelled
-        | SessionStatus::Abandoned
-        | SessionStatus::Timeout
-        | SessionStatus::Archived => true,
-        SessionStatus::Pending
-        | SessionStatus::Running
-        | SessionStatus::WaitingForUser
-        | SessionStatus::WaitingForFunds
-        | SessionStatus::Paused => false,
-    }
-}
-
-fn timestamp_at_or_after(candidate: &str, baseline: &str) -> bool {
-    match (
-        chrono::DateTime::parse_from_rfc3339(candidate),
-        chrono::DateTime::parse_from_rfc3339(baseline),
-    ) {
-        (Ok(candidate), Ok(baseline)) => candidate >= baseline,
-        _ => false,
-    }
-}
 
 pub struct AgentOrgRunStore;
 
@@ -73,9 +53,13 @@ impl AgentOrgRunStore {
         };
 
         with_sessions_writer(|| -> Result<(), String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            insert_run(&conn, &run).map_err(|err| err.to_string())?;
-            Ok(())
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            insert_run(&tx, &run).map_err(|err| err.to_string())?;
+            ensure_progress_in_conn(&tx, &run.id)?;
+            tx.commit().map_err(|err| err.to_string())
         })?;
         crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run.id);
         Ok(run)
@@ -161,16 +145,13 @@ impl AgentOrgRunStore {
     ///
     /// A previous process may have left a run `running` only because an
     /// orphaned turn intent incorrectly looked queued. Startup reconciliation
-    /// closes those intents. If every task is already resolved, run the normal
-    /// atomic finality check now; only runs that still need work should fall
-    /// through to `mark_all_running_as_paused_on_startup`.
+    /// closes those intents. Run the canonical atomic finality check for every
+    /// Running run, including an empty board with an explicit completion
+    /// intent; only runs that still have blockers fall through to
+    /// `mark_all_running_as_paused_on_startup`.
     pub fn reconcile_resolved_running_runs_on_startup() -> Result<usize, String> {
         let mut completed = 0usize;
         for run in Self::list_running_runs(usize::MAX)? {
-            let tasks = AgentOrgTaskStore::list(&run.id)?;
-            if tasks.is_empty() || tasks.iter().any(|task| !task.status.is_resolved()) {
-                continue;
-            }
             if Self::reconcile_run_finality(&run.id)? == Some(AgentOrgRunStatus::Completed) {
                 completed += 1;
             }
@@ -208,8 +189,11 @@ impl AgentOrgRunStore {
         let status = validate_status(AgentOrgRunStatus::Failed.as_str())?;
         let now = chrono::Utc::now().to_rfc3339();
         with_sessions_writer(|| -> Result<(), String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            conn.execute(
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            tx.execute(
                 "UPDATE agent_org_runs
                  SET status = ?1,
                      last_error = ?2,
@@ -219,256 +203,209 @@ impl AgentOrgRunStore {
                 params![status.as_str(), error_message, now, run_id],
             )
             .map_err(|err| err.to_string())?;
-            Ok(())
+            tx.execute(
+                "UPDATE agent_org_plan_approvals
+                 SET status='cancelled', decision_by='system', resolved_at=?2
+                 WHERE org_run_id=?1 AND status='pending'",
+                params![run_id, &now],
+            )
+            .map_err(|err| err.to_string())?;
+            tx.commit().map_err(|err| err.to_string())
         })?;
         crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
         Ok(())
     }
 
-    pub fn reconcile_run_finality(run_id: &str) -> Result<Option<AgentOrgRunStatus>, String> {
-        // Finality and every task/session mutation share the sessions writer
-        // lock. The root session, latest member sessions, task board and run
-        // status are all read inside one IMMEDIATE transaction so no stale
-        // pre-lock snapshot can close a run while a worker is active.
-        let (status, changed) = with_sessions_writer(
-            || -> Result<(Option<AgentOrgRunStatus>, bool), String> {
+    pub fn progress(run_id: &str) -> Result<Option<AgentOrgRunProgress>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        load_progress_with_conn(&conn, run_id)
+    }
+
+    /// Record which durable work revision is embedded in the coordinator's
+    /// next prompt. A later successful coordinator turn promotes this staged
+    /// revision to `observed`; newer concurrent task mutations remain newer.
+    pub fn stage_coordinator_work_revision(run_id: &str) -> Result<Option<i64>, String> {
+        let revision = with_sessions_writer(|| {
+            let conn = get_connection().map_err(|err| err.to_string())?;
+            stage_coordinator_presented_with_conn(&conn, run_id)
+        })?;
+        if revision.is_some() {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        }
+        Ok(revision)
+    }
+
+    /// Stage the coordinator's presented work revision and read the task
+    /// board from the same SQLite snapshot. Prompt construction uses this so
+    /// the revision certificate can never describe a newer board than the
+    /// task snapshot actually rendered to the provider.
+    pub fn stage_coordinator_work_revision_and_load_tasks(
+        run_id: &str,
+    ) -> Result<(Option<i64>, Vec<Task>), String> {
+        let (revision, tasks) =
+            with_sessions_writer(|| -> Result<(Option<i64>, Vec<Task>), String> {
                 let mut conn = get_connection().map_err(|err| err.to_string())?;
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;
-                let run_row: Option<(String, Option<String>)> = tx
-                    .query_row(
-                        "SELECT status, root_session_id FROM agent_org_runs WHERE id=?1",
-                        params![run_id],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
+                let revision = stage_coordinator_presented_with_conn(&tx, run_id)?;
+                let tasks = AgentOrgTaskStore::list_operational_with_connection(&tx, run_id)?;
+                tx.commit().map_err(|err| err.to_string())?;
+                Ok((revision, tasks))
+            })?;
+        if revision.is_some() {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        }
+        Ok((revision, tasks))
+    }
+
+    pub fn mark_coordinator_observed_work_revision(
+        run_id: &str,
+        presented_work_revision: i64,
+    ) -> Result<Option<i64>, String> {
+        let observed_revision = with_sessions_writer(|| {
+            let conn = get_connection().map_err(|err| err.to_string())?;
+            mark_coordinator_observed_revision_with_conn(&conn, run_id, presented_work_revision)
+        })?;
+        if observed_revision.is_some() {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        }
+        Ok(observed_revision)
+    }
+
+    /// Persist a coordinator-only completion request without forcing the run
+    /// terminal. Finality still waits for delivery, approvals, interventions,
+    /// sessions, and work-observation invariants to become safe.
+    pub fn request_completion(
+        run_id: &str,
+        summary: &str,
+    ) -> Result<AgentOrgCompletionRequestOutcome, String> {
+        let outcome = with_sessions_writer(|| {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            let status: Option<String> = tx
+                .query_row(
+                    "SELECT status FROM agent_org_runs WHERE id=?1",
+                    params![run_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|err| err.to_string())?;
+            let Some(status) = status else {
+                return Err(format!("agent_org_run_not_found: {run_id}"));
+            };
+            if status != AgentOrgRunStatus::Running.as_str() {
+                return Err(format!(
+                    "agent_org_run_not_mutable: run {run_id} is {status}"
+                ));
+            }
+
+            let unresolved_task_ids = {
+                let mut stmt = tx
+                    .prepare(
+                        "SELECT id FROM agent_org_tasks
+                         WHERE org_run_id=?1 AND status<>?2
+                         ORDER BY created_at ASC, id ASC",
                     )
-                    .optional()
                     .map_err(|err| err.to_string())?;
-                let Some((current_status, root_session_id)) = run_row else {
+                let rows = stmt
+                    .query_map(params![run_id, TaskStatus::Completed.as_wire()], |row| {
+                        row.get::<_, String>(0)
+                    })
+                    .map_err(|err| err.to_string())?;
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|err| err.to_string())?
+            };
+            if !unresolved_task_ids.is_empty() {
+                tx.commit().map_err(|err| err.to_string())?;
+                return Ok(AgentOrgCompletionRequestOutcome::OpenTasks {
+                    unresolved_task_ids,
+                });
+            }
+            let progress = record_completion_request_in_tx(&tx, run_id, summary)?;
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok(AgentOrgCompletionRequestOutcome::Recorded { progress })
+        })?;
+        if matches!(&outcome, AgentOrgCompletionRequestOutcome::Recorded { .. }) {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        }
+        Ok(outcome)
+    }
+
+    pub fn assess_run_finality(run_id: &str) -> Result<super::AgentOrgFinalityAssessment, String> {
+        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Deferred)
+            .map_err(|err| err.to_string())?;
+        let assessment = load_and_assess(&tx, run_id)?;
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok(assessment)
+    }
+
+    pub fn reconcile_run_finality(run_id: &str) -> Result<Option<AgentOrgRunStatus>, String> {
+        // Finality and every task mutation share the sessions writer lock. The
+        // canonical typed facts are re-read inside this IMMEDIATE transaction;
+        // no analyzer snapshot is trusted across the lock boundary.
+        let (status, changed) =
+            with_sessions_writer(|| -> Result<(Option<AgentOrgRunStatus>, bool), String> {
+                let mut conn = get_connection().map_err(|err| err.to_string())?;
+                let tx = conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .map_err(|err| err.to_string())?;
+                let assessment = load_and_assess(&tx, run_id)?;
+                let Some(current_status) = assessment.facts.run_status else {
                     tx.commit().map_err(|err| err.to_string())?;
                     return Ok((None, false));
                 };
-                let current_status = AgentOrgRunStatus::parse(&current_status)
-                    .ok_or_else(|| format!("unknown Agent Org run status: {current_status}"))?;
-                if current_status != AgentOrgRunStatus::Running {
-                    tx.commit().map_err(|err| err.to_string())?;
-                    return Ok((Some(current_status), false));
-                }
-                let Some(root_session_id) = root_session_id else {
-                    tx.commit().map_err(|err| err.to_string())?;
-                    return Ok((Some(current_status), false));
-                };
-
-                let root_row: Option<(String, Option<String>)> = tx
-                    .query_row(
-                        "SELECT status, last_terminal_turn_at
-                     FROM agent_sessions WHERE session_id=?1",
-                        params![&root_session_id],
-                        |row| Ok((row.get(0)?, row.get(1)?)),
-                    )
-                    .optional()
-                    .map_err(|err| err.to_string())?;
-                let Some((root_status, root_last_terminal_turn_at)) = root_row else {
-                    tx.commit().map_err(|err| err.to_string())?;
-                    return Ok((Some(current_status), false));
-                };
-                let root_status = SessionStatus::parse(&root_status).ok_or_else(|| {
-                    format!("unknown root session status for {root_session_id}: {root_status:?}")
-                })?;
-
-                let rust_worker_statuses_raw: Vec<String> = {
-                    let mut stmt = tx
-                    .prepare(
-                        "WITH RECURSIVE descendants(session_id) AS (
-                             SELECT session_id FROM agent_sessions WHERE parent_session_id=?1
-                             UNION ALL
-                             SELECT child.session_id FROM agent_sessions child
-                             JOIN descendants parent ON child.parent_session_id=parent.session_id
-                         ), ranked AS (
-                             SELECT session.status,
-                                    ROW_NUMBER() OVER (
-                                        PARTITION BY COALESCE(session.org_member_id, session.agent_definition_id)
-                                        ORDER BY session.updated_at DESC
-                                    ) AS rank
-                             FROM agent_sessions session
-                             JOIN descendants USING (session_id)
-                             WHERE session.agent_definition_id IS NOT NULL
-                         )
-                         SELECT status FROM ranked WHERE rank=1",
-                    )
-                    .map_err(|err| err.to_string())?;
-                    let rows = stmt
-                        .query_map(params![&root_session_id], |row| row.get(0))
-                        .map_err(|err| err.to_string())?;
-                    rows.collect::<Result<Vec<_>, _>>()
-                        .map_err(|err| err.to_string())?
-                };
-                let rust_worker_statuses = rust_worker_statuses_raw
-                    .into_iter()
-                    .map(|raw| {
-                        SessionStatus::parse(&raw)
-                            .ok_or_else(|| format!("unknown worker session status: {raw:?}"))
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-
-                let cli_worker_statuses_raw: Vec<String> = {
-                    let mut stmt = tx
-                        .prepare(
-                            "SELECT status FROM code_sessions
-                         WHERE parent_session_id=?1
-                           AND org_member_id IS NOT NULL
-                           AND cli_agent_type IS NOT NULL",
-                        )
-                        .map_err(|err| err.to_string())?;
-                    let rows = stmt
-                        .query_map(params![&root_session_id], |row| row.get(0))
-                        .map_err(|err| err.to_string())?;
-                    rows.collect::<Result<Vec<_>, _>>()
-                        .map_err(|err| err.to_string())?
-                };
-                let cli_worker_statuses = cli_worker_statuses_raw
-                    .into_iter()
-                    .map(|raw| {
-                        SessionStatus::parse(&raw)
-                            .ok_or_else(|| format!("unknown CLI worker session status: {raw:?}"))
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-
-                let (task_count, incomplete_tasks, latest_task_updated_at): (
-                    i64,
-                    i64,
-                    Option<String>,
-                ) = tx
-                    .query_row(
-                        "SELECT COUNT(*),
-                            SUM(CASE WHEN status != ?2 THEN 1 ELSE 0 END),
-                            MAX(updated_at)
-                     FROM agent_org_tasks
-                     WHERE org_run_id=?1",
-                        params![run_id, TaskStatus::Completed.as_wire()],
-                        |row| {
-                            Ok((
-                                row.get(0)?,
-                                row.get::<_, Option<i64>>(1)?.unwrap_or(0),
-                                row.get(2)?,
-                            ))
-                        },
-                    )
-                    .map_err(|err| err.to_string())?;
-                let coordinator_observed_latest_tasks = match (
-                    root_last_terminal_turn_at.as_deref(),
-                    latest_task_updated_at.as_deref(),
-                ) {
-                    (Some(root_turn_at), Some(task_updated_at)) => {
-                        timestamp_at_or_after(root_turn_at, task_updated_at)
+                let next_status = match assessment.decision {
+                    super::AgentOrgFinalityDecision::Complete => AgentOrgRunStatus::Completed,
+                    super::AgentOrgFinalityDecision::Abandon => AgentOrgRunStatus::Abandoned,
+                    super::AgentOrgFinalityDecision::KeepRunning => {
+                        tx.commit().map_err(|err| err.to_string())?;
+                        return Ok((Some(current_status), false));
                     }
-                    _ => false,
                 };
-                let all_workers_terminal = rust_worker_statuses
-                    .iter()
-                    .chain(cli_worker_statuses.iter())
-                    .all(|status| status.is_terminal());
-                let all_sessions_quiescent = session_is_quiescent_for_completed_run(root_status)
-                    && rust_worker_statuses
-                        .iter()
-                        .chain(cli_worker_statuses.iter())
-                        .all(|status| session_is_quiescent_for_completed_run(*status));
-
-                let has_unread_inbox: bool = tx
-                    .query_row(
-                        "SELECT EXISTS(
-                         SELECT 1 FROM agent_inbox
-                         WHERE org_run_id=?1 AND read_at IS NULL
-                     )",
-                        params![run_id],
-                        |row| row.get(0),
-                    )
-                    .map_err(|err| err.to_string())?;
                 let now = chrono::Utc::now().to_rfc3339();
-                // Older builds could persist a coordinator intervention from an
-                // ordinary root message. Coordinator is the normal control
-                // surface, so repair that invalid row inside the same finality
-                // transaction before deciding whether an intervention blocks the
-                // run from closing.
-                tx.execute(
-                    "UPDATE agent_member_interventions
-                 SET cleared_at=?3
-                 WHERE org_run_id=?1
-                   AND member_id=?2
-                   AND cleared_at IS NULL",
-                    params![run_id, COORDINATOR_MEMBER_ID, &now],
-                )
-                .map_err(|err| err.to_string())?;
-                let has_active_intervention: bool = tx
-                    .query_row(
-                        "SELECT EXISTS(
-                         SELECT 1 FROM agent_member_interventions
-                         WHERE org_run_id=?1
-                           AND cleared_at IS NULL
-                           AND resume_after > ?2
-                     )",
-                        params![run_id, &now],
-                        |row| row.get(0),
+                let completion_summary = assessment
+                    .facts
+                    .progress
+                    .as_ref()
+                    .and_then(|progress| progress.completion_summary.as_deref());
+                let changed = tx
+                    .execute(
+                        "UPDATE agent_org_runs
+                     SET status=?1,
+                         summary=COALESCE(?2, summary),
+                         updated_at=?3,
+                         completed_at=?3
+                     WHERE id=?4 AND status=?5",
+                        params![
+                            next_status.as_str(),
+                            completion_summary,
+                            &now,
+                            run_id,
+                            AgentOrgRunStatus::Running.as_str(),
+                        ],
                     )
                     .map_err(|err| err.to_string())?;
-                let has_pending_turn_intent: bool = tx
-                    .query_row(
-                        "WITH RECURSIVE org_sessions(session_id) AS (
-                         SELECT ?1
-                         UNION ALL
-                         SELECT child.session_id
-                         FROM agent_sessions child
-                         JOIN org_sessions parent
-                           ON child.parent_session_id = parent.session_id
-                     )
-                     SELECT EXISTS(
-                         SELECT 1
-                         FROM session_turn_intents intent
-                         JOIN org_sessions USING(session_id)
-                         WHERE intent.status IN ('optimistic', 'queued', 'running')
-                     )",
-                        params![&root_session_id],
-                        |row| row.get(0),
-                    )
-                    .map_err(|err| err.to_string())?;
-
-                let next_status = if task_count > 0
-                    && incomplete_tasks == 0
-                    && all_sessions_quiescent
-                    && !has_unread_inbox
-                    && !has_active_intervention
-                    && !has_pending_turn_intent
-                    && coordinator_observed_latest_tasks
-                {
-                    Some(AgentOrgRunStatus::Completed)
-                } else if incomplete_tasks > 0 && root_status.is_terminal() && all_workers_terminal
-                {
-                    Some(AgentOrgRunStatus::Abandoned)
-                } else {
-                    None
-                };
-                let Some(next_status) = next_status else {
+                if changed != 1 {
                     tx.commit().map_err(|err| err.to_string())?;
-                    return Ok((Some(current_status), false));
-                };
+                    return Ok((Self::get_run_status(run_id)?, false));
+                }
+                // Terminal status and cancellation of an otherwise stranded plan
+                // approval are one atomic state transition.
                 tx.execute(
-                    "UPDATE agent_org_runs
-                 SET status = ?1,
-                     updated_at = ?2,
-                     completed_at = ?2
-                 WHERE id = ?3 AND status = ?4",
-                    params![
-                        next_status.as_str(),
-                        now,
-                        run_id,
-                        AgentOrgRunStatus::Running.as_str(),
-                    ],
+                    "UPDATE agent_org_plan_approvals
+                 SET status='cancelled', decision_by='system', resolved_at=?2
+                 WHERE org_run_id=?1 AND status='pending'",
+                    params![run_id, &now],
                 )
                 .map_err(|err| err.to_string())?;
                 tx.commit().map_err(|err| err.to_string())?;
                 Ok((Some(next_status), true))
-            },
-        )?;
+            })?;
         if changed {
             crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
         }
@@ -664,6 +601,13 @@ impl AgentOrgRunStore {
     /// Return the current status of the run without fetching the full record.
     pub fn get_run_status(run_id: &str) -> Result<Option<AgentOrgRunStatus>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::get_run_status_with_connection(&conn, run_id)
+    }
+
+    pub(crate) fn get_run_status_with_connection(
+        conn: &Connection,
+        run_id: &str,
+    ) -> Result<Option<AgentOrgRunStatus>, String> {
         let status_raw: Option<String> = conn
             .query_row(
                 "SELECT status FROM agent_org_runs WHERE id = ?1 LIMIT 1",
@@ -675,175 +619,109 @@ impl AgentOrgRunStore {
         Ok(status_raw.as_deref().and_then(AgentOrgRunStatus::parse))
     }
 
-    /// Read the completion certificate inputs under the same writer lock and
-    /// SQLite IMMEDIATE transaction used by task/run mutations. This prevents
-    /// a mixed snapshot such as "tasks before a new assignment" plus
-    /// "sessions after it was queued" from being reported as complete.
-    pub fn completion_snapshot(run_id: &str) -> Result<AgentOrgCompletionSnapshot, String> {
-        with_sessions_writer(|| {
-            let mut conn = get_connection().map_err(|err| err.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|err| err.to_string())?;
-            let run_row: Option<(String, Option<String>)> = tx
-                .query_row(
-                    "SELECT status, root_session_id FROM agent_org_runs WHERE id=?1",
-                    params![run_id],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()
-                .map_err(|err| err.to_string())?;
-            let (run_status, root_session_id) = match run_row {
-                Some((status, root_session_id)) => (
-                    Some(AgentOrgRunStatus::parse(&status).ok_or_else(|| {
-                        format!("unknown Agent Org run status for {run_id}: {status:?}")
-                    })?),
-                    root_session_id,
-                ),
-                None => (None, None),
-            };
-
-            let tasks = AgentOrgTaskStore::list_with_connection(&tx, run_id)?;
-
-            let mut active_member_ids = Vec::new();
-            let mut pending_worker_turn_intent_count = 0usize;
-            if let Some(root_session_id) = root_session_id.as_deref() {
-                let mut stmt = tx
-                    .prepare(
-                        "WITH RECURSIVE descendants(session_id) AS (
-                             SELECT session_id FROM agent_sessions WHERE parent_session_id=?1
-                             UNION ALL
-                             SELECT child.session_id FROM agent_sessions child
-                             JOIN descendants parent ON child.parent_session_id=parent.session_id
-                         ), ranked AS (
-                             SELECT COALESCE(session.org_member_id, session.session_id) AS member_id,
-                                    session.status,
-                                    ROW_NUMBER() OVER (
-                                        PARTITION BY COALESCE(session.org_member_id, session.agent_definition_id)
-                                        ORDER BY session.updated_at DESC
-                                    ) AS rank
-                             FROM agent_sessions session
-                             JOIN descendants USING(session_id)
-                             WHERE session.agent_definition_id IS NOT NULL
-                         )
-                         SELECT member_id, status FROM ranked WHERE rank=1",
-                    )
-                    .map_err(|err| err.to_string())?;
-                let rows = stmt
-                    .query_map(params![root_session_id], |row| {
-                        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                    })
-                    .map_err(|err| err.to_string())?;
-                for row in rows {
-                    let (member_id, status) = row.map_err(|err| err.to_string())?;
-                    let status = SessionStatus::parse(&status).ok_or_else(|| {
-                        format!("unknown worker session status for {member_id}: {status:?}")
-                    })?;
-                    if !session_is_quiescent_for_completed_run(status) {
-                        active_member_ids.push(member_id);
-                    }
-                }
-
-                let mut cli_stmt = tx
-                    .prepare(
-                        "SELECT org_member_id, status FROM code_sessions
-                         WHERE parent_session_id=?1
-                           AND org_member_id IS NOT NULL
-                           AND cli_agent_type IS NOT NULL",
-                    )
-                    .map_err(|err| err.to_string())?;
-                let cli_rows = cli_stmt
-                    .query_map(params![root_session_id], |row| {
-                        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-                    })
-                    .map_err(|err| err.to_string())?;
-                for row in cli_rows {
-                    let (member_id, status) = row.map_err(|err| err.to_string())?;
-                    let status = SessionStatus::parse(&status).ok_or_else(|| {
-                        format!("unknown CLI worker session status for {member_id}: {status:?}")
-                    })?;
-                    if !session_is_quiescent_for_completed_run(status) {
-                        active_member_ids.push(member_id);
-                    }
-                }
-
-                let count: i64 = tx
-                    .query_row(
-                        "WITH RECURSIVE worker_sessions(session_id) AS (
-                             SELECT session_id FROM agent_sessions WHERE parent_session_id=?1
-                             UNION ALL
-                             SELECT child.session_id FROM agent_sessions child
-                             JOIN worker_sessions parent
-                               ON child.parent_session_id=parent.session_id
-                         )
-                         SELECT COUNT(*) FROM session_turn_intents intent
-                         JOIN worker_sessions USING(session_id)
-                         WHERE intent.status IN ('optimistic', 'queued', 'running')",
-                        params![root_session_id],
-                        |row| row.get(0),
-                    )
-                    .map_err(|err| err.to_string())?;
-                pending_worker_turn_intent_count = usize::try_from(count)
-                    .map_err(|_| format!("invalid pending turn intent count: {count}"))?;
-            }
-
-            active_member_ids.sort();
-            active_member_ids.dedup();
-            let now = chrono::Utc::now().to_rfc3339();
-            let active_intervention_member_ids = {
-                let mut stmt = tx
-                    .prepare(
-                        "SELECT DISTINCT member_id FROM agent_member_interventions
-                         WHERE org_run_id=?1 AND cleared_at IS NULL AND resume_after>?2
-                         ORDER BY member_id ASC",
-                    )
-                    .map_err(|err| err.to_string())?;
-                let rows = stmt
-                    .query_map(params![run_id, now], |row| row.get::<_, String>(0))
-                    .map_err(|err| err.to_string())?;
-                rows.collect::<Result<Vec<_>, _>>()
-                    .map_err(|err| err.to_string())?
-            };
-            let unread_inbox_count: i64 = tx
-                .query_row(
-                    "SELECT COUNT(*) FROM agent_inbox WHERE org_run_id=?1 AND read_at IS NULL",
-                    params![run_id],
-                    |row| row.get(0),
-                )
-                .map_err(|err| err.to_string())?;
-            let pending_plan_approval_count: i64 = tx
-                .query_row(
-                    "SELECT COUNT(*) FROM agent_org_plan_approvals
-                     WHERE org_run_id=?1 AND status='pending'",
-                    params![run_id],
-                    |row| row.get(0),
-                )
-                .map_err(|err| err.to_string())?;
-            let unread_inbox_count = usize::try_from(unread_inbox_count)
-                .map_err(|_| "invalid unread inbox count".to_string())?;
-            let pending_plan_approval_count = usize::try_from(pending_plan_approval_count)
-                .map_err(|_| "invalid pending plan approval count".to_string())?;
-            tx.commit().map_err(|err| err.to_string())?;
-            Ok(AgentOrgCompletionSnapshot {
-                run_status,
-                tasks,
-                active_member_ids,
-                active_intervention_member_ids,
-                pending_worker_turn_intent_count,
-                unread_inbox_count,
-                pending_plan_approval_count,
-            })
-        })
+    /// Read the canonical finality facts and decision from an existing
+    /// connection or read transaction. Run View and task-list projections use
+    /// this to keep all of their independently-shaped rows on one SQLite
+    /// snapshot instead of opening a fresh connection for each block.
+    pub(crate) fn finality_assessment_with_connection(
+        conn: &Connection,
+        run_id: &str,
+    ) -> Result<AgentOrgFinalityAssessment, String> {
+        load_and_assess(conn, run_id)
     }
 
     pub fn delete_by_id(run_id: &str) -> Result<(), String> {
-        let deleted = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            let rows = conn
-                .execute("DELETE FROM agent_org_runs WHERE id = ?1", params![run_id])
+        let (plan_artifacts, deleted) =
+            with_sessions_writer(|| -> Result<(Vec<(String, String)>, bool), String> {
+                let mut conn = get_connection().map_err(|err| err.to_string())?;
+                let tx = conn
+                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                    .map_err(|err| err.to_string())?;
+                let plan_artifacts = {
+                    let mut stmt = tx
+                        .prepare(
+                            "SELECT DISTINCT approval.source_session_id, approval.plan_path
+                         FROM agent_org_plan_approvals approval
+                         WHERE approval.org_run_id=?1
+                           AND NOT EXISTS (
+                             SELECT 1 FROM agent_org_plan_approvals other
+                             WHERE other.plan_path=approval.plan_path
+                               AND other.org_run_id<>?1
+                           )",
+                        )
+                        .map_err(|err| err.to_string())?;
+                    let rows = stmt
+                        .query_map(params![run_id], |row| {
+                            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                        })
+                        .map_err(|err| err.to_string())?;
+                    rows.collect::<Result<Vec<_>, _>>()
+                        .map_err(|err| err.to_string())?
+                };
+
+                // A session tree can contain another Agent Org run. Intent rows
+                // therefore carry explicit run ownership: deleting this run must
+                // remove all of its direct and wake/resume turns without touching
+                // a nested run merely because its root is a session descendant.
+                tx.execute(
+                    "DELETE FROM session_turn_intents WHERE org_run_id=?1",
+                    params![run_id],
+                )
                 .map_err(|err| err.to_string())?;
-            Ok(rows > 0)
-        })?;
+                tx.execute(
+                    "DELETE FROM agent_inbox_materializations
+                 WHERE inbox_id IN (
+                     SELECT id FROM agent_inbox WHERE org_run_id=?1
+                 )",
+                    params![run_id],
+                )
+                .map_err(|err| {
+                    format!(
+                        "failed to delete agent_inbox_materializations rows for {run_id}: {err}"
+                    )
+                })?;
+                for table in [
+                    "agent_org_plan_approvals",
+                    "agent_org_recovery_attempts",
+                    "agent_org_task_events",
+                    "agent_org_tasks",
+                    "agent_inbox_delivery_resolutions",
+                    "agent_inbox",
+                    "agent_member_interventions",
+                    "agent_org_run_progress",
+                    "agent_org_task_run_schema_migrations",
+                ] {
+                    tx.execute(
+                        &format!("DELETE FROM {table} WHERE org_run_id=?1"),
+                        params![run_id],
+                    )
+                    .map_err(|err| format!("failed to delete {table} rows for {run_id}: {err}"))?;
+                }
+                let deleted = tx
+                    .execute("DELETE FROM agent_org_runs WHERE id=?1", params![run_id])
+                    .map_err(|err| err.to_string())?
+                    > 0;
+                tx.commit().map_err(|err| err.to_string())?;
+                Ok((plan_artifacts, deleted))
+            })?;
+
+        // SQLite is the source of truth. Files are derived artifacts, so they
+        // are cleaned only after the transaction commits and failures are
+        // logged without resurrecting already-deleted durable state.
+        for (source_session_id, plan_path) in plan_artifacts {
+            if let Err(err) = AgentOrgPlanApprovalStore::remove_managed_plan_artifact(
+                &source_session_id,
+                &plan_path,
+            ) {
+                tracing::warn!(
+                    run_id,
+                    source_session_id,
+                    plan_path,
+                    error = %err,
+                    "failed to remove managed Agent Org plan artifact after run deletion"
+                );
+            }
+        }
         if deleted {
             crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
         }
@@ -869,10 +747,18 @@ impl AgentOrgRunStore {
         org_run_id: &str,
         member_id: &str,
     ) -> Result<Option<WorkerSessionInfo>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::find_coordinator_session_by_member_id_with_connection(&conn, org_run_id, member_id)
+    }
+
+    pub(crate) fn find_coordinator_session_by_member_id_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+        member_id: &str,
+    ) -> Result<Option<WorkerSessionInfo>, String> {
         if member_id != COORDINATOR_MEMBER_ID {
             return Ok(None);
         }
-        let conn = get_connection().map_err(|err| err.to_string())?;
         let row: Option<(String, String, String)> = conn
             .query_row(
                 "SELECT s.session_id,
@@ -908,6 +794,15 @@ impl AgentOrgRunStore {
         org_run_id: &str,
         member_ids: &[String],
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::list_worker_sessions_by_member_ids_with_connection(&conn, org_run_id, member_ids)
+    }
+
+    pub(crate) fn list_worker_sessions_by_member_ids_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+        member_ids: &[String],
+    ) -> Result<Vec<WorkerSessionRuntime>, String> {
         let requested: HashSet<&str> = member_ids
             .iter()
             .map(String::as_str)
@@ -917,7 +812,7 @@ impl AgentOrgRunStore {
             return Ok(Vec::new());
         }
 
-        let sessions = Self::list_descendant_worker_sessions(org_run_id)?;
+        let sessions = Self::list_descendant_worker_sessions_with_connection(conn, org_run_id)?;
         let mut seen = HashSet::new();
         Ok(sessions
             .into_iter()
@@ -931,10 +826,51 @@ impl AgentOrgRunStore {
             .collect())
     }
 
+    /// Canonical member ids captured in the immutable launch snapshot.
+    ///
+    /// Recovery must not consult the user's current Agent Org definition: a
+    /// team can be edited while an older run is still alive. `None` is kept
+    /// for historical rows that predate launch snapshots; callers may still
+    /// classify a materialized session, but must not invent roster membership.
+    pub(crate) fn snapshot_member_ids_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+    ) -> Result<Option<HashSet<String>>, String> {
+        let snapshot_json: Option<String> = conn
+            .query_row(
+                "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
+                params![org_run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| err.to_string())?
+            .flatten();
+        let Some(snapshot_json) = snapshot_json else {
+            return Ok(None);
+        };
+        let snapshot: crate::definitions::orgs::OrgDefinition =
+            serde_json::from_str(&snapshot_json).map_err(|err| {
+                format!("failed to parse Agent Org launch snapshot for run {org_run_id}: {err}")
+            })?;
+        Ok(Some(
+            flatten_members(&snapshot.children, None)
+                .into_iter()
+                .map(|member| member.member_id)
+                .collect(),
+        ))
+    }
+
     pub fn list_descendant_worker_sessions(
         org_run_id: &str,
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::list_descendant_worker_sessions_with_connection(&conn, org_run_id)
+    }
+
+    pub(crate) fn list_descendant_worker_sessions_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+    ) -> Result<Vec<WorkerSessionRuntime>, String> {
         let root_session_id: Option<String> = conn
             .query_row(
                 "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
@@ -947,15 +883,32 @@ impl AgentOrgRunStore {
         let Some(root) = root_session_id else {
             return Ok(Vec::new());
         };
+        let interventions =
+            AgentMemberInterventionStore::list_active_with_connection(conn, org_run_id)?
+                .into_iter()
+                .map(|record| (record.member_id.clone(), record))
+                .collect::<HashMap<_, _>>();
 
         let mut stmt = conn
             .prepare(
                 "WITH RECURSIVE descendants(session_id) AS (
-                     SELECT session_id FROM agent_sessions WHERE parent_session_id = ?1
-                     UNION ALL
+                     SELECT session_id
+                     FROM agent_sessions child
+                     WHERE child.parent_session_id = ?1
+                       AND NOT EXISTS (
+                           SELECT 1 FROM agent_org_runs nested
+                           WHERE nested.id <> ?2
+                             AND nested.root_session_id = child.session_id
+                       )
+                     UNION
                      SELECT s.session_id
                      FROM agent_sessions s
                      JOIN descendants d ON s.parent_session_id = d.session_id
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM agent_org_runs nested
+                         WHERE nested.id <> ?2
+                           AND nested.root_session_id = s.session_id
+                     )
                  ), ranked AS (
                      SELECT s.agent_definition_id,
                             s.org_member_id,
@@ -963,8 +916,12 @@ impl AgentOrgRunStore {
                             s.status,
                             s.updated_at,
                             ROW_NUMBER() OVER (
-                                PARTITION BY COALESCE(s.org_member_id, s.agent_definition_id)
-                                ORDER BY s.updated_at DESC
+                                PARTITION BY CASE
+                                    WHEN s.org_member_id IS NOT NULL
+                                        THEN 'member:' || s.org_member_id
+                                    ELSE 'session:' || s.session_id
+                                END
+                                ORDER BY s.updated_at DESC, s.session_id DESC
                             ) AS rank
                      FROM agent_sessions s
                      JOIN descendants d USING (session_id)
@@ -973,12 +930,12 @@ impl AgentOrgRunStore {
                  SELECT agent_definition_id, org_member_id, session_id, status, updated_at
                  FROM ranked
                  WHERE rank = 1
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC, session_id DESC",
             )
             .map_err(|err| err.to_string())?;
 
         let rows = stmt
-            .query_map(params![root.clone()], |row| {
+            .query_map(params![root.clone(), org_run_id], |row| {
                 let status_raw: String = row.get(3)?;
                 let status =
                     crate::core::session::SessionStatus::parse(&status_raw).ok_or_else(|| {
@@ -990,19 +947,9 @@ impl AgentOrgRunStore {
                     })?;
                 let agent_definition_id: String = row.get(0)?;
                 let org_member_id: Option<String> = row.get(1)?;
-                let intervention = match org_member_id.as_deref() {
-                    Some(member_id) => {
-                        AgentMemberInterventionStore::active_for_member(org_run_id, member_id)
-                            .map_err(|err| {
-                                rusqlite::Error::FromSqlConversionFailure(
-                                    1,
-                                    rusqlite::types::Type::Text,
-                                    err.into(),
-                                )
-                            })?
-                    }
-                    None => None,
-                };
+                let intervention = org_member_id
+                    .as_deref()
+                    .and_then(|member_id| interventions.get(member_id).cloned());
                 Ok(WorkerSessionRuntime {
                     intervention,
                     agent_definition_id: Some(agent_definition_id),
@@ -1028,7 +975,7 @@ impl AgentOrgRunStore {
                  WHERE parent_session_id = ?1
                    AND org_member_id IS NOT NULL
                    AND cli_agent_type IS NOT NULL
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC, session_id DESC",
             )
             .map_err(|err| err.to_string())?;
         let cli_rows = cli_stmt
@@ -1044,19 +991,9 @@ impl AgentOrgRunStore {
                     })?;
                 let cli_agent_type: String = row.get(0)?;
                 let org_member_id: Option<String> = row.get(1)?;
-                let intervention = match org_member_id.as_deref() {
-                    Some(member_id) => {
-                        AgentMemberInterventionStore::active_for_member(org_run_id, member_id)
-                            .map_err(|err| {
-                                rusqlite::Error::FromSqlConversionFailure(
-                                    1,
-                                    rusqlite::types::Type::Text,
-                                    err.into(),
-                                )
-                            })?
-                    }
-                    None => None,
-                };
+                let intervention = org_member_id
+                    .as_deref()
+                    .and_then(|member_id| interventions.get(member_id).cloned());
                 Ok(WorkerSessionRuntime {
                     intervention,
                     agent_definition_id: None,
@@ -1073,7 +1010,35 @@ impl AgentOrgRunStore {
             out.push(row.map_err(|err| err.to_string())?);
         }
 
-        out.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+        out.sort_by(|left, right| {
+            right
+                .updated_at
+                .cmp(&left.updated_at)
+                // Historical databases can contain both a Rust and a CLI
+                // session for one member at the same timestamp. Rust is the
+                // only supported Agent Org transport, so it wins an exact tie.
+                .then_with(|| {
+                    left.cli_agent_type
+                        .is_some()
+                        .cmp(&right.cli_agent_type.is_some())
+                })
+                .then_with(|| right.session_id.cmp(&left.session_id))
+        });
+
+        // Rust and CLI sessions live in different tables, so neither table's
+        // window function can suppress an older duplicate from the other
+        // transport.  Apply the canonical-member rule once more after the
+        // combined freshness sort.  Historical rows without a member id are
+        // distinct sessions; do not guess that they belong to one member.
+        let mut seen_canonical_workers = HashSet::new();
+        out.retain(|session| {
+            let key = session
+                .member_id
+                .as_ref()
+                .map(|member_id| format!("member:{member_id}"))
+                .unwrap_or_else(|| format!("session:{}", session.session_id));
+            seen_canonical_workers.insert(key)
+        });
         Ok(out)
     }
 }

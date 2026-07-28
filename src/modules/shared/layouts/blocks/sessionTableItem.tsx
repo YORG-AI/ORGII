@@ -2,11 +2,12 @@ import React from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import ModelIcon from "@src/components/ModelIcon";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 import { formatModelNameFull } from "@src/util/formatModelName";
-import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
+import { resolveSessionStatusDotColor } from "@src/util/session/sessionStatusDot";
 
 import type { SessionTableItem } from "./SessionTable";
 
@@ -22,6 +23,7 @@ interface MapKanbanTaskToSessionTableItemInput {
   dateTimeLabelOptions?: SessionTableDateTimeLabelOptions;
   active?: boolean;
   testId?: string;
+  rowAction?: React.ReactNode;
 }
 
 const WORKSPACE_LABEL_MAX_LENGTH = 15;
@@ -42,25 +44,33 @@ function truncateWorkspaceLabel(label: string | undefined): string | undefined {
 }
 
 function renderAgentIcon(task: KanbanTask): React.ReactNode {
-  // Match the sidebar: a monochrome, text-colored Lucide-style glyph (via the
-  // shared resolver) rather than the full-color brand logo.
-  const AgentIcon = resolveSessionRowIcon({
-    session_id: task.id,
-    agentIconId: task.agentIconId ?? undefined,
-    cliAgentType: task.cliAgentType ?? undefined,
-  });
-  return <AgentIcon size={14} strokeWidth={1.75} className="text-text-3" />;
+  // Use the primary text color for the Agent and Model marks in Kanban while
+  // retaining the shared monochrome, Lucide-style session icon resolver.
+  const AgentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
+  return <AgentIcon size={14} strokeWidth={1.75} className="text-text-1" />;
 }
 
 function getStatusColor(task: KanbanTask): string | undefined {
   switch (task.resultStatus) {
     case KANBAN_RESULT_STATUS.Failed:
-      return "var(--color-danger-6)";
+      return resolveSessionStatusDotColor("failed");
     case KANBAN_RESULT_STATUS.Archived:
-      return "var(--color-text-3)";
-    default:
-      return undefined;
+      return resolveSessionStatusDotColor("archived");
   }
+
+  // Task Kanban widens the shared TaskStatus values at its projection
+  // boundary with `todo`, `blocking`, `turn_finished`, and `archived`.
+  const status = String(task.status);
+  if (status === "blocking") {
+    return resolveSessionStatusDotColor("asking");
+  }
+  if (status === "todo" || status === "in_progress") {
+    return resolveSessionStatusDotColor("working");
+  }
+  if (task.isUnread) {
+    return resolveSessionStatusDotColor("unread");
+  }
+  return resolveSessionStatusDotColor("default");
 }
 
 function formatDateTimeLabel(
@@ -80,6 +90,7 @@ export function mapKanbanTaskToSessionTableItem({
   dateTimeLabelOptions,
   active,
   testId,
+  rowAction,
 }: MapKanbanTaskToSessionTableItemInput): SessionTableItem {
   const impact = task.impact;
   const committedRateValue = impact?.committedRatePercent;
@@ -93,6 +104,7 @@ export function mapKanbanTaskToSessionTableItem({
     description: task.description,
     statusLabel,
     statusColor: getStatusColor(task),
+    ownerLabel: task.createdBy?.name,
     agentIcon: renderAgentIcon(task),
     agentLabel: task.agentLabel ?? task.assignee,
     modelIcon: task.modelName ? (
@@ -141,7 +153,9 @@ export function mapKanbanTaskToSessionTableItem({
       task.updated_at ?? task.completed_at,
       dateTimeLabelOptions
     ),
+    disabled: task.canOpen === false,
     active,
     testId,
+    rowAction,
   };
 }

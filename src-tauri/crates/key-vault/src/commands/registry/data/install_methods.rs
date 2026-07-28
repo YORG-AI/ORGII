@@ -203,6 +203,26 @@ pub(crate) fn cli_install_methods(name: &str) -> Vec<CliInstallMethod> {
         "pi" => vec![
             m("npm", "npm", "npm install -g @earendil-works/pi-coding-agent"),
         ],
+        "qoder_cli" => vec![
+            m(
+                "curl",
+                "curl",
+                "curl -fsSL https://qoder.com/install | bash",
+            ),
+            m(
+                "powershell",
+                "PowerShell",
+                "irm https://qoder.com/install.ps1 | iex",
+            ),
+            m(
+                "cmd",
+                "Windows CMD",
+                "curl -fsSL https://qoder.com/install.cmd -o install.cmd && install.cmd",
+            ),
+        ],
+        // Trae Agent currently documents a repository checkout plus `uv sync`,
+        // not a safe global install command for the registry to execute.
+        "trae_cli" => Vec::new(),
         // The caller iterates `cli_agent_registry()` entries, so any
         // CLI agent that ships in the registry but has no install_methods
         // entry here would silently render the "Install" UI as a no-op.
@@ -293,6 +313,9 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
             "npm",
             "npm uninstall -g @earendil-works/pi-coding-agent",
         )],
+        // Neither project currently documents a non-destructive uninstall
+        // command that the registry can safely run on every supported OS.
+        "qoder_cli" | "trae_cli" => Vec::new(),
         // Same fail-loud principle as `cli_install_methods` above.
         other => {
             tracing::warn!(
@@ -302,6 +325,32 @@ pub(crate) fn cli_uninstall_methods(name: &str) -> Vec<CliInstallMethod> {
             );
             Vec::new()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qoder_cli_exposes_official_installers() {
+        let methods = cli_install_methods("qoder_cli");
+
+        assert_eq!(methods.len(), 3);
+        assert!(methods
+            .iter()
+            .any(|method| method.command == "curl -fsSL https://qoder.com/install | bash"));
+        assert!(methods
+            .iter()
+            .any(|method| method.command.contains("qoder.com/install.ps1")));
+        assert!(methods
+            .iter()
+            .any(|method| method.command.contains("qoder.com/install.cmd")));
+    }
+
+    #[test]
+    fn trae_cli_does_not_offer_an_undocumented_installer() {
+        assert!(cli_install_methods("trae_cli").is_empty());
     }
 }
 

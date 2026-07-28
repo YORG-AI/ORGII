@@ -1,0 +1,17 @@
+# Frontend UI Audit — Runtime recent signals
+
+**Scope:** Runtime → Hooks recent-signal disclosure, table pagination, and retained-state behavior.
+**Summary:** 3 fix, 3 keep with reason, 0 abstract.
+
+> The repository-routed `frontend-ui-audit` skill was unavailable in both documented skill locations. This report is the manual fallback using the required design-system, duplication, arbitrary-style, accessibility, and systematic-sweep checks.
+
+|                                          Line | Element                   | Verdict          | Reason                                                                                                                                                                                                                       | Suggested change |
+| --------------------------------------------: | ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `SessionProvenanceRecentSignalsTable.tsx:236` | Signal query lifecycle    | fix              | The table previously fetched 50 history rows whenever Hooks mounted, including while the table was not being inspected. The request is now expansion-triggered, bounded, single-flight, and protected from stale completion. | Completed.       |
+| `SessionProvenanceRecentSignalsTable.tsx:458` | Recent signals disclosure | fix              | A shared `CollapsibleSection` now matches the Usage request-log interaction and starts closed, avoiding a second disclosure implementation.                                                                                  | Completed.       |
+| `SessionProvenanceRecentSignalsTable.tsx:466` | Recent signals table      | fix              | Shared `SettingsTable` pagination now limits the initial page to 10 rows and uses the table’s existing nearest-scroll-ancestor restoration on page changes.                                                                  | Completed.       |
+| `SessionProvenanceRecentSignalsTable.tsx:315` | Tool identity cell        | keep with reason | The existing shared source icon, text tokens, and truncation pattern remain consistent with Runtime’s other source tables.                                                                                                   | None.            |
+| `SessionProvenanceRecentSignalsTable.tsx:413` | Session link              | keep with reason | The semantic button retains its translated accessible label, keyboard focus treatment, and existing session-opening behavior.                                                                                                | None.            |
+| `SessionProvenanceRecentSignalsTable.tsx:481` | Expanded diff card        | keep with reason | Diff content remains lazy per editable row and deduplicated per session; clearing the cache on collapse bounds retained content without changing the established diff presentation.                                          | None.            |
+
+No raw color, arbitrary Tailwind value, custom disclosure control, or duplicate pagination implementation was introduced. The systematic sweep confirmed that Usage already uses the same shared collapsible section, while Runtime’s outer `ScrollPreservation` and the shared table pagination restoration cover page-level and table-level scroll stability respectively.

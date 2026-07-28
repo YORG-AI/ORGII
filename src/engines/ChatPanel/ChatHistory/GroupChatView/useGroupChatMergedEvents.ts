@@ -3,7 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
   AGENT_ORG_USER_SENDER_ID,
-  type AgentOrgInboxRow,
+  type AgentOrgGroupChatHistoryRow,
+  type AgentOrgInboxPreviewRow,
   type AgentOrgRunMemberView,
 } from "@src/api/tauri/agent";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
@@ -11,8 +12,6 @@ import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived
 
 import { buildGroupChatSessionEvents } from "./groupChatUtils";
 import { buildAgentList } from "./useGroupChatFeed";
-
-const EMPTY_DISPLAY_TEXT_OVERRIDES = new Map<number, string>();
 
 interface AgentEventsTapProps {
   sessionId: string;
@@ -33,48 +32,23 @@ function toTimestampMs(value: string | null | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-function payloadTextPreview(row: AgentOrgInboxRow): string {
-  let payload: { text?: unknown } = {};
-  try {
-    payload = JSON.parse(row.payloadJson) as { text?: unknown };
-  } catch {
-    payload = {};
-  }
-  return typeof payload.text === "string" ? payload.text.trim() : "";
-}
-
 function inboxRowToGroupChatUserEvent(
-  row: AgentOrgInboxRow,
-  coordinatorSessionId: string,
-  orgMembers: ReadonlyArray<AgentOrgRunMemberView>,
-  displayTextOverrides: ReadonlyMap<number, string>
+  row: AgentOrgGroupChatHistoryRow,
+  coordinatorSessionId: string
 ): SessionEvent | null {
-  if (row.senderAgentId !== AGENT_ORG_USER_SENDER_ID) return null;
-  if (row.payloadKind !== "plain") return null;
-  const recipient = orgMembers.find(
-    (member) => member.memberId === row.recipientMemberId
-  );
-  if (!recipient) return null;
-  const inboxText = payloadTextPreview(row);
-  const overrideText = displayTextOverrides.get(row.id)?.trim();
-  const runtimeText = row.displayText?.trim();
-  const recipientLabel = recipient.name.trim() || recipient.memberId;
-  const fallbackText =
-    recipient.isCoordinator || inboxText.startsWith("@")
-      ? inboxText
-      : `@${recipientLabel} ${inboxText}`;
-  const text = overrideText || runtimeText || fallbackText;
+  const text = row.displayText.trim();
   if (!text.trim()) return null;
   return {
-    id: `agent-org-group-user-${row.id}`,
-    chunk_id: `agent-org-group-user-${row.id}`,
+    id: `agent-org-group-user-${row.inboxId}`,
+    chunk_id: `agent-org-group-user-${row.inboxId}`,
     sessionId: coordinatorSessionId,
     createdAt: row.createdAt,
     functionName: "agent_org_group_chat_user_message",
     uiCanonical: "user_message",
     actionType: "raw",
     args: {
-      recipientMemberId: recipient.memberId,
+      recipientMemberId: row.targetMemberId,
+      deliveryResolution: row.deliveryResolution ?? null,
       agentOrgGroupChatMessage: true,
     },
     result: {
@@ -126,7 +100,7 @@ function dedupeGroupChatEvents(events: SessionEvent[]): SessionEvent[] {
 
 function annotateRepliesToUser(
   eventsBySession: ReadonlyMap<string, SessionEvent[]>,
-  inboxRows: ReadonlyArray<AgentOrgInboxRow>,
+  inboxRows: ReadonlyArray<AgentOrgInboxPreviewRow>,
   orgMembers: ReadonlyArray<AgentOrgRunMemberView>
 ): ReadonlyMap<string, SessionEvent[]> {
   const replyCutoffsBySession = new Map<string, number[]>();
@@ -182,11 +156,8 @@ function annotateRepliesToUser(
 export function useGroupChatMergedEvents(
   coordinatorSessionId: string | null,
   orgMembers: ReadonlyArray<AgentOrgRunMemberView>,
-  inboxRows: ReadonlyArray<AgentOrgInboxRow> = [],
-  displayTextOverrides: ReadonlyMap<
-    number,
-    string
-  > = EMPTY_DISPLAY_TEXT_OVERRIDES
+  historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow> = [],
+  inboxPreviewRows: ReadonlyArray<AgentOrgInboxPreviewRow> = []
 ): {
   mergedEvents: SessionEvent[];
   agents: ReturnType<typeof buildAgentList>;
@@ -225,7 +196,7 @@ export function useGroupChatMergedEvents(
     if (!coordinatorSessionId || agents.length === 0) return [];
     const annotatedEventsBySession = annotateRepliesToUser(
       eventsBySession,
-      inboxRows,
+      inboxPreviewRows,
       orgMembers
     );
     const sessionEvents = buildGroupChatSessionEvents(
@@ -234,15 +205,8 @@ export function useGroupChatMergedEvents(
       coordinatorSessionId,
       orgMembers
     ).filter((event) => !isGroupChatUserSessionEvent(event));
-    const inboxEvents = inboxRows
-      .map((row) =>
-        inboxRowToGroupChatUserEvent(
-          row,
-          coordinatorSessionId,
-          orgMembers,
-          displayTextOverrides
-        )
-      )
+    const inboxEvents = historyRows
+      .map((row) => inboxRowToGroupChatUserEvent(row, coordinatorSessionId))
       .filter((event): event is SessionEvent => event !== null);
     return dedupeGroupChatEvents([...sessionEvents, ...inboxEvents]).sort(
       (eventA, eventB) => {
@@ -257,8 +221,8 @@ export function useGroupChatMergedEvents(
     agentSessionIds,
     coordinatorSessionId,
     eventsBySession,
-    displayTextOverrides,
-    inboxRows,
+    historyRows,
+    inboxPreviewRows,
     orgMembers,
   ]);
 

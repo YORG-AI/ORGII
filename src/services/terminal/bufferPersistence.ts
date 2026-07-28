@@ -2,7 +2,7 @@
  * Terminal Buffer Persistence
  *
  * Persists terminal buffer content to disk using Tauri's plugin-fs.
- * Supports LRU eviction, staleness filtering, and auto-save for crash protection.
+ * Supports LRU eviction, staleness filtering, and event-driven persistence.
  *
  * Storage format:
  * {
@@ -55,7 +55,6 @@ const MAX_BUFFERS = 10;
 const MAX_BUFFER_SIZE_CHARS = 500_000; // ~500KB
 const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const DEBOUNCE_MS = 2000;
-const AUTO_SAVE_INTERVAL_MS = 30_000;
 
 // ============================================
 // State
@@ -64,7 +63,6 @@ const AUTO_SAVE_INTERVAL_MS = 30_000;
 let storagePath: string | null = null;
 const pendingWrites = new Map<string, PersistedBuffer>();
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-let autoSaveInterval: ReturnType<typeof setInterval> | null = null;
 
 // ============================================
 // Private Helpers
@@ -252,26 +250,5 @@ export async function clearAllPersistedBuffers(): Promise<void> {
     await writeStoredData({ version: STORAGE_VERSION, buffers: [] });
   } catch (error) {
     log.error("[bufferPersistence] Failed to clear all buffers:", error);
-  }
-}
-
-/**
- * Start periodic auto-save for crash protection.
- */
-export function startAutoSave(): void {
-  if (autoSaveInterval) return;
-
-  autoSaveInterval = setInterval(() => {
-    void flushPendingWrites();
-  }, AUTO_SAVE_INTERVAL_MS);
-}
-
-/**
- * Stop periodic auto-save.
- */
-export function stopAutoSave(): void {
-  if (autoSaveInterval) {
-    clearInterval(autoSaveInterval);
-    autoSaveInterval = null;
   }
 }

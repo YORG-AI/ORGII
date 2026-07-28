@@ -9,11 +9,13 @@
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useEffect } from "react";
 
+import { enterAgentOrgSessionIntervention } from "@src/api/tauri/agent";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
 } from "@src/engines/SessionCore/control/optimisticTurnStatus";
+import { publishTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
 import {
   beginTurnDispatch,
   getTurnPhase,
@@ -80,6 +82,8 @@ export interface SubmitUserIntentOptions {
   swallowErrorAfterUserEventAppend?: boolean;
   onQueued?: () => void;
   onBeforeDirectDispatch?: () => void;
+  /** Stable caller-owned identity for observing a queued/direct dispatch. */
+  turnIntentId?: string;
 }
 
 interface UseUserIntentSubmitOptions {
@@ -119,6 +123,7 @@ export function useUserIntentSubmit({
       swallowErrorAfterUserEventAppend = false,
       onQueued,
       onBeforeDirectDispatch,
+      turnIntentId: providedTurnIntentId,
     }: SubmitUserIntentOptions): Promise<void> => {
       const sessionId = explicitSessionId ?? getSessionId();
       if (!sessionId) {
@@ -134,7 +139,7 @@ export function useUserIntentSubmit({
         agentContent,
         imageDataUrls
       );
-      const turnIntentId = mintTurnIntentId();
+      const turnIntentId = providedTurnIntentId ?? mintTurnIntentId();
 
       if (
         applyStopSubmitGuards &&
@@ -222,6 +227,10 @@ export function useUserIntentSubmit({
         imageDataUrls: restoreImageDataUrls,
       });
       const dispatchGeneration = beginTurnDispatch(sessionId);
+      publishTurnIntentDispatch(turnIntentId, {
+        sessionId,
+        generation: dispatchGeneration,
+      });
       beginOptimisticTurn(sessionId, source);
       if (dedupeDirectSubmit) {
         sharedSubmitGuard.current = true;
@@ -234,6 +243,9 @@ export function useUserIntentSubmit({
         onBeforeDirectDispatch?.();
         await addUserMessage(displayContent, imageDataUrls, turnIntentId);
         userEventAppended = true;
+        // This hook is the canonical user-intent boundary. The backend resolves
+        // the member from the session and ignores coordinator/non-org sessions.
+        await enterAgentOrgSessionIntervention(sessionId);
         const displayTextForDispatch =
           contentForAgent !== displayContent ? displayContent : undefined;
         dispatchStarted = true;

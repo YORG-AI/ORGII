@@ -7,9 +7,9 @@ import AvatarChip from "@src/components/AvatarChip";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Tag from "@src/components/Tag";
-import Textarea from "@src/components/Textarea";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
+import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 
 interface NewIssueFormProps {
   onSubmit: (
@@ -82,16 +82,17 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         />
 
         {/* Body */}
-        <Textarea
+        <RichMarkdownEditor
           value={body}
-          onChange={(val) => setBody(val)}
+          onChange={(markdown) => setBody(markdown)}
           placeholder={t(
             "git.issues.newIssueBodyPlaceholder",
             "Describe the issue (optional)…"
           )}
-          rows={4}
-          size="small"
-          resize="vertical"
+          minHeight={96}
+          maxHeight={240}
+          appearance="outlined"
+          dataTestId="new-issue-body-editor"
         />
 
         {/* Labels */}

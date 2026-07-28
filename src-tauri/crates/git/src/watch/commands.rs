@@ -109,10 +109,9 @@ pub async fn force_refresh_repo(repo_id: String) -> Result<GitStatus, String> {
             .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
 
         // Get repo path
-        let states = manager.state_store.get_all_states();
-        let repo_path = states
-            .get(&repo_id)
-            .map(|s| s.repo_path.clone())
+        let repo_path = manager
+            .state_store
+            .get_repo_path(&repo_id)
             .ok_or_else(|| format!("Repository not found: {}", repo_id))?;
 
         (

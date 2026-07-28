@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ORG2_CLOUD_OFFICIAL_SUPABASE_URL } from "./config";
 import {
   CLOUD_ASSIGNABLE_ROLES,
   CLOUD_INVITE_STATE,
@@ -86,9 +87,64 @@ describe("cloud session share deep link (0012)", () => {
   it("builds and parses a round-trip link", () => {
     const token = "a".repeat(64);
     const link = buildCloudSessionShareLink(token);
-    expect(link).toBe(`orgii://cloud/session?share=${token}`);
+    expect(link).toBe(`orgii://cloud/session?share=${token}&endpoint=official`);
     expect(isCloudShareDeepLink(link)).toBe(true);
-    expect(parseCloudShareDeepLink(link)).toEqual({ shareToken: token });
+    expect(parseCloudShareDeepLink(link)).toEqual({
+      shareToken: token,
+      endpoint: { kind: "official" },
+    });
+  });
+
+  it("normalizes an override pointing at the OFFICIAL deployment to official", () => {
+    const token = "d".repeat(64);
+    const link = buildCloudSessionShareLink(token, {
+      isOfficial: false,
+      supabaseUrl: `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/`,
+    });
+    expect(link).toBe(`orgii://cloud/session?share=${token}&endpoint=official`);
+    expect(parseCloudShareDeepLink(link)).toEqual({
+      shareToken: token,
+      endpoint: { kind: "official" },
+    });
+  });
+
+  it("heals already-minted custom links whose URL is the official deployment", () => {
+    const token = "e".repeat(64);
+    const link = `orgii://cloud/session?share=${token}&endpoint=custom&endpointUrl=${encodeURIComponent(
+      ORG2_CLOUD_OFFICIAL_SUPABASE_URL
+    )}`;
+    expect(parseCloudShareDeepLink(link)).toEqual({
+      shareToken: token,
+      endpoint: { kind: "official" },
+    });
+  });
+
+  it("round-trips custom endpoint provenance without credentials", () => {
+    const token = "b".repeat(64);
+    const link = buildCloudSessionShareLink(token, {
+      isOfficial: false,
+      supabaseUrl: "https://cloud.example.com/",
+    });
+    expect(link).not.toContain("anon");
+    expect(parseCloudShareDeepLink(link)).toEqual({
+      shareToken: token,
+      endpoint: {
+        kind: "custom",
+        supabaseUrl: "https://cloud.example.com",
+      },
+    });
+  });
+
+  it("treats pre-provenance links as official and rejects unsafe custom URLs", () => {
+    const token = "c".repeat(64);
+    expect(
+      parseCloudShareDeepLink(`orgii://cloud/session?share=${token}`)
+    ).toEqual({ shareToken: token, endpoint: { kind: "official" } });
+    expect(
+      parseCloudShareDeepLink(
+        `orgii://cloud/session?share=${token}&endpoint=custom&endpointUrl=http%3A%2F%2Fevil.example.com`
+      )
+    ).toBeNull();
   });
 
   it("share and join links never cross-parse", () => {
@@ -114,17 +170,22 @@ describe("cloud session share deep link (0012)", () => {
     const token = "f".repeat(64);
     expect(parseCloudShareInput(buildCloudSessionShareLink(token))).toEqual({
       shareToken: token,
+      endpoint: { kind: "official" },
     });
     expect(
       parseCloudShareInput(`  ${buildCloudSessionShareLink(token)}  `)
-    ).toEqual({ shareToken: token });
+    ).toEqual({ shareToken: token, endpoint: { kind: "official" } });
   });
 
   it("parseCloudShareInput accepts a bare 64-char hex token", () => {
     const token = "0123456789abcdef".repeat(4);
-    expect(parseCloudShareInput(token)).toEqual({ shareToken: token });
+    expect(parseCloudShareInput(token)).toEqual({
+      shareToken: token,
+      endpoint: { kind: "current" },
+    });
     expect(parseCloudShareInput(`  ${token}\n`)).toEqual({
       shareToken: token,
+      endpoint: { kind: "current" },
     });
   });
 
@@ -298,5 +359,22 @@ describe("management error codes", () => {
     expect(cloudManagementErrorMessage("plain failure", translate)).toBe(
       "plain failure"
     );
+  });
+
+  it("maps fetch transport failures to the network message (not raw 'Load failed')", () => {
+    const translate = (key: string) => `T(${key})`;
+    expect(
+      cloudManagementErrorMessage(new TypeError("Load failed"), translate)
+    ).toBe("T(cloud.orgManagement.errors.network)");
+    expect(
+      cloudManagementErrorMessage(new TypeError("Failed to fetch"), translate)
+    ).toBe("T(cloud.orgManagement.errors.network)");
+    // A programming TypeError keeps its raw message.
+    expect(
+      cloudManagementErrorMessage(
+        new TypeError("x is not a function"),
+        translate
+      )
+    ).toBe("x is not a function");
   });
 });

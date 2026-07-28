@@ -19,7 +19,6 @@ import {
   ScrollFadeContainer,
 } from "@src/modules/shared/layouts/blocks";
 
-import type { UseBuiltInToolsReturn } from "./BuiltInTools/useBuiltInTools";
 import { ConnectionsCategoryView } from "./Connections/ConnectionsCategoryView";
 import { DatabasesCategoryView } from "./Databases/DatabasesCategoryView";
 import type {
@@ -45,12 +44,13 @@ import { RulesMemoryEvolutionCategoryView } from "./RulesMemoryEvolution/RulesMe
 import type { RulesMemoryEvolutionDetailState } from "./RulesMemoryEvolution/types";
 import type { SkillEditorState, SkillsHubDetailState } from "./Skills/types";
 import type { CategoryTableContentProps } from "./Tables";
-import { ToolsCategoryView } from "./ToolsCategoryView";
 import type { ChannelSlice, DetailMode, IntegrationCategory } from "./types";
 
 const DevToolsCategoryView = lazy(
   () => import("./DevTools/DevToolsCategoryView")
 );
+const BuiltInToolsCategoryView = lazy(() => import("./ToolsCategoryView"));
+const ComputerUseCategoryView = lazy(() => import("./ComputerUseCategoryView"));
 
 // ── Props ──
 
@@ -65,7 +65,6 @@ export interface IntegrationsDetailPanelProps {
   accounts: ReturnType<typeof useKeyVaultPage>;
 
   extensionSelectedId: string | null;
-  builtInTools: UseBuiltInToolsReturn;
   skillsHub: SkillsHubDetailState;
   skillEditor: SkillEditorState;
   mcp: McpDetailState;
@@ -102,7 +101,6 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
   channel,
   accounts,
   extensionSelectedId,
-  builtInTools,
   skillsHub,
   skillEditor,
   mcp,
@@ -185,10 +183,22 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
       );
 
     case "tools":
-      return <ToolsCategoryView tools={builtInTools} category="tools" />;
+      return (
+        <Suspense
+          fallback={<Placeholder variant="loading" placement="detail-panel" />}
+        >
+          <BuiltInToolsCategoryView />
+        </Suspense>
+      );
 
     case "computerUse":
-      return <ToolsCategoryView tools={builtInTools} category="computerUse" />;
+      return (
+        <Suspense
+          fallback={<Placeholder variant="loading" placement="detail-panel" />}
+        >
+          <ComputerUseCategoryView />
+        </Suspense>
+      );
 
     case "externalSkillsets":
       return (

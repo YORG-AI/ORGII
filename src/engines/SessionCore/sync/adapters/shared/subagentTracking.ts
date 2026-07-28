@@ -31,6 +31,7 @@ export const SPAWNING_TOOLS_ARRAY = [
   "agent",
   "task",
   "Task",
+  "spawn_agent",
   "spawn_sub_agent",
   "subagent",
 ];

@@ -235,6 +235,8 @@ pub fn build_session_error_event(session_id: &str, message: &str) -> SessionEven
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     };
     event.recompute_extracted();
@@ -357,9 +359,10 @@ pub fn finalize_agent_org_member_turn(
     session_id: &str,
     response: &Result<String, String>,
 ) {
-    let outcome = tokio::task::block_in_place(|| {
-        requeue_agent_org_member_in_progress_work(session_id, response.is_err())
-    });
+    let outcome =
+        crate::tools::impls::orchestration::member_idle::run_agent_org_blocking_section(|| {
+            requeue_agent_org_member_in_progress_work(session_id, response.is_err())
+        });
     let reconcile_run_id = outcome
         .as_ref()
         .ok()
@@ -509,8 +512,7 @@ fn should_rewake_agent_org_member_after_turn(
     {
         return Ok(false);
     }
-    crate::coordination::agent_inbox::AgentInboxStore::list_unread_for_member(member_id, run_id)
-        .map(|rows| !rows.is_empty())
+    crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(member_id, run_id)
 }
 
 /// Post-process after `process_message` completes: determine final status,
@@ -570,7 +572,26 @@ pub async fn finalize_session(
     }
 
     if is_agent_org_member_session {
-        finalize_agent_org_member_turn(app_handle, session_id, response);
+        // Member finalization performs several synchronous SQLite operations
+        // under the shared writer lock (task requeue, recovery-budget cleanup,
+        // MemberIdle persistence, and run finality reconciliation). Keep the
+        // complete blocking phase off the Tokio worker that is finalizing the
+        // provider turn; moving only the first query still leaves the later
+        // writes able to stall unrelated async sessions.
+        let sid = session_id.to_string();
+        let response = response.clone();
+        let app_handle = app_handle.cloned();
+        if let Err(err) = tokio::task::spawn_blocking(move || {
+            finalize_agent_org_member_turn(app_handle.as_ref(), &sid, &response);
+        })
+        .await
+        {
+            tracing::warn!(
+                session_id = %session_id,
+                error = %err,
+                "[lifecycle] Agent Org member finalization worker panicked"
+            );
+        }
     }
 
     if final_status.is_terminal() {
@@ -786,11 +807,35 @@ mod tests {
         crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
         crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
         crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent org tasks schema");
+        crate::coordination::agent_org_plan_approvals::init_schema(&conn)
+            .expect("agent org plan approvals schema");
         crate::coordination::agent_member_interventions::init_schema(&conn)
             .expect("agent member interventions schema");
         crate::coordination::agent_org_watchdog::init_schema(&conn)
             .expect("agent org recovery schema");
         crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS code_sessions (
+                session_id TEXT PRIMARY KEY,
+                cli_agent_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                parent_session_id TEXT,
+                org_member_id TEXT,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (session_id, turn_intent_id)
+            );",
+        )
+        .expect("turn lifecycle schemas");
     }
 
     #[test]
@@ -936,6 +981,49 @@ mod tests {
     }
 
     #[test]
+    fn successful_empty_coordinator_finalize_does_not_observe_staged_work() {
+        let _serial = test_serial_guard();
+        let _sandbox = test_helpers::test_env::sandbox();
+        let run_id = seed_run("builtin:sde");
+        let conn = database::db::get_connection().expect("test sqlite connection");
+        conn.execute(
+            "UPDATE agent_sessions
+             SET org_member_id=?2, agent_exec_mode='ask'
+             WHERE session_id=?1",
+            rusqlite::params![
+                "root-session",
+                crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
+            ],
+        )
+        .expect("mark root as coordinator member session");
+
+        let presented_revision = AgentOrgRunStore::stage_coordinator_work_revision(&run_id)
+            .expect("stage coordinator work revision")
+            .expect("running run has a work revision");
+        assert_eq!(
+            AgentOrgRunStore::progress(&run_id)
+                .expect("load progress")
+                .expect("progress exists")
+                .coordinator_observed_work_revision,
+            None
+        );
+
+        // This is the lifecycle shape of WakeNoop: processing returned Ok,
+        // but no provider turn ran. Finalization must not promote a staged
+        // revision merely because the outer scheduler call succeeded.
+        finalize_agent_org_member_turn(None, "root-session", &Ok(String::new()));
+
+        let progress = AgentOrgRunStore::progress(&run_id)
+            .expect("load progress after no-op")
+            .expect("progress exists after no-op");
+        assert_eq!(
+            progress.coordinator_presented_work_revision,
+            Some(presented_revision)
+        );
+        assert_eq!(progress.coordinator_observed_work_revision, None);
+    }
+
+    #[test]
     fn requeue_member_work_uses_context_agent_reference_without_self_wake() {
         let _serial = test_serial_guard();
         let _sandbox = test_helpers::test_env::sandbox();
@@ -976,12 +1064,14 @@ mod tests {
                 &run_id,
                 "member-worker"
             )
+            .expect("attempt")
         );
         assert!(
             !crate::coordination::agent_org_watchdog::test_only_mark_failed_rewake_attempt(
                 &run_id,
                 "member-worker"
             )
+            .expect("attempt")
         );
 
         let ok = Ok("done with this turn".to_string());
@@ -991,6 +1081,7 @@ mod tests {
                 &run_id,
                 "member-worker"
             )
+            .expect("attempt")
         );
 
         let task = AgentOrgTaskStore::get(&run_id, "active-task")

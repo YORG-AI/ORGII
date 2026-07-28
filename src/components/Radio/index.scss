@@ -3,7 +3,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   user-select: none;
   position: relative;
   font-size: 14px;
@@ -152,7 +152,7 @@
   background: var(--color-bg-1);
   color: var(--color-text-2);
   font-size: 14px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   user-select: none;
   position: relative;
   transition: all 0.2s ease;

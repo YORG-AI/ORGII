@@ -70,6 +70,41 @@ describe("dedupeByCanonicalSession", () => {
     );
   });
 
+  it("lets an opened collaboration replay replace its visible local source", () => {
+    const source = {
+      session_id: `codexapp-${STEM}`,
+      filesChanged: 11,
+      totalTokens: 11_204_965,
+      model: "gpt-5.6-sol",
+      category: "external_history",
+      updated_at: "2026-07-23T10:01:19.722Z",
+    };
+    const replay = {
+      session_id: "imported-session-collaboration-copy",
+      category: "external_history",
+      updated_at: "2026-07-23T12:28:18.311Z",
+      importedFrom: {
+        sourceSessionId: `codexapp-${STEM}`,
+      },
+    };
+
+    expect(dedupeByCanonicalSession([replay, source])).toEqual([replay]);
+    expect(dedupeByCanonicalSession([source, replay])).toEqual([replay]);
+  });
+
+  it("keeps collaboration imports distinct when their source is not local", () => {
+    const first = {
+      session_id: "imported-session-org-a",
+      importedFrom: { sourceSessionId: "shared-source-id" },
+    };
+    const second = {
+      session_id: "imported-session-org-b",
+      importedFrom: { sourceSessionId: "shared-source-id" },
+    };
+
+    expect(dedupeByCanonicalSession([first, second])).toEqual([first, second]);
+  });
+
   it("preserves distinct sessions and their first-seen order", () => {
     const a = { session_id: "sdeagent-1" };
     const b = { session_id: "cursoride-2" };

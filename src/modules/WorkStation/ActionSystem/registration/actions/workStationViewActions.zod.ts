@@ -257,12 +257,14 @@ export const workstationCreateProject = defineZodAction(
   async () => {
     const workStationViewService = await getWorkStationViewService();
     await workStationViewService.openStationMode("my-station");
-    const { chatPanelNavigateAtom, CHAT_PANEL_SURFACE_KIND } =
+    const { openCreateTargetInChatPanelStartPageAtom } =
+      await import("@src/store/chatPanel/chatPanelTabsAtom");
+    const { CHAT_PANEL_CREATE_TARGET } =
       await import("@src/store/ui/chatPanelAtom");
     const { getInstrumentedStore } =
       await import("@src/util/core/state/instrumentedStore");
-    getInstrumentedStore().set(chatPanelNavigateAtom, {
-      kind: CHAT_PANEL_SURFACE_KIND.NEW_PROJECT,
+    getInstrumentedStore().set(openCreateTargetInChatPanelStartPageAtom, {
+      target: CHAT_PANEL_CREATE_TARGET.PROJECT,
     });
     return { success: true, message: "Opened Create Project" };
   }
@@ -285,12 +287,14 @@ export const workstationCreateWorkItem = defineZodAction(
   async () => {
     const workStationViewService = await getWorkStationViewService();
     await workStationViewService.openStationMode("my-station");
-    const { chatPanelNavigateAtom, CHAT_PANEL_SURFACE_KIND } =
+    const { openCreateTargetInChatPanelStartPageAtom } =
+      await import("@src/store/chatPanel/chatPanelTabsAtom");
+    const { CHAT_PANEL_CREATE_TARGET } =
       await import("@src/store/ui/chatPanelAtom");
     const { getInstrumentedStore } =
       await import("@src/util/core/state/instrumentedStore");
-    getInstrumentedStore().set(chatPanelNavigateAtom, {
-      kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM,
+    getInstrumentedStore().set(openCreateTargetInChatPanelStartPageAtom, {
+      target: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
     });
     return { success: true, message: "Opened Create Work Item" };
   }

@@ -1003,32 +1003,6 @@ fn all_registered_tool_schemas_are_llm_compatible() {
 }
 
 #[test]
-fn nested_struct_tool_schemas_inline_without_refs() {
-    // Tools whose params nest another `JsonSchema`-deriving type (struct or
-    // enum) would, under schemars' draft-07 default, hoist the nested type
-    // into a top-level `definitions` map referenced via `#/definitions/X`.
-    // The moonshot/kimi family rejects that dialect with HTTP 400
-    // ("references must start with #/$defs/"), and Gemini rejects `$ref`
-    // entirely. `params_schema` sets `inline_subschemas = true` so the
-    // nested type is expanded in place — the schema must contain NO `$ref`,
-    // which `assert_llm_compatible_schema` enforces. This test pins the two
-    // real offenders so a future tool that re-introduces a hoisted ref is
-    // caught here rather than at runtime against a specific provider.
-    use crate::tools::traits::{assert_llm_compatible_schema, params_schema};
-
-    let schemas: Vec<(&str, Value)> = vec![(
-        "manage_code_map",
-        params_schema::<crate::tools::impls::coding::code_map::CodeMapToolParams>(),
-    )];
-
-    for (name, schema) in schemas {
-        assert_llm_compatible_schema(&schema).unwrap_or_else(|err| {
-            panic!("{name} schema must inline subschemas (no $ref): {err}\n{schema}")
-        });
-    }
-}
-
-#[test]
 fn real_tool_schemas_have_no_nullable_type_arrays() {
     // Tools with `Option<T>` fields (e.g. `edit_file`'s content/old_string/
     // new_string) make schemars emit `"type": ["string", "null"]`. draft-07
@@ -1066,44 +1040,6 @@ fn real_tool_schemas_have_no_nullable_type_arrays() {
              (baidu/ernie rejects them): {schema}"
         );
     }
-}
-
-#[test]
-fn real_tool_schemas_have_no_null_enum_members() {
-    // Tools with `Option<Enum>` fields (e.g. `use_code_map`'s
-    // `kind: Option<CodeMapNodeKind>` and `language: Option<CodeMapLanguage>`)
-    // make schemars emit `"enum": [..variants, null]` alongside a nullable
-    // type array. moonshot/MiniMax/kimi reject the trailing `null` with HTTP
-    // 400 `enum value (<nil>) does not match any type in [string]` (GitHub #23).
-    // `params_schema` strips it at generation time and
-    // `assert_llm_compatible_schema` enforces it as a contract. Pin the real
-    // offender so a future optional-enum field that reintroduces a null is
-    // caught here rather than at runtime against a specific provider.
-    use crate::tools::traits::{assert_llm_compatible_schema, params_schema};
-
-    fn enum_has_null(value: &Value) -> bool {
-        match value {
-            Value::Object(map) => {
-                if let Some(Value::Array(members)) = map.get("enum") {
-                    if members.iter().any(|m| m.is_null()) {
-                        return true;
-                    }
-                }
-                map.values().any(enum_has_null)
-            }
-            Value::Array(items) => items.iter().any(enum_has_null),
-            _ => false,
-        }
-    }
-
-    let schema = params_schema::<crate::tools::impls::coding::code_map::CodeMapToolParams>();
-    assert!(
-        !enum_has_null(&schema),
-        "use_code_map schema must not contain null enum members \
-         (moonshot/MiniMax/kimi reject them): {schema}"
-    );
-    assert_llm_compatible_schema(&schema)
-        .unwrap_or_else(|err| panic!("use_code_map schema violates LLM contract: {err}\n{schema}"));
 }
 
 #[test]

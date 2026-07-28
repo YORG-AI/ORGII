@@ -10,6 +10,8 @@
  * (`cloud_list_invites`) never returns the code or even the hash — a lost
  * plaintext means minting a new invite.
  */
+import { ORG2_CLOUD_OFFICIAL_SUPABASE_URL } from "./config";
+import { isFetchTransportError } from "./org2CloudFetchRetry";
 
 // ---------------------------------------------------------------------------
 // Invite code generation / hashing
@@ -132,19 +134,69 @@ export function parseCloudInviteInput(input: string): string | null {
 // Session share deep link (orgii://cloud/session?share=…, migration 0012)
 //
 // Same OS-level delivery as the invite link above. The token is the WHOLE
-// credential — no supabase coordinates ride in the link (the managed cloud
-// endpoint is baked into the app), and the resolve response carries the
-// org/session coordinates the guest needs for segment reads.
+// credential. Links also carry non-secret endpoint provenance so a receiver
+// with a custom endpoint configured does not accidentally resolve an
+// official share against the wrong cloud (or silently switch its account).
+// The resolve response carries the org/session coordinates for segment reads.
 // ---------------------------------------------------------------------------
 
 export const CLOUD_SHARE_DEEP_LINK_PATH = "session";
 
+export type CloudShareEndpointProvenance =
+  | { kind: "official" }
+  | { kind: "custom"; supabaseUrl: string }
+  | { kind: "current" };
+
 export interface CloudShareDeepLink {
   shareToken: string;
+  endpoint: CloudShareEndpointProvenance;
 }
 
-export function buildCloudSessionShareLink(shareToken: string): string {
-  const params = new URLSearchParams({ share: shareToken });
+export interface CloudShareLinkEndpoint {
+  isOfficial: boolean;
+  supabaseUrl: string;
+}
+
+const DEFAULT_CLOUD_SHARE_LINK_ENDPOINT: CloudShareLinkEndpoint = {
+  isOfficial: true,
+  supabaseUrl: "",
+};
+
+function normalizeCloudShareEndpointUrl(value: string): string | null {
+  try {
+    const url = new URL(value.trim());
+    const isSecure = url.protocol === "https:";
+    const isLoopbackHttp =
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (!isSecure && !isLoopbackHttp) return null;
+    return value.trim().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+export function buildCloudSessionShareLink(
+  shareToken: string,
+  endpoint: CloudShareLinkEndpoint = DEFAULT_CLOUD_SHARE_LINK_ENDPOINT
+): string {
+  // A custom endpoint override that points at the OFFICIAL deployment must
+  // mint an official link: a receiver on a stock build has no override
+  // configured, and a `custom` link would fail its endpoint-mismatch gate
+  // even though the token resolves against the managed cloud.
+  const isOfficial =
+    endpoint.isOfficial ||
+    normalizeCloudShareEndpointUrl(endpoint.supabaseUrl) ===
+      ORG2_CLOUD_OFFICIAL_SUPABASE_URL;
+  const params = new URLSearchParams({
+    share: shareToken,
+    endpoint: isOfficial ? "official" : "custom",
+  });
+  if (!isOfficial) {
+    const normalized = normalizeCloudShareEndpointUrl(endpoint.supabaseUrl);
+    if (!normalized) throw new Error("Invalid custom cloud endpoint URL");
+    params.set("endpointUrl", normalized);
+  }
   return `orgii://${CLOUD_INVITE_DEEP_LINK_HOST}/${CLOUD_SHARE_DEEP_LINK_PATH}?${params.toString()}`;
 }
 
@@ -175,8 +227,25 @@ export function parseCloudShareDeepLink(
 ): CloudShareDeepLink | null {
   if (!isCloudShareDeepLink(url)) return null;
   try {
-    const shareToken = new URL(url.trim()).searchParams.get("share")?.trim();
-    return shareToken ? { shareToken } : null;
+    const params = new URL(url.trim()).searchParams;
+    const shareToken = params.get("share")?.trim();
+    if (!shareToken) return null;
+    const endpointKind = params.get("endpoint")?.trim().toLowerCase();
+    // Pre-provenance links were emitted only during pre-release. Treat them
+    // as managed-cloud links; newly generated custom links are explicit.
+    if (!endpointKind || endpointKind === "official") {
+      return { shareToken, endpoint: { kind: "official" } };
+    }
+    if (endpointKind !== "custom") return null;
+    const supabaseUrl = normalizeCloudShareEndpointUrl(
+      params.get("endpointUrl") ?? ""
+    );
+    if (!supabaseUrl) return null;
+    // Heal already-minted links whose custom URL IS the official deployment.
+    if (supabaseUrl === ORG2_CLOUD_OFFICIAL_SUPABASE_URL) {
+      return { shareToken, endpoint: { kind: "official" } };
+    }
+    return { shareToken, endpoint: { kind: "custom", supabaseUrl } };
   } catch {
     return null;
   }
@@ -192,7 +261,7 @@ export function parseCloudShareInput(raw: string): CloudShareDeepLink | null {
     return parseCloudShareDeepLink(trimmed);
   }
   return CLOUD_SHARE_TOKEN_PATTERN.test(trimmed)
-    ? { shareToken: trimmed }
+    ? { shareToken: trimmed, endpoint: { kind: "current" } }
     : null;
 }
 
@@ -380,7 +449,9 @@ export function cloudManagementErrorKey(error: unknown): string | null {
 
 /**
  * Human message for a management failure: the translated specific message
- * when the code is recognized, the raw error message otherwise.
+ * when the code is recognized, a translated connection message for fetch
+ * transport failures (WebKit's raw "Load failed" is meaningless to users),
+ * the raw error message otherwise.
  */
 export function cloudManagementErrorMessage(
   error: unknown,
@@ -388,5 +459,8 @@ export function cloudManagementErrorMessage(
 ): string {
   const key = cloudManagementErrorKey(error);
   if (key) return translate(key);
+  if (isFetchTransportError(error)) {
+    return translate("cloud.orgManagement.errors.network");
+  }
   return error instanceof Error ? error.message : String(error);
 }

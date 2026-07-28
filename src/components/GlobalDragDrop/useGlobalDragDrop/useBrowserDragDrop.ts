@@ -4,8 +4,7 @@
  * Handles browser drag-drop events via document-level listeners.
  *
  * Drag-drop is always globally active. File drops are accepted only on the
- * composer input drop target. Repository-folder drops still use the Start-page
- * surface.
+ * composer input drop target.
  */
 import { type MutableRefObject, useEffect } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,7 +13,6 @@ import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
 import { consumeInternalFileTreeDragData } from "@src/shared/dnd/dragSideChannel";
 
-import type { DragDropBehavior, DroppedFolder } from "../types";
 import {
   createPreventDefaults,
   extractFilePath,
@@ -23,7 +21,6 @@ import {
   hasVisibleChatDropTarget,
   isDropInsideChatDropTarget,
   isInternalDrag,
-  isRepositoryDropPage,
 } from "./utils";
 
 /**
@@ -82,26 +79,14 @@ export interface UseBrowserDragDropOptions {
     isFolder?: boolean,
     dropTargetId?: string
   ) => void;
-  setDroppedFolder: (folder: DroppedFolder | null) => void;
   setIsDragging: (dragging: boolean) => void;
-  setBehavior: (behavior: DragDropBehavior | null) => void;
   dragDepthRef: MutableRefObject<number>;
-  appGridEditModeRef: MutableRefObject<boolean>;
   workflowDragActiveRef: MutableRefObject<boolean>;
   internalFileTreeDragRef: MutableRefObject<boolean>;
 }
 
-function resolveBehavior(event: Event): DragDropBehavior | null {
-  if (isDropInsideChatDropTarget(event)) {
-    return { mode: "chat-file", location: "chat-panel" };
-  }
-  if (hasVisibleChatDropTarget()) {
-    return { mode: "chat-file", location: "chat-panel" };
-  }
-  if (isRepositoryDropPage()) {
-    return { mode: "repository", location: "center" };
-  }
-  return null;
+function hasChatDropBehavior(event: Event): boolean {
+  return isDropInsideChatDropTarget(event) || hasVisibleChatDropTarget();
 }
 
 export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
@@ -109,18 +94,15 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
   const {
     handleIdeFileDrop,
     handleBrowserFileDrop,
-    setDroppedFolder,
     setIsDragging,
-    setBehavior,
     dragDepthRef,
-    appGridEditModeRef,
     workflowDragActiveRef,
     internalFileTreeDragRef,
   } = options;
 
   useEffect(() => {
     const isInternalDragFn = (e: Event) =>
-      isInternalDrag(e, appGridEditModeRef, workflowDragActiveRef);
+      isInternalDrag(e, workflowDragActiveRef);
 
     const preventDefaults = createPreventDefaults(isInternalDragFn);
 
@@ -141,14 +123,11 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
           depth: dragDepthRef.current,
           transfer: summarizeDataTransfer((e as DragEvent).dataTransfer),
           insideChatDropTarget: isDropInsideChatDropTarget(e),
-          isRepoPage: isRepositoryDropPage(),
         });
       }
 
       if (dragDepthRef.current > 0) {
-        const nextBehavior = resolveBehavior(e);
-        setBehavior(nextBehavior);
-        setIsDragging(nextBehavior !== null);
+        setIsDragging(hasChatDropBehavior(e));
       }
     };
 
@@ -160,7 +139,6 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
 
       if (dragDepthRef.current === 0) {
         setIsDragging(false);
-        setBehavior(null);
       }
     };
 
@@ -274,29 +252,12 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
 
       dragDepthRef.current = 0;
       setIsDragging(false);
-      setBehavior(null);
 
       if (!dragEvent.dataTransfer?.items) {
         log("drop:no-items");
         return;
       }
       const items = Array.from(dragEvent.dataTransfer.items);
-
-      // Repository drop (Start page folder → "add as repo" modal)
-      if (isRepositoryDropPage() && !insideChatDropTarget) {
-        for (const item of items) {
-          if (item.kind !== "file") continue;
-          const entry = item.webkitGetAsEntry?.();
-          if (entry?.isDirectory) {
-            log("drop:repository-mode", { name: entry.name });
-            setDroppedFolder({
-              path: entry.fullPath || `/${entry.name}`,
-              name: entry.name,
-            });
-            return;
-          }
-        }
-      }
 
       if (insideChatDropTarget) {
         handleFileDrop(dragEvent, items, dropTargetId);
@@ -461,11 +422,8 @@ export function useBrowserDragDrop(options: UseBrowserDragDropOptions): void {
   }, [
     handleIdeFileDrop,
     handleBrowserFileDrop,
-    setDroppedFolder,
     setIsDragging,
-    setBehavior,
     dragDepthRef,
-    appGridEditModeRef,
     workflowDragActiveRef,
     internalFileTreeDragRef,
     t,

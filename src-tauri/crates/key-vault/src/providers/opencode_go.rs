@@ -33,6 +33,12 @@ struct ParsedSubscription {
     monthly_reset_in_sec: Option<i64>,
 }
 
+impl Default for OpenCodeGoQuotaFetcher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OpenCodeGoQuotaFetcher {
     pub fn new() -> Self {
         Self {

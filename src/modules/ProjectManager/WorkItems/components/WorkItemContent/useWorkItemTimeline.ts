@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -32,31 +32,10 @@ export function useWorkItemTimeline({
     [workItem, t]
   );
 
-  const formatRelativeTime = useCallback(
-    (timestamp: string): string => {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now.getTime() - date.getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffDays = Math.floor(diffHours / 24);
-
-      if (diffDays > 0)
-        return t("workItems.activity.daysAgo", { count: diffDays });
-      if (diffHours > 0)
-        return t("workItems.activity.hoursAgo", { count: diffHours });
-      const diffMinutes = Math.floor(diffMs / (1000 * 60));
-      if (diffMinutes > 0)
-        return t("workItems.activity.minutesAgo", { count: diffMinutes });
-      return t("workItems.activity.justNow");
-    },
-    [t]
-  );
-
   const lastUpdatedRef = useRef(workItem.updated_time);
 
   return {
     timelineEntries,
-    formatRelativeTime,
     lastUpdatedRef,
   };
 }
@@ -86,8 +65,8 @@ export function buildWorkItemTimelineEntries(
 
   entries.sort(
     (entryA, entryB) =>
-      new Date(entryB.timestamp).getTime() -
-      new Date(entryA.timestamp).getTime()
+      new Date(entryA.timestamp).getTime() -
+      new Date(entryB.timestamp).getTime()
   );
 
   return entries;

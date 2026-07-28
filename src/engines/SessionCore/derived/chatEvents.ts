@@ -44,7 +44,31 @@ function isStreamingSnap(snap: Snapshot): boolean {
  */
 let _prevSessionId: string | null = null;
 let _prevChatEvents: SessionEvent[] = [];
+// Raw (pre-derivation) inputs that produced `_prevChatEvents`, used by the
+// fast path in `chatEventsAtom` to skip the O(n)/O(n log n) plan derivation
+// when the incoming snapshot's chat events are unchanged.
+let _prevRawChatEvents: SessionEvent[] = [];
+let _prevQueuedMessages: unknown = null;
+let _prevLiveContent: string | null = null;
 const _liveAssistantCreatedAtBySession = new Map<string, string>();
+
+/**
+ * Release chat-derivation inputs for a departing session.
+ *
+ * The module-level reference-stability cache otherwise keeps both the raw and
+ * derived event arrays alive when ChatPanel unmounts, because no subsequent
+ * atom read is available to observe the cleared session id.
+ */
+export function resetChatEventsMemoCaches(sessionId?: string): void {
+  _prevSessionId = null;
+  _prevChatEvents = [];
+  _prevRawChatEvents = [];
+  _prevQueuedMessages = null;
+  _prevLiveContent = null;
+  if (sessionId) {
+    _liveAssistantCreatedAtBySession.delete(sessionId);
+  }
+}
 
 function getLiveAssistantCreatedAt(sessionId: string): string {
   const existing = _liveAssistantCreatedAtBySession.get(sessionId);
@@ -133,7 +157,14 @@ export function appendLiveAssistantEvent(
 ): SessionEvent[] {
   if (!sessionId || !content) {
     if (sessionId) _liveAssistantCreatedAtBySession.delete(sessionId);
-    return events.filter((event) => event.id !== `live-assistant-${sessionId}`);
+    const liveId = `live-assistant-${sessionId}`;
+    // Preserve the input array identity when there is no live event to strip.
+    // The prior unconditional `.filter` allocated a fresh array on every call,
+    // so `messagesEventsAtom` emitted a new identity on every snapshot push
+    // and ≤20Hz flush even while nothing was streaming — re-rendering the
+    // Messages view for no reason.
+    if (!events.some((event) => event.id === liveId)) return events;
+    return events.filter((event) => event.id !== liveId);
   }
   const liveId = `live-assistant-${sessionId}`;
   const createdAt = getLiveAssistantCreatedAt(sessionId);
@@ -171,6 +202,7 @@ export const chatEventsAtom = atom((get) => {
   if (sessionId !== _prevSessionId) {
     _prevSessionId = sessionId;
     _prevChatEvents = [];
+    _prevRawChatEvents = [];
   }
 
   // During streaming, inject the live-assistant placeholder with a stable
@@ -184,13 +216,47 @@ export const chatEventsAtom = atom((get) => {
   const queuedMessages = get(messageQueueAtom);
 
   if (snap && "chatEvents" in snap) {
+    const rawChatEvents = snap.chatEvents;
+
+    // Fast path — skip the expensive derivation on unchanged frames.
+    //
+    // The derivation below (filter → plan-display → live append) is a pure
+    // function of (rawChatEvents, queuedMessages, liveContent, sessionId). The
+    // bridge hands a freshly-deserialized `chatEvents` array on every ~30Hz
+    // streaming envelope, so `derivePlanDisplayEvents`' identity-keyed WeakMap
+    // missed every frame and the full O(n) (O(n log n) with plans) derivation
+    // re-ran each frame — O(n²) per turn, scaling with transcript length.
+    //
+    // When the raw input is unchanged by the *same* predicates the
+    // post-derivation stability check already trusts, the derived output
+    // cannot have changed, so we return the cached array without deriving.
+    // `allPlanContentStable` still tracks `args.streamContent`, so a create_plan
+    // card streaming its body mid-turn correctly falls through to the slow path.
+    if (
+      _prevChatEvents.length > 0 &&
+      queuedMessages === _prevQueuedMessages &&
+      liveContent === _prevLiveContent &&
+      rawChatEvents.length === _prevRawChatEvents.length &&
+      rawChatEvents.every((evt, i) => evt.id === _prevRawChatEvents[i].id) &&
+      allArgsStable(rawChatEvents, _prevRawChatEvents) &&
+      allPlanContentStable(rawChatEvents, _prevRawChatEvents) &&
+      (streaming
+        ? lastEventStableIgnoreDisplayText(rawChatEvents, _prevRawChatEvents)
+        : lastEventStable(rawChatEvents, _prevRawChatEvents))
+    ) {
+      return _prevChatEvents;
+    }
+
     const next = appendLiveAssistantEvent(
       derivePlanDisplayEvents(
-        filterQueuedSyntheticUserEvents(snap.chatEvents, queuedMessages)
+        filterQueuedSyntheticUserEvents(rawChatEvents, queuedMessages)
       ),
       sessionId,
       liveContent
     );
+    _prevRawChatEvents = rawChatEvents;
+    _prevQueuedMessages = queuedMessages;
+    _prevLiveContent = liveContent;
 
     const argsChanged = !allArgsStable(next, _prevChatEvents);
     const planContentChanged = !allPlanContentStable(next, _prevChatEvents);

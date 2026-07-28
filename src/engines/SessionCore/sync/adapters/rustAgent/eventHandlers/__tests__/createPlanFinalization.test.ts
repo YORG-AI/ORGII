@@ -137,7 +137,6 @@ function createCtx(
     assistantStreamRef: ref({ idRef: ref(""), contentRef: ref("") }),
     thinkingStreamRef: ref({ idRef: ref(""), contentRef: ref("") }),
     toolCallDeltaBuffersRef: ref(new Map()),
-    execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(undefined),
     onContextUsageRef: ref(undefined),
     onTokenUpdateRef: ref(undefined),

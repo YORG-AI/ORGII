@@ -9,28 +9,28 @@
 `AppDeferredServices`. It uses one coordinator for check, download, and install
 state, and one scheduler for automatic triggers.
 
-Automatic updates are controlled by `general.autoUpdateEnabled` in
-`~/.orgii/settings.jsonc`. The setting defaults to `true` and can be disabled in
-Settings → General.
+Update checks and package downloads are always automatic. Installation and
+relaunch remain explicit user actions.
 
 ## Automatic behavior
 
 - **Startup:** after a 10-second delay, check for a fresh release. If one is
   available, download it and ask before installing or relaunching ORGII.
-- **While running:** check every two hours, when the app returns to the
-  foreground, and when network connectivity returns.
+- **While running:** check every two visible hours, when the app returns to the
+  foreground, and when network connectivity returns. Interval work pauses while
+  the document is hidden.
 - **Foreground event deduplication:** focus and visibility events share one
   750 ms debounce path; checks also have a five-minute throttle.
+- **Failure recovery:** keep one retry timer and one in-flight automatic run.
+  Failed checks or downloads retry after a jittered exponential delay beginning
+  near one minute and capped near one hour. Hidden/offline time pauses the retry,
+  and focus/online events cannot bypass its cooldown.
 - **Silent preparation:** download an available package in the background
   without showing progress toasts or forcing a restart, then show one
   confirmation dialog. Installation only starts after the user confirms.
 - **Dialog actions:** users can skip the detected version, postpone the
   decision while keeping the package ready, or install and restart. Skipped
   versions remain suppressed across app launches.
-- **Disabled:** no startup, interval, foreground, or online checks are
-  registered. Manual checks and installs remain available.
-- **Enabled during an active session:** starts with a silent foreground check
-  and uses the same confirmation-gated install path as every other trigger.
 
 Installing is never automatic because the Tauri updater installer can
 terminate the running process on Windows. Users can postpone installation and
@@ -54,6 +54,8 @@ useIsAppUpdateInstalling(): boolean
 - Download requests prepare the package and open the install confirmation.
 - Concurrent confirmed install requests share one install; only the owning
   request may continue to relaunch.
+- Automatic triggers share one end-to-end run, so simultaneous focus, online,
+  interval, and retry events cannot duplicate the request chain.
 
 ## State model
 
@@ -77,4 +79,4 @@ read-only UI projections and are not independent sources of truth.
 - `@tauri-apps/api/app` for the current version
 - `@tauri-apps/plugin-updater` for check/download/install
 - `@tauri-apps/plugin-process` for relaunch
-- central settings registry and `settings.jsonc` persistence
+- central settings registry for update-channel selection

@@ -47,6 +47,7 @@ pub struct SessionLaunchParams {
     /// CLI agent type (wire name: `platform`)
     pub platform: Option<String>,
     pub branch: Option<String>,
+    pub worktree_base_ref: Option<String>,
 
     // Market-specific
     pub hosted_token: Option<String>,
@@ -116,6 +117,8 @@ pub struct SessionLaunchResult {
     pub work_item_id: Option<String>,
     pub agent_role: Option<String>,
     pub worktree_path: Option<String>,
+    pub worktree_branch: Option<String>,
+    pub base_ref: Option<String>,
 }
 
 pub async fn session_launch_impl(
@@ -123,6 +126,12 @@ pub async fn session_launch_impl(
     org_store: Option<&AgentOrgsStore>,
     params: SessionLaunchParams,
 ) -> Result<SessionLaunchResult, String> {
+    validate_workspace_launch_fields(
+        params.isolate,
+        params.workspace_path.as_deref(),
+        params.worktree_path.as_deref(),
+        params.worktree_base_ref.as_deref(),
+    )?;
     let auto_name = derive_name(params.name.as_deref(), &params.content);
 
     match params.category.as_str() {
@@ -130,6 +139,29 @@ pub async fn session_launch_impl(
         SESSION_CATEGORY_CLI_AGENT => launch_cli_agent(params, auto_name).await,
         other => Err(format!("Unknown session category: {other}")),
     }
+}
+
+fn validate_workspace_launch_fields(
+    isolate: bool,
+    workspace_path: Option<&str>,
+    worktree_path: Option<&str>,
+    worktree_base_ref: Option<&str>,
+) -> Result<(), String> {
+    let has_existing_worktree = worktree_path.is_some_and(|path| !path.trim().is_empty());
+    let has_base_ref = worktree_base_ref.is_some_and(|base| !base.trim().is_empty());
+
+    if (isolate || has_existing_worktree)
+        && !workspace_path.is_some_and(|path| !path.trim().is_empty())
+    {
+        return Err("Worktree mode requires workspacePath".to_string());
+    }
+    if isolate && has_existing_worktree {
+        return Err("isolate and worktreePath are mutually exclusive".to_string());
+    }
+    if has_base_ref && !isolate {
+        return Err("worktreeBaseRef requires isolate=true".to_string());
+    }
+    Ok(())
 }
 
 async fn launch_rust_agent(
@@ -141,7 +173,7 @@ async fn launch_rust_agent(
     let content = params.content.clone();
     let model = params.model.clone();
     let account_id = params.account_id.clone();
-    let branch = params.branch.clone();
+    let session_branch = params.branch.clone();
     let background = params.background;
     let target = match params
         .agent_org_id
@@ -172,7 +204,7 @@ async fn launch_rust_agent(
         WorkspaceLaunchTarget::Worktree {
             workspace_path,
             worktree_path: params.worktree_path.clone(),
-            branch: params.branch.clone(),
+            branch: params.worktree_base_ref.clone(),
             create_isolated: params.isolate,
             additional_directories: params.additional_directories.clone(),
         }
@@ -235,7 +267,7 @@ async fn launch_rust_agent(
         created_at: result.created_at,
         user_input: content,
         workspace_path: result.workspace_path,
-        branch,
+        branch: result.worktree_branch.clone().or(session_branch),
         background,
         model,
         cli_agent_type: None,
@@ -249,6 +281,8 @@ async fn launch_rust_agent(
         work_item_id: result.work_item_id,
         agent_role: result.agent_role,
         worktree_path: result.worktree_path,
+        worktree_branch: result.worktree_branch,
+        base_ref: result.base_ref,
     })
 }
 
@@ -299,7 +333,7 @@ async fn launch_cli_agent(
     let model = params.model.clone();
     let account_id = params.account_id.clone();
     let background = params.background;
-    let branch = params.branch.clone();
+    let session_branch = params.branch.clone();
     let workspace_path = params.workspace_path.clone();
 
     let org_id = params
@@ -329,9 +363,10 @@ async fn launch_cli_agent(
         account_id: params.account_id,
         repo_path: params.workspace_path,
         branch: params.branch,
+        worktree_path: params.worktree_path,
+        worktree_base_ref: params.worktree_base_ref,
         hosted_token: params.hosted_token,
         isolate: params.isolate,
-        worktree_path: params.worktree_path.clone(),
         background: params.background,
         key_source: params.key_source,
         additional_directories: extras,
@@ -352,6 +387,10 @@ async fn launch_cli_agent(
     let outcome = launch_cli_agent(bridge_params).await?;
     let session_id = outcome.session_id;
     let created_at = outcome.created_at;
+    let workspace_path = outcome.workspace_path.or(workspace_path);
+    let worktree_path = outcome.worktree_path;
+    let worktree_branch = outcome.worktree_branch;
+    let base_ref = outcome.base_ref;
 
     Ok(SessionLaunchResult {
         session_id,
@@ -361,7 +400,7 @@ async fn launch_cli_agent(
         created_at,
         user_input: content,
         workspace_path,
-        branch,
+        branch: worktree_branch.clone().or(session_branch),
         background,
         model,
         cli_agent_type: Some(platform),
@@ -374,7 +413,9 @@ async fn launch_cli_agent(
         project_slug,
         work_item_id,
         agent_role,
-        worktree_path: None,
+        worktree_path,
+        worktree_branch,
+        base_ref,
     })
 }
 
@@ -396,4 +437,46 @@ fn derive_name(explicit: Option<&str>, content: &str) -> String {
         boundary -= 1;
     }
     format!("{}...", &trimmed[..boundary])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_workspace_launch_fields;
+
+    #[test]
+    fn workspace_launch_rejects_fresh_and_existing_worktree_together() {
+        let error =
+            validate_workspace_launch_fields(true, Some("/repo"), Some("/repo/worktree"), None)
+                .expect_err("fresh and existing modes must be exclusive");
+        assert!(error.contains("mutually exclusive"));
+    }
+
+    #[test]
+    fn workspace_launch_rejects_base_ref_without_isolation() {
+        let error = validate_workspace_launch_fields(false, Some("/repo"), None, Some("develop"))
+            .expect_err("a base ref only applies to fresh worktrees");
+        assert!(error.contains("requires isolate=true"));
+    }
+
+    #[test]
+    fn workspace_launch_accepts_all_three_supported_modes() {
+        assert!(validate_workspace_launch_fields(false, Some("/repo"), None, None).is_ok());
+        assert!(
+            validate_workspace_launch_fields(true, Some("/repo"), None, Some("develop")).is_ok()
+        );
+        assert!(validate_workspace_launch_fields(
+            false,
+            Some("/repo"),
+            Some("/repo/worktree"),
+            None
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn workspace_launch_rejects_worktree_mode_without_workspace_root() {
+        let error = validate_workspace_launch_fields(true, None, None, None)
+            .expect_err("worktree mode needs a repository root");
+        assert!(error.contains("requires workspacePath"));
+    }
 }

@@ -1,8 +1,7 @@
 /**
  * Editor Types - Barrel Export
  *
- * Types for editor/IDE domain: document state, file content, navigation.
+ * Types for editor/IDE domain: document state and file content.
  */
 export * from "./document";
 export * from "./fileContent";
-export * from "./navigation";

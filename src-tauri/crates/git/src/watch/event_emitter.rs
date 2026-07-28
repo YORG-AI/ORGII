@@ -108,8 +108,6 @@ impl EventEmitter {
     /// Now includes full file list for real-time source control updates
     /// Also includes git operation states (merge, rebase, etc.) for context engineering
     pub fn emit_status_updated(&self, repo_id: String, status: GitStatus) {
-        let cache_valid_until = Self::current_timestamp_ms() + (CACHE_TTL_SECONDS * 1000);
-
         // Convert files to JSON array
         let files_json: Vec<serde_json::Value> = status
             .files
@@ -149,7 +147,6 @@ impl EventEmitter {
                 "merge_head_found": status.merge_in_progress,
                 "do_conflicted_files_exist": status.conflicted > 0,
             },
-            "cache_valid_until": cache_valid_until,
             "timestamp": Self::current_timestamp_ms(),
         });
 

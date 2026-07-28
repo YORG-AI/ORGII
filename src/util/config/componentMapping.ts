@@ -135,13 +135,8 @@ const extractComponentFromClass = (
 const URL_PAGE_MAP: Record<string, { name: string; filePath: string }> = {
   "/orgii/app/settings": {
     name: "Settings",
-    filePath: "src/modules/MainApp/Settings/index.tsx",
+    filePath: "src/modules/MainApp/Settings/SettingsSlot.tsx",
   },
-  "/orgii/app/start-page": {
-    name: "SuggestionsPage",
-    filePath: "src/page/Orgii/StartPage/index.tsx",
-  },
-
   "/orgii/workstation/code": {
     name: "CodeEditor",
     filePath: "src/modules/WorkStation/CodeEditor/index.tsx",
@@ -149,18 +144,6 @@ const URL_PAGE_MAP: Record<string, { name: string; filePath: string }> = {
   "/orgii/workstation/browser": {
     name: "Browser",
     filePath: "src/modules/WorkStation/Browser/index.tsx",
-  },
-  "/orgii/app/git/status": {
-    name: "GitDiff",
-    filePath: "src/page/Orgii/GitDiff/index.tsx",
-  },
-  "/orgii/app/usage/consumer/wallet": {
-    name: "Wallet",
-    filePath: "src/page/Orgii/Usage/Consumer/Wallet/index.tsx",
-  },
-  "/orgii/app/usage/consumer/code-accounts": {
-    name: "KeyVault",
-    filePath: "src/page/Orgii/Usage/Consumer/KeyVault/index.tsx",
   },
 };
 

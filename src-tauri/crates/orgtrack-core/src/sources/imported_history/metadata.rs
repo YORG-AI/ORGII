@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ImportedHistoryImpactStats {
     pub files_changed: i64,
     pub lines_added: i64,
@@ -20,6 +22,9 @@ pub const SOURCE_CLINE: &str = "cline";
 pub const SOURCE_WARP: &str = "warp";
 pub const SOURCE_ZCODE: &str = "zcode";
 pub const SOURCE_QODER: &str = "qoder";
+pub const SOURCE_MIMO_CODE: &str = "mimo_code";
+pub const SOURCE_OMP: &str = "omp";
+pub const SOURCE_QODER_CLI: &str = "qoder_cli";
 // Hook-only sources: ORGII installs a managed PostToolUse command hook for
 // these CLIs and records their file-interaction provenance, but does not yet
 // import their session transcripts. Kept out of `is_imported_history_source`
@@ -44,6 +49,9 @@ pub fn is_imported_history_source(source: &str) -> bool {
             | SOURCE_WARP
             | SOURCE_ZCODE
             | SOURCE_QODER
+            | SOURCE_MIMO_CODE
+            | SOURCE_OMP
+            | SOURCE_QODER_CLI
     )
 }
 
@@ -65,14 +73,75 @@ pub struct ImportedHistoryCacheInput {
     pub created_at_ms: i64,
     pub updated_at_ms: i64,
     pub model: Option<String>,
+    /// Cache-inclusive input (input + cache_read + cache_write), matching what
+    /// the source reports. The usage projection subtracts the cache fields
+    /// below to recover fresh input.
     pub input_tokens: i64,
     pub output_tokens: i64,
+    /// Cache-read tokens contained within `input_tokens` (0 when the source
+    /// does not report cache separately).
+    pub cache_read_tokens: i64,
+    /// Cache-write / creation tokens contained within `input_tokens`.
+    pub cache_write_tokens: i64,
     pub repo_path: Option<String>,
     pub branch: Option<String>,
     pub impact: ImportedHistoryImpactStats,
     pub listable: bool,
     pub source_metadata_json: Option<String>,
     pub parent_session_id: Option<String>,
+}
+
+/// One imported per-round (assistant round / LLM call) usage record, written to
+/// `imported_history_round_usage`. `input_tokens` is FRESH (cache excluded),
+/// matching the native `session_token_usage` grain.
+#[derive(Debug, Clone)]
+pub struct RoundUsage {
+    pub source: &'static str,
+    pub source_session_id: String,
+    pub session_id: String,
+    /// 0-based round index within the session (ordering key).
+    pub seq: i64,
+    pub model: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub created_at_ms: i64,
+}
+
+/// Per-round usage snapshot inside a parse-watermark state blob:
+/// [`RoundUsage`] minus the identity columns re-derivable from the record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredRoundUsage {
+    pub seq: i64,
+    pub model: Option<String>,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub cache_read_tokens: i64,
+    pub cache_write_tokens: i64,
+    pub created_at_ms: i64,
+}
+
+impl StoredRoundUsage {
+    pub fn into_round_usage(
+        self,
+        source: &'static str,
+        source_session_id: &str,
+        session_id: &str,
+    ) -> RoundUsage {
+        RoundUsage {
+            source,
+            source_session_id: source_session_id.to_string(),
+            session_id: session_id.to_string(),
+            seq: self.seq,
+            model: self.model,
+            input_tokens: self.input_tokens,
+            output_tokens: self.output_tokens,
+            cache_read_tokens: self.cache_read_tokens,
+            cache_write_tokens: self.cache_write_tokens,
+            created_at_ms: self.created_at_ms,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -12,6 +12,7 @@ export type { HintWithInfoProps } from "./HintWithInfo";
 export type { SessionGroupPageProps } from "./SessionGroupPage";
 export type {
   SessionTableColumnKey,
+  SessionTableColumnOverrides,
   SessionTableItem,
   SessionTableProps,
 } from "./SessionTable";

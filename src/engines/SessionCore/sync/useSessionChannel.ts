@@ -53,6 +53,15 @@ const log = createLogger("useSessionChannel");
 
 const readySessionChannels = new Set<string>();
 const readySessionChannelWaiters = new Map<string, Set<() => void>>();
+type SessionEventListener = (raw: string) => void;
+
+interface SharedSessionChannel {
+  channel: Channel<string>;
+  lifecycle: SessionChannelLifecycle;
+  listeners: Set<SessionEventListener>;
+}
+
+const sharedSessionChannels = new Map<string, SharedSessionChannel>();
 
 function markSessionChannelReady(sessionId: string): void {
   readySessionChannels.add(sessionId);
@@ -66,26 +75,36 @@ function markSessionChannelReady(sessionId: string): void {
  * Wait until the active SessionSyncProvider has registered the per-session IPC
  * channel. New fork sessions can complete very quickly; dispatching before this
  * edge can lose the terminal event and leave only the optimistic running state.
+ *
+ * Resolves `true` when the channel registered, `false` on timeout. A timeout
+ * means NO surface has mounted the session's channel — every lifecycle frame
+ * (agent:complete, queue_status) for a dispatch made now will be dropped at
+ * the bus registry and the turn will only end via the 60s planning-indicator
+ * watchdog. Callers must surface this loudly instead of dispatching as if
+ * ready.
  */
 export async function waitForSessionChannelReady(
   sessionId: string,
   timeoutMs = 5_000
-): Promise<void> {
-  if (readySessionChannels.has(sessionId)) return;
-  await new Promise<void>((resolve) => {
+): Promise<boolean> {
+  if (readySessionChannels.has(sessionId)) return true;
+  return new Promise<boolean>((resolve) => {
     const waiters = readySessionChannelWaiters.get(sessionId) ?? new Set();
-    waiters.add(resolve);
     readySessionChannelWaiters.set(sessionId, waiters);
     const timer = setTimeout(() => {
-      waiters.delete(resolve);
+      waiters.delete(wrappedResolve);
       if (waiters.size === 0) readySessionChannelWaiters.delete(sessionId);
-      resolve();
+      log.warn(
+        `[SessionChannel] channel for ${sessionId} not registered after ` +
+          `${timeoutMs}ms — no surface mounted it; lifecycle frames for ` +
+          `dispatches made now will be lost until a session view mounts`
+      );
+      resolve(false);
     }, timeoutMs);
     const wrappedResolve = () => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     };
-    waiters.delete(resolve);
     waiters.add(wrappedResolve);
   });
 }
@@ -230,6 +249,109 @@ export class SessionChannelLifecycle {
 }
 
 /**
+ * Share one backend IPC channel among every mounted consumer of a session.
+ *
+ * Work-item previews, file lists, and the full SessionCore can coexist. A
+ * subscriber adds only a callback; the first subscriber owns the backend
+ * registration and the last subscriber tears it down.
+ */
+export function subscribeToSessionEvents(
+  sessionId: string,
+  listener: SessionEventListener
+): () => void {
+  let shared = sharedSessionChannels.get(sessionId);
+  if (!shared) {
+    const channel = new Channel<string>();
+    const listeners = new Set<SessionEventListener>();
+    const lifecycle = new SessionChannelLifecycle(
+      sessionId,
+      {
+        subscribe: () =>
+          invoke<number>("subscribe_session_events", {
+            sessionId,
+            onEvent: channel,
+          }),
+        unsubscribe: (channelId) =>
+          invoke("unsubscribe_session_events", {
+            sessionId,
+            channelId,
+          }) as Promise<void>,
+        warn: (message, error) => log.warn(message, error),
+      },
+      (raw) => {
+        if (listeners.size === 0) {
+          log.warn(
+            `[SessionChannel] delivered frame for ${sessionId} had no ` +
+              `subscribers; the backend channel outlived every consumer`
+          );
+          return;
+        }
+        for (const subscriber of [...listeners]) {
+          try {
+            subscriber(raw);
+          } catch (error) {
+            log.warn(
+              `[SessionChannel] Subscriber failed (session=${sessionId}):`,
+              error
+            );
+          }
+        }
+      }
+    );
+    shared = { channel, lifecycle, listeners };
+    listeners.add(listener);
+    sharedSessionChannels.set(sessionId, shared);
+
+    channel.onmessage = (message: string) => {
+      recordPushEvent("channel", "session-events");
+      if (
+        message.includes('"agent:complete"') ||
+        message.includes('"agent:error"')
+      ) {
+        log.info(
+          `[SessionChannel] lifecycle frame arrived for ${sessionId} ` +
+            `(destroyed=${lifecycle.isDestroyed()})`
+        );
+      }
+      lifecycle.onMessage(message);
+    };
+    void lifecycle.start().then((channelId) => {
+      if (
+        channelId !== null &&
+        !lifecycle.isDestroyed() &&
+        sharedSessionChannels.get(sessionId)?.lifecycle === lifecycle
+      ) {
+        markSessionChannelReady(sessionId);
+      }
+    });
+  }
+
+  shared.listeners.add(listener);
+  // Re-subscribing onto a channel that is still registered must re-assert
+  // readiness: `readySessionChannels` is cleared on the last unsubscribe, and
+  // without this a later consumer would wait out the full readiness timeout
+  // (and dispatch believing no channel exists) even though the backend
+  // registration never went away.
+  if (shared.lifecycle.getChannelId() !== null) {
+    markSessionChannelReady(sessionId);
+  }
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    const current = sharedSessionChannels.get(sessionId);
+    if (!current) return;
+    current.listeners.delete(listener);
+    if (current.listeners.size > 0) return;
+
+    sharedSessionChannels.delete(sessionId);
+    readySessionChannels.delete(sessionId);
+    current.channel.onmessage = () => undefined;
+    void current.lifecycle.dispose();
+  };
+}
+
+/**
  * Subscribe to Tauri IPC Channel events for a specific session.
  *
  * @param sessionId - Session to subscribe to (null = no subscription)
@@ -249,44 +371,8 @@ export function useSessionChannel(
 
   useEffect(() => {
     if (!sessionId) return;
-
-    const channel = new Channel<string>();
-    const lifecycle = new SessionChannelLifecycle(
-      sessionId,
-      {
-        subscribe: () =>
-          invoke<number>("subscribe_session_events", {
-            sessionId,
-            onEvent: channel,
-          }),
-        unsubscribe: (channelId) =>
-          invoke("unsubscribe_session_events", {
-            sessionId,
-            channelId,
-          }) as Promise<void>,
-        warn: (message, error) => log.warn(message, error),
-      },
-      (raw) => onEventRef.current(raw)
+    return subscribeToSessionEvents(sessionId, (raw) =>
+      onEventRef.current(raw)
     );
-
-    channel.onmessage = (message: string) => {
-      recordPushEvent("channel", "session-events");
-      lifecycle.onMessage(message);
-    };
-
-    const subscription = lifecycle.start();
-    void subscription.then((channelId) => {
-      if (channelId !== null && !lifecycle.isDestroyed()) {
-        markSessionChannelReady(sessionId);
-      }
-    });
-
-    return () => {
-      readySessionChannels.delete(sessionId);
-      // Sever the callback eagerly; lifecycle.dispose() guards late messages,
-      // and replacing the Tauri handler also releases the React closure.
-      channel.onmessage = () => undefined;
-      void lifecycle.dispose();
-    };
   }, [sessionId]);
 }

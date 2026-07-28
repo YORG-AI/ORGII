@@ -1,7 +1,7 @@
 /**
  * Shared display helpers for external data-source on-disk paths.
  *
- * Lifted out of DataSourcePanel so the row cells and the expanded
+ * Lifted out of RuntimeDataSourcePanel so the row cells and the expanded
  * DataSourceDetailsCard format store paths + kinds identically.
  */
 import type { ExternalCliSourceProbe } from "@src/api/tauri/externalHistory";

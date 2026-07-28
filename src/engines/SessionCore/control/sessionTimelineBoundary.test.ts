@@ -17,6 +17,14 @@ const markStoppedSpy = vi.hoisted(() => vi.fn());
 const getEventsSpy = vi.hoisted(() => vi.fn());
 const patchByIdsSpy = vi.hoisted(() => vi.fn());
 const killAgentShellProcessSpy = vi.hoisted(() => vi.fn());
+const isTurnActiveSpy = vi.hoisted(() => vi.fn());
+
+vi.mock("@src/engines/SessionCore/control/turnLifecycle", async () => {
+  const actual = await vi.importActual<
+    typeof import("@src/engines/SessionCore/control/turnLifecycle")
+  >("@src/engines/SessionCore/control/turnLifecycle");
+  return { ...actual, isTurnActive: isTurnActiveSpy };
+});
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
   getInstrumentedStore: () => ({ get: storeGetSpy, set: storeSetSpy }),
@@ -54,6 +62,7 @@ describe("sessionTimelineBoundary", () => {
     getEventsSpy.mockResolvedValue([]);
     patchByIdsSpy.mockResolvedValue(undefined);
     killAgentShellProcessSpy.mockResolvedValue("killed");
+    isTurnActiveSpy.mockReturnValue(false);
   });
 
   it("makes Stop boundary local and O(1)", () => {
@@ -312,12 +321,9 @@ describe("sessionTimelineBoundary", () => {
   });
 
   it("interrupts backend for active rewind boundaries", async () => {
-    storeGetSpy.mockImplementation((atom: { debugLabel?: string }) => {
-      if (atom.debugLabel === "isSessionActive") return true;
-      if (atom.debugLabel === "sessionRuntimeStatus") return "running";
-      if (atom.debugLabel === "session/sortedEvents") return [];
-      return new Map();
-    });
+    isTurnActiveSpy.mockImplementation(
+      (sessionId: string) => sessionId === "session-1"
+    );
     interruptSpy.mockResolvedValue(undefined);
 
     await cancelTurnForTimelineBoundary("session-1", "rewind");

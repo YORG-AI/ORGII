@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const log = createLogger("useWebviewInspector");
 
@@ -241,13 +242,7 @@ export function useWebviewInspector(
       return;
     }
 
-    // Immediate check
-    refreshSelection();
-
-    // Then poll at interval
-    const intervalId = setInterval(refreshSelection, pollInterval);
-
-    return () => clearInterval(intervalId);
+    return startVisibilityAwarePoller(document, refreshSelection, pollInterval);
   }, [isInspectMode, webviewLabel, enabled, pollInterval, refreshSelection]);
 
   // Cleanup on unmount or webview change

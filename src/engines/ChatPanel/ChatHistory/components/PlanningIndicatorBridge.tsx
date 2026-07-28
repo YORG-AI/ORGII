@@ -3,7 +3,7 @@ import type { ComponentProps, FC } from "react";
 import { useEffect } from "react";
 
 import { manualCompactInFlightSessionAtom } from "@src/engines/ChatPanel/hooks/useManualCompact";
-import { streamingDeltaContentAtom } from "@src/engines/SessionCore/core/atoms";
+import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import { usePlanningIndicator } from "@src/engines/SessionCore/hooks";
 
@@ -30,11 +30,8 @@ const PlanningIndicatorBridge: FC<PlanningIndicatorBridgeProps> = ({
 }) => {
   const { count, variantIndex } = usePlanningIndicator(planningIndicatorScope);
   const activeSessionId = useAtomValue(sessionIdAtom);
-  const streamingDeltaMap = useAtomValue(streamingDeltaContentAtom);
   const scopedSessionId = planningIndicatorScope?.sessionId ?? activeSessionId;
-  const liveDelta = scopedSessionId
-    ? streamingDeltaMap.get(scopedSessionId)
-    : undefined;
+  const liveDelta = useStreamingDeltaForSession(scopedSessionId);
   const isAgentTyping = liveDelta?.kind === "message";
   const compactingSessionId = useAtomValue(manualCompactInFlightSessionAtom);
   const isCompacting =

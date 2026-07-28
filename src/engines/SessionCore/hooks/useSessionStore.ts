@@ -39,8 +39,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { useRouteViewMode } from "@src/config/routeViewModeConfig";
-import { ROUTES } from "@src/config/routes";
+import { ROUTES, isWorkbenchPath } from "@src/config/routes";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 import {
@@ -281,7 +280,6 @@ export function useCurrentEvent(): SessionEvent | null {
  */
 export function useEventNavigation() {
   const navigate = useNavigate();
-  const viewMode = useRouteViewMode();
   const stationMode = useAtomValue(stationModeAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const navigateToEventAtomSetter = useSetAtom(navigateToEventAtom);
@@ -291,7 +289,7 @@ export function useEventNavigation() {
 
   const navigateToEvent = useCallback(
     (eventId: string) => {
-      if (viewMode !== "workStation") {
+      if (!isWorkbenchPath(window.location.pathname)) {
         navigate(ROUTES.workStation.base.path);
       }
       if (stationMode !== "agent-station") {
@@ -299,7 +297,7 @@ export function useEventNavigation() {
       }
       navigateToEventAtomSetter(eventId);
     },
-    [navigate, navigateToEventAtomSetter, setStationMode, stationMode, viewMode]
+    [navigate, navigateToEventAtomSetter, setStationMode, stationMode]
   );
 
   return useMemo(

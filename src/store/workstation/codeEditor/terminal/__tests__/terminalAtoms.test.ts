@@ -225,6 +225,21 @@ describe("terminal atoms", () => {
   });
 
   describe("updateTerminalSessionInfoAtom", () => {
+    it("does not replace terminal state when metadata is unchanged", () => {
+      store.set(updateTerminalSessionInfoAtom, {
+        sessionId: "initial-1",
+        info: { sequenceTitle: "Codex" },
+      });
+      const stateBefore = store.get(terminalSessionsAtom);
+
+      store.set(updateTerminalSessionInfoAtom, {
+        sessionId: "initial-1",
+        info: { sequenceTitle: "Codex" },
+      });
+
+      expect(store.get(terminalSessionsAtom)).toBe(stateBefore);
+    });
+
     it("updates session metadata", () => {
       store.set(updateTerminalSessionInfoAtom, {
         sessionId: "initial-1",

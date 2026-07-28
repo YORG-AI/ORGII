@@ -17,7 +17,7 @@ use agent_core::interaction::plan_approval::{self, PlanResolution};
 use agent_core::session::AgentExecMode;
 use agent_core::tools::names as tool_names;
 
-use super::commands::{cli_agent_create, cli_agent_message, cli_agent_run};
+use super::commands::{cli_agent_create, cli_agent_delete, cli_agent_message, cli_agent_run};
 use super::persistence::{self, CreateCodeSessionParams};
 
 fn run(
@@ -34,12 +34,13 @@ fn run(
             account_id: params.account_id,
             repo_path: params.repo_path,
             branch: params.branch,
+            worktree_path: params.worktree_path,
+            worktree_base_ref: params.worktree_base_ref,
             proxy_token: None,
             proxy_url: None,
             hosted_token: params.hosted_token,
             proxy_session_id: None,
             isolate: if params.isolate { Some(true) } else { None },
-            worktree_path: params.worktree_path,
             background: if params.background { Some(true) } else { None },
             key_source: params.key_source,
             additional_directories: params.additional_directories,
@@ -58,7 +59,7 @@ fn run(
         let created_at = session.created_at.clone();
 
         if !params.user_input.trim().is_empty() {
-            cli_agent_run(
+            if let Err(err) = cli_agent_run(
                 session_id.clone(),
                 params.user_input,
                 None,
@@ -67,19 +68,29 @@ fn run(
                 params.images,
             )
             .await
-            .map_err(|err| {
+            {
                 tracing::warn!(
                     "[cli::agent_core_bridge] cli_agent_run failed for {}: {}",
                     session_id,
                     err
                 );
-                err
-            })?;
+                let cleanup_error = cli_agent_delete(session_id.clone()).await.err();
+                return Err(match cleanup_error {
+                    Some(cleanup_error) => {
+                        format!("{err}; failed to roll back CLI session: {cleanup_error}")
+                    }
+                    None => err,
+                });
+            }
         }
 
         Ok(CliLaunchOutcome {
             session_id,
             created_at,
+            workspace_path: session.repo_path,
+            worktree_path: session.worktree_path,
+            worktree_branch: session.worktree_branch,
+            base_ref: session.base_branch,
         })
     })
 }

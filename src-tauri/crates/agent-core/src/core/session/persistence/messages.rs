@@ -1,7 +1,7 @@
 //! Message persistence — insertion, loading, truncation, history building.
 
 use chrono::Utc;
-use rusqlite::{params, Result as SqliteResult};
+use rusqlite::{params, OptionalExtension, Result as SqliteResult};
 use uuid::Uuid;
 
 use crate::persistence::db_helpers as shared;
@@ -18,6 +18,229 @@ use database::db::{get_connection, with_sessions_writer};
 /// family*, the other names a *category enum value*).
 const SESSION_TABLE_PREFIX: &str = "agent";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentOrgInboxTranscriptMaterialization {
+    pub message_id: String,
+    pub intent_id: String,
+    pub content: String,
+}
+
+/// Load the transcript batches already materialized for the supplied unread
+/// Inbox rows in this exact Session. A row stays unread until a successful
+/// provider turn, but its durable receipt prevents it from being appended to
+/// the transcript a second time when a later Inbox row joins the retry batch.
+pub fn load_agent_org_inbox_transcript_materializations(
+    session_id: &str,
+    inbox_ids: &[i64],
+) -> Result<
+    (
+        std::collections::HashSet<i64>,
+        Vec<AgentOrgInboxTranscriptMaterialization>,
+    ),
+    String,
+> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    let mut materialized_ids = std::collections::HashSet::new();
+    let mut batches = std::collections::BTreeMap::new();
+    let mut stmt = conn
+        .prepare(
+            "SELECT receipt.session_id,
+                    receipt.transcript_message_id,
+                    receipt.transcript_intent_id,
+                    message.content
+             FROM agent_inbox_materializations receipt
+             LEFT JOIN agent_messages message
+               ON message.id=receipt.transcript_message_id
+              AND message.session_id=receipt.session_id
+             WHERE receipt.inbox_id=?1",
+        )
+        .map_err(|err| err.to_string())?;
+    for inbox_id in inbox_ids {
+        let row: Option<(String, String, String, Option<String>)> = stmt
+            .query_row(params![inbox_id], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?))
+            })
+            .optional()
+            .map_err(|err| err.to_string())?;
+        let Some((receipt_session_id, message_id, intent_id, content)) = row else {
+            continue;
+        };
+        if receipt_session_id != session_id {
+            return Err(format!(
+                "Agent Org Inbox row {inbox_id} is materialized in another live session {receipt_session_id}; refusing to duplicate delivery into {session_id}"
+            ));
+        }
+        let content = content.ok_or_else(|| {
+            format!(
+                "Agent Org Inbox materialization for row {inbox_id} references missing transcript {message_id}"
+            )
+        })?;
+        materialized_ids.insert(*inbox_id);
+        batches
+            .entry(message_id.clone())
+            .or_insert(AgentOrgInboxTranscriptMaterialization {
+                message_id,
+                intent_id,
+                content,
+            });
+    }
+    Ok((materialized_ids, batches.into_values().collect()))
+}
+
+/// Atomically persist one newly-rendered Inbox transcript and a receipt for
+/// every source row. If another turn materialized any member of this batch
+/// after the read snapshot, fail closed and let the next Wake rebuild the
+/// batch from current receipts; never persist a partially duplicated batch.
+pub fn materialize_agent_org_inbox_transcript(
+    session_id: &str,
+    inbox_ids: &[i64],
+    message_id: &str,
+    intent_id: &str,
+    content: &str,
+) -> Result<(AgentOrgInboxTranscriptMaterialization, bool), String> {
+    if inbox_ids.is_empty() {
+        return Err("cannot materialize an empty Agent Org Inbox batch".to_string());
+    }
+    with_sessions_writer(|| -> Result<_, String> {
+        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|err| err.to_string())?;
+
+        let mut existing_receipts = Vec::new();
+        {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT session_id, transcript_message_id, transcript_intent_id
+                     FROM agent_inbox_materializations WHERE inbox_id=?1",
+                )
+                .map_err(|err| err.to_string())?;
+            for inbox_id in inbox_ids {
+                if let Some(receipt) = stmt
+                    .query_row(params![inbox_id], |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    })
+                    .optional()
+                    .map_err(|err| err.to_string())?
+                {
+                    existing_receipts.push((*inbox_id, receipt));
+                }
+            }
+        }
+        if !existing_receipts.is_empty() {
+            return Err(
+                "Agent Org Inbox materialization changed after drain; retry from a fresh unread snapshot"
+                    .to_string(),
+            );
+        }
+
+        let unread_count = {
+            let mut stmt = tx
+                .prepare("SELECT read_at FROM agent_inbox WHERE id=?1")
+                .map_err(|err| err.to_string())?;
+            let mut count = 0usize;
+            for inbox_id in inbox_ids {
+                let read_at: Option<Option<String>> = stmt
+                    .query_row(params![inbox_id], |row| row.get(0))
+                    .optional()
+                    .map_err(|err| err.to_string())?;
+                if matches!(read_at, Some(None)) {
+                    count += 1;
+                }
+            }
+            count
+        };
+        if unread_count != inbox_ids.len() {
+            return Err(
+                "Agent Org Inbox materialization source rows changed after drain; retry"
+                    .to_string(),
+            );
+        }
+
+        let already_exists: bool = tx
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM agent_messages WHERE id=?1)",
+                params![message_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        let inserted = if already_exists {
+            let existing: (String, String) = tx
+                .query_row(
+                    "SELECT session_id, content FROM agent_messages WHERE id=?1",
+                    params![message_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .map_err(|err| err.to_string())?;
+            if existing.0 != session_id || existing.1 != content {
+                return Err(format!(
+                    "stable Agent Org Inbox transcript id {message_id} conflicts with different persisted content"
+                ));
+            }
+            false
+        } else {
+            let sequence: i64 = tx
+                .query_row(
+                    "SELECT COALESCE(MAX(sequence), -1) + 1 FROM agent_messages WHERE session_id=?1",
+                    params![session_id],
+                    |row| row.get(0),
+                )
+                .map_err(|err| err.to_string())?;
+            let now = Utc::now().to_rfc3339();
+            tx.execute(
+                "INSERT INTO agent_messages
+                 (id, session_id, role, content, tool_name, tool_call_id, tool_input,
+                  tool_output, model, sequence, created_at, images,
+                  compact_from_sequence, compact_tokens_before, compact_tokens_after)
+                 VALUES (?1, ?2, 'user', ?3, NULL, NULL, NULL, NULL, NULL, ?4, ?5,
+                         NULL, NULL, NULL, NULL)",
+                params![message_id, session_id, content, sequence, &now],
+            )
+            .map_err(|err| err.to_string())?;
+            tx.execute(
+                "UPDATE agent_sessions SET updated_at=?2 WHERE session_id=?1",
+                params![session_id, &now],
+            )
+            .map_err(|err| err.to_string())?;
+            true
+        };
+
+        let materialized_at = Utc::now().to_rfc3339();
+        {
+            let mut stmt = tx
+                .prepare(
+                    "INSERT INTO agent_inbox_materializations
+                     (inbox_id, session_id, transcript_message_id, transcript_intent_id, materialized_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                )
+                .map_err(|err| err.to_string())?;
+            for inbox_id in inbox_ids {
+                stmt.execute(params![
+                    inbox_id,
+                    session_id,
+                    message_id,
+                    intent_id,
+                    &materialized_at
+                ])
+                .map_err(|err| err.to_string())?;
+            }
+        }
+        tx.commit().map_err(|err| err.to_string())?;
+        Ok((
+            AgentOrgInboxTranscriptMaterialization {
+                message_id: message_id.to_string(),
+                intent_id: intent_id.to_string(),
+                content: content.to_string(),
+            },
+            inserted,
+        ))
+    })
+}
+
 /// Save a user message.
 pub fn save_user_msg(
     session_id: &str,
@@ -25,6 +248,16 @@ pub fn save_user_msg(
     images: Option<&[String]>,
 ) -> SqliteResult<String> {
     shared::save_user_msg(SESSION_TABLE_PREFIX, session_id, content, images)
+}
+
+/// Persist an at-least-once user input under a stable id. Replays return the
+/// same id without inserting a second transcript row.
+pub fn save_user_msg_with_id(
+    message_id: &str,
+    session_id: &str,
+    content: &str,
+) -> SqliteResult<(String, bool)> {
+    shared::save_user_msg_with_id(SESSION_TABLE_PREFIX, message_id, session_id, content)
 }
 
 /// Save an assistant message.

@@ -1687,6 +1687,8 @@
     "sessionProvenance": {
       "masterToggle": "Kaynak izleme hook'ları",
       "masterToggleDesc": "Kapatıldığında tüm yönetilen hook'lar kaldırılır ve hiçbir sinyal yakalanmaz; platform seçimleri korunur ve yeniden açıldığında geri yüklenir.",
+      "liveStatusToggle": "Canlı ajan durumu",
+      "liveStatusToggleDesc": "Çalışan CLI ajanlarının çalıştığını veya beklediğini gösterir. Kapatılsa da kaynak izleme sürer.",
       "title": "Oturum kaynağı",
       "capture": "Dosya etkileşimlerini kaydet",
       "description": "Dosya okuma ve yazma işlemlerini meta veri olarak kaydeder. İstemler, araç çıktıları ve dosya içerikleri saklanmaz.",

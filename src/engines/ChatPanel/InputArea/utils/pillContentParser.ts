@@ -86,7 +86,7 @@ export function parsePillTextToSnapshot(text: string): ComposerSnapshot {
       if (lastSpaceIdx >= 0) {
         precedingText = rawDisplayName.slice(0, lastSpaceIdx + 1);
         fileName = rawDisplayName.slice(lastSpaceIdx + 1).trim();
-      } else if (pillType === "session") {
+      } else if (pillType === "session" || pillType === "link") {
         precedingText = "";
         fileName = rawDisplayName.trim();
       } else if (rawDisplayName.endsWith(pathFileName)) {

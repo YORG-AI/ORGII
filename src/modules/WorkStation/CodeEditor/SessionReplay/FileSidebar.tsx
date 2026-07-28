@@ -131,66 +131,69 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   // buildFileTree / flattenFileTree only re-run when the actual file set
   // changes, NOT on every currentEventId navigation.
 
+  const readOperations = useMemo(
+    () => fileOperations.filter((op) => op.type === FILE_OPERATION_TYPE.READ),
+    [fileOperations]
+  );
+
   const readFileKey = useMemo(
     () =>
-      fileOperations
-        .filter((op) => op.type === FILE_OPERATION_TYPE.READ)
-        .map((op) => op.eventId)
+      readOperations
+        .map((op) => `${op.eventId}:${op.event?.createdAt ?? ""}`)
         .join(","),
-    [fileOperations]
+    [readOperations]
   );
 
   const readItems: FileTreeInput[] = useMemo(
     () =>
-      fileOperations
-        .filter((op) => op.type === FILE_OPERATION_TYPE.READ)
-        .map((op) => ({
-          id: op.eventId,
-          filePath: op.filePath,
-          fileName: op.fileName,
-        })),
+      readOperations.map((op) => ({
+        id: op.eventId,
+        filePath: op.filePath,
+        fileName: op.fileName,
+      })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by readFileKey
     [readFileKey]
   );
 
+  const writeOperations = useMemo(
+    () =>
+      fileOperations.filter(
+        (op) =>
+          op.type === FILE_OPERATION_TYPE.WRITE ||
+          op.type === FILE_OPERATION_TYPE.DELETE
+      ),
+    [fileOperations]
+  );
+
   const writeFileKey = useMemo(
     () =>
-      fileOperations
-        .filter(
-          (op) =>
-            op.type === FILE_OPERATION_TYPE.WRITE ||
-            op.type === FILE_OPERATION_TYPE.DELETE
-        )
+      writeOperations
         .map((op) => {
-          if (op.type === FILE_OPERATION_TYPE.DELETE) return `${op.eventId}:D`;
+          if (op.type === FILE_OPERATION_TYPE.DELETE) {
+            return `${op.eventId}:D:${op.event?.createdAt ?? ""}`;
+          }
           const hasBaseline =
             op.writeHasBaselineContent !== undefined
               ? op.writeHasBaselineContent
               : Boolean(resolveFileOperationPayload(op).oldContent);
-          return `${op.eventId}:${hasBaseline ? "M" : "A"}`;
+          return `${op.eventId}:${hasBaseline ? "M" : "A"}:${op.event?.createdAt ?? ""}:${op.editCount ?? 1}`;
         })
         .join(","),
-    [fileOperations]
+    [writeOperations]
   );
 
   const writeItems: FileTreeInput[] = useMemo(
     () =>
-      fileOperations
-        .filter(
-          (op) =>
-            op.type === FILE_OPERATION_TYPE.WRITE ||
-            op.type === FILE_OPERATION_TYPE.DELETE
-        )
-        .map((op) => {
-          const badge = getWriteStatusBadge(op);
-          return {
-            id: op.eventId,
-            filePath: op.filePath,
-            fileName: op.fileName,
-            statusLabel: badge?.label,
-            statusColorClass: badge?.colorClass,
-          };
-        }),
+      writeOperations.map((op) => {
+        const badge = getWriteStatusBadge(op);
+        return {
+          id: op.eventId,
+          filePath: op.filePath,
+          fileName: op.fileName,
+          statusLabel: badge?.label,
+          statusColorClass: badge?.colorClass,
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by writeFileKey
     [writeFileKey]
   );

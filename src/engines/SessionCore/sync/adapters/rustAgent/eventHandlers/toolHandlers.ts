@@ -15,7 +15,6 @@ import { createLogger } from "@src/hooks/logger";
 import { clearMcpProgressForCallAtom } from "@src/store/session/mcpProgressAtom";
 
 import { makeToolResultEvent } from "../../shared/eventBuilders";
-import { isShellTool } from "../../shared/streamingParsers";
 import {
   SPAWNED_SESSION_RE,
   findActiveSubagentCallIndex,
@@ -45,7 +44,6 @@ export function handleToolCall(
   ctx: EventHandlerContext
 ): void {
   ctx.onStatusChangeRef.current?.("running");
-  ctx.execOutputBufferRef.current = "";
 
   if (ctx.assistantStreamRef) {
     ctx.assistantStreamRef.current.contentRef.current = "";
@@ -135,17 +133,10 @@ export async function handleToolResult(
   // merges it into the matching tool_call by callId and marks it completed.
   // Do not synthesize a frontend result event from this broadcast preview — it
   // can race with/downgrade the authoritative row and may truncate full output.
-  if (!ctx.features.hasCodingSessionBridge) {
-    if (event.tool && isShellTool(event.tool)) {
-      ctx.execOutputBufferRef.current = "";
-    }
-    return;
-  }
+  if (!ctx.features.hasCodingSessionBridge) return;
 
   // OS: complex coding session tracking
-  const bufferedOutput = ctx.execOutputBufferRef.current;
-  ctx.execOutputBufferRef.current = "";
-  const resultContent = bufferedOutput || event.result || "";
+  const resultContent = event.result || "";
 
   let trackedParentEventId: string | null = null;
   let shouldMarkParentRunning = false;

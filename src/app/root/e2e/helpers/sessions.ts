@@ -25,6 +25,7 @@ import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
 import {
   chatPanelTabsAtom,
   openOrFocusChatPanelStartPageTabAtom,
+  openOrFocusSessionInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { reposAtom, selectedRepoIdAtom } from "@src/store/repo/atoms";
 import {
@@ -43,18 +44,18 @@ import {
   pendingPlanApprovalsAtom,
   upsertPendingPlanApproval,
 } from "@src/store/session/planApprovalAtom";
+import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
+import { loadSessions } from "@src/store/session/sessionAtom/loaders";
 import { upsertSession } from "@src/store/session/sessionAtom/mutations";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import {
   activeSessionIdAtom,
   jumpToSessionAtom,
-  openSessionAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session/viewAtom";
 import { chatImageAttachmentsAtom } from "@src/store/ui/chatImageAtom";
 import {
   CHAT_PANEL_CONTENT_MODE,
-  CHAT_PANEL_START_PAGE_TAB,
   DEFAULT_CHAT_PANEL_CREATE_TARGET,
   chatPanelContentModeAtom,
   chatPanelCreateTargetAtom,
@@ -282,9 +283,7 @@ export function createSessionHelpers(store: E2EStore) {
       // New-session creation now lives inside the singleton Launchpad's Work
       // tab. Focus that canonical tab instead of forcing the legacy bare
       // session surface, which no longer mounts SessionCreator by itself.
-      store.set(openOrFocusChatPanelStartPageTabAtom, {
-        section: CHAT_PANEL_START_PAGE_TAB.WORK,
-      });
+      store.set(openOrFocusChatPanelStartPageTabAtom, {});
       store.set(chatPanelCreateTargetAtom, DEFAULT_CHAT_PANEL_CREATE_TARGET);
       store.set(chatPanelSelectedWorkItemAtom, null);
       store.set(chatPanelMaximizedAtom, true);
@@ -453,7 +452,15 @@ export function createSessionHelpers(store: E2EStore) {
       store.set(chatPanelSelectedWorkItemAtom, null);
       store.set(chatPanelMaximizedAtom, true);
       store.set(chatWidthAtom, 560);
-      store.set(openSessionAtom, { sessionId, sessionName, repoPath });
+      // Keep the canonical tab identity and the legacy session atoms in one
+      // transition. Writing `openSessionAtom` alone leaves a previously-active
+      // cloud-org/work-item tab in front of the seeded session, so rendered
+      // E2E would test a stale management surface instead of the product flow.
+      store.set(openOrFocusSessionInChatPanelTabAtom, {
+        sessionId,
+        sessionName,
+        repoPath,
+      });
       store.set(sessionIdAtom, sessionId);
       store.set(sessionRuntimeStatusAtom, "idle");
       await eventStoreProxy.switchSession(sessionId);
@@ -752,6 +759,22 @@ export function createSessionHelpers(store: E2EStore) {
     }
   };
 
+  const reloadSessionList = async (): Promise<
+    Result<{ count: number; sessionIds: string[] }>
+  > => {
+    try {
+      await loadSessions({ forceRefresh: true });
+      const sessions = store.get(sessionsAtom) as Session[];
+      return {
+        ok: true,
+        count: sessions.length,
+        sessionIds: sessions.map((session) => session.session_id),
+      };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
   return {
     promptDump: promptDumpHelper,
     getActiveSessionId,
@@ -761,6 +784,7 @@ export function createSessionHelpers(store: E2EStore) {
     inspectCliHistoryMutation,
     resetToNewSession,
     openSession,
+    reloadSessionList,
     launchSession,
     getSessionAggregateRow,
     getSessionAggregateRowFromList,

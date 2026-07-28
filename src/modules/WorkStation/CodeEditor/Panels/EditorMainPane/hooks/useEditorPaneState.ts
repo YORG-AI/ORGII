@@ -56,8 +56,12 @@ interface FileContentStateRef {
 // ============================================
 
 export function useEditorPaneState(
-  /** Optional ref to file content state for save-on-close */
-  fileContentStateRef?: MutableRefObject<FileContentStateRef>,
+  /**
+   * Optional ref to file content state for save-on-close. Null until the host
+   * has rendered once — it is only dereferenced inside `closeTab`, which the
+   * user cannot reach before first paint.
+   */
+  fileContentStateRef?: MutableRefObject<FileContentStateRef | null>,
   /** Optional ref to force refresh function */
   forceRefreshRef?: MutableRefObject<() => void>
 ): UseEditorPaneStateReturn {
@@ -146,7 +150,7 @@ export function useEditorPaneState(
 
           if (
             isActiveTab &&
-            fileContentStateRef &&
+            fileContentStateRef?.current &&
             !fileContentStateRef.current.isBinary &&
             !isCsvTableFile(filePath)
           ) {
@@ -167,8 +171,13 @@ export function useEditorPaneState(
 
             // Result is the button LABEL (e.g., "Save", "Don't Save", "Cancel")
             if (result === "Save") {
-              // User clicked "Save" - save the file then close
+              // User clicked "Save" - save the file then close.
+              // Re-read after the dialog await so we persist the latest buffer.
               const contentState = fileContentStateRef.current;
+              if (!contentState) {
+                log.error("[closeTab] File content unavailable; not closing");
+                return; // Same policy as a failed save: keep the tab open
+              }
               if (filePath) {
                 try {
                   const contentToSave = contentState.content ?? "";
@@ -191,7 +200,7 @@ export function useEditorPaneState(
               // Continue to close the tab
             } else if (result === "Don't Save") {
               // User clicked "Don't Save" - discard changes and close
-              fileContentStateRef.current.discardChanges();
+              fileContentStateRef.current?.discardChanges();
               window.dispatchEvent(
                 new CustomEvent("filesync:file-discarded", {
                   detail: { path: filePath },

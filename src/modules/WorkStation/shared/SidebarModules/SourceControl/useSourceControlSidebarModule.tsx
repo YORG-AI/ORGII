@@ -35,9 +35,6 @@ import {
   ICON_CONFIG,
   PANEL_CONSTANTS,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/config";
-import GitHistoryContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent";
-import IssuesContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent";
-import PullRequestContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent";
 import { useSourceControlActions } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks";
 import { useSectionFilter } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/useSectionFilter";
 import {
@@ -45,6 +42,7 @@ import {
   useSourceControlTabConfig,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/tabs/SourceControlTab";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout";
+import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workstationIssueCallbackAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import {
   workstationPrCallbackAtomFamily,
@@ -57,6 +55,22 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 import type { SourceControlFilterMode } from "./SourceControlFilterHeader";
 
 const HistoryRefreshIcon = ICON_CONFIG.refresh;
+const GitHistoryContent = React.lazy(
+  () =>
+    import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent")
+);
+const PullRequestContent = React.lazy(
+  () =>
+    import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent")
+);
+const IssuesContent = React.lazy(
+  () =>
+    import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent")
+);
+
+const AlternateModeFallback = () => (
+  <Placeholder variant="loading" placement="sidebar" fillParentHeight />
+);
 
 export interface UseSourceControlSidebarModuleOptions {
   repoPath: string;
@@ -406,14 +420,16 @@ export function useSourceControlSidebarModule({
             onClose={clearHistoryFilter}
           />
         )}
-        <GitHistoryContent
-          repoPath={repoPath}
-          repoId={repoId}
-          viewMode="graph"
-          onRefreshReady={handleHistoryRefreshReady}
-          onHistorySelectionChange={onGitHistorySelectionChange}
-          filterQuery={historyFilterQuery}
-        />
+        <React.Suspense fallback={<AlternateModeFallback />}>
+          <GitHistoryContent
+            repoPath={repoPath}
+            repoId={repoId}
+            viewMode="graph"
+            onRefreshReady={handleHistoryRefreshReady}
+            onHistorySelectionChange={onGitHistorySelectionChange}
+            filterQuery={historyFilterQuery}
+          />
+        </React.Suspense>
       </div>
     ),
     [
@@ -438,13 +454,15 @@ export function useSourceControlSidebarModule({
             onClose={clearPrFilter}
           />
         )}
-        <PullRequestContent
-          branchName={branchName}
-          filterQuery={prFilterQuery}
-          onHistorySelectionChange={onGitHistorySelectionChange}
-          repoId={repoId}
-          repoPath={repoPath}
-        />
+        <React.Suspense fallback={<AlternateModeFallback />}>
+          <PullRequestContent
+            branchName={branchName}
+            filterQuery={prFilterQuery}
+            onHistorySelectionChange={onGitHistorySelectionChange}
+            repoId={repoId}
+            repoPath={repoPath}
+          />
+        </React.Suspense>
       </div>
     ),
     [
@@ -462,15 +480,17 @@ export function useSourceControlSidebarModule({
   const issuesContent = useMemo(
     () => (
       <div className="flex h-full min-h-0 flex-col">
-        <IssuesContent
-          repoPath={repoPath}
-          repoId={repoId}
-          branchName={branchName}
-          showFilter={showIssuesFilter}
-          filterQuery={issuesFilterQuery}
-          onFilterQueryChange={setIssuesFilterQuery}
-          onFilterClose={clearIssuesFilter}
-        />
+        <React.Suspense fallback={<AlternateModeFallback />}>
+          <IssuesContent
+            repoPath={repoPath}
+            repoId={repoId}
+            branchName={branchName}
+            showFilter={showIssuesFilter}
+            filterQuery={issuesFilterQuery}
+            onFilterQueryChange={setIssuesFilterQuery}
+            onFilterClose={clearIssuesFilter}
+          />
+        </React.Suspense>
       </div>
     ),
     [

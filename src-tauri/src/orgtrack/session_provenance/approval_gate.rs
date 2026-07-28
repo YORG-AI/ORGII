@@ -190,7 +190,10 @@ mod tests {
             parsed["hookSpecificOutput"]["hookEventName"],
             "PermissionRequest"
         );
-        assert_eq!(parsed["hookSpecificOutput"]["decision"]["behavior"], "allow");
+        assert_eq!(
+            parsed["hookSpecificOutput"]["decision"]["behavior"],
+            "allow"
+        );
         // The verified contract nests the decision under `decision` (unlike
         // PreToolUse's flat `permissionDecision`); make sure we never emit
         // the PreToolUse field by accident.

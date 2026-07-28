@@ -8,6 +8,7 @@ import {
   deleteTerminalBuffer,
   getTerminalBuffer,
   getTerminalBufferCacheSize,
+  getTerminalBufferCacheStats,
   hydrateFromPersistence,
   isCacheHydrated,
   setTerminalBuffer,
@@ -140,6 +141,30 @@ describe("bufferCache", () => {
       const initialSize = getTerminalBufferCacheSize();
       setTerminalBuffer("size-test-session", "content");
       expect(getTerminalBufferCacheSize()).toBeGreaterThanOrEqual(initialSize);
+    });
+  });
+
+  describe("byte budgets", () => {
+    it("keeps only the tail of an oversized buffer", () => {
+      const oversized = `prefix-${"x".repeat(600_000)}-tail`;
+
+      setTerminalBuffer("oversized-session", oversized);
+
+      const retained = getTerminalBuffer("oversized-session");
+      expect(retained?.endsWith("-tail")).toBe(true);
+      expect((retained?.length ?? 0) * 2).toBeLessThanOrEqual(1024 * 1024);
+    });
+
+    it("keeps the aggregate cache within its byte budget", () => {
+      const oneMiBUtf16 = "x".repeat(512 * 1024);
+
+      for (let idx = 0; idx < 10; idx++) {
+        setTerminalBuffer(`byte-budget-session-${idx}`, oneMiBUtf16);
+      }
+
+      const stats = getTerminalBufferCacheStats();
+      expect(stats.bytes).toBeLessThanOrEqual(8 * 1024 * 1024);
+      expect(stats.entries).toBeLessThanOrEqual(8);
     });
   });
 });

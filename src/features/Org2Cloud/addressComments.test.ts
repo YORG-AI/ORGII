@@ -4,7 +4,6 @@ import {
   type AddressableThread,
   buildAddressCommentsBriefing,
   collectAddressableThreads,
-  parseAddressReplies,
 } from "./addressComments";
 import type { CloudSessionComment } from "./org2CloudCommentsClient";
 
@@ -262,33 +261,5 @@ describe("buildAddressCommentsBriefing", () => {
       expect(label).not.toContain("⟦");
       expect(label).not.toContain("⟧");
     }
-  });
-});
-
-describe("parseAddressReplies", () => {
-  const valid = new Set(["c-1", "c-2"]);
-
-  it("extracts one body per known section and drops unknown ids", () => {
-    const text = [
-      "I addressed everything.",
-      "### REPLY c-1",
-      "Fixed the null check in foo.ts.",
-      "### REPLY c-9",
-      "ghost section",
-      "### REPLY c-2",
-      "Pushed back: the cast is intentional,",
-      "see the comment above it.",
-    ].join("\n");
-    expect(parseAddressReplies(text, valid)).toEqual([
-      { commentId: "c-1", body: "Fixed the null check in foo.ts." },
-      {
-        commentId: "c-2",
-        body: "Pushed back: the cast is intentional,\nsee the comment above it.",
-      },
-    ]);
-  });
-
-  it("returns empty when the contract was ignored", () => {
-    expect(parseAddressReplies("no sections here", valid)).toEqual([]);
   });
 });

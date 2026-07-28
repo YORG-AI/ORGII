@@ -47,7 +47,6 @@ const ICON_STRATEGY: Record<string, AnimationStrategy> = {
   sparkles: "sparkle-fill",
   search: "search-bounce",
   "search-code": "search-bounce",
-  "chart-no-axes-gantt": "stagger-bars",
   "list-todo": "stroke-draw",
   database: "stroke-draw",
   "git-branch": "stroke-draw",

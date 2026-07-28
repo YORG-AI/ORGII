@@ -13,7 +13,9 @@ use super::history::{append_deleted_event, append_restored_event, ensure_created
 use super::mapping::{
     assemble_work_item, read_extras_for, read_labels_for, row_to_core, ConnectionLike,
 };
-use crate::projects::types::{WorkItemData, WorkItemFrontmatter};
+use crate::projects::types::{
+    ScheduledWorkItemCandidate, WorkItemData, WorkItemFrontmatter, WorkItemReadBucket,
+};
 
 const WORK_ITEM_PREFIX_LENGTH: usize = 3;
 
@@ -27,9 +29,93 @@ pub fn read_all_work_items(project_slug: &str) -> Result<Vec<WorkItemData>, Stri
     read_all_work_items_scoped(project_slug, None)
 }
 
+/// Read only work items that can affect the one-shot/start-date scheduler.
+///
+/// The filter and projection stay in SQLite so the executor does not perform
+/// the old projects × work-items N+1 read or materialize bodies, labels,
+/// comments, history, and other unrelated payloads on each idle pass.
+pub fn read_scheduled_work_item_candidates() -> Result<Vec<ScheduledWorkItemCandidate>, String> {
+    let connection = conn()?;
+    let mut stmt = map_db(connection.prepare(
+        "SELECT p.slug, w.short_id, w.title, w.status, w.start_date, e.extras_json
+         FROM workitems w
+         JOIN projects p ON p.id = w.project_id
+         LEFT JOIN workitem_extras e ON e.work_item_id = w.id
+         WHERE w.deleted_at IS NULL
+           AND (
+             (
+               w.status IN ('backlog', 'planned', 'todo')
+               AND w.start_date IS NOT NULL
+               AND TRIM(w.start_date) <> ''
+             )
+             OR (
+               CASE
+                 WHEN json_valid(e.extras_json)
+                 THEN json_extract(e.extras_json, '$.schedule.enabled')
+                 ELSE 0
+               END = 1
+               AND CASE
+                 WHEN json_valid(e.extras_json)
+                 THEN json_extract(e.extras_json, '$.schedule.at')
+                 ELSE NULL
+               END IS NOT NULL
+             )
+           )
+         ORDER BY p.slug, w.short_id",
+    ))?;
+    let rows = map_db(stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, Option<String>>(5)?,
+        ))
+    }))?;
+
+    let mut candidates = Vec::new();
+    for row in rows {
+        let (project_slug, short_id, title, status, start_date, extras_json) = map_db(row)?;
+        let extras = match extras_json.as_deref() {
+            Some(json) => match serde_json::from_str::<ExtrasPayload>(json) {
+                Ok(extras) => extras,
+                Err(err) => {
+                    tracing::warn!(
+                        work_item = %short_id,
+                        error = %err,
+                        raw_len = json.len(),
+                        "work_items::crud: skipping malformed scheduler extras"
+                    );
+                    ExtrasPayload::default()
+                }
+            },
+            None => ExtrasPayload::default(),
+        };
+        candidates.push(ScheduledWorkItemCandidate {
+            project_slug,
+            short_id,
+            title,
+            status,
+            start_date,
+            orchestrator_config: extras.orchestrator_config,
+            schedule: extras.schedule,
+        });
+    }
+    Ok(candidates)
+}
+
 pub fn read_all_work_items_scoped(
     project_slug: &str,
     org_id: Option<&str>,
+) -> Result<Vec<WorkItemData>, String> {
+    read_all_work_items_scoped_filtered(project_slug, org_id, None)
+}
+
+pub fn read_all_work_items_scoped_filtered(
+    project_slug: &str,
+    org_id: Option<&str>,
+    read_bucket: Option<WorkItemReadBucket>,
 ) -> Result<Vec<WorkItemData>, String> {
     let connection = conn()?;
     let project_id = resolve_project_id_scoped(&connection, project_slug, org_id)?;
@@ -46,6 +132,12 @@ pub fn read_all_work_items_scoped(
     let mut out = Vec::new();
     for entry in rows {
         let core = map_db(entry)?;
+        if read_bucket
+            .map(|bucket| !bucket.matches(&core.status))
+            .unwrap_or(false)
+        {
+            continue;
+        }
         let labels = read_labels_for(&connection, &core.work_item_id)?;
         let extras = read_extras_for(&connection, &core.work_item_id)?;
         out.push(assemble_work_item(core, labels, extras));
@@ -86,6 +178,13 @@ pub fn read_work_item_scoped(
 }
 
 pub fn read_standalone_work_items(org_id: Option<&str>) -> Result<Vec<WorkItemData>, String> {
+    read_standalone_work_items_filtered(org_id, None)
+}
+
+pub fn read_standalone_work_items_filtered(
+    org_id: Option<&str>,
+    read_bucket: Option<WorkItemReadBucket>,
+) -> Result<Vec<WorkItemData>, String> {
     let connection = conn()?;
     let org_id = org_id.unwrap_or("personal-org");
     let mut stmt = map_db(connection.prepare(
@@ -100,6 +199,12 @@ pub fn read_standalone_work_items(org_id: Option<&str>) -> Result<Vec<WorkItemDa
     let mut out = Vec::new();
     for entry in rows {
         let core = map_db(entry)?;
+        if read_bucket
+            .map(|bucket| !bucket.matches(&core.status))
+            .unwrap_or(false)
+        {
+            continue;
+        }
         let labels = read_labels_for(&connection, &core.work_item_id)?;
         let extras = read_extras_for(&connection, &core.work_item_id)?;
         out.push(assemble_work_item(core, labels, extras));
@@ -412,6 +517,7 @@ fn write_work_item_with_scope(
     ))?;
 
     map_db(tx.commit())?;
+    crate::projects::events::notify_work_item_schedule_changed();
     Ok(())
 }
 
@@ -451,7 +557,9 @@ pub(crate) fn purge_work_item(project_slug: &str, short_id: &str) -> Result<(), 
     if affected == 0 {
         return Err(format!("Work item '{}' not found", short_id));
     }
-    map_db(tx.commit())
+    map_db(tx.commit())?;
+    crate::projects::events::notify_work_item_schedule_changed();
+    Ok(())
 }
 
 pub fn restore_work_item(project_slug: &str, short_id: &str) -> Result<WorkItemData, String> {
@@ -481,10 +589,14 @@ pub fn purge_expired_deleted_work_items(project_slug: &str) -> Result<usize, Str
         .ok_or_else(|| "Failed to compute delete bin expiration".to_string())?
         .timestamp_millis();
 
-    map_db(connection.execute(
+    let purged = map_db(connection.execute(
         "DELETE FROM workitems WHERE project_id = ?1 AND deleted_at IS NOT NULL AND deleted_at < ?2",
         params![&project_id, expires_before],
-    ))
+    ))?;
+    if purged > 0 {
+        crate::projects::events::notify_work_item_schedule_changed();
+    }
+    Ok(purged)
 }
 
 /// Allocate the next short ID for a work item under `project_slug`.
@@ -598,6 +710,7 @@ pub fn move_work_item(short_id: &str, from_project: &str, to_project: &str) -> R
     )?;
 
     map_db(tx.commit())?;
+    crate::projects::events::notify_work_item_schedule_changed();
     if let Some((work_item_id, org_id)) = moved {
         crate::sync::collab_bridge::record_work_item_write(
             &org_id,

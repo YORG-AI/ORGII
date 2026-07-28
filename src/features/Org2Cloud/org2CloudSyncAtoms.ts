@@ -17,8 +17,6 @@
  *   re-anchors through the server OCC check.
  * - `org2CloudCollabStateCursorsAtom` — per-org delta cursor for the
  *   projects/work-items listing (cloud-parity Phase B).
- * - `org2CloudCommentTaskCursorsAtom` — per-org delta cursor for the
- *   comment agent-task listing (migration 0002).
  */
 import { atomWithStorage } from "jotai/utils";
 import { z } from "zod/v4";
@@ -137,22 +135,3 @@ export const org2CloudCollabStateCursorsAtom = atomWithStorage<
   { getOnInit: true }
 );
 org2CloudCollabStateCursorsAtom.debugLabel = "org2CloudCollabStateCursorsAtom";
-
-const CommentTaskCursorsSchema = z.record(z.string(), z.string());
-
-/**
- * Cloud orgId → ISO delta cursor for `cloud_list_comment_tasks` (comment
- * agent tasks, migration 0002). Same discipline as the collab-state cursor
- * above: anchored on the RPC's serverTime minus the 2s safety overlap,
- * full listing once per engine start; losing one merely widens the next
- * delta — the task-map merge is an idempotent `updated_at` LWW.
- */
-export const org2CloudCommentTaskCursorsAtom = atomWithStorage<
-  Record<string, string>
->(
-  cloudStorageKey("commentTaskCursors"),
-  {},
-  createZodJsonStorage(CommentTaskCursorsSchema),
-  { getOnInit: true }
-);
-org2CloudCommentTaskCursorsAtom.debugLabel = "org2CloudCommentTaskCursorsAtom";

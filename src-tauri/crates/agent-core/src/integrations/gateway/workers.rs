@@ -33,7 +33,8 @@ pub(super) fn spawn_inbound_processor(
 ) -> tokio::task::JoinHandle<()> {
     let merge_buffer = MergeBuffer::new();
 
-    // Drain loop: polls the merge buffer every 50 ms for ready batches.
+    // Drain loop: parks until the earliest batch deadline or a push changes
+    // that deadline. There is no idle polling.
     let drain_buf = merge_buffer.clone();
     let drain_handler = Arc::clone(&handler);
     let drain_bus = bus.clone();
@@ -41,7 +42,22 @@ pub(super) fn spawn_inbound_processor(
     let drain_running = gateway_running.clone();
     tokio::spawn(async move {
         while drain_running.load(Ordering::Relaxed) {
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            match drain_buf.next_deadline_delay().await {
+                Some(delay) if !delay.is_zero() => {
+                    tokio::select! {
+                        _ = tokio::time::sleep(delay) => {}
+                        _ = drain_buf.wait_for_change() => continue,
+                    }
+                }
+                Some(_) => {}
+                None => {
+                    drain_buf.wait_for_change().await;
+                    continue;
+                }
+            }
+            if !drain_running.load(Ordering::Relaxed) {
+                break;
+            }
             let ready = drain_buf.drain_ready().await;
             for merged_msg in ready {
                 let handler = Arc::clone(&drain_handler);
@@ -103,9 +119,18 @@ pub(super) fn spawn_inbound_processor(
                 msg
             };
 
-            merge_buffer.push(msg).await;
+            let forced = merge_buffer.push(msg).await;
+            for merged_msg in forced {
+                tokio::spawn(handle_ready_message(
+                    merged_msg,
+                    Arc::clone(&handler),
+                    bus.clone(),
+                    channel_manager.clone(),
+                ));
+            }
         }
 
+        merge_buffer.wake();
         info!("[gateway] Inbound processor stopped");
     })
 }

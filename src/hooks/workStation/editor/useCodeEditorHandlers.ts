@@ -25,7 +25,6 @@ import type { GitFile } from "@src/types/git/types";
 
 import type { UseGitDiffStateReturn } from "../git/useGitDiffState";
 import type { UseCodeEditorReturn } from "../useCodeEditor";
-import { loadGitFileDiffContent } from "./gitDiffContent";
 
 const logger = createLogger("CodeEditorHandlers");
 
@@ -264,27 +263,9 @@ export function useCodeEditorHandlers(
       });
       gitDiffState.addTab(relativePath);
 
-      if (file.oldContent !== undefined || !effectiveRepoPath) {
-        gitDiffState.setLoading(false);
-        return;
-      }
-
-      gitDiffState.setLoading(true);
-      loadGitFileDiffContent({
-        repoPath: effectiveRepoPath,
-        file,
-        relativePath,
-      })
-        .then((diffFile) => {
-          if (!diffFile) return;
-          gitDiffState.setFile(relativePath, diffFile);
-        })
-        .catch((error) => {
-          logger.error("Failed to load git diff:", error);
-        })
-        .finally(() => {
-          gitDiffState.setLoading(false);
-        });
+      // The visible GitDiffContent owns loading the body. Selection only
+      // publishes metadata so a click cannot race a second full-diff request.
+      gitDiffState.setLoading(false);
     },
     [repoPath, setPrimaryPanel, gitDiffState]
   );

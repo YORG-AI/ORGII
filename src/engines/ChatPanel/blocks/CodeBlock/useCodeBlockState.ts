@@ -98,10 +98,13 @@ export function useCodeBlockState({
   const isDiff = detectedLanguage === "diff" || detectedLanguage === "patch";
 
   const parsedDiff = useMemo(() => {
-    if (!isDiff) return null;
+    // Skip the parse while collapsed: the parsed diff only feeds the block
+    // body, which isn't rendered when collapsed (raw tool blocks default to
+    // collapsed). It re-parses lazily the first time the block is expanded.
+    if (isCollapsed || !isDiff) return null;
     if (diffPayload) return diffPayload;
     return parseUnifiedDiff(code);
-  }, [code, diffPayload, isDiff]);
+  }, [code, diffPayload, isDiff, isCollapsed]);
 
   const hasProvidedStats =
     linesAdded !== undefined || linesRemoved !== undefined;
@@ -150,7 +153,8 @@ export function useCodeBlockState({
   }, [code, codeLines, isExpanded, needsExpand, visibleLines]);
 
   const displayedDiff = useMemo(() => {
-    if (!isDiff) return null;
+    // Body-only; skip the (possibly truncating) parse while collapsed.
+    if (isCollapsed || !isDiff) return null;
     if (diffPayload) return diffPayload;
     if (isExpanded || !needsExpand) return parsedDiff;
 
@@ -163,6 +167,7 @@ export function useCodeBlockState({
     isExpanded,
     needsExpand,
     visibleLines,
+    isCollapsed,
   ]);
 
   const displayedLineCount = isExpanded

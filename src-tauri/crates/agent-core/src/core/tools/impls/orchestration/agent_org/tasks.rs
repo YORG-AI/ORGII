@@ -22,6 +22,7 @@
 //!   value that means "remove this row from the board" so the LLM
 //!   does not need a separate `task_delete` tool.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use serde_json::{json, Map, Value};
@@ -31,14 +32,20 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_tasks::{
-    self, eligible_member_ids as task_eligible_member_ids, AgentOrgTaskStore, Task,
-    TaskExecutionMode, TaskOutput, TaskStatus, TASK_COMPLETED_IMMUTABLE_ERROR,
-    TASK_DEPENDENCY_CYCLE_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_EXECUTION_MODE,
-    TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE, TASK_MUTATION_CONFLICT_ERROR,
+    self, eligible_member_ids as task_eligible_member_ids, Task, TaskExecutionMode,
+    TaskMutationOutcome, TaskOutput, TaskStatus, TaskSummary, TASK_COMPLETED_IMMUTABLE_ERROR,
+    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
+    TASK_DEPENDENCY_CYCLE_ERROR, TASK_DEPENDENCY_LIMIT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
+    TASK_MUTATION_CONFLICT_ERROR, TASK_RUN_TASK_LIMIT_ERROR,
 };
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 use crate::tools::traits::ToolError;
 
+#[path = "inbox_repair.rs"]
+pub mod inbox_repair;
+#[path = "run_complete.rs"]
+pub mod run_complete;
 #[path = "task_create.rs"]
 pub mod task_create;
 #[path = "task_graph_create.rs"]
@@ -51,13 +58,16 @@ mod task_tests;
 #[path = "task_update.rs"]
 pub mod task_update;
 
+pub use inbox_repair::{OrgInboxRepairParams, OrgInboxRepairTool};
+pub use run_complete::{OrgRunCompleteParams, OrgRunCompleteTool};
 pub use task_create::{TaskCreateParams, TaskCreateTool, TaskDispatchPolicy};
 pub use task_graph_create::{TaskGraphCreateParams, TaskGraphCreateTool, TaskGraphNodeParams};
 pub use task_list_get::{TaskGetParams, TaskGetTool, TaskListParams, TaskListTool};
 pub use task_update::{TaskUpdateParams, TaskUpdateTool};
 
-/// Shared context for the four task tools. Cloned cheaply via `Arc` —
-/// every tool stores its own clone so registry slots stay independent.
+/// Shared context for Agent Org task, run-completion, and inbox-repair tools.
+/// Cloned cheaply via `Arc` — every tool stores its own clone so registry
+/// slots stay independent.
 pub struct TaskToolsContext {
     pub org_context: Arc<AgentOrgRunContext>,
     /// Backing agent definition id of the calling session. This is transport
@@ -73,6 +83,19 @@ pub struct TaskToolsContext {
     /// `org_send_message` uses; passed in here so tests can inject
     /// the no-op variant.
     pub wake_hook: Arc<dyn InboxWakeHook>,
+}
+
+/// Durable task side effects written in the same transaction as their board
+/// mutation. Only the wake list is acted on after commit; losing a wake is
+/// recoverable because the inbox rows remain the durable source of truth.
+#[derive(Debug, Default)]
+pub(crate) struct TaskOutboxCommit {
+    pub(crate) task_assigned_ids: Vec<String>,
+    pub(crate) unblocked_task_assigned_ids: Vec<String>,
+    pub(crate) task_completed_notified: bool,
+    pub(crate) remaining_open_task_count: usize,
+    pub(crate) assignment_required_task_ids: Vec<String>,
+    wake_member_ids: Vec<String>,
 }
 
 impl TaskToolsContext {
@@ -191,15 +214,9 @@ impl TaskToolsContext {
             .allowed_task_target_member_ids_for(&self.caller_member_id);
         match task.owner.as_deref() {
             Some(owner_member_id) => allowed.iter().any(|member_id| member_id == owner_member_id),
-            None => {
-                let eligible = task_eligible_member_ids(task);
-                !eligible.is_empty()
-                    && eligible.iter().all(|eligible_member_id| {
-                        allowed
-                            .iter()
-                            .any(|member_id| member_id == eligible_member_id)
-                    })
-            }
+            // Eligibility is a candidate list, not ownership or authority.
+            // Ownerless work is administered only by the coordinator.
+            None => false,
         }
     }
 
@@ -250,6 +267,10 @@ impl TaskToolsContext {
         &self,
         raw_member_ids: Vec<String>,
     ) -> Result<Vec<String>, String> {
+        crate::coordination::agent_org_payload_limits::validate_task_eligible_member_ids(
+            "eligible_member_ids",
+            &raw_member_ids,
+        )?;
         let mut resolved = Vec::new();
         for raw_member_id in raw_member_ids {
             let member_id = raw_member_id.trim();
@@ -281,15 +302,97 @@ impl TaskToolsContext {
             .require_participant_agent_id(owner_member_id)
     }
 
-    pub(crate) fn dispatch_task_assigned(&self, task: &Task) -> bool {
-        self.dispatch_task_assigned_with_sender(task, false)
+    pub(crate) fn persist_created_tasks_outbox_in_tx(
+        &self,
+        conn: &rusqlite::Connection,
+        created_tasks: &[Task],
+        all_tasks: &[Task],
+    ) -> Result<TaskOutboxCommit, String> {
+        let graph = agent_org_tasks::TaskGraphIndex::new(all_tasks);
+        let mut outbox = TaskOutboxCommit {
+            remaining_open_task_count: all_tasks
+                .iter()
+                .filter(|task| !task.status.is_resolved())
+                .count(),
+            assignment_required_task_ids: all_tasks
+                .iter()
+                .filter(|task| task.owner.is_none() && !task.status.is_resolved())
+                .map(|task| task.id.clone())
+                .collect(),
+            ..TaskOutboxCommit::default()
+        };
+        for task in created_tasks {
+            if task.status != TaskStatus::Pending || task.owner.is_none() || !graph.is_ready(task) {
+                continue;
+            }
+            self.persist_task_assigned_in_tx(conn, task, all_tasks, false, &mut outbox)?;
+            outbox.task_assigned_ids.push(task.id.clone());
+        }
+        Ok(outbox)
     }
 
-    fn dispatch_task_assigned_as_system(&self, task: &Task) -> bool {
-        self.dispatch_task_assigned_with_sender(task, true)
+    pub(crate) fn persist_task_update_outbox_in_tx(
+        &self,
+        conn: &rusqlite::Connection,
+        outcome: &TaskMutationOutcome,
+        all_tasks: &[Task],
+    ) -> Result<TaskOutboxCommit, String> {
+        let mut outbox = TaskOutboxCommit {
+            remaining_open_task_count: all_tasks
+                .iter()
+                .filter(|task| !task.status.is_resolved())
+                .count(),
+            assignment_required_task_ids: all_tasks
+                .iter()
+                .filter(|task| task.owner.is_none() && !task.status.is_resolved())
+                .map(|task| task.id.clone())
+                .collect(),
+            ..TaskOutboxCommit::default()
+        };
+        let updated = &outcome.current;
+        let graph = agent_org_tasks::TaskGraphIndex::new(all_tasks);
+        let updated_ready = updated.status == TaskStatus::Pending
+            && updated.owner.is_some()
+            && graph.is_ready(updated);
+        if updated_ready && (outcome.owner_changed || outcome.became_ready) {
+            self.persist_task_assigned_in_tx(conn, updated, all_tasks, false, &mut outbox)?;
+            outbox.task_assigned_ids.push(updated.id.clone());
+        }
+
+        if outcome.became_completed {
+            for task in all_tasks {
+                if task.status != TaskStatus::Pending || task.owner.is_none() {
+                    continue;
+                }
+                // `TaskGraphIndex` normalizes both canonical downstream
+                // `blocked_by` edges and historical upstream `blocks` edges.
+                // Looking only at the raw field here strands legacy graphs:
+                // the task is ready, but its TaskAssigned outbox is skipped.
+                if !graph.blocked_by(&task.id).contains(&updated.id) || !graph.is_ready(task) {
+                    continue;
+                }
+                self.persist_task_assigned_in_tx(conn, task, all_tasks, true, &mut outbox)?;
+                outbox.unblocked_task_assigned_ids.push(task.id.clone());
+            }
+            outbox.task_completed_notified =
+                self.persist_task_completed_in_tx(conn, updated, outbox.remaining_open_task_count)?;
+        }
+        Ok(outbox)
     }
 
-    fn dispatch_task_assigned_with_sender(&self, task: &Task, system_dispatch: bool) -> bool {
+    fn persist_task_assigned_in_tx(
+        &self,
+        conn: &rusqlite::Connection,
+        task: &Task,
+        tasks: &[Task],
+        system_dispatch: bool,
+        outbox: &mut TaskOutboxCommit,
+    ) -> Result<(), String> {
+        let owner_member_id = task
+            .owner
+            .as_deref()
+            .ok_or_else(|| format!("ready task {} has no owner", task.id))?;
+        let recipient_agent_id = self.recipient_agent_id_for_owner_member_id(owner_member_id)?;
         let display = if system_dispatch {
             "Agent Org scheduler".to_string()
         } else {
@@ -297,68 +400,36 @@ impl TaskToolsContext {
         };
         let caller_owner_member_id = self.caller_owner_member_id();
         let sender_agent_id =
-            if system_dispatch || task.owner.as_deref() == Some(caller_owner_member_id.as_str()) {
+            if system_dispatch || owner_member_id == caller_owner_member_id.as_str() {
                 SYSTEM_SENDER_ID.to_string()
             } else {
                 self.caller_agent_id.clone()
             };
-        let sender_member_id = if sender_agent_id == SYSTEM_SENDER_ID {
-            None
-        } else {
-            Some(caller_owner_member_id.as_str())
-        };
-        if let Some(owner_member_id) = task.owner.as_deref() {
-            let recipient_agent_id =
-                match self.recipient_agent_id_for_owner_member_id(owner_member_id) {
-                    Ok(agent_id) => agent_id,
-                    Err(err) => {
-                        tracing::warn!(
-                            target = "agent_org_tasks",
-                            owner_member_id = %owner_member_id,
-                            task_id = %task.id,
-                            error = %err,
-                            "failed to resolve TaskAssigned recipient",
-                        );
-                        return false;
-                    }
-                };
-            match agent_org_tasks::enqueue_task_assigned_to(
-                task,
-                &recipient_agent_id,
-                owner_member_id,
-                &sender_agent_id,
-                sender_member_id,
-                &display,
-            ) {
-                Ok(_) => {
-                    self.wake_hook
-                        .wake_member(owner_member_id, &self.org_context.run_id);
-                    true
-                }
-                Err(err) => {
-                    tracing::warn!(
-                        target = "agent_org_tasks",
-                        owner_member_id = %owner_member_id,
-                        task_id = %task.id,
-                        error = %err,
-                        "failed to enqueue TaskAssigned inbox row",
-                    );
-                    false
-                }
-            }
-        } else {
-            false
-        }
+        let sender_member_id =
+            (sender_agent_id != SYSTEM_SENDER_ID).then_some(caller_owner_member_id.as_str());
+        agent_org_tasks::enqueue_task_assigned_to_with_tasks_in_tx(
+            conn,
+            task,
+            tasks,
+            &recipient_agent_id,
+            owner_member_id,
+            &sender_agent_id,
+            sender_member_id,
+            &display,
+        )?;
+        outbox.wake_member_ids.push(owner_member_id.to_string());
+        Ok(())
     }
 
-    pub(crate) fn dispatch_task_completed(
+    fn persist_task_completed_in_tx(
         &self,
+        conn: &rusqlite::Connection,
         task: &Task,
         remaining_open_task_count: usize,
-    ) -> bool {
+    ) -> Result<bool, String> {
         let completed_by_member_id = self.caller_owner_member_id();
         if completed_by_member_id == COORDINATOR_MEMBER_ID {
-            return false;
+            return Ok(false);
         }
         let output_summary = agent_org_tasks::task_output(task).map(|output| output.summary);
         let message = AgentMessage::TaskCompleted {
@@ -368,86 +439,40 @@ impl TaskToolsContext {
             output_summary,
             remaining_open_task_count,
         };
-        if let Err(err) = message.validate() {
-            tracing::warn!(
-                target = "agent_org_tasks",
-                task_id = %task.id,
-                error = %err,
-                "refusing invalid TaskCompleted payload",
-            );
-            return false;
-        }
-        match AgentInboxStore::insert(InsertInboxParams {
-            recipient_agent_id: self.org_context.coordinator_agent_id.clone(),
-            recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
-            sender_agent_id: SYSTEM_SENDER_ID.to_string(),
-            sender_member_id: None,
-            org_run_id: Some(self.org_context.run_id.clone()),
-            message,
-        }) {
-            Ok(_) => {
-                self.wake_hook
-                    .wake_member(COORDINATOR_MEMBER_ID, &self.org_context.run_id);
-                true
-            }
-            Err(err) => {
-                tracing::warn!(
-                    target = "agent_org_tasks",
-                    task_id = %task.id,
-                    error = %err,
-                    "failed to enqueue TaskCompleted coordinator notification",
-                );
-                false
-            }
-        }
+        message.validate()?;
+        AgentInboxStore::insert_in_tx(
+            conn,
+            InsertInboxParams {
+                recipient_agent_id: self.org_context.coordinator_agent_id.clone(),
+                recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+                sender_agent_id: SYSTEM_SENDER_ID.to_string(),
+                sender_member_id: None,
+                org_run_id: Some(self.org_context.run_id.clone()),
+                message,
+            },
+        )?;
+        Ok(true)
     }
 
-    pub(crate) fn dispatch_ready_assigned_tasks_unblocked_by(
-        &self,
-        blocker_task_id: &str,
-    ) -> Vec<String> {
-        let tasks = match AgentOrgTaskStore::list(&self.org_context.run_id) {
-            Ok(tasks) => tasks,
-            Err(err) => {
-                tracing::warn!(
-                    target = "agent_org_tasks",
-                    run_id = %self.org_context.run_id,
-                    error = %err,
-                    "failed to list tasks after dependency completion",
-                );
-                return Vec::new();
-            }
-        };
-        let mut dispatched = Vec::new();
-        for task in &tasks {
-            if task.status != TaskStatus::Pending || task.owner.is_none() {
-                continue;
-            }
-            if !task.blocked_by.iter().any(|id| id == blocker_task_id) {
-                continue;
-            }
-            if !task_dependencies_resolved(&tasks, task) {
-                continue;
-            }
-            // The authorized task graph already owns this transition. The
-            // member completing an upstream task did not personally assign
-            // the downstream owner, so render the wake as a system dispatch
-            // rather than implying peer-to-peer managerial authority.
-            if self.dispatch_task_assigned_as_system(task) {
-                dispatched.push(task.id.clone());
+    pub(crate) fn wake_committed_task_outbox(&self, outbox: &TaskOutboxCommit) {
+        let mut seen = HashSet::new();
+        for member_id in outbox.wake_member_ids.iter().map(String::as_str).chain(
+            outbox
+                .task_completed_notified
+                .then_some(COORDINATOR_MEMBER_ID),
+        ) {
+            if seen.insert(member_id) {
+                self.wake_hook
+                    .wake_member(member_id, &self.org_context.run_id);
             }
         }
-        dispatched
     }
 }
 
 pub(crate) fn task_dependencies_resolved(all_tasks: &[Task], task: &Task) -> bool {
-    task.blocked_by.iter().all(|blocker_id| {
-        all_tasks
-            .iter()
-            .find(|candidate| &candidate.id == blocker_id)
-            .is_some_and(|candidate| candidate.status.is_resolved())
-    })
+    crate::coordination::agent_org_tasks::TaskGraphIndex::new(all_tasks)
+        .unresolved_blockers(&task.id)
+        .is_empty()
 }
 
 pub(crate) fn merge_task_metadata(
@@ -530,6 +555,10 @@ pub(crate) fn map_task_write_error(err: String) -> ToolError {
     if err.starts_with(TASK_DEPENDENCY_CYCLE_ERROR)
         || err.starts_with(TASK_COMPLETED_IMMUTABLE_ERROR)
         || err.starts_with(TASK_MUTATION_CONFLICT_ERROR)
+        || err.starts_with(TASK_DELETE_HAS_DEPENDENTS_ERROR)
+        || err.starts_with(TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR)
+        || err.starts_with(TASK_DEPENDENCY_LIMIT_ERROR)
+        || err.starts_with(TASK_RUN_TASK_LIMIT_ERROR)
     {
         ToolError::InvalidParams(err)
     } else {
@@ -557,7 +586,42 @@ pub(crate) fn task_to_json(task: &Task) -> Value {
         "required_role": required_role,
         "execution_mode": agent_org_tasks::task_execution_mode(task).as_wire(),
         "output": agent_org_tasks::task_output(task),
-        "metadata": task.metadata,
+        "metadata": task.metadata.as_ref().and_then(|metadata| {
+            let mut metadata = metadata.as_object()?.clone();
+            for reserved_key in [
+                agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+                agent_org_tasks::TASK_METADATA_REQUIRED_ROLE,
+                agent_org_tasks::TASK_METADATA_EXECUTION_MODE,
+                agent_org_tasks::TASK_METADATA_OUTPUT,
+            ] {
+                metadata.remove(reserved_key);
+            }
+            (!metadata.is_empty()).then_some(Value::Object(metadata))
+        }),
+        "created_at": task.created_at,
+        "updated_at": task.updated_at,
+    })
+}
+
+pub(crate) fn compact_task_summary_to_json(task: &TaskSummary) -> Value {
+    json!({
+        "id": task.id,
+        "subject": task.subject,
+        "description": task.description,
+        "description_truncated": task.description_truncated,
+        "active_form": task.active_form,
+        "owner": task.owner,
+        "owner_member_id": task.owner,
+        "status": task.status.as_wire(),
+        "blocks": task.blocks,
+        "blocks_truncated": task.blocks_truncated,
+        "blocked_by": task.blocked_by,
+        "blocked_by_truncated": task.blocked_by_truncated,
+        "eligible_member_ids": task.eligible_member_ids,
+        "eligible_member_ids_truncated": task.eligible_member_ids_truncated,
+        "required_role": task.required_role,
+        "execution_mode": task.execution_mode.as_wire(),
+        "output": task.output,
         "created_at": task.created_at,
         "updated_at": task.updated_at,
     })

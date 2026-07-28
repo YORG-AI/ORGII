@@ -219,7 +219,9 @@ pub(super) fn build_command_with_launch_profile(
         | ModelType::MistralVibe
         | ModelType::Autohand
         | ModelType::Omp
-        | ModelType::Pi => {
+        | ModelType::Pi
+        | ModelType::QoderCli
+        | ModelType::TraeCli => {
             if !task.is_empty() {
                 cmd.push(task.into());
             }

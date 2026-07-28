@@ -12,6 +12,7 @@
     "drafts": "초안",
     "browser": "브라우저",
     "editor": "편집기",
+    "environment": "환경",
     "workspace": "작업 공간",
     "codeEditor": "코드 편집기",
     "databaseManager": "DB 관리자",
@@ -60,15 +61,9 @@
     "startSession": "세션 시작",
     "sessions": "Session 목록",
     "selectProject": "Project 선택",
-    "startPage": "시작 페이지",
     "inbox": "받은 편지함",
     "login": "로그인",
     "setup": "설정",
-    "devJourney": "개발 여정",
-    "devRecord": "개발 기록",
-    "gitDashboard": "Git 대시보드",
-    "devActivity": "Dev 활동",
-    "usageHistory": "사용 내역",
     "tokenMarket": "Token 마켓",
     "taskMarket": "작업 마켓",
     "channels": "Channel",
@@ -84,20 +79,8 @@
     "ideaArea": "아이디어 공간",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "그리드 사용자 지정",
-    "horizontalGap": "수평 간격",
-    "verticalGap": "수직 간격",
-    "resetToDefault": "기본값으로 재설정"
-  },
-  "greetings": {
-    "morning": "좋은 아침입니다",
-    "afternoon": "좋은 오후입니다",
-    "evening": "좋은 저녁입니다"
-  },
   "sidebar": {
     "tabs": {
-      "build": "홈",
       "workstation": "Workstation",
       "manage": "관리",
       "core": "코어",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "새로 추가",
       "collapseAll": "모두 접기",
-      "markAllRead": "모두 읽음으로 표시",
-      "openHome": "홈 열기",
-      "openWorkstation": "Workstation 열기"
+      "markAllRead": "모두 읽음으로 표시"
     },
     "search": {
       "folders": "워크스페이스 검색...",
@@ -357,22 +338,13 @@
       "projects": "프로젝트"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "제품 업데이트",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "세부 정보",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG 전환",
     "addOrg": "ORG 추가",
     "createOrg": "만들기",
     "joinOrg": "참여",
     "orgSource": "Org source",
-    "localOrg": "Local",
+    "localOrg": "로컬",
     "orgName": "ORG 이름",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "초대 링크 또는 코드",
@@ -397,7 +369,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -417,14 +393,21 @@
       "error": "세션 포크에 실패했습니다",
       "sendFailed": "포크했지만 메시지 전송에 실패했습니다. 내용이 입력창에 복원되었습니다",
       "forkedChipTooltip": "{{name}} 님에게서 포크됨",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 클라우드",
     "signIn": "로그인",
     "signOut": "로그아웃",
+    "signedInAs": "로그인 계정: {{name}}",
     "signedInToast": "ORG2 클라우드에 로그인했습니다",
+    "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
     "recommendedBadge": "추천",
     "recommendedDesc": "관리형 세션 공유, 리플레이 저장, 팀 권한, 안전한 공유 링크를 제공합니다. Supabase 설정이 필요 없습니다. Auth, 데이터베이스 마이그레이션, RLS 정책, 결제, 보존 기간, 할당량, 백엔드 업그레이드는 ORG2가 관리합니다",
     "customEndpoint": {
@@ -464,12 +447,15 @@
       "retentionUpgrade": "이 세션은 플랜의 리플레이 기간을 벗어났습니다 — 보려면 업그레이드하세요",
       "importError": "세션을 가져오지 못했습니다",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "내 정보"
     },
     "sidebar": {
       "teamSessions": "팀 세션",
+      "mySessions": "내 세션",
       "memberFilter": "멤버별 필터",
       "sessionFilter": "세션 필터",
+      "copyId": "ID 복사",
       "directlySharedWithMe": "나에게 직접 공유됨",
       "everyone": "전체",
       "forkedFrom": "@{{name}}에서 포크됨",
@@ -543,7 +529,8 @@
         "youTag": "나",
         "ownerTag": "소유자",
         "floorOff": "최소 없음",
-        "floorTooltip": "이 구성원의 최소 공유 수준입니다. 이 설정과 조직 전체 하한 중 더 엄격한 쪽이 적용됩니다."
+        "floorTooltip": "이 구성원의 최소 공유 수준입니다. 이 설정과 조직 전체 하한 중 더 엄격한 쪽이 적용됩니다.",
+        "floorOrgMinimum": "조직 최소 요건({{mode}})"
       },
       "leave": {
         "action": "조직 나가기",
@@ -584,7 +571,7 @@
         "joinedFallbackToast": "클라우드 조직에 참여했습니다"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (관리형)",
+        "sourceCloud": "클라우드",
         "signInFirst": "관리형 조직을 만들거나 참여하려면 ORG2 Cloud에 로그인하세요.",
         "openSettings": "로그인 설정 열기",
         "createdToast": "클라우드 조직이 생성되었습니다"
@@ -601,25 +588,22 @@
         "inviteInvalid": "유효하지 않은 초대 코드입니다.",
         "inviteRevoked": "철회된 초대입니다.",
         "inviteExpired": "만료된 초대입니다.",
-        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다."
+        "inviteExhausted": "사용 횟수를 모두 소진한 초대입니다.",
+        "network": "클라우드 서비스에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요."
       }
-    },
-    "defaultAccess": {
-      "label": "기본 동기화 수준",
-      "help": "리포 범위와 일치하고 개별 설정이 없는 이 기기의 세션에 적용됩니다. '끔'이면 직접 켜기 전까지 세션이 로컬에만 남습니다"
     },
     "syncLevel": {
       "menuItem": "클라우드 동기화 수준…",
       "title": "클라우드 동기화 수준",
       "hint": "이 세션을 각 클라우드 조직에 어떻게 공유할지(공유 안 함·메타데이터만·전체 리플레이)와 공개 범위를 선택하세요.",
-      "orgDefaultOption": "조직 기본값({{mode}})",
       "modeOff": "끔",
       "modeMetadata": "메타데이터만",
       "modeFullReplay": "전체 리플레이",
       "visibilityOrg": "조직 전체",
       "visibilityRestricted": "나만",
       "taggedNote": "이 세션은 이 조직으로 이동되었으므로 태그가 유지되는 동안 최소한 메타데이터는 공유됩니다.",
-      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다."
+      "floorNote": "조직 관리자가 최소 {{mode}} 이상의 공유를 요구합니다.",
+      "orgMinimumOption": "조직 최소값({{mode}})"
     },
     "share": {
       "menuItem": "클라우드 공유…",
@@ -650,33 +634,23 @@
       "importPasteClipboard": "클립보드에서 붙여넣기",
       "importSubmit": "가져오기",
       "importInvalidInput": "유효한 공유 링크나 토큰이 아닌 것 같습니다.",
-      "selectAll": "전원 ({{count}})"
-    },
-    "agentRunner": {
-      "title": "에이전트 작업 러너",
-      "desc": "세션 스레드에서 실행하는 댓글 작업(‘여기서 실행’)의 기본 설정입니다",
-      "machineNotice": "실행은 이 컴퓨터에서 이 계정의 토큰으로 진행됩니다",
-      "orgLabel": "조직",
-      "accountLabel": "계정",
-      "accountPlaceholder": "기본 계정",
-      "modelLabel": "모델",
-      "modelPlaceholder": "기본 모델",
-      "modeLabel": "모드",
-      "autoRunLabel": "@agent 작업 자동 실행",
-      "autoRunDesc": "내가 소유한 세션에서 열려 있는 @agent 댓글 작업을 자동으로 가져와 실행합니다. 기본값은 꺼짐이며, 켜기 전까지는 팀원의 @agent 멘션이 내 토큰을 사용하지 않습니다."
+      "selectAll": "전원 ({{count}})",
+      "incomingEndpointMismatch": "이 공유는 다른 사용자 지정 클라우드에 속합니다. 가져오기 전에 해당 엔드포인트를 구성하세요.",
+      "incomingConnectionError": "클라우드 서비스에 연결할 수 없습니다. 네트워크를 확인하고 다시 시도하세요.",
+      "incomingIncompatibleError": "클라우드가 호환되지 않는 공유 응답을 반환했습니다. ORGII를 업데이트하거나 배포를 확인하세요.",
+      "incomingServerError": "클라우드 서비스가 이 공유를 확인하지 못했습니다. 다시 시도하세요.",
+      "incomingAlreadyOnDevice": "이 세션은 이미 이 기기에 있습니다. 중복으로 가져오지 말고 원본을 여세요.",
+      "incomingOpenExisting": "세션 열기",
+      "incomingRetry": "다시 시도"
     },
     "comments": {
       "task": {
         "assignFailed": "댓글은 등록되었지만 에이전트 할당에 실패했습니다 — 스레드에서 다시 시도하세요",
         "assignUnavailableHere": "댓글은 등록되었습니다 — 이 보기에서는 에이전트 할당을 사용할 수 없습니다",
-        "turnBadge": "에이전트가 이 턴을 처리하고 있습니다",
         "addressingChip": "처리 중인 댓글: “{{excerpt}}”",
         "addressingChipGeneric": "댓글 처리 중",
         "addressingChipTooltip": "원본 세션의 댓글 스레드를 처리하기 위해 포크되었습니다",
-        "openBadge_one": "처리 대기 중인 에이전트 작업 {{count}}개",
-        "openBadge": "처리 대기 중인 에이전트 작업 {{count}}개",
-        "activeBadge_one": "{{count}}개의 에이전트가 이 세션에서 작업 중",
-        "activeBadge": "{{count}}개의 에이전트가 이 세션에서 작업 중"
+        "mentionSuggestion": "이 댓글을 에이전트에게 할당"
       },
       "toggleLabel": "댓글",
       "notesButton": "세션 노트",

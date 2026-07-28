@@ -276,7 +276,7 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
           variant="empty"
           placement="detail-panel"
           title={t("placeholders.noRepoSelected")}
-          subtitle={t("placeholders.selectRepositoryFromHome")}
+          subtitle={t("placeholders.selectRepositoryFromWorkspace")}
           fillParentHeight
         />
       </>

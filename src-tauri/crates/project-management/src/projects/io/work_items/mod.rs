@@ -61,12 +61,14 @@ pub(crate) use crud::write_work_item_remote;
 pub use crud::{
     allocate_short_id, allocate_standalone_short_id, delete_work_item, move_work_item,
     purge_expired_deleted_work_items, read_all_work_items, read_all_work_items_scoped,
-    read_standalone_work_item, read_standalone_work_items, read_work_item,
-    read_work_item_by_row_id, read_work_item_scoped, restore_work_item, write_standalone_work_item,
-    write_work_item,
+    read_all_work_items_scoped_filtered, read_scheduled_work_item_candidates,
+    read_standalone_work_item, read_standalone_work_items, read_standalone_work_items_filtered,
+    read_work_item, read_work_item_by_row_id, read_work_item_scoped, restore_work_item,
+    write_standalone_work_item, write_work_item,
 };
 pub use enrichment::{
-    read_all_work_items_enriched, read_all_work_items_enriched_scoped, read_work_item_enriched,
+    read_all_work_items_enriched, read_all_work_items_enriched_scoped,
+    read_all_work_items_enriched_scoped_filtered, read_work_item_enriched,
     read_work_item_enriched_scoped, update_work_item_partial_enriched,
 };
 pub use execution_lock::{acquire_execution_lock, release_execution_lock};

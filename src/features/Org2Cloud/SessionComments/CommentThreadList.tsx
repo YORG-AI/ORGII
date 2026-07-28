@@ -1,7 +1,7 @@
 /**
  * CommentThreadList — presentational thread list + composer shared by the
  * turn-anchored inline panels and the session-level notes dialog (design
- * session-comments-design-0707 §4).
+ * managed-cloud collaboration design).
  *
  * PR-review semantics: flat threads (top-level + one reply level), a
  * three-state status on thread heads (Active / Resolved / Won't fix), edit
@@ -16,16 +16,15 @@
  * cancel-restore pattern (no cross-component atom needed: the composer
  * state never left this component).
  *
- * Agent surface (2026-07-11 rework): follow-ups run IN PLACE on the owning
- * session, so the per-thread task chrome is gone. What remains: the literal
- * `@agent ` prefix on the TOP-LEVEL composer creates the pickup task
- * silently (comment-first — post verbatim through the untouched add path,
- * then create; create is idempotent per comment), `kind='agent_report'`
- * replies render as ordinary replies with a tiny agent affix, and a thread
- * whose task/run is live shows one minimal "Agent is addressing…" line.
+ * Agent surface: follow-ups run IN PLACE on the owning session. The literal
+ * `@agent ` prefix on the TOP-LEVEL composer runs a personal scoped round
+ * (comment-first — the comment posts verbatim through the untouched add
+ * path, then the round fires), `kind='agent_report'` replies render as
+ * ordinary replies with a tiny agent affix, and a thread whose round is live
+ * shows one minimal "Agent is addressing…" line.
  */
 import { Bot, Check, Loader2, Pencil, Trash2 } from "lucide-react";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -47,7 +46,9 @@ import {
 } from "../org2CloudSessionCommentsAtom";
 import { useSessionCommentsContext } from "./SessionCommentsContext";
 import {
+  AGENT_COMPOSER_PREFIX,
   detectAgentPrefix,
+  shouldShowAgentSuggestion,
   splitAgentMentionBody,
 } from "./commentAgentAffordances";
 
@@ -76,6 +77,8 @@ export interface CommentThreadListProps {
   composerDisabled?: boolean;
   composerDisabledReason?: string;
   composerPlaceholder?: string;
+  /** Optional top-level composer cancel action (inline panels use it to close). */
+  onComposerCancel?: () => void;
   emptyLabel?: string;
   /**
    * Resolves with the created row when the caller's add path returns it
@@ -101,6 +104,7 @@ interface ComposerProps {
   submitLabel: string;
   autoFocus?: boolean;
   disabled?: boolean;
+  allowAgentMention?: boolean;
   onSubmit: (body: string) => Promise<void>;
   onCancel?: () => void;
   testId?: string;
@@ -112,6 +116,7 @@ const CommentComposer: React.FC<ComposerProps> = ({
   submitLabel,
   autoFocus = false,
   disabled = false,
+  allowAgentMention = false,
   onSubmit,
   onCancel,
   testId,
@@ -119,7 +124,10 @@ const CommentComposer: React.FC<ComposerProps> = ({
   const { t } = useTranslation("navigation");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const trimmed = body.trim();
+  const showAgentSuggestion =
+    allowAgentMention && shouldShowAgentSuggestion(body);
 
   const submit = useCallback(async () => {
     if (!trimmed || busy || disabled) return;
@@ -138,6 +146,7 @@ const CommentComposer: React.FC<ComposerProps> = ({
   return (
     <div className="flex flex-col gap-1.5" data-testid={testId}>
       <Textarea
+        ref={textareaRef}
         value={body}
         onChange={(value) => setBody(value)}
         placeholder={placeholder}
@@ -154,6 +163,24 @@ const CommentComposer: React.FC<ComposerProps> = ({
           }
         }}
       />
+      {showAgentSuggestion ? (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-left text-[11px] text-text-2 transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+          data-testid="session-comment-agent-suggestion"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setBody(AGENT_COMPOSER_PREFIX);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }}
+        >
+          <Bot size={12} strokeWidth={2} className="text-primary-6" />
+          <span className="font-medium">@agent</span>
+          <span className="text-text-3">
+            {t("cloud.comments.task.mentionSuggestion")}
+          </span>
+        </button>
+      ) : null}
       <div className="flex items-center justify-end gap-1.5">
         {onCancel && (
           <Button
@@ -454,13 +481,11 @@ const ThreadBlock: React.FC<ThreadBlockProps> = ({
   const [replying, setReplying] = useState(false);
   const resolution = getThreadResolution(thread);
 
-  const task = context?.taskForThread(thread.top.id);
-  const agentBusy = Boolean(
-    (task &&
-      (context?.activeTaskRuns[task.id] !== undefined ||
-        ((task.state === "claimed" || task.state === "running") &&
-          !task.leaseExpired))) ||
-    (context?.addressRunActive && resolution === null)
+  const addressing = Boolean(
+    context?.addressRunActive &&
+    resolution === null &&
+    (context.addressRunSelectedHeadIds === null ||
+      context.addressRunSelectedHeadIds.has(thread.top.id))
   );
 
   const setStatus = useCallback(
@@ -484,10 +509,11 @@ const ThreadBlock: React.FC<ThreadBlockProps> = ({
         onDelete={onDelete}
         onSetStatus={setStatus}
       />
-      {agentBusy && (
+      {addressing && (
         <div
           className="flex items-center gap-1.5 text-[11px] text-text-3"
-          data-testid="comment-thread-agent-busy"
+          data-testid="comment-thread-agent-status"
+          data-run-state="active"
         >
           <Loader2 size={12} strokeWidth={2} className="animate-spin" />
           {t("cloud.comments.agentAddressing")}
@@ -541,6 +567,7 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
   composerDisabled = false,
   composerDisabledReason,
   composerPlaceholder,
+  onComposerCancel,
   emptyLabel,
   onAdd,
   onEdit,
@@ -554,7 +581,7 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
   const openThreads = threads.filter((thread) => !isThreadResolved(thread));
   const resolvedThreads = threads.filter(isThreadResolved);
 
-  const createTask = context?.createTask;
+  const requestAgent = context?.requestAgent;
   const submitTopLevel = useCallback(
     async (body: string): Promise<void> => {
       const comment = await onAdd(body);
@@ -562,25 +589,21 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
       // trigger the composer's draft restore for a send that succeeded).
       if (!comment || comment.parentId) return;
       if (!detectAgentPrefix(body)) return;
-      if (!createTask || !context?.canRunTasks) {
-        // No task surface here (header notes dialog mounts outside the
-        // provider; or no cloud sign-in): the advertised `@agent ` sugar
-        // must not be SILENTLY inert — the comment posted verbatim, say
-        // that no agent was assigned instead of letting the user believe
-        // one was.
-        Message.info(t("cloud.comments.task.assignUnavailableHere"));
+      if (!requestAgent || !context?.canRunAgent) {
+        // Read-only/imported surfaces treat a manually typed @agent prefix as
+        // ordinary comment text. There is no assignment, toast or side effect.
         return;
       }
       // Comment-first (design §4 item 2): the body landed VERBATIM above,
       // so a failed create degrades to a normal thread — and create is
       // idempotent per comment (retry-safe by re-sending `@agent `).
       try {
-        await createTask(comment.id);
+        await requestAgent(comment.id);
       } catch {
         Message.warning(t("cloud.comments.task.assignFailed"));
       }
     },
-    [onAdd, createTask, context?.canRunTasks, t]
+    [onAdd, requestAgent, context?.canRunAgent, t]
   );
 
   const composer = showComposer ? (
@@ -588,7 +611,9 @@ const CommentThreadList: React.FC<CommentThreadListProps> = ({
       placeholder={composerPlaceholder ?? t("cloud.comments.addPlaceholder")}
       submitLabel={t("cloud.comments.send")}
       disabled={composerDisabled}
+      allowAgentMention={Boolean(requestAgent && context?.canRunAgent)}
       onSubmit={submitTopLevel}
+      onCancel={onComposerCancel}
       testId="session-comment-composer"
     />
   ) : null;

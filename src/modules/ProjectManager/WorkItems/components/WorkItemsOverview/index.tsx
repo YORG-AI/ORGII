@@ -36,6 +36,7 @@ export interface WorkItemsOverviewProps {
   onProjectNameChange?: (name: string) => void;
   onProjectDescriptionChange?: (html: string, text: string) => void;
   repoPath?: string | null;
+  hideProjectPropertiesRow?: boolean;
   headerActions?: React.ReactNode;
   className?: string;
 }
@@ -52,6 +53,7 @@ const WorkItemsOverview: React.FC<WorkItemsOverviewProps> = ({
   onProjectNameChange,
   onProjectDescriptionChange,
   repoPath,
+  hideProjectPropertiesRow = false,
   headerActions,
   className = "",
 }) => {
@@ -97,7 +99,7 @@ const WorkItemsOverview: React.FC<WorkItemsOverviewProps> = ({
           repoPath={repoPath}
           titleActions={headerActions}
           metaContent={
-            projectProperties ? (
+            projectProperties && !hideProjectPropertiesRow ? (
               <div className="[&_[data-property-dropdown]]:!top-full [&_[data-property-dropdown]]:!mt-1">
                 <ProjectPropertyFields
                   project={projectProperties}

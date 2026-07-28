@@ -62,7 +62,7 @@ const ExpandOverlay: React.FC<ExpandOverlayProps> = ({
           style={collapsedOffsetStyle}
         />
         <div
-          className={`absolute left-0 right-0 z-20 flex justify-center transition-opacity ${alwaysShowControl ? "opacity-100" : "opacity-0 group-hover/expand:opacity-100"} ${isTopFade ? "top-0 pt-1" : "bottom-0 pb-1"}`}
+          className={`absolute left-0 right-0 z-20 flex justify-center transition-opacity ${alwaysShowControl ? "opacity-100" : "opacity-0 group-focus-within/expand:opacity-100 group-hover/expand:opacity-100"} ${isTopFade ? "top-0 pt-1" : "bottom-0 pb-1"}`}
           style={collapsedOffsetStyle}
         >
           <FloatingExpandPill

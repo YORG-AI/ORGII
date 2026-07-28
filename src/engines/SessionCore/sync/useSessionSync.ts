@@ -18,6 +18,7 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import {
   canvasPreviewAtom,
+  clearCanvasOnSessionSwitch,
   dismissCanvasForSession,
 } from "@src/store/session/canvasPreviewAtom";
 import {
@@ -100,6 +101,14 @@ export function useSessionSync(
   const setStreamingDeltaContent = useSetAtom(streamingDeltaContentAtom);
   const setPendingPlanApprovals = useSetAtom(pendingPlanApprovalsAtom);
   const setCanvasPreview = useSetAtom(canvasPreviewAtom);
+  const clearCanvasPreviewOnSessionSwitch = useCallback(
+    (leavingSessionId: string | null, enteringSessionId: string) => {
+      setCanvasPreview((prev) =>
+        clearCanvasOnSessionSwitch(prev, leavingSessionId, enteringSessionId)
+      );
+    },
+    [setCanvasPreview]
+  );
   const activeExternalSessionRefreshFrequency = useAtomValue(
     activeExternalSessionRefreshFrequencyAtom
   );
@@ -140,6 +149,7 @@ export function useSessionSync(
       setSessionRuntimeError,
       setPendingCancel,
       setStreamRetryStatus,
+      clearCanvasPreviewOnSessionSwitch,
     }),
     [
       clearSessionLoadError,
@@ -151,6 +161,7 @@ export function useSessionSync(
       setSessionRuntimeError,
       setPendingCancel,
       setStreamRetryStatus,
+      clearCanvasPreviewOnSessionSwitch,
     ]
   );
 
@@ -258,6 +269,7 @@ export function useSessionSync(
       return;
     }
 
+    logger.info(`pipeline switching to session ${sessionId}`);
     return runSessionSwitchEffect({
       sessionId,
       reloadEpoch,

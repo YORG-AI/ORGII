@@ -8,12 +8,7 @@
  */
 export { SourceControlTabSidebar } from "./SourceControlTabSidebar";
 export { default as SourceControlFilterHeader } from "./SourceControlFilterHeader";
-export { useSourceControlSidebarModule } from "./useSourceControlSidebarModule";
 export type {
   SourceControlFilterCounts,
   SourceControlFilterMode,
 } from "./SourceControlFilterHeader";
-export type {
-  UseSourceControlSidebarModuleOptions,
-  UseSourceControlSidebarModuleResult,
-} from "./useSourceControlSidebarModule";

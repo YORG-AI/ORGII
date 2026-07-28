@@ -358,7 +358,9 @@ impl KeyService {
             | ModelType::MistralVibe
             | ModelType::Autohand
             | ModelType::Omp
-            | ModelType::Pi => {
+            | ModelType::Pi
+            | ModelType::QoderCli
+            | ModelType::TraeCli => {
                 if let Some(ref key) = entry.api_key {
                     env.insert("ORGII_API_KEY".to_string(), key.clone());
                 }
@@ -524,7 +526,9 @@ impl KeyService {
             | ModelType::MistralVibe
             | ModelType::Autohand
             | ModelType::Omp
-            | ModelType::Pi => {
+            | ModelType::Pi
+            | ModelType::QoderCli
+            | ModelType::TraeCli => {
                 // Token available via ORGII_PROXY_TOKEN (set above).
             }
             // API key providers — must mirror the list in get_env_for_agent

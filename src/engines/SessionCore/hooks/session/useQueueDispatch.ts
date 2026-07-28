@@ -25,7 +25,10 @@ import type { Atom } from "jotai";
 import { useStore } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 
-import { getSession } from "@src/api/tauri/agent";
+import {
+  enterAgentOrgSessionIntervention,
+  getSession,
+} from "@src/api/tauri/agent";
 import { Message } from "@src/components/Message";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
@@ -33,6 +36,7 @@ import {
   failOptimisticTurn,
 } from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { cancelTurnForTimelineBoundary } from "@src/engines/SessionCore/control/sessionTimelineBoundary";
+import { publishTurnIntentDispatch } from "@src/engines/SessionCore/control/turnIntentDispatchLifecycle";
 import {
   beginTurnDispatch,
   confirmTurnRunning,
@@ -71,6 +75,11 @@ import {
   isCursorIdeSession,
 } from "@src/util/session/sessionDispatch";
 
+import {
+  type BackendDispatchVerdict,
+  classifyBackendSessionStatus,
+} from "./backendDispatchVerdict";
+
 const log = createLogger("useQueueDispatch");
 
 const MAX_SENT_QUEUE_ID_CACHE = 200;
@@ -86,54 +95,6 @@ function queuedMessageAgeMs(message: QueuedMessage): number {
   const createdAtMs = Date.parse(message.createdAt);
   if (!Number.isFinite(createdAtMs)) return MIN_QUEUE_VISIBLE_MS;
   return Date.now() - createdAtMs;
-}
-
-/**
- * Backend statuses that mean "a turn is genuinely still executing".
- * `waiting_for_user` / `waiting_for_funds` keep the turn open too — a natural
- * follow-up must not be injected while an interactive tool blocks the turn.
- */
-const BACKEND_ACTIVE_STATUSES = new Set([
-  "running",
-  "installing",
-  "waiting_for_user",
-  "waiting_for_funds",
-]);
-
-/**
- * Failure-class terminal statuses: the session is dead and the backend will
- * accept-but-swallow any message sent to it (no scheduler turn ever runs).
- * Natural drain must park instead of dispatch — observed 2026-06-11 when six
- * queued messages were flushed into a panicked subagent 20 minutes after it
- * failed and silently vanished.
- *
- * `completed` is deliberately NOT here: a completed turn is the normal
- * drain trigger (finish turn → status completed → dispatch next queued
- * message). `cancelled` is also dispatchable — a user Stop already parks
- * via `holdSessionQueueForStopAtom`, and a follow-up resumes the session.
- */
-const BACKEND_DEAD_STATUSES = new Set([
-  "failed",
-  "error",
-  "timeout",
-  "killed",
-  "abandoned",
-  "archived",
-]);
-
-export type BackendDispatchVerdict = "busy" | "dead" | "ready";
-
-/**
- * Pure classifier for a backend-reported session status.
- * Exported for tests — the async wrapper below owns the RPC plumbing.
- */
-export function classifyBackendSessionStatus(
-  status: string | undefined | null
-): BackendDispatchVerdict {
-  if (!status) return "ready";
-  if (BACKEND_ACTIVE_STATUSES.has(status)) return "busy";
-  if (BACKEND_DEAD_STATUSES.has(status)) return "dead";
-  return "ready";
 }
 
 /** Re-check cadence while the backend reports the session still busy. */
@@ -227,6 +188,10 @@ export function useQueueDispatch(): void {
       // Synchronous turn reserve BEFORE any await: from this instant every
       // submit and every other dispatch pass observes the session as busy.
       const dispatchGeneration = beginTurnDispatch(sessionId);
+      publishTurnIntentDispatch(msg.turnIntentId, {
+        sessionId,
+        generation: dispatchGeneration,
+      });
 
       // An explicit dispatch concludes any pending stop episode.
       if (msg.priority === "now") {
@@ -253,6 +218,9 @@ export function useQueueDispatch(): void {
             }
           );
           await eventStoreProxy.append([userEvent], sessionId);
+          // A queued user turn becomes a takeover only when it is actually
+          // dispatched. Merely waiting in the queue must not suppress Wake.
+          await enterAgentOrgSessionIntervention(sessionId);
           // Pass displayContent as displayText when it differs from content
           // (i.e. skill pills were expanded) so the persisted event stores
           // the pill format and re-editing shows the pill, not the YAML.
@@ -268,6 +236,7 @@ export function useQueueDispatch(): void {
             imageDataUrls,
             clientMessageId: `queued:${sessionId}:${msg.id}`,
             turnIntentId: msg.turnIntentId,
+            turnIntentSource: msg.priority === "now" ? "force_send" : "queue",
           });
           // Backend accepted the message — confirm the turn as running.
           confirmTurnRunning(sessionId);

@@ -67,5 +67,16 @@ export function clearCanvasForSession(
   return sessionId && entry?.sessionId === sessionId ? null : entry;
 }
 
+export function clearCanvasOnSessionSwitch(
+  entry: CanvasPreviewEntry | null,
+  leavingSessionId: string | null,
+  enteringSessionId: string
+): CanvasPreviewEntry | null {
+  if (!entry || !leavingSessionId || leavingSessionId === enteringSessionId) {
+    return entry;
+  }
+  return null;
+}
+
 export const canvasPreviewAtom = atom<CanvasPreviewEntry | null>(null);
 canvasPreviewAtom.debugLabel = "session/canvasPreview";

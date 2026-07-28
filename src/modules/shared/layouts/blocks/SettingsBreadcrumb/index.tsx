@@ -40,6 +40,7 @@ import {
   buildCoreSettingsItemPath,
   classifySettingsRouteRoot,
   deriveBreadcrumbKeys,
+  filterDevModeIntegrationItems,
   getSegmentIcon,
   getSegmentLabelKey,
   parseCoreSettingsItem,
@@ -48,6 +49,7 @@ import {
 import type { CoreSettingsItemSegment } from "@src/config/mainAppPaths";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import {
   settingsSelectionTitleAtom,
   wizardBreadcrumbTitleAtom,
@@ -154,6 +156,7 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
   const navigate = useNavigate();
   const wizardTitle = useAtomValue(wizardBreadcrumbTitleAtom);
   const selectionTitle = useAtomValue(settingsSelectionTitleAtom);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const leafTitle = wizardTitle ?? selectionTitle;
   const [searchQuery, setSearchQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
@@ -165,22 +168,24 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
       SETTINGS_SELECTOR_GROUPS.map((group) => ({
         id: group.id,
         label: group.labelKey ? t(group.labelKey) : null,
-        items: group.itemIds.map((id) => {
-          const labelKey =
-            id === AGENT_ORG_ROW_KEY ? null : getSegmentLabelKey(id);
-          return {
-            id,
-            label: labelKey ? t(labelKey) : t("navigation:labels.agentOrgs"),
-            path: getSettingsSelectorItemPath(id),
-            icon:
-              id === AGENT_ORG_ROW_KEY
-                ? getSegmentIcon("agents")
-                : getSegmentIcon(id),
-            groupId: group.id,
-          };
-        }),
+        items: filterDevModeIntegrationItems(group.itemIds, devModeEnabled).map(
+          (id) => {
+            const labelKey =
+              id === AGENT_ORG_ROW_KEY ? null : getSegmentLabelKey(id);
+            return {
+              id,
+              label: labelKey ? t(labelKey) : t("navigation:labels.agentOrgs"),
+              path: getSettingsSelectorItemPath(id),
+              icon:
+                id === AGENT_ORG_ROW_KEY
+                  ? getSegmentIcon("agents")
+                  : getSegmentIcon(id),
+              groupId: group.id,
+            };
+          }
+        ),
       })),
-    [t]
+    [devModeEnabled, t]
   );
 
   const flatItems = useMemo(

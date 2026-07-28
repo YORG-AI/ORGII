@@ -4,6 +4,13 @@
 **Date:** 2026-07-13
 **Auditor:** Codex
 
+> Historical note (2026-07-23): the `general.autoUpdateEnabled` opt-out and its
+> UI controls were subsequently removed. Update downloads are now always on;
+> the preference-related findings below describe the July 13 implementation,
+> not the current behavior. See
+> `src/scaffold/AppUpdater/component-app-updater-1226.md` for the current
+> lifecycle and retry policy.
+
 ## Acceptance criteria
 
 - [x] One lifecycle owner for check, download, and install state

@@ -337,6 +337,8 @@ fn session_meta_to_cache_input(meta: TraeHistoryMeta) -> ImportedHistoryCacheInp
         model: meta.model,
         input_tokens: 0,
         output_tokens: 0,
+        cache_read_tokens: 0,
+        cache_write_tokens: 0,
         repo_path: meta.repo_path,
         branch: None,
         impact: ImportedHistoryImpactStats::default(),
@@ -516,7 +518,7 @@ fn parse_trae_time_ms(value: &str) -> Option<i64> {
 
 fn trae_time_to_iso(value: &str) -> String {
     parse_trae_time_ms(value)
-        .and_then(|ms| chrono::DateTime::from_timestamp_millis(ms))
+        .and_then(chrono::DateTime::from_timestamp_millis)
         .map(|dt| dt.to_rfc3339())
         .unwrap_or_else(|| chrono::Utc::now().to_rfc3339())
 }

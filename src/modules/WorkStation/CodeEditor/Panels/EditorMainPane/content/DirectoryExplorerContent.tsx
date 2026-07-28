@@ -1,13 +1,18 @@
 import { readDir } from "@tauri-apps/plugin-fs";
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
+import { Virtuoso } from "react-virtuoso";
 
 import { getGitCommits } from "@src/api/http/git";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import {
-  ComposerStackListRow,
-  EventBlockExpandableStackList,
-} from "@src/engines/ChatPanel/blocks/primitives";
+import { ComposerStackListRow } from "@src/engines/ChatPanel/blocks/primitives";
 import { FileHeader } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
@@ -20,6 +25,7 @@ import { toFsPluginPath } from "@src/util/file/pathUtils";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 const MAX_GIT_META_ENTRIES = 80;
+const DIRECTORY_ROW_HEIGHT = 34;
 
 interface DirectoryExplorerContentProps {
   directoryPath: string;
@@ -139,6 +145,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
     >(new Map());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const loadGenerationRef = useRef(0);
 
     const relativePath = useMemo(
       () => toRelativePath(directoryPath, repoPath),
@@ -168,32 +175,42 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
     }, [canNavigateParent, entries, gitMetaMap, parentPath]);
 
     useEffect(() => {
-      let cancelled = false;
-      loadDirectoryEntries(directoryPath)
-        .then(async (loadedEntries) => {
+      const generation = ++loadGenerationRef.current;
+      setEntries([]);
+      setGitMetaMap(new Map());
+      setLoading(true);
+      setError(null);
+
+      void (async () => {
+        try {
+          const loadedEntries = await loadDirectoryEntries(directoryPath);
+          if (generation !== loadGenerationRef.current) return;
+
           const loadedGitMetaMap = await loadEntryGitMetaMap(
             loadedEntries,
             repoPath
           );
-          if (cancelled) return;
+          if (generation !== loadGenerationRef.current) return;
+
           setEntries(loadedEntries);
           setGitMetaMap(loadedGitMetaMap);
           setError(null);
-        })
-        .catch((loadError: unknown) => {
-          if (cancelled) return;
+        } catch (loadError: unknown) {
+          if (generation !== loadGenerationRef.current) return;
           const message =
             loadError instanceof Error
               ? loadError.message
               : t("cards.path.openFailed");
           setError(message);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
+        } finally {
+          if (generation === loadGenerationRef.current) setLoading(false);
+        }
+      })();
 
       return () => {
-        cancelled = true;
+        if (generation === loadGenerationRef.current) {
+          loadGenerationRef.current += 1;
+        }
       };
     }, [directoryPath, repoPath, t]);
 
@@ -325,15 +342,16 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
             fillParentHeight
           />
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto pt-1">
-            <EventBlockExpandableStackList
-              layout="body"
-              items={listItems}
-              renderItem={renderDirectoryItem}
-              getKey={(item) => `${item.type}:${item.path}`}
-              visibleCount={listItems.length}
-            />
-          </div>
+          <Virtuoso
+            className="min-h-0 flex-1 pt-1 scrollbar-hide"
+            data={listItems}
+            computeItemKey={(_index, item) => `${item.type}:${item.path}`}
+            fixedItemHeight={DIRECTORY_ROW_HEIGHT}
+            overscan={DIRECTORY_ROW_HEIGHT * 8}
+            itemContent={(_index, item) => (
+              <div className="px-1 pb-0.5">{renderDirectoryItem(item)}</div>
+            )}
+          />
         )}
       </div>
     );

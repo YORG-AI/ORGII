@@ -1,0 +1,74 @@
+import { Clipboard, RefreshCw } from "lucide-react";
+import React, { memo } from "react";
+import { useTranslation } from "react-i18next";
+
+import Button from "@src/components/Button";
+import Modal from "@src/scaffold/ModalSystem";
+
+import SessionRawTranscriptContent from "./SessionRawTranscriptContent";
+import { useSessionRawTranscript } from "./useSessionRawTranscript";
+
+export interface SessionRawTranscriptDialogProps {
+  sessionId: string | null;
+  visible: boolean;
+  onClose: () => void;
+}
+
+const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
+  memo(({ sessionId, visible, onClose }) => {
+    const { t } = useTranslation("sessions");
+    const transcript = useSessionRawTranscript(sessionId, visible);
+
+    return (
+      <Modal
+        visible={visible}
+        title={t("chat.rawTranscript.title", {
+          defaultValue: "Raw session transcript",
+        })}
+        onClose={onClose}
+        width="min(960px, 92vw)"
+        bodyClassName="flex min-h-0 flex-col p-0"
+        style={{ height: "min(760px, 84vh)" }}
+        footer={
+          <div className="flex items-center justify-end gap-2 px-4 py-3">
+            <Button
+              size="small"
+              icon={<RefreshCw size={14} strokeWidth={1.75} />}
+              loading={transcript.loading}
+              disabled={!sessionId}
+              onClick={() => void transcript.loadTranscript()}
+            >
+              {t("common:actions.refresh", "Refresh")}
+            </Button>
+            <Button
+              size="small"
+              icon={<Clipboard size={14} strokeWidth={1.75} />}
+              disabled={!transcript.snapshot || transcript.loading}
+              onClick={() => void transcript.copyTranscript()}
+            >
+              {t("common:actions.copy", "Copy")}
+            </Button>
+            <Button size="small" variant="primary" onClick={onClose}>
+              {t("common:actions.close", "Close")}
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pb-4">
+          <SessionRawTranscriptContent
+            error={transcript.error}
+            filePath={
+              sessionId ? `raw-transcript-${sessionId}.json` : undefined
+            }
+            loaded={Boolean(transcript.snapshot)}
+            loading={transcript.loading}
+            transcriptJson={transcript.transcriptJson}
+          />
+        </div>
+      </Modal>
+    );
+  });
+
+SessionRawTranscriptDialog.displayName = "SessionRawTranscriptDialog";
+
+export default SessionRawTranscriptDialog;

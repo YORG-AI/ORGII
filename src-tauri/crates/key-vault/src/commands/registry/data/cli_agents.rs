@@ -751,6 +751,56 @@ pub(crate) fn cli_agent_registry() -> Vec<CliAgentEntry> {
             acp_support: AcpSupport::Native,
             supports_gui: false,
         },
+        CliAgentEntry {
+            name: "qoder_cli",
+            display_name: "Qoder CLI",
+            binary: "qodercli",
+            description: "Qoder's interactive terminal coding agent",
+            brand_color: "#7C3AED",
+            docs_url: "https://docs.qoder.com/en/cli/quick-start",
+            has_subscription_plan: true,
+            compatible_api_providers: &[],
+            config_files: vec![home_config(
+                "settings",
+                "Settings",
+                ".qoder/settings.json",
+                CliConfigFormat::Json,
+                false,
+            )],
+            is_complex_setup: false,
+            default_setup_method: None,
+            popular: false,
+            icon_provider: "qoder",
+            paired_api_provider: None,
+            supports_rust_agents: false,
+            acp_support: AcpSupport::Unavailable,
+            supports_gui: false,
+        },
+        CliAgentEntry {
+            name: "trae_cli",
+            display_name: "Trae Agent",
+            binary: "trae-cli",
+            description: "ByteDance's open-source interactive coding agent",
+            brand_color: "#2563EB",
+            docs_url: "https://github.com/bytedance/trae-agent",
+            has_subscription_plan: false,
+            compatible_api_providers: &[
+                "openai_api",
+                "anthropic_api",
+                "gemini_api",
+                "openrouter_api",
+                "deepseek_api",
+            ],
+            config_files: vec![],
+            is_complex_setup: true,
+            default_setup_method: None,
+            popular: false,
+            icon_provider: "trae",
+            paired_api_provider: None,
+            supports_rust_agents: false,
+            acp_support: AcpSupport::Unavailable,
+            supports_gui: false,
+        },
     ]
 }
 
@@ -782,5 +832,23 @@ mod tests {
                 ".gemini/config/mcp_config.json",
             ]
         );
+    }
+
+    #[test]
+    fn qoder_and_trae_are_pure_tui_agents() {
+        let agents = cli_agent_registry();
+        let qoder = agents
+            .iter()
+            .find(|entry| entry.name == "qoder_cli")
+            .expect("Qoder CLI registry entry");
+        let trae = agents
+            .iter()
+            .find(|entry| entry.name == "trae_cli")
+            .expect("Trae CLI registry entry");
+
+        assert_eq!(qoder.binary, "qodercli");
+        assert_eq!(trae.binary, "trae-cli");
+        assert!(!qoder.supports_gui);
+        assert!(!trae.supports_gui);
     }
 }

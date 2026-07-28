@@ -3,6 +3,7 @@ import React, { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -69,9 +70,11 @@ export const WorktreeActionsMenu: React.FC<WorktreeActionsMenuProps> = memo(
         {isOpen &&
           isPositioned &&
           createPortal(
-            <div
+            <DropdownPanel
               ref={panelRef}
-              className={`${DROPDOWN_CLASSES.panel} ${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+              className={`${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+              animated={false}
+              maxHeight="none"
               style={{
                 position: "fixed",
                 top: panelPosition.top,
@@ -91,7 +94,7 @@ export const WorktreeActionsMenu: React.FC<WorktreeActionsMenuProps> = memo(
                   </span>
                 </button>
               </div>
-            </div>,
+            </DropdownPanel>,
             document.body
           )}
       </>
@@ -130,8 +133,10 @@ export function WorktreeContextMenu({
         onClose();
       }}
     >
-      <div
-        className={`${DROPDOWN_CLASSES.panel} ${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+      <DropdownPanel
+        className={`${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+        animated={false}
+        maxHeight="none"
         style={{
           position: "fixed",
           top: y,
@@ -152,7 +157,7 @@ export function WorktreeContextMenu({
             </span>
           </button>
         </div>
-      </div>
+      </DropdownPanel>
     </div>,
     document.body
   );

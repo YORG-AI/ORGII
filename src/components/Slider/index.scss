@@ -2,7 +2,7 @@
 .slider {
   position: relative;
   padding: 16px 0 32px 0;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
 
   &-no-padding {
     padding: 0;

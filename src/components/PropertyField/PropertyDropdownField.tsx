@@ -140,6 +140,7 @@ export function PropertyDropdownField<T extends string>({
       <button
         type="button"
         title={label}
+        aria-label={label}
         className={`flex h-6 w-6 items-center justify-center rounded-full border border-solid bg-transparent transition-[border-color,background-color,color] ${
           isOpen
             ? "border-primary-6 bg-fill-2 text-primary-6"

@@ -9,21 +9,26 @@
  * this session", and the server's resolve path only honors replay link
  * shares anyway.
  */
-import { useAtom, useStore } from "jotai";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { copyText } from "@src/util/data/clipboard";
 
+import { getCloudEndpoint } from "../config";
 import { org2CloudAccessSettingsAtom } from "../org2CloudAccessSettings";
-import { commitRefreshedAuth, org2CloudAuthAtom } from "../org2CloudAuthAtom";
 import {
-  type CloudOrgMember,
-  ensureFreshSession,
-  listOrgMembers,
-} from "../org2CloudClient";
+  commitRefreshedAuth,
+  org2CloudAuthAtom,
+  org2CloudAuthIdentityKey,
+} from "../org2CloudAuthAtom";
+import { type CloudOrgMember, ensureFreshSession } from "../org2CloudClient";
+import { loadCloudOrgMembers } from "../org2CloudMembersCoordinator";
 import { buildCloudSessionShareLink } from "../org2CloudOrgManagement";
-import type { Org2CloudOrg } from "../org2CloudOrgsAtom";
+import {
+  type Org2CloudOrg,
+  org2CloudRosterVersionAtom,
+} from "../org2CloudOrgsAtom";
 import {
   CLOUD_SHARE_LEVEL,
   type CloudSessionShareRecord,
@@ -68,8 +73,18 @@ export function useCloudShareOrgSectionModel({
 }) {
   const store = useStore();
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
+  const rosterVersionByOrg = useAtomValue(org2CloudRosterVersionAtom);
+  const rosterVersion = rosterVersionByOrg[org.orgId] ?? 0;
+  const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const [shares, setShares] = useState<CloudSessionShareRecord[]>([]);
+  const [sharesIdentityKey, setSharesIdentityKey] = useState<string | null>(
+    null
+  );
   const [members, setMembers] = useState<CloudOrgMember[]>([]);
+  const [membersIdentityKey, setMembersIdentityKey] = useState<string | null>(
+    null
+  );
+  const [membersLoading, setMembersLoading] = useState(true);
   const [sharesError, setSharesError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
@@ -84,7 +99,24 @@ export function useCloudShareOrgSectionModel({
   useEffect(() => {
     authRef.current = auth;
   }, [auth]);
+  // Share mutations call refreshShares outside any effect, so unmount safety
+  // is a ref (an effect-local `cancelled` flag cannot cover those callers).
+  const unmountedRef = useRef(false);
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
   const selfUserId = auth?.userId ?? null;
+  const visibleShares = useMemo(
+    () => (sharesIdentityKey === authIdentityKey ? shares : []),
+    [authIdentityKey, shares, sharesIdentityKey]
+  );
+  const visibleMembers = useMemo(
+    () => (membersIdentityKey === authIdentityKey ? members : []),
+    [authIdentityKey, members, membersIdentityKey]
+  );
 
   const freshAccessToken = useCallback(async (): Promise<string | null> => {
     const current = authRef.current;
@@ -96,6 +128,8 @@ export function useCloudShareOrgSectionModel({
   }, [setAuth]);
 
   const refreshShares = useCallback(async () => {
+    const requestIdentityKey = authIdentityKey;
+    if (!requestIdentityKey) return;
     const accessToken = await freshAccessToken();
     if (!accessToken) return;
     try {
@@ -104,65 +138,110 @@ export function useCloudShareOrgSectionModel({
         org.orgId,
         session.session_id
       );
+      const latest = authRef.current;
+      if (
+        unmountedRef.current ||
+        !latest ||
+        org2CloudAuthIdentityKey(latest) !== requestIdentityKey
+      ) {
+        return;
+      }
       setShares(rows.filter((row) => isCloudShareActive(row)));
+      setSharesIdentityKey(requestIdentityKey);
       setSharesError(null);
     } catch (error) {
+      const latest = authRef.current;
+      if (
+        unmountedRef.current ||
+        !latest ||
+        org2CloudAuthIdentityKey(latest) !== requestIdentityKey
+      ) {
+        return;
+      }
       // Most common cause: the session row does not exist server-side yet
       // (never pushed). The dialog stays usable — share actions surface the
       // same error on demand.
       setShares([]);
       setSharesError(error instanceof Error ? error.message : String(error));
     }
-  }, [freshAccessToken, org.orgId, session.session_id]);
+  }, [authIdentityKey, freshAccessToken, org.orgId, session.session_id]);
 
   useEffect(() => {
     void refreshShares();
   }, [refreshShares]);
 
-  // Roster for the directed multi-select. `[]` on failure (listOrgMembers
-  // swallows errors by design) — the picker just renders empty.
+  // Roster for the directed multi-select. The shared coordinator coalesces
+  // this read with the sidebar and management panel.
   useEffect(() => {
     let cancelled = false;
+    setMembersLoading(true);
+    const requestIdentityKey = authIdentityKey;
     void (async () => {
-      const accessToken = await freshAccessToken();
-      if (!accessToken) return;
-      const roster = await listOrgMembers(accessToken, org.orgId);
-      if (!cancelled) setMembers(roster);
+      const current = authRef.current;
+      if (!current || !requestIdentityKey) {
+        if (!cancelled) setMembersLoading(false);
+        return;
+      }
+      try {
+        const loaded = await loadCloudOrgMembers(
+          store,
+          current,
+          org.orgId,
+          rosterVersion
+        );
+        if (loaded) commitRefreshedAuth(setAuth, current, loaded.auth);
+        if (
+          !cancelled &&
+          loaded &&
+          authRef.current &&
+          org2CloudAuthIdentityKey(authRef.current) === requestIdentityKey
+        ) {
+          setMembers(loaded.members);
+          setMembersIdentityKey(requestIdentityKey);
+        }
+      } finally {
+        if (!cancelled) setMembersLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [freshAccessToken, org.orgId]);
+  }, [authIdentityKey, org.orgId, rosterVersion, setAuth, store]);
+
+  useEffect(() => {
+    setSelectedMemberIds([]);
+    setCreatedLink(null);
+  }, [authIdentityKey, org.orgId]);
 
   const activeGranteeIds = useMemo(
     () =>
       new Set(
-        shares
+        visibleShares
           .map((share) => share.granteeUserId)
           .filter((id): id is string => Boolean(id))
       ),
-    [shares]
+    [visibleShares]
   );
 
   // Active members minus self and minus members already holding a grant.
   const grantableMembers = useMemo(
     () =>
-      members.filter(
+      visibleMembers.filter(
         (member) =>
           member.status === "active" &&
           member.userId !== selfUserId &&
           !activeGranteeIds.has(member.userId)
       ),
-    [activeGranteeIds, members, selfUserId]
+    [activeGranteeIds, selfUserId, visibleMembers]
   );
 
   const memberNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const member of members) {
+    for (const member of visibleMembers) {
       map.set(member.userId, member.displayName ?? member.userId);
     }
     return map;
-  }, [members]);
+  }, [visibleMembers]);
 
   const handleToggleMember = useCallback((userId: string) => {
     setSelectedMemberIds((current) =>
@@ -209,8 +288,7 @@ export function useCloudShareOrgSectionModel({
     );
     store.set(org2CloudAccessSettingsAtom, next);
     try {
-      org2CloudSyncEngine.resumeOrg(org.orgId);
-      await org2CloudSyncEngine.runSyncPassAndWaitForDrain();
+      await org2CloudSyncEngine.resumeOrgAndWait(org.orgId);
       const accessToken = await freshAccessToken();
       if (!accessToken) throw new Error("Not signed in");
       const ownerUserId = authRef.current?.userId;
@@ -231,8 +309,7 @@ export function useCloudShareOrgSectionModel({
           snapshot
         )
       );
-      org2CloudSyncEngine.resumeOrg(org.orgId);
-      await org2CloudSyncEngine.runSyncPassAndWaitForDrain().catch(() => {});
+      await org2CloudSyncEngine.resumeOrgAndWait(org.orgId).catch(() => {});
       throw error;
     }
   }, [freshAccessToken, org.orgId, session.session_id, store]);
@@ -247,8 +324,7 @@ export function useCloudShareOrgSectionModel({
           snapshot
         )
       );
-      org2CloudSyncEngine.resumeOrg(org.orgId);
-      await org2CloudSyncEngine.runSyncPassAndWaitForDrain();
+      await org2CloudSyncEngine.resumeOrgAndWait(org.orgId);
     },
     [org.orgId, session.session_id, store]
   );
@@ -325,7 +401,7 @@ export function useCloudShareOrgSectionModel({
         throw new Error("Share token missing");
       }
       grantCreated = true;
-      const link = buildCloudSessionShareLink(shareToken);
+      const link = buildCloudSessionShareLink(shareToken, getCloudEndpoint());
       // The plaintext exists only here. Keep it visible until the dialog
       // closes and let the user copy explicitly; clipboard permissions can
       // reject a background/implicit write, and a visible retry action is
@@ -391,9 +467,10 @@ export function useCloudShareOrgSectionModel({
   );
 
   return {
-    shares,
+    shares: visibleShares,
     sharesError,
     busy,
+    membersLoading,
     grantableMembers,
     memberNameById,
     selectedMemberIds,

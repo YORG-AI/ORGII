@@ -24,7 +24,6 @@ import { deriveToolAction } from "@src/util/ui/rendering/toolAction";
 import ManageAgentDefBlock, {
   type ManageAgentDefAction,
 } from "../../blocks/ManageAgentDefBlock";
-import ManageCodeMapBlock from "../../blocks/ManageCodeMapBlock";
 import SkillBlock from "../../blocks/SkillBlock";
 import ToolCallBlock from "../../blocks/ToolCallBlock";
 import WorktreeListBlock, {
@@ -47,7 +46,6 @@ function isSkillTool(toolName: string): boolean {
 // ============================================
 
 const MANAGE_AGENT_DEF_TOOLS = new Set(["manage_agent_def"]);
-const MANAGE_CODE_MAP_TOOLS = new Set(["manage_code_map"]);
 
 function isManageAgentDefTool(props: UniversalEventProps): boolean {
   return MANAGE_AGENT_DEF_TOOLS.has(props.functionName ?? "");
@@ -148,25 +146,6 @@ export const FallbackAdapter: React.FC<UniversalEventProps> = (props) => {
           props.status === "running" && props.showActiveEventPainting === true
         }
         eventId={props.eventId}
-        toolUsage={props.toolUsage}
-      />
-    );
-  }
-
-  if (MANAGE_CODE_MAP_TOOLS.has(displayToolName)) {
-    return (
-      <ManageCodeMapBlock
-        action={action ?? "status"}
-        args={props.args}
-        result={props.result}
-        title={title}
-        isLoading={
-          props.status === "running" && props.showActiveEventPainting === true
-        }
-        isFailed={state === "failed"}
-        eventId={props.eventId}
-        sessionId={props.sessionId}
-        payloadRefs={props.payloadRefs}
         toolUsage={props.toolUsage}
       />
     );

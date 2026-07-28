@@ -237,17 +237,6 @@ export function useRuntimeRamStats(enabled: boolean): UseRuntimeRamStatsResult {
         }),
       },
       {
-        key: "startSidebar",
-        label: t("layoutSettings.ramStartSidebar"),
-        value: formatRuntimeBytes(
-          sidebarStats[SIDEBAR_MEMORY_KIND.START_PAGE].bytes
-        ),
-        bytes: sidebarStats[SIDEBAR_MEMORY_KIND.START_PAGE].bytes,
-        detail: t("layoutSettings.ramCountOnly", {
-          count: sidebarStats[SIDEBAR_MEMORY_KIND.START_PAGE].items,
-        }),
-      },
-      {
         key: "sessionSidebar",
         label: t("layoutSettings.ramSessionSidebar"),
         value: formatRuntimeBytes(

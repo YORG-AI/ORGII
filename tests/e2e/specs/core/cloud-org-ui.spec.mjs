@@ -34,22 +34,19 @@ import { execFileSync } from "node:child_process";
  *   E2E_CLOUD_SUPABASE_URL, E2E_CLOUD_ANON_KEY — throwaway Supabase project
  *   provisioned with the ORGII-cloud-infra migrations (schema_version must
  *   match the app's ORG2_CLOUD_EXPECTED_SCHEMA_VERSION — consolidated
- *   baseline v1, comment + task RPCs included, so the comment scenarios
- *   H–L have their RPCs when live).
+ *   baseline v1, including the comment RPCs used by scenarios H–L).
  *   Plus ONE of:
  *   E2E_CLOUD_SERVICE_KEY                       — mint + clean up a user
  *   E2E_CLOUD_EMAIL + E2E_CLOUD_PASSWORD        — pre-provisioned user
  *
- * COMMENT AGENT SCENARIOS (H–L, in-place rework 2026-07-11): the comment
- * plane runs LIVE-only (comments/tasks are real RPCs against a session
- * row seeded server-side — see publishCloudSessionMetadata in the
- * driver). Follow-ups run IN PLACE on the owning session — there is no
- * fork runner, no task card, no Run-here dialog:
+ * COMMENT AGENT SCENARIOS (H, J–L):
+ * the comment plane runs LIVE-only (comments are real RPCs against a
+ * session row seeded server-side — see publishCloudSessionMetadata in the
+ * driver). Follow-ups enter the owning session's ordinary local queue —
+ * there is no cloud task plane, fork runner, task card, or Run-here dialog:
  *   - H posts an `@agent ` comment through the production composer and
- *     asserts the open pickup task server-side plus the turn-chrome robot
- *     badge; the task STAYS open/unclaimed because the per-org owner
- *     auto-run opt-in (`autoRunEnabled`) defaults OFF.
- *   - I asserts the sidebar open-tasks chip.
+ *     asserts the durable owner-side thread. In OAuth-live mode the same
+ *     submit also exercises the owner's real local model account.
  *   - J drives the tri-state thread status (Active / Resolved / Won't fix)
  *     through the head-row control.
  *   - K posts a session-level note, opens the slash "Address comments"
@@ -58,7 +55,7 @@ import { execFileSync } from "node:child_process";
  *   - L runs the actual in-place agent round and asserts the
  *     "Agent @<name>"-attributed reply. Set E2E_CLOUD_LIVE=1 with a
  *     dedicated OAuth-live E2E home; H then creates a real provider-backed
- *     session and H–L share that durable session end to end.
+ *     session and H, J–L share that durable session end to end.
  *
  * Invocation (NOT part of the vitest run; needs the webdriver app build,
  * i.e. src-tauri/target/debug binary consumed by wdio.conf.mjs):
@@ -81,9 +78,10 @@ import {
   confirmAddressCommentsFlyout,
   ensureCloudSchemaReady,
   execJS,
+  fetchCloudSessionEvents,
   hasAddressCommentsPill,
   invokeE2E,
-  listCloudCommentTasks,
+  js,
   offlineCloudUser,
   openAddressCommentsFlyout,
   openCloudOrgPanelFromSidebar,
@@ -93,6 +91,7 @@ import {
   postTurnComment,
   pressEscape,
   provisionCloudUser,
+  publishCloudSessionEvents,
   publishCloudSessionMetadata,
   seedAndOpenCloudEligibleSession,
   seedCloudOrgUntilListed,
@@ -102,12 +101,10 @@ import {
   setThreadStatus,
   typeRendered,
   unwrap,
-  waitForAgentTurnBadge,
   waitForApp,
   waitForGone,
   waitForRealCloudOrgs,
   waitForRendered,
-  waitForSessionTasksBadge,
 } from "../../support/core/cloudOrgUiDriver.mjs";
 import {
   configureScenario,
@@ -128,13 +125,12 @@ const SIGNED_OUT_ALIAS_NAME = `Signed-out cloud workspace ${RUN_ID}`;
 const LIVE_CREATED_ORG_NAME = `E2E Cloud Created ${RUN_ID}`;
 const SYNC_LEVEL_SESSION_ID = `e2e-cloud-sync-${RUN_ID}`;
 const SHARE_SESSION_ID = `e2e-cloud-share-${RUN_ID}`;
-const TASK_SESSION_ID = `e2e-cloud-task-${RUN_ID}`;
-const TASK_TEAM_SESSION_ID = `e2e-cloud-team-task-${RUN_ID}`;
-const TASK_SESSION_TITLE = `E2E cloud task ${RUN_ID}`;
-const TASK_COMMENT_BODY = `@agent E2E agent task ${RUN_ID}: tighten the error handling in this turn`;
+const AGENT_SESSION_ID = `e2e-cloud-task-${RUN_ID}`;
+const AGENT_SESSION_TITLE = `E2E cloud task ${RUN_ID}`;
+const AGENT_COMMENT_BODY = `@agent E2E owner follow-up ${RUN_ID}: tighten the error handling in this turn`;
 const SESSION_NOTE_BODY = `E2E session-level note ${RUN_ID}: verify the overall outcome`;
-const TASK_TURN_ANCHOR_ID = `user-${TASK_SESSION_ID}`;
-const TASK_AGENT_BOOTSTRAP_PROMPT = `Reply exactly CLOUD_AGENT_READY_${RUN_ID} and do not call tools.`;
+const AGENT_TURN_ANCHOR_ID = `user-${AGENT_SESSION_ID}`;
+const AGENT_BOOTSTRAP_PROMPT = `Reply exactly CLOUD_AGENT_READY_${RUN_ID} and do not call tools.`;
 const LIVE_AGENT_ROUND = process.env.E2E_CLOUD_LIVE === "1";
 const E2E_REPO_SCOPE_KEY =
   process.env.E2E_REPO_SCOPE_KEY ?? "github.com/orgii/e2e-workspace";
@@ -146,9 +142,8 @@ async function selectCloudOrgManagementTab(tab, label) {
   );
 }
 
-// Removed with the fork runner: the Run-here dialog scenario and the
-// E2E_CLOUD_RUN claim→release leg (tasks now run in place on the owner's
-// machine; there is no teammate-machine fork pickup to drive).
+// There is deliberately no teammate-machine pickup leg: only the cloud
+// session owner may spend their own local model account.
 describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
   /** Non-null only when the LIVE gates all passed. */
   let env = null;
@@ -156,12 +151,12 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
   let live = false;
   /** Org the scope/panel/dialog scenarios run under (live: personal org). */
   let orgId = null;
-  /** Set by scenario H once the agent task exists (gates I–L). */
-  let taskAssigned = false;
+  /** Set by scenario H once the owner-side comment thread exists (gates J–L). */
+  let agentThreadReady = false;
   /** H–L use seeded ids normally and the real durable ids in OAuth-live mode. */
-  let taskSessionId = TASK_SESSION_ID;
-  let taskTurnAnchorId = TASK_TURN_ANCHOR_ID;
-  let taskSessionTitle = TASK_SESSION_TITLE;
+  let agentSessionId = AGENT_SESSION_ID;
+  let agentTurnAnchorId = AGENT_TURN_ANCHOR_ID;
+  let agentSessionTitle = AGENT_SESSION_TITLE;
   /** Preserve the user's clipboard around the explicit system-copy proof. */
   let originalSystemClipboard = null;
 
@@ -454,32 +449,46 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       CLOUD_FETCH_TIMEOUT_MS
     );
     await waitForRendered(
+      '[data-testid="cloud-org-sharing-floor"]',
+      "minimum sharing level section"
+    );
+    await waitForGone(
       '[data-testid="cloud-org-default-access"]',
-      "default sync level section"
+      "removed default sync level section"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-repo-scope"]',
+      "repo scopes section in General"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-settings"]',
+      "org settings section (admin)"
+    );
+    await waitForRendered(
+      '[data-testid="cloud-org-sessions-row"]',
+      "Sessions row in General"
+    );
+    await waitForGone(
+      '[data-testid="cloud-org-tab-sessions"]',
+      "removed Sessions management tab"
+    );
+    await waitForGone(
+      '[data-testid="cloud-org-tab-repo-scope"]',
+      "removed standalone repo scopes tab"
     );
     await selectCloudOrgManagementTab("members", "members");
     await waitForRendered(
-      '[data-testid="cloud-org-member-row"]',
-      "members section (self row)"
+      '[data-testid="cloud-org-about-me"]',
+      "members About me section"
     );
     // Owner of the personal org ⇒ admin invite surface renders.
     await waitForRendered(
       '[data-testid="cloud-org-invites"]',
       "invites card (admin)"
     );
-    await selectCloudOrgManagementTab("repo-scope", "repo scopes");
-    await waitForRendered(
-      '[data-testid="cloud-org-repo-scope"]',
-      "repo scopes section"
-    );
-    await selectCloudOrgManagementTab("general", "general");
-    await waitForRendered(
-      '[data-testid="cloud-org-settings"]',
-      "org settings section (admin)"
-    );
   });
 
-  it("D. renders the sidebar Team sessions section under the cloud scope", async function () {
+  it("D. opens scoped Kanban List from General and renders Team sessions", async function () {
     this.timeout(60_000);
     if (!orgId) throw new Error("scenario C did not establish a cloud org");
     await selectCloudOrgScopeFromSidebar(
@@ -580,39 +589,57 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
     }
 
     // The debug bridge only establishes deterministic remote-session rows;
-    // the assertions below exercise the production management-tab click and
-    // the real shared SessionTable render path.
+    // the assertions below exercise the production General-row navigation,
+    // scoped Kanban projection, and real shared SessionTable render path.
     await openCloudOrgPanelFromSidebar(
       orgId,
       live ? null : { orgId, name: OFFLINE_ORG_NAME, role: "owner" }
     );
-    await selectCloudOrgManagementTab("sessions", "sessions");
-    const tableOrdinaryRowSelector = `[data-testid="cloud-org-session-row"][data-cloud-session-id="e2e-team-all-${RUN_ID}"]`;
+    await waitForGone(
+      '[data-testid="cloud-org-tab-sessions"]',
+      "removed Sessions management tab"
+    );
     await waitForRendered(
-      tableOrdinaryRowSelector,
-      "ordinary cloud session in management table"
+      '[data-testid="cloud-org-sessions-row"]',
+      "Sessions row in General"
+    );
+    await clickRendered(
+      '[data-testid="cloud-org-open-sessions"]',
+      "open scoped Kanban from Sessions row"
+    );
+    await waitForRendered(
+      '[data-testid="kanban-org-scope-select"]',
+      "scoped Kanban org selector"
+    );
+    await clickRendered('[data-testid="kanban-view-list"]', "Kanban List view");
+    const tableOrdinaryRowSelector = `[data-testid="kanban-list-session-row"]`;
+    const takeOverSelector = `[data-testid="kanban-list-session-take-over-e2e-team-all-${RUN_ID}"]`;
+    await waitForRendered(
+      takeOverSelector,
+      "Take over action for ordinary cloud session in Kanban List"
     );
     const sessionsTableEvidence = await execJS(`
-      const section = document.querySelector('[data-testid="cloud-org-sessions"]');
-      const table = section?.querySelector('.settings-table-root');
-      const body = section?.parentElement;
+      const scope = document.querySelector('[data-testid="kanban-org-scope-select"]');
+      const row = Array.from(document.querySelectorAll(${JSON.stringify(tableOrdinaryRowSelector)}))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(`Visible to org ${RUN_ID}`)}));
+      const table = row?.closest('.settings-table-root');
+      const tableHost = table?.parentElement;
       return {
-        hasExpectedText:
-          section?.textContent?.includes(${JSON.stringify(`Visible to org ${RUN_ID}`)}) === true &&
-          section?.textContent?.includes('Teammate A') === true,
+        scopedOrg: scope?.textContent ?? '',
+        hasExpectedText: row?.textContent?.includes('Teammate A') === true,
+        hasTakeOver: !!document.querySelector(${JSON.stringify(takeOverSelector)}),
         fillsSection:
-          !!section && !!table &&
-          Math.abs(table.getBoundingClientRect().width - section.getBoundingClientRect().width) < 2,
-        bodyMaxWidth: body ? getComputedStyle(body).maxWidth : null,
+          !!table && !!tableHost &&
+          Math.abs(table.getBoundingClientRect().width - tableHost.getBoundingClientRect().width) < 2,
       };
     `);
     if (
       !sessionsTableEvidence?.hasExpectedText ||
-      !sessionsTableEvidence?.fillsSection ||
-      sessionsTableEvidence?.bodyMaxWidth !== "none"
+      !sessionsTableEvidence?.hasTakeOver ||
+      !sessionsTableEvidence?.fillsSection
     ) {
       throw new Error(
-        `cloud sessions table is missing data or not full width: ${JSON.stringify(sessionsTableEvidence)}`
+        `scoped Kanban List is missing cloud session data/action: ${JSON.stringify(sessionsTableEvidence)}`
       );
     }
 
@@ -622,7 +649,22 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       orgId,
       live ? null : { orgId, name: OFFLINE_ORG_NAME, role: "owner" }
     );
-    await waitForRendered(ordinaryRowSelector, "ordinary row after table view");
+    // Live listing refresh races the scope re-select; drive the section's
+    // own refresh control until the seeded rows land.
+    await browser.waitUntil(
+      async () => {
+        if (await execJS(js.exists(ordinaryRowSelector))) return true;
+        await execJS(
+          `document.querySelector('[data-testid="cloud-team-sessions-refresh"]')?.click();`
+        );
+        return execJS(js.exists(ordinaryRowSelector));
+      },
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 1_000,
+        timeoutMsg: `ordinary row after table view never rendered: ${ordinaryRowSelector}`,
+      }
+    );
     await waitForRendered(directRowSelector, "direct row after table view");
 
     await clickRendered(
@@ -742,12 +784,18 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       await invokeE2E("ensureRepoSelected", { repoPath: E2E_REPO_PATH }),
       "ensureRepoSelected(repository governance)"
     );
+    // The helper only seeds the local repo inventory; Add, option selection,
+    // and Save below exercise the production rendered interaction.
     await openCloudOrgPanelFromSidebar(orgId);
-    await selectCloudOrgManagementTab("repo-scope", "repository scope");
+    await selectCloudOrgManagementTab("general", "repository scope in General");
     await waitForRendered(
       '[data-testid="cloud-org-repo-scope"]',
       "repository-scope management section",
       CLOUD_FETCH_TIMEOUT_MS
+    );
+    await clickRendered(
+      '[data-testid="cloud-org-add-repo-scope"]',
+      "show repository scope picker"
     );
     await browser.waitUntil(
       async () =>
@@ -763,17 +811,29 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
         timeoutMsg: `rendered repo picker did not expose enabled scope ${E2E_REPO_SCOPE_KEY}`,
       }
     );
-    await execJS(`
+    const scopeOptionMarked = await execJS(`
       const expected = ${JSON.stringify(E2E_REPO_SCOPE_KEY)};
       const labels = [...document.querySelectorAll('[data-testid="cloud-org-repo-scope"] button span[title]')];
-      labels.find((candidate) => candidate.getAttribute('title') === expected)?.closest('button')?.click();
-      return true;
+      const button = labels.find((candidate) => candidate.getAttribute('title') === expected)?.closest('button');
+      button?.setAttribute('data-e2e-repo-scope-target', 'true');
+      return Boolean(button);
     `);
+    if (!scopeOptionMarked) {
+      throw new Error(
+        `rendered repo scope option disappeared: ${E2E_REPO_SCOPE_KEY}`
+      );
+    }
+    await clickRendered(
+      '[data-e2e-repo-scope-target="true"]',
+      "select repository scope"
+    );
     await browser.waitUntil(
       async () =>
         execJS(`
-          const button = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
-          return !!button && !button.disabled;
+          const save = document.querySelector('[data-testid="cloud-org-save-repo-scopes"]');
+          const cancel = document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]');
+          const add = document.querySelector('[data-testid="cloud-org-add-repo-scope"]');
+          return !!save && !save.disabled && !!cancel && save.closest('.section-layout-row') === add?.closest('.section-layout-row');
         `),
       {
         timeout: RENDER_TIMEOUT_MS,
@@ -790,10 +850,15 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
           const section = document.querySelector('[data-testid="cloud-org-repo-scope"]');
           return {
             text: section?.textContent ?? '',
-            saveDisabled: document.querySelector('[data-testid="cloud-org-save-repo-scopes"]')?.disabled ?? false,
+            saveVisible: !!document.querySelector('[data-testid="cloud-org-save-repo-scopes"]'),
+            cancelVisible: !!document.querySelector('[data-testid="cloud-org-cancel-repo-scopes"]'),
           };
         `);
-        return state.saveDisabled && state.text.includes(E2E_REPO_SCOPE_KEY);
+        return (
+          !state.saveVisible &&
+          !state.cancelVisible &&
+          state.text.includes(E2E_REPO_SCOPE_KEY)
+        );
       },
       {
         timeout: CLOUD_FETCH_TIMEOUT_MS,
@@ -1128,11 +1193,11 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
     );
   });
 
-  it("H. posts an @agent comment that creates an open pickup task (gated: real backend)", async function () {
+  it("H. posts an owner-only @agent comment through the ordinary local queue (gated: real backend)", async function () {
     this.timeout(720_000);
     if (!live) {
       console.warn(
-        "[cloud-e2e] SKIP scenario H: set E2E_CLOUD_* in tests/e2e/.env — the comment/task RPCs need a real org2_cloud backend."
+        "[cloud-e2e] SKIP scenario H: set E2E_CLOUD_* in tests/e2e/.env — the comment RPCs need a real org2_cloud backend."
       );
       this.skip();
     }
@@ -1163,9 +1228,9 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       });
       await typeAndClickSend(
         '[data-testid="chat-input"] [contenteditable="true"]',
-        TASK_AGENT_BOOTSTRAP_PROMPT
+        AGENT_BOOTSTRAP_PROMPT
       );
-      await waitForChatLaunched(TASK_AGENT_BOOTSTRAP_PROMPT);
+      await waitForChatLaunched(AGENT_BOOTSTRAP_PROMPT);
 
       let completedState = null;
       await browser.waitUntil(
@@ -1210,9 +1275,7 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
         .filter(
           (event) =>
             event.source === "user" &&
-            String(event.displayText ?? "").includes(
-              TASK_AGENT_BOOTSTRAP_PROMPT
-            )
+            String(event.displayText ?? "").includes(AGENT_BOOTSTRAP_PROMPT)
         )
         .at(-1);
       if (!active.sessionId || !promptEvent?.id) {
@@ -1220,135 +1283,41 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
           `real cloud task session is missing its session/event identity: ${JSON.stringify({ sessionId: active.sessionId, promptEvent })}`
         );
       }
-      taskSessionId = active.sessionId;
-      taskTurnAnchorId = promptEvent.id;
-      taskSessionTitle = `E2E cloud live task ${RUN_ID}`;
+      agentSessionId = active.sessionId;
+      agentTurnAnchorId = promptEvent.id;
+      agentSessionTitle = `E2E cloud live task ${RUN_ID}`;
     } else {
-      await seedAndOpenCloudEligibleSession(taskSessionId, taskSessionTitle);
+      await seedAndOpenCloudEligibleSession(agentSessionId, agentSessionTitle);
     }
 
     unwrap(
       await invokeE2E("cloudTagSessionToOrg", {
-        sessionId: taskSessionId,
+        sessionId: agentSessionId,
         orgId,
       }),
       "cloudTagSessionToOrg(task session)"
     );
-    await setCloudSessionModeViaDialog(taskSessionId, orgId, "full_replay");
+    // Live scenario G leaves ITS created org as the active sidebar scope,
+    // and the sync-level dialog only lists the ACTIVE org's row. Re-scope
+    // to the membership org before driving the dialog.
+    await selectCloudOrgScopeFromSidebar(orgId);
+    await setCloudSessionModeViaDialog(agentSessionId, orgId, "full_replay");
     await publishCloudSessionMetadata(env, liveUser, {
       orgId,
-      sessionId: taskSessionId,
-      title: taskSessionTitle,
+      sessionId: agentSessionId,
+      title: agentSessionTitle,
       repoScopeKey: E2E_REPO_SCOPE_KEY,
     });
 
-    await openTurnCommentPanel(taskTurnAnchorId);
-    await postTurnComment(TASK_COMMENT_BODY);
+    await openTurnCommentPanel(agentTurnAnchorId);
+    await postTurnComment(AGENT_COMMENT_BODY);
 
-    await waitForAgentTurnBadge(taskTurnAnchorId, CLOUD_FETCH_TIMEOUT_MS);
-
-    let taskRow = null;
-    await browser.waitUntil(
-      async () => {
-        const tasks = await listCloudCommentTasks(env, liveUser, orgId);
-        taskRow =
-          tasks.find((task) => task?.sessionId === taskSessionId) ?? null;
-        return Boolean(taskRow && taskRow.state === "open");
-      },
-      {
-        timeout: CLOUD_FETCH_TIMEOUT_MS,
-        interval: 1_000,
-        timeoutMsg:
-          "@agent comment never produced an open pickup task server-side",
-      }
+    await waitForRendered(
+      '[data-testid="comment-agent-mention-pill"]',
+      "durable owner @agent comment",
+      CLOUD_FETCH_TIMEOUT_MS
     );
-    if (taskRow.attempt !== 0) {
-      throw new Error(
-        `fresh pickup task should stay unclaimed (autoRunEnabled defaults OFF): ${JSON.stringify(taskRow)}`
-      );
-    }
-    taskAssigned = true;
-  });
-
-  it("I. shows the open-tasks chip on the sidebar Team-sessions row (gated: real backend)", async function () {
-    this.timeout(120_000);
-    if (!live) {
-      console.warn(
-        "[cloud-e2e] SKIP scenario I: set E2E_CLOUD_* in tests/e2e/.env (needs the scenario H task on a real backend)."
-      );
-      this.skip();
-    }
-    if (!taskAssigned) throw new Error("scenario H did not assign a task");
-
-    // H proves the real task RPC. This row is the viewer-side projection the
-    // Team section is designed for: a teammate-owned session (own-only
-    // threads intentionally remain in the flat local list).
-    await selectCloudOrgScopeFromSidebar(orgId);
-    const taskProjection = {
-      orgId,
-      sessions: [
-        {
-          id: `${orgId}:e2e-task-teammate:${TASK_TEAM_SESSION_ID}`,
-          orgId,
-          ownerMemberId: "e2e-task-teammate",
-          ownerUserId: "e2e-task-teammate",
-          ownerDisplayName: "Task Teammate",
-          ownerIdentityKind: "human",
-          sourceSessionId: TASK_TEAM_SESSION_ID,
-          title: `Teammate task ${RUN_ID}`,
-          repoScopeKey: E2E_REPO_SCOPE_KEY,
-          accessMode: "full_replay",
-          directlySharedWithMe: true,
-          eventsEpoch: 1,
-          eventsFrozenSeq: 0,
-          eventsCount: 1,
-          eventsTailHash: "task",
-          unresolvedCommentCount: 1,
-          openAgentTaskCount: 1,
-          activeAgentTaskCount: 0,
-        },
-      ],
-    };
-    const seedTaskProjection = async () =>
-      unwrap(
-        await invokeE2E("cloudSeedRemoteSessions", taskProjection),
-        "cloudSeedRemoteSessions(task badge projection)"
-      );
-    const taskRowSelector = `[data-testid="sidebar-cloud-session-item-${TASK_TEAM_SESSION_ID}"]`;
-    await seedTaskProjection();
-    // Selecting the live org starts a real listing request. If it was already
-    // in flight when this deterministic viewer projection was seeded, its
-    // response can legitimately win the first race. Re-seed only while the
-    // row is absent; once React consumes it, the assertion remains pure UI.
-    await browser.waitUntil(
-      async () => {
-        if (
-          await execJS(
-            `return !!document.querySelector(${JSON.stringify(taskRowSelector)});`
-          )
-        ) {
-          return true;
-        }
-        await seedTaskProjection();
-        return execJS(
-          `return !!document.querySelector(${JSON.stringify(taskRowSelector)});`
-        );
-      },
-      {
-        timeout: CLOUD_FETCH_TIMEOUT_MS,
-        interval: 500,
-        timeoutMsg: `teammate task row never rendered after projection convergence: ${TASK_TEAM_SESSION_ID}`,
-      }
-    );
-    const badgeText = await waitForSessionTasksBadge(
-      TASK_TEAM_SESSION_ID,
-      "attention"
-    );
-    if ((badgeText ?? "").trim() !== "1") {
-      throw new Error(
-        `open-tasks chip should count exactly the one open task: "${badgeText}"`
-      );
-    }
+    agentThreadReady = true;
   });
 
   it("J. cycles the thread tri-state status through the head-row control (gated: real backend)", async function () {
@@ -1359,17 +1328,18 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       );
       this.skip();
     }
-    if (!taskAssigned) throw new Error("scenario H did not create the thread");
+    if (!agentThreadReady)
+      throw new Error("scenario H did not create the thread");
 
     if (LIVE_AGENT_ROUND) {
       unwrap(
-        await invokeE2E("openSession", taskSessionId),
+        await invokeE2E("openSession", agentSessionId),
         "openSession(real cloud task for status)"
       );
     } else {
-      await seedAndOpenCloudEligibleSession(taskSessionId, taskSessionTitle);
+      await seedAndOpenCloudEligibleSession(agentSessionId, agentSessionTitle);
     }
-    await openTurnCommentPanel(taskTurnAnchorId);
+    await openTurnCommentPanel(agentTurnAnchorId);
     await waitForRendered(
       '[data-testid="session-comment-row"]',
       "scenario H thread row",
@@ -1415,15 +1385,16 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       );
       this.skip();
     }
-    if (!taskAssigned) throw new Error("scenario H did not create the thread");
+    if (!agentThreadReady)
+      throw new Error("scenario H did not create the thread");
 
     if (LIVE_AGENT_ROUND) {
       unwrap(
-        await invokeE2E("openSession", taskSessionId),
+        await invokeE2E("openSession", agentSessionId),
         "openSession(real cloud task for Address comments)"
       );
     } else {
-      await seedAndOpenCloudEligibleSession(taskSessionId, taskSessionTitle);
+      await seedAndOpenCloudEligibleSession(agentSessionId, agentSessionTitle);
     }
 
     await postSessionNote(SESSION_NOTE_BODY);
@@ -1432,14 +1403,14 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       '[data-testid="session-comment-composer"] textarea',
       "session note modal before opening the round thread"
     );
-    await openTurnCommentPanel(taskTurnAnchorId);
+    await openTurnCommentPanel(agentTurnAnchorId);
     await waitForRendered(
       '[data-testid="session-comment-row"]',
       "scenario H thread row",
       CLOUD_FETCH_TIMEOUT_MS
     );
     await clickRendered(
-      `[data-testid="session-comment-toggle-${taskTurnAnchorId}"]`,
+      `[data-testid="session-comment-toggle-${agentTurnAnchorId}"]`,
       "close turn comment panel before using the main composer"
     );
     await waitForGone(
@@ -1498,19 +1469,20 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       );
       this.skip();
     }
-    if (!taskAssigned) throw new Error("scenario H did not create the task");
+    if (!agentThreadReady)
+      throw new Error("scenario H did not create the thread");
 
     unwrap(
-      await invokeE2E("openSession", taskSessionId),
+      await invokeE2E("openSession", agentSessionId),
       "openSession(real cloud task for agent round)"
     );
-    await openTurnCommentPanel(taskTurnAnchorId);
+    await openTurnCommentPanel(agentTurnAnchorId);
     await openAddressCommentsFlyout();
     await confirmAddressCommentsFlyout();
     await clickRendered('[data-testid="chat-send-button"]', "chat send button");
     await waitForRendered(
-      '[data-testid="comment-thread-agent-busy"]',
-      "agent addressing line",
+      '[data-testid="comment-thread-agent-status"][data-run-state="active"]',
+      "agent addressing active state",
       CLOUD_FETCH_TIMEOUT_MS
     );
     await waitForRendered(
@@ -1518,5 +1490,81 @@ describe("Cloud org rendered UI (managed ORG2 Cloud)", function () {
       "agent-attributed reply (cloud.comments.agentAuthor)",
       600_000
     );
+  });
+
+  it("M. server range read honors p_after_seq (frozen prefix never re-shipped)", async function () {
+    this.timeout(120_000);
+    if (!live) {
+      console.warn(
+        "[cloud-e2e] SKIP scenario M: the p_after_seq contract needs a real cloud backend."
+      );
+      this.skip();
+    }
+    if (!orgId) throw new Error("scenario C did not establish a cloud org");
+
+    const sessionId = `agentsession-e2e-range-${RUN_ID}`;
+    const event = (id, displayStatus = "completed") => ({
+      id,
+      sessionId,
+      displayStatus,
+    });
+    await publishCloudSessionMetadata(env, liveUser, {
+      orgId,
+      sessionId,
+      title: `E2E range contract ${RUN_ID}`,
+      repoScopeKey: E2E_REPO_SCOPE_KEY,
+    });
+    await publishCloudSessionEvents(env, liveUser, {
+      orgId,
+      sessionId,
+      epoch: 1,
+      frozenSegments: [
+        { seq: 1, events: [event("e1"), event("e2")] },
+        { seq: 2, events: [event("e3")] },
+      ],
+      tail: [event("t1", "running")],
+    });
+
+    const full = await fetchCloudSessionEvents(env, liveUser, {
+      orgId,
+      sessionId,
+    });
+    const fullSeqs = (full.segments ?? [])
+      .map((segment) => segment.seq ?? 0)
+      .sort((left, right) => left - right);
+    if (JSON.stringify(fullSeqs) !== JSON.stringify([0, 1, 2])) {
+      throw new Error(`full read returned seqs ${JSON.stringify(fullSeqs)}`);
+    }
+
+    const ranged = await fetchCloudSessionEvents(env, liveUser, {
+      orgId,
+      sessionId,
+      afterSeq: 1,
+    });
+    const rangedSeqs = (ranged.segments ?? [])
+      .map((segment) => segment.seq ?? 0)
+      .sort((left, right) => left - right);
+    if (JSON.stringify(rangedSeqs) !== JSON.stringify([0, 2])) {
+      throw new Error(
+        `p_after_seq=1 still shipped the held frozen prefix: ${JSON.stringify(rangedSeqs)}`
+      );
+    }
+    if (ranged.epoch !== 1 || ranged.frozenSeq !== 2) {
+      throw new Error(
+        `range read lost the summary header: epoch=${ranged.epoch} frozenSeq=${ranged.frozenSeq}`
+      );
+    }
+
+    const head = await fetchCloudSessionEvents(env, liveUser, {
+      orgId,
+      sessionId,
+      afterSeq: 2_147_483_647,
+    });
+    const headSeqs = (head.segments ?? []).map((segment) => segment.seq ?? 0);
+    if (headSeqs.some((seq) => seq !== 0)) {
+      throw new Error(
+        `head read (afterSeq=int4 max) still shipped frozen bodies: ${JSON.stringify(headSeqs)}`
+      );
+    }
   });
 });

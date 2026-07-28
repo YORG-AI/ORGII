@@ -15,6 +15,7 @@ export function toChatPanelProject(
       memberMap: project.memberMap,
     }),
     projectSlug: project.projectData.slug,
+    projectSyncAdapterId: project.projectSyncAdapterId,
     orgId: project.orgId,
     orgName: project.orgName,
   };

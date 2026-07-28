@@ -8,7 +8,7 @@
   border: none;
   border-radius: 100px;
   background: transparent;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   outline: none;
   padding: 0;
   overflow: visible;

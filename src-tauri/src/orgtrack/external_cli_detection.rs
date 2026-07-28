@@ -61,6 +61,9 @@ const IMPORTABLE_HISTORY_SOURCE_IDS: &[&str] = &[
     "warp",
     "zcode",
     "qoder",
+    "mimo_code",
+    "omp",
+    "qoder_cli",
 ];
 
 /// On-disk store format for a source's session history — the "file type" shown
@@ -71,10 +74,13 @@ const IMPORTABLE_HISTORY_SOURCE_IDS: &[&str] = &[
 fn store_kind_for(source_id: &str) -> &'static str {
     match source_id {
         // Importable — ORGII parses these.
-        "claude_code" | "codex_app" | "workbuddy" | "trae" | "cline" | "qoder" => "jsonl",
-        "cursor_ide" | "cursor_cli" | "opencode" | "windsurf" | "warp" | "zcode" => "sqlite",
+        "claude_code" | "codex_app" | "workbuddy" | "trae" | "cline" | "qoder" | "omp"
+        | "qoder_cli" => "jsonl",
+        "cursor_ide" | "cursor_cli" | "opencode" | "windsurf" | "warp" | "zcode" | "mimo_code" => {
+            "sqlite"
+        }
         // Known store format, not yet imported.
-        "qwen_code" | "kimi" | "pi" | "omp" | "droid" => "jsonl",
+        "qwen_code" | "kimi" | "pi" | "droid" => "jsonl",
         "copilot" | "goose" | "grok" | "openclaw" => "sqlite",
         "aider" => "markdown",
         _ => "",
@@ -158,13 +164,13 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
     source(
         "mimo_code",
         "Mimo Code",
-        "opencode",
+        "mimo_code",
         "mimo",
         &[],
         "mimo",
         "mimo",
-        false,
-        &[".config/mimo", ".local/share/mimo"],
+        true,
+        &[".config/mimocode", ".local/share/mimocode"],
     ),
     source("pi", "Pi", "pi", "pi", &[], "pi", "pi", false, &[".pi"]),
     source(
@@ -175,8 +181,8 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         &[],
         "omp",
         "omp",
-        false,
-        &[".omp"],
+        true,
+        &[".omp/agent/sessions", ".oh-omp/agent/sessions"],
     ),
     source(
         "antigravity",
@@ -445,6 +451,28 @@ pub const EXTERNAL_CLI_SOURCES: &[ExternalCliSourceSpec] = &[
         true,
         &[".qoder"],
     ),
+    source(
+        "qoder_cli",
+        "Qoder CLI",
+        "qoder",
+        "qodercli",
+        &[],
+        "qodercli",
+        "qodercli",
+        true,
+        &[".qoder/projects"],
+    ),
+    source(
+        "trae_cli",
+        "Trae Agent",
+        "trae",
+        "trae-cli",
+        &[],
+        "trae-cli interactive",
+        "trae-cli",
+        false,
+        &[],
+    ),
 ];
 
 const fn source(
@@ -573,6 +601,13 @@ fn importable_history_candidates(source_id: &str) -> Vec<PathBuf> {
         "warp" => orgtrack_core::sources::warp::history::warp_history_candidate_paths(),
         "zcode" => orgtrack_core::sources::zcode::history::zcode_history_candidate_paths(),
         "qoder" => orgtrack_core::sources::qoder::history::qoder_history_candidate_paths(),
+        "mimo_code" => {
+            orgtrack_core::sources::mimo_code::history::mimo_code_history_candidate_paths()
+        }
+        "omp" => orgtrack_core::sources::omp::history::omp_history_candidate_paths(),
+        "qoder_cli" => {
+            orgtrack_core::sources::qoder_cli::history::qoder_cli_history_candidate_paths()
+        }
         _ => Vec::new(),
     }
 }
@@ -596,7 +631,10 @@ fn platform_data_candidates(relative_paths: &[&str]) -> Vec<PathBuf> {
 }
 
 fn expand_home_relative(relative: &str) -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    // Keep history discovery aligned with the source-specific importers. The
+    // secondary-instance launcher overrides this root so two cloud identities
+    // cannot both discover and claim the same system-level transcripts.
+    let home = app_paths::external_history_home_dir();
     Some(home.join(relative))
 }
 
@@ -719,6 +757,30 @@ mod tests {
         assert_eq!(store_kind_for("warp"), "sqlite");
         assert_eq!(source.detect_cmd, "oz");
         assert!(source.detect_aliases.contains(&"warp-terminal"));
+    }
+
+    #[test]
+    fn new_cli_sources_match_import_and_launch_contracts() {
+        for (source_id, command, store_kind) in [
+            ("mimo_code", "mimo", "sqlite"),
+            ("omp", "omp", "jsonl"),
+            ("qoder_cli", "qodercli", "jsonl"),
+        ] {
+            let source = EXTERNAL_CLI_SOURCES
+                .iter()
+                .find(|source| source.source_id == source_id)
+                .expect("source entry");
+            assert!(source.history_import);
+            assert_eq!(source.detect_cmd, command);
+            assert_eq!(store_kind_for(source_id), store_kind);
+        }
+
+        let trae = EXTERNAL_CLI_SOURCES
+            .iter()
+            .find(|source| source.source_id == "trae_cli")
+            .expect("Trae CLI source");
+        assert_eq!(trae.detect_cmd, "trae-cli");
+        assert_eq!(trae.launch_cmd, "trae-cli interactive");
     }
 
     #[test]

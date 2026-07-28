@@ -119,6 +119,8 @@ pub fn normalize_chunk(chunk: &RawActivityChunk, session_id: &str) -> SessionEve
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     };
     event.recompute_extracted();
@@ -143,10 +145,8 @@ fn infer_display_variant(
     result: &serde_json::Value,
 ) -> EventDisplayVariant {
     // User messages
-    if action_type == "raw" || action_type == "raw_event" {
-        if raw_message_text(result).is_some() {
-            return EventDisplayVariant::Message;
-        }
+    if (action_type == "raw" || action_type == "raw_event") && raw_message_text(result).is_some() {
+        return EventDisplayVariant::Message;
     }
 
     // Thinking events

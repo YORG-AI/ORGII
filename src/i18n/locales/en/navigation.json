@@ -12,6 +12,7 @@
     "drafts": "Drafts",
     "browser": "Browser",
     "editor": "Editor",
+    "environment": "Environment",
     "workspace": "Workspace",
     "codeEditor": "Code Editor",
     "databaseManager": "Database Manager",
@@ -89,15 +90,9 @@
     "startSession": "Start session",
     "sessions": "Sessions",
     "selectProject": "Select Project",
-    "startPage": "Start Page",
     "inbox": "Inbox",
     "login": "Login",
     "setup": "Setup",
-    "devJourney": "Dev Journey",
-    "devRecord": "Dev Record",
-    "gitDashboard": "Git Dashboard",
-    "devActivity": "Dev Activity",
-    "usageHistory": "Usage History",
     "tokenMarket": "Token Market",
     "taskMarket": "Task Market",
     "channels": "Channels",
@@ -113,20 +108,8 @@
     "ideaArea": "Idea Area",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Customize Grid",
-    "horizontalGap": "Horizontal Gap",
-    "verticalGap": "Vertical Gap",
-    "resetToDefault": "Reset to Default"
-  },
-  "greetings": {
-    "morning": "Good morning",
-    "afternoon": "Good afternoon",
-    "evening": "Good evening"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Home",
       "workstation": "Workstation",
       "manage": "Manage",
       "core": "Core",
@@ -162,9 +145,7 @@
     "actions": {
       "addNew": "Add New",
       "collapseAll": "Collapse All",
-      "markAllRead": "Mark All Read",
-      "openHome": "Open Home",
-      "openWorkstation": "Open Workstation"
+      "markAllRead": "Mark All Read"
     },
     "search": {
       "folders": "Search Workspace...",
@@ -245,7 +226,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -265,7 +250,13 @@
       "error": "Failed to fork the session",
       "sendFailed": "Forked, but the message failed to send — it was restored to the composer",
       "forkedChipTooltip": "Forked from {{name}}",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "openParentButton": "Open source session from {{name}}"
     }
   },
   "myRole": {
@@ -440,20 +431,12 @@
       "forks": "Forks"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Product updates",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Details",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Login",
     "signOut": "Logout",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "Your ORG2 Cloud session expired. Sign in again to continue.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
@@ -493,12 +476,15 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "About me"
     },
     "sidebar": {
       "teamSessions": "Team sessions",
+      "mySessions": "My sessions",
       "memberFilter": "Filter by member",
       "sessionFilter": "Filter sessions",
+      "copyId": "Copy ID",
       "directlySharedWithMe": "Shared directly with me",
       "everyone": "Everyone",
       "forkedFrom": "forked from @{{name}}",
@@ -572,7 +558,8 @@
         "youTag": "You",
         "ownerTag": "Owner",
         "floorOff": "No minimum",
-        "floorTooltip": "Minimum sharing level for this member. The stricter of this and the org-wide floor applies."
+        "floorTooltip": "Minimum sharing level for this member. The stricter of this and the org-wide floor applies.",
+        "floorOrgMinimum": "Org minimum ({{mode}})"
       },
       "leave": {
         "action": "Leave org",
@@ -613,7 +600,7 @@
         "joinedFallbackToast": "Joined the cloud org"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (managed)",
+        "sourceCloud": "Cloud",
         "signInFirst": "Sign in to ORG2 Cloud to create or join a managed org.",
         "openSettings": "Open sign-in settings",
         "createdToast": "Cloud org created"
@@ -630,25 +617,22 @@
         "inviteInvalid": "This invite code isn't valid.",
         "inviteRevoked": "This invite has been revoked.",
         "inviteExpired": "This invite has expired.",
-        "inviteExhausted": "This invite has no uses left."
+        "inviteExhausted": "This invite has no uses left.",
+        "network": "Couldn't connect to the cloud service. Check your network and try again."
       }
-    },
-    "defaultAccess": {
-      "label": "Default sync level",
-      "help": "Applies to this device's sessions matched by repo scope, unless a session has its own override. Off keeps sessions local until you opt in"
     },
     "syncLevel": {
       "menuItem": "Cloud sync level…",
       "title": "Cloud sync level",
       "hint": "Choose what this session shares to each cloud org — nothing, metadata only, or full replay — and who can see it.",
-      "orgDefaultOption": "Org default ({{mode}})",
       "modeOff": "Off",
       "modeMetadata": "Metadata only",
       "modeFullReplay": "Full replay",
       "visibilityOrg": "Everyone in org",
       "visibilityRestricted": "Only me",
       "taggedNote": "This session was moved into this org, so it always shares at least metadata while tagged.",
-      "floorNote": "Your org admin requires sharing at least {{mode}}."
+      "floorNote": "Your org admin requires sharing at least {{mode}}.",
+      "orgMinimumOption": "Org minimum ({{mode}})"
     },
     "share": {
       "menuItem": "Cloud share…",
@@ -679,33 +663,23 @@
       "importPasteClipboard": "Paste from clipboard",
       "importSubmit": "Import",
       "importInvalidInput": "This doesn't look like a valid share link or token.",
-      "selectAll": "Everyone ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Agent task runner",
-      "desc": "Defaults for comment tasks you run from session threads (“Run here”)",
-      "machineNotice": "Runs execute on this machine with this account's tokens",
-      "orgLabel": "Organization",
-      "accountLabel": "Account",
-      "accountPlaceholder": "Default account",
-      "modelLabel": "Model",
-      "modelPlaceholder": "Default model",
-      "modeLabel": "Mode",
-      "autoRunLabel": "Auto-run @agent tasks",
-      "autoRunDesc": "Automatically claim and run open @agent comment tasks on sessions you own. Off by default — teammates' @agent mentions won't spend your tokens until you turn this on."
+      "selectAll": "Everyone ({{count}})",
+      "incomingEndpointMismatch": "This share belongs to a different custom cloud. Configure that cloud endpoint before importing.",
+      "incomingConnectionError": "Couldn't connect to the cloud service. Check your network and try again.",
+      "incomingIncompatibleError": "This cloud returned an incompatible share response. Update ORGII or verify the cloud deployment.",
+      "incomingServerError": "The cloud service couldn't resolve this share. Try again.",
+      "incomingAlreadyOnDevice": "This session is already on this device. Open the original instead of importing a duplicate.",
+      "incomingOpenExisting": "Open session",
+      "incomingRetry": "Try again"
     },
     "comments": {
       "task": {
         "assignFailed": "Comment posted, but assigning the agent failed — retry from the thread",
         "assignUnavailableHere": "Comment posted — agent assignment isn't available in this view",
-        "turnBadge": "an agent is on this turn",
         "addressingChip": "Addressing comment: “{{excerpt}}”",
         "addressingChipGeneric": "Addressing a comment",
         "addressingChipTooltip": "Forked to address a comment thread on the source session",
-        "openBadge_one": "{{count}} agent task awaiting pickup",
-        "openBadge": "{{count}} agent tasks awaiting pickup",
-        "activeBadge_one": "an agent is working on this session",
-        "activeBadge": "{{count}} agents are working on this session"
+        "mentionSuggestion": "Assign this comment to an agent"
       },
       "toggleLabel": "Comments",
       "notesButton": "Session notes",
@@ -753,6 +727,10 @@
       "help": "Set the least a member may share for sessions in this org's repos. Members can't set sessions below it. \"No minimum\" keeps the current behavior",
       "optionNone": "No minimum",
       "memberNote": "Your org admin requires sharing at least {{mode}}, so you can't set sessions below that"
-    }
+    },
+    "signedInAs": "Signed in as {{name}}",
+    "renameDisplayName": "Edit display name",
+    "renameSaved": "Display name updated",
+    "renameFailed": "Failed to update display name"
   }
 }

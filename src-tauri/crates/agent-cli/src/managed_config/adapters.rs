@@ -1,8 +1,9 @@
-use super::{
-    openai_chat_proxy_base_url, selected_model_or_default, upsert_env_file, AUTOHAND_AGENT,
-    CLINE_AGENT, CONTINUE_CLI_AGENT, DROID_AGENT, GOOSE_AGENT, HERMES_AGENT, KIMI_CLI_AGENT,
-    MISTRAL_VIBE_AGENT, OMP_AGENT, OPENCLAW_AGENT, ORGII_PROVIDER_ID, ORGII_PROVIDER_NAME,
-    PI_AGENT, QWEN_CODE_AGENT,
+use super::generators::{selected_model_or_default, upsert_env_file};
+use super::proxy::openai_chat_proxy_base_url;
+use super::registry::{
+    AUTOHAND_AGENT, CLINE_AGENT, CONTINUE_CLI_AGENT, DROID_AGENT, GOOSE_AGENT, HERMES_AGENT,
+    KIMI_CLI_AGENT, MISTRAL_VIBE_AGENT, OMP_AGENT, OPENCLAW_AGENT, ORGII_PROVIDER_ID,
+    ORGII_PROVIDER_NAME, PI_AGENT, QWEN_CODE_AGENT,
 };
 use chrono::{SecondsFormat, Utc};
 

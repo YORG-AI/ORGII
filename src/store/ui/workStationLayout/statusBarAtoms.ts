@@ -1,6 +1,8 @@
 import { atom } from "jotai";
 
-export type StatusBarAppType = "code" | "data" | "browser" | "project";
+import type { StatusBarAppType } from "@src/types/ui/workstation";
+
+export type { StatusBarAppType } from "@src/types/ui/workstation";
 
 export interface GlobalCursorPosition {
   line: number;

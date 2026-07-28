@@ -5,7 +5,7 @@
  * Used across Settings, Profile, and other pages.
  *
  * Variants:
- * - "settings": Compact title (14px, semibold, text-text-1), surface-container card
+ * - "settings": Compact title (14px, semibold, text-text-1), primary-container card
  * - "profile": Larger title (18px, text-primary-6), fill-2 container
  *
  * Layout patterns:

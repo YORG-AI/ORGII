@@ -17,6 +17,7 @@ use orgtrack_core::status_adapter::AgentStatusEventV1;
 pub const AGENT_STATUS_TOKEN_HEADER: &str = "x-orgii-hook-token";
 pub const AGENT_STATUS_ROUTE: &str = "/hooks/agent-status";
 pub const AGENT_STATUS_MAX_BODY_BYTES: usize = 64 * 1024;
+pub const PROVENANCE_READY_ROUTE: &str = "/hooks/provenance-ready";
 
 const ENDPOINT_SCHEMA_VERSION: u32 = 1;
 
@@ -104,6 +105,16 @@ pub async fn handle(headers: HeaderMap, body: Bytes) -> StatusCode {
         );
     }
     crate::orgtrack::agent_live_status::ingest(event);
+    StatusCode::NO_CONTENT
+}
+
+/// Wake the bounded provenance spool drainer. The request carries no user
+/// data; the authenticated loopback route is only an invalidation signal.
+pub async fn handle_provenance_ready(headers: HeaderMap) -> StatusCode {
+    if !authorize_hook_request(&headers) {
+        return StatusCode::UNAUTHORIZED;
+    }
+    crate::orgtrack::session_provenance::notify_hook_inbox_ready();
     StatusCode::NO_CONTENT
 }
 

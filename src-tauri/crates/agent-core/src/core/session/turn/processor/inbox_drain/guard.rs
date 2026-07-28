@@ -2,6 +2,7 @@
 //! [`super::drain_and_render_deferred`].
 
 use crate::coordination::agent_inbox::AgentInboxStore;
+use crate::session::persistence::AgentOrgInboxTranscriptMaterialization;
 use tracing::{info, warn};
 
 /// Pending mark-read commit returned by [`super::drain_and_render_deferred`].
@@ -23,8 +24,11 @@ use tracing::{info, warn};
 pub struct DrainGuard {
     run_id: String,
     recipient_member_id: String,
+    materialization_session_id: Option<String>,
     pending_ids: Vec<i64>,
+    new_materialization_ids: Vec<i64>,
     transcript_content: Option<String>,
+    materializations: Vec<AgentOrgInboxTranscriptMaterialization>,
 }
 
 impl DrainGuard {
@@ -32,27 +36,91 @@ impl DrainGuard {
         Self {
             run_id: run_id.to_string(),
             recipient_member_id: recipient_member_id.to_string(),
+            materialization_session_id: None,
             pending_ids: Vec::new(),
+            new_materialization_ids: Vec::new(),
             transcript_content: None,
+            materializations: Vec::new(),
         }
     }
 
     pub(super) fn drained(
         run_id: &str,
         recipient_member_id: &str,
+        materialization_session_id: Option<&str>,
         pending_ids: Vec<i64>,
-        transcript: String,
+        new_materialization_ids: Vec<i64>,
+        transcript: Option<String>,
+        materializations: Vec<AgentOrgInboxTranscriptMaterialization>,
     ) -> Self {
         Self {
             run_id: run_id.to_string(),
             recipient_member_id: recipient_member_id.to_string(),
+            materialization_session_id: materialization_session_id.map(str::to_string),
             pending_ids,
-            transcript_content: Some(transcript),
+            new_materialization_ids,
+            transcript_content: transcript,
+            materializations,
         }
     }
 
     pub fn transcript_content(&self) -> Option<&str> {
         self.transcript_content.as_deref()
+    }
+
+    pub fn has_pending_input(&self) -> bool {
+        !self.pending_ids.is_empty()
+    }
+
+    /// Exact source rows this turn will acknowledge only after successful
+    /// provider execution. Threaded into tool-call context so prospective
+    /// finality can project this turn's guaranteed commit without treating
+    /// unrelated unread mail as consumed.
+    pub fn pending_ids(&self) -> &[i64] {
+        &self.pending_ids
+    }
+
+    pub fn new_materialization_ids(&self) -> &[i64] {
+        &self.new_materialization_ids
+    }
+
+    pub fn materializations(&self) -> &[AgentOrgInboxTranscriptMaterialization] {
+        &self.materializations
+    }
+
+    pub fn remember_materialization(
+        &mut self,
+        materialization: AgentOrgInboxTranscriptMaterialization,
+    ) {
+        if !self
+            .materializations
+            .iter()
+            .any(|existing| existing.message_id == materialization.message_id)
+        {
+            self.materializations.push(materialization);
+        }
+    }
+
+    /// Stable transcript/event identities for this exact inbox delivery set.
+    /// A replay after the transcript write but before `commit()` reuses these
+    /// ids, so persistence is idempotent while the source rows remain unread.
+    pub fn transcript_identity(&self, session_id: &str) -> Option<(String, String)> {
+        if self.new_materialization_ids.is_empty() || self.transcript_content.is_none() {
+            return None;
+        }
+        let mut material = format!(
+            "{}\0{}\0{}",
+            self.run_id, self.recipient_member_id, session_id
+        );
+        for id in &self.new_materialization_ids {
+            material.push('\0');
+            material.push_str(&id.to_string());
+        }
+        let digest = blake3::hash(material.as_bytes()).to_hex().to_string();
+        Some((
+            format!("agent-org-inbox-transcript-{digest}"),
+            format!("agent-org-inbox-intent-{digest}"),
+        ))
     }
 
     /// Number of rows that were drained-and-rendered. `0` means there
@@ -75,7 +143,13 @@ impl DrainGuard {
         if self.pending_ids.is_empty() {
             return;
         }
-        match AgentInboxStore::mark_many_read(&self.pending_ids) {
+        let result = match self.materialization_session_id.as_deref() {
+            Some(session_id) => {
+                AgentInboxStore::mark_many_read_for_session(&self.pending_ids, session_id)
+            }
+            None => AgentInboxStore::mark_many_read(&self.pending_ids),
+        };
+        match result {
             Ok(updated) => {
                 info!(
                     run_id = %self.run_id,
@@ -95,5 +169,17 @@ impl DrainGuard {
                 );
             }
         }
+    }
+
+    /// Unit-test convenience for pure rendering tests that do not execute the
+    /// production transcript-materialization step. Production code must use
+    /// [`Self::commit`] so receipt ownership is enforced.
+    #[cfg(test)]
+    pub(super) fn commit_without_materialization_for_test(self) {
+        if self.pending_ids.is_empty() {
+            return;
+        }
+        AgentInboxStore::mark_many_read(&self.pending_ids)
+            .expect("test inbox acknowledgement should succeed");
     }
 }

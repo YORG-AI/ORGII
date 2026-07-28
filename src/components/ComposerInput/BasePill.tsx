@@ -28,6 +28,7 @@ export interface BasePillProps {
   onMouseEnter?: React.MouseEventHandler<HTMLSpanElement>;
   onMouseLeave?: React.MouseEventHandler<HTMLSpanElement>;
   onMouseDown?: React.MouseEventHandler<HTMLSpanElement>;
+  onKeyDown?: React.KeyboardEventHandler<HTMLSpanElement>;
   /** Only meaningful in editor variant — forwards contentEditable={false} */
   contentEditable?: false;
   suppressContentEditableWarning?: boolean;
@@ -67,6 +68,7 @@ const BasePill = React.forwardRef<HTMLSpanElement, BasePillProps>(
       onMouseEnter,
       onMouseLeave,
       onMouseDown,
+      onKeyDown,
       contentEditable: _contentEditable,
       suppressContentEditableWarning: _suppressContentEditableWarning,
       className,
@@ -99,6 +101,7 @@ const BasePill = React.forwardRef<HTMLSpanElement, BasePillProps>(
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onMouseDown={onMouseDown}
+        onKeyDown={onKeyDown}
         role={role}
         tabIndex={tabIndex}
         {...(isEditor

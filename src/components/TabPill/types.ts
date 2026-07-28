@@ -6,6 +6,8 @@ export interface TabPillItem {
   icon?: ReactNode;
   hoverIcon?: ReactNode;
   badge?: ReactNode;
+  /** Trailing content revealed on hover while preserving the tab's width. */
+  hoverBadge?: ReactNode;
   disabled?: boolean;
   dropdown?: ReactNode;
   dataTestId?: string;
@@ -34,5 +36,7 @@ export interface TabPillProps {
   colorScheme?: "default" | "muted" | "layout" | "ghost";
   /** Button-like grouped switch style with an outlined container and fill-2 active pill. */
   buttonStyle?: boolean;
+  /** Explicit outer control height in pixels for compact toolbar placement. */
+  height?: number;
   onDropdownRef?: (close: () => void) => void;
 }

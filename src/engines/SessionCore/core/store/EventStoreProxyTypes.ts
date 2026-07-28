@@ -34,6 +34,8 @@ export interface DerivedSnapshot extends SimulatorPreviewSnapshotFields {
   chatEventCount: number;
   hasRunningEvent: boolean;
   latestCanvasPreview?: LatestCanvasPreview;
+  /** Active turn marker on materialized incremental streaming deltas. */
+  streaming?: boolean;
 }
 
 export interface StreamingSnapshot extends SimulatorPreviewSnapshotFields {
@@ -63,6 +65,17 @@ export interface SnapshotDelta extends SimulatorPreviewSnapshotFields {
   hasRunningEvent: boolean;
   latestCanvasPreview?: LatestCanvasPreview;
   snapshotDelta: true;
+  incrementalOrders?: boolean;
+  memberships?: SnapshotEventMembership[];
+  streaming?: boolean;
+}
+
+export interface SnapshotEventMembership {
+  id: string;
+  eventIndex: number;
+  chat: boolean;
+  messages: boolean;
+  simulator: boolean;
 }
 
 export type Snapshot = DerivedSnapshot | StreamingSnapshot;
@@ -94,4 +107,8 @@ export interface NormalizedSnapshotCache {
   functionNameById: Record<string, string>;
   displayStatusById: Record<string, string>;
   displayVariantById: Record<string, string>;
+  /** Visibility bits for chat/messages/simulator order membership. */
+  orderMembershipById: Map<string, number>;
+  runningEventIds: Set<string>;
+  latestCanvasPreview?: LatestCanvasPreview;
 }

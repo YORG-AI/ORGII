@@ -46,6 +46,8 @@ export interface TerminalSession {
   cliAgentType?: CliAgentType;
   /** Command injected to start the CLI agent. */
   agentCommand?: string;
+  /** Environment variables supplied when the PTY is created. */
+  envOverride?: Record<string, string>;
   /** Foreground process name expected while the CLI agent is active. */
   expectedProcess?: string;
   /** Derived lifecycle state for chat-panel TUI agent tracking. */

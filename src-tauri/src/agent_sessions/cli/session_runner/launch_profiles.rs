@@ -6,17 +6,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CliPermissionMode {
     Plan,
+    #[default]
     FullPermission,
     AutoEdit,
     Manual,
-}
-
-impl Default for CliPermissionMode {
-    fn default() -> Self {
-        Self::FullPermission
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -146,6 +142,8 @@ pub fn cli_binary_id_for_agent(agent: &ModelType) -> Option<CliBinaryId> {
         ModelType::Autohand => Some(CliBinaryId::Autohand),
         ModelType::Omp => Some(CliBinaryId::Omp),
         ModelType::Pi => Some(CliBinaryId::Pi),
+        ModelType::QoderCli => Some(CliBinaryId::QoderCli),
+        ModelType::TraeCli => Some(CliBinaryId::TraeCli),
         _ => None,
     }
 }
@@ -372,6 +370,21 @@ pub const CLI_LAUNCH_PROFILE_DEFAULTS: &[CliLaunchProfileDefaults] = &[
         command_args: &[],
         mode_defaults: mode_defaults![Manual => (&[], &[])],
     },
+    CliLaunchProfileDefaults {
+        agent_type: ModelType::QoderCli,
+        command_args: &[],
+        mode_defaults: mode_defaults![
+            Plan => (&["--permission-mode", "plan"], &[]),
+            Manual => (&["--permission-mode", "default"], &[]),
+            AutoEdit => (&["--permission-mode", "accept_edits"], &[]),
+            FullPermission => (&["--permission-mode", "bypass_permissions"], &[]),
+        ],
+    },
+    CliLaunchProfileDefaults {
+        agent_type: ModelType::TraeCli,
+        command_args: &["interactive"],
+        mode_defaults: mode_defaults![Manual => (&[], &[])],
+    },
 ];
 
 pub fn defaults_for_agent(agent_type: &ModelType) -> Option<&'static CliLaunchProfileDefaults> {
@@ -462,4 +475,32 @@ pub fn static_env_to_map(
 
 pub fn static_args_to_vec(values: &'static [&'static str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_string()).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn qoder_cli_exposes_documented_permission_modes() {
+        let defaults = defaults_for_agent(&ModelType::QoderCli).expect("Qoder CLI defaults");
+        assert_eq!(
+            default_args_for_mode(defaults, CliPermissionMode::Plan),
+            vec!["--permission-mode", "plan"]
+        );
+        assert_eq!(
+            default_args_for_mode(defaults, CliPermissionMode::FullPermission),
+            vec!["--permission-mode", "bypass_permissions"]
+        );
+    }
+
+    #[test]
+    fn trae_cli_starts_in_interactive_mode() {
+        let defaults = defaults_for_agent(&ModelType::TraeCli).expect("Trae CLI defaults");
+        assert_eq!(defaults.command_args, &["interactive"]);
+        assert_eq!(
+            supported_permission_modes(defaults),
+            vec![CliPermissionMode::Manual]
+        );
+    }
 }

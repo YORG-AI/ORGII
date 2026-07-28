@@ -41,6 +41,7 @@ import {
 import React, { createContext, memo, useContext } from "react";
 
 import Button from "@src/components/Button";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 
 /**
@@ -290,7 +291,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
       resolvedBackground === "transparent"
         ? ""
         : resolvedBackground === "editorCanvas"
-          ? "bg-[var(--cm-editor-background)]"
+          ? EDITOR_TAB_CANVAS_BG_CLASS
           : "bg-bg-2";
 
     // Render custom content or default title/breadcrumb

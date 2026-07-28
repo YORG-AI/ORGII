@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS,
   AGENT_ORG_RUN_VIEW_FALLBACK_MS,
   AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS,
+  agentOrgRunViewStoreTestApi,
   getAgentOrgRunViewSnapshot,
   subscribeAgentOrgRunView,
 } from "./agentOrgRunViewStore";
@@ -31,7 +33,7 @@ async function flushPromises(): Promise<void> {
 }
 
 function runView(
-  runStatus: "running" | "completed",
+  runStatus: "running" | "paused" | "completed",
   interventionResumeAfter?: string
 ) {
   return {
@@ -113,6 +115,7 @@ function deferred<T>() {
 }
 
 afterEach(() => {
+  agentOrgRunViewStoreTestApi.reset();
   vi.useRealTimers();
   vi.clearAllMocks();
 });
@@ -210,7 +213,37 @@ describe("Agent Org run-view store", () => {
     unsubscribe();
   });
 
+  it("refreshes a retained view immediately when the session is reopened", async () => {
+    vi.useFakeTimers();
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView
+      .mockResolvedValueOnce(runView("running"))
+      .mockResolvedValueOnce(runView("paused"));
+
+    const unsubscribeFirst = subscribeAgentOrgRunView("session-root", vi.fn());
+    await flushPromises();
+    expect(getAgentOrgRunViewSnapshot("session-root").view?.runStatus).toBe(
+      "running"
+    );
+
+    unsubscribeFirst();
+    const unsubscribeReopened = subscribeAgentOrgRunView(
+      "session-root",
+      vi.fn()
+    );
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    await flushPromises();
+
+    expect(getAgentOrgRunViewSnapshot("session-root").view?.runStatus).toBe(
+      "paused"
+    );
+    unsubscribeReopened();
+  });
+
   it("rejects an older discovery response that resolves after a newer one", async () => {
+    vi.useFakeTimers();
     const rootRequest = deferred<ReturnType<typeof runView>>();
     const workerRequest = deferred<ReturnType<typeof runView>>();
     mocks.subscribeAgentOrgStateChanges.mockReturnValue(
@@ -226,6 +259,10 @@ describe("Agent Org run-view store", () => {
       vi.fn()
     );
 
+    // Unknown sessions initially share one bootstrap request. If the first
+    // discovery hangs, the second is released after the bounded join timeout;
+    // request ordering must still reject the first request's late result.
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS);
     workerRequest.resolve(runView("completed"));
     await flushPromises();
     rootRequest.resolve(runView("running"));

@@ -8,6 +8,7 @@ import { selectedRepoPathAtom } from "@src/store/repo";
 // here, creating a circular dependency.
 import {
   type TerminalTarget,
+  clearTerminalTargetReferencesAtom,
   codeEditorTerminalTargetAtom,
 } from "@src/store/workstation/codeEditor/terminalTargetAtom";
 
@@ -19,6 +20,9 @@ const TerminalTabSidebar: TabSidebarComponent = () => {
   const terminalTarget = useAtomValue(codeEditorTerminalTargetAtom);
   const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
+  const clearTerminalTargetReferences = useSetAtom(
+    clearTerminalTargetReferencesAtom
+  );
   const activeTerminalTarget =
     terminalTarget?.kind === "agent"
       ? terminalTarget
@@ -61,14 +65,9 @@ const TerminalTabSidebar: TabSidebarComponent = () => {
   const handleClosePtySession = useCallback(
     (sessionId: string) => {
       terminalState.closeSession(sessionId);
-      if (
-        terminalTarget?.kind === "pty" &&
-        terminalTarget.ptySessionId === sessionId
-      ) {
-        setTerminalTarget(null);
-      }
+      clearTerminalTargetReferences(sessionId);
     },
-    [terminalState, terminalTarget, setTerminalTarget]
+    [clearTerminalTargetReferences, terminalState]
   );
 
   return (

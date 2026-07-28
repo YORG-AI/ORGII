@@ -63,15 +63,18 @@ struct FileEntry {
 }
 
 struct FileIndex {
-    entries: Vec<FileEntry>,
+    entries: Arc<Vec<FileEntry>>,
     _root_path: String,
     indexed_at: std::time::SystemTime,
+    estimated_bytes: usize,
 }
 
 /// Cache TTL — 5 minutes.  The old 30 s TTL caused a cold re-walk every time
 /// the user paused for half a minute between @ searches.
 const CACHE_TTL_SECS: u64 = 300;
 const MAX_CACHED_FILE_INDEXES: usize = 4;
+const MAX_FILE_INDEX_BYTES: usize = 32 * 1024 * 1024;
+const MAX_FILE_INDEX_CACHE_BYTES: usize = 64 * 1024 * 1024;
 
 static FILE_INDEX_CACHE: std::sync::LazyLock<Arc<Mutex<HashMap<String, FileIndex>>>> =
     std::sync::LazyLock::new(|| Arc::new(Mutex::new(HashMap::new())));
@@ -85,7 +88,11 @@ fn prune_file_index_cache(cache: &mut HashMap<String, FileIndex>) {
             .unwrap_or(false)
     });
 
-    while cache.len() > MAX_CACHED_FILE_INDEXES {
+    let mut total_bytes = cache
+        .values()
+        .map(|index| index.estimated_bytes)
+        .sum::<usize>();
+    while cache.len() > MAX_CACHED_FILE_INDEXES || total_bytes > MAX_FILE_INDEX_CACHE_BYTES {
         let Some(oldest_key) = cache
             .iter()
             .min_by_key(|(_, index)| index.indexed_at)
@@ -93,15 +100,36 @@ fn prune_file_index_cache(cache: &mut HashMap<String, FileIndex>) {
         else {
             break;
         };
-        cache.remove(&oldest_key);
+        if let Some(removed) = cache.remove(&oldest_key) {
+            total_bytes = total_bytes.saturating_sub(removed.estimated_bytes);
+        }
     }
+}
+
+fn estimate_file_index_bytes(entries: &[FileEntry]) -> usize {
+    std::mem::size_of_val(entries)
+        + entries
+            .iter()
+            .map(|entry| entry.path.len() + entry.filename.len())
+            .sum::<usize>()
 }
 
 fn insert_file_index_cache_entry(
     root_path: String,
-    entries: Vec<FileEntry>,
+    entries: Arc<Vec<FileEntry>>,
     indexed_at: std::time::SystemTime,
 ) {
+    let estimated_bytes = estimate_file_index_bytes(&entries);
+    if estimated_bytes > MAX_FILE_INDEX_BYTES {
+        debug!(
+            root_path = %root_path,
+            entries = entries.len(),
+            estimated_bytes,
+            "search::file: index exceeds per-repository cache budget; using it for this request only"
+        );
+        return;
+    }
+
     let mut cache = FILE_INDEX_CACHE.lock().unwrap();
     prune_file_index_cache(&mut cache);
     cache.insert(
@@ -110,6 +138,7 @@ fn insert_file_index_cache_entry(
             entries,
             _root_path: root_path,
             indexed_at,
+            estimated_bytes,
         },
     );
     prune_file_index_cache(&mut cache);
@@ -195,7 +224,7 @@ fn build_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> 
 /// **never** during the expensive `build_file_index` walk.  This means
 /// concurrent searches for different repos proceed in parallel, and a
 /// slow index build for repo A won't block a cached lookup for repo B.
-fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> {
+fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Arc<Vec<FileEntry>> {
     // 1. Quick check under the lock — return cached entries if fresh.
     {
         let mut cache = FILE_INDEX_CACHE.lock().unwrap();
@@ -203,7 +232,7 @@ fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> {
         if let Some(index) = cache.get(root_path) {
             if let Ok(elapsed) = index.indexed_at.elapsed() {
                 if elapsed.as_secs() < CACHE_TTL_SECS {
-                    return index.entries.clone();
+                    return Arc::clone(&index.entries);
                 }
             }
         }
@@ -217,16 +246,16 @@ fn get_file_index(root_path: &str, exclude_dirs: &[String]) -> Vec<FileEntry> {
             root_path = %root_path,
             "search::file: root path invalid or gone; skipping index"
         );
-        return Vec::new();
+        return Arc::new(Vec::new());
     }
 
     // 3. Build index WITHOUT holding the lock.
-    let entries = build_file_index(root_path, exclude_dirs);
+    let entries = Arc::new(build_file_index(root_path, exclude_dirs));
 
     // 4. Re-acquire lock to store.
     insert_file_index_cache_entry(
         root_path.to_string(),
-        entries.clone(),
+        Arc::clone(&entries),
         std::time::SystemTime::now(),
     );
 
@@ -439,10 +468,14 @@ pub async fn index_project_files(
         }
 
         // Build fresh index
-        let entries = build_file_index(&root_path, &exclude_dirs);
+        let entries = Arc::new(build_file_index(&root_path, &exclude_dirs));
         let count = entries.len();
 
-        insert_file_index_cache_entry(root_path, entries, std::time::SystemTime::now());
+        insert_file_index_cache_entry(
+            root_path,
+            Arc::clone(&entries),
+            std::time::SystemTime::now(),
+        );
 
         let duration = start.elapsed();
         info!(entries = count, ?duration, "search::file: indexed entries");
@@ -504,10 +537,14 @@ pub async fn prewarm_file_index(root_path: String) -> Result<usize, String> {
         ];
 
         // Build WITHOUT holding the lock.
-        let entries = build_file_index(&root_path, &default_excludes);
+        let entries = Arc::new(build_file_index(&root_path, &default_excludes));
         let count = entries.len();
 
-        insert_file_index_cache_entry(root_path, entries, std::time::SystemTime::now());
+        insert_file_index_cache_entry(
+            root_path,
+            Arc::clone(&entries),
+            std::time::SystemTime::now(),
+        );
 
         info!(entries = count, "search::file: prewarm complete");
         Ok(count)

@@ -89,6 +89,8 @@ export interface GetSessionEventSegmentsInput {
    * read the one session the token is bound to.
    */
   shareToken?: string;
+  /** Cancels the fetch + decode (dialog close / attempt supersession). */
+  signal?: AbortSignal;
 }
 
 export interface SessionEventSegmentRecord {
@@ -109,6 +111,21 @@ export interface SessionEventSegmentsSnapshot {
   segments: SessionEventSegmentRecord[];
 }
 
+export type SessionEventSegmentsSummary = Omit<
+  SessionEventSegmentsSnapshot,
+  "segments"
+>;
+
+/**
+ * Optional bounded-memory replay read. Implementations invoke `onPage` in
+ * frozen-sequence order and include the mutable tail only on the final page.
+ * The returned summary describes that final page's authoritative snapshot.
+ */
+export type StreamSessionEventSegments = (
+  input: GetSessionEventSegmentsInput,
+  onPage: (page: SessionEventSegmentsSnapshot) => Promise<void>
+) => Promise<SessionEventSegmentsSummary>;
+
 export interface CollabSyncBackendClient {
   upsertProjectMetadata(
     input: UpsertProjectMetadataInput
@@ -119,5 +136,6 @@ export interface CollabSyncBackendClient {
   getSessionEventSegments(
     input: GetSessionEventSegmentsInput
   ): Promise<SessionEventSegmentsSnapshot>;
+  streamSessionEventSegments?: StreamSessionEventSegments;
   listOrgState(input: ListOrgStateInput): Promise<CollabOrgState>;
 }

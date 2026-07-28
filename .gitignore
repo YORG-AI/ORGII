@@ -20,6 +20,7 @@ node-*
 # For windows user
 src-tauri/NSIS
 src-tauri/target
+src-tauri/target-instance*/
 src-tauri/WixTools314
 
 *.exe
@@ -126,7 +127,16 @@ data.json
 # IDE / tool artifacts
 .eslintcache
 .cursor/
-.orgii/
+# Keep local ORGII state ignored while allowing explicitly vendored workspace skills.
+.orgii/*
+!.orgii/skills/
+.orgii/skills/*
+!.orgii/skills/org2-performance-guard/
+!.orgii/skills/org2-performance-guard/**
+!.orgii/skills/react-best-practices/
+!.orgii/skills/react-best-practices/**
+!.orgii/skills/dual-instance-verification/
+!.orgii/skills/dual-instance-verification/**
 .soyd/
 
 # macOS copy-conflict duplicates (e.g. "file 2.rs", "file 3.rs")
@@ -138,3 +148,4 @@ archive/
 **/.build/
 # Codex CLI local state (created when codex runs inside the repo)
 .codex/
+tests/stress/.stress-state.json

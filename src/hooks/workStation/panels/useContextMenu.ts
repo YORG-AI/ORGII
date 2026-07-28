@@ -39,6 +39,7 @@ import { sessionsAtom } from "@src/store/session/sessionAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 
+import { LatestRequestGuard } from "../latestRequestGuard";
 import {
   type DrilledProject,
   searchFiles,
@@ -116,6 +117,16 @@ export function useContextMenu(
   const [secondLayerActiveIndex, setSecondLayerActiveIndex] = useState(0);
   const hasMovedMainHighlightRef = useRef(false);
   const hasMovedSecondLayerHighlightRef = useRef(false);
+  const searchRequestGuardRef = useRef<LatestRequestGuard | null>(null);
+  if (searchRequestGuardRef.current === null) {
+    searchRequestGuardRef.current = new LatestRequestGuard();
+  }
+
+  useEffect(() => {
+    return () => {
+      searchRequestGuardRef.current!.invalidate();
+    };
+  }, []);
 
   // Derive effective values — when externalSearchQuery is provided, override
   // without any setState.  This eliminates the 2-setState cascade that was
@@ -166,8 +177,10 @@ export function useContextMenu(
 
   const performSearch = useCallback(
     async (query: string, type: SecondLayerId, allowEmpty: boolean = false) => {
+      const request = searchRequestGuardRef.current!.issue();
       if (!query.trim() && !allowEmpty) {
         updateSearchResults([]);
+        setSearchLoading(false);
         return;
       }
       setSearchLoading(true);
@@ -196,12 +209,18 @@ export function useContextMenu(
         } else {
           results = [];
         }
-        updateSearchResults(results);
+        if (request.isCurrent()) {
+          updateSearchResults(results);
+        }
       } catch (error) {
-        log.error("[ContextMenu] Search failed:", error);
-        updateSearchResults([]);
+        if (request.isCurrent()) {
+          log.error("[ContextMenu] Search failed:", error);
+          updateSearchResults([]);
+        }
       } finally {
-        setSearchLoading(false);
+        if (request.isCurrent()) {
+          setSearchLoading(false);
+        }
       }
     },
     [effectiveRepoPath, searchRoots, allSessions, updateSearchResults]
@@ -224,11 +243,17 @@ export function useContextMenu(
   // useDebouncedCallback keeps the function fresh.
   useEffect(() => {
     if (secondLayer) {
+      // Invalidate immediately when the user's search intent changes. The next
+      // debounced search issues its own ticket; until then, an older request
+      // must not commit results for the previous query or menu invocation.
+      searchRequestGuardRef.current!.invalidate();
       // When entering files layer without query, still search to show all files
       debouncedContextSearch(searchQuery, secondLayer, !searchQuery);
     } else if (!searchQuery) {
       debouncedContextSearch.cancel();
+      searchRequestGuardRef.current!.invalidate();
       updateSearchResults([]);
+      setSearchLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, secondLayer, debouncedContextSearch]);
@@ -276,6 +301,7 @@ export function useContextMenu(
 
   // Reset state
   const reset = useCallback(() => {
+    searchRequestGuardRef.current!.invalidate();
     setActiveIndex(0);
     setKeyboardNavigated(false);
     setSecondLayer(null);

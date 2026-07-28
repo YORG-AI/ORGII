@@ -27,6 +27,7 @@ export type PillIconType =
   | "skill"
   | "member"
   | "paste"
+  | "link"
   | "pr"
   | "issue";
 
@@ -47,6 +48,8 @@ export interface ComposerPillAttrs {
 export interface ComposerInputProps {
   /** Placeholder text shown while the editor is empty */
   placeholder?: string;
+  /** Accessible name for the content-editable surface. */
+  ariaLabel?: string;
   /**
    * Ghost text rendered inline after the last content node (e.g.
    * "<optional focus for the summary>" behind a /compact pill). Purely

@@ -8,10 +8,6 @@ import type { SessionCreatorDraft } from "@src/store/session";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Poll intervals for sidebar session list refresh. */
-export const CURSOR_IDE_ACTIVE_REFRESH_INTERVAL_MS = 60_000;
-export const CURSOR_IDE_IDLE_REFRESH_INTERVAL_MS = 5 * 60_000;
-
 // ORG2 channel sessions can be created from external surfaces (Feishu, etc.)
 // without any frontend action. Refresh the full sidebar list while focused so
 // `/newsession ...` appears in ORG2 without a manual page reload.
@@ -25,6 +21,7 @@ export const PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID =
 export const PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID = "projects-new-work-item";
 export const WORK_ITEMS_MENU_ITEM_ID = "work-items";
 export const KANBAN_MENU_ITEM_ID = "kanban";
+export const RUNTIME_MENU_ITEM_ID = "runtime";
 export const WORK_ITEMS_PROJECTS_MENU_ITEM_ID = "work-items:projects";
 export const WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID = "work-items:github-issues";
 export const WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID = "work-items:github-prs";

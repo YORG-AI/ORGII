@@ -35,7 +35,8 @@ export type ExpandWorkItemToTabHandler = (
   projectSlug: string | undefined,
   workItemId: string,
   workItemName: string,
-  pendingUpdates?: Record<string, unknown>
+  pendingUpdates?: Record<string, unknown>,
+  workItemStatus?: string
 ) => void;
 
 export type OpenChatSessionHandler = (
@@ -51,9 +52,9 @@ export interface ProjectManagerContentRouterProps {
   activeTab: WorkStationTab | null;
   projectQuickActions: QuickAction[];
   onSelectProject: SelectProjectHandler;
+  onOpenProjects: () => void;
   onCreateProject: () => void;
   onCreateWorkItem: CreateWorkItemHandler;
-  onOpenProjects: () => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;
   onOpenRepoSettings: (section?: string) => void;
   onExpandWorkItemToTab: ExpandWorkItemToTabHandler;

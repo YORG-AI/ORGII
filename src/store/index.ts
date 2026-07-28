@@ -15,8 +15,7 @@
  * - agent/       - OS agent + AI control panel
  * - platform/  - Dev mode, system dependency scan
  * - ui/          - UI state
- * - workstation/  - Code editor, database, browser
- * - tabs/        - Main app tabs
+ * - workstation/  - Workstation tab, code-editor, and browser state
  */
 
 // Session atoms (events, replay, session state)
@@ -81,6 +80,3 @@ export * from "./ui";
 
 // Workstation atoms (code-editor, database, browser)
 export * from "./workstation";
-
-// Main app tabs
-export * from "./tabs";

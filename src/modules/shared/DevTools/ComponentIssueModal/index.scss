@@ -195,7 +195,7 @@
   background: var(--color-fill-2);
   color: var(--color-text-2);
   font-size: 14px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: all 0.12s ease;
 
   &:hover:not(:disabled) {
@@ -294,7 +294,7 @@
   border: none;
   background: transparent;
   color: var(--color-text-3);
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: background 0.15s ease;
 
   &:hover {
@@ -351,7 +351,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--color-text-3);
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition:
     background 0.15s ease,
     color 0.15s ease;
@@ -606,7 +606,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--color-text-3);
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition:
     background 0.15s ease,
     color 0.15s ease;

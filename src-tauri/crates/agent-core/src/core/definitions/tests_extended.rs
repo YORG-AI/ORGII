@@ -572,7 +572,7 @@ mod tests_extended {
         let json = serde_json::to_string(&sm).expect("serialize");
         let restored: SessionModel = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(restored.max_iterations, 500);
-        assert_eq!(restored.processing_lock, true);
+        assert!(restored.processing_lock);
         assert_eq!(restored.mode, SessionMode::PerSession);
     }
 
@@ -617,7 +617,7 @@ mod tests_extended {
         };
         let json = serde_json::to_string(&original).expect("serialize");
         let restored: AgentPolicy = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(restored.workspace_only, true);
+        assert!(restored.workspace_only);
         assert_eq!(
             restored.blocked_commands,
             vec!["rm".to_string(), "sudo".to_string()]

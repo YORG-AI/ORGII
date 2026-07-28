@@ -570,6 +570,8 @@ pub async fn test_event_store_complete_last_running(
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         });
     }
@@ -1207,7 +1209,7 @@ pub async fn test_work_item_scheduler_run_once() -> Json<serde_json::Value> {
 pub async fn debug_work_item_scheduler_run_once() -> Result<serde_json::Value, String> {
     let handle = crate::api::get_app_handle()
         .ok_or_else(|| "AppHandle not initialized. Is the Tauri app running?".to_string())?;
-    agent_core::coordination::work_item_scheduler::debug_run_once(&handle).await?;
+    agent_core::coordination::work_item_scheduler::debug_run_once(handle).await?;
     Ok(serde_json::json!({ "ran": true }))
 }
 
@@ -1215,7 +1217,7 @@ pub async fn debug_work_item_scheduler_run_once() -> Result<serde_json::Value, S
 pub async fn debug_routine_scheduler_run_once() -> Result<serde_json::Value, String> {
     let handle = crate::api::get_app_handle()
         .ok_or_else(|| "AppHandle not initialized. Is the Tauri app running?".to_string())?;
-    agent_core::coordination::routine_scheduler::debug_run_once(&handle).await?;
+    agent_core::coordination::routine_scheduler::debug_run_once(handle).await?;
     Ok(serde_json::json!({ "ran": true }))
 }
 

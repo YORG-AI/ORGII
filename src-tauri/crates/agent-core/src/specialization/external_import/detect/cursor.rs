@@ -5,7 +5,7 @@
 //!   - `.cursor/agents/<name>.md`  → `AgentDefinition`
 //!   - `.cursor/skills/<name>/SKILL.md` (workspace)
 //!   - `~/.cursor/skills-cursor/<name>/SKILL.md` (user-global)
-//!                                 → `Skill`
+//!     → `Skill`
 
 use std::path::Path;
 

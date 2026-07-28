@@ -44,7 +44,7 @@ export function useBrowserLayoutState({
 
   const automation = useBrowserAutomation({ enabled: isActive });
 
-  const browser = useBrowserSessions();
+  const browser = useBrowserSessions({ enabled: isActive });
 
   const browserPane = useBrowserPaneState();
   const browserTabsState = useAtomValue(browserTabsAtom);

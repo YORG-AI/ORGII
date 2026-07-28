@@ -47,15 +47,43 @@ function applyEntry(next: AgentLiveStatusMap, entry: AgentLiveStatus): void {
   }
 }
 
+/**
+ * True when two entries are equivalent for every field a consumer renders.
+ * `updatedAtMs` is deliberately excluded: it bumps on every heartbeat but is
+ * not read anywhere (the sidebar only renders `status` / `toolName` /
+ * `interactivePrompt`). Treating a pure timestamp bump as "unchanged" lets
+ * `ingestEntries` skip the Map clone and its downstream sidebar cascade.
+ */
+function entrySignificantlyEqual(
+  a: AgentLiveStatus,
+  b: AgentLiveStatus
+): boolean {
+  return (
+    a.status === b.status &&
+    a.source === b.source &&
+    a.orgiiSessionId === b.orgiiSessionId &&
+    a.toolName === b.toolName &&
+    a.toolInputPreview === b.toolInputPreview &&
+    a.interactivePrompt === b.interactivePrompt &&
+    a.isInterrupt === b.isInterrupt
+  );
+}
+
 function ingestEntries(entries: AgentLiveStatus[]): void {
   if (entries.length === 0) return;
   const store = getInstrumentedStore();
   store.set(agentLiveStatusAtom, (previous) => {
-    const next = new Map(previous);
+    // Clone lazily: pure heartbeat re-pushes (only `updatedAtMs` changed)
+    // must not produce a new Map identity, or every mounted live-status
+    // consumer re-renders on each tick.
+    let next: AgentLiveStatusMap | null = null;
     for (const entry of entries) {
+      const existing = previous.get(entry.sessionId);
+      if (existing && entrySignificantlyEqual(existing, entry)) continue;
+      if (!next) next = new Map(previous);
       applyEntry(next, entry);
     }
-    return next;
+    return next ?? previous;
   });
   for (const entry of entries) {
     const status = toSessionStatus(entry.status);

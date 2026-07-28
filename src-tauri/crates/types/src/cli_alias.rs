@@ -763,6 +763,7 @@ static CLI_ALIAS_MAP: LazyLock<HashMap<&'static str, AliasEntry>> = LazyLock::ne
     m.insert("session", AliasEntry::subagent("subagent"));
     m.insert("manage_session", AliasEntry::subagent("subagent"));
     m.insert("spawn", AliasEntry::subagent("subagent"));
+    m.insert("spawn_agent", AliasEntry::subagent("subagent"));
     m.insert("spawn_sub_agent", AliasEntry::subagent("subagent"));
     m.insert("delegate", AliasEntry::subagent("subagent"));
     m.insert("manage_agent_def", AliasEntry::subagent("subagent"));
@@ -1220,6 +1221,18 @@ mod tests {
         assert_eq!(
             get_ui_canonical_enum("assistant"),
             Some(UiCanonical::AgentMessage)
+        );
+    }
+
+    #[test]
+    fn test_codex_spawn_agent_alias() {
+        assert_eq!(
+            resolve_cli_alias("spawn_agent"),
+            Some(("subagent", "subagent"))
+        );
+        assert_eq!(
+            get_ui_canonical_enum("spawn_agent"),
+            Some(UiCanonical::Subagent)
         );
     }
 }

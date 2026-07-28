@@ -1,12 +1,12 @@
 /**
  * SubagentBlock — helper functions and prompt preview sub-component.
  */
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo } from "react";
 
-import ExpandOverlay from "@src/components/ExpandOverlay";
+import ClampedContent, {
+  CLAMPED_CONTENT_COMPACT_MAX_HEIGHT,
+} from "@src/components/ClampedContent";
 import Markdown from "@src/components/MarkDown";
-
-import { EVENT_BLOCK_FADE_FROM } from "../primitives";
 
 // ============================================
 // Helpers
@@ -39,79 +39,31 @@ export function formatElapsedTime(ms: number): string {
 // Prompt Preview
 // ============================================
 
-const PROMPT_COLLAPSED_MAX_LINES = 5;
-const PROMPT_COLLAPSED_MAX_CHARS = 560;
-const PROMPT_COLLAPSED_MAX_HEIGHT = 112;
-const PROMPT_EXPANDED_MAX_HEIGHT = "min(320px, 40vh)";
-
 export const SubagentPromptPreview: React.FC<{
   prompt: string;
-}> = memo(({ prompt }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  const needsExpand = useMemo(() => {
-    if (!prompt) return false;
-    if (prompt.split("\n").length > PROMPT_COLLAPSED_MAX_LINES) return true;
-    return prompt.length > PROMPT_COLLAPSED_MAX_CHARS;
-  }, [prompt]);
-
-  const handleToggle = useCallback((event: React.SyntheticEvent) => {
-    event.stopPropagation();
-    setIsExpanded((prev) => !prev);
-  }, []);
-
-  return (
-    <div
-      className={`allow-select group/expand relative w-full min-w-0 ${needsExpand ? "scrollbar-hide" : ""} ${!isExpanded && needsExpand ? "cursor-pointer" : ""}`}
-      style={
-        needsExpand
-          ? isExpanded
-            ? {
-                maxHeight: PROMPT_EXPANDED_MAX_HEIGHT,
-                overflowY: "auto",
-                overflowX: "hidden",
-              }
-            : {
-                maxHeight: PROMPT_COLLAPSED_MAX_HEIGHT,
-                overflow: "hidden",
-              }
-          : undefined
-      }
-      onClick={!isExpanded && needsExpand ? handleToggle : undefined}
-      onKeyDown={
-        !isExpanded && needsExpand
-          ? (event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                handleToggle(event);
-              }
-            }
-          : undefined
-      }
-      role={!isExpanded && needsExpand ? "button" : undefined}
-      tabIndex={!isExpanded && needsExpand ? 0 : undefined}
-    >
-      <div className="chat-text flex flex-col items-start gap-1 self-stretch text-text-1">
-        <div className="resultBgc allow-select w-full min-w-0 overflow-visible break-words font-normal">
-          <Markdown
-            textContent={prompt}
-            useChatCodeBlock={true}
-            enableFileNavigation={true}
-            skipPreprocess={false}
-          />
-        </div>
-      </div>
-
-      {needsExpand && (
-        <ExpandOverlay
-          isExpanded={isExpanded}
-          onToggle={handleToggle}
-          fadeFrom={EVENT_BLOCK_FADE_FROM}
+  /** Tailwind `from-*` class matching the surrounding bubble background so
+   *  the collapse fade blends seamlessly (default: the neutral bubble fill). */
+  fadeFrom?: string;
+}> = memo(({ prompt, fadeFrom = "from-fill-2" }) => (
+  // Clamp long assignment prompts to a ~5-line preview with the same
+  // expand/collapse pill agent messages use.
+  <ClampedContent
+    maxHeight={CLAMPED_CONTENT_COMPACT_MAX_HEIGHT}
+    fadeFrom={fadeFrom}
+    className="allow-select w-full min-w-0"
+  >
+    <div className="chat-text flex flex-col items-start gap-1 self-stretch text-text-1">
+      <div className="resultBgc allow-select w-full min-w-0 overflow-visible break-words font-normal">
+        <Markdown
+          textContent={prompt}
+          useChatCodeBlock={true}
+          enableFileNavigation={true}
+          skipPreprocess={false}
         />
-      )}
+      </div>
     </div>
-  );
-});
+  </ClampedContent>
+));
 export const SubagentResultPreview: React.FC<{
   content: string;
 }> = memo(({ content }) => (

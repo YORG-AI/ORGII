@@ -8,6 +8,8 @@ import {
 
 export const AGENT_ORG_RUN_VIEW_FALLBACK_MS = 60_000;
 export const AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS = 50;
+export const AGENT_ORG_RUN_VIEW_CACHE_RETENTION_MS = 30_000;
+export const AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS = 1_000;
 const MAX_NON_ORG_DISCOVERY_ATTEMPTS = 1;
 
 const TERMINAL_RUN_STATUSES: ReadonlySet<AgentOrgRunStatus> = new Set([
@@ -30,6 +32,12 @@ interface RunViewEntry {
   serializedView: string | null;
   subscribers: Set<Subscriber>;
   discoveryAttempts: number;
+  evictionTimer: ReturnType<typeof setTimeout> | null;
+  bootstrapWait: Promise<void> | null;
+  lastAppliedRequestId: number;
+  hasBeenSubscribed: boolean;
+  /** Set once this cache generation is evicted; late IPC responses are ignored. */
+  retired: boolean;
 }
 
 const EMPTY_SNAPSHOT: AgentOrgRunViewSnapshot = {
@@ -48,6 +56,7 @@ const interventionExpiryTimers = new Map<
 >();
 let nextRequestId = 0;
 let activeSubscriberCount = 0;
+let bootstrapOwner: RunViewEntry | null = null;
 let pollingTimer: ReturnType<typeof setInterval> | undefined;
 let unsubscribeStateChanges: (() => void) | undefined;
 let unsubscribeBackendChanges: (() => void) | undefined;
@@ -101,6 +110,53 @@ function findEntryCoveringSession(sessionId: string): RunViewEntry | undefined {
   return undefined;
 }
 
+function isCurrentEntry(entry: RunViewEntry): boolean {
+  return !entry.retired && entriesBySessionId.get(entry.sessionId) === entry;
+}
+
+function cancelEntryEviction(entry: RunViewEntry): void {
+  if (entry.evictionTimer === null) return;
+  clearTimeout(entry.evictionTimer);
+  entry.evictionTimer = null;
+}
+
+function scheduleEntryEviction(entry: RunViewEntry): void {
+  if (
+    !isCurrentEntry(entry) ||
+    entry.subscribers.size > 0 ||
+    entry.evictionTimer !== null
+  ) {
+    return;
+  }
+  entry.evictionTimer = setTimeout(() => {
+    entry.evictionTimer = null;
+    evictEntry(entry);
+  }, AGENT_ORG_RUN_VIEW_CACHE_RETENTION_MS);
+}
+
+function evictEntry(entry: RunViewEntry): void {
+  if (!isCurrentEntry(entry) || entry.subscribers.size > 0) return;
+  entry.retired = true;
+  entriesBySessionId.delete(entry.sessionId);
+  if (bootstrapOwner === entry) bootstrapOwner = null;
+
+  const sessionKey = `session:${entry.sessionId}`;
+  inFlightByRunOrSession.delete(sessionKey);
+  refreshAfterInFlight.delete(sessionKey);
+
+  const runId = entry.snapshot.view?.context.runId;
+  if (!runId) return;
+  const hasOtherRunEntry = Array.from(entriesBySessionId.values()).some(
+    (candidate) => candidate.snapshot.view?.context.runId === runId
+  );
+  if (!hasOtherRunEntry) {
+    const runKey = `run:${runId}`;
+    inFlightByRunOrSession.delete(runKey);
+    refreshAfterInFlight.delete(runKey);
+    latestRequestIdByRun.delete(runId);
+  }
+}
+
 function getOrCreateEntry(sessionId: string): RunViewEntry {
   const existing = entriesBySessionId.get(sessionId);
   if (existing) return existing;
@@ -117,35 +173,96 @@ function getOrCreateEntry(sessionId: string): RunViewEntry {
     serializedView: seededView ? JSON.stringify(seededView) : null,
     subscribers: new Set(),
     discoveryAttempts: seededView ? MAX_NON_ORG_DISCOVERY_ATTEMPTS : 0,
+    evictionTimer: null,
+    bootstrapWait: null,
+    lastAppliedRequestId: 0,
+    hasBeenSubscribed: false,
+    retired: false,
   };
   entriesBySessionId.set(sessionId, entry);
+  // React can call getSnapshot for a render that is abandoned before
+  // subscribe. Keep that generation bounded just like an unsubscribed entry.
+  scheduleEntryEviction(entry);
   return entry;
 }
 
 function publishEntry(
   entry: RunViewEntry,
   view: AgentOrgRunView | null,
-  error: string | null
-): void {
+  error: string | null,
+  requestId?: number
+): boolean {
+  if (!isCurrentEntry(entry)) return false;
+  if (requestId !== undefined) {
+    if (requestId < entry.lastAppliedRequestId) return false;
+    entry.lastAppliedRequestId = requestId;
+  }
   const serializedView = view ? JSON.stringify(view) : null;
   if (
     entry.serializedView === serializedView &&
     entry.snapshot.error === error
   ) {
-    return;
+    return true;
   }
   entry.snapshot = { view, error };
   entry.serializedView = serializedView;
   for (const subscriber of entry.subscribers) subscriber();
+  return true;
 }
 
-function publishRunView(view: AgentOrgRunView): void {
+function publishRunView(view: AgentOrgRunView, requestId: number): void {
   scheduleInterventionExpiryRefresh(view);
   for (const entry of entriesBySessionId.values()) {
-    if (!runViewContainsSession(view, entry.sessionId)) continue;
+    if (
+      !runViewContainsSession(view, entry.sessionId) &&
+      entry.snapshot.view?.context.runId !== view.context.runId
+    ) {
+      continue;
+    }
     entry.discoveryAttempts = MAX_NON_ORG_DISCOVERY_ATTEMPTS;
-    publishEntry(entry, viewForSession(view, entry.sessionId), null);
+    publishEntry(entry, viewForSession(view, entry.sessionId), null, requestId);
   }
+}
+
+function liveReplacementForRun(
+  runId: string,
+  excluded: RunViewEntry
+): RunViewEntry | undefined {
+  return Array.from(entriesBySessionId.values()).find(
+    (candidate) =>
+      candidate !== excluded &&
+      candidate.subscribers.size > 0 &&
+      candidate.snapshot.view?.context.runId === runId
+  );
+}
+
+function publishMissingRun(
+  entry: RunViewEntry,
+  requestId: number
+): RunViewEntry | null {
+  if (!isCurrentEntry(entry) || requestId < entry.lastAppliedRequestId) {
+    return null;
+  }
+  const previousRunId = entry.snapshot.view?.context.runId;
+  entry.discoveryAttempts += 1;
+  publishEntry(entry, null, null, requestId);
+  if (!previousRunId) return null;
+
+  const replacement = liveReplacementForRun(previousRunId, entry);
+  if (replacement) {
+    // One session disappearing does not prove that the Run disappeared. Ask a
+    // live peer before clearing the shared projection.
+    return replacement;
+  }
+
+  // No live session can verify the old Run. Clear every retained projection
+  // so an inactive member panel cannot keep a ghost board indefinitely.
+  for (const related of entriesBySessionId.values()) {
+    if (related.snapshot.view?.context.runId !== previousRunId) continue;
+    related.discoveryAttempts = MAX_NON_ORG_DISCOVERY_ATTEMPTS;
+    publishEntry(related, null, null, requestId);
+  }
+  return null;
 }
 
 function scheduleInterventionExpiryRefresh(view: AgentOrgRunView): void {
@@ -177,6 +294,31 @@ function requestKey(entry: RunViewEntry): string {
   return runId ? `run:${runId}` : `session:${entry.sessionId}`;
 }
 
+function waitForBootstrapOwner(
+  owner: RunViewEntry,
+  request: Promise<void>
+): Promise<void> {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      // A hung discovery for one session must not serialize every unrelated
+      // session forever. Its eventual response remains guarded by generation
+      // and request ordering.
+      if (bootstrapOwner === owner) bootstrapOwner = null;
+      resolve();
+    }, AGENT_ORG_BOOTSTRAP_JOIN_TIMEOUT_MS);
+    request.then(
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      () => {
+        clearTimeout(timeout);
+        resolve();
+      }
+    );
+  });
+}
+
 function refreshAgentOrgRunViewInternal(
   sessionId: string,
   queueIfBusy: boolean
@@ -191,28 +333,56 @@ function refreshAgentOrgRunViewInternal(
     return existing;
   }
 
+  if (
+    entry.snapshot.view === null &&
+    bootstrapOwner &&
+    bootstrapOwner !== entry
+  ) {
+    if (entry.bootstrapWait) return entry.bootstrapWait;
+    const owner = bootstrapOwner;
+    const ownerRequest = inFlightByRunOrSession.get(requestKey(owner));
+    if (ownerRequest) {
+      const wait = waitForBootstrapOwner(owner, ownerRequest).then(async () => {
+        if (!isCurrentEntry(entry) || entry.snapshot.view !== null) return;
+        if (entry.subscribers.size > 0 || queueIfBusy) {
+          await refreshAgentOrgRunViewInternal(entry.sessionId, queueIfBusy);
+        }
+      });
+      entry.bootstrapWait = wait;
+      void wait.finally(() => {
+        if (entry.bootstrapWait === wait) entry.bootstrapWait = null;
+      });
+      return wait;
+    }
+    bootstrapOwner = null;
+  }
+
   const requestId = ++nextRequestId;
   const knownRunId = entry.snapshot.view?.context.runId;
   if (knownRunId) latestRequestIdByRun.set(knownRunId, requestId);
+  if (!knownRunId) bootstrapOwner = entry;
 
+  let missingRunReplacement: RunViewEntry | null = null;
   const request = getAgentOrgSessionRunView(entry.sessionId)
     .then((view) => {
+      if (!isCurrentEntry(entry)) return;
       if (view) {
         const runId = view.context.runId;
         const latestRequestId = latestRequestIdByRun.get(runId) ?? 0;
         if (requestId < latestRequestId) return;
         latestRequestIdByRun.set(runId, requestId);
-        publishRunView(view);
+        publishRunView(view, requestId);
         return;
       }
-      entry.discoveryAttempts += 1;
-      publishEntry(entry, null, null);
+      missingRunReplacement = publishMissingRun(entry, requestId);
     })
     .catch((error: unknown) => {
+      if (!isCurrentEntry(entry)) return;
       const message = error instanceof Error ? error.message : String(error);
-      publishEntry(entry, entry.snapshot.view, message);
+      publishEntry(entry, entry.snapshot.view, message, requestId);
     })
     .finally(() => {
+      if (bootstrapOwner === entry) bootstrapOwner = null;
       if (inFlightByRunOrSession.get(key) === request) {
         inFlightByRunOrSession.delete(key);
       }
@@ -224,8 +394,21 @@ function refreshAgentOrgRunViewInternal(
       const shouldRefreshAgain =
         refreshAfterInFlight.delete(key) ||
         (runKey ? refreshAfterInFlight.delete(runKey) : false);
-      if (shouldRefreshAgain && entry.subscribers.size > 0) {
+      if (
+        shouldRefreshAgain &&
+        isCurrentEntry(entry) &&
+        entry.subscribers.size > 0
+      ) {
         void refreshAgentOrgRunViewInternal(entry.sessionId, false);
+      } else if (
+        missingRunReplacement &&
+        isCurrentEntry(missingRunReplacement) &&
+        missingRunReplacement.subscribers.size > 0
+      ) {
+        void refreshAgentOrgRunViewInternal(
+          missingRunReplacement.sessionId,
+          false
+        );
       }
     });
   inFlightByRunOrSession.set(key, request);
@@ -361,11 +544,20 @@ export function subscribeAgentOrgRunView(
   subscriber: Subscriber
 ): () => void {
   const entry = getOrCreateEntry(sessionId);
+  cancelEntryEviction(entry);
+  const isReturningSubscriber =
+    entry.hasBeenSubscribed && entry.subscribers.size === 0;
+  entry.hasBeenSubscribed = true;
   const subscription = () => subscriber();
   entry.subscribers.add(subscription);
   activeSubscriberCount += 1;
   if (activeSubscriberCount === 1) startScheduler();
   if (entry.snapshot.view === null && entry.discoveryAttempts === 0) {
+    void refreshAgentOrgRunViewInternal(sessionId, false);
+  } else if (isReturningSubscriber && entry.snapshot.view !== null) {
+    // Retained entries stop receiving push events after their last subscriber
+    // leaves. Refresh immediately when the UI reopens the session instead of
+    // showing a stale Run status until the fallback poll fires.
     void refreshAgentOrgRunViewInternal(sessionId, false);
   }
 
@@ -373,23 +565,7 @@ export function subscribeAgentOrgRunView(
     if (!entry.subscribers.delete(subscription)) return;
     activeSubscriberCount -= 1;
     if (activeSubscriberCount === 0) stopScheduler();
-    queueMicrotask(() => {
-      if (
-        entry.subscribers.size === 0 &&
-        entriesBySessionId.get(entry.sessionId) === entry
-      ) {
-        entriesBySessionId.delete(entry.sessionId);
-        const runId = entry.snapshot.view?.context.runId;
-        if (
-          runId &&
-          !Array.from(entriesBySessionId.values()).some(
-            (candidate) => candidate.snapshot.view?.context.runId === runId
-          )
-        ) {
-          latestRequestIdByRun.delete(runId);
-        }
-      }
-    });
+    scheduleEntryEviction(entry);
   };
 }
 
@@ -398,3 +574,37 @@ export function getAgentOrgRunViewSnapshot(
 ): AgentOrgRunViewSnapshot {
   return getOrCreateEntry(sessionId).snapshot;
 }
+
+/** Narrow test seam for cache-generation and shared-poller invariants. */
+export const agentOrgRunViewStoreTestApi = {
+  subscribe: subscribeAgentOrgRunView,
+  getSnapshot: getAgentOrgRunViewSnapshot,
+  refresh: refreshAgentOrgRunView,
+  hasEntry(sessionId: string): boolean {
+    return entriesBySessionId.has(sessionId);
+  },
+  ownerSessionId(runId: string): string | null {
+    return (
+      Array.from(entriesBySessionId.values()).find(
+        (entry) =>
+          entry.subscribers.size > 0 &&
+          entry.snapshot.view?.context.runId === runId
+      )?.sessionId ?? null
+    );
+  },
+  reset(): void {
+    stopScheduler();
+    for (const entry of entriesBySessionId.values()) {
+      cancelEntryEviction(entry);
+      entry.subscribers.clear();
+      entry.retired = true;
+    }
+    entriesBySessionId.clear();
+    inFlightByRunOrSession.clear();
+    latestRequestIdByRun.clear();
+    refreshAfterInFlight.clear();
+    bootstrapOwner = null;
+    nextRequestId = 0;
+    activeSubscriberCount = 0;
+  },
+};

@@ -13,7 +13,6 @@ import {
   getOrgSharingFloor,
   isAccessModeAtLeast,
   resolveCloudPushAccess,
-  withCloudOrgDefaultMode,
   withCloudSessionMode,
   withCloudSessionVisibility,
 } from "./org2CloudAccessSettings";
@@ -32,32 +31,21 @@ function seeded(
 describe("cloud access ladder defaults (§13.4 privacy-first)", () => {
   it("defaults to OFF with no overrides", () => {
     const settings = createDefaultCloudOrgAccessSettings();
-    expect(settings.defaultMode).toBe("off");
     expect(settings.sessionModes).toEqual({});
     expect(settings.sessionVisibility).toEqual({});
   });
 
   it("an unknown org resolves to the OFF defaults", () => {
-    expect(getCloudOrgAccessSettings({}, ORG).defaultMode).toBe("off");
+    expect(getCloudOrgAccessSettings({}, ORG).sessionModes).toEqual({});
     expect(getEffectiveCloudAccessMode(undefined, SID)).toBe("off");
     expect(getCloudSessionVisibility(undefined, SID)).toBe("org");
   });
 });
 
 describe("getEffectiveCloudAccessMode", () => {
-  it("uses the org default when no override exists", () => {
-    const byOrg = seeded({ defaultMode: "full_replay" });
-    expect(getEffectiveCloudAccessMode(byOrg[ORG], SID)).toBe("full_replay");
-  });
-
-  it("an explicit override wins in BOTH directions", () => {
-    const up = seeded({ sessionModes: { [SID]: "full_replay" } }); // default off
+  it("uses an explicit per-session override", () => {
+    const up = seeded({ sessionModes: { [SID]: "full_replay" } });
     expect(getEffectiveCloudAccessMode(up[ORG], SID)).toBe("full_replay");
-    const down = seeded({
-      defaultMode: "full_replay",
-      sessionModes: { [SID]: "off" },
-    });
-    expect(getEffectiveCloudAccessMode(down[ORG], SID)).toBe("off");
   });
 });
 
@@ -84,8 +72,7 @@ describe("resolveCloudPushAccess (engine gate)", () => {
 
   it("passes through metadata_only / full_replay with visibility", () => {
     const byOrg = seeded({
-      defaultMode: "full_replay",
-      sessionModes: { other: "off" },
+      sessionModes: { [SID]: "full_replay", other: "off" },
     });
     expect(resolveCloudPushAccess(byOrg[ORG], SID, false)).toEqual({
       accessMode: "full_replay",
@@ -93,23 +80,15 @@ describe("resolveCloudPushAccess (engine gate)", () => {
     });
   });
 
-  it("RATCHET: a persisted downgrade survives a later org-default raise", () => {
-    // The 0010 review scenario: user restricts one session, then raises the
-    // org default — an automated re-push must still resolve the persisted
-    // per-session state, never rebuild from the (now permissive) default.
+  it("RATCHET: a persisted per-session mode and visibility survive re-pushes", () => {
     let byOrg = seeded();
     byOrg = withCloudSessionMode(byOrg, ORG, SID, "metadata_only");
     byOrg = withCloudSessionVisibility(byOrg, ORG, SID, "restricted");
-    byOrg = withCloudOrgDefaultMode(byOrg, ORG, "full_replay");
     expect(resolveCloudPushAccess(byOrg[ORG], SID, false)).toEqual({
       accessMode: "metadata_only",
       visibility: "restricted",
     });
-    // Untouched sibling sessions DO follow the raised default.
-    expect(resolveCloudPushAccess(byOrg[ORG], "session-2", false)).toEqual({
-      accessMode: "full_replay",
-      visibility: "org",
-    });
+    expect(resolveCloudPushAccess(byOrg[ORG], "session-2", false)).toBeNull();
   });
 });
 
@@ -165,7 +144,7 @@ describe("resolveCloudPushAccess with an org floor", () => {
   });
 
   it("a floor never LOWERS a member who already shares above it", () => {
-    const byOrg = seeded({ defaultMode: "full_replay" });
+    const byOrg = seeded({ sessionModes: { [SID]: "full_replay" } });
     expect(
       resolveCloudPushAccess(byOrg[ORG], SID, false, "metadata_only")
     ).toEqual({ accessMode: "full_replay", visibility: "org" });
@@ -173,13 +152,7 @@ describe("resolveCloudPushAccess with an org floor", () => {
 });
 
 describe("immutable update helpers", () => {
-  it("withCloudOrgDefaultMode creates the org entry on demand and no-ops on same value", () => {
-    const a = withCloudOrgDefaultMode({}, ORG, "metadata_only");
-    expect(a[ORG].defaultMode).toBe("metadata_only");
-    expect(withCloudOrgDefaultMode(a, ORG, "metadata_only")).toBe(a);
-  });
-
-  it("withCloudSessionMode(null) clears the override back to the default", () => {
+  it("withCloudSessionMode(null) clears the override back to the org minimum", () => {
     let byOrg = withCloudSessionMode({}, ORG, SID, "full_replay");
     expect(getEffectiveCloudAccessMode(byOrg[ORG], SID)).toBe("full_replay");
     byOrg = withCloudSessionMode(byOrg, ORG, SID, null);

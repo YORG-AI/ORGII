@@ -41,7 +41,7 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
           additions={task.impact.linesAdded}
           deletions={task.impact.linesRemoved}
           variant="plain"
-          size="sm"
+          size="xs"
           className="task-impact-line__diff"
           formatValue={(value) => value.toLocaleString()}
         />

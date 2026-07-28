@@ -145,15 +145,12 @@ body {
   --color-pane-input: var(--color-chat-input);
   --color-button-hover: var(--color-fill-3);
 
-  /* Main App */
-  --color-surface-container: #080808;
+  /* Shared primary surfaces */
+  --color-primary-pane-bg: var(--color-bg-2);
+  --color-primary-container: #080808;
 
   /* Chat Panel */
-  /* `--color-chat-pane-base` holds the unmixed surface color so the chat
-   * panel root can rebind `--color-chat-pane` to a `color-mix()` without
-   * a circular var reference. See orgii_main.css for the full explanation. */
-  --color-chat-pane-base: var(--color-workstation-bg);
-  --color-chat-pane: var(--color-chat-pane-base);
+  --color-chat-pane: var(--color-primary-pane-bg);
   --color-chat-container: #0d0d0d;
   --color-chat-input: #171717;
   --color-event-block: #0a0a0a;

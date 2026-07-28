@@ -18,7 +18,7 @@
 | 5   | Press Delete immediately before a pill.                                      | Pill is removed in one keystroke.                                                                        |
 | 6   | Select text + pill, press Cmd+X.                                             | Selection is removed; clipboard receives plain-text and `application/x-orgii-composer-fragment` payload. |
 | 7   | Press Cmd+V after cut from step 6.                                           | Full content (text + pill with metadata) is restored at caret.                                           |
-| 8   | Paste a plain URL.                                                           | Plain text is sanitized and inserted without formatting artifacts.                                       |
+| 8   | Paste a standalone valid `http://` or `https://` URL.                        | A highlighted link pill is inserted; GitHub repo/issue/PR URLs retain their specialized pill style.      |
 | 9   | Paste `application/x-orgii-file-reference` MIME.                             | A file-reference pill is inserted; plain-text paste is suppressed.                                       |
 | 10  | Paste an image file.                                                         | `onImagePaste` callback is invoked; text paste is suppressed.                                            |
 | 11  | Paste `application/x-orgii-composer-fragment` JSON.                          | Pills and text are re-inserted with original attributes.                                                 |
@@ -46,6 +46,8 @@
 | 13  | Terminal clipboard expired                       | `__orgiiLastTerminalCopy` older than `TERMINAL_COPY_MAX_AGE`; paste. | Falls through to plain-text paste; no terminal pill.        |
 | 14  | Composer fragment malformed JSON                 | Manually set MIME to invalid JSON; paste.                            | Falls through to plain-text; no JS error.                   |
 | 15  | `editable={false}`                               | Render with `editable={false}`; try Cmd+X, paste.                    | Browser blocks input; no state mutation.                    |
+| 16  | Paste prose containing a URL                     | Paste `see https://example.com next`.                                | Entire payload stays plain text; no partial link pill.      |
+| 17  | Paste unsupported or grammar-breaking URL        | Paste `ftp://…`, a credential URL, or a URL containing `[` / `]`.    | Payload stays plain text; no link pill is created.          |
 
 ## Error / Degraded States
 

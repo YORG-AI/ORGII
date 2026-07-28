@@ -8,18 +8,18 @@
 
 ## Happy Path
 
-| #   | Steps                                                 | Expected Result                                                  |
-| --- | ----------------------------------------------------- | ---------------------------------------------------------------- |
-| 1   | Render block for a generic tool call with args.       | Tool name, formatted action summary, and args display correctly. |
-| 2   | Render block with a successful `result`.              | Result content displays below the header.                        |
-| 3   | Render a `file_read` / `file_edit` tool call.         | `FileCard` variant renders with file path and diff info.         |
-| 4   | Render a `run_command` / shell tool call with output. | `CommandResultCard` renders with exit code and output.           |
-| 5   | Render a `web_fetch` / website tool call.             | `WebsiteCard` renders with URL.                                  |
-| 6   | Render a `session_link` tool call.                    | `SessionLinkCard` renders with session reference.                |
-| 7   | Render an `agent_message` tool call.                  | `AgentMessageCard` renders with message content.                 |
-| 8   | Render a search tool call with results.               | Results shown inline; no "no results" indicator.                 |
-| 9   | Render a search tool call with no results.            | "No matches found" sentinel message displayed.                   |
-| 10  | Click the expand/collapse toggle on the block.        | Output content collapses or expands accordingly.                 |
+| #   | Steps                                                 | Expected Result                                                                                   |
+| --- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | Render block for a generic tool call with args.       | Tool name and formatted action summary display; raw args stay hidden until the block is expanded. |
+| 2   | Render block with a successful `result`.              | Result content displays below the header.                                                         |
+| 3   | Render a `file_read` / `file_edit` tool call.         | `FileCard` variant renders with file path and diff info.                                          |
+| 4   | Render a `run_command` / shell tool call with output. | `CommandResultCard` renders with exit code and output.                                            |
+| 5   | Render a `web_fetch` / website tool call.             | `WebsiteCard` renders with URL.                                                                   |
+| 6   | Render a `session_link` tool call.                    | `SessionLinkCard` renders with session reference.                                                 |
+| 7   | Render an `agent_message` tool call.                  | `AgentMessageCard` renders with message content.                                                  |
+| 8   | Render a search tool call with results.               | Results shown inline; no "no results" indicator.                                                  |
+| 9   | Render a search tool call with no results.            | "No matches found" sentinel message displayed.                                                    |
+| 10  | Click the expand/collapse toggle on the block.        | Output content collapses or expands accordingly.                                                  |
 
 ## Edge Cases
 
@@ -57,6 +57,7 @@
 - [ ] Error result applies visual error styling
 - [ ] Result text truncated at `TOOL_SNAPSHOT_MAX_CHARS`; no DOM bloat
 - [ ] Expand/collapse toggle correctly shows/hides output
+- [ ] Generic raw tool blocks start collapsed, including failed calls
 - [ ] Unknown tool names degrade gracefully to generic display
 - [ ] `pnpm test` passes with no new failures
 - [ ] No TypeScript errors (`pnpm typecheck`)

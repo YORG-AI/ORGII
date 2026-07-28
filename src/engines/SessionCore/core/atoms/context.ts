@@ -81,6 +81,12 @@ effectiveTimeRangeAtom.debugLabel = "session/effectiveTimeRange";
 let _prevEffectiveEvents: ReadonlyArray<unknown> = [];
 let _prevEffectiveIndexMap = new Map<string, number>();
 
+/** Release the previous session's replay-index inputs on session departure. */
+export function resetContextAtomMemoCaches(): void {
+  _prevEffectiveEvents = [];
+  _prevEffectiveIndexMap = new Map<string, number>();
+}
+
 const effectiveEventIndexMapAtom = atom((get) => {
   const events = get(effectiveEventsAtom);
   if (events === _prevEffectiveEvents) return _prevEffectiveIndexMap;

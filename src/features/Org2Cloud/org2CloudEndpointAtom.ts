@@ -28,7 +28,7 @@ import {
 } from "./config";
 import type { Org2CloudEndpointOverride } from "./config";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
-import { org2CloudCommentTasksAtom } from "./org2CloudCommentTasksAtom";
+import { resetOrgEntitlementCoordinator } from "./org2CloudEntitlementCoordinator";
 import {
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
@@ -37,8 +37,8 @@ import { org2CloudRemoteSessionsAtom } from "./org2CloudRemoteSessionsAtom";
 import { org2CloudSessionCommentsAtom } from "./org2CloudSessionCommentsAtom";
 import {
   org2CloudCollabStateCursorsAtom,
-  org2CloudCommentTaskCursorsAtom,
   org2CloudPushCursorsAtom,
+  org2CloudPushedMetadataAtom,
   org2CloudRepoScopesAtom,
   org2CloudSyncEnabledAtom,
 } from "./org2CloudSyncAtoms";
@@ -65,19 +65,19 @@ type JotaiStore = ReturnType<typeof createStore>;
  * different server would silently skip or double-apply deltas).
  */
 export function resetCloudStateForEndpointSwitch(store: JotaiStore): void {
+  resetOrgEntitlementCoordinator(store);
   store.set(org2CloudAuthAtom, null);
   store.set(org2CloudOrgsAtom, []);
   store.set(org2CloudOrgsLoadedAtom, false);
   store.set(org2CloudRepoScopesAtom, {});
   store.set(org2CloudSyncEnabledAtom, {});
   store.set(org2CloudPushCursorsAtom, {});
+  // The pushed-metadata marker is server history ("a live metadata row
+  // exists on THIS backend"); carried across a switch it can trigger an
+  // erroneous retract against the new backend. Wipe-set must stay equal to
+  // the roster-reconcile prune-set.
+  store.set(org2CloudPushedMetadataAtom, {});
   store.set(org2CloudCollabStateCursorsAtom, {});
-  // Comment agent tasks (0002): the persisted delta cursor must never be
-  // replayed against a different backend (a restored-from-dump server with
-  // preserved org uuids would silently skip rows updated before it), and
-  // the in-memory task/comment caches describe old-backend rows.
-  store.set(org2CloudCommentTaskCursorsAtom, {});
-  store.set(org2CloudCommentTasksAtom, {});
   store.set(org2CloudSessionCommentsAtom, {});
   store.set(org2CloudRemoteSessionsAtom, {});
 }

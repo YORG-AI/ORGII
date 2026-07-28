@@ -61,6 +61,7 @@ export function ProviderEndpointSectionRow({
     // Switching endpoint repoints the key at a different host, so anything
     // learned from the old one (validation, model list) no longer holds.
     onChange({
+      selected_endpoint_id: endpoint.id,
       extracted_base_url: getOfficialBaseUrl(endpoint, protocol),
       validated: false,
       available_models: [],

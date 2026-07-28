@@ -14,10 +14,8 @@ let rustDiagnosticsAvailable: boolean | undefined;
 function isMissingDiagnosticsCommand(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
-    message.includes("diagnostics_start") ||
-    message.includes("diagnostics_configure") ||
-    message.includes("diagnostics_flush_now") ||
-    message.includes("diagnostics_record_usage_snapshot") ||
+    message.includes("diagnostics_initialize") ||
+    message.includes("diagnostics_submit_usage_snapshot") ||
     message.includes("Command") ||
     message.includes("not found") ||
     message.includes("unknown")
@@ -49,26 +47,16 @@ export function resetRustDiagnosticsAvailability(): void {
   rustDiagnosticsAvailable = undefined;
 }
 
-export async function diagnosticsStart(
+export async function diagnosticsInitialize(
   config: DiagnosticsServiceConfig
 ): Promise<boolean> {
-  return invokeDiagnosticsCommand("diagnostics_start", { config });
+  return invokeDiagnosticsCommand("diagnostics_initialize", { config });
 }
 
-export async function diagnosticsConfigure(
-  config: DiagnosticsServiceConfig
-): Promise<boolean> {
-  return invokeDiagnosticsCommand("diagnostics_configure", { config });
-}
-
-export async function diagnosticsRecordUsageSnapshot(
+export async function diagnosticsSubmitUsageSnapshot(
   snapshot: DiagnosticsUsageSnapshot
 ): Promise<boolean> {
-  return invokeDiagnosticsCommand("diagnostics_record_usage_snapshot", {
+  return invokeDiagnosticsCommand("diagnostics_submit_usage_snapshot", {
     snapshot,
   });
-}
-
-export async function diagnosticsFlushNow(): Promise<boolean> {
-  return invokeDiagnosticsCommand("diagnostics_flush_now");
 }

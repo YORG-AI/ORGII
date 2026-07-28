@@ -2,6 +2,7 @@ import { useAtom } from "jotai";
 import { useCallback, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import { synchronizeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
 import {
   refreshSupabaseSession,
   signInWithSupabase,
@@ -86,6 +87,22 @@ export function useServiceAuth(): UseServiceAuthReturn {
   const [hasValidated, setHasValidated] = useAtom(serviceValidatedAtom);
   const [isRefreshing, setIsRefreshing] = useAtom(serviceRefreshingAtom);
 
+  const applyStoredAuthState = useCallback(() => {
+    const storedToken = getHostedToken();
+    const authenticated = isServiceAuthenticated();
+    const timeLeft = getTimeUntilExpiry();
+
+    setToken(storedToken);
+    setIsAuthenticated(authenticated);
+    setExpiresIn(timeLeft);
+    setIsLoading(false);
+
+    if (!storedToken && !authenticated) {
+      setToken(null);
+      setExpiresIn(null);
+    }
+  }, [setToken, setIsAuthenticated, setExpiresIn, setIsLoading]);
+
   const refreshToken = useCallback(async (): Promise<boolean> => {
     if (globalRefreshInProgress) return false;
 
@@ -165,20 +182,11 @@ export function useServiceAuth(): UseServiceAuthReturn {
   }, [setIsRefreshing, setToken, setExpiresIn, setIsAuthenticated, setError]);
 
   const refresh = useCallback(() => {
-    const storedToken = getHostedToken();
-    const authenticated = isServiceAuthenticated();
-    const timeLeft = getTimeUntilExpiry();
-
-    setToken(storedToken);
-    setIsAuthenticated(authenticated);
-    setExpiresIn(timeLeft);
-    setIsLoading(false);
-
-    if (!storedToken && !authenticated) {
-      setToken(null);
-      setExpiresIn(null);
-    }
-  }, [setToken, setIsAuthenticated, setExpiresIn, setIsLoading]);
+    void synchronizeSharedServiceAuthStorage().then(
+      applyStoredAuthState,
+      applyStoredAuthState
+    );
+  }, [applyStoredAuthState]);
 
   useEffect(() => {
     if (hasValidated) return;
@@ -305,13 +313,50 @@ export function useServiceAuth(): UseServiceAuthReturn {
       setExpiresIn(timeLeft);
     };
 
-    checkAndRefresh();
-    const interval = setInterval(checkAndRefresh, EXPIRY_CHECK_INTERVAL_MS);
-
+    let disposed = false;
+    let expiryCheckRunning = false;
+    let expiryCheckTimeout: ReturnType<typeof setTimeout> | null = null;
     let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
 
+    const stopExpiryChecks = () => {
+      if (expiryCheckTimeout) clearTimeout(expiryCheckTimeout);
+      expiryCheckTimeout = null;
+    };
+
+    const scheduleExpiryCheck = () => {
+      if (
+        disposed ||
+        expiryCheckTimeout ||
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+      expiryCheckTimeout = setTimeout(runExpiryCheck, EXPIRY_CHECK_INTERVAL_MS);
+    };
+
+    const runExpiryCheck = async () => {
+      expiryCheckTimeout = null;
+      if (disposed || document.visibilityState === "hidden") return;
+      if (expiryCheckRunning) {
+        scheduleExpiryCheck();
+        return;
+      }
+
+      expiryCheckRunning = true;
+      try {
+        await checkAndRefresh();
+      } finally {
+        expiryCheckRunning = false;
+        scheduleExpiryCheck();
+      }
+    };
+
     const handleVisibilityChange = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        stopExpiryChecks();
+        return;
+      }
+      void runExpiryCheck();
       if (debounceTimeout) clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(async () => {
         if (!navigator.onLine) return;
@@ -340,10 +385,12 @@ export function useServiceAuth(): UseServiceAuthReturn {
       }, VISIBILITY_CHANGE_DEBOUNCE_MS);
     };
 
+    void runExpiryCheck();
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
+      disposed = true;
+      stopExpiryChecks();
       if (debounceTimeout) clearTimeout(debounceTimeout);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };

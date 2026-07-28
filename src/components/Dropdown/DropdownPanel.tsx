@@ -32,21 +32,11 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import { DROPDOWN_CLASSES, DROPDOWN_PANEL, DROPDOWN_STYLES } from "./tokens";
 
-export interface DropdownPanelProps {
+export interface DropdownPanelProps extends React.HTMLAttributes<HTMLDivElement> {
   /**
    * Panel content
    */
   children: React.ReactNode;
-
-  /**
-   * Additional class name
-   */
-  className?: string;
-
-  /**
-   * Additional style (for positioning)
-   */
-  style?: React.CSSProperties;
 
   /**
    * Custom width
@@ -68,12 +58,6 @@ export interface DropdownPanelProps {
    * @default true
    */
   animated?: boolean;
-
-  /**
-   * Event handlers
-   */
-  onMouseEnter?: React.MouseEventHandler<HTMLDivElement>;
-  onMouseLeave?: React.MouseEventHandler<HTMLDivElement>;
 }
 
 const DropdownPanel = forwardRef<HTMLDivElement, DropdownPanelProps>(
@@ -86,8 +70,7 @@ const DropdownPanel = forwardRef<HTMLDivElement, DropdownPanelProps>(
       minWidth,
       maxHeight = DROPDOWN_PANEL.maxHeight,
       animated = true,
-      onMouseEnter,
-      onMouseLeave,
+      ...divProps
     },
     ref
   ) => {
@@ -111,13 +94,7 @@ const DropdownPanel = forwardRef<HTMLDivElement, DropdownPanelProps>(
     };
 
     return (
-      <div
-        ref={ref}
-        className={panelClasses}
-        style={panelStyle}
-        onMouseEnter={onMouseEnter}
-        onMouseLeave={onMouseLeave}
-      >
+      <div ref={ref} className={panelClasses} style={panelStyle} {...divProps}>
         {children}
       </div>
     );

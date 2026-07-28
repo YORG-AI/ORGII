@@ -41,9 +41,26 @@ export function findEndpointByBaseUrl(
  */
 export function resolveSelectedEndpoint(
   endpoints: readonly ProviderEndpoint[],
-  baseUrl?: string | null
+  baseUrl?: string | null,
+  preferredEndpointId?: string | null
 ): ProviderEndpoint | undefined {
   if (endpoints.length === 0) return undefined;
+
+  // Prefer the explicit wizard selection when the current URL still belongs
+  // to it. This matters when sibling endpoints share a protocol URL (Zhipu's
+  // API and Subscription routes use the same Anthropic host).
+  const preferredEndpoint = preferredEndpointId
+    ? endpoints.find((endpoint) => endpoint.id === preferredEndpointId)
+    : undefined;
+  if (
+    preferredEndpoint &&
+    (!baseUrl ||
+      preferredEndpoint.base_url === baseUrl ||
+      preferredEndpoint.anthropic_base_url === baseUrl)
+  ) {
+    return preferredEndpoint;
+  }
+
   return findEndpointByBaseUrl(endpoints, baseUrl) ?? endpoints[0];
 }
 

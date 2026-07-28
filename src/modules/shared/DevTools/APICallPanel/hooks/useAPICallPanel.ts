@@ -55,6 +55,8 @@ export function useAPICallPanel(): UseAPICallPanelReturn {
   // Refs
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(0);
+  const resizeFrameRef = useRef<number | null>(null);
+  const pendingHeightRef = useRef<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // ============================================
@@ -99,10 +101,27 @@ export function useAPICallPanel(): UseAPICallPanelReturn {
         MIN_HEIGHT,
         Math.min(MAX_HEIGHT, resizeStartHeight.current + deltaY)
       );
-      setHeight(newHeight);
+      pendingHeightRef.current = newHeight;
+      if (resizeFrameRef.current !== null) return;
+
+      resizeFrameRef.current = window.requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
+        if (pendingHeightRef.current !== null) {
+          setHeight(pendingHeightRef.current);
+          pendingHeightRef.current = null;
+        }
+      });
     };
 
     const handleMouseUp = () => {
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      if (pendingHeightRef.current !== null) {
+        setHeight(pendingHeightRef.current);
+        pendingHeightRef.current = null;
+      }
       setIsResizing(false);
     };
 
@@ -112,6 +131,11 @@ export function useAPICallPanel(): UseAPICallPanelReturn {
     return () => {
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
+      if (resizeFrameRef.current !== null) {
+        window.cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+      pendingHeightRef.current = null;
     };
   }, [isResizing]);
 

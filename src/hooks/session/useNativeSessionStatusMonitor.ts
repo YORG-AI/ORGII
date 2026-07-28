@@ -30,6 +30,7 @@ import {
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { type SessionStatus, updateSessionStatus } from "@src/store/session";
 import { isTerminalStatus } from "@src/types/session/session";
+import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 interface SessionStatusChangedPayload {
   sessionId: string;
@@ -56,7 +57,7 @@ export function useNativeSessionStatusMonitor(): void {
         const { sessionId, status } = event.payload;
         if (isTerminalStatus(status)) {
           markTurnTerminal(sessionId, toTurnTerminalStatus(status));
-        } else if (status === "running") {
+        } else if (isSessionRuntimeExecuting(status)) {
           markTurnRunning(sessionId);
         }
         updateSessionStatus(sessionId, status as SessionStatus);

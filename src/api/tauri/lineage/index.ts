@@ -95,13 +95,6 @@ export async function getOrgtrackFileSessionHistory(input: {
   return rpc.lineage.orgtrackGetFileSessionHistory(input);
 }
 
-export async function getOrgtrackFileSessionHistoryRevision(input: {
-  repoPath: string;
-  filePath: string;
-}): Promise<number> {
-  return rpc.lineage.orgtrackGetFileSessionHistoryRevision(input);
-}
-
 export interface IndexOrgtrackCollaborationSessionInput {
   localSessionId: string;
   sourceSessionId: string;

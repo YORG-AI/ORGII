@@ -52,7 +52,7 @@ describe("resolveOrgTaskOperationOutcome", () => {
     ).toBe("rejected");
   });
 
-  it("downgrades legacy task validation failures to a correction state", () => {
+  it("downgrades a legacy task validation failure without an outcome to a correction state", () => {
     const result = {
       content:
         "Error executing task_update: Invalid parameters: parameter validation failed: missing field `summary`",
@@ -60,7 +60,7 @@ describe("resolveOrgTaskOperationOutcome", () => {
 
     expect(
       resolveOrgTaskOperationOutcome(
-        { ...legacyTask(), outcome: "failed" },
+        { ...legacyTask(), outcome: undefined },
         result,
         "failed"
       )
@@ -98,7 +98,7 @@ describe("resolveOrgTaskOperationOutcome", () => {
     expect(isPersistedOrgTaskEvent(extracted, {}, "completed")).toBe(false);
   });
 
-  it("recognizes a legacy persisted task result", () => {
+  it("does not infer legacy success from an args-backed extracted id", () => {
     const extracted = legacyTask({
       task: {
         id: "task-1",
@@ -109,6 +109,61 @@ describe("resolveOrgTaskOperationOutcome", () => {
       },
     });
 
-    expect(isPersistedOrgTaskEvent(extracted, {}, "completed")).toBe(true);
+    expect(isPersistedOrgTaskEvent(extracted, {}, "completed")).toBe(false);
+  });
+
+  it.each([
+    {
+      name: "create",
+      extracted: legacyTask({ action: "create" }),
+      result: { task: { id: "task-created" } },
+    },
+    {
+      name: "graph create",
+      extracted: legacyTask({ action: "create" }),
+      result: { created: true, tasks: [{ id: "task-graph-1" }] },
+    },
+    {
+      name: "update",
+      extracted: legacyTask({ action: "update" }),
+      result: { task: { id: "task-updated" } },
+    },
+    {
+      name: "delete",
+      extracted: legacyTask({ action: "delete" }),
+      result: { deleted: true, id: "task-deleted" },
+    },
+    {
+      name: "list",
+      extracted: legacyTask({ action: "list" }),
+      result: { tasks: [] },
+    },
+    {
+      name: "get",
+      extracted: legacyTask({ action: "get" }),
+      result: { task: { id: "task-read" } },
+    },
+  ])(
+    "recognizes persisted result evidence for legacy $name",
+    ({ extracted, result }) => {
+      expect(isPersistedOrgTaskEvent(extracted, result, "completed")).toBe(
+        true
+      );
+    }
+  );
+
+  it("honors an explicit outcome without parsing a wrapped legacy result", () => {
+    const unreadableResult = {
+      get content(): string {
+        throw new Error("result should not be inspected");
+      },
+    };
+
+    expect(
+      resolveOrgTaskOperationOutcome(
+        { ...legacyTask(), outcome: "succeeded" },
+        unreadableResult
+      )
+    ).toBe("succeeded");
   });
 });

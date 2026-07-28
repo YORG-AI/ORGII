@@ -36,7 +36,7 @@ import {
   updateCachedRepos,
 } from "@src/store/repo";
 import { toRepoFileSystemPath } from "@src/store/repo/matchRepoByPath";
-import { getWindowId } from "@src/util/core/state/windowScopedState";
+import { getWindowId } from "@src/util/core/state/windowId";
 
 import { isCheckingOut } from "./singleton";
 import type { UseRepoSelectionOptions, UseRepoSelectionReturn } from "./types";

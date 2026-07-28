@@ -16,6 +16,14 @@
  *   pnpm run tauri:build:fast -- ~/Desktop
  *   pnpm run tauri:build:fast -- --semantic ~/Desktop
  *   pnpm run tauri:build:fast -- --instance 2
+ *   pnpm run tauri:build:fast -- --instance 2 --skip-frontend
+ *   pnpm run tauri:build:fast -- --bundle
+ *   pnpm run tauri:build:fast -- --frontend-only
+ *
+ * On Windows, the fast build skips NSIS packaging by default because local UI
+ * testing only needs the executable. Pass `--bundle` when an installer is
+ * actually required. `--skip-frontend` reuses the existing webpack output,
+ * which is useful when linking an independently identified second instance.
  */
 
 const { spawnSync } = require("child_process");
@@ -26,17 +34,28 @@ const {
   applyDefaultDiagnosticsEndpoint,
 } = require("./diagnostics-endpoint.cjs");
 const { createInstanceProfile } = require("./instance-profile.cjs");
+const { verifyWebpackRuntimeGuards } = require("./verify-webpack-runtime.cjs");
 
 const rootDir = path.join(__dirname, "..", "..");
 const rawArgs = process.argv.slice(2);
 const includeSemantic = rawArgs.includes("--semantic");
+const skipFrontend = rawArgs.includes("--skip-frontend");
+const frontendOnly = rawArgs.includes("--frontend-only");
+const forceBundle = rawArgs.includes("--bundle");
 const instanceOptionIndex = rawArgs.indexOf("--instance");
 const instanceProfile =
   instanceOptionIndex >= 0
     ? createInstanceProfile(rawArgs[instanceOptionIndex + 1])
     : null;
 const positionalArgs = rawArgs.filter((arg, index) => {
-  if (arg === "--" || arg === "--semantic" || arg === "--instance") {
+  if (
+    arg === "--" ||
+    arg === "--semantic" ||
+    arg === "--skip-frontend" ||
+    arg === "--frontend-only" ||
+    arg === "--bundle" ||
+    arg === "--instance"
+  ) {
     return false;
   }
   return instanceOptionIndex < 0 || index !== instanceOptionIndex + 1;
@@ -44,6 +63,7 @@ const positionalArgs = rawArgs.filter((arg, index) => {
 const outputPathArg = positionalArgs[0];
 const featureString = tauriFeatureString({ semantic: includeSemantic });
 const productName = instanceProfile?.productName ?? "ORG2";
+const shouldBundle = process.platform !== "win32" || forceBundle;
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -83,53 +103,11 @@ function createNodePackageCliCommand(packageName, binName, fallbackBinName) {
   };
 }
 
-function createPnpmCliCommand() {
-  if (process.platform !== "win32") {
-    return { command: createBinPath("pnpm"), argsPrefix: [] };
-  }
-
-  try {
-    return createNodePackageCliCommand("pnpm", "pnpm");
-  } catch (_error) {}
-
-  const candidates = [
-    process.env.PNPM_HOME && path.join(process.env.PNPM_HOME, "pnpm.cjs"),
-    process.env.APPDATA &&
-      path.join(
-        process.env.APPDATA,
-        "npm",
-        "node_modules",
-        "pnpm",
-        "bin",
-        "pnpm.cjs"
-      ),
-    process.env.LOCALAPPDATA &&
-      path.join(
-        process.env.LOCALAPPDATA,
-        "pnpm",
-        "global",
-        "5",
-        "node_modules",
-        "pnpm",
-        "bin",
-        "pnpm.cjs"
-      ),
-  ].filter(Boolean);
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return { command: process.execPath, argsPrefix: [candidate] };
-    }
-  }
-
-  return { command: createBinPath("pnpm"), argsPrefix: [] };
-}
-
-function createPnpmExecCommand(binaryName, args) {
-  const pnpmCli = createPnpmCliCommand();
+function createPackageCliCommand(packageName, binName, args) {
+  const packageCli = createNodePackageCliCommand(packageName, binName);
   return {
-    cmd: pnpmCli.command,
-    args: [...pnpmCli.argsPrefix, "exec", binaryName, ...args],
+    cmd: packageCli.command,
+    args: [...packageCli.argsPrefix, ...args],
   };
 }
 
@@ -216,27 +194,69 @@ applyDefaultDiagnosticsEndpoint(env);
 // ─── phase 1: frontend ────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("\x1b[1m[build-fast-parallel] Phase 1: webpack\x1b[0m");
   const t0 = Date.now();
 
-  const webpackCommand = createPnpmExecCommand("webpack", [
-    "--mode",
-    "production",
-  ]);
-  const webpackResult = spawnSync(webpackCommand.cmd, webpackCommand.args, {
-    cwd: rootDir,
-    env: { ...env, FAST_PROD: "true" },
-    stdio: "inherit",
-  });
-  const webpackCode = webpackResult.status ?? 1;
+  if (skipFrontend && frontendOnly) {
+    console.error(
+      "[build-fast-parallel] --skip-frontend and --frontend-only cannot be combined"
+    );
+    process.exit(1);
+  }
 
-  const phase1Ms = Date.now() - t0;
-  console.log(
-    `\x1b[1m[build-fast-parallel] Phase 1 done in ${(phase1Ms / 1000).toFixed(1)}s` +
-      ` (webpack=${webpackCode})\x1b[0m`
-  );
+  if (skipFrontend) {
+    const frontendEntry = path.join(rootDir, "build", "index.html");
+    if (!fs.existsSync(frontendEntry)) {
+      console.error(
+        "[build-fast-parallel] --skip-frontend requires build/index.html"
+      );
+      process.exit(1);
+    }
+    console.log(
+      "\x1b[1m[build-fast-parallel] Phase 1: reusing existing webpack output\x1b[0m"
+    );
+    const verification = verifyWebpackRuntimeGuards(
+      path.join(rootDir, "build")
+    );
+    console.log(
+      `[build-fast-parallel] Webpack runtime verified: ${verification.runtimeId}`
+    );
+  } else {
+    console.log("\x1b[1m[build-fast-parallel] Phase 1: webpack\x1b[0m");
+    const webpackCommand = createPackageCliCommand("webpack", "webpack", [
+      "--mode",
+      "production",
+    ]);
+    const webpackResult = spawnSync(webpackCommand.cmd, webpackCommand.args, {
+      cwd: rootDir,
+      env: { ...env, FAST_PROD: "true" },
+      stdio: "inherit",
+    });
+    const webpackCode = webpackResult.status ?? 1;
 
-  if (webpackCode !== 0) process.exit(webpackCode);
+    const phase1Ms = Date.now() - t0;
+    console.log(
+      `\x1b[1m[build-fast-parallel] Phase 1 done in ${(phase1Ms / 1000).toFixed(1)}s` +
+        ` (webpack=${webpackCode})\x1b[0m`
+    );
+
+    if (webpackCode !== 0) process.exit(webpackCode);
+    const verification = verifyWebpackRuntimeGuards(
+      path.join(rootDir, "build")
+    );
+    console.log(
+      `[build-fast-parallel] Webpack runtime verified: ${verification.runtimeId}`
+    );
+  }
+
+  if (frontendOnly) {
+    console.log(
+      `\x1b[1m[build-fast-parallel] Frontend-only build completed in ${(
+        (Date.now() - t0) /
+        1000
+      ).toFixed(1)}s\x1b[0m`
+    );
+    process.exit(0);
+  }
 
   // ─── phase 2: one Rust compile + bundle ────────────────────────────────────
 
@@ -273,27 +293,31 @@ async function main() {
     },
   });
 
-  const bundleTarget =
-    process.platform === "darwin"
-      ? "app"
-      : process.platform === "win32"
-        ? "nsis"
-        : "deb";
   const tauriArgs = ["build"];
   if (featureString.length > 0) {
     tauriArgs.push("--features", featureString);
   }
-  tauriArgs.push(
-    "--bundles",
-    bundleTarget,
-    "--config",
-    configOverride,
-    "--",
-    "--profile",
-    "dev-build"
-  );
+  if (shouldBundle) {
+    const bundleTarget =
+      process.platform === "darwin"
+        ? "app"
+        : process.platform === "win32"
+          ? "nsis"
+          : "deb";
+    tauriArgs.push("--bundles", bundleTarget);
+  } else {
+    tauriArgs.push("--no-bundle");
+    console.log(
+      "\x1b[1m[build-fast-parallel] Windows local build: skipping NSIS (pass --bundle to include it)\x1b[0m"
+    );
+  }
+  tauriArgs.push("--config", configOverride, "--", "--profile", "dev-build");
 
-  const tauriCommand = createPnpmExecCommand("tauri", tauriArgs);
+  const tauriCommand = createPackageCliCommand(
+    "@tauri-apps/cli",
+    "tauri",
+    tauriArgs
+  );
   const result = spawnSync(tauriCommand.cmd, tauriCommand.args, {
     stdio: "inherit",
     cwd: rootDir,

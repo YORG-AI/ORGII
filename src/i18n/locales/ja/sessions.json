@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token 判断",
     "tooltip": "推定ツール属性。方法: {{method}}。入力: {{inputBytes}} bytes。出力: {{outputBytes}} bytes。判断: {{decisionTokens}} Token。コンテキスト: {{contextTokens}} Token。Follow-up: {{followupTokens}} Token。関連 LLM cache read: {{cacheReadTokens}} Token。関連 LLM cache write: {{cacheWriteTokens}} Token。"
   },
+  "humanSession": {
+    "titlePlaceholder": "タイトル（任意）"
+  },
   "history": {
     "untitledSession": "無題のSession",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "作成日時",
       "updated": "更新日時",
       "lastUpdated": "最終更新",
+      "external": "外部",
+      "internal": "内部",
       "rounds": "ラウンド",
       "roundCount_one": "{{count}} ラウンド",
       "roundCount_other": "{{count}} ラウンド",
@@ -124,9 +129,10 @@
         "default": "デフォルト",
         "manual": "手動",
         "60s": "60秒ごと",
-        "5m": "5分ごと",
-        "1h": "1時間ごと",
-        "1d": "毎日"
+        "120s": "120秒ごと",
+        "10m": "10分ごと",
+        "30m": "30分ごと",
+        "1h": "1時間ごと"
       },
       "openFolder": "フォルダを開く",
       "tabs": {
@@ -136,7 +142,103 @@
       },
       "views": {
         "scanning": "スキャン",
-        "hooks": "フック"
+        "hooks": "フック",
+        "usage": "使用量",
+        "quota": "クォータ",
+        "assets": "アセット",
+        "profile": "プロファイル"
+      },
+      "usage": {
+        "title": "使用量とコスト",
+        "subtitle": "スキャン済みのコーディングセッションにおけるトークン数と推定コストです。データはローカルデータベースから読み取られ、デバイスの外部には送信されません。",
+        "allSources": "すべてのソース",
+        "refresh": "更新",
+        "estimatedNote": "コストはサブスクリプションおよび独自キー経由の定価見積もりです。従量課金額が記録されている場合は、その金額を表示します。",
+        "range": {
+          "today": "今日",
+          "24h": "24時間",
+          "7d": "7日間",
+          "30d": "30日間",
+          "all": "全期間"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "その他"
+        },
+        "cards": {
+          "realTokens": "合計トークン",
+          "cost": "合計コスト（推定）",
+          "sessions": "セッション",
+          "requests": "リクエスト",
+          "cacheHit": "キャッシュヒット率",
+          "input": "入力",
+          "output": "出力",
+          "cacheCreate": "キャッシュ書き込み",
+          "cacheRead": "キャッシュ読み取り"
+        },
+        "trends": {
+          "title": "使用量の推移",
+          "input": "入力",
+          "output": "出力",
+          "cacheCreate": "キャッシュ書き込み",
+          "cacheRead": "キャッシュ読み取り",
+          "cost": "コスト"
+        },
+        "table": {
+          "title": "セッション",
+          "name": "セッション",
+          "agent": "エージェント",
+          "model": "モデル",
+          "tokens": "トークン",
+          "cost": "コスト",
+          "cacheHit": "キャッシュヒット",
+          "turns": "ターン",
+          "lastActive": "最終アクティブ",
+          "sort": {
+            "recent": "新しい順",
+            "cost": "コストが高い順",
+            "tokens": "トークンが多い順"
+          }
+        },
+        "roundsTable": {
+          "title": "リクエスト",
+          "time": "時刻",
+          "session": "セッション",
+          "agent": "エージェント",
+          "model": "モデル",
+          "input": "入力",
+          "output": "出力",
+          "cache": "キャッシュ読み取り",
+          "cost": "コスト",
+          "filterBySession": "このセッションで絞り込む"
+        },
+        "pricing": {
+          "input": "入力",
+          "cache": "キャッシュ",
+          "output": "出力",
+          "total": "合計",
+          "estimate": "定価による見積もり",
+          "hint": "リクエストのコストにカーソルを合わせると内訳が表示されます。",
+          "loading": "計算中…"
+        },
+        "detail": {
+          "title": "呼び出しごとの内訳",
+          "perTurn": "LLM 呼び出し",
+          "perTool": "ツール呼び出し",
+          "close": "閉じる",
+          "noData": "このセッションにはセッション単位の合計のみがあります。呼び出し単位の内訳は、ORGII 独自エージェントの実行で記録されます。",
+          "turnHeader": "ターン {{turn}}",
+          "promptTokens": "プロンプト",
+          "completionTokens": "補完"
+        },
+        "empty": {
+          "title": "使用量はまだありません",
+          "subtitle": "コーディングセッションを実行またはスキャンすると、トークン使用量がここに表示されます。"
+        },
+        "loadError": "使用量データを読み込めませんでした"
       },
       "sessions_other": "{{count}} 件のセッション",
       "details": {
@@ -793,6 +895,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "セッション",
+        "workItem": "作業項目",
+        "more": "その他",
         "work": "作業",
         "manage": "管理",
         "heatmap": "トレンド",
@@ -844,7 +949,6 @@
     "defaultTitle": "チャット",
     "hideChatPanel": "チャットパネルを非表示",
     "showTokenUsage": "Token を表示",
-    "showStatusBar": "ステータスバーを表示",
     "compactDisplayMode": "コンパクトモード",
     "replay": {
       "follow": "フォロー"
@@ -890,6 +994,28 @@
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",
     "copyEventJsonFailed": "コピー失敗",
+    "moveToWorkstation": "マイ Workstation に移動",
+    "moveToChatPanel": "チャットパネルに移動",
+    "rawTranscript": {
+      "title": "セッションの生トランスクリプト",
+      "menuItem": "生トランスクリプトを表示",
+      "guiTab": "GUI",
+      "rawTab": "生データ",
+      "entryCount_one": "{{count}} 件",
+      "entryCount_other": "{{count}} 件",
+      "copySuccess": "生トランスクリプトをコピーしました",
+      "copyFailed": "生トランスクリプトをコピーできませんでした"
+    },
+    "linkWorkItem": {
+      "menuItem": "Work Item にリンク…",
+      "title": "セッションを Work Item にリンク",
+      "description": "このセッションを表示する Work Item を選択してください。",
+      "searchPlaceholder": "Work Item ID、タイトル、ステータス、プロジェクトで検索",
+      "loading": "Work Item を読み込み中…",
+      "empty": "Work Item が見つかりません。",
+      "linking": "リンク中…",
+      "link": "リンク"
+    },
     "historyTitle": "履歴",
     "historyEmpty": "セッションがありません",
     "historyGroupTime": "時間",
@@ -1019,6 +1145,8 @@
     "turnMetadata": {
       "noChanges": "このラウンドではファイル変更なし",
       "earlierRound": "以前のラウンド",
+      "editsTab": "編集",
+      "readsTab": "読み取り",
       "files_one": "{{count}} ファイル",
       "files_other": "{{count}} ファイル",
       "reads_one": "{{count}} 回読み取り",
@@ -1193,6 +1321,8 @@
     "terminalSummary": {
       "command_one": "{{count}} 件のコマンド",
       "command_other": "{{count}} 件のコマンド",
+      "mcp_one": "{{count}} 件の MCP 呼び出し",
+      "mcp_other": "{{count}} 件の MCP 呼び出し",
       "wait_one": "{{count}} 件の待機",
       "wait_other": "{{count}} 件の待機",
       "check_one": "{{count}} 件の確認",
@@ -1285,45 +1415,6 @@
     "searchSymbolsRunning": "シンボルを検索中",
     "searchSymbolsDone": "シンボルを検索しました",
     "searchSymbolsFailed": "シンボル検索に失敗しました",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "Index status を確認中",
     "searchCheckStatusDone": "Index status を確認しました",
     "searchCheckStatusFailed": "Index status の確認に失敗しました",
@@ -2009,7 +2100,10 @@
     "categoryLabel": "セッションカテゴリ",
     "categoryTemplate": "{category} を選択",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "組み込み Agent",
+    "builtIns": "組み込み",
+    "humanSession": {
+      "name": "作業ログ"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "カスタム Agent",
     "agentOrgs": "Agent チーム",
@@ -2427,67 +2521,6 @@
     "myApiKeys": "マイ Key {{count}} 件",
     "addApiKey": "API Key を追加",
     "noRepoSelected": "リポジトリが選択されていません",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Code Map ステータス: {{status}}",
-      "neverIndexed": "未インデックス",
-      "lastIndexed": "最終インデックス {{time}}",
-      "progressFiles": "{{processed}} / {{total}} ファイル",
-      "errorTitle": "Code Map エラー",
-      "status": {
-        "notIndexed": "未インデックス",
-        "indexing": "インデックス中",
-        "ready": "準備完了",
-        "stale": "古い",
-        "failed": "失敗",
-        "cancelled": "キャンセル済み"
-      },
-      "phase": {
-        "queued": "キュー中",
-        "scanning": "スキャン中",
-        "extracting": "抽出中",
-        "storing": "保存中",
-        "resolving": "解決中",
-        "complete": "完了",
-        "failed": "失敗",
-        "cancelled": "キャンセル済み"
-      },
-      "stats": {
-        "files": "ファイル",
-        "symbols": "シンボル",
-        "relationships": "関係",
-        "indexSize": "インデックスサイズ",
-        "unresolved": "未解決",
-        "staleFiles": "古いファイル"
-      },
-      "actions": {
-        "index": "インデックス",
-        "reindex": "再インデックス",
-        "cancel": "キャンセル",
-        "stop": "停止",
-        "clear": "クリア",
-        "refresh": "更新"
-      },
-      "progressChanges": "追加 {{added}} · 変更 {{modified}} · 削除 {{deleted}}",
-      "browser": {
-        "title": "Code Map ブラウザ",
-        "searchTitle": "Code Map を検索",
-        "searchPlaceholder": "シンボル、ファイル、シグネチャを検索",
-        "search": "検索",
-        "resultSummary": "{{count}} 件 · {{unresolved}} 未解決 · {{stale}} 古い",
-        "noResults": "Code Map の結果はありません。",
-        "selectNode": "結果を選択してソースと関係を確認します。",
-        "loadingDetails": "Code Map 詳細を読み込み中…",
-        "noRelationships": "関係は見つかりませんでした。",
-        "incoming": "入力",
-        "outgoing": "出力",
-        "source": "ソース",
-        "confidence": "信頼度: {{value}}",
-        "extraction": "抽出: {{value}}",
-        "resolution": "解決: {{value}}",
-        "relationshipCounts": "{{incoming}} 入力 · {{outgoing}} 出力"
-      }
-    },
     "diff": {
       "untitledSession": "無題のセッション",
       "singleFile": "単一ファイル",

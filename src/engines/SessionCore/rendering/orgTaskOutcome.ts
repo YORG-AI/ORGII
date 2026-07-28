@@ -73,6 +73,41 @@ function normalizedResult(
   return result;
 }
 
+function hasObjectWithId(value: unknown): boolean {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const id = (value as Record<string, unknown>).id;
+  return typeof id === "string" && id.trim().length > 0;
+}
+
+/**
+ * Persisted legacy events predate the explicit Rust `outcome` field. For those
+ * events, success must be reconstructed from the tool result — never from the
+ * args-backed `extracted.task`, because args only prove an attempt was made.
+ */
+function hasPersistedResultEvidence(
+  extracted: RustExtractedOrgTaskData,
+  result: Record<string, unknown> | undefined
+): boolean {
+  if (!result) return false;
+
+  if (extracted.action === "delete") {
+    return resultBoolean(result, "deleted") === true;
+  }
+  if (extracted.action === "list") {
+    return Array.isArray(result.tasks);
+  }
+  if (
+    extracted.action === "create" &&
+    resultBoolean(result, "created") === true
+  ) {
+    return (
+      hasObjectWithId(result.task) ||
+      (Array.isArray(result.tasks) && result.tasks.some(hasObjectWithId))
+    );
+  }
+  return hasObjectWithId(result.task);
+}
+
 /**
  * Resolve old `unknown` extracted payloads without turning an args-only task
  * attempt into successful state. Newly extracted events always carry an
@@ -83,22 +118,15 @@ export function resolveOrgTaskOperationOutcome(
   result?: Record<string, unknown>,
   displayStatus?: string
 ): ResolvedOrgTaskOperationOutcome {
-  const resolvedResult = normalizedResult(result);
-
   // `outcome` is required on newly-produced payloads, but persisted events
-  // from older app versions can still omit it at runtime. Older extraction
-  // also labeled task-tool validation misuse as failed, so reclassify those
-  // known recoverable results before honoring the persisted outcome.
+  // from older app versions can still omit it at runtime. An explicit outcome
+  // is authoritative, so avoid parsing potentially-large wrapped JSON unless
+  // this is actually a legacy fallback.
   if (extracted.outcome && extracted.outcome !== "unknown") {
-    if (
-      extracted.outcome === "failed" &&
-      (isRecoverableTaskValidationError(resolvedResult) ||
-        isRecoverableTaskValidationError(result))
-    ) {
-      return "rejected";
-    }
     return extracted.outcome;
   }
+
+  const resolvedResult = normalizedResult(result);
 
   if (
     isRejectedResult(resolvedResult) ||
@@ -126,11 +154,9 @@ export function resolveOrgTaskOperationOutcome(
     return "pending";
   }
 
-  const hasPersistedTask = Boolean(extracted.task?.id);
-  const hasTaskSnapshot =
-    extracted.action === "list" &&
-    (extracted.orgRunId !== undefined || extracted.tasks !== undefined);
-  return hasPersistedTask || hasTaskSnapshot ? "succeeded" : "failed";
+  return hasPersistedResultEvidence(extracted, resolvedResult)
+    ? "succeeded"
+    : "failed";
 }
 
 export function isPersistedOrgTaskEvent(

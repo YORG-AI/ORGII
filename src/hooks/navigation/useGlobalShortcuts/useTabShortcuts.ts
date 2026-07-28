@@ -6,7 +6,7 @@ import {
   type ActionId,
   useActionSystemOptional,
 } from "@src/ActionSystem";
-import { getViewModeForRoute } from "@src/config/routeViewModeConfig";
+import { isWorkbenchPath } from "@src/config/routes";
 import {
   createAgentSessionSearchSpotlightRequest,
   createEditorSpotlightRequest,
@@ -71,7 +71,7 @@ export function useTabShortcuts() {
   // Outside WorkStation (e.g. MainApp) there is no chat-panel launchpad tab,
   // so fall back to the session-creator spotlight.
   const handleNewSessionShortcut = useCallback(() => {
-    if (getViewModeForRoute(window.location.pathname) === "workStation") {
+    if (isWorkbenchPath(window.location.pathname)) {
       openStartPageTab({});
       return;
     }
@@ -84,7 +84,7 @@ export function useTabShortcuts() {
   // event is a no-op in Code / Data / Project modes by design (per
   // host-appropriate UX). MainApp: create a chat tab.
   const handleGoToCreateSession = useCallback((_shortcut: string) => {
-    if (getViewModeForRoute(window.location.pathname) === "workStation") {
+    if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("workstation-new-tab"));
       return;
     }
@@ -130,13 +130,13 @@ export function useTabShortcuts() {
   }, []);
 
   const handleOpenWorkStationFilePalette = useCallback(() => {
-    if (getViewModeForRoute(window.location.pathname) !== "workStation") return;
+    if (!isWorkbenchPath(window.location.pathname)) return;
     setSpotlightInitialQuery(createEditorSpotlightRequest("", "file"));
     setSpotlightOpen(true);
   }, [setSpotlightInitialQuery, setSpotlightOpen]);
 
   const handleOpenWorkStationSymbolPalette = useCallback(() => {
-    if (getViewModeForRoute(window.location.pathname) !== "workStation") return;
+    if (!isWorkbenchPath(window.location.pathname)) return;
     setSpotlightInitialQuery(createEditorSpotlightRequest("@", "symbol"));
     setSpotlightOpen(true);
   }, [setSpotlightInitialQuery, setSpotlightOpen]);
@@ -222,28 +222,27 @@ export function useTabShortcuts() {
   }, [dispatchWorkStationAction]);
 
   const handleNextTab = useCallback((_shortcut: string) => {
-    if (getViewModeForRoute(window.location.pathname) === "workStation") {
+    if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("switch-to-next-tab"));
     }
   }, []);
 
   const handlePreviousTab = useCallback((_shortcut: string) => {
-    if (getViewModeForRoute(window.location.pathname) === "workStation") {
+    if (isWorkbenchPath(window.location.pathname)) {
       window.dispatchEvent(new CustomEvent("switch-to-previous-tab"));
     }
   }, []);
 
   // ⌥⌘B / Alt+Ctrl+B — focus Chat Panel or restore the Workstation.
   const handleToggleWorkStationChatFocus = useCallback(() => {
-    const currentViewMode = getViewModeForRoute(window.location.pathname);
-    if (currentViewMode !== "workStation") return;
+    if (!isWorkbenchPath(window.location.pathname)) return;
 
     dispatchWorkStationAction(ACTION_ID.WORKSTATION_TOGGLE_CHAT_FOCUS);
   }, [dispatchWorkStationAction]);
 
   const handleCloseCurrentTab = useCallback(() => {
     const pathname = window.location.pathname;
-    if (getViewModeForRoute(pathname) !== "workStation") return false;
+    if (!isWorkbenchPath(pathname)) return false;
 
     return closeActiveWorkStationTab();
   }, [closeActiveWorkStationTab]);

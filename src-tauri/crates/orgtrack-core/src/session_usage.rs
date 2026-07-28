@@ -229,9 +229,13 @@ fn latest_native_column(conn: &Connection, session_id: &str, column: &str) -> Op
 }
 
 /// Tokens/model pulled from `imported_history_session_cache` for one session.
+/// `input_tokens` is cache-inclusive (see the cache schema); `cache_read_tokens`
+/// / `cache_write_tokens` are the cache portion contained within it.
 struct ImportedTokens {
     input_tokens: i64,
     output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
     model: Option<String>,
 }
 
@@ -243,6 +247,8 @@ fn imported_tokens(conn: &Connection, session_id: &str) -> Result<Option<Importe
         "SELECT
             COALESCE(SUM(input_tokens), 0),
             COALESCE(SUM(output_tokens), 0),
+            COALESCE(SUM(cache_read_tokens), 0),
+            COALESCE(SUM(cache_write_tokens), 0),
             COALESCE(MAX(model), '')
          FROM imported_history_session_cache
          WHERE session_id = ?1",
@@ -251,8 +257,10 @@ fn imported_tokens(conn: &Connection, session_id: &str) -> Result<Option<Importe
             Ok(ImportedTokens {
                 input_tokens: row.get(0)?,
                 output_tokens: row.get(1)?,
+                cache_read_tokens: row.get(2)?,
+                cache_write_tokens: row.get(3)?,
                 model: row
-                    .get::<_, String>(2)
+                    .get::<_, String>(4)
                     .map(|model| Some(model).filter(|value| !value.is_empty()))?,
             })
         },
@@ -320,8 +328,20 @@ pub fn recompute_session_usage(
     if record.billable_tokens() > 0 {
         record.tokens_source = TOKENS_SOURCE_NATIVE.to_string();
     } else if let Some(imported) = imported_tokens(conn, session_id)? {
-        record.input_tokens = imported.input_tokens;
+        // `input_tokens` is cache-inclusive; recover fresh input by subtracting
+        // the cache portion so cost prices cache reads at the cheaper rate and
+        // the dashboard shows a real cache split. Total stays cache-inclusive
+        // (fresh + output + cache = original input + output).
+        let cache_read = imported.cache_read_tokens.max(0);
+        let cache_write = imported.cache_write_tokens.max(0);
+        record.input_tokens = imported
+            .input_tokens
+            .saturating_sub(cache_read)
+            .saturating_sub(cache_write)
+            .max(0);
         record.output_tokens = imported.output_tokens;
+        record.cache_read_tokens = cache_read;
+        record.cache_write_tokens = cache_write;
         record.total_tokens = imported.input_tokens.saturating_add(imported.output_tokens);
         record.tokens_source = TOKENS_SOURCE_IMPORTED.to_string();
         if model.is_none() {
@@ -465,7 +485,14 @@ mod tests {
                 cache_read_tokens, cache_write_tokens, total_tokens, context_tokens, created_at
              ) VALUES (?1, 'code', ?2, 'acct-1', ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
             params![
-                session_id, model, input, output, cache_read, cache_write, total, context,
+                session_id,
+                model,
+                input,
+                output,
+                cache_read,
+                cache_write,
+                total,
+                context,
                 created_at
             ],
         )
@@ -601,6 +628,41 @@ mod tests {
     }
 
     #[test]
+    fn imported_cache_is_split_from_inclusive_input() {
+        // Imported input is cache-inclusive: 100 fresh + 800 cache_read + 50
+        // cache_write = 950 stored input. The projection must recover the split.
+        let conn = fixture_conn();
+        conn.execute(
+            "INSERT INTO imported_history_session_cache (
+                source, source_session_id, session_id, name, model,
+                input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, updated_at
+             ) VALUES ('claude_code', 's-cache', 's-cache', 'Imported', 'claude-sonnet-4-5',
+                       950, 20, 800, 50, '2026-07-18T00:00:00Z')",
+            [],
+        )
+        .expect("insert imported row with cache");
+
+        let record = recompute_session_usage(&conn, "s-cache")
+            .expect("recompute")
+            .expect("projected");
+        assert_eq!(record.tokens_source, TOKENS_SOURCE_IMPORTED);
+        assert_eq!(record.input_tokens, 100); // 950 - 800 - 50
+        assert_eq!(record.cache_read_tokens, 800);
+        assert_eq!(record.cache_write_tokens, 50);
+        assert_eq!(record.output_tokens, 20);
+        // Total stays cache-inclusive (fresh + output + cache = 950 + 20).
+        assert_eq!(record.total_tokens, 970);
+
+        // Cost prices cache reads at the cheaper cache-read rate, not full input.
+        let pricing = pricing::resolve_pricing(Some("claude-sonnet-4-5"));
+        let expected = 100.0 / 1e6 * pricing.input_per_mtok
+            + 20.0 / 1e6 * pricing.output_per_mtok
+            + 50.0 / 1e6 * pricing.cache_creation_per_mtok
+            + 800.0 / 1e6 * pricing.cache_read_per_mtok;
+        assert!((record.estimated_cost_usd - expected).abs() < 1e-9);
+    }
+
+    #[test]
     fn total_only_tokens_price_at_blended_rate() {
         let conn = fixture_conn();
         insert_code_session(&conn, "s-cursor", "own_key");
@@ -631,7 +693,10 @@ mod tests {
             (1_000, 100, 0, 0, 1_100, 500),
             "2026-07-16T00:00:01Z",
         );
-        assert_eq!(recompute_session_usage(&conn, "s-orphan").expect("recompute"), None);
+        assert_eq!(
+            recompute_session_usage(&conn, "s-orphan").expect("recompute"),
+            None
+        );
         assert_eq!(
             SqliteRecordStore::new(&conn)
                 .get_session_usage("s-orphan")
@@ -662,6 +727,9 @@ mod tests {
         assert!(store.get_session_usage("s-b").expect("read s-b").is_some());
 
         store.delete_session_usage("s-a").expect("delete s-a");
-        assert!(store.get_session_usage("s-a").expect("read deleted").is_none());
+        assert!(store
+            .get_session_usage("s-a")
+            .expect("read deleted")
+            .is_none());
     }
 }

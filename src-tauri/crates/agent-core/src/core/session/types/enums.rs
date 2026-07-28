@@ -56,6 +56,22 @@ pub enum SessionStatus {
 }
 
 impl SessionStatus {
+    /// States that mean a turn or user-owned interaction is still in flight.
+    /// Startup cleanup and terminal-marker reconciliation must use this one
+    /// typed set so a future waiting state cannot drift between paths.
+    pub const IN_FLIGHT: [Self; 3] = [Self::Running, Self::WaitingForUser, Self::WaitingForFunds];
+
+    /// Persisted states from which an Agent Org background Wake may start a
+    /// fresh Rust turn. Paused/Pending/active/Archived are deliberately absent.
+    pub const AGENT_ORG_WAKEABLE: [Self; 6] = [
+        Self::Idle,
+        Self::Completed,
+        Self::Failed,
+        Self::Cancelled,
+        Self::Abandoned,
+        Self::Timeout,
+    ];
+
     /// Returns the string representation for database storage.
     pub const fn as_str(&self) -> &'static str {
         match self {
@@ -115,6 +131,14 @@ impl SessionStatus {
     /// Returns true if the session is actively working.
     pub fn is_active(&self) -> bool {
         matches!(self, SessionStatus::Running)
+    }
+
+    pub fn is_in_flight(self) -> bool {
+        Self::IN_FLIGHT.contains(&self)
+    }
+
+    pub fn is_agent_org_wakeable(self) -> bool {
+        Self::AGENT_ORG_WAKEABLE.contains(&self)
     }
 }
 

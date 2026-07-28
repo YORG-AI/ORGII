@@ -2,10 +2,22 @@ import { z } from "zod/v4";
 
 import { defineProcedure } from "../invoke";
 import * as schemas from "../schemas";
+import { snakeToCamel } from "../transforms";
 
 const cache = {
   saveEvents: defineProcedure("cache_save_session_events")
     .input(schemas.sessionCore.SaveEventsInput)
+    .output(z.number())
+    .build(),
+
+  appendImportedEvents: defineProcedure("cache_append_session_event_import")
+    .input(schemas.sessionCore.SaveEventsInput)
+    .output(z.number())
+    .build(),
+
+  finalizeImportedEvents: defineProcedure("cache_finalize_session_event_import")
+    .input(schemas.sessionCore.SessionIdInput)
+    .output(z.number())
     .build(),
 
   loadEvents: defineProcedure("cache_load_session_events")
@@ -211,13 +223,6 @@ const eventStore = {
     .input(schemas.sessionCore.UpdateActiveTaskArgsInput)
     .output(z.string().nullable())
     .build(),
-  updateLastShellOutput: defineProcedure("es_update_last_shell_output")
-    .input(schemas.sessionCore.UpdateLastShellOutputInput)
-    .output(z.string().nullable())
-    .build(),
-  updateLastShellProcess: defineProcedure("es_update_last_shell_process")
-    .input(schemas.sessionCore.UpdateLastShellProcessInput)
-    .build(),
   hasActiveTask: defineProcedure("es_has_active_task")
     .input(schemas.sessionCore.ActiveTaskInput)
     .output(z.boolean())
@@ -239,7 +244,16 @@ const eventStore = {
     .build(),
 } as const;
 
+const shellReplay = {
+  readRange: defineProcedure("shell_replay_read_range")
+    .input(schemas.sessionCore.ShellReplayRangeInput)
+    .output(schemas.sessionCore.ShellReplayRangeSchema)
+    .transform(snakeToCamel)
+    .build(),
+} as const;
+
 export const sessionCore = {
   cache,
   eventStore,
+  shellReplay,
 } as const;

@@ -37,7 +37,7 @@ import { useBlockHeader } from "../useBlockLocate";
 // Types
 // ============================================
 
-export type OrgTaskAction = "create" | "update";
+export type OrgTaskAction = "create" | "update" | "delete";
 
 export interface OrgTaskBlockProps {
   action: OrgTaskAction;
@@ -87,7 +87,7 @@ export interface OrgTaskBlockProps {
  * we deliberately do not hardcode Lucide components here.
  */
 function getActionIcon(action: OrgTaskAction) {
-  const toolName = action === "update" ? "task_update" : "task_create";
+  const toolName = action === "create" ? "task_create" : "task_update";
   const Icon = getToolIconComponent(toolName);
   return <Icon size={14} strokeWidth={1.75} className="text-text-2" />;
 }
@@ -396,15 +396,20 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
               sender: groupSenderName,
               defaultValue: "{{sender}} assigned task",
             })
-        : updateChangeKind === "status"
-          ? t("groupChat.taskHeader.updateStatus", {
-              sender: groupSenderName,
-              defaultValue: "{{sender}} updated task status",
+        : action === "delete"
+          ? t("simulator.replay.messages.bubble.senderTitle.taskDeleted", {
+              subject: groupSenderName,
+              defaultValue: "{{subject}} deleted task",
             })
-          : t("groupChat.taskHeader.updateDetail", {
-              sender: groupSenderName,
-              defaultValue: "{{sender}} updated task detail",
-            })
+          : updateChangeKind === "status"
+            ? t("groupChat.taskHeader.updateStatus", {
+                sender: groupSenderName,
+                defaultValue: "{{sender}} updated task status",
+              })
+            : t("groupChat.taskHeader.updateDetail", {
+                sender: groupSenderName,
+                defaultValue: "{{sender}} updated task detail",
+              })
       : action === "create"
         ? ownerName
           ? t("orgTask.create.titleWithOwner", {
@@ -412,13 +417,15 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
               defaultValue: "Assign task to {{ownerName}}",
             })
           : t("orgTask.create.title")
-        : updateChangeKind === "status"
-          ? t("orgTask.update.titleStatus", {
-              defaultValue: "Update task status",
-            })
-          : t("orgTask.update.titleDetail", {
-              defaultValue: "Update task detail",
-            }));
+        : action === "delete"
+          ? t("tools.deleted", { defaultValue: "Deleted task" })
+          : updateChangeKind === "status"
+            ? t("orgTask.update.titleStatus", {
+                defaultValue: "Update task status",
+              })
+            : t("orgTask.update.titleDetail", {
+                defaultValue: "Update task detail",
+              }));
 
   // Subtitle: only populated when action is "update" + status changed.
   // Reads "Marked as [Pending|In Progress|Completed]" using the same
@@ -471,7 +478,9 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
           formattedTimestamp={formattedTimestamp}
           timestamp={timestamp}
           hideAssignedRow={
-            action === "create" || operationOutcome !== "succeeded"
+            action === "create" ||
+            action === "delete" ||
+            operationOutcome !== "succeeded"
           }
         />
       </div>
@@ -532,7 +541,9 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             formattedTimestamp={formattedTimestamp}
             timestamp={timestamp}
             hideAssignedRow={
-              action === "create" || operationOutcome !== "succeeded"
+              action === "create" ||
+              action === "delete" ||
+              operationOutcome !== "succeeded"
             }
           />
         </div>

@@ -6,7 +6,6 @@ import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import WorkItemContentStack from "@src/modules/ProjectManager/WorkItems/components/WorkItemContentStack";
 import { RepoDetailPage } from "@src/modules/shared/launchpad/components";
-import { CodeMapWorkspaceStatusPanel } from "@src/modules/shared/launchpad/components/CodeMapWorkspaceStatus";
 import RepoActionButtons from "@src/modules/shared/launchpad/components/RepoActionButtons";
 import { WorkspaceToolsReadiness } from "@src/modules/shared/launchpad/components/WorkspaceToolsReadiness";
 import { useRepoDetection } from "@src/modules/shared/launchpad/hooks";
@@ -38,16 +37,13 @@ const WorkspaceOverviewBody = memo(
       useRepoDetection(repoPath);
 
     return (
-      <>
-        <CodeMapWorkspaceStatusPanel workspacePath={repoPath} />
-        <WorkspaceToolsReadiness
-          workspacePath={repoPath}
-          repoType={repoType}
-          configFiles={configFiles}
-          hasDocker={hasDocker}
-          hasMakefile={hasMakefile}
-        />
-      </>
+      <WorkspaceToolsReadiness
+        workspacePath={repoPath}
+        repoType={repoType}
+        configFiles={configFiles}
+        hasDocker={hasDocker}
+        hasMakefile={hasMakefile}
+      />
     );
   }
 );
@@ -95,11 +91,8 @@ const WorkspaceOverviewPanelView: React.FC<WorkspaceOverviewPanelViewProps> =
     const isRepo = selectedWorkspace.kind === "repo";
     const detailsTabAvailable = isRepo && Boolean(selectedRepo);
 
-    // The Overview body (code map + tools readiness) works on any workspace
-    // path — the Rust code-map engine indexes plain folders, not just git
-    // repos. Resolve the path from the selected repo when present, otherwise
-    // fall back to the folder workspace's own path so non-git folders also get
-    // the code map panel instead of an empty Overview.
+    // Tools readiness works for repositories and plain folder workspaces.
+    // Prefer the hydrated repo path and fall back to the selected folder path.
     const overviewPath = selectedRepo?.path ?? selectedWorkspace.path ?? null;
 
     // Force back to Overview when the selected workspace cannot show details

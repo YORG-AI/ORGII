@@ -24,7 +24,7 @@ fn install_schema_primer() {
     register_after_env_hook(prime_schema);
 }
 
-/// Best-effort DB schema prime for the current `ORGII_HOME`.
+/// DB schema prime for the current `ORGII_HOME`.
 ///
 /// The real `database::db::get_connection()` uses a global
 /// `Once::call_once` guard (intended for production where the schema is
@@ -34,8 +34,10 @@ fn install_schema_primer() {
 /// one-off connection so each sandbox has a freshly migrated DB
 /// regardless of what happened before.
 ///
-/// All errors are swallowed — a test that doesn't touch the DB (e.g.
-/// pure env-var tests) should not pay for its init.
+/// Legacy/non-Agent-Org setup remains best-effort for pure environment tests.
+/// Agent Org schema initialization is deliberately fail-loud: otherwise a
+/// sandbox can silently omit a newly added recovery table while production
+/// initializes it correctly, yielding false-green lifecycle tests.
 fn prime_schema(_sandbox_root: &Path) {
     let Ok(conn) = raw_connection() else { return };
 
@@ -53,14 +55,66 @@ fn prime_schema(_sandbox_root: &Path) {
     let _ = agent_core::foundation::persistence::session_snapshots::ensure_tables_with(&conn);
     let _ = agent_core::session::persistence::init(&conn);
     let _ = agent_core::interaction::plan_approval::persistence::init_schema(&conn);
-    let _ = agent_core::coordination::agent_org_runs::init_schema(&conn);
-    let _ = agent_core::coordination::agent_inbox::init_schema(&conn);
-    let _ = agent_core::coordination::agent_org_tasks::init_schema(&conn);
-    let _ = agent_core::coordination::agent_org_plan_approvals::init_schema(&conn);
-    let _ = agent_core::coordination::agent_member_interventions::init_schema(&conn);
+    agent_core::coordination::init_agent_org_schemas(&conn)
+        .expect("initialize complete Agent Org schema in test sandbox");
 }
 
 fn raw_connection() -> rusqlite::Result<Connection> {
     let db_path = database::db::get_db_path();
     Connection::open(db_path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn schema_object_exists(conn: &Connection, object_type: &str, name: &str) -> bool {
+        conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master WHERE type = ?1 AND name = ?2
+             )",
+            rusqlite::params![object_type, name],
+            |row| row.get(0),
+        )
+        .expect("inspect sandbox schema object")
+    }
+
+    fn column_exists(conn: &Connection, table: &str, column: &str) -> bool {
+        let mut stmt = conn
+            .prepare(&format!("PRAGMA table_info({table})"))
+            .expect("prepare table_info");
+        let exists = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query table_info")
+            .any(|name| name.expect("read column name") == column);
+        exists
+    }
+
+    #[test]
+    fn sandbox_agent_org_schema_matches_shared_initializer() {
+        let _sandbox = sandbox();
+        let conn = raw_connection().expect("open sandbox database");
+
+        assert!(schema_object_exists(
+            &conn,
+            "table",
+            "agent_org_run_progress"
+        ));
+        assert!(column_exists(
+            &conn,
+            "agent_org_run_progress",
+            "work_revision"
+        ));
+        assert!(schema_object_exists(
+            &conn,
+            "table",
+            "agent_org_recovery_attempts"
+        ));
+        assert!(column_exists(&conn, "agent_inbox", "causation_inbox_id"));
+        assert!(schema_object_exists(
+            &conn,
+            "index",
+            "idx_agent_inbox_causation_recipient_once"
+        ));
+    }
 }

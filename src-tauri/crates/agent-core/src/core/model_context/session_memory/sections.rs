@@ -68,7 +68,7 @@ pub fn generate_section_reminders(
         .filter(|sec| sec.tokens > max_section_tokens)
         .map(|sec| (sec.header.as_str(), sec.tokens))
         .collect();
-    oversized.sort_by(|a, b| b.1.cmp(&a.1));
+    oversized.sort_by_key(|entry| std::cmp::Reverse(entry.1));
 
     if oversized.is_empty() && !over_budget {
         return String::new();

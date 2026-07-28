@@ -13,12 +13,34 @@ import type { CloudShareDeepLink } from "./org2CloudOrgManagement";
  * import. Aligned with `collabPendingShareAtom` / `org2CloudPendingInviteAtom`:
  * the atom IS the dialog visibility.
  */
-export type Org2CloudPendingShare = CloudShareDeepLink;
+export type Org2CloudPendingShare = CloudShareDeepLink & {
+  /** Store-local request generation; distinguishes reopening the same token. */
+  attemptId: number;
+};
+
+const org2CloudShareAttemptCounterAtom = atom(0);
 
 export const org2CloudPendingShareAtom = atom<Org2CloudPendingShare | null>(
   null
 );
 org2CloudPendingShareAtom.debugLabel = "org2CloudPendingShareAtom";
+
+/**
+ * The only production write seam for incoming shares. Every hand-off gets a
+ * new generation even when the exact same token is reopened, so dialog state
+ * from an earlier resolve/import can never become current again.
+ */
+export const queueOrg2CloudPendingShareAtom = atom(
+  null,
+  (get, set, share: CloudShareDeepLink): Org2CloudPendingShare => {
+    const attemptId = get(org2CloudShareAttemptCounterAtom) + 1;
+    const pending = { ...share, attemptId };
+    set(org2CloudShareAttemptCounterAtom, attemptId);
+    set(org2CloudPendingShareAtom, pending);
+    return pending;
+  }
+);
+queueOrg2CloudPendingShareAtom.debugLabel = "queueOrg2CloudPendingShareAtom";
 
 /**
  * Write-only consume atom: returns the pending share (or null) and clears it

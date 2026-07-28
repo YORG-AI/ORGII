@@ -8,6 +8,7 @@ import { type WorkItemData, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -417,9 +418,11 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
       {isOpen &&
         isPositioned &&
         createPortal(
-          <div
+          <DropdownPanel
             ref={panelRef}
-            className={`${DROPDOWN_CLASSES.menuPanelBase} fixed ${DROPDOWN_WIDTHS.menuClass}`}
+            className={`fixed ${DROPDOWN_WIDTHS.menuClass}`}
+            animated={false}
+            maxHeight="none"
             style={{
               ...(panelPosition.top !== undefined
                 ? { top: panelPosition.top }
@@ -428,51 +431,53 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
             }}
             role="menu"
           >
-            {currentWorkItemContext ? (
+            <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
+              {currentWorkItemContext ? (
+                <button
+                  type="button"
+                  className={DROPDOWN_CLASSES.menuActionItem}
+                  role="menuitem"
+                  onClick={handleRemoveWorkItem}
+                >
+                  <X
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                    className="text-text-2"
+                  />
+                  <span>{t("common:actions.remove")}</span>
+                  <span className="ml-auto text-[11px] text-text-3">
+                    {currentWorkItemContext.workItemId}
+                  </span>
+                </button>
+              ) : null}
               <button
                 type="button"
                 className={DROPDOWN_CLASSES.menuActionItem}
                 role="menuitem"
-                onClick={handleRemoveWorkItem}
+                onClick={() => handleSelectMode("link")}
               >
-                <X
+                <Link2
                   size={DROPDOWN_ITEM.iconSize}
                   strokeWidth={1.75}
                   className="text-text-2"
                 />
-                <span>{t("common:actions.remove")}</span>
-                <span className="ml-auto text-[11px] text-text-3">
-                  {currentWorkItemContext.workItemId}
-                </span>
+                <span>{t("common:actions.link")}</span>
               </button>
-            ) : null}
-            <button
-              type="button"
-              className={DROPDOWN_CLASSES.menuActionItem}
-              role="menuitem"
-              onClick={() => handleSelectMode("link")}
-            >
-              <Link2
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-                className="text-text-2"
-              />
-              <span>{t("common:actions.link")}</span>
-            </button>
-            <button
-              type="button"
-              className={DROPDOWN_CLASSES.menuActionItem}
-              role="menuitem"
-              onClick={() => handleSelectMode("create")}
-            >
-              <SquarePen
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-                className="text-text-2"
-              />
-              <span>{t("common:actions.create")}</span>
-            </button>
-          </div>,
+              <button
+                type="button"
+                className={DROPDOWN_CLASSES.menuActionItem}
+                role="menuitem"
+                onClick={() => handleSelectMode("create")}
+              >
+                <SquarePen
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                  className="text-text-2"
+                />
+                <span>{t("common:actions.create")}</span>
+              </button>
+            </div>
+          </DropdownPanel>,
           document.body
         )}
       {panelHostRef?.current && panelContent

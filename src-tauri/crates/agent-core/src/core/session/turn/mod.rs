@@ -112,7 +112,7 @@ pub async fn debug_prompt_cache_benchmark(
     let session_id = session.id.clone();
     let first_started = std::time::Instant::now();
     let first_system_prompt = processor.build_system_prompt(&session_id).await;
-    let first_dynamic_sections = processor
+    let (first_dynamic_sections, _) = processor
         .build_dynamic_sections(&session_id, None, None)
         .await;
     let first_elapsed_us = first_started.elapsed().as_micros();
@@ -129,7 +129,7 @@ pub async fn debug_prompt_cache_benchmark(
 
     let second_started = std::time::Instant::now();
     let second_system_prompt = processor.build_system_prompt(&session_id).await;
-    let second_dynamic_sections = processor
+    let (second_dynamic_sections, _) = processor
         .build_dynamic_sections(&session_id, None, None)
         .await;
     let second_elapsed_us = second_started.elapsed().as_micros();

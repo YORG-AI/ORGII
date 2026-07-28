@@ -26,6 +26,7 @@ const KeyVaultWizard: React.FC<KeyVaultWizardProps> = ({
   initialAgentType,
   title,
   initialData,
+  autoStartCodexLogin = false,
   primaryProvidersOnly = true,
   existingAccountNames,
 }) => {
@@ -99,6 +100,7 @@ const KeyVaultWizard: React.FC<KeyVaultWizardProps> = ({
         loading={loading}
         browserCloseSignal={browserCloseSignal}
         onBrowserStateChange={setBrowserOpen}
+        autoStartCodexLogin={autoStartCodexLogin}
       />
     </WizardShell>
   );

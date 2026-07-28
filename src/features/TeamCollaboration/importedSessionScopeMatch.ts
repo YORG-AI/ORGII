@@ -2,27 +2,44 @@ import type { Session } from "@src/store/session";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 import { normalizeRepoScopeKey } from "./collabSyncUtils";
-import { repoMatchesOrgScopes } from "./orgScopeRepoFilter";
+import {
+  peekMatchingOrgRepoScope,
+  shareableScopeKeysFromRemoteUrls,
+} from "./repoScopeResolver";
 
-type ScopePeek = (input: string) => string[] | null | undefined;
-type ScopePrime = (input: string) => void;
+type MatchableSession = Pick<
+  Session,
+  "session_id" | "repoPath" | "repoRemoteUrls" | "parentSessionId"
+>;
 
-type MatchableSession = Pick<Session, "session_id" | "repoPath">;
+/**
+ * Persisted repo scope keys for imported history. `undefined` means the
+ * session is not imported; `null` means it is imported but has no cached
+ * shareable remote — or is a spawned CHILD (subagent transcript), which is
+ * a rendering detail of its parent, never an independently shareable unit.
+ * Without the child exclusion every subagent transcript in a scoped
+ * checkout auto-published as its own top-level team session, flooding the
+ * team list with prompt-titled rows no fold can reclaim (the cloud row
+ * carries no parent linkage).
+ */
+export function persistedScopeKeysForImportedSession(
+  session: MatchableSession
+): string[] | null | undefined {
+  if (!isImportedHistorySession(session.session_id)) return undefined;
+  if (session.parentSessionId) return null;
+  return shareableScopeKeysFromRemoteUrls(session.repoRemoteUrls);
+}
 
 export function isScopeMatchableImportedSession(
   session: MatchableSession
-): session is MatchableSession & { repoPath: string } {
-  return (
-    Boolean(session.repoPath) && isImportedHistorySession(session.session_id)
-  );
+): boolean {
+  return Boolean(persistedScopeKeysForImportedSession(session)?.length);
 }
 
 /** Imported sessions whose repo falls inside THIS org's repo scope. */
 export function collectScopeMatchedImportedSessionIds(
   sessions: readonly MatchableSession[],
-  orgScopes: string[] | undefined,
-  peek?: ScopePeek,
-  prime?: ScopePrime
+  orgScopes: string[] | undefined
 ): Set<string> {
   const ids = new Set<string>();
   if (!orgScopes || orgScopes.length === 0) return ids;
@@ -30,18 +47,19 @@ export function collectScopeMatchedImportedSessionIds(
     .map((scope) => normalizeRepoScopeKey(scope))
     .filter((scope) => scope.length > 0);
   if (normalizedScopes.length === 0) return ids;
-  const verdictByRepoPath = new Map<string, boolean>();
+  const verdictByIdentity = new Map<string, boolean>();
   for (const session of sessions) {
-    if (!isScopeMatchableImportedSession(session)) continue;
-    let matched = verdictByRepoPath.get(session.repoPath);
+    const scopeKeys = persistedScopeKeysForImportedSession(session);
+    if (!scopeKeys?.length) continue;
+    const identityKey = scopeKeys.join("\0");
+    let matched = verdictByIdentity.get(identityKey);
     if (matched === undefined) {
-      matched = repoMatchesOrgScopes(
-        { fs_uri: session.repoPath },
-        normalizedScopes,
-        peek,
-        prime
+      const matchingScope = peekMatchingOrgRepoScope(
+        scopeKeys,
+        normalizedScopes
       );
-      verdictByRepoPath.set(session.repoPath, matched);
+      matched = matchingScope !== null && matchingScope !== undefined;
+      verdictByIdentity.set(identityKey, matched);
     }
     if (matched) ids.add(session.session_id);
   }

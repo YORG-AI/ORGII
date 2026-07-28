@@ -47,7 +47,7 @@
   background: var(--color-bg-2);
   overflow: hidden;
   position: relative;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
 
   // Canvas for code rendering
   :global(.minimap-canvas) {
@@ -176,7 +176,7 @@
       button {
         border-radius: 4px;
         padding: 4px 8px;
-        cursor: pointer;
+        cursor: var(--interactive-cursor, default);
       }
     }
 
@@ -195,7 +195,7 @@
     .cm-foldGutter {
       .cm-gutterElement {
         padding: 0 2px;
-        cursor: pointer;
+        cursor: var(--interactive-cursor, default);
         color: var(--color-text-4);
         transition: color 0.15s ease;
 
@@ -228,7 +228,7 @@
       background: var(--color-fill-1);
       border: none;
       color: var(--color-text-3);
-      cursor: pointer;
+      cursor: var(--interactive-cursor, default);
 
       &:hover {
         background: var(--color-fill-3);

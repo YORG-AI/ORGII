@@ -47,6 +47,7 @@ export const projectApi = {
   // Orgs
   readOrgs: client.readOrgs,
   createOrg: client.createOrg,
+  deleteOrg: client.deleteOrg,
   configureOrgGitFolderSync: client.configureOrgGitFolderSync,
   syncOrgGitFolder: client.syncOrgGitFolder,
   resolveOrgGitFolderConflict: client.resolveOrgGitFolderConflict,

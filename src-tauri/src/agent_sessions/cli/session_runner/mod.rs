@@ -7,6 +7,9 @@
 //! - `helpers`        — shared state, emit_chunk, image persistence
 //! - `command`        — CLI command building and parser factory
 //! - `session`        — core run_session function
+//! - `input_assembly` — effective-prompt assembly (bridges, images, skills)
+//! - `env_setup`      — child-process env / profile-dir / proxy preparation
+//! - `finalize`       — post-run status, error surfacing, resource teardown
 //! - `lifecycle`      — kill, cancel, cleanup
 //! - `proxy_release`  — market proxy token release
 //! - `cursor_usage`   — Cursor Dashboard API token tracking
@@ -18,7 +21,10 @@
 pub(crate) mod command;
 mod context_bridge;
 mod cursor_usage;
+mod env_setup;
+mod finalize;
 mod helpers;
+mod input_assembly;
 pub(crate) mod launch_profiles;
 mod lifecycle;
 mod oauth_setup;

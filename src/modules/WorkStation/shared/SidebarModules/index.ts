@@ -12,13 +12,10 @@
  * without a registered sidebar fall through to the host's default sidebar.
  */
 export {
-  useSourceControlSidebarModule,
   SourceControlFilterHeader,
   SourceControlTabSidebar,
   type SourceControlFilterCounts,
   type SourceControlFilterMode,
-  type UseSourceControlSidebarModuleOptions,
-  type UseSourceControlSidebarModuleResult,
 } from "./SourceControl";
 
 export { TerminalTabSidebar } from "./Terminal";

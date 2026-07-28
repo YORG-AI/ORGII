@@ -546,7 +546,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 border: "none",
                 borderTopRightRadius: borderRadius,
                 borderBottomRightRadius: borderRadius,
-                cursor: isDisabled ? "not-allowed" : "pointer",
+                cursor: isDisabled
+                  ? "not-allowed"
+                  : "var(--interactive-cursor, default)",
                 opacity: isDisabled ? 0.5 : 1,
               }}
               onClick={onDropdownClick}

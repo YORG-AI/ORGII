@@ -31,7 +31,7 @@ const ROUTE_LABEL_OVERRIDES: Record<string, string> = {
   Settings: "common:tabs.settings",
 };
 
-/** Convert "Start Page" → "startPage", "Work Items" → "workItems" */
+/** Convert "Work Items" → "workItems", "Code Editor" → "codeEditor" */
 function toCamelKey(label: string): string {
   return label
     .split(/\s+/)

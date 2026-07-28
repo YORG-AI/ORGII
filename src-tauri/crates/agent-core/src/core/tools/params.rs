@@ -113,7 +113,7 @@ pub fn params_schema<T: JsonSchema>() -> Value {
 /// new_string). The plain scalar form is the least-common-denominator that
 /// every provider accepts.
 ///
-/// `Option<Enum>` fields (e.g. `use_code_map`'s `kind: Option<CodeMapNodeKind>`)
+/// `Option<Enum>` fields
 /// are a sharper version of the same trap: schemars emits both
 /// `"type": ["string", "null"]` AND `"enum": [..variants, null]`. Collapsing
 /// only the `type` leaves a `null` in the `enum` array, which moonshot/MiniMax
@@ -531,8 +531,8 @@ mod tests {
         assert!(!parsed.flag);
     }
 
-    /// Mirrors `use_code_map`'s `kind: Option<CodeMapNodeKind>`: an optional
-    /// enum field. schemars renders this as BOTH `"type": ["string", "null"]`
+    /// Mirrors a tool's optional enum field. schemars renders this as BOTH
+    /// `"type": ["string", "null"]`
     /// AND `"enum": [..variants, null]`. moonshot/MiniMax reject the trailing
     /// `null` in the enum with HTTP 400 `enum value (<nil>) does not match any
     /// type in [string]` (GitHub #23), so `params_schema` must strip it.

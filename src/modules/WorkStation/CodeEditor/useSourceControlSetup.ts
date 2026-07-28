@@ -6,8 +6,6 @@ import type { GitWorktreeEntry } from "@src/api/http/git/types";
 import { useGitStatus } from "@src/contexts/git";
 import { useRepoGitInitialization } from "@src/hooks/git";
 import { useGitFiles } from "@src/hooks/git/sourceControl";
-import { createLogger } from "@src/hooks/logger";
-import { loadGitFileDiffContent } from "@src/hooks/workStation/editor/gitDiffContent";
 import type { UseGitDiffStateReturn } from "@src/hooks/workStation/git/useGitDiffState";
 import {
   sourceControlFilterModeAtom,
@@ -41,8 +39,6 @@ import {
 } from "./Panels/EditorPrimarySidebar/tabs/sourceControlScopePickerHelpers";
 import { resolveGitDiffSelection } from "./sourceControlSelection";
 import { useStashCount } from "./useStashCount";
-
-const logger = createLogger("SourceControlSetup");
 
 interface UseSourceControlSetupParams {
   repoPath: string;
@@ -389,20 +385,8 @@ export function useSourceControlSetup({
       });
       setSourceControlFocusTarget({ path: absolutePath, nonce: Date.now() });
 
-      if (file.oldContent !== undefined || !effectiveRepoPath) return;
-
-      loadGitFileDiffContent({
-        repoPath: effectiveRepoPath,
-        file,
-        relativePath,
-      })
-        .then((diffFile) => {
-          if (!diffFile) return;
-          setGitDiffFile(relativePath, diffFile);
-        })
-        .catch((error) => {
-          logger.error("Failed to load git diff:", error);
-        });
+      // AllChangesView loads content only after its target section expands.
+      // This handler deliberately remains metadata-only.
     },
     [repoPath, setGitDiffFile, setSourceControlFocusTarget]
   );

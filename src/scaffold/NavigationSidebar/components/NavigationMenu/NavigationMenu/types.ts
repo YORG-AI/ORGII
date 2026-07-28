@@ -6,6 +6,7 @@ export interface NavigationMenuProps {
   items: NavigationMenuItem[];
   selectedKeys: string[];
   onMenuItemClick: NavigationMenuItemClickHandler;
+  /** Called for explicit user toggles, not automatic selected-child expansion. */
   onSubmenuOpenChange?: (key: string, open: boolean) => void;
   onMenuItemContextMenu?: (
     event: React.MouseEvent,
@@ -18,7 +19,6 @@ export interface NavigationMenuProps {
   ) => React.ReactElement;
   collapsed?: boolean;
   defaultOpenKeys?: string[];
-  compactRows?: boolean;
 }
 
 export type NavigationMenuItemClickHandler = (

@@ -6,9 +6,10 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import {
-  DROPDOWN_CLASSES,
-  DROPDOWN_PANEL,
-} from "@src/components/Dropdown/tokens";
+  DropdownHeader,
+  DropdownPanel,
+} from "@src/components/Dropdown/exports";
+import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import {
@@ -134,15 +135,17 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
       {isOpen &&
         isPositioned &&
         createPortal(
-          <div
+          <DropdownPanel
             ref={panelRef as React.Ref<HTMLDivElement>}
             id={panelId}
             role="region"
             aria-label={label}
-            className={`${DROPDOWN_CLASSES.panel} fixed flex max-h-[min(360px,60vh)] w-[min(320px,calc(100vw-16px))] flex-col`}
+            className="fixed flex w-[min(320px,calc(100vw-16px))] flex-col"
+            maxHeight="min(360px, 60vh)"
+            animated={false}
             style={panelPositionStyle}
           >
-            <div className="flex items-center gap-2 border-b border-border-2/60 px-3 py-2">
+            <DropdownHeader>
               <ListTodo
                 size={13}
                 strokeWidth={1.75}
@@ -154,7 +157,7 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
               <span className="shrink-0 text-[12px] font-medium tabular-nums text-text-3">
                 {progressLabel}
               </span>
-            </div>
+            </DropdownHeader>
 
             <ul className="overflow-y-auto px-2 py-1.5 scrollbar-hide">
               {todos.map((todo, index) => {
@@ -196,7 +199,7 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
                 );
               })}
             </ul>
-          </div>,
+          </DropdownPanel>,
           document.body
         )}
     </>

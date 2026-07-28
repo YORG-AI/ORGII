@@ -219,7 +219,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
   const showFocusedChatWorkstationRail =
     chatPanelMaximized &&
     chatPanelMode === "session" &&
-    activeChatPanelTab?.type !== "work-management";
+    activeChatPanelTab?.type === "session";
 
   const handlePaneTransitionEnd = useCallback(
     (event: React.TransitionEvent<HTMLDivElement>) => {

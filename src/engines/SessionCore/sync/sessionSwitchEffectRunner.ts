@@ -43,10 +43,11 @@ export function runSessionSwitchEffect(
     logger,
   } = options;
 
+  const leavingSessionId = refs.prevSessionIdRef.current;
   refs.prevSessionIdRef.current = sessionId;
   refs.prevReloadEpochRef.current = reloadEpoch;
 
-  resetSessionSwitchState(switchActions, sessionId);
+  resetSessionSwitchState(switchActions, sessionId, leavingSessionId);
   disposeCurrentHandler(refs);
 
   const adapter = getAdapterForSession(sessionId);

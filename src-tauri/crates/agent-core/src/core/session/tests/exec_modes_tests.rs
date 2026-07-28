@@ -433,8 +433,6 @@ fn mode_prompts_never_reference_tools_their_policy_denies() {
         crate::tools::names::AWAIT_OUTPUT,
         crate::tools::names::INSPECT_TERMINALS,
         crate::tools::names::CODE_SEARCH,
-        crate::tools::names::USE_CODE_MAP,
-        crate::tools::names::MANAGE_CODE_MAP,
         crate::tools::names::EDIT_FILE,
         crate::tools::names::DELETE_FILE,
         crate::tools::names::APPLY_PATCH,

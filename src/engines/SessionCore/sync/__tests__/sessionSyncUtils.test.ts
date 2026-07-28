@@ -52,6 +52,27 @@ describe("loadPersistedHistory", () => {
     expect(adapter.loadHistory).not.toHaveBeenCalled();
   });
 
+  it("hydrates collaboration replays with lightweight turn summaries only", async () => {
+    const events = [makeEvent("turn-header")];
+    cacheAdapterMock.loadInitialTurnWindow.mockResolvedValue({
+      turns: [{ turnId: "turn-header" }],
+      events,
+    });
+    const adapter = makeAdapter("agent", []);
+
+    const result = await loadPersistedHistory(
+      adapter,
+      "imported-session-large",
+      new AbortController().signal
+    );
+
+    expect(result).toBe(events);
+    expect(cacheAdapterMock.loadInitialTurnWindow).toHaveBeenCalledWith(
+      "imported-session-large",
+      0
+    );
+  });
+
   it("falls back to adapter.loadHistory when the event cache is empty", async () => {
     cacheAdapterMock.loadInitialTurnWindow.mockResolvedValue({
       turns: [],

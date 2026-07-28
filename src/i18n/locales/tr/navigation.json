@@ -12,6 +12,7 @@
     "drafts": "Taslaklar",
     "browser": "Tarayıcı",
     "editor": "Düzenleyici",
+    "environment": "Ortam",
     "workspace": "Çalışma Alanı",
     "codeEditor": "Kod Düzenleyici",
     "databaseManager": "Veritabanı Yöneticisi",
@@ -60,15 +61,9 @@
     "startSession": "Oturum başlat",
     "sessions": "Session",
     "selectProject": "Project Seç",
-    "startPage": "Başlangıç Sayfası",
     "inbox": "Gelen Kutusu",
     "login": "Giriş",
     "setup": "Kurulum",
-    "devJourney": "Dev Journey",
-    "devRecord": "Geliştirme Kaydı",
-    "gitDashboard": "Git Panosu",
-    "devActivity": "Dev Etkinliği",
-    "usageHistory": "Kullanım Geçmişi",
     "tokenMarket": "Token Pazarı",
     "taskMarket": "Görev Pazarı",
     "channels": "Kanallar",
@@ -84,20 +79,8 @@
     "ideaArea": "Fikir Alanı",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Izgarayı Özelleştir",
-    "horizontalGap": "Yatay Boşluk",
-    "verticalGap": "Dikey Boşluk",
-    "resetToDefault": "Varsayılana Sıfırla"
-  },
-  "greetings": {
-    "morning": "Günaydın",
-    "afternoon": "İyi günler",
-    "evening": "İyi akşamlar"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Ana Sayfa",
       "workstation": "Workstation",
       "manage": "Yönet",
       "core": "Çekirdek",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "Yeni Ekle",
       "collapseAll": "Tümünü daralt",
-      "markAllRead": "Tümünü okundu olarak işaretle",
-      "openHome": "Home’u aç",
-      "openWorkstation": "Workstation’ı aç"
+      "markAllRead": "Tümünü okundu olarak işaretle"
     },
     "search": {
       "folders": "Çalışma alanında ara...",
@@ -357,22 +338,13 @@
       "projects": "Projeler"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Ürün güncellemeleri",
-    "commitCount": "{{count}} commit",
-    "commitCount_one": "{{count}} commit",
-    "details": "Ayrıntılar",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG değiştir",
     "addOrg": "ORG ekle",
     "createOrg": "Oluştur",
     "joinOrg": "Katıl",
     "orgSource": "Org kaynağı",
-    "localOrg": "Local",
+    "localOrg": "Yerel",
     "orgName": "ORG adı",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Davet bağlantısı veya kodu",
@@ -397,7 +369,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -417,14 +393,21 @@
       "error": "Oturum çatallanamadı",
       "sendFailed": "Çatallandı ancak mesaj gönderilemedi — içerik giriş alanına geri yüklendi",
       "forkedChipTooltip": "{{name}} kullanıcısından çatallandı",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Giriş yap",
     "signOut": "Çıkış yap",
+    "signedInAs": "{{name}} olarak giriş yapıldı",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "ORG2 Cloud oturumunuzun süresi doldu. Devam etmek için yeniden giriş yapın.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
@@ -464,12 +447,15 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Hakkımda"
     },
     "sidebar": {
       "teamSessions": "Ekip oturumları",
+      "mySessions": "Oturumlarım",
       "memberFilter": "Üyeye göre filtrele",
       "sessionFilter": "Oturumları filtrele",
+      "copyId": "ID'yi kopyala",
       "directlySharedWithMe": "Doğrudan benimle paylaşılanlar",
       "everyone": "Herkes",
       "forkedFrom": "@{{name}} oturumundan çatallandı",
@@ -543,7 +529,8 @@
         "youTag": "Sen",
         "ownerTag": "Sahip",
         "floorOff": "Minimum yok",
-        "floorTooltip": "Bu üye için minimum paylaşım düzeyi. Bununla kuruluş genelindeki alt sınırdan hangisi daha katıysa o uygulanır."
+        "floorTooltip": "Bu üye için minimum paylaşım düzeyi. Bununla kuruluş genelindeki alt sınırdan hangisi daha katıysa o uygulanır.",
+        "floorOrgMinimum": "Kuruluş minimumu ({{mode}})"
       },
       "leave": {
         "action": "Organizasyondan ayrıl",
@@ -584,7 +571,7 @@
         "joinedFallbackToast": "Bulut organizasyonuna katıldın"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (yönetilen)",
+        "sourceCloud": "Bulut",
         "signInFirst": "Yönetilen bir organizasyon oluşturmak veya katılmak için ORG2 Cloud'da oturum aç.",
         "openSettings": "Oturum açma ayarlarını aç",
         "createdToast": "Bulut organizasyonu oluşturuldu"
@@ -601,25 +588,22 @@
         "inviteInvalid": "Bu davet kodu geçerli değil.",
         "inviteRevoked": "Bu davet iptal edilmiş.",
         "inviteExpired": "Bu davetin süresi dolmuş.",
-        "inviteExhausted": "Bu davetin kullanım hakkı kalmamış."
+        "inviteExhausted": "Bu davetin kullanım hakkı kalmamış.",
+        "network": "Bulut hizmetine bağlanılamadı. Ağınızı kontrol edip yeniden deneyin."
       }
-    },
-    "defaultAccess": {
-      "label": "Varsayılan eşitleme düzeyi",
-      "help": "Bu cihazda repo kapsamıyla eşleşen ve kendi ayarı olmayan oturumlara uygulanır. “Kapalı” seçiliyken siz açana kadar oturumlar yerelde kalır"
     },
     "syncLevel": {
       "menuItem": "Bulut eşitleme düzeyi…",
       "title": "Bulut eşitleme düzeyi",
       "hint": "Bu oturumun her bulut organizasyonuyla neyi paylaşacağını seçin — hiçbir şey, yalnızca meta veriler veya tam tekrar — ve kimlerin görebileceğini.",
-      "orgDefaultOption": "Organizasyon varsayılanı ({{mode}})",
       "modeOff": "Kapalı",
       "modeMetadata": "Yalnızca meta veriler",
       "modeFullReplay": "Tam tekrar",
       "visibilityOrg": "Organizasyondaki herkes",
       "visibilityRestricted": "Yalnızca ben",
       "taggedNote": "Bu oturum bu organizasyona taşındı; etiketli kaldığı sürece en azından meta verileri paylaşır.",
-      "floorNote": "Kuruluş yöneticiniz en az {{mode}} paylaşımı gerektiriyor."
+      "floorNote": "Kuruluş yöneticiniz en az {{mode}} paylaşımı gerektiriyor.",
+      "orgMinimumOption": "Organizasyon minimumu ({{mode}})"
     },
     "share": {
       "menuItem": "Bulut paylaşımı…",
@@ -650,33 +634,23 @@
       "importPasteClipboard": "Panodan yapıştır",
       "importSubmit": "İçe aktar",
       "importInvalidInput": "Bu, geçerli bir paylaşım bağlantısı veya belirteç gibi görünmüyor.",
-      "selectAll": "Herkes ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Agent görev çalıştırıcısı",
-      "desc": "Oturum yorum dizilerinden çalıştırdığınız görevler için varsayılanlar (“Burada çalıştır”)",
-      "machineNotice": "Çalıştırmalar bu makinede, bu hesabın token'larıyla yürütülür",
-      "orgLabel": "Organizasyon",
-      "accountLabel": "Hesap",
-      "accountPlaceholder": "Varsayılan hesap",
-      "modelLabel": "Model",
-      "modelPlaceholder": "Varsayılan model",
-      "modeLabel": "Mod",
-      "autoRunLabel": "@agent görevlerini otomatik çalıştır",
-      "autoRunDesc": "Sahibi olduğunuz oturumlardaki açık @agent yorum görevlerini otomatik olarak üstlenip çalıştırır. Varsayılan olarak kapalıdır — siz açana kadar takım arkadaşlarınızın @agent bahsetmeleri jetonlarınızı harcamaz."
+      "selectAll": "Herkes ({{count}})",
+      "incomingEndpointMismatch": "Bu paylaşım farklı bir özel buluta ait. İçe aktarmadan önce o bulut uç noktasını yapılandırın.",
+      "incomingConnectionError": "Bulut hizmetine bağlanılamadı. Ağınızı kontrol edip yeniden deneyin.",
+      "incomingIncompatibleError": "Bulut uyumsuz bir paylaşım yanıtı döndürdü. ORGII'yi güncelleyin veya dağıtımı kontrol edin.",
+      "incomingServerError": "Bulut hizmeti bu paylaşımı çözemedi. Yeniden deneyin.",
+      "incomingAlreadyOnDevice": "Bu oturum zaten bu cihazda. Yinelenen kopya yerine özgün oturumu açın.",
+      "incomingOpenExisting": "Oturumu aç",
+      "incomingRetry": "Yeniden dene"
     },
     "comments": {
       "task": {
         "assignFailed": "Yorum gönderildi ancak agent ataması başarısız oldu — diziden yeniden deneyin",
         "assignUnavailableHere": "Yorum gönderildi — bu görünümde agent ataması kullanılamıyor",
-        "turnBadge": "bu turda bir agent çalışıyor",
         "addressingChip": "Ele alınan yorum: “{{excerpt}}”",
         "addressingChipGeneric": "Bir yorum ele alınıyor",
         "addressingChipTooltip": "Kaynak oturumdaki bir yorum dizisini ele almak için çatallandı",
-        "openBadge_one": "{{count}} agent görevi ele alınmayı bekliyor",
-        "openBadge": "{{count}} agent görevi ele alınmayı bekliyor",
-        "activeBadge_one": "{{count}} agent bu oturumda çalışıyor",
-        "activeBadge": "{{count}} agent bu oturumda çalışıyor"
+        "mentionSuggestion": "Bu yorumu bir agent'a ata"
       },
       "toggleLabel": "Yorumlar",
       "notesButton": "Oturum notları",

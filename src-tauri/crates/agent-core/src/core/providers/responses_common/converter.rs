@@ -147,12 +147,8 @@ fn normalize_input_message(msg: &Value) -> Value {
     };
 
     let mut normalized = msg.clone();
-    normalized["content"] = Value::Array(
-        content
-            .iter()
-            .map(|part| normalize_input_content_part(part))
-            .collect(),
-    );
+    normalized["content"] =
+        Value::Array(content.iter().map(normalize_input_content_part).collect());
     normalized
 }
 

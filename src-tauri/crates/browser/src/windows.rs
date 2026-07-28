@@ -96,9 +96,11 @@ pub async fn open_browser_window(
             TRAFFIC_LIGHT_Y,
         )));
 
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(id.clone());
     let window = builder
         .build()
         .map_err(|e| format!("Failed to create browser window: {}", e))?;
+    ownership_observation.commit();
 
     #[cfg(target_os = "macos")]
     {

@@ -515,12 +515,20 @@ export const updateTerminalSessionInfoAtom = atom(
     }
   ) => {
     const sessions = get(terminalSessionsAtom);
+    const session = sessions.find((item) => item.id === params.sessionId);
+    if (
+      !session ||
+      Object.entries(params.info).every(([key, value]) =>
+        Object.is(session[key as keyof TerminalSession], value)
+      )
+    ) {
+      return;
+    }
+
     set(
       terminalSessionsAtom,
-      sessions.map((session) =>
-        session.id === params.sessionId
-          ? { ...session, ...params.info }
-          : session
+      sessions.map((item) =>
+        item.id === params.sessionId ? { ...item, ...params.info } : item
       )
     );
 

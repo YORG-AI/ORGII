@@ -3,7 +3,27 @@ import { describe, expect, it } from "vitest";
 import {
   ExternalHistorySidebarBatchResponseSchema,
   ExternalHistorySidebarListInput,
+  SessionAggregateRecordSchema,
 } from "../schemas/sessionAggregate";
+
+describe("session aggregate category schemas", () => {
+  it("maps Human wire rows to the Human dispatch category", () => {
+    const parsed = SessionAggregateRecordSchema.parse({
+      sessionId: "humansession-1",
+      name: "Release verification",
+      status: "completed",
+      createdAt: "2026-07-22T01:00:00Z",
+      updatedAt: "2026-07-22T02:00:00Z",
+      category: "human",
+      keySource: "own_key",
+      totalTokens: 0,
+      background: false,
+      isActive: false,
+    });
+
+    expect(parsed.category).toBe("human_session");
+  });
+});
 
 describe("external history sidebar schemas", () => {
   it("accepts bounded non-overlapping bucket requests", () => {

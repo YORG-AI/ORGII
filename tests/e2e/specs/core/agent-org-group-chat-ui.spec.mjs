@@ -1,4 +1,4 @@
-/* global describe, before, beforeEach, afterEach, it, process */
+/* global describe, before, beforeEach, afterEach, it, process, fetch */
 import {
   AGENT_ORG_COORDINATOR_MEMBER_ID,
   AGENT_ORG_TASK_STATUS,
@@ -20,12 +20,14 @@ import {
   assertRenderedGroupChatToggleIsIdempotent,
   assertRenderedInboxPinBarAbsent,
   clickGroupChatResumeButton,
+  clickRenderedGroupChatLoadOlder,
   clickRenderedMemberSwitcher,
   clickReturnToWorkAndWaitCleared,
   configureCreatorForAgentOrg,
   configureCreatorForDefaultAgentOrg,
   createLongTaskPrecondition,
   createRenderedStrictTwoMemberAgentOrg,
+  ensureMemberHasSwitchableInbox,
   execJS,
   executeCreatePlanAsMember,
   getApiAccount,
@@ -42,6 +44,7 @@ import {
   selectRenderedAgentOrg,
   selectRenderedDefaultAgentOrg,
   selectRenderedExecMode,
+  selectRenderedTurnPageByPreview,
   sendCoordinatorOrgMessage,
   sendFromRenderedCreator,
   sendRenderedChatPrompt,
@@ -70,6 +73,28 @@ import {
   waitForSessionAggregateRow,
   waitForSessionOrgRuntimeSnapshot,
 } from "../../support/core/agentOrgUiDriver.mjs";
+
+const E2E_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
+
+async function postJson(pathname, body = {}, timeoutMs = 15_000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${E2E_BASE_URL}${pathname}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const json = await response.json();
+    if (!response.ok || json?.ok !== true) {
+      throw new Error(`${pathname} failed: ${JSON.stringify(json)}`);
+    }
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function pauseDefaultAgentOrgRuns(label) {
   const listResult = unwrap(
@@ -219,14 +244,9 @@ describe("Agent Org group chat and plan rendered UI", () => {
       );
     }
 
-    await sendCoordinatorOrgMessage(
+    await ensureMemberHasSwitchableInbox(
       sessionId,
-      {
-        recipient_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
-        kind: "plain",
-        summary: `E2E inbox-only member switch ${RUN_ID}`,
-        text: `E2E inbox-only message ${RUN_ID}`,
-      },
+      DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
       "inbox-only planner message"
     );
     await waitForAgentOrgRunView(
@@ -426,19 +446,14 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await waitForAgentOrgRunView(
       sessionId,
       (view) =>
-        (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(
-            row,
-            "default coordinator group chat"
-          );
-          return (
+        (view?.inbox ?? []).some(
+          (row) =>
+            row.id === coordinatorInboxRow.id &&
             row.senderAgentId === "_user" &&
             row.senderName === "User" &&
             row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-            row.payloadKind === "plain" &&
-            payload.text === coordinatorMessage
-          );
-        }),
+            row.payloadKind === "plain"
+        ),
       "default coordinator group chat inbox row persisted"
     );
     await assertNoMemberIntervention(
@@ -507,6 +522,154 @@ describe("Agent Org group chat and plan rendered UI", () => {
     }
   });
 
+  it("reloads more than 200 durable Group Chat messages without truncating long text", async () => {
+    const account = await getApiAccount();
+    const model = selectPreferredModel(account);
+
+    await configureCreatorForDefaultAgentOrg({ account, model });
+    await selectRenderedExecMode("build");
+    await selectRenderedDefaultAgentOrg();
+
+    const sessionId = await sendFromRenderedCreator(
+      `E2E durable Group Chat history ${RUN_ID}. Reply briefly.`
+    );
+    if (!sessionId) {
+      throw new Error(
+        "Durable Group Chat history launch did not create a session id"
+      );
+    }
+    await waitForRenderedAssistantReply("durable Group Chat history launch");
+
+    let runId = null;
+    let coordinator = null;
+    let runStatus = null;
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) => {
+        runId = view?.context?.runId ?? null;
+        runStatus = view?.runStatus ?? null;
+        coordinator = (view?.members ?? []).find(
+          (member) => member.memberId === AGENT_ORG_COORDINATOR_MEMBER_ID
+        );
+        return Boolean(runId && coordinator?.agentId && coordinator?.memberId);
+      },
+      "durable Group Chat history coordinator materialized"
+    );
+    if (!runId || !coordinator?.agentId || !coordinator?.memberId) {
+      throw new Error(
+        `Durable Group Chat history runtime was incomplete: ${JSON.stringify({ runId, coordinator })}`
+      );
+    }
+
+    if (runStatus === "running") {
+      const pauseResult = unwrap(
+        await invokeE2E("agentOrgPauseRun", sessionId),
+        "agentOrgPauseRun(durable Group Chat history seed)"
+      );
+      if (pauseResult.transitioned !== false) {
+        await waitForAgentOrgRunView(
+          sessionId,
+          (view) => view?.runStatus === "paused",
+          "durable Group Chat history paused before deterministic seed"
+        );
+      }
+    }
+
+    const messageCount = 230;
+    const marker = (index) =>
+      `E2E-GROUP-HISTORY-${String(index).padStart(3, "0")}-${RUN_ID}`;
+    const longEndMarker = `E2E-GROUP-HISTORY-LONG-END-${RUN_ID}`;
+
+    // Fixture setup only: leave the live run view before inserting the large
+    // durable history batch so 230 seed notifications cannot keep rebuilding
+    // the rendered projection. The user regression below still reloads the
+    // app, reopens the coordinator, and pages through the production UI.
+    unwrap(
+      await invokeE2E("resetToNewSession"),
+      "resetToNewSession(durable Group Chat history seed)"
+    );
+    for (let index = 1; index <= messageCount; index += 1) {
+      const messageText =
+        index === 1
+          ? `${marker(index)} ${"durable-long-message ".repeat(40)}${longEndMarker}`
+          : marker(index);
+      await postJson("/agent/test/agent-org/inbox/seed", {
+        recipient_agent_id: coordinator.agentId,
+        recipient_member_id: coordinator.memberId,
+        sender_agent_id: "_user",
+        org_run_id: runId,
+        message: {
+          kind: "plain",
+          summary: `E2E durable Group Chat message ${index}`,
+          text: messageText,
+        },
+      });
+    }
+
+    const newestPage = unwrap(
+      await invokeE2E("agentOrgGroupChatHistoryPage", sessionId, null, 100),
+      "agentOrgGroupChatHistoryPage(durable history seed)"
+    ).page;
+    if (
+      newestPage?.rows?.length !== 100 ||
+      newestPage?.hasMore !== true ||
+      !newestPage.rows.some((row) =>
+        String(row.displayText ?? "").includes(marker(messageCount))
+      )
+    ) {
+      throw new Error(
+        `Durable Group Chat production history page was incomplete: ${JSON.stringify(newestPage)}`
+      );
+    }
+
+    // This is the user regression path: rebuild the rendered app state from
+    // durable storage, reopen the coordinator, then page through the actual
+    // Group Chat controls. Debug APIs above only created deterministic rows.
+    await browser.refresh();
+    await waitForApp();
+    unwrap(
+      await invokeE2E("openSession", sessionId),
+      "openSession(durable Group Chat history after reload)"
+    );
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) => view?.context?.runId === runId,
+      "durable Group Chat run restored after reload"
+    );
+    await refreshRenderedAgentOrgOverview(
+      "durable Group Chat history after reload"
+    );
+    await openRenderedGroupChatView();
+    await selectRenderedTurnPageByPreview(
+      marker(messageCount),
+      "newest durable Group Chat message after reload"
+    );
+    await waitForRenderedGroupChatUserTurn({
+      text: marker(messageCount),
+      label: "newest durable Group Chat message after reload",
+    });
+
+    await clickRenderedGroupChatLoadOlder("durable history page 2");
+    await selectRenderedTurnPageByPreview(
+      marker(31),
+      "oldest message after first Load older"
+    );
+    await waitForRenderedGroupChatUserTurn({
+      text: marker(31),
+      label: "first older durable Group Chat page",
+    });
+
+    await clickRenderedGroupChatLoadOlder("durable history page 3");
+    await selectRenderedTurnPageByPreview(
+      marker(1),
+      "oldest durable Group Chat message"
+    );
+    await waitForRenderedGroupChatUserTurn({
+      text: longEndMarker,
+      label: "full long durable Group Chat message after reload",
+    });
+  });
+
   it("a Plan task starts Planner in Plan mode and approval unlocks dependent work", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
@@ -556,22 +719,16 @@ describe("Agent Org group chat and plan rendered UI", () => {
     const planTaskId = `e2e-plan-task-${RUN_ID}`;
     const downstreamTaskId = `e2e-build-after-plan-${RUN_ID}`;
     const planTaskCreate = unwrap(
-      await invokeE2E(
-        "debugAgentOrgExecuteToolAsAgent",
-        runId,
-        AGENT_ORG_COORDINATOR_MEMBER_ID,
-        "task_create",
-        {
-          id: planTaskId,
-          subject: `Draft an execution plan ${RUN_ID}`,
-          description: "Submit the complete plan with create_plan.",
-          owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
-          status: AGENT_ORG_TASK_STATUS.PENDING,
-          dispatch_policy: "immediate",
-          execution_mode: "plan",
-        }
-      ),
-      "debugAgentOrgExecuteToolAsAgent(create Plan task)"
+      await invokeE2E("debugSessionExecuteOrgTool", sessionId, "task_create", {
+        id: planTaskId,
+        subject: `Draft an execution plan ${RUN_ID}`,
+        description: "Submit the complete plan with create_plan.",
+        owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
+        status: AGENT_ORG_TASK_STATUS.PENDING,
+        dispatch_policy: "immediate",
+        execution_mode: "plan",
+      }),
+      "debugSessionExecuteOrgTool(create Plan task)"
     ).result;
     if (planTaskCreate?.ok !== true) {
       throw new Error(
@@ -579,23 +736,17 @@ describe("Agent Org group chat and plan rendered UI", () => {
       );
     }
     const downstreamTaskCreate = unwrap(
-      await invokeE2E(
-        "debugAgentOrgExecuteToolAsAgent",
-        runId,
-        AGENT_ORG_COORDINATOR_MEMBER_ID,
-        "task_create",
-        {
-          id: downstreamTaskId,
-          subject: `Build from the approved plan ${RUN_ID}`,
-          description: "Consume the approved Planner output.",
-          owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER,
-          status: AGENT_ORG_TASK_STATUS.PENDING,
-          dispatch_policy: "after_dependencies",
-          dependency_task_ids: [planTaskId],
-          execution_mode: "build",
-        }
-      ),
-      "debugAgentOrgExecuteToolAsAgent(create dependent Build task)"
+      await invokeE2E("debugSessionExecuteOrgTool", sessionId, "task_create", {
+        id: downstreamTaskId,
+        subject: `Build from the approved plan ${RUN_ID}`,
+        description: "Consume the approved Planner output.",
+        owner_member_id: DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER,
+        status: AGENT_ORG_TASK_STATUS.PENDING,
+        dispatch_policy: "after_dependencies",
+        dependency_task_ids: [planTaskId],
+        execution_mode: "build",
+      }),
+      "debugSessionExecuteOrgTool(create dependent Build task)"
     ).result;
     if (downstreamTaskCreate?.ok !== true) {
       throw new Error(
@@ -603,19 +754,18 @@ describe("Agent Org group chat and plan rendered UI", () => {
       );
     }
 
-    await waitForAgentOrgRunView(
+    await waitForInboxRow(
       sessionId,
-      (view) =>
-        (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(row, "Plan task assignment");
-          return (
-            row.payloadKind === "task_assigned" &&
-            row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
-            payload.task_id === planTaskId &&
-            payload.execution_mode === "plan"
-          );
-        }),
-      "Plan task assignment visible in run view"
+      (row) => {
+        const payload = parseInboxPayload(row, "Plan task assignment");
+        return (
+          row.payloadKind === "task_assigned" &&
+          row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
+          payload.task_id === planTaskId &&
+          payload.execution_mode === "plan"
+        );
+      },
+      "Plan task assignment persisted"
     );
 
     const plannerStartsTask = unwrap(
@@ -757,21 +907,20 @@ describe("Agent Org group chat and plan rendered UI", () => {
       },
       "reject planner plan with feedback"
     );
-    await waitForAgentOrgRunView(
+    await waitForInboxRow(
       sessionId,
-      (view) =>
-        (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(row, "plan rejection response");
-          return (
-            row.payloadKind === "plan_approval_response" &&
-            row.senderMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-            row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
-            payload.request_id === planRequestPayload.request_id &&
-            payload.accepted === false &&
-            String(payload.feedback ?? "").includes(rejectionFeedback)
-          );
-        }),
-      "coordinator rejection visible in run view"
+      (row) => {
+        const payload = parseInboxPayload(row, "plan rejection response");
+        return (
+          row.payloadKind === "plan_approval_response" &&
+          row.senderMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
+          row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
+          payload.request_id === planRequestPayload.request_id &&
+          payload.accepted === false &&
+          String(payload.feedback ?? "").includes(rejectionFeedback)
+        );
+      },
+      "coordinator rejection persisted"
     );
     await clickRenderedMemberSwitcher(
       DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
@@ -840,42 +989,45 @@ describe("Agent Org group chat and plan rendered UI", () => {
       },
       "approve revised planner plan"
     );
+    await waitForInboxRow(
+      sessionId,
+      (row) => {
+        const payload = parseInboxPayload(row, "dependent task assignment");
+        return (
+          row.payloadKind === "task_assigned" &&
+          row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER &&
+          payload.task_id === downstreamTaskId &&
+          payload.execution_mode === "build"
+        );
+      },
+      "dependent task assignment persisted"
+    );
     await waitForAgentOrgRunView(
       sessionId,
       (view) => {
         const planTask = (view?.tasks ?? []).find(
           (task) => task.id === planTaskId
         );
-        const downstreamAssigned = (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(row, "dependent task assignment");
-          return (
-            row.payloadKind === "task_assigned" &&
-            row.recipientMemberId ===
-              DEFAULT_AGENT_ORG_MEMBER_IDS.IMPLEMENTER &&
-            payload.task_id === downstreamTaskId &&
-            payload.execution_mode === "build"
-          );
-        });
-        const obsoleteAcceptedPlannerWake = (view?.inbox ?? []).some((row) => {
-          if (row.payloadKind !== "plan_approval_response") return false;
-          const payload = parseInboxPayload(
-            row,
-            "obsolete accepted plan response"
-          );
-          return (
-            row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
-            payload.request_id === revisedPlanRequestPayload.request_id &&
-            payload.accepted === true
-          );
-        });
-        return (
-          planTask?.status === AGENT_ORG_TASK_STATUS.COMPLETED &&
-          downstreamAssigned &&
-          !obsoleteAcceptedPlannerWake
-        );
+        return planTask?.status === AGENT_ORG_TASK_STATUS.COMPLETED;
       },
       "approval completes Plan task and dispatches dependent Build task"
     );
+    const approvalInbox = unwrap(
+      await invokeE2E("debugAgentOrgInboxList", runId),
+      "debugAgentOrgInboxList(approved plan)"
+    ).rows;
+    const obsoleteAcceptedPlannerWake = (approvalInbox ?? []).some((row) => {
+      if (row.payloadKind !== "plan_approval_response") return false;
+      const payload = parseInboxPayload(row, "obsolete accepted plan response");
+      return (
+        row.recipientMemberId === DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER &&
+        payload.request_id === revisedPlanRequestPayload.request_id &&
+        payload.accepted === true
+      );
+    });
+    if (obsoleteAcceptedPlannerWake) {
+      throw new Error("Accepted plan response incorrectly woke the Planner");
+    }
     await assertNoMemberIntervention(plannerSessionId, "coordinator approval");
 
     await assertNoFalseFinality(
@@ -1130,27 +1282,28 @@ describe("Agent Org group chat and plan rendered UI", () => {
         `Send feedback button did not click: ${sendFeedbackClick}`
       );
     }
-    await waitForAgentOrgRunView(
+    await waitForInboxRow(
       sessionId,
-      (view) => {
-        const planTask = (view?.tasks ?? []).find(
-          (task) => task.id === planTaskId
-        );
-        const feedbackDelivered = (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(row, "user plan feedback");
-          return (
-            row.recipientMemberId === plannerMemberId &&
-            row.payloadKind === "plan_approval_response" &&
-            payload.accepted === false &&
-            String(payload.feedback ?? "").includes(feedback)
-          );
-        });
+      (row) => {
+        const payload = parseInboxPayload(row, "user plan feedback");
         return (
-          planTask?.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
-          feedbackDelivered
+          row.recipientMemberId === plannerMemberId &&
+          row.payloadKind === "plan_approval_response" &&
+          payload.accepted === false &&
+          String(payload.feedback ?? "").includes(feedback)
         );
       },
-      "user feedback keeps Plan task open and reaches Planner"
+      "user feedback reaches Planner"
+    );
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) =>
+        (view?.tasks ?? []).some(
+          (task) =>
+            task.id === planTaskId &&
+            task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS
+        ),
+      "user feedback keeps Plan task open"
     );
 
     const revisedTitle = `E2E Revised User Plan ${RUN_ID}`;
@@ -1199,29 +1352,30 @@ describe("Agent Org group chat and plan rendered UI", () => {
       throw new Error(`Approve edited plan did not click: ${approveClick}`);
     }
 
-    await waitForAgentOrgRunView(
+    await waitForInboxRow(
       sessionId,
-      (view) => {
-        const planTask = (view?.tasks ?? []).find(
-          (task) => task.id === planTaskId
+      (row) => {
+        const payload = parseInboxPayload(
+          row,
+          "user-approved dependent task assignment"
         );
-        const downstreamAssigned = (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(
-            row,
-            "user-approved dependent task assignment"
-          );
-          return (
-            row.payloadKind === "task_assigned" &&
-            row.recipientMemberId === implementerMemberId &&
-            payload.task_id === downstreamTaskId
-          );
-        });
         return (
-          planTask?.status === AGENT_ORG_TASK_STATUS.COMPLETED &&
-          downstreamAssigned
+          row.payloadKind === "task_assigned" &&
+          row.recipientMemberId === implementerMemberId &&
+          payload.task_id === downstreamTaskId
         );
       },
-      "user approval completes Plan task and unlocks dependent work"
+      "user-approved dependent task assignment persisted"
+    );
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) =>
+        (view?.tasks ?? []).some(
+          (task) =>
+            task.id === planTaskId &&
+            task.status === AGENT_ORG_TASK_STATUS.COMPLETED
+        ),
+      "user approval completes Plan task"
     );
     await browser.waitUntil(
       async () =>

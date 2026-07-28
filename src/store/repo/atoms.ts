@@ -13,7 +13,7 @@
 import { atom } from "jotai";
 import { atomWithStorage, createJSONStorage } from "jotai/utils";
 
-import { getWindowId } from "@src/util/core/state/windowScopedState";
+import { getWindowId } from "@src/util/core/state/windowId";
 
 import { REPO_STORAGE_KEYS } from "./storage";
 import type { Branch, BranchCacheEntry, CachedRepo, Repo } from "./types";

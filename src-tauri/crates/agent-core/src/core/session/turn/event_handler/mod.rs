@@ -850,6 +850,14 @@ impl TurnEventHandler for UnifiedEventHandler {
         session_id: &str,
         injection: &crate::turn_executor::SteeringInjection,
     ) {
+        // Consumption is the durable start of this steering intent. The
+        // turn-intent state machine intentionally rejects Queued -> terminal,
+        // so enter Running before either transcript outcome below.
+        crate::foundation::session_bridge::update_turn_intent_status(
+            session_id,
+            &injection.turn_intent_id,
+            crate::foundation::session_bridge::TurnIntentBridgeStatus::Running,
+        );
         // Persist the user message so the durable transcript (and the next
         // turn's reloaded history) contains it as a plain user row — the
         // in-memory <system-reminder> wrapper is a per-turn presentation.
@@ -865,11 +873,22 @@ impl TurnEventHandler for UnifiedEventHandler {
                     session_id,
                     err
                 );
+                // The injection has already been removed from the in-memory
+                // steering queue and is about to be presented to the model.
+                // Never leave its durable intent queued merely because the
+                // transcript write failed: that would block Agent Org
+                // finality forever. Failed is terminal and truthfully records
+                // that durable persistence did not complete.
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    session_id,
+                    &injection.turn_intent_id,
+                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Failed,
+                );
                 return;
             }
         };
         if let Some(handle) = self.config.app_handle.as_ref() {
-            crate::bus::event_pipeline_bridge::persist_user_message_event(
+            if let Err(err) = crate::bus::event_pipeline_bridge::persist_user_message_event(
                 handle,
                 session_id,
                 &message_id,
@@ -878,7 +897,13 @@ impl TurnEventHandler for UnifiedEventHandler {
                 None,
                 crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
                 &injection.turn_intent_id,
-            );
+            ) {
+                tracing::warn!(
+                    session_id,
+                    error = %err,
+                    "[unified_handler] failed to persist steering user-message event"
+                );
+            }
         }
         crate::foundation::session_bridge::update_turn_intent_status(
             session_id,
@@ -1011,9 +1036,40 @@ mod tests {
         let conn = database::db::get_connection().expect("db");
         crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
         crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        let run = crate::coordination::agent_org_runs::AgentOrgRunStore::create(
+            crate::coordination::agent_org_runs::CreateAgentOrgRunParams {
+                org_id: "org-stop-gate".to_string(),
+                coordinator_agent_id: "coordinator".to_string(),
+                root_session_id: None,
+                org_snapshot: crate::definitions::orgs::OrgDefinition {
+                    id: "org-stop-gate".to_string(),
+                    name: "Stop Gate Test Org".to_string(),
+                    role: "coordinator".to_string(),
+                    agent_id: "coordinator".to_string(),
+                    description: None,
+                    hierarchy_mode: Default::default(),
+                    plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+                    children: vec![crate::definitions::orgs::OrgMember {
+                        id: "member-worker".to_string(),
+                        name: "Worker".to_string(),
+                        role: "builder".to_string(),
+                        agent_id: "worker-agent".to_string(),
+                        runtime_config: None,
+                        children: Vec::new(),
+                    }],
+                },
+                entry_mode:
+                    crate::coordination::agent_org_runs::AgentOrgRunEntryMode::StandaloneSession,
+                status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Running,
+                work_item_id: None,
+                project_slug: None,
+                routine_fire_id: None,
+            },
+        )
+        .expect("seed canonical run");
         AgentOrgTaskStore::create(CreateTaskParams {
             id: "unfinished-build".to_string(),
-            org_run_id: "run-stop-gate".to_string(),
+            org_run_id: run.id.clone(),
             subject: "unfinished build".to_string(),
             description: String::new(),
             active_form: None,
@@ -1026,7 +1082,7 @@ mod tests {
         .expect("seed task");
         let handler = UnifiedEventHandler::new(EventHandlerConfig {
             agent_org_task_lifecycle: Some(AgentOrgTaskLifecycleContext {
-                run_id: "run-stop-gate".to_string(),
+                run_id: run.id,
                 member_id: "member-worker".to_string(),
             }),
             ..Default::default()

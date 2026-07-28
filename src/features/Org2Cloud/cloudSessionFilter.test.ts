@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
-import { filterCloudSessionRows } from "./cloudSessionFilter";
+import {
+  buildCloudSessionMemberFilterOptions,
+  filterCloudSessionRows,
+} from "./cloudSessionFilter";
 
 function row(
   id: string,
@@ -56,5 +59,34 @@ describe("filterCloudSessionRows", () => {
         ownerUserId: "user-a",
       }).map((item) => item.id)
     ).toEqual(["a"]);
+  });
+});
+
+describe("buildCloudSessionMemberFilterOptions", () => {
+  it("renders active roster members even before they own a listed session", () => {
+    expect(
+      buildCloudSessionMemberFilterOptions(
+        [],
+        [
+          { userId: "owner", displayName: "Owner", status: "active" },
+          { userId: "member", displayName: "Member", status: "active" },
+        ]
+      )
+    ).toEqual([
+      { userId: "owner", displayName: "Owner" },
+      { userId: "member", displayName: "Member" },
+    ]);
+  });
+
+  it("uses listed rows as a loading fallback without reviving removed members", () => {
+    const rows = [
+      { ...row("removed-row", "removed"), ownerDisplayName: "Removed" },
+      { ...row("legacy-row", "legacy"), ownerDisplayName: "Legacy" },
+    ];
+    expect(
+      buildCloudSessionMemberFilterOptions(rows, [
+        { userId: "removed", displayName: "Removed", status: "removed" },
+      ])
+    ).toEqual([{ userId: "legacy", displayName: "Legacy" }]);
   });
 });

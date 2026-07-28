@@ -96,7 +96,7 @@
 
 .conflict-action-link {
   color: var(--color-primary-6);
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: color 0.15s ease;
 
   &:hover {

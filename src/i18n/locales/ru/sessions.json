@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token решения",
     "tooltip": "Оценочная атрибуция инструмента. Метод: {{method}}. Ввод: {{inputBytes}} bytes. Вывод: {{outputBytes}} bytes. Решение: {{decisionTokens}} Token. Контекст: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Связанный LLM cache read: {{cacheReadTokens}} Token. Связанный LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Название (необязательно)"
+  },
   "history": {
     "untitledSession": "Session без названия",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Создано",
       "updated": "Обновлено",
       "lastUpdated": "Последнее обновление",
+      "external": "Внешняя",
+      "internal": "Внутренняя",
       "rounds": "Раунды",
       "roundCount_one": "{{count}} раунд",
       "roundCount_other": "{{count}} раундов",
@@ -124,9 +129,10 @@
         "default": "По умолчанию",
         "manual": "Вручную",
         "60s": "Каждые 60 с",
-        "5m": "Каждые 5 мин",
-        "1h": "Ежечасно",
-        "1d": "Ежедневно"
+        "120s": "Каждые 120 с",
+        "10m": "Каждые 10 мин",
+        "30m": "Каждые 30 мин",
+        "1h": "Ежечасно"
       },
       "openFolder": "Открыть папку",
       "tabs": {
@@ -136,7 +142,103 @@
       },
       "views": {
         "scanning": "Сканирование",
-        "hooks": "Хуки"
+        "hooks": "Хуки",
+        "usage": "Использование",
+        "quota": "Квота",
+        "assets": "Ресурсы",
+        "profile": "Профиль"
+      },
+      "usage": {
+        "title": "Использование и стоимость",
+        "subtitle": "Токены и расчётная стоимость просканированных сеансов разработки. Данные читаются из локальной базы и не покидают ваше устройство.",
+        "allSources": "Все источники",
+        "refresh": "Обновить",
+        "estimatedNote": "Стоимость рассчитана по прейскуранту для подписок и собственных ключей; фактические расходы отображаются, если они были записаны.",
+        "range": {
+          "today": "Сегодня",
+          "24h": "24 часа",
+          "7d": "7 дней",
+          "30d": "30 дней",
+          "all": "За всё время"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "Другие"
+        },
+        "cards": {
+          "realTokens": "Всего токенов",
+          "cost": "Общая стоимость (оценка)",
+          "sessions": "Сеансы",
+          "requests": "Запросы",
+          "cacheHit": "Доля попаданий в кэш",
+          "input": "Ввод",
+          "output": "Вывод",
+          "cacheCreate": "Запись в кэш",
+          "cacheRead": "Чтение из кэша"
+        },
+        "trends": {
+          "title": "Динамика использования",
+          "input": "Ввод",
+          "output": "Вывод",
+          "cacheCreate": "Запись в кэш",
+          "cacheRead": "Чтение из кэша",
+          "cost": "Стоимость"
+        },
+        "table": {
+          "title": "Сеансы",
+          "name": "Сеанс",
+          "agent": "Агент",
+          "model": "Модель",
+          "tokens": "Токены",
+          "cost": "Стоимость",
+          "cacheHit": "Попадание в кэш",
+          "turns": "Ходы",
+          "lastActive": "Последняя активность",
+          "sort": {
+            "recent": "Сначала новые",
+            "cost": "По наибольшей стоимости",
+            "tokens": "По числу токенов"
+          }
+        },
+        "roundsTable": {
+          "title": "Запросы",
+          "time": "Время",
+          "session": "Сеанс",
+          "agent": "Агент",
+          "model": "Модель",
+          "input": "Ввод",
+          "output": "Вывод",
+          "cache": "Чтение из кэша",
+          "cost": "Стоимость",
+          "filterBySession": "Фильтровать по этому сеансу"
+        },
+        "pricing": {
+          "input": "Ввод",
+          "cache": "Кэш",
+          "output": "Вывод",
+          "total": "Итого",
+          "estimate": "Оценка по прейскуранту",
+          "hint": "Наведите указатель на стоимость запроса, чтобы увидеть разбивку.",
+          "loading": "Расчёт…"
+        },
+        "detail": {
+          "title": "Разбивка по вызовам",
+          "perTurn": "Вызовы LLM",
+          "perTool": "Вызовы инструментов",
+          "close": "Закрыть",
+          "noData": "Для этого сеанса доступны только общие итоги; разбивка по вызовам записывается для запусков собственных агентов ORGII.",
+          "turnHeader": "Ход {{turn}}",
+          "promptTokens": "Промпт",
+          "completionTokens": "Завершение"
+        },
+        "empty": {
+          "title": "Данных об использовании пока нет",
+          "subtitle": "Запустите или просканируйте сеансы разработки, и здесь появится использование токенов."
+        },
+        "loadError": "Не удалось загрузить данные об использовании"
       },
       "sessions_one": "{{count}} сессия",
       "sessions_few": "{{count}} сессии",
@@ -798,6 +900,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Сеанс",
+        "workItem": "Рабочий элемент",
+        "more": "Ещё",
         "work": "Работа",
         "manage": "Управление",
         "heatmap": "Тренды",
@@ -849,7 +954,6 @@
     "defaultTitle": "Чат",
     "hideChatPanel": "Скрыть панель чата",
     "showTokenUsage": "Показывать Token",
-    "showStatusBar": "Показывать строку состояния",
     "compactDisplayMode": "Компактный режим",
     "replay": {
       "follow": "Следовать"
@@ -895,6 +999,28 @@
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",
     "copyEventJsonFailed": "Ошибка копирования",
+    "moveToWorkstation": "Переместить в мою Workstation",
+    "moveToChatPanel": "Переместить на панель чата",
+    "rawTranscript": {
+      "title": "Необработанная расшифровка сеанса",
+      "menuItem": "Показать необработанную расшифровку",
+      "guiTab": "GUI",
+      "rawTab": "Исходные данные",
+      "entryCount_one": "{{count}} запись",
+      "entryCount_other": "{{count}} записей",
+      "copySuccess": "Необработанная расшифровка скопирована",
+      "copyFailed": "Не удалось скопировать необработанную расшифровку"
+    },
+    "linkWorkItem": {
+      "menuItem": "Связать с Work Item…",
+      "title": "Связать сеанс с Work Item",
+      "description": "Выберите Work Item, в котором должен отображаться этот сеанс.",
+      "searchPlaceholder": "Поиск по ID, названию, статусу или проекту Work Item",
+      "loading": "Загрузка Work Items…",
+      "empty": "Work Items не найдены.",
+      "linking": "Связываем…",
+      "link": "Связать"
+    },
     "historyTitle": "История",
     "historyEmpty": "Пока нет сессий",
     "historyGroupTime": "Время",
@@ -1024,6 +1150,8 @@
     "turnMetadata": {
       "noChanges": "В этом раунде файлы не изменялись",
       "earlierRound": "Предыдущий раунд",
+      "editsTab": "Правки",
+      "readsTab": "Чтения",
       "files_one": "{{count}} файл",
       "files_few": "{{count}} файла",
       "files_many": "{{count}} файлов",
@@ -1220,6 +1348,10 @@
       "command_few": "{{count}} команды",
       "command_many": "{{count}} команд",
       "command_other": "{{count}} команды",
+      "mcp_one": "{{count}} вызов MCP",
+      "mcp_few": "{{count}} вызова MCP",
+      "mcp_many": "{{count}} вызовов MCP",
+      "mcp_other": "{{count}} вызова MCP",
       "wait_one": "{{count}} ожидание",
       "wait_few": "{{count}} ожидания",
       "wait_many": "{{count}} ожиданий",
@@ -1330,45 +1462,6 @@
     "searchSymbolsRunning": "Поиск символов",
     "searchSymbolsDone": "Символы найдены",
     "searchSymbolsFailed": "Поиск символов не удался",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "Проверка index status",
     "searchCheckStatusDone": "Index status проверен",
     "searchCheckStatusFailed": "Проверка index status не удалась",
@@ -2051,7 +2144,10 @@
     "categoryLabel": "Категория сессии",
     "categoryTemplate": "Выбрать {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Встроенные Agents",
+    "builtIns": "Встроенные",
+    "humanSession": {
+      "name": "Журнал работы"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Пользовательские Agents",
     "agentOrgs": "Команды Agent",
@@ -2470,67 +2566,6 @@
     "myApiKeys": "Мои Key ({{count}})",
     "addApiKey": "Добавить API Key",
     "noRepoSelected": "Репозиторий не выбран",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Статус Code Map: {{status}}",
-      "neverIndexed": "Еще не индексировалось",
-      "lastIndexed": "Последняя индексация {{time}}",
-      "progressFiles": "{{processed}} / {{total}} файлов",
-      "errorTitle": "Ошибка Code Map",
-      "status": {
-        "notIndexed": "Не индексировано",
-        "indexing": "Индексируется",
-        "ready": "Готово",
-        "stale": "Устарело",
-        "failed": "Ошибка",
-        "cancelled": "Отменено"
-      },
-      "phase": {
-        "queued": "В очереди",
-        "scanning": "Сканирование",
-        "extracting": "Извлечение",
-        "storing": "Сохранение",
-        "resolving": "Разрешение",
-        "complete": "Завершено",
-        "failed": "Ошибка",
-        "cancelled": "Отменено"
-      },
-      "stats": {
-        "files": "Файлы",
-        "symbols": "Символы",
-        "relationships": "Связи",
-        "indexSize": "Размер индекса",
-        "unresolved": "Неразрешено",
-        "staleFiles": "Устаревшие файлы"
-      },
-      "actions": {
-        "index": "Индексировать",
-        "reindex": "Переиндексировать",
-        "cancel": "Отмена",
-        "stop": "Остановить",
-        "clear": "Очистить",
-        "refresh": "Обновить"
-      },
-      "progressChanges": "Добавлено {{added}} · Изменено {{modified}} · Удалено {{deleted}}",
-      "browser": {
-        "title": "Браузер Code Map",
-        "searchTitle": "Поиск в Code Map",
-        "searchPlaceholder": "Искать символы, файлы или сигнатуры",
-        "search": "Поиск",
-        "resultSummary": "{{count}} результатов · {{unresolved}} неразрешено · {{stale}} устарело",
-        "noResults": "Нет результатов Code Map.",
-        "selectNode": "Выберите результат, чтобы посмотреть исходный код и связи.",
-        "loadingDetails": "Загрузка деталей Code Map…",
-        "noRelationships": "Связи не найдены.",
-        "incoming": "Входящие",
-        "outgoing": "Исходящие",
-        "source": "Исходный код",
-        "confidence": "Уверенность: {{value}}",
-        "extraction": "Извлечение: {{value}}",
-        "resolution": "Разрешение: {{value}}",
-        "relationshipCounts": "{{incoming}} входящих · {{outgoing}} исходящих"
-      }
-    },
     "diff": {
       "untitledSession": "Безымянная сессия",
       "singleFile": "Один файл",

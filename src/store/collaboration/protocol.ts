@@ -57,6 +57,7 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
   ownerMemberId: z.string(),
   ownerUserId: z.string(),
   ownerDisplayName: z.string(),
+  ownerAvatarUrl: z.string().optional(),
   ownerIdentityKind: CollabIdentityKindSchema,
   sourceSessionId: z.string(),
   title: z.string(),
@@ -75,6 +76,9 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
   // passengers like repoScopeKey — absent on rows from older clients.
   cliAgentType: z.string().optional(),
   agentDisplayName: z.string().optional(),
+  // Matching hint only: receivers may preselect the same LOCAL definition
+  // when installed, but must never execute an unknown remote definition id.
+  agentDefinitionId: z.string().optional(),
   model: z.string().optional(),
   origin: z
     .discriminatedUnion("kind", [
@@ -122,17 +126,6 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
     .nullish()
     .transform((value) => value ?? undefined)
     .optional(),
-  // Comment-task provenance (agent-pickup design §4): rides in the opaque
-  // payload jsonb like forkedFrom — no server column. Absent on ordinary
-  // sessions and on rows pushed by pre-task clients.
-  addressesComment: z
-    .object({
-      commentId: z.string(),
-      sourceSessionId: z.string(),
-    })
-    .nullish()
-    .transform((value) => value ?? undefined)
-    .optional(),
   // Trailing .optional() keeps the inferred key optional (`deletedAt?:`) so
   // the persisted-atom storage type stays assignable to the interface.
   deletedAt: z
@@ -149,19 +142,6 @@ export const RemoteTeammateSessionMetadataSchema = z.object({
     .transform((value) => value ?? undefined)
     .optional(),
   unresolvedCommentCount: z
-    .number()
-    .nullish()
-    .transform((value) => value ?? undefined)
-    .optional(),
-  // Agent-task counters (cloud migration 0002): server-side lateral
-  // aggregates next to the comment counters above. Additive — absent on
-  // pre-0002 backends and simply stay undefined.
-  openAgentTaskCount: z
-    .number()
-    .nullish()
-    .transform((value) => value ?? undefined)
-    .optional(),
-  activeAgentTaskCount: z
     .number()
     .nullish()
     .transform((value) => value ?? undefined)

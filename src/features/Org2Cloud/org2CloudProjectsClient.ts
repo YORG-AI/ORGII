@@ -16,8 +16,9 @@
  *   int version (the SQL parameter is `lock_payload`; the design's shorthand
  *   `lock` is a reserved SQL keyword)
  * - `cloud_release_work_item_lock(p_org_id, p_work_item_id)` → int version
- * - `cloud_list_org_collab_state(p_org_id, since)` →
- *   `{serverTime, projects, workItems}`
+ * - `cloud_list_org_collab_state(p_org_id, since[, p_limit, p_cursor_*])` →
+ *   `{serverTime, projects, workItems[, nextCursor]}` (0004 adds bounded
+ *   keyset pages over the unified `(updated_at, kind, id)` order)
  *
  * Whole-row OCC everywhere: a base-version mismatch raises `ORG2_CONFLICT`,
  * which the shared `ProjectSyncChannel` dispatches through the generalized
@@ -26,6 +27,8 @@
  * self-hosted channel + Rust bridge drive the cloud backend unchanged.
  */
 import { z } from "zod/v4";
+
+import { createLogger } from "@src/hooks/logger";
 
 import type { ProjectSyncChannelDeps } from "../TeamCollaboration/engine/ProjectSyncChannel";
 import type {
@@ -39,6 +42,7 @@ import type {
   UpsertWorkItemInput,
 } from "../TeamCollaboration/sync/CollabSyncBackend";
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import { fetchWithTransportRetry } from "./org2CloudFetchRetry";
 
 // ---------------------------------------------------------------------------
 // Error model
@@ -100,7 +104,7 @@ async function callProjectsRpc(
   body: Record<string, unknown>
 ): Promise<unknown> {
   const endpoint = getCloudEndpoint();
-  const response = await fetch(
+  const response = await fetchWithTransportRetry(
     `${endpoint.supabaseUrl}/rest/v1/rpc/${functionName}`,
     {
       method: "POST",
@@ -152,7 +156,36 @@ const CloudOrgCollabStateSchema = z.object({
   serverTime: z.string().optional(),
   projects: z.array(CloudCollabRowSchema).default([]),
   workItems: z.array(CloudCollabRowSchema).default([]),
+  // 0004 backends return a unified keyset cursor over the (updated_at, kind,
+  // id) total order when a bounded page has more rows; absent on legacy
+  // backends and on the final page. `.catch(undefined)` degrades a malformed
+  // cursor to "no more pages" instead of failing the whole listing parse.
+  nextCursor: z
+    .object({ updatedAt: z.string(), kind: z.string(), id: z.string() })
+    .nullish()
+    .catch(undefined),
 });
+
+const log = createLogger("Org2CloudProjectsClient");
+
+/** Rows per page for full collab listings against a 0004 backend. */
+export const COLLAB_LISTING_PAGE_SIZE = 200;
+/** Runaway guard: a full listing never walks more pages than this. */
+const COLLAB_LISTING_MAX_PAGES = 50;
+/** supabaseUrl set of backends that rejected the paged signature (pre-0004). */
+const collabPaginationUnsupportedEndpoints = new Set<string>();
+
+function isCollabPagedSignatureUnsupported(error: unknown): boolean {
+  return (
+    error instanceof Org2CloudProjectsError &&
+    error.status === 404 &&
+    /could not find the function/i.test(error.message)
+  );
+}
+
+export const __COLLAB_LISTING_INTERNALS = {
+  resetPaginationSupport: () => collabPaginationUnsupportedEndpoints.clear(),
+};
 
 /** Projects/work-items delta: rows are `payload || {version, updatedBy…, deletedAt}`. */
 export interface CloudOrgCollabState {
@@ -169,13 +202,29 @@ export interface CloudOrgCollabState {
  * cloud rows byte-compatibly with self-hosted ones.
  */
 function toChannelRow(row: Record<string, unknown>): Record<string, unknown> {
+  let channelRow = row;
   if (
     typeof row.updatedByUserId === "string" &&
     row.updatedByMemberId === undefined
   ) {
-    return { ...row, updatedByMemberId: row.updatedByUserId };
+    channelRow = { ...channelRow, updatedByMemberId: row.updatedByUserId };
   }
-  return row;
+  if (
+    typeof row.updated_by_user_id === "string" &&
+    channelRow.updatedByMemberId === undefined
+  ) {
+    channelRow = {
+      ...channelRow,
+      updatedByMemberId: row.updated_by_user_id,
+    };
+  }
+  if (
+    typeof row.deleted_at === "string" &&
+    channelRow.deletedAt === undefined
+  ) {
+    channelRow = { ...channelRow, deletedAt: row.deleted_at };
+  }
+  return channelRow;
 }
 
 // ---------------------------------------------------------------------------
@@ -323,15 +372,79 @@ export async function listOrgCollabState(
   orgId: string,
   since?: string
 ): Promise<CloudOrgCollabState> {
-  const payload = await callProjectsRpc(
-    "cloud_list_org_collab_state",
-    accessToken,
-    {
-      p_org_id: orgId,
-      since: since ?? null,
+  const endpoint = getCloudEndpoint();
+  const legacyCall = async () => {
+    const payload = await callProjectsRpc(
+      "cloud_list_org_collab_state",
+      accessToken,
+      {
+        p_org_id: orgId,
+        since: since ?? null,
+      }
+    );
+    return CloudOrgCollabStateSchema.parse(payload);
+  };
+
+  let parsed: z.output<typeof CloudOrgCollabStateSchema>;
+  if (
+    since !== undefined ||
+    collabPaginationUnsupportedEndpoints.has(endpoint.supabaseUrl)
+  ) {
+    // Delta pulls stay single-shot (bounded by the cursor overlap); known
+    // pre-0004 backends keep the legacy unbounded call.
+    parsed = await legacyCall();
+  } else {
+    // Full listing: walk bounded keyset pages over the unified
+    // (updated_at, kind, id) order. Ascending order makes mid-walk writes
+    // safe — an update moves its row toward the unread tail, never behind
+    // the cursor — so the last page's serverTime anchors the delta cursor.
+    const projects: Array<Record<string, unknown>> = [];
+    const workItems: Array<Record<string, unknown>> = [];
+    let serverTime: string | undefined;
+    let cursor: { updatedAt: string; kind: string; id: string } | undefined;
+    let page = 0;
+    for (;;) {
+      let payload: unknown;
+      try {
+        payload = await callProjectsRpc(
+          "cloud_list_org_collab_state",
+          accessToken,
+          {
+            p_org_id: orgId,
+            since: null,
+            p_limit: COLLAB_LISTING_PAGE_SIZE,
+            p_cursor_updated_at: cursor?.updatedAt ?? null,
+            p_cursor_kind: cursor?.kind ?? null,
+            p_cursor_id: cursor?.id ?? null,
+          }
+        );
+      } catch (error) {
+        if (page === 0 && isCollabPagedSignatureUnsupported(error)) {
+          collabPaginationUnsupportedEndpoints.add(endpoint.supabaseUrl);
+          parsed = await legacyCall();
+          break;
+        }
+        throw error;
+      }
+      const pageParsed = CloudOrgCollabStateSchema.parse(payload);
+      projects.push(...pageParsed.projects);
+      workItems.push(...pageParsed.workItems);
+      serverTime = pageParsed.serverTime ?? serverTime;
+      cursor = pageParsed.nextCursor ?? undefined;
+      page += 1;
+      if (!cursor) {
+        parsed = { serverTime, projects, workItems };
+        break;
+      }
+      if (page >= COLLAB_LISTING_MAX_PAGES) {
+        log.warn(
+          `cloud_list_org_collab_state stopped after ${page} pages for org ${orgId}`
+        );
+        parsed = { serverTime, projects, workItems };
+        break;
+      }
     }
-  );
-  const parsed = CloudOrgCollabStateSchema.parse(payload);
+  }
   return {
     serverTime: parsed.serverTime,
     projects: parsed.projects.map(toChannelRow),
@@ -351,8 +464,8 @@ export async function listOrgCollabState(
 export function toCollabOrgState(state: CloudOrgCollabState): CollabOrgState {
   return {
     serverTime: state.serverTime,
-    projects: state.projects,
-    workItems: state.workItems,
+    projects: state.projects.map(toChannelRow),
+    workItems: state.workItems.map(toChannelRow),
   };
 }
 

@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const log = createLogger("useBrowserNetworkLogs");
 
@@ -69,6 +70,8 @@ export interface UseBrowserNetworkLogsReturn {
   clearEntries: () => void;
   /** Clear entries for all sessions */
   clearAllEntries: () => void;
+  /** Release cached entries for one closed session */
+  clearSessionEntries: (sessionId: string) => void;
   /** Manually trigger a poll */
   pollNow: () => Promise<void>;
   /** Set the webview label to poll */
@@ -102,8 +105,7 @@ export function useBrowserNetworkLogs(
 
   // Current session's entries (state)
   const [entries, setEntries] = useState<NetworkEntry[]>([]);
-
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollGenerationRef = useRef(0);
 
   // Get or create cache entry for a session
   const getSessionCache = useCallback((sid: string): SessionNetworkCache => {
@@ -152,18 +154,32 @@ export function useBrowserNetworkLogs(
   // Clear entries for current session
   const clearEntries = useCallback(() => {
     if (!sessionId) return;
+    pollGenerationRef.current += 1;
     updateSessionEntries(sessionId, []);
   }, [sessionId, updateSessionEntries]);
 
   // Clear entries for all sessions
   const clearAllEntries = useCallback(() => {
+    pollGenerationRef.current += 1;
     cacheRef.current.clear();
     setEntries([]);
   }, []);
 
+  const clearSessionEntries = useCallback(
+    (closedSessionId: string) => {
+      cacheRef.current.delete(closedSessionId);
+      if (closedSessionId === sessionId) {
+        pollGenerationRef.current += 1;
+        setEntries([]);
+      }
+    },
+    [sessionId]
+  );
+
   // Poll for network logs from webview
   const pollNow = useCallback(async () => {
-    if (!webviewLabel || !sessionId) return;
+    if (!enabled || !webviewLabel || !sessionId) return;
+    const generation = pollGenerationRef.current;
 
     try {
       const rustEntries = await invoke<RustNetworkEntry[]>(
@@ -171,7 +187,11 @@ export function useBrowserNetworkLogs(
         { label: webviewLabel }
       );
 
-      if (rustEntries && rustEntries.length > 0) {
+      if (
+        generation === pollGenerationRef.current &&
+        rustEntries &&
+        rustEntries.length > 0
+      ) {
         const cache = getSessionCache(sessionId);
 
         // Transform entries
@@ -206,34 +226,38 @@ export function useBrowserNetworkLogs(
   }, [
     webviewLabel,
     sessionId,
+    enabled,
     maxEntries,
     getSessionCache,
     updateSessionEntries,
   ]);
 
+  useEffect(() => {
+    const generation = ++pollGenerationRef.current;
+    if (!enabled) {
+      cacheRef.current.clear();
+      setEntries([]);
+    }
+    return () => {
+      if (generation === pollGenerationRef.current) {
+        pollGenerationRef.current += 1;
+      }
+    };
+  }, [enabled, sessionId, webviewLabel]);
+
   // Start/stop polling
   useEffect(() => {
-    if (!enabled || !webviewLabel || !sessionId || pollInterval <= 0) {
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+    if (
+      !enabled ||
+      !webviewLabel ||
+      !sessionId ||
+      pollInterval <= 0 ||
+      typeof document === "undefined"
+    ) {
       return;
     }
 
-    // Start polling
-    pollTimerRef.current = setInterval(pollNow, pollInterval);
-
-    // Initial poll - defer to next tick to avoid setState in effect
-    const timer = setTimeout(() => pollNow(), 0);
-
-    return () => {
-      clearTimeout(timer);
-      if (pollTimerRef.current) {
-        clearInterval(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
-    };
+    return startVisibilityAwarePoller(document, pollNow, pollInterval);
   }, [enabled, webviewLabel, sessionId, pollInterval, pollNow]);
 
   // Compute error count from current entries
@@ -250,6 +274,7 @@ export function useBrowserNetworkLogs(
     errorCount,
     clearEntries,
     clearAllEntries,
+    clearSessionEntries,
     pollNow,
     setWebviewLabel,
     setSessionId,

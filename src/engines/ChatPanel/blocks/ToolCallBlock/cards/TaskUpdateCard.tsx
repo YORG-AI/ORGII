@@ -337,16 +337,27 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
             sender: groupSenderName,
             defaultValue: "{{sender}} viewed task details",
           })
-        : t("groupChat.taskHeader.list", {
-            sender: groupSenderName,
-            defaultValue: "{{sender}} viewed task list",
-          })
+        : card.kind === "graph"
+          ? t("groupChat.taskHeader.create", {
+              sender: groupSenderName,
+              defaultValue: "{{sender}} assigned tasks",
+            })
+          : t("groupChat.taskHeader.list", {
+              sender: groupSenderName,
+              defaultValue: "{{sender}} viewed task list",
+            })
       : card.kind === "get"
         ? t("orgTask.get.title")
-        : t("orgTask.list.title");
+        : card.kind === "graph"
+          ? t("orgTask.create.title")
+          : t("orgTask.list.title");
   const subtitle = t("orgTask.list.count", { taskCount: count });
   const taskListIcon = getToolIcon(
-    card.kind === "get" ? "task_get" : "task_list",
+    card.kind === "get"
+      ? "task_get"
+      : card.kind === "graph"
+        ? "task_graph_create"
+        : "task_list",
     {
       size: SESSION_UI_TOKENS.ICON.SIZE_SM,
     }

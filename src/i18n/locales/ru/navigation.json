@@ -12,6 +12,7 @@
     "drafts": "Черновики",
     "browser": "Браузер",
     "editor": "Редактор",
+    "environment": "Окружение",
     "workspace": "Рабочее пространство",
     "codeEditor": "Редактор кода",
     "databaseManager": "Менеджер БД",
@@ -60,15 +61,9 @@
     "startSession": "Начать сессию",
     "sessions": "Session",
     "selectProject": "Выбрать Project",
-    "startPage": "Главная страница",
     "inbox": "Входящие",
     "login": "Вход",
     "setup": "Настройка",
-    "devJourney": "Dev Journey",
-    "devRecord": "Журнал разработки",
-    "gitDashboard": "Git Панель",
-    "devActivity": "Dev Активность",
-    "usageHistory": "История использования",
     "tokenMarket": "Token маркет",
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
@@ -84,20 +79,8 @@
     "ideaArea": "Пространство идей",
     "changelog": "Журнал изменений"
   },
-  "appGrid": {
-    "customizeGrid": "Настроить сетку",
-    "horizontalGap": "Горизонтальный интервал",
-    "verticalGap": "Вертикальный интервал",
-    "resetToDefault": "Сбросить по умолчанию"
-  },
-  "greetings": {
-    "morning": "Доброе утро",
-    "afternoon": "Добрый день",
-    "evening": "Добрый вечер"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Главная",
       "workstation": "Workstation",
       "manage": "Управление",
       "core": "Ядро",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "Добавить новое",
       "collapseAll": "Свернуть все",
-      "markAllRead": "Отметить все как прочитанные",
-      "openHome": "Открыть Home",
-      "openWorkstation": "Открыть Workstation"
+      "markAllRead": "Отметить все как прочитанные"
     },
     "search": {
       "folders": "Искать в рабочей области...",
@@ -357,22 +338,13 @@
       "projects": "Проекты"
     }
   },
-  "changelog": {
-    "title": "Журнал изменений",
-    "subtitle": "Обновления продукта",
-    "commitCount": "{{count}} коммитов",
-    "commitCount_one": "{{count}} коммит",
-    "details": "Подробности",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Сменить ORG",
     "addOrg": "Добавить ORG",
     "createOrg": "Создать",
     "joinOrg": "Присоединиться",
     "orgSource": "Источник организации",
-    "localOrg": "Local",
+    "localOrg": "Локально",
     "orgName": "Название ORG",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Ссылка или код приглашения",
@@ -397,7 +369,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -417,14 +393,21 @@
       "error": "Не удалось сделать форк сессии",
       "sendFailed": "Форк создан, но сообщение не отправилось — текст восстановлен в поле ввода",
       "forkedChipTooltip": "Форк от {{name}}",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Войти",
     "signOut": "Выйти",
+    "signedInAs": "Выполнен вход как {{name}}",
     "signedInToast": "Выполнен вход в ORG2 Cloud",
+    "sessionExpired": "Сеанс ORG2 Cloud истёк. Войдите снова, чтобы продолжить.",
     "recommendedBadge": "Рекомендуется",
     "recommendedDesc": "Управляемое совместное использование сессий, хранение реплеев, командные права и безопасные ссылки. Настройка Supabase не нужна. ORG2 берёт на себя Auth, миграции базы данных, политики RLS, оплату, сроки хранения, квоты и обновления бэкенда",
     "customEndpoint": {
@@ -464,12 +447,15 @@
       "retentionUpgrade": "Эта сессия вне окна реплея вашего плана — обновите план, чтобы её открыть",
       "importError": "Не удалось импортировать сессию",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Обо мне"
     },
     "sidebar": {
       "teamSessions": "Сессии команды",
+      "mySessions": "Мои сессии",
       "memberFilter": "Фильтр по участнику",
       "sessionFilter": "Фильтр сеансов",
+      "copyId": "Копировать ID",
       "directlySharedWithMe": "Доступ предоставлен лично мне",
       "everyone": "Все",
       "forkedFrom": "форк от @{{name}}",
@@ -543,7 +529,8 @@
         "youTag": "Вы",
         "ownerTag": "Владелец",
         "floorOff": "Без минимума",
-        "floorTooltip": "Минимальный уровень доступа для этого участника. Действует более строгий из этого и общеорганизационного минимума."
+        "floorTooltip": "Минимальный уровень доступа для этого участника. Действует более строгий из этого и общеорганизационного минимума.",
+        "floorOrgMinimum": "Минимум организации ({{mode}})"
       },
       "leave": {
         "action": "Покинуть организацию",
@@ -584,7 +571,7 @@
         "joinedFallbackToast": "Вы присоединились к облачной организации"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (управляемый)",
+        "sourceCloud": "Облако",
         "signInFirst": "Войдите в ORG2 Cloud, чтобы создать управляемую организацию или присоединиться к ней.",
         "openSettings": "Открыть настройки входа",
         "createdToast": "Облачная организация создана"
@@ -601,25 +588,22 @@
         "inviteInvalid": "Этот код приглашения недействителен.",
         "inviteRevoked": "Это приглашение отозвано.",
         "inviteExpired": "Срок действия приглашения истёк.",
-        "inviteExhausted": "У этого приглашения не осталось использований."
+        "inviteExhausted": "У этого приглашения не осталось использований.",
+        "network": "Не удалось подключиться к облачному сервису. Проверьте сеть и повторите попытку."
       }
-    },
-    "defaultAccess": {
-      "label": "Уровень синхронизации по умолчанию",
-      "help": "Применяется к сессиям этого устройства, попавшим под область репозиториев и без собственной настройки. «Выключено» — сессии остаются локальными, пока вы не включите синхронизацию"
     },
     "syncLevel": {
       "menuItem": "Уровень облачной синхронизации…",
       "title": "Уровень облачной синхронизации",
       "hint": "Выберите, что эта сессия передаёт в каждую облачную организацию — ничего, только метаданные или полный реплей — и кто может её видеть.",
-      "orgDefaultOption": "По умолчанию организации ({{mode}})",
       "modeOff": "Выключено",
       "modeMetadata": "Только метаданные",
       "modeFullReplay": "Полный реплей",
       "visibilityOrg": "Вся организация",
       "visibilityRestricted": "Только я",
       "taggedNote": "Эта сессия перемещена в организацию, поэтому, пока стоит метка, она передаёт как минимум метаданные.",
-      "floorNote": "Администратор организации требует делиться минимум на уровне {{mode}}."
+      "floorNote": "Администратор организации требует делиться минимум на уровне {{mode}}.",
+      "orgMinimumOption": "Минимум организации ({{mode}})"
     },
     "share": {
       "menuItem": "Облачный доступ…",
@@ -650,33 +634,23 @@
       "importPasteClipboard": "Вставить из буфера обмена",
       "importSubmit": "Импортировать",
       "importInvalidInput": "Это не похоже на действительную ссылку для доступа или токен.",
-      "selectAll": "Все ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Раннер задач агента",
-      "desc": "Настройки по умолчанию для задач из комментариев, запускаемых из веток сессий («Запустить здесь»)",
-      "machineNotice": "Запуски выполняются на этой машине с токенами этого аккаунта",
-      "orgLabel": "Организация",
-      "accountLabel": "Аккаунт",
-      "accountPlaceholder": "Аккаунт по умолчанию",
-      "modelLabel": "Модель",
-      "modelPlaceholder": "Модель по умолчанию",
-      "modeLabel": "Режим",
-      "autoRunLabel": "Автозапуск задач @agent",
-      "autoRunDesc": "Автоматически принимать и выполнять открытые задачи-комментарии @agent в ваших собственных сессиях. По умолчанию выключено — упоминания @agent от коллег не будут расходовать ваши токены, пока вы это не включите."
+      "selectAll": "Все ({{count}})",
+      "incomingEndpointMismatch": "Этот ресурс относится к другому пользовательскому облаку. Настройте его адрес перед импортом.",
+      "incomingConnectionError": "Не удалось подключиться к облачному сервису. Проверьте сеть и повторите попытку.",
+      "incomingIncompatibleError": "Облако вернуло несовместимый ответ. Обновите ORGII или проверьте развёртывание.",
+      "incomingServerError": "Облачный сервис не смог обработать этот ресурс. Повторите попытку.",
+      "incomingAlreadyOnDevice": "Эта сессия уже есть на устройстве. Откройте оригинал вместо импорта копии.",
+      "incomingOpenExisting": "Открыть сессию",
+      "incomingRetry": "Повторить"
     },
     "comments": {
       "task": {
         "assignFailed": "Комментарий опубликован, но назначить агента не удалось — повторите из ветки",
         "assignUnavailableHere": "Комментарий опубликован — назначение агента недоступно в этом представлении",
-        "turnBadge": "агент работает над этим ходом",
         "addressingChip": "В работе комментарий: «{{excerpt}}»",
         "addressingChipGeneric": "Работа над комментарием",
         "addressingChipTooltip": "Форк создан для работы с веткой комментариев исходной сессии",
-        "openBadge_one": "Задач агента в ожидании: {{count}}",
-        "openBadge": "Задач агента в ожидании: {{count}}",
-        "activeBadge_one": "Агентов работает над этой сессией: {{count}}",
-        "activeBadge": "Агентов работает над этой сессией: {{count}}"
+        "mentionSuggestion": "Назначить этот комментарий агенту"
       },
       "toggleLabel": "Комментарии",
       "notesButton": "Заметки сессии",

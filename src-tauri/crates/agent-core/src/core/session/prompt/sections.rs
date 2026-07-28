@@ -14,6 +14,7 @@ use super::registry::{order, AppliesDecision, PromptCtx, PromptSection, PromptSo
 use super::section_builders::*;
 
 pub use super::section_builders::build_agent_org_context_section;
+pub(crate) use super::section_builders::build_agent_org_context_section_with_task_snapshot;
 
 use crate::skills::loader::SkillsLoader;
 use crate::tools::names as tool_names;

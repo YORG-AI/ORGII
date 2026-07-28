@@ -50,9 +50,11 @@ pub struct ProcessingContext {
 /// classes. New custom modes pick a stance; new stances require code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum PresenceStance {
     /// User at the keyboard — ask freely, confirm destructive actions,
     /// blocking interactions wait indefinitely.
+    #[default]
     Interactive,
     /// User stepped away — work first, batch questions, hold
     /// irreversible actions until they're back.
@@ -60,12 +62,6 @@ pub enum PresenceStance {
     /// Goal mode — never ask, auto-resolve blockers, keep working until
     /// the goal is met.
     Autonomous,
-}
-
-impl Default for PresenceStance {
-    fn default() -> Self {
-        PresenceStance::Interactive
-    }
 }
 
 impl PresenceStance {

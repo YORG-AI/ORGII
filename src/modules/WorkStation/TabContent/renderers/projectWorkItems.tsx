@@ -39,7 +39,9 @@ const ProjectWorkItemsTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             selection.projectName,
             selection.projectSlug,
             selection.workItem.session_id,
-            selection.workItem.name
+            selection.workItem.name,
+            undefined,
+            selection.workItem.workItemStatus ?? selection.workItem.status
           )
         }
         onOpenLinearProject={onOpenLinearProjects}

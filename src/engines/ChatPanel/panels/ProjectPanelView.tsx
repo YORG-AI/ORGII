@@ -1,4 +1,5 @@
 import { useSetAtom } from "jotai";
+import { Box } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -8,18 +9,20 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type MemberEntry,
   type WorkItemFrontmatter,
   enrichedWorkItemToUI,
   projectApi,
 } from "@src/api/http/project";
+import { projectSyncApi } from "@src/api/http/project/sync";
+import IntegrationIcon from "@src/components/IntegrationIcon";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import {
-  ChatPanelHeaderBreadcrumb,
-  usePublishChatPanelHeader,
-} from "@src/engines/ChatPanel/header";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import KanbanBoard from "@src/features/KanbanBoard";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { allocateCloudAwareWorkItemId } from "@src/features/Org2Cloud/cloudShortId";
@@ -53,19 +56,13 @@ import {
   type ProjectData,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
+import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import {
   DetailPanelContainer,
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
-import {
-  CHAT_PANEL_SURFACE_KIND,
-  type ChatPanelSelectedProject,
-  chatPanelNavigateAtom,
-} from "@src/store/ui/chatPanelAtom";
-import {
-  STORY_ORG_SCOPE,
-  STORY_PERSONAL_ORG_FILTER_ID,
-} from "@src/store/workstation";
+import { openWorkItemInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { type ChatPanelSelectedProject } from "@src/store/ui/chatPanelAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 
 const logger = createLogger("ProjectPanelView");
@@ -89,7 +86,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   selectedProject,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
-  const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
+  const openWorkItemTab = useSetAtom(openWorkItemInChatPanelTabAtom);
   const sidebarProjectDescription = getProjectOverviewDescription(
     selectedProject.project
   );
@@ -110,10 +107,12 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   );
   const [workItemsLoading, setWorkItemsLoading] = useState(false);
   const [workItemsError, setWorkItemsError] = useState<string | null>(null);
+  const [projectSyncAdapter, setProjectSyncAdapter] = useState<{
+    projectSlug: string;
+    adapterId: string | null;
+  } | null>(null);
   const propertiesRef = useRef<HTMLDivElement>(null);
 
-  const orgPathLabel =
-    selectedProject.orgName || t("projects:orgs.personalOrg");
   const projectProperties = useMemo<ProjectData>(
     () => ({
       id: selectedProject.project.id,
@@ -143,6 +142,68 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   const projectSlug =
     selectedProject.projectSlug || selectedProject.project.slug;
   const repoPath = selectedProject.project.linkedRepos?.[0]?.path ?? null;
+  const projectSyncAdapterId =
+    projectSyncAdapter && projectSyncAdapter.projectSlug === projectSlug
+      ? projectSyncAdapter.adapterId
+      : selectedProject.projectSyncAdapterId;
+  const isGitHubSyncedProject =
+    projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
+  const headerContent = useMemo(
+    () => (
+      <ProjectManagerBreadcrumb
+        segments={[
+          ...(selectedProject.orgName
+            ? [{ label: selectedProject.orgName }]
+            : []),
+          {
+            label: selectedProject.project.name,
+            icon: isGitHubSyncedProject ? (
+              <IntegrationIcon
+                type={STORY_SYNC_ADAPTER.GITHUB}
+                size={HEADER_ICON_SIZE.sm}
+              />
+            ) : (
+              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            ),
+          },
+        ]}
+      />
+    ),
+    [
+      isGitHubSyncedProject,
+      selectedProject.orgName,
+      selectedProject.project.name,
+    ]
+  );
+
+  usePublishChatPanelHeader({
+    content: { content: headerContent },
+  });
+
+  useEffect(() => {
+    if (!projectSlug) return;
+
+    let cancelled = false;
+    void projectSyncApi
+      .status(projectSlug)
+      .then((status) => {
+        if (!cancelled) {
+          setProjectSyncAdapter({
+            projectSlug,
+            adapterId: status.adapter_id,
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setProjectSyncAdapter({ projectSlug, adapterId: null });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [projectSlug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,61 +402,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     onBatchDeleteComplete: loadProjectWorkItems,
   });
 
-  const handleOpenOrg = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      navigateChatPanel({
-        kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
-        projectOrg: {
-          orgId: selectedProject.orgId,
-          orgName: orgPathLabel,
-          orgScope:
-            selectedProject.orgId === STORY_PERSONAL_ORG_FILTER_ID
-              ? STORY_ORG_SCOPE.PERSONAL_ORG
-              : STORY_ORG_SCOPE.PROJECT_ORG,
-        },
-      });
-    },
-    [navigateChatPanel, orgPathLabel, selectedProject.orgId]
-  );
-
-  const handleOpenProjectOverview = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      setActivePanelTab("overview");
-    },
-    []
-  );
-
-  const headerBreadcrumbContent = useMemo(
-    () => (
-      <ChatPanelHeaderBreadcrumb
-        items={[
-          {
-            key: "org",
-            label: orgPathLabel,
-            onClick: handleOpenOrg,
-          },
-          {
-            key: "project",
-            label: selectedProject.project.name,
-            onClick: handleOpenProjectOverview,
-          },
-        ]}
-      />
-    ),
-    [
-      handleOpenOrg,
-      handleOpenProjectOverview,
-      orgPathLabel,
-      selectedProject.project.name,
-    ]
-  );
-
-  usePublishChatPanelHeader({
-    content: { content: headerBreadcrumbContent },
-  });
-
   const inlineProperties = (
     <div ref={propertiesRef}>
       <ProjectPropertyFields
@@ -440,27 +446,18 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     (workItemId: string) => {
       const workItem = workItems.find((item) => item.session_id === workItemId);
       if (!workItem) return;
-      navigateChatPanel({
-        kind: CHAT_PANEL_SURFACE_KIND.WORK_ITEM,
-        workItem: {
-          workItem,
-          projectId: selectedProject.project.id,
-          projectName: selectedProject.project.name,
-          projectSlug: projectSlug ?? selectedProject.projectSlug,
-          shortId: workItemShortIds.get(workItemId) ?? workItemId,
-          orgId: selectedProject.orgId,
-          orgName: selectedProject.orgName,
-          sourceProject: selectedProject,
-        },
+      openWorkItemTab({
+        workItem,
+        projectId: selectedProject.project.id,
+        projectName: selectedProject.project.name,
+        projectSlug: projectSlug ?? selectedProject.projectSlug,
+        shortId: workItemShortIds.get(workItemId) ?? workItemId,
+        orgId: selectedProject.orgId,
+        orgName: selectedProject.orgName,
+        sourceProject: selectedProject,
       });
     },
-    [
-      projectSlug,
-      selectedProject,
-      navigateChatPanel,
-      workItemShortIds,
-      workItems,
-    ]
+    [projectSlug, selectedProject, openWorkItemTab, workItemShortIds, workItems]
   );
 
   const handleSelectWorkItemFromKanban = useCallback(
@@ -536,11 +533,9 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   }, []);
 
   const overviewContent = projectBodyLoading ? (
-    <Placeholder
-      variant="loading"
-      title={t("common:actions.loading")}
-      fillParentHeight
-    />
+    <div className="p-2">
+      <ChatLoadingBlock />
+    </div>
   ) : projectBodyError ? (
     <Placeholder variant="error" title={projectBodyError} fillParentHeight />
   ) : (
@@ -563,11 +558,9 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   );
 
   const workItemsContent = workItemsLoading ? (
-    <Placeholder
-      variant="loading"
-      title={t("common:actions.loading")}
-      fillParentHeight
-    />
+    <div className="p-2">
+      <ChatLoadingBlock />
+    </div>
   ) : workItemsError ? (
     <Placeholder
       variant="error"
@@ -579,13 +572,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       }}
     />
   ) : (
-    <div
-      className={
-        activePanelTab === "kanban"
-          ? "h-full min-h-0 flex-1 overflow-hidden"
-          : "overflow-visible"
-      }
-    >
+    <div className="h-full min-h-0 flex-1 overflow-hidden">
       {activePanelTab === "kanban" ? (
         <div className="h-full min-h-0">
           <KanbanBoard
@@ -627,7 +614,6 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           readonly
           disableProjectEdit
           compactRows
-          scrollMode="page"
           workItemPrefix={selectedProject.project.workItemPrefix}
         />
       )}
@@ -672,7 +658,13 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           </div>
         ) : null}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
+      <div
+        className={
+          activePanelTab === "overview"
+            ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide"
+            : "min-h-0 flex-1 overflow-hidden"
+        }
+      >
         {activePanelTab === "overview" ? overviewContent : workItemsContent}
       </div>
     </section>
@@ -685,7 +677,9 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     >
       <DetailPanelContainer className="relative">
         <WorkItemContentStack
-          propertiesContent={inlineProperties}
+          propertiesContent={
+            isGitHubSyncedProject ? undefined : inlineProperties
+          }
           descriptionContent={descriptionContent}
           descriptionFlexible
           descriptionClassName="min-h-0 flex flex-1 flex-col px-4 py-4"

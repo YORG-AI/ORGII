@@ -361,16 +361,15 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                 workingDirectory={session.liveCwd || session.cwd}
                 onOpenFileLink={onOpenFileLink}
                 backgroundColor={bgColor}
-                shellOverride={session.shell}
+                // Managed CLI terminals use the configured default shell.
+                // `session.shell` becomes runtime metadata after the PTY connects,
+                // so reusing it as a launch override would recreate xterm.
+                shellOverride={session.agentCommand ? undefined : session.shell}
                 // CLI-agent terminals: pin the PTY to the session's cwd
                 // (worktree) and let lifecycle hooks attribute status and
                 // transcripts to the backing managed session row.
                 forceRepoCwd={Boolean(session.agentCommand)}
-                envOverride={
-                  session.agentCommand && session.agentSessionId
-                    ? { ORGII_SESSION_ID: session.agentSessionId }
-                    : undefined
-                }
+                envOverride={session.envOverride}
                 nameOverride={session.name}
                 onUserInput={() => {
                   requestProcessRefresh();

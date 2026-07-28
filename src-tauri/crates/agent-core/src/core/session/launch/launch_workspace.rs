@@ -5,6 +5,13 @@
 
 use project_management::projects::{io as project_io, types as project_types};
 
+#[derive(Debug, Clone)]
+pub(super) struct PreparedWorkspace {
+    pub worktree_path: Option<String>,
+    pub worktree_branch: Option<String>,
+    pub base_ref: Option<String>,
+}
+
 pub(super) async fn prepare_rust_agent_workspace_for_launch(
     session_id: &str,
     workspace_path: &str,
@@ -12,7 +19,7 @@ pub(super) async fn prepare_rust_agent_workspace_for_launch(
     isolate: bool,
     existing_worktree_path: Option<&str>,
     additional_directories: &[String],
-) -> Result<Option<String>, String> {
+) -> Result<PreparedWorkspace, String> {
     if workspace_path.is_empty() {
         if isolate || existing_worktree_path.is_some() {
             return Err("Worktree mode requires a workspace path".to_string());
@@ -37,7 +44,11 @@ pub(super) async fn prepare_rust_agent_workspace_for_launch(
                  at launch time — retry once the folder finishes loading."
             ));
         }
-        return Ok(None);
+        return Ok(PreparedWorkspace {
+            worktree_path: None,
+            worktree_branch: None,
+            base_ref: None,
+        });
     }
 
     let session_id = session_id.to_string();
@@ -52,12 +63,19 @@ pub(super) async fn prepare_rust_agent_workspace_for_launch(
 
         let mut created_worktree = false;
         let mut worktree_path = None;
+        let mut worktree_branch = None;
+        let mut base_ref = None;
         let mut worktree_metadata: Option<(String, String)> = None;
         let mut workspace = if let Some(existing_path) = existing_worktree_path {
-            worktree_path = Some(existing_path.clone());
+            let registered = git::worktree::validate_existing_worktree(
+                &workspace_root,
+                std::path::Path::new(&existing_path),
+            )?;
+            worktree_path = Some(registered.path.clone());
+            worktree_branch = Some(registered.branch);
             SessionWorkspace::new_worktree(
                 workspace_root.clone(),
-                std::path::PathBuf::from(existing_path),
+                std::path::PathBuf::from(registered.path),
             )
         } else if isolate {
             let worktree_info = git::worktree::create_session_worktree(
@@ -68,6 +86,8 @@ pub(super) async fn prepare_rust_agent_workspace_for_launch(
             )?;
             created_worktree = true;
             worktree_path = Some(worktree_info.path.clone());
+            worktree_branch = Some(worktree_info.branch.clone());
+            base_ref = worktree_info.base_branch.clone();
             worktree_metadata = worktree_info
                 .base_branch
                 .clone()
@@ -139,7 +159,11 @@ pub(super) async fn prepare_rust_agent_workspace_for_launch(
                 return Err(err.to_string());
             }
         }
-        Ok(worktree_path)
+        Ok(PreparedWorkspace {
+            worktree_path,
+            worktree_branch,
+            base_ref,
+        })
     })
     .await
     .map_err(|err| err.to_string())?

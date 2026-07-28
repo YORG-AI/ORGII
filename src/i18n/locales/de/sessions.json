@@ -5,6 +5,9 @@
     "decision": "{{tokenCount}} Token Entscheidung",
     "tooltip": "Geschätzte Tool-Zuordnung. Methode: {{method}}. Eingabe: {{inputBytes}} bytes. Ausgabe: {{outputBytes}} bytes. Entscheidung: {{decisionTokens}} Token. Kontext: {{contextTokens}} Token. Follow-up: {{followupTokens}} Token. Zugehöriger LLM cache read: {{cacheReadTokens}} Token. Zugehöriger LLM cache write: {{cacheWriteTokens}} Token."
   },
+  "humanSession": {
+    "titlePlaceholder": "Titel (optional)"
+  },
   "history": {
     "untitledSession": "Unbenannte Session",
     "prStatus": {
@@ -19,6 +22,8 @@
       "created": "Erstellt",
       "updated": "Aktualisiert",
       "lastUpdated": "Zuletzt aktualisiert",
+      "external": "Extern",
+      "internal": "Intern",
       "rounds": "Runden",
       "roundCount_one": "{{count}} Runde",
       "roundCount_other": "{{count}} Runden",
@@ -123,10 +128,11 @@
       "freq": {
         "default": "Standard",
         "manual": "Manuell",
-        "60s": "Alle 60s",
-        "5m": "Alle 5 Min",
-        "1h": "Stündlich",
-        "1d": "Täglich"
+        "60s": "Alle 60 Sek.",
+        "120s": "Alle 120 Sek.",
+        "10m": "Alle 10 Min.",
+        "30m": "Alle 30 Min.",
+        "1h": "Stündlich"
       },
       "openFolder": "Ordner öffnen",
       "tabs": {
@@ -136,7 +142,103 @@
       },
       "views": {
         "scanning": "Scannen",
-        "hooks": "Hooks"
+        "hooks": "Hooks",
+        "usage": "Nutzung",
+        "quota": "Kontingent",
+        "assets": "Ressourcen",
+        "profile": "Profil"
+      },
+      "usage": {
+        "title": "Nutzung & Kosten",
+        "subtitle": "Tokens und geschätzte Kosten deiner gescannten Coding-Sitzungen. Die Daten werden aus der lokalen Datenbank gelesen und verlassen dein Gerät nicht.",
+        "allSources": "Alle Quellen",
+        "refresh": "Aktualisieren",
+        "estimatedNote": "Die Kosten sind eine Listenpreisschätzung für Abonnements und eigene Schlüssel; gemessene Ausgaben werden angezeigt, wenn sie erfasst wurden.",
+        "range": {
+          "today": "Heute",
+          "24h": "24 Stunden",
+          "7d": "7 Tage",
+          "30d": "30 Tage",
+          "all": "Gesamter Zeitraum"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "Sonstige"
+        },
+        "cards": {
+          "realTokens": "Tokens insgesamt",
+          "cost": "Gesamtkosten (geschätzt)",
+          "sessions": "Sitzungen",
+          "requests": "Anfragen",
+          "cacheHit": "Cache-Trefferrate",
+          "input": "Eingabe",
+          "output": "Ausgabe",
+          "cacheCreate": "Cache-Schreibvorgänge",
+          "cacheRead": "Cache-Lesevorgänge"
+        },
+        "trends": {
+          "title": "Nutzungsverlauf",
+          "input": "Eingabe",
+          "output": "Ausgabe",
+          "cacheCreate": "Cache-Schreibvorgänge",
+          "cacheRead": "Cache-Lesevorgänge",
+          "cost": "Kosten"
+        },
+        "table": {
+          "title": "Sitzungen",
+          "name": "Sitzung",
+          "agent": "Agent",
+          "model": "Modell",
+          "tokens": "Tokens",
+          "cost": "Kosten",
+          "cacheHit": "Cache-Treffer",
+          "turns": "Runden",
+          "lastActive": "Zuletzt aktiv",
+          "sort": {
+            "recent": "Neueste zuerst",
+            "cost": "Höchste Kosten",
+            "tokens": "Meiste Tokens"
+          }
+        },
+        "roundsTable": {
+          "title": "Anfragen",
+          "time": "Zeit",
+          "session": "Sitzung",
+          "agent": "Agent",
+          "model": "Modell",
+          "input": "Eingabe",
+          "output": "Ausgabe",
+          "cache": "Cache-Lesevorgänge",
+          "cost": "Kosten",
+          "filterBySession": "Nach dieser Sitzung filtern"
+        },
+        "pricing": {
+          "input": "Eingabe",
+          "cache": "Cache",
+          "output": "Ausgabe",
+          "total": "Gesamt",
+          "estimate": "Listenpreisschätzung",
+          "hint": "Bewege den Mauszeiger über die Kosten einer Anfrage, um die Aufschlüsselung zu sehen.",
+          "loading": "Wird berechnet…"
+        },
+        "detail": {
+          "title": "Aufschlüsselung pro Aufruf",
+          "perTurn": "LLM-Aufrufe",
+          "perTool": "Tool-Aufrufe",
+          "close": "Schließen",
+          "noData": "Für diese Sitzung sind nur Gesamtsummen verfügbar. Die Zuordnung pro Aufruf wird für ORGII-eigene Agentenläufe aufgezeichnet.",
+          "turnHeader": "Runde {{turn}}",
+          "promptTokens": "Prompt",
+          "completionTokens": "Vervollständigung"
+        },
+        "empty": {
+          "title": "Noch keine Nutzung",
+          "subtitle": "Führe Coding-Sitzungen aus oder scanne sie, damit ihre Token-Nutzung hier erscheint."
+        },
+        "loadError": "Nutzungsdaten konnten nicht geladen werden"
       },
       "sessions_one": "{{count}} Sitzung",
       "sessions_other": "{{count}} Sitzungen",
@@ -792,6 +894,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "Sitzung",
+        "workItem": "Arbeitselement",
+        "more": "Mehr",
         "work": "Arbeit",
         "manage": "Verwalten",
         "heatmap": "Trends",
@@ -843,7 +948,6 @@
     "defaultTitle": "Chat",
     "hideChatPanel": "Chat-Panel ausblenden",
     "showTokenUsage": "Token anzeigen",
-    "showStatusBar": "Statusleiste anzeigen",
     "compactDisplayMode": "Kompakter Modus",
     "replay": {
       "follow": "Folgen"
@@ -889,6 +993,28 @@
     "copyEventJson": "Event-JSON kopieren",
     "copyEventJsonCopied": "Kopiert!",
     "copyEventJsonFailed": "Kopieren fehlgeschlagen",
+    "moveToWorkstation": "In meine Workstation verschieben",
+    "moveToChatPanel": "In das Chat-Panel verschieben",
+    "rawTranscript": {
+      "title": "Rohtranskript der Sitzung",
+      "menuItem": "Rohtranskript anzeigen",
+      "guiTab": "GUI",
+      "rawTab": "Rohdaten",
+      "entryCount_one": "{{count}} Eintrag",
+      "entryCount_other": "{{count}} Einträge",
+      "copySuccess": "Rohtranskript kopiert",
+      "copyFailed": "Rohtranskript konnte nicht kopiert werden"
+    },
+    "linkWorkItem": {
+      "menuItem": "Mit Work Item verknüpfen…",
+      "title": "Sitzung mit Work Item verknüpfen",
+      "description": "Wähle das Work Item aus, in dem diese Sitzung angezeigt werden soll.",
+      "searchPlaceholder": "Nach Work-Item-ID, Titel, Status oder Projekt suchen",
+      "loading": "Work Items werden geladen…",
+      "empty": "Keine Work Items gefunden.",
+      "linking": "Wird verknüpft…",
+      "link": "Verknüpfen"
+    },
     "historyTitle": "Verlauf",
     "historyEmpty": "Noch keine Sitzungen",
     "historyGroupTime": "Zeit",
@@ -1018,6 +1144,8 @@
     "turnMetadata": {
       "noChanges": "Keine Dateiänderungen in dieser Runde",
       "earlierRound": "Frühere Runde",
+      "editsTab": "Änderungen",
+      "readsTab": "Lesezugriffe",
       "files_one": "{{count}} Datei",
       "files_other": "{{count}} Dateien",
       "reads_one": "{{count}} Lesezugriff",
@@ -1192,6 +1320,8 @@
     "terminalSummary": {
       "command_one": "{{count}} Befehl",
       "command_other": "{{count}} Befehle",
+      "mcp_one": "{{count}} MCP-Aufruf",
+      "mcp_other": "{{count}} MCP-Aufrufe",
       "wait_one": "{{count}} Wartevorgang",
       "wait_other": "{{count}} Wartevorgänge",
       "check_one": "{{count}} Prüfung",
@@ -1284,45 +1414,6 @@
     "searchSymbolsRunning": "Symbole suchen",
     "searchSymbolsDone": "Symbole durchsucht",
     "searchSymbolsFailed": "Symbolsuche fehlgeschlagen",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "Index status wird geprüft",
     "searchCheckStatusDone": "Index status geprüft",
     "searchCheckStatusFailed": "Index status Prüfung fehlgeschlagen",
@@ -2008,7 +2099,10 @@
     "categoryLabel": "Sitzungskategorie",
     "categoryTemplate": "{category} auswählen",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "Integrierte Agents",
+    "builtIns": "Integriert",
+    "humanSession": {
+      "name": "Arbeitsprotokoll"
+    },
     "cliAgents": "CLI Agents",
     "customAgents": "Benutzerdefinierte Agents",
     "agentOrgs": "Agent-Teams",
@@ -2426,67 +2520,6 @@
     "myApiKeys": "Meine {{count}} Keys",
     "addApiKey": "API-Key hinzufügen",
     "noRepoSelected": "Kein Repository ausgewählt",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Code Map-Status: {{status}}",
-      "neverIndexed": "Nie indexiert",
-      "lastIndexed": "Zuletzt indexiert {{time}}",
-      "progressFiles": "{{processed}} / {{total}} Dateien",
-      "errorTitle": "Code Map-Fehler",
-      "status": {
-        "notIndexed": "Nicht indexiert",
-        "indexing": "Indexierung läuft",
-        "ready": "Bereit",
-        "stale": "Veraltet",
-        "failed": "Fehlgeschlagen",
-        "cancelled": "Abgebrochen"
-      },
-      "phase": {
-        "queued": "In Warteschlange",
-        "scanning": "Scannen",
-        "extracting": "Extrahieren",
-        "storing": "Speichern",
-        "resolving": "Auflösen",
-        "complete": "Abgeschlossen",
-        "failed": "Fehlgeschlagen",
-        "cancelled": "Abgebrochen"
-      },
-      "stats": {
-        "files": "Dateien",
-        "symbols": "Symbole",
-        "relationships": "Beziehungen",
-        "indexSize": "Indexgröße",
-        "unresolved": "Ungelöst",
-        "staleFiles": "Veraltete Dateien"
-      },
-      "actions": {
-        "index": "Indexieren",
-        "reindex": "Neu indexieren",
-        "cancel": "Abbrechen",
-        "stop": "Stoppen",
-        "clear": "Löschen",
-        "refresh": "Aktualisieren"
-      },
-      "progressChanges": "Hinzugefügt {{added}} · Geändert {{modified}} · Gelöscht {{deleted}}",
-      "browser": {
-        "title": "Code Map-Browser",
-        "searchTitle": "Code Map durchsuchen",
-        "searchPlaceholder": "Symbole, Dateien oder Signaturen suchen",
-        "search": "Suchen",
-        "resultSummary": "{{count}} Ergebnisse · {{unresolved}} ungelöst · {{stale}} veraltet",
-        "noResults": "Keine Code Map-Ergebnisse.",
-        "selectNode": "Wählen Sie ein Ergebnis aus, um Quelle und Beziehungen zu prüfen.",
-        "loadingDetails": "Code Map-Details werden geladen…",
-        "noRelationships": "Keine Beziehungen gefunden.",
-        "incoming": "Eingehend",
-        "outgoing": "Ausgehend",
-        "source": "Quelle",
-        "confidence": "Konfidenz: {{value}}",
-        "extraction": "Extraktion: {{value}}",
-        "resolution": "Auflösung: {{value}}",
-        "relationshipCounts": "{{incoming}} eingehend · {{outgoing}} ausgehend"
-      }
-    },
     "diff": {
       "untitledSession": "Unbenannte Sitzung",
       "singleFile": "Einzeldatei",

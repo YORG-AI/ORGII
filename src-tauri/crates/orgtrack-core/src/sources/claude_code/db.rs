@@ -436,7 +436,7 @@ fn query_cache(
 // ============================================
 
 fn claude_home_dir() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    let home = app_paths::external_history_home_dir();
     let path = home.join(".claude");
     if path.is_dir() {
         Some(path)

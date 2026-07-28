@@ -39,6 +39,8 @@ pub enum CliBinaryId {
     Autohand,
     Omp,
     Pi,
+    QoderCli,
+    TraeCli,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -290,6 +292,20 @@ const CLI_BINARY_METADATA: &[CliBinaryMetadata] = &[
         command: "pi",
         launchable: true,
     },
+    CliBinaryMetadata {
+        id: CliBinaryId::QoderCli,
+        row_id: "qoder-cli",
+        display_name: "Qoder CLI",
+        command: "qodercli",
+        launchable: true,
+    },
+    CliBinaryMetadata {
+        id: CliBinaryId::TraeCli,
+        row_id: "trae-cli",
+        display_name: "Trae Agent",
+        command: "trae-cli",
+        launchable: true,
+    },
 ];
 
 pub fn all_cli_binary_metadata() -> &'static [CliBinaryMetadata] {
@@ -339,6 +355,8 @@ pub fn id_for_registry_name(name: &str) -> Option<CliBinaryId> {
         "autohand" => Some(CliBinaryId::Autohand),
         "omp" => Some(CliBinaryId::Omp),
         "pi" => Some(CliBinaryId::Pi),
+        "qoder_cli" => Some(CliBinaryId::QoderCli),
+        "trae_cli" => Some(CliBinaryId::TraeCli),
         _ => None,
     }
 }
@@ -801,6 +819,12 @@ mod tests {
         let metadata = metadata_for_id(CliBinaryId::Kiro);
         assert_eq!(metadata.command, "kiro-cli");
         assert_eq!(metadata.row_id, "kiro");
+    }
+
+    #[test]
+    fn qoder_and_trae_use_their_published_executable_names() {
+        assert_eq!(metadata_for_id(CliBinaryId::QoderCli).command, "qodercli");
+        assert_eq!(metadata_for_id(CliBinaryId::TraeCli).command, "trae-cli");
     }
 
     #[test]

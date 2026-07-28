@@ -111,42 +111,78 @@ const REASON_REGEX = /"reason"\s*:\s*"((?:[^"\\]|\\.)*)"/;
  * The JSON is incomplete during streaming, so we use regex for extraction.
  */
 export function parsePartialToolArgs(argsJson: string): PartialToolArgs {
-  const filePathMatch = argsJson.match(FILE_PATH_REGEX);
+  const filePathMatch =
+    argsJson.includes('"file_path"') ||
+    argsJson.includes('"filePath"') ||
+    argsJson.includes('"path"') ||
+    argsJson.includes('"target_file"') ||
+    argsJson.includes('"targetFile"')
+      ? argsJson.match(FILE_PATH_REGEX)
+      : null;
   const filePath = filePathMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const titleMatch = argsJson.match(TITLE_REGEX);
+  const titleMatch = argsJson.includes('"title"')
+    ? argsJson.match(TITLE_REGEX)
+    : null;
   const streamTitle = titleMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const actionMatch = argsJson.match(ACTION_REGEX);
+  const actionMatch = argsJson.includes('"action"')
+    ? argsJson.match(ACTION_REGEX)
+    : null;
   const action = actionMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const commandMatch = argsJson.match(COMMAND_REGEX);
+  const commandMatch = argsJson.includes('"command"')
+    ? argsJson.match(COMMAND_REGEX)
+    : null;
   const command = commandMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const queryMatch = argsJson.match(QUERY_REGEX);
+  const queryMatch =
+    argsJson.includes('"query"') ||
+    argsJson.includes('"search_term"') ||
+    argsJson.includes('"search_query"')
+      ? argsJson.match(QUERY_REGEX)
+      : null;
   const query = queryMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const patternMatch = argsJson.match(PATTERN_REGEX);
+  const patternMatch =
+    argsJson.includes('"pattern"') ||
+    argsJson.includes('"glob_pattern"') ||
+    argsJson.includes('"regex"')
+      ? argsJson.match(PATTERN_REGEX)
+      : null;
   const pattern = patternMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const urlMatch = argsJson.match(URL_REGEX);
+  const urlMatch =
+    argsJson.includes('"url"') || argsJson.includes('"targetUrl"')
+      ? argsJson.match(URL_REGEX)
+      : null;
   const url = urlMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const descriptionMatch = argsJson.match(DESCRIPTION_REGEX);
+  const descriptionMatch = argsJson.includes('"description"')
+    ? argsJson.match(DESCRIPTION_REGEX)
+    : null;
   const description = descriptionMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const targetDirMatch = argsJson.match(TARGET_DIR_REGEX);
+  const targetDirMatch =
+    argsJson.includes('"target_directory"') || argsJson.includes('"directory"')
+      ? argsJson.match(TARGET_DIR_REGEX)
+      : null;
   const targetDirectory = targetDirMatch?.[1]?.replace(/\\\\/g, "\\");
 
-  const targetModeMatch = argsJson.match(TARGET_MODE_REGEX);
+  const targetModeMatch = argsJson.includes('"target_mode"')
+    ? argsJson.match(TARGET_MODE_REGEX)
+    : null;
   const targetMode = targetModeMatch?.[1];
 
-  const reasonMatch = argsJson.match(REASON_REGEX);
+  const reasonMatch = argsJson.includes('"reason"')
+    ? argsJson.match(REASON_REGEX)
+    : null;
   const reason = reasonMatch?.[1]?.replace(/\\\\/g, "\\");
 
   let streamContent: string | undefined;
 
-  for (const { regex } of CONTENT_KEY_REGEXES) {
+  for (const { key, regex } of CONTENT_KEY_REGEXES) {
+    if (!argsJson.includes(`"${key}"`)) continue;
     const keyMatch = argsJson.match(regex);
     if (keyMatch && keyMatch.index !== undefined) {
       const valueStart = keyMatch.index + keyMatch[0].length;
@@ -217,11 +253,11 @@ export function extractThinkContent(raw: string): string | null {
 
   let match;
   let lastCompleteEnd = 0;
-  const regex = new RegExp(COMPLETE_THINK_CAPTURE_RE.source, "g");
-  while ((match = regex.exec(raw)) !== null) {
+  COMPLETE_THINK_CAPTURE_RE.lastIndex = 0;
+  while ((match = COMPLETE_THINK_CAPTURE_RE.exec(raw)) !== null) {
     const trimmed = match[1].trim();
     if (trimmed) parts.push(trimmed);
-    lastCompleteEnd = regex.lastIndex;
+    lastCompleteEnd = COMPLETE_THINK_CAPTURE_RE.lastIndex;
   }
 
   const remaining = raw.slice(lastCompleteEnd);

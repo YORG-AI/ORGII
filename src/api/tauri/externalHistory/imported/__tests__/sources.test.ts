@@ -11,10 +11,19 @@ const cursorLoaders = vi.hoisted(() => ({
   preview: vi.fn(),
   full: vi.fn(),
 }));
+const codexLoaders = vi.hoisted(() => ({
+  preview: vi.fn(),
+  full: vi.fn(),
+}));
 
 vi.mock("../../cursorIde", () => ({
   cursorIdeInitialWindow: cursorLoaders.preview,
   cursorIdeChunks: cursorLoaders.full,
+}));
+
+vi.mock("../../sources/codexApp", () => ({
+  codexAppInitialWindow: codexLoaders.preview,
+  codexAppChunks: codexLoaders.full,
 }));
 
 describe("imported history source registry", () => {
@@ -36,6 +45,21 @@ describe("imported history source registry", () => {
     expect(cursorLoaders.full).toHaveBeenCalledWith("cursoride-session-1");
   });
 
+  it("keeps Codex's bounded preview separate from cloud's full transcript", async () => {
+    codexLoaders.preview.mockResolvedValue({ chunks: [{ id: "preview" }] });
+    codexLoaders.full.mockResolvedValue([{ id: "full" }]);
+    const codex = getImportedHistorySourceBySessionId("codexapp-session-1");
+
+    await expect(
+      codex?.loadPreviewChunks("codexapp-session-1")
+    ).resolves.toEqual([{ id: "preview" }]);
+    await expect(
+      codex?.loadFullTranscriptChunks("codexapp-session-1")
+    ).resolves.toEqual([{ id: "full" }]);
+    expect(codexLoaders.preview).toHaveBeenCalledWith("codexapp-session-1");
+    expect(codexLoaders.full).toHaveBeenCalledWith("codexapp-session-1");
+  });
+
   it("registers source-specific external history providers", () => {
     expect(IMPORTED_HISTORY_SOURCES.map((source) => source.sourceId)).toEqual([
       "cursor_ide",
@@ -50,6 +74,9 @@ describe("imported history source registry", () => {
       "warp",
       "zcode",
       "qoder",
+      "mimo_code",
+      "omp",
+      "qoder_cli",
     ]);
     expect(
       IMPORTED_HISTORY_SOURCES.map((source) => source.listCategory)
@@ -66,6 +93,9 @@ describe("imported history source registry", () => {
       "external_history:warp",
       "external_history:zcode",
       "external_history:qoder",
+      "external_history:mimo_code",
+      "external_history:omp",
+      "external_history:qoder_cli",
     ]);
     for (const source of IMPORTED_HISTORY_SOURCES) {
       expect(source.loadPreviewChunks).toBeTypeOf("function");
@@ -95,6 +125,15 @@ describe("imported history source registry", () => {
     expect(
       getImportedHistorySourceBySessionId("warpapp-session-1")?.sourceId
     ).toBe("warp");
+    expect(
+      getImportedHistorySourceBySessionId("mimocodeapp-session-1")?.sourceId
+    ).toBe("mimo_code");
+    expect(
+      getImportedHistorySourceBySessionId("ompapp-session-1")?.sourceId
+    ).toBe("omp");
+    expect(
+      getImportedHistorySourceBySessionId("qodercliapp-session-1")?.sourceId
+    ).toBe("qoder_cli");
   });
 
   it("resolves source metadata by list category", () => {

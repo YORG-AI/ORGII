@@ -57,7 +57,7 @@
   width: 4px;
   min-height: 4px;
   border-radius: 2px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   pointer-events: auto;
   z-index: 11;
   transition:

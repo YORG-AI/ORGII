@@ -2,6 +2,7 @@
  * TimelineRow — a single task row inside the Gantt timeline body.
  * Renders the background grid cells and the task bar (or segment bars).
  */
+import type { VirtualItem } from "@tanstack/react-virtual";
 import React from "react";
 
 import { type ViewScopePeriod, getMsPerColumn } from "../../config";
@@ -97,6 +98,9 @@ export interface TimelineRowProps {
     date: Date,
     viewScope: GanttViewScope
   ) => boolean;
+  virtualStart: number;
+  virtualPeriods: VirtualItem[];
+  totalWidth: number;
 }
 
 // ============================================================================
@@ -121,6 +125,9 @@ export const TimelineRow: React.FC<TimelineRowProps> = ({
   onDelete,
   onStatusChange,
   isPrimaryHeaderLabelEmphasized,
+  virtualStart,
+  virtualPeriods,
+  totalWidth,
 }) => {
   const position = useTaskPosition({
     task,
@@ -128,13 +135,31 @@ export const TimelineRow: React.FC<TimelineRowProps> = ({
     viewScope,
     columnWidth,
   });
+  const visiblePeriodStart = virtualPeriods[0]?.start ?? 0;
+  const visiblePeriodEnd =
+    virtualPeriods[virtualPeriods.length - 1]?.end ?? totalWidth;
+  const intersectsVisiblePeriods = (candidate: {
+    left: number;
+    width: number;
+  }) =>
+    candidate.left + candidate.width >= visiblePeriodStart &&
+    candidate.left <= visiblePeriodEnd;
 
   return (
     <div
       className="gantt-timeline__grid-row"
-      style={{ height: config.rowHeight }}
+      style={{
+        height: config.rowHeight,
+        width: totalWidth,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        transform: `translateY(${virtualStart}px)`,
+      }}
     >
-      {periods.map((period, cellIndex) => {
+      {virtualPeriods.map((virtualPeriod) => {
+        const period = periods[virtualPeriod.index];
+        if (!period) return null;
         const emphasized = isPeriodEmphasized(
           period.date,
           viewScope,
@@ -143,45 +168,52 @@ export const TimelineRow: React.FC<TimelineRowProps> = ({
 
         return (
           <div
-            key={cellIndex}
+            key={virtualPeriod.key}
             className={`gantt-timeline__grid-cell ${
               period.isToday ? "gantt-timeline__grid-cell--today" : ""
             } ${period.isWeekend ? "gantt-timeline__grid-cell--weekend" : ""} ${
               emphasized ? "gantt-timeline__grid-cell--emphasized" : ""
             }`}
             style={{
-              width: columnWidth,
+              width: virtualPeriod.size,
               height: config.rowHeight,
+              position: "absolute",
+              left: virtualPeriod.start,
             }}
           />
         );
       })}
 
       {task.segments && task.segments.length > 0 ? (
-        task.segments.map((segment) => (
-          <GanttTaskBar
-            key={segment.id}
-            task={task}
-            position={getSegmentPosition(
-              segment,
-              viewStart,
-              viewScope,
-              columnWidth
-            )}
-            config={config}
-            onClick={onTaskClick}
-            editable={false}
-            showTooltip={showTooltips && !dragState}
-            renderTooltipWrapper={renderTooltipWrapper}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onStatusChange={onStatusChange}
-            barLabel={segment.barLabel ?? ""}
-            startClipped={segment.startClipped}
-            endClipped={segment.endClipped}
-          />
-        ))
-      ) : (
+        task.segments.map((segment) => {
+          const segmentPosition = getSegmentPosition(
+            segment,
+            viewStart,
+            viewScope,
+            columnWidth
+          );
+          if (!intersectsVisiblePeriods(segmentPosition)) return null;
+
+          return (
+            <GanttTaskBar
+              key={segment.id}
+              task={task}
+              position={segmentPosition}
+              config={config}
+              onClick={onTaskClick}
+              editable={false}
+              showTooltip={showTooltips && !dragState}
+              renderTooltipWrapper={renderTooltipWrapper}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onStatusChange={onStatusChange}
+              barLabel={segment.barLabel ?? ""}
+              startClipped={segment.startClipped}
+              endClipped={segment.endClipped}
+            />
+          );
+        })
+      ) : intersectsVisiblePeriods(position) ? (
         <GanttTaskBar
           task={task}
           position={position}
@@ -198,7 +230,7 @@ export const TimelineRow: React.FC<TimelineRowProps> = ({
           onDelete={onDelete}
           onStatusChange={onStatusChange}
         />
-      )}
+      ) : null}
     </div>
   );
 };

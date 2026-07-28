@@ -114,7 +114,7 @@ fn catalog() -> &'static Catalog {
         }
         // Longest normalized id first so prefix fallback prefers the most specific
         // family (e.g. `claude-sonnet-4-5` before `claude-sonnet`).
-        by_normalized.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+        by_normalized.sort_by_key(|entry| std::cmp::Reverse(entry.0.len()));
         Catalog {
             default,
             by_exact,

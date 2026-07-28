@@ -70,7 +70,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(
     args = {},
     result: rawResult,
     isLoading = false,
-    defaultCollapsed = false,
+    defaultCollapsed = true,
     eventId,
     iconOverride,
     callId,
@@ -116,9 +116,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = React.memo(
       const text = extractResultText(result);
       return text !== null && SEARCH_NO_RESULT_MESSAGES.has(text);
     }, [hasResult, result]);
-    const effectiveDefaultCollapsed = isError
-      ? false
-      : isNoResultSearch || defaultCollapsed;
+    const effectiveDefaultCollapsed = isNoResultSearch || defaultCollapsed;
 
     const {
       isCollapsed,

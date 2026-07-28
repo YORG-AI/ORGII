@@ -1,7 +1,6 @@
 import { createStore } from "jotai";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { agentTaskRunnerSettingsAtom } from "./agentTaskRunnerSettingsAtom";
 import {
   org2CloudAccessSettingsAtom,
   org2CloudSharingFloorAtom,
@@ -10,12 +9,12 @@ import {
   orgIdOfCompositeKey,
   pruneOrgKeyedRecord,
   reconcileOrg2CloudPersistedState,
+  rosterReconcileKey,
   shouldReconcileRoster,
 } from "./org2CloudRosterReconcile";
 import {
   type CollabSessionPushCursor,
   org2CloudCollabStateCursorsAtom,
-  org2CloudCommentTaskCursorsAtom,
   org2CloudPushCursorsAtom,
   org2CloudPushedMetadataAtom,
   org2CloudRepoScopesAtom,
@@ -60,12 +59,31 @@ describe("shouldReconcileRoster", () => {
     expect(shouldReconcileRoster(false, 3)).toBe(false);
   });
 
-  it("never prunes on an empty roster, even when loaded", () => {
-    expect(shouldReconcileRoster(true, 0)).toBe(false);
+  it("prunes on an authoritatively empty roster", () => {
+    expect(shouldReconcileRoster(true, 0)).toBe(true);
   });
 
-  it("prunes only when loaded with a non-empty roster", () => {
+  it("prunes when loaded with a non-empty roster", () => {
     expect(shouldReconcileRoster(true, 1)).toBe(true);
+  });
+});
+
+describe("rosterReconcileKey", () => {
+  it("changes when membership changes under the same identity", () => {
+    const first = rosterReconcileKey("cloud|user-1", true, [LIVE, ZOMBIE]);
+    const afterLeave = rosterReconcileKey("cloud|user-1", true, [LIVE]);
+
+    expect(first).not.toBe(afterLeave);
+  });
+
+  it("is stable across roster order and duplicate rows", () => {
+    expect(rosterReconcileKey("cloud|user-1", true, [ZOMBIE, LIVE, LIVE])).toBe(
+      rosterReconcileKey("cloud|user-1", true, [LIVE, ZOMBIE])
+    );
+  });
+
+  it("does not authorize pruning before a successful load", () => {
+    expect(rosterReconcileKey("cloud|user-1", false, [LIVE])).toBeNull();
   });
 });
 
@@ -93,9 +111,6 @@ describe("reconcileOrg2CloudPersistedState", () => {
       [LIVE]: "2026-07-01T00:00:00Z",
       [ZOMBIE]: "2026-01-01T00:00:00Z",
     });
-    store.set(org2CloudCommentTaskCursorsAtom, {
-      [ZOMBIE]: "2026-01-01T00:00:00Z",
-    });
 
     const pruned = reconcileOrg2CloudPersistedState(store, new Set([LIVE]));
 
@@ -113,19 +128,16 @@ describe("reconcileOrg2CloudPersistedState", () => {
     expect(store.get(org2CloudCollabStateCursorsAtom)).toEqual({
       [LIVE]: "2026-07-01T00:00:00Z",
     });
-    expect(store.get(org2CloudCommentTaskCursorsAtom)).toEqual({});
   });
 
   it("preserves the ratchet atoms endpoint-switch keeps, even for orgs absent from the current roster", () => {
     const store = createStore();
     store.set(org2CloudAccessSettingsAtom, {
       [LIVE]: {
-        defaultMode: "metadata_only",
         sessionModes: {},
         sessionVisibility: {},
       },
       [ZOMBIE]: {
-        defaultMode: "full_replay",
         sessionModes: {},
         sessionVisibility: {},
       },
@@ -133,9 +145,6 @@ describe("reconcileOrg2CloudPersistedState", () => {
     store.set(org2CloudSharingFloorAtom, {
       [LIVE]: "off",
       [ZOMBIE]: "metadata_only",
-    });
-    store.set(agentTaskRunnerSettingsAtom, {
-      [ZOMBIE]: { mode: "plan" },
     });
 
     const pruned = reconcileOrg2CloudPersistedState(store, new Set([LIVE]));
@@ -145,16 +154,12 @@ describe("reconcileOrg2CloudPersistedState", () => {
       [LIVE, ZOMBIE].sort()
     );
     expect(store.get(org2CloudAccessSettingsAtom)[ZOMBIE]).toEqual({
-      defaultMode: "full_replay",
       sessionModes: {},
       sessionVisibility: {},
     });
     expect(store.get(org2CloudSharingFloorAtom)).toEqual({
       [LIVE]: "off",
       [ZOMBIE]: "metadata_only",
-    });
-    expect(store.get(agentTaskRunnerSettingsAtom)).toEqual({
-      [ZOMBIE]: { mode: "plan" },
     });
   });
 

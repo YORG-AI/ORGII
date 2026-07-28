@@ -18,7 +18,7 @@ import type { CloudAccessSettingsByOrg } from "../org2CloudAccessSettings";
 import { withCloudSessionMode } from "../org2CloudAccessSettings";
 
 export interface CloudReplaySharePolicySnapshot {
-  /** null means the session previously followed the org default. */
+  /** null means the session previously followed the org minimum. */
   modeOverride: "off" | "metadata_only" | "full_replay" | null;
 }
 

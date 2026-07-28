@@ -37,10 +37,7 @@ pub(crate) fn attribute_port_to_workspaces(
         }
     }
 
-    let command_normalized = command_line.map(normalize_comparable_text);
-    let Some(command_line) = command_normalized else {
-        return None;
-    };
+    let command_line = command_line.map(normalize_comparable_text)?;
 
     let matched = pick_deepest_matching(folders, |candidate| {
         includes_path_boundary(&command_line, &candidate.normalized_path)
@@ -64,10 +61,10 @@ fn to_owner(
     }
 }
 
-fn pick_deepest_matching<'a, F>(
-    candidates: &'a [NormalizedWorkspacePortProbe],
+fn pick_deepest_matching<F>(
+    candidates: &[NormalizedWorkspacePortProbe],
     predicate: F,
-) -> Option<&'a NormalizedWorkspacePortProbe>
+) -> Option<&NormalizedWorkspacePortProbe>
 where
     F: Fn(&NormalizedWorkspacePortProbe) -> bool,
 {

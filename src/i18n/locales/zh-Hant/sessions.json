@@ -5,6 +5,20 @@
     "decision": "{{tokenCount}} Token 決策",
     "tooltip": "估算的工具歸因。方法：{{method}}。輸入：{{inputBytes}} bytes。輸出：{{outputBytes}} bytes。決策：{{decisionTokens}} Token。上下文：{{contextTokens}} Token。Follow-up：{{followupTokens}} Token。相關 LLM cache read：{{cacheReadTokens}} Token。相關 LLM cache write：{{cacheWriteTokens}} Token。"
   },
+  "humanSession": {
+    "titlePlaceholder": "標題（選填）",
+    "createPlaceholder": "新增第一則記錄… 輸入 / 使用技能，或輸入 @ 提及會話。",
+    "createAction": "建立工作記錄",
+    "appendLabel": "新記錄",
+    "entryLabel": "工作記錄項目",
+    "appendPlaceholder": "追加記錄… 輸入 / 使用技能，輸入 @ 提及會話，或將會話拖到此處。",
+    "appendAction": "追加記錄",
+    "loading": "正在載入工作記錄",
+    "updated": "更新於 {{date}}",
+    "createFailed": "無法建立工作記錄",
+    "loadFailed": "無法載入工作記錄",
+    "appendFailed": "無法追加記錄"
+  },
   "history": {
     "untitledSession": "未命名 Session",
     "prStatus": {
@@ -19,6 +33,8 @@
       "created": "創建時間",
       "updated": "更新時間",
       "lastUpdated": "最後更新",
+      "external": "外部",
+      "internal": "內部",
       "rounds": "輪次",
       "roundCount_one": "{{count}} 輪",
       "roundCount_other": "{{count}} 輪",
@@ -124,9 +140,10 @@
         "default": "預設",
         "manual": "手動",
         "60s": "每 60 秒",
-        "5m": "每 5 分鐘",
-        "1h": "每小時",
-        "1d": "每天"
+        "120s": "每 120 秒",
+        "10m": "每 10 分鐘",
+        "30m": "每 30 分鐘",
+        "1h": "每小時"
       },
       "openFolder": "開啟資料夾",
       "tabs": {
@@ -136,7 +153,103 @@
       },
       "views": {
         "scanning": "掃描",
-        "hooks": "掛鉤"
+        "hooks": "掛鉤",
+        "usage": "用量",
+        "quota": "配額",
+        "assets": "資產",
+        "profile": "輪廓"
+      },
+      "usage": {
+        "title": "用量與成本",
+        "subtitle": "已掃描程式開發工作階段的 Token 與預估成本。資料讀取自本機資料庫，不會離開你的裝置。",
+        "allSources": "所有來源",
+        "refresh": "重新整理",
+        "estimatedNote": "成本為訂閱與自有金鑰路徑的牌價估算；如有記錄，將顯示實際計量支出。",
+        "range": {
+          "today": "今天",
+          "24h": "24 小時",
+          "7d": "7 天",
+          "30d": "30 天",
+          "all": "所有時間"
+        },
+        "bucket": {
+          "claude": "Claude",
+          "codex": "Codex",
+          "cursor": "Cursor",
+          "org2": "ORG2",
+          "other": "其他"
+        },
+        "cards": {
+          "realTokens": "Token 總數",
+          "cost": "總成本（估算）",
+          "sessions": "工作階段",
+          "requests": "請求",
+          "cacheHit": "快取命中率",
+          "input": "輸入",
+          "output": "輸出",
+          "cacheCreate": "快取寫入",
+          "cacheRead": "快取讀取"
+        },
+        "trends": {
+          "title": "用量趨勢",
+          "input": "輸入",
+          "output": "輸出",
+          "cacheCreate": "快取寫入",
+          "cacheRead": "快取讀取",
+          "cost": "成本"
+        },
+        "table": {
+          "title": "工作階段",
+          "name": "工作階段",
+          "agent": "Agent",
+          "model": "模型",
+          "tokens": "Token",
+          "cost": "成本",
+          "cacheHit": "快取命中",
+          "turns": "回合",
+          "lastActive": "最近活動",
+          "sort": {
+            "recent": "最近",
+            "cost": "成本最高",
+            "tokens": "Token 最多"
+          }
+        },
+        "roundsTable": {
+          "title": "請求",
+          "time": "時間",
+          "session": "工作階段",
+          "agent": "Agent",
+          "model": "模型",
+          "input": "輸入",
+          "output": "輸出",
+          "cache": "快取讀取",
+          "cost": "成本",
+          "filterBySession": "依此工作階段篩選"
+        },
+        "pricing": {
+          "input": "輸入",
+          "cache": "快取",
+          "output": "輸出",
+          "total": "總計",
+          "estimate": "牌價估算",
+          "hint": "將游標停留在請求成本上即可查看明細。",
+          "loading": "計算中…"
+        },
+        "detail": {
+          "title": "每次呼叫明細",
+          "perTurn": "LLM 呼叫",
+          "perTool": "工具呼叫",
+          "close": "關閉",
+          "noData": "此工作階段只有工作階段層級的總計；每次呼叫的歸屬資料僅針對 ORGII 自有 Agent 的執行進行記錄。",
+          "turnHeader": "回合 {{turn}}",
+          "promptTokens": "提示詞",
+          "completionTokens": "完成"
+        },
+        "empty": {
+          "title": "尚無用量",
+          "subtitle": "執行或掃描一些程式開發工作階段後，其 Token 用量將顯示在這裡。"
+        },
+        "loadError": "無法載入用量資料"
       },
       "sessions_other": "{{count}} 個工作階段",
       "details": {
@@ -797,6 +910,9 @@
         "title": "Agents"
       },
       "tabs": {
+        "session": "工作階段",
+        "workItem": "工作項目",
+        "more": "更多",
         "work": "工作",
         "manage": "管理",
         "heatmap": "趨勢",
@@ -848,7 +964,6 @@
     "defaultTitle": "Session",
     "hideChatPanel": "隱藏聊天面板",
     "showTokenUsage": "顯示 Token",
-    "showStatusBar": "顯示狀態列",
     "compactDisplayMode": "精簡模式",
     "replay": {
       "follow": "跟隨"
@@ -894,6 +1009,28 @@
     "copyEventJson": "複製事件 JSON",
     "copyEventJsonCopied": "複製！",
     "copyEventJsonFailed": "複製失敗",
+    "moveToWorkstation": "移動到我的工作站",
+    "moveToChatPanel": "移動到聊天面板",
+    "rawTranscript": {
+      "title": "原始會話記錄",
+      "menuItem": "查看原始記錄",
+      "guiTab": "圖形介面",
+      "rawTab": "原始資料",
+      "entryCount_one": "{{count}} 條記錄",
+      "entryCount_other": "{{count}} 條記錄",
+      "copySuccess": "已複製原始記錄",
+      "copyFailed": "無法複製原始記錄"
+    },
+    "linkWorkItem": {
+      "menuItem": "連結到工作項…",
+      "title": "將會話連結到工作項",
+      "description": "選擇要顯示此會話的工作項。",
+      "searchPlaceholder": "按工作項 ID、標題、狀態或專案搜尋",
+      "loading": "正在載入工作項…",
+      "empty": "找不到工作項。",
+      "linking": "正在連結…",
+      "link": "連結"
+    },
     "historyTitle": "歷史",
     "historyEmpty": "暫無會話",
     "historyGroupTime": "時間",
@@ -1023,6 +1160,8 @@
     "turnMetadata": {
       "noChanges": "本輪沒有檔案改動",
       "earlierRound": "較早輪次",
+      "editsTab": "編輯",
+      "readsTab": "讀取",
       "files_one": "{{count}} 個檔案",
       "files_other": "{{count}} 個檔案",
       "reads_one": "讀取 {{count}} 次",
@@ -1197,6 +1336,8 @@
     "terminalSummary": {
       "command_one": "{{count}} 個命令",
       "command_other": "{{count}} 個命令",
+      "mcp_one": "{{count}} 次 MCP 呼叫",
+      "mcp_other": "{{count}} 次 MCP 呼叫",
       "wait_one": "{{count}} 次等待",
       "wait_other": "{{count}} 次等待",
       "check_one": "{{count}} 次檢查",
@@ -1289,45 +1430,6 @@
     "searchSymbolsRunning": "搜索符號中",
     "searchSymbolsDone": "搜索符號",
     "searchSymbolsFailed": "符號搜索失敗",
-    "codeMapStatusRunning": "Checking Code Map",
-    "codeMapStatusDone": "Checked Code Map",
-    "codeMapStatusFailed": "Code Map check failed",
-    "codeMapSearchRunning": "Searching Code Map",
-    "codeMapSearchDone": "Searched Code Map",
-    "codeMapSearchFailed": "Code Map search failed",
-    "codeMapNodeRunning": "Inspecting Code Map node",
-    "codeMapNodeDone": "Inspected Code Map node",
-    "codeMapNodeFailed": "Code Map node inspection failed",
-    "codeMapCallersRunning": "Finding Code Map callers",
-    "codeMapCallersDone": "Found Code Map callers",
-    "codeMapCallersFailed": "Code Map callers failed",
-    "codeMapCalleesRunning": "Finding Code Map callees",
-    "codeMapCalleesDone": "Found Code Map callees",
-    "codeMapCalleesFailed": "Code Map callees failed",
-    "codeMapImpactRunning": "Analyzing Code Map impact",
-    "codeMapImpactDone": "Analyzed Code Map impact",
-    "codeMapImpactFailed": "Code Map impact failed",
-    "codeMapExploreRunning": "Exploring Code Map",
-    "codeMapExploreDone": "Explored Code Map",
-    "codeMapExploreFailed": "Code Map exploration failed",
-    "manageCodeMapRunning": "Managing Code Map",
-    "manageCodeMapDone": "Managed Code Map",
-    "manageCodeMapFailed": "Code Map management failed",
-    "manageCodeMapStatusRunning": "Checking Code Map index",
-    "manageCodeMapStatusDone": "Checked Code Map index",
-    "manageCodeMapStatusFailed": "Code Map index check failed",
-    "manageCodeMapIndexRunning": "Indexing Code Map",
-    "manageCodeMapIndexDone": "Indexed Code Map",
-    "manageCodeMapIndexFailed": "Code Map indexing failed",
-    "manageCodeMapReindexRunning": "Re-indexing Code Map",
-    "manageCodeMapReindexDone": "Re-indexed Code Map",
-    "manageCodeMapReindexFailed": "Code Map re-index failed",
-    "manageCodeMapCancelRunning": "Cancelling Code Map index",
-    "manageCodeMapCancelDone": "Cancelled Code Map index",
-    "manageCodeMapCancelFailed": "Code Map cancel failed",
-    "manageCodeMapClearRunning": "Clearing Code Map index",
-    "manageCodeMapClearDone": "Cleared Code Map index",
-    "manageCodeMapClearFailed": "Code Map clear failed",
     "searchCheckStatusRunning": "正在檢查 Index status",
     "searchCheckStatusDone": "檢查 Index status",
     "searchCheckStatusFailed": "Index status 檢查失敗",
@@ -1979,6 +2081,7 @@
     "contextMenu": {
       "filesAndFolders": "檔案與資料夾",
       "agentSession": "Agent 工作階段",
+      "session": "會話",
       "workItems": "工作項目",
       "back": "返回",
       "recent": "最近使用",
@@ -1991,9 +2094,9 @@
       "commands": "指令",
       "mode": "模式",
       "models": "模型",
-      "skills": "Skills",
-      "workspaceSkills": "Workspace Skills",
-      "userSkills": "User Skills"
+      "skills": "技能",
+      "workspaceSkills": "工作區技能",
+      "userSkills": "使用者技能"
     },
     "diffMenu": {
       "gitActions": "GIT 操作",
@@ -2013,7 +2116,10 @@
     "categoryLabel": "會話類別",
     "categoryTemplate": "選擇 {category}",
     "categoryPlaceholder": "Agent",
-    "builtInAgents": "內置 Agent",
+    "builtIns": "內置功能",
+    "humanSession": {
+      "name": "工作記錄"
+    },
     "cliAgents": "CLI Agent",
     "customAgents": "自定義 Agent",
     "agentOrgs": "Agent 團隊",
@@ -2431,67 +2537,6 @@
     "myApiKeys": "我的 {{count}} 個 Key",
     "addApiKey": "添加 API Key",
     "noRepoSelected": "未選擇倉庫",
-    "codeMap": {
-      "title": "Code Map",
-      "statusAria": "Code Map 狀態：{{status}}",
-      "neverIndexed": "從未索引",
-      "lastIndexed": "上次索引 {{time}}",
-      "progressFiles": "{{processed}} / {{total}} 個檔案",
-      "errorTitle": "Code Map 錯誤",
-      "status": {
-        "notIndexed": "未索引",
-        "indexing": "索引中",
-        "ready": "就緒",
-        "stale": "已過期",
-        "failed": "失敗",
-        "cancelled": "已取消"
-      },
-      "phase": {
-        "queued": "佇列中",
-        "scanning": "掃描中",
-        "extracting": "擷取中",
-        "storing": "儲存中",
-        "resolving": "解析中",
-        "complete": "完成",
-        "failed": "失敗",
-        "cancelled": "已取消"
-      },
-      "stats": {
-        "files": "檔案",
-        "symbols": "符號",
-        "relationships": "關係",
-        "indexSize": "索引大小",
-        "unresolved": "未解析",
-        "staleFiles": "過期檔案"
-      },
-      "actions": {
-        "index": "索引",
-        "reindex": "重新索引",
-        "cancel": "取消",
-        "stop": "停止",
-        "clear": "清除",
-        "refresh": "重新整理"
-      },
-      "progressChanges": "新增 {{added}} · 修改 {{modified}} · 刪除 {{deleted}}",
-      "browser": {
-        "title": "Code Map 瀏覽器",
-        "searchTitle": "搜尋 Code Map",
-        "searchPlaceholder": "搜尋符號、檔案或簽名",
-        "search": "搜尋",
-        "resultSummary": "{{count}} 個結果 · {{unresolved}} 未解析 · {{stale}} 過期",
-        "noResults": "沒有符合的 Code Map 結果。",
-        "selectNode": "選取一個結果以檢視原始碼與關係。",
-        "loadingDetails": "正在載入 Code Map 詳細資料…",
-        "noRelationships": "未找到關係。",
-        "incoming": "傳入",
-        "outgoing": "傳出",
-        "source": "原始碼",
-        "confidence": "可信度：{{value}}",
-        "extraction": "擷取方式：{{value}}",
-        "resolution": "解析狀態：{{value}}",
-        "relationshipCounts": "{{incoming}} 傳入 · {{outgoing}} 傳出"
-      }
-    },
     "diff": {
       "untitledSession": "未命名 Session",
       "singleFile": "單文件",

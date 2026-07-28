@@ -16,6 +16,8 @@ export interface TimelineCommitInfo {
 }
 
 export interface TimelineContentProps {
+  /** Which history stream this sidebar section displays */
+  variant: "git" | "session";
   /** Repository ID for git operations */
   repoId: string;
   /** Currently selected file path */

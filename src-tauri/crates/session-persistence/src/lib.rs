@@ -57,8 +57,9 @@ pub use schema::init_session_tables;
 
 pub use crud::{
     clear_old_sessions, delete_session, find_awaiting_user_events_by_function, get_all_sessions,
-    get_cache_stats, get_event, get_session_metadata, load_events, load_session, save_events,
-    save_session, search_all_sessions, search_events, update_session_specs,
+    finalize_deferred_event_import, get_cache_stats, get_event, get_session_metadata, load_events,
+    load_session, save_events, save_events_deferred, save_session, search_all_sessions,
+    search_events, update_session_specs,
 };
 pub use editing::{clear_session_history, delete_event, truncate_after_event, update_event};
 

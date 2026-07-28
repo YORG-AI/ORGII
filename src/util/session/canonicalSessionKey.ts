@@ -58,6 +58,9 @@ export function isTwinnedSessionId(sessionId: string): boolean {
 
 interface DedupableSession {
   session_id: string;
+  importedFrom?: {
+    sourceSessionId: string;
+  };
   filesChanged?: number;
   touchedFiles?: string[];
   totalTokens?: number;
@@ -90,6 +93,11 @@ function prefersRight(
   incumbent: DedupableSession,
   candidate: DedupableSession
 ): boolean {
+  const incumbentIsCollaborationReplay = Boolean(incumbent.importedFrom);
+  const candidateIsCollaborationReplay = Boolean(candidate.importedFrom);
+  if (candidateIsCollaborationReplay !== incumbentIsCollaborationReplay) {
+    return candidateIsCollaborationReplay;
+  }
   const incumbentScore = richnessScore(incumbent);
   const candidateScore = richnessScore(candidate);
   if (candidateScore !== incumbentScore) {
@@ -107,10 +115,26 @@ function prefersRight(
 export function dedupeByCanonicalSession<T extends DedupableSession>(
   sessions: readonly T[]
 ): T[] {
+  // A collaboration replay has its own deterministic `imported-session-*`
+  // id, but `importedFrom.sourceSessionId` still names the underlying
+  // session. Only alias it to that source when the source is actually present
+  // in this input. This removes the post-open duplicate without conflating
+  // unrelated imports from different orgs that happen to reuse a source id.
+  const visibleSourceKeys = new Set(
+    sessions
+      .filter((session) => !session.importedFrom)
+      .map((session) => canonicalSessionKey(session.session_id))
+  );
   const indexByKey = new Map<string, number>();
   const result: T[] = [];
   for (const session of sessions) {
-    const key = canonicalSessionKey(session.session_id);
+    const importedSourceKey = session.importedFrom
+      ? canonicalSessionKey(session.importedFrom.sourceSessionId)
+      : null;
+    const key =
+      importedSourceKey && visibleSourceKeys.has(importedSourceKey)
+        ? importedSourceKey
+        : canonicalSessionKey(session.session_id);
     const existingIndex = indexByKey.get(key);
     if (existingIndex === undefined) {
       indexByKey.set(key, result.length);

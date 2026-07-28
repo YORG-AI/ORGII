@@ -425,6 +425,7 @@ impl DebounceManager {
     /// Cancel pending debounce for a repository
     pub fn cancel_debounce(&self, repo_id: &str) {
         self.pending_events.write().remove(repo_id);
+        self.last_flush_times.write().remove(repo_id);
     }
 
     // ============================================
@@ -566,10 +567,7 @@ impl DebounceManager {
             );
 
             // Get repo path
-            let repo_path = {
-                let states = state_store.get_all_states();
-                states.get(repo_id).map(|s| s.repo_path.clone())
-            };
+            let repo_path = state_store.get_repo_path(repo_id);
 
             if let Some(repo_path) = repo_path {
                 // Get OLD status before refreshing (for operation detection)

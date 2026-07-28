@@ -3,6 +3,49 @@ use crate::commands::remote::{
 };
 use crate::types::GitErrorType;
 
+#[test]
+fn list_remotes_uses_repository_metadata_without_git_cli() {
+    let repo_path = std::env::temp_dir().join(format!(
+        "orgii-list-remotes-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock after epoch")
+            .as_nanos()
+    ));
+    let _ = std::fs::remove_dir_all(&repo_path);
+
+    {
+        let repository = git2::Repository::init(&repo_path).expect("initialize test repository");
+        repository
+            .remote("origin", "git@github.com:org2ai/ORGII.git")
+            .expect("add origin");
+        let mut config = repository.config().expect("open repository config");
+        config
+            .set_str(
+                "remote.origin.pushurl",
+                "https://github.com/org2ai/ORGII.git",
+            )
+            .expect("set push URL");
+    }
+    let nested_path = repo_path.join("src-tauri/crates/example");
+    std::fs::create_dir_all(&nested_path).expect("create nested workspace");
+
+    let remotes = crate::commands::remote::list_remotes(&nested_path).expect("list remotes");
+    assert_eq!(remotes.len(), 1);
+    assert_eq!(remotes[0].name, "origin");
+    assert_eq!(
+        remotes[0].fetch_url.as_deref(),
+        Some("git@github.com:org2ai/ORGII.git")
+    );
+    assert_eq!(
+        remotes[0].push_url.as_deref(),
+        Some("https://github.com/org2ai/ORGII.git")
+    );
+
+    let _ = std::fs::remove_dir_all(&repo_path);
+}
+
 // ============================================
 // detect_push_error_type
 // ============================================

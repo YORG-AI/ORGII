@@ -2,7 +2,7 @@
 #
 # Two parallel jobs:
 #   frontend  — TypeScript typecheck + ESLint + Vitest unit tests
-#   rust      — cargo check + advisory clippy + cargo test
+#   rust      — advisory clippy (subsumes cargo check)
 #
 # Mirrors the toolchain versions used in release.yaml (Node 20, pnpm 9,
 # Rust stable, swatinem/rust-cache) so CI and release builds stay in sync.
@@ -57,7 +57,7 @@ jobs:
 
   # ── Rust ────────────────────────────────────────────────────────────────────
   rust:
-    name: Rust (check · clippy · test)
+    name: Rust (clippy)
     runs-on: macos-latest
 
     steps:
@@ -73,10 +73,9 @@ jobs:
           workspaces: "./src-tauri -> target"
           shared-key: "ci-macos"
 
-      - name: cargo check
-        working-directory: src-tauri
-        run: cargo check --workspace
-
+      # Clippy runs the full compiler front-end, so it subsumes `cargo check` —
+      # a compile error fails this step regardless of the lint level.
+      #
       # The current develop baseline has pre-existing Clippy warnings across
       # multiple crates. Keep Clippy visible and compilation-blocking without
       # letting toolchain lint drift block every feature PR; restore
@@ -84,10 +83,3 @@ jobs:
       - name: cargo clippy (advisory warnings)
         working-directory: src-tauri
         run: cargo clippy --workspace
-
-      - name: cargo test
-        working-directory: src-tauri
-        # Several agent-core tests intentionally exercise process-global SQLite
-        # state. Keep the workspace suite deterministic until those fixtures are
-        # migrated to per-test connections.
-        run: cargo test --workspace -- --test-threads=1

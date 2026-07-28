@@ -104,6 +104,8 @@ export type WorkItemLabel = Label;
  */
 export interface WorkItemBase {
   session_id: string;
+  /** User-facing identifier; distinct from the stable internal row id. */
+  shortId?: string;
   user_id: string;
   name: string;
   status: string;

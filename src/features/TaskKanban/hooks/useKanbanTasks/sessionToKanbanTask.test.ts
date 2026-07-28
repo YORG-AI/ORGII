@@ -64,6 +64,68 @@ describe("sessionToKanbanTask agent label", () => {
 
     expect(task.agentLabel).toBe(expected);
   });
+
+  it("labels built-in Rust agents simply as ORG2", () => {
+    const task = toTask(
+      makeSession({
+        session_id: "sdeagent-session-1",
+        agentDefinitionId: "builtin:sde",
+        agentIconId: "code",
+        agentDisplayName: "SDE Agent",
+      })
+    );
+
+    expect(task).toMatchObject({
+      agentLabel: "ORG2",
+      agentIconId: "orgii",
+    });
+  });
+
+  it("keeps the configured icon for custom Rust agents", () => {
+    const task = toTask(
+      makeSession({
+        session_id: "agent-custom-session-1",
+        agentDefinitionId: "custom-agent-1",
+        agentIconId: "brain",
+      })
+    );
+
+    expect(task.agentIconId).toBe("brain");
+  });
+
+  it("uses preserved source identity for an imported Codex App replay", () => {
+    const task = toTask(
+      makeSession({
+        session_id: "imported-session-codex",
+        model: undefined,
+        agentIconId: "archive",
+        agentDisplayName: "Collaboration Snapshot",
+        importedFrom: {
+          orgId: "org-1",
+          sourceSessionId: "remote-codex-session",
+          ownerMemberId: "member-2",
+          epoch: 1,
+          seq: 0,
+          count: 1,
+          externalHistorySource: "codex_app",
+          sourceDisplay: {
+            cliAgentType: "codex",
+            agentDisplayName: "Codex App",
+            model: "gpt-5.6-sol",
+          },
+        },
+      })
+    );
+
+    expect(task).toMatchObject({
+      agentLabel: "Codex App",
+      agentIconId: "codex",
+      cliAgentType: "codex",
+      agentTypeFilter: "codex_app",
+      agentTypeFilterKind: "external",
+      modelName: "gpt-5.6-sol",
+    });
+  });
 });
 
 describe("sessionToKanbanTask card copy", () => {

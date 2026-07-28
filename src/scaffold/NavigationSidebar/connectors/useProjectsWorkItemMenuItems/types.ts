@@ -16,6 +16,7 @@ import type {
 
 export interface SidebarProject {
   projectData: ProjectData;
+  projectSyncAdapterId: string | null;
   orgId: string;
   orgName: string;
   labelMap: Map<string, LabelEntry>;
@@ -28,6 +29,7 @@ export interface SidebarWorkItem extends EnrichedWorkItem {
   projectSlug: string;
   orgId: string;
   orgName: string;
+  projectSyncAdapterId: string | null;
   source: "local";
 }
 
@@ -83,6 +85,7 @@ export interface UseProjectsWorkItemMenuItemsResult {
   localOrgMap: Map<string, SidebarLocalOrgRecord>;
   linearOrgMap: Map<string, LinearOrgRecord>;
   loading: boolean;
+  linkedSessionIds: ReadonlySet<string>;
   getLoadMoreGroupId: (id: string) => string | null;
   loadLinearOrgWorkItems: (orgId: string) => void;
   toChatPanelProject: (project: SidebarProject) => ChatPanelSelectedProject;

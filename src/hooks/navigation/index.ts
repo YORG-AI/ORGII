@@ -3,9 +3,7 @@ export { useGlobalShortcuts } from "./useGlobalShortcuts/index";
 export { useAppNavigation } from "./useAppNavigation";
 export type {
   GoToNewSessionOptions,
-  WorkStationApp,
   NavigateOptions,
-  MainAppTabConfig,
   UseAppNavigationReturn,
 } from "./useAppNavigation";
 export { useWizardParam } from "./useWizardParam";

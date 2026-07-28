@@ -16,6 +16,23 @@ use crate::pty_commands::pty::PtySession;
 
 use super::{clean_pty_output, truncate_output, write_to_session};
 
+/// Marker detection only needs the recent tail. The complete interactive
+/// transcript is owned by the shell replay writer; retaining more here would
+/// reintroduce output-size-proportional memory.
+const MAX_MARKER_CAPTURE_BYTES: usize = 64 * 1024;
+
+fn append_marker_capture(buffer: &mut String, chunk: &str) {
+    buffer.push_str(chunk);
+    if buffer.len() <= MAX_MARKER_CAPTURE_BYTES {
+        return;
+    }
+    let mut remove = buffer.len().saturating_sub(MAX_MARKER_CAPTURE_BYTES);
+    while remove < buffer.len() && !buffer.is_char_boundary(remove) {
+        remove += 1;
+    }
+    buffer.drain(..remove);
+}
+
 /// Execution state machine for tracking PTY command lifecycle.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum ExecPhase {
@@ -145,7 +162,7 @@ pub async fn exec_in_pty(
             Ok(Ok(chunk)) => {
                 chunks_received += 1;
                 last_output_time = tokio::time::Instant::now();
-                collected_output.push_str(&String::from_utf8_lossy(&chunk));
+                append_marker_capture(&mut collected_output, &String::from_utf8_lossy(&chunk));
 
                 if let Some(exit_info) = extract_done_marker(&collected_output, &done_marker) {
                     phase = ExecPhase::Completed;

@@ -29,7 +29,9 @@ const DropdownTriggerWrapper: React.FC<DropdownTriggerWrapperProps> = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       {...(enableKeyboard ? { onKeyDown, tabIndex: 0 } : {})}
-      style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+      style={{
+        cursor: disabled ? "not-allowed" : "var(--interactive-cursor, default)",
+      }}
     >
       {children}
     </div>

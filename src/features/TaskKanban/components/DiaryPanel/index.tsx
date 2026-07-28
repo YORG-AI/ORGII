@@ -106,15 +106,19 @@ const DiaryPanel: React.FC<DiaryPanelProps> = ({
               if (interval) onEventClick?.(interval.task.id);
             }}
             showTooltips
-            renderTooltipWrapper={(task, children) => (
-              <SessionHoverCard
-                sessionId={task.sessionId}
-                position="right-start"
-                mouseEnterDelay={0}
-              >
-                {children}
-              </SessionHoverCard>
-            )}
+            renderTooltipWrapper={(task, children) =>
+              task.sessionId ? (
+                <SessionHoverCard
+                  sessionId={task.sessionId}
+                  position="right-start"
+                  mouseEnterDelay={0}
+                >
+                  {children}
+                </SessionHoverCard>
+              ) : (
+                children
+              )
+            }
             renderMarkerTooltipWrapper={(
               marker: GanttMarker,
               _row,

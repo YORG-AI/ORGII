@@ -5,7 +5,7 @@
 //! SQLite DB in a tempdir. The sandbox serialises concurrent env-var access
 //! so these tests are safe to run with `cargo test --test-threads N`.
 
-use super::super::{insert_message, insert_message_retry};
+use super::super::{insert_message, insert_message_if_absent_retry, insert_message_retry};
 use crate::persistence::db_helpers::{
     clear_messages, delete_session_cascade, load_messages, message_role, AgentMessageRow,
 };
@@ -141,6 +141,58 @@ fn sequences_are_independent_across_sessions() {
     assert_eq!(rows_a[0].sequence, 0);
     assert_eq!(rows_a[1].sequence, 1);
     assert_eq!(rows_b[0].sequence, 0, "sess-b sequence should restart at 0");
+}
+
+#[test]
+fn stable_insert_replay_preserves_original_row_without_appending() {
+    let _sb = test_env::sandbox();
+    let sid = "stable-inbox-transcript";
+    seed_session(sid);
+
+    let mut original = make_msg(sid, message_role::USER, "original transcript");
+    original.id = "agent-org-stable-message-id".into();
+    let original_created_at = original.created_at.clone();
+    let (id, inserted) =
+        insert_message_if_absent_retry(PREFIX, &original).expect("insert first stable transcript");
+    assert_eq!(id, original.id);
+    assert!(inserted);
+
+    let mut replay = original.clone();
+    replay.content = "re-rendered content must not replace the durable row".into();
+    replay.created_at = chrono::Utc::now().to_rfc3339();
+    let (replay_id, replay_inserted) =
+        insert_message_if_absent_retry(PREFIX, &replay).expect("coalesce stable transcript replay");
+    assert_eq!(replay_id, original.id);
+    assert!(!replay_inserted);
+
+    let rows = load_messages(PREFIX, sid).expect("load stable transcript");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].content, "original transcript");
+    assert_eq!(rows[0].sequence, 0);
+    assert_eq!(rows[0].created_at, original_created_at);
+}
+
+#[test]
+fn ordinary_insert_retains_replace_on_duplicate_id_behavior() {
+    let _sb = test_env::sandbox();
+    let sid = "ordinary-duplicate-id";
+    seed_session(sid);
+
+    let mut original = make_msg(sid, message_role::USER, "original");
+    original.id = "ordinary-reused-id".into();
+    insert_message(PREFIX, &original).expect("insert ordinary message");
+
+    let mut replacement = original.clone();
+    replacement.content = "replacement".into();
+    insert_message(PREFIX, &replacement).expect("replace ordinary message");
+
+    let rows = load_messages(PREFIX, sid).expect("load ordinary message");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].content, "replacement");
+    assert_eq!(
+        rows[0].sequence, 1,
+        "baseline replace assigns the next sequence"
+    );
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

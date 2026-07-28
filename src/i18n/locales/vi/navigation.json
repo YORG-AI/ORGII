@@ -12,6 +12,7 @@
     "drafts": "Bản nháp",
     "browser": "Trình duyệt",
     "editor": "Trình soạn thảo",
+    "environment": "Môi trường",
     "workspace": "Không gian làm việc",
     "codeEditor": "Trình soạn thảo mã",
     "databaseManager": "Quản lý CSDL",
@@ -60,15 +61,9 @@
     "startSession": "Bắt đầu phiên",
     "sessions": "Các Session",
     "selectProject": "Chọn Project",
-    "startPage": "Trang bắt đầu",
     "inbox": "Hộp thư đến",
     "login": "Đăng nhập",
     "setup": "Thiết lập",
-    "devJourney": "Dev Journey",
-    "devRecord": "Hồ sơ phát triển",
-    "gitDashboard": "Bảng điều khiển Git",
-    "devActivity": "Hoạt động Dev",
-    "usageHistory": "Lịch sử sử dụng",
     "tokenMarket": "Thị trường Token",
     "taskMarket": "Thị trường nhiệm vụ",
     "channels": "Kênh",
@@ -84,20 +79,8 @@
     "ideaArea": "Khu vực ý tưởng",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Tùy chỉnh lưới",
-    "horizontalGap": "Khoảng cách ngang",
-    "verticalGap": "Khoảng cách dọc",
-    "resetToDefault": "Đặt lại mặc định"
-  },
-  "greetings": {
-    "morning": "Chào buổi sáng",
-    "afternoon": "Chào buổi chiều",
-    "evening": "Chào buổi tối"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Trang chủ",
       "workstation": "Workstation",
       "manage": "Quản lý",
       "core": "Lõi",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "Thêm mới",
       "collapseAll": "Thu gọn tất cả",
-      "markAllRead": "Đánh dấu tất cả đã đọc",
-      "openHome": "Mở Home",
-      "openWorkstation": "Mở Workstation"
+      "markAllRead": "Đánh dấu tất cả đã đọc"
     },
     "search": {
       "folders": "Tìm kiếm Workspace...",
@@ -357,22 +338,13 @@
       "projects": "Dự án"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Cập nhật sản phẩm",
-    "commitCount": "{{count}} commit",
-    "commitCount_one": "{{count}} commit",
-    "details": "Chi tiết",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Chuyển ORG",
     "addOrg": "Thêm ORG",
     "createOrg": "Tạo",
     "joinOrg": "Tham gia",
     "orgSource": "Nguồn Org",
-    "localOrg": "Local",
+    "localOrg": "Cục bộ",
     "orgName": "Tên ORG",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Liên kết hoặc mã mời",
@@ -397,7 +369,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -417,14 +393,21 @@
       "error": "Fork phiên thất bại",
       "sendFailed": "Đã fork nhưng gửi tin nhắn thất bại — nội dung đã được khôi phục vào ô nhập",
       "forkedChipTooltip": "Fork từ {{name}}",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
+    "signedInAs": "Đã đăng nhập: {{name}}",
     "signedInToast": "Đã đăng nhập ORG2 Cloud",
+    "sessionExpired": "Phiên ORG2 Cloud đã hết hạn. Hãy đăng nhập lại để tiếp tục.",
     "recommendedBadge": "Khuyên dùng",
     "recommendedDesc": "Chia sẻ phiên được quản lý, lưu trữ phát lại, phân quyền nhóm và liên kết chia sẻ an toàn. Không cần cài đặt Supabase. ORG2 quản lý giúp bạn Auth, di trú cơ sở dữ liệu, chính sách RLS, thanh toán, thời gian lưu trữ, hạn mức và nâng cấp backend",
     "customEndpoint": {
@@ -464,12 +447,15 @@
       "retentionUpgrade": "Phiên này nằm ngoài cửa sổ phát lại của gói — nâng cấp để xem",
       "importError": "Không nhập được phiên",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Giới thiệu về tôi"
     },
     "sidebar": {
       "teamSessions": "Phiên của nhóm",
+      "mySessions": "Phiên của tôi",
       "memberFilter": "Lọc theo thành viên",
       "sessionFilter": "Lọc phiên",
+      "copyId": "Sao chép ID",
       "directlySharedWithMe": "Được chia sẻ trực tiếp với tôi",
       "everyone": "Tất cả",
       "forkedFrom": "được fork từ @{{name}}",
@@ -543,7 +529,8 @@
         "youTag": "Bạn",
         "ownerTag": "Chủ sở hữu",
         "floorOff": "Không có mức tối thiểu",
-        "floorTooltip": "Mức chia sẻ tối thiểu cho thành viên này. Áp dụng mức nghiêm ngặt hơn giữa mức này và mức sàn của toàn tổ chức."
+        "floorTooltip": "Mức chia sẻ tối thiểu cho thành viên này. Áp dụng mức nghiêm ngặt hơn giữa mức này và mức sàn của toàn tổ chức.",
+        "floorOrgMinimum": "Mức tối thiểu của tổ chức ({{mode}})"
       },
       "leave": {
         "action": "Rời tổ chức",
@@ -584,7 +571,7 @@
         "joinedFallbackToast": "Đã tham gia tổ chức đám mây"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (được quản lý)",
+        "sourceCloud": "Đám mây",
         "signInFirst": "Đăng nhập ORG2 Cloud để tạo hoặc tham gia tổ chức được quản lý.",
         "openSettings": "Mở cài đặt đăng nhập",
         "createdToast": "Đã tạo tổ chức đám mây"
@@ -601,25 +588,22 @@
         "inviteInvalid": "Mã mời không hợp lệ.",
         "inviteRevoked": "Lời mời đã bị thu hồi.",
         "inviteExpired": "Lời mời đã hết hạn.",
-        "inviteExhausted": "Lời mời đã hết số lần dùng."
+        "inviteExhausted": "Lời mời đã hết số lần dùng.",
+        "network": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại."
       }
-    },
-    "defaultAccess": {
-      "label": "Mức đồng bộ mặc định",
-      "help": "Áp dụng cho các phiên trên thiết bị này khớp phạm vi repo và chưa có cài đặt riêng. Chọn “Tắt” thì phiên chỉ nằm ở máy cho đến khi bạn bật chia sẻ"
     },
     "syncLevel": {
       "menuItem": "Mức đồng bộ đám mây…",
       "title": "Mức đồng bộ đám mây",
       "hint": "Chọn phiên này chia sẻ gì với từng tổ chức đám mây — không chia sẻ, chỉ siêu dữ liệu hay phát lại đầy đủ — và ai được xem.",
-      "orgDefaultOption": "Mặc định của tổ chức ({{mode}})",
       "modeOff": "Tắt",
       "modeMetadata": "Chỉ siêu dữ liệu",
       "modeFullReplay": "Phát lại đầy đủ",
       "visibilityOrg": "Mọi người trong tổ chức",
       "visibilityRestricted": "Chỉ mình tôi",
       "taggedNote": "Phiên này đã được chuyển vào tổ chức, nên khi còn gắn thẻ nó luôn chia sẻ ít nhất siêu dữ liệu.",
-      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}."
+      "floorNote": "Quản trị viên tổ chức yêu cầu chia sẻ ít nhất {{mode}}.",
+      "orgMinimumOption": "Mức tối thiểu của tổ chức ({{mode}})"
     },
     "share": {
       "menuItem": "Chia sẻ đám mây…",
@@ -650,33 +634,23 @@
       "importPasteClipboard": "Dán từ bộ nhớ tạm",
       "importSubmit": "Nhập",
       "importInvalidInput": "Đây có vẻ không phải là liên kết chia sẻ hoặc mã token hợp lệ.",
-      "selectAll": "Tất cả ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Trình chạy tác vụ Agent",
-      "desc": "Cài đặt mặc định cho các tác vụ bình luận bạn chạy từ luồng phiên (“Chạy tại đây”)",
-      "machineNotice": "Các lần chạy được thực hiện trên máy này bằng token của tài khoản này",
-      "orgLabel": "Tổ chức",
-      "accountLabel": "Tài khoản",
-      "accountPlaceholder": "Tài khoản mặc định",
-      "modelLabel": "Mô hình",
-      "modelPlaceholder": "Mô hình mặc định",
-      "modeLabel": "Chế độ",
-      "autoRunLabel": "Tự động chạy tác vụ @agent",
-      "autoRunDesc": "Tự động nhận và chạy các tác vụ bình luận @agent đang mở trên các phiên bạn sở hữu. Mặc định tắt — các lượt nhắc @agent của đồng đội sẽ không tiêu tốn token của bạn cho đến khi bạn bật tính năng này."
+      "selectAll": "Tất cả ({{count}})",
+      "incomingEndpointMismatch": "Nội dung chia sẻ thuộc một đám mây tùy chỉnh khác. Hãy cấu hình endpoint đó trước khi nhập.",
+      "incomingConnectionError": "Không thể kết nối dịch vụ đám mây. Hãy kiểm tra mạng và thử lại.",
+      "incomingIncompatibleError": "Đám mây trả về phản hồi chia sẻ không tương thích. Hãy cập nhật ORGII hoặc kiểm tra bản triển khai.",
+      "incomingServerError": "Dịch vụ đám mây không thể xử lý nội dung chia sẻ này. Hãy thử lại.",
+      "incomingAlreadyOnDevice": "Phiên này đã có trên thiết bị. Hãy mở bản gốc thay vì nhập một bản trùng lặp.",
+      "incomingOpenExisting": "Mở phiên",
+      "incomingRetry": "Thử lại"
     },
     "comments": {
       "task": {
         "assignFailed": "Đã đăng bình luận, nhưng giao cho agent thất bại — thử lại từ luồng",
         "assignUnavailableHere": "Đã đăng bình luận — không thể giao cho agent trong chế độ xem này",
-        "turnBadge": "một agent đang xử lý lượt này",
         "addressingChip": "Đang xử lý bình luận: “{{excerpt}}”",
         "addressingChipGeneric": "Đang xử lý một bình luận",
         "addressingChipTooltip": "Được fork để xử lý một luồng bình luận trên phiên gốc",
-        "openBadge_one": "{{count}} tác vụ agent đang chờ xử lý",
-        "openBadge": "{{count}} tác vụ agent đang chờ xử lý",
-        "activeBadge_one": "{{count}} agent đang làm việc trong phiên này",
-        "activeBadge": "{{count}} agent đang làm việc trong phiên này"
+        "mentionSuggestion": "Giao bình luận này cho agent"
       },
       "toggleLabel": "Bình luận",
       "notesButton": "Ghi chú phiên",

@@ -4,6 +4,7 @@
  * Sidebar PR list using TreeRowBase rows grouped under a collapsible
  * "OPEN" section header (same pattern as IssuesContent).
  */
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtomValue } from "jotai";
 import {
   GitMerge,
@@ -13,7 +14,14 @@ import {
   Loader2,
   TriangleAlert,
 } from "lucide-react";
-import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type { OpenPRItem } from "@src/api/tauri/github";
@@ -44,7 +52,6 @@ import {
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 
-import { prefetchWorkstationPrDetail } from "../../hooks/useWorkstationPrDetail";
 import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
 import { getPrStatusIconName, getPrStatusVariant } from "./prCardHelpers";
 
@@ -68,6 +75,11 @@ function parsePrUrl(
 }
 
 // ── PR tree row ───────────────────────────────────────────────────────────────
+
+type PrVirtualRow =
+  | { kind: "header"; section: "open" | "closed" }
+  | { kind: "status"; section: "open" | "closed"; status: SectionStatus }
+  | { kind: "pr"; pr: OpenPRItem };
 
 interface PrRowProps {
   pr: OpenPRItem;
@@ -109,14 +121,6 @@ const PrRow: React.FC<PrRowProps> = memo(
       setPrDragStash(buildPrPayload());
     }, [buildPrPayload]);
 
-    // Warm the PR-detail cache on hover so opening the PR paints instantly.
-    const handlePrefetch = useCallback(() => {
-      const parsed = parsePrUrl(pr.url);
-      if (parsed) {
-        void prefetchWorkstationPrDetail(parsed.repoFullName, pr.number);
-      }
-    }, [pr.url, pr.number]);
-
     const node: TreeRowNode = useMemo(() => {
       const iconName = getPrStatusIconName(statusKey);
       const PrIcon =
@@ -156,7 +160,6 @@ const PrRow: React.FC<PrRowProps> = memo(
             isSelected={isSelected}
             onClick={() => onClick(pr)}
             showIndentGuides={false}
-            onMouseEnter={handlePrefetch}
             onMouseDown={stashPrDrag}
             {...dragHandlers}
             className={
@@ -292,39 +295,45 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
 
   const hasCurrentBranchPr = !!currentBranchPrFromList || !!parsedAtomPr;
 
-  const openStatus: SectionStatus | null =
-    openPrsLoadState === "loading" && orderedPrs.length === 0
-      ? { kind: "loading", message: t("actions.loading", "Loading…") }
-      : openPrsLoadState === "error" && orderedPrs.length === 0
-        ? {
-            kind: "error",
-            message:
-              openPrsError ??
-              t("git.pr.failedToLoad", "Failed to load pull requests"),
-          }
-        : orderedPrs.length === 0
+  const openStatus = useMemo<SectionStatus | null>(
+    () =>
+      openPrsLoadState === "loading" && orderedPrs.length === 0
+        ? { kind: "loading", message: t("actions.loading", "Loading…") }
+        : openPrsLoadState === "error" && orderedPrs.length === 0
           ? {
-              kind: "empty",
-              message: t("labels.noPullRequest", "No pull request"),
+              kind: "error",
+              message:
+                openPrsError ??
+                t("git.pr.failedToLoad", "Failed to load pull requests"),
             }
-          : null;
+          : orderedPrs.length === 0
+            ? {
+                kind: "empty",
+                message: t("labels.noPullRequest", "No pull request"),
+              }
+            : null,
+    [openPrsError, openPrsLoadState, orderedPrs.length, t]
+  );
 
-  const closedStatus: SectionStatus | null =
-    closedPrsLoadState === "loading" && filteredClosedPrs.length === 0
-      ? { kind: "loading", message: t("actions.loading", "Loading…") }
-      : closedPrsLoadState === "error" && filteredClosedPrs.length === 0
-        ? {
-            kind: "error",
-            message:
-              closedPrsError ??
-              t("git.pr.failedToLoad", "Failed to load pull requests"),
-          }
-        : closedPrsLoadState === "ready" && filteredClosedPrs.length === 0
+  const closedStatus = useMemo<SectionStatus | null>(
+    () =>
+      closedPrsLoadState === "loading" && filteredClosedPrs.length === 0
+        ? { kind: "loading", message: t("actions.loading", "Loading…") }
+        : closedPrsLoadState === "error" && filteredClosedPrs.length === 0
           ? {
-              kind: "empty",
-              message: t("labels.noPullRequest", "No pull request"),
+              kind: "error",
+              message:
+                closedPrsError ??
+                t("git.pr.failedToLoad", "Failed to load pull requests"),
             }
-          : null;
+          : closedPrsLoadState === "ready" && filteredClosedPrs.length === 0
+            ? {
+                kind: "empty",
+                message: t("labels.noPullRequest", "No pull request"),
+              }
+            : null,
+    [closedPrsError, closedPrsLoadState, filteredClosedPrs.length, t]
+  );
 
   // When the Open section is the sidebar's only content (Closed collapsed) and
   // it has no rows, render its loading/empty state as a centered Explorer-style
@@ -332,6 +341,143 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
   // states and per-section states keep the inline SectionStatusRow so each
   // section retains its own structured state.
   const openWholePane = closedCollapsed && orderedPrs.length === 0;
+
+  // Virtualized row model — headers, per-section status, and PR rows flattened
+  // into one windowed list (same pattern as IssuesContent). Collapsed sections
+  // contribute only their header, so their rows are never built or mounted.
+  const virtualRows = useMemo<PrVirtualRow[]>(() => {
+    const rows: PrVirtualRow[] = [{ kind: "header", section: "open" }];
+    if (!openCollapsed) {
+      if (openStatus) {
+        rows.push({ kind: "status", section: "open", status: openStatus });
+      } else {
+        rows.push(...orderedPrs.map((pr) => ({ kind: "pr" as const, pr })));
+      }
+    }
+    rows.push({ kind: "header", section: "closed" });
+    if (!closedCollapsed) {
+      if (closedStatus) {
+        rows.push({ kind: "status", section: "closed", status: closedStatus });
+      } else {
+        rows.push(
+          ...filteredClosedPrs.map((pr) => ({ kind: "pr" as const, pr }))
+        );
+      }
+    }
+    return rows;
+  }, [
+    closedCollapsed,
+    closedStatus,
+    filteredClosedPrs,
+    openCollapsed,
+    openStatus,
+    orderedPrs,
+  ]);
+
+  const listRef = useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
+  const prListVirtualizer = useVirtualizer({
+    count: virtualRows.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: (index) => (virtualRows[index]?.kind === "status" ? 36 : 24),
+    overscan: 10,
+  });
+  const virtualItems = prListVirtualizer.getVirtualItems();
+
+  const renderVirtualRow = (row: PrVirtualRow): React.ReactNode => {
+    switch (row.kind) {
+      case "header":
+        return row.section === "open" ? (
+          <TreeSectionHeader
+            id="open-prs"
+            title="Open"
+            collapsed={openCollapsed}
+            count={orderedPrs.length}
+            onToggle={() => setOpenCollapsed((prev) => !prev)}
+          />
+        ) : (
+          <TreeSectionHeader
+            id="closed-prs"
+            title="Closed"
+            collapsed={closedCollapsed}
+            count={
+              closedPrsLoadState === "ready" ? filteredClosedPrs.length : null
+            }
+            onToggle={handleToggleClosed}
+          />
+        );
+      case "status":
+        return <SectionStatusRow status={row.status} />;
+      case "pr":
+        return (
+          <PrRow
+            pr={row.pr}
+            depth={1}
+            isCurrentBranch={row.pr.head_branch === branchName}
+            isSelected={row.pr.number === selectedPrNumber}
+            onClick={handlePrClick}
+          />
+        );
+    }
+  };
+
+  let listContent: React.ReactNode;
+  if (!openCollapsed && openWholePane && openStatus?.kind !== "error") {
+    // Open is the only expanded section and has no rows — surface its
+    // loading/empty state as a full-pane placeholder, keeping both headers.
+    listContent = (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <TreeSectionHeader
+          id="open-prs"
+          title="Open"
+          collapsed={openCollapsed}
+          count={orderedPrs.length}
+          onToggle={() => setOpenCollapsed((prev) => !prev)}
+        />
+        <Placeholder
+          variant={openStatus?.kind === "loading" ? "loading" : "empty"}
+          placement="sidebar"
+          title={
+            openStatus?.kind === "loading" ? undefined : openStatus?.message
+          }
+          fillParentHeight
+        />
+        <TreeSectionHeader
+          id="closed-prs"
+          title="Closed"
+          collapsed={closedCollapsed}
+          count={
+            closedPrsLoadState === "ready" ? filteredClosedPrs.length : null
+          }
+          onToggle={handleToggleClosed}
+        />
+      </div>
+    );
+  } else {
+    listContent = (
+      <div ref={listRef} className="flex flex-1 overflow-y-auto">
+        <div
+          className="relative w-full"
+          style={{ height: prListVirtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const row = virtualRows[virtualItem.index];
+            return (
+              <div
+                key={virtualItem.key}
+                ref={prListVirtualizer.measureElement}
+                data-index={virtualItem.index}
+                className="absolute left-0 top-0 w-full"
+                style={{ transform: `translateY(${virtualItem.start}px)` }}
+              >
+                {renderVirtualRow(row)}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -382,71 +528,8 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
         </div>
       )}
 
-      {/* PR tree list */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        {/* Open section header */}
-        <TreeSectionHeader
-          id="open-prs"
-          title="Open"
-          collapsed={openCollapsed}
-          count={orderedPrs.length}
-          onToggle={() => setOpenCollapsed((prev) => !prev)}
-        />
-
-        {!openCollapsed &&
-          (openStatus ? (
-            openWholePane && openStatus.kind !== "error" ? (
-              <Placeholder
-                variant={openStatus.kind === "loading" ? "loading" : "empty"}
-                placement="sidebar"
-                title={
-                  openStatus.kind === "loading" ? undefined : openStatus.message
-                }
-                fillParentHeight
-              />
-            ) : (
-              <SectionStatusRow status={openStatus} />
-            )
-          ) : (
-            orderedPrs.map((pr) => (
-              <PrRow
-                key={pr.number}
-                pr={pr}
-                depth={1}
-                isCurrentBranch={pr.head_branch === branchName}
-                isSelected={pr.number === selectedPrNumber}
-                onClick={handlePrClick}
-              />
-            ))
-          ))}
-
-        {/* Closed section header — lazy-loaded on first expand */}
-        <TreeSectionHeader
-          id="closed-prs"
-          title="Closed"
-          collapsed={closedCollapsed}
-          count={
-            closedPrsLoadState === "ready" ? filteredClosedPrs.length : null
-          }
-          onToggle={handleToggleClosed}
-        />
-
-        {!closedCollapsed &&
-          (closedStatus ? (
-            <SectionStatusRow status={closedStatus} />
-          ) : (
-            filteredClosedPrs.map((pr) => (
-              <PrRow
-                key={pr.number}
-                pr={pr}
-                depth={1}
-                isCurrentBranch={pr.head_branch === branchName}
-                isSelected={pr.number === selectedPrNumber}
-                onClick={handlePrClick}
-              />
-            ))
-          ))}
-      </div>
+      {/* PR tree list (virtualized) */}
+      {listContent}
     </div>
   );
 };

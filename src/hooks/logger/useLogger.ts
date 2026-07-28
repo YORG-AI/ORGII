@@ -99,7 +99,16 @@ export interface Logger {
 // Environment
 // ============================================================================
 
-const isTauri = typeof window !== "undefined" && "__TAURI__" in window;
+export function isTauriRuntimeHost(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "__TAURI_INTERNALS__" in value
+  );
+}
+
+const isTauriRuntime =
+  typeof window !== "undefined" && isTauriRuntimeHost(window);
 const isDev = process.env.NODE_ENV === "development";
 const forceDebugFromUrl =
   typeof window !== "undefined" &&
@@ -149,7 +158,11 @@ function formatOne(value: unknown): string {
   }
   if (typeof value === "symbol") return value.toString();
   if (value instanceof Error) {
-    return value.stack || `${value.name}: ${value.message}`;
+    // WebKit stacks omit the message line, so always lead with name+message.
+    const head = `${value.name}: ${value.message}`;
+    return value.stack && !value.stack.startsWith(head)
+      ? `${head}\n${value.stack}`
+      : value.stack || head;
   }
   if (typeof value === "object") {
     try {
@@ -180,7 +193,7 @@ function writeToBackend(
   namespace: string,
   message: string
 ): void {
-  if (backendUnavailable || !isTauri) return;
+  if (backendUnavailable || !isTauriRuntime) return;
   invoke("write_frontend_log", { level, namespace, message }).catch(() => {
     // The Rust command may not exist yet on first launch / older binary.
     // Stop trying after the first failure so we don't spam the IPC bridge.

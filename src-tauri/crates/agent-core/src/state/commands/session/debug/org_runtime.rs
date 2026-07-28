@@ -22,8 +22,8 @@ use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::persistence;
 use crate::state::AgentAppState;
 use crate::tools::impls::orchestration::agent_org::tasks::{
-    TaskCreateTool, TaskGetTool, TaskGraphCreateTool, TaskListTool, TaskToolsContext,
-    TaskUpdateTool,
+    OrgRunCompleteTool, TaskCreateTool, TaskGetTool, TaskGraphCreateTool, TaskListTool,
+    TaskToolsContext, TaskUpdateTool,
 };
 use crate::tools::impls::orchestration::org_send_message::{
     NoopInboxWakeHook, NoopSelfAbortHook, OrgSendMessageTool,
@@ -38,6 +38,7 @@ const DETACHED_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
     names::TASK_UPDATE,
     names::TASK_LIST,
     names::TASK_GET,
+    names::ORG_RUN_COMPLETE,
 ];
 
 const SESSION_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
@@ -47,6 +48,7 @@ const SESSION_ORG_RUNTIME_TOOL_NAMES: &[&str] = &[
     names::TASK_UPDATE,
     names::TASK_LIST,
     names::TASK_GET,
+    names::ORG_RUN_COMPLETE,
     names::CREATE_PLAN,
 ];
 
@@ -237,14 +239,15 @@ pub async fn debug_session_execute_org_tool(
         ));
     }
 
+    let call_context = crate::tools::call_context::CallContext::new(
+        format!("debug-session-org-tool:{tool_name}"),
+        session_id,
+    );
+
     Ok(DebugOrgToolResult::from_tool_result(
         runtime
             .tool_registry
-            .execute(
-                &tool_name,
-                params,
-                &crate::tools::call_context::CallContext::default(),
-            )
+            .execute(&tool_name, params, &call_context)
             .await
             .map_err(|err| err.to_string()),
     ))
@@ -328,6 +331,14 @@ pub async fn debug_agent_org_execute_tool_as_agent(
                 .await
                 .map_err(|err| err.to_string())
         }
+        names::ORG_RUN_COMPLETE => {
+            let context =
+                task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
+            OrgRunCompleteTool::new(context)
+                .execute(params, &crate::tools::call_context::CallContext::default())
+                .await
+                .map_err(|err| err.to_string())
+        }
         _ => Err(format!("unsupported Agent Org tool: {tool_name}")),
     };
 
@@ -407,7 +418,7 @@ pub async fn debug_agent_org_emit_member_idle(
     };
     message.validate()?;
 
-    let before_count = AgentInboxStore::list_by_run(&run_id)?.len();
+    let before_count = AgentInboxStore::count_by_run(&run_id)?;
     AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: context.coordinator_agent_id.clone(),
         recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
@@ -416,7 +427,7 @@ pub async fn debug_agent_org_emit_member_idle(
         org_run_id: Some(run_id.clone()),
         message,
     })?;
-    let after_count = AgentInboxStore::list_by_run(&run_id)?.len();
+    let after_count = AgentInboxStore::count_by_run(&run_id)?;
 
     Ok(serde_json::json!({
         "ok": true,
@@ -428,7 +439,7 @@ pub async fn debug_agent_org_emit_member_idle(
 
 #[tauri::command]
 pub async fn debug_agent_org_inbox_list(run_id: String) -> Result<Vec<AgentInboxRecord>, String> {
-    AgentInboxStore::list_by_run(&run_id)
+    AgentInboxStore::list_page_by_run(&run_id, None, 100).map(|page| page.rows)
 }
 
 #[tauri::command]

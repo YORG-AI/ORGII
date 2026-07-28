@@ -27,7 +27,7 @@
     background: transparent;
     color: var(--color-text-3);
     border-radius: 6px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     opacity: 0;
     transition:
       color 0.15s ease,

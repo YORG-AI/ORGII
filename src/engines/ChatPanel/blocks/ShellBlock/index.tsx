@@ -208,18 +208,24 @@ const RunShellView: React.FC<ShellBlockProps> = (props) => {
   // the React Compiler handles memoization automatically, so the
   // explicit `useMemo` wrappers that used to surround these calls are
   // unnecessary.
-  const unescapedOutput = unescapeShellString(output);
-  const unescapedStreamOutput = unescapeShellString(streamOutput);
+  const unescapedOutput = props.shellReplay ? "" : unescapeShellString(output);
+  const unescapedStreamOutput = props.shellReplay
+    ? ""
+    : unescapeShellString(streamOutput);
 
   const handleStop = useCallback(
     async (pid: number) => {
       try {
-        await killAgentShellProcess({ pid, sessionId: props.sessionId });
+        await killAgentShellProcess({
+          pid,
+          sessionId: props.sessionId,
+          callId: props.shellReplay?.ref.callId ?? props.callId,
+        });
       } catch (err: unknown) {
         log.error("[ShellBlock] Failed to kill process:", err);
       }
     },
-    [props.sessionId]
+    [props.callId, props.sessionId, props.shellReplay]
   );
 
   if (isFailed && !command && action !== SHELL_ACTION_KILL) {
@@ -270,6 +276,8 @@ const RunShellView: React.FC<ShellBlockProps> = (props) => {
       eventId={props.eventId}
       sessionId={props.sessionId}
       payloadRef={isLoading ? streamPayloadRef : outputPayloadRef}
+      replayRef={props.shellReplay?.ref}
+      replayState={props.shellReplay}
       pid={shellPid}
       processStatus={shellProcessStatus}
       onStop={handleStop}

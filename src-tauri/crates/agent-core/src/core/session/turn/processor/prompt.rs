@@ -16,7 +16,7 @@ use tracing::{info, warn};
 
 use super::UnifiedMessageProcessor;
 use crate::core::session::prompt::cache::SkillListingCacheKey;
-use crate::core::session::prompt::sections::build_agent_org_context_section;
+use crate::core::session::prompt::sections::build_agent_org_context_section_with_task_snapshot;
 use crate::core::session::types::{SystemPromptConfig, ToolSummary};
 
 fn render_linked_work_item_context(work_item_id: &str, project_slug: Option<&str>) -> String {
@@ -109,8 +109,9 @@ impl UnifiedMessageProcessor {
         session_id: &str,
         memory_prefetch_section: Option<&str>,
         user_message: Option<&str>,
-    ) -> Vec<String> {
+    ) -> (Vec<String>, Option<i64>) {
         let mut dynamic_sections: Vec<String> = Vec::new();
+        let mut coordinator_presented_work_revision = None;
 
         if let Some(user_message) = user_message {
             if let Some(section) = crate::core::session::prompt::gui_control_retrieval::build_gui_control_relevant_controls_section(
@@ -135,11 +136,54 @@ impl UnifiedMessageProcessor {
         }
 
         if let Some(context) = self.runtime.agent_org_context.as_ref() {
-            dynamic_sections.push(build_agent_org_context_section(
-                context,
-                &self.agent_id,
-                self.runtime.agent_org_current_member_id.as_deref(),
-            ));
+            let context_snapshot = context.clone();
+            let current_agent_id = self.agent_id.clone();
+            let current_member_id = self.runtime.agent_org_current_member_id.clone();
+            let coordinator_prompt = current_member_id.as_deref()
+                == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID);
+            match tokio::task::spawn_blocking(move || {
+                let (task_snapshot, presented_revision) = if coordinator_prompt {
+                    match crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
+                        &context_snapshot.run_id,
+                    ) {
+                        Ok((revision, tasks)) => (Ok(tasks), revision),
+                        Err(error) => (Err(error), None),
+                    }
+                } else {
+                    (
+                        crate::coordination::agent_org_tasks::AgentOrgTaskStore::list_operational(
+                            &context_snapshot.run_id,
+                        ),
+                        None,
+                    )
+                };
+                (
+                    build_agent_org_context_section_with_task_snapshot(
+                        &context_snapshot,
+                        &current_agent_id,
+                        current_member_id.as_deref(),
+                        task_snapshot,
+                    ),
+                    presented_revision,
+                )
+            })
+            .await
+            {
+                Ok((section, revision)) => {
+                    dynamic_sections.push(section);
+                    coordinator_presented_work_revision = revision;
+                }
+                Err(error) => {
+                    warn!(
+                        run_id = %context.run_id,
+                        error = %error,
+                        "[unified_processor] Agent Org task snapshot construction failed"
+                    );
+                    dynamic_sections.push(format!(
+                        "## Agent Org Run\n\n- Task board snapshot unavailable: background snapshot task failed ({error}). Call `task_list` before changing task state."
+                    ));
+                }
+            }
         }
 
         // The ChatPanel "Create with AI" flow persists a draft before launch
@@ -391,7 +435,7 @@ impl UnifiedMessageProcessor {
             }
         }
 
-        dynamic_sections
+        (dynamic_sections, coordinator_presented_work_revision)
     }
 
     /// Read a lazy transcript-backed reminder counter. `None` (fresh

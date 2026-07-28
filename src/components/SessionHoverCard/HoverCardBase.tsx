@@ -222,11 +222,21 @@ const HoverCardPortal: React.FC<HoverCardPortalProps> = ({
   useLayoutEffect(() => {
     const node = cardRef.current;
     if (!node) return;
-    const rect = node.getBoundingClientRect();
-    if (rect.width !== cardSize.width || rect.height !== cardSize.height) {
-      setCardSize({ width: rect.width, height: rect.height });
-    }
-  }, [cardId, triggerRect, cardSize.height, cardSize.width]);
+
+    const updateCardSize = () => {
+      const rect = node.getBoundingClientRect();
+      setCardSize((current) =>
+        current.width === rect.width && current.height === rect.height
+          ? current
+          : { width: rect.width, height: rect.height }
+      );
+    };
+
+    updateCardSize();
+    const observer = new ResizeObserver(updateCardSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [cardId]);
 
   if (!triggerRect) return null;
 
@@ -255,7 +265,10 @@ export const HoverCardPanel: React.FC<HoverCardPanelProps> = ({
   title,
   children,
 }) => (
-  <div className="w-[280px] rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown">
+  <div
+    className="w-[280px] overflow-y-auto rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown"
+    style={{ maxHeight: `calc(100vh - ${VIEWPORT_PADDING_PX * 2}px)` }}
+  >
     {title && (
       <div
         className="mb-2 block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium text-text-1"

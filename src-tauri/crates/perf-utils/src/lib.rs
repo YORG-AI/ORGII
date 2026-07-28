@@ -8,6 +8,7 @@
 //! - Diff computation and fuzzy patch application
 //! - Process metrics collection (memory, CPU usage)
 
+pub mod app_memory;
 pub mod binary_detection;
 pub mod diff_patch;
 pub mod hash;
@@ -17,6 +18,7 @@ pub mod local_model_hardware;
 pub mod process_metrics;
 
 // Re-export all commands
+pub use app_memory::*;
 pub use binary_detection::*;
 pub use diff_patch::*;
 pub use hash::*;

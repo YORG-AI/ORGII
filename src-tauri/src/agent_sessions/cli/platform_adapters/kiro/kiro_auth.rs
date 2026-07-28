@@ -687,7 +687,7 @@ pub async fn create_kiro_auth_webview(
         true // Allow all navigation
     });
 
-    // Add webview to window
+    let ownership_observation = perf_utils::begin_webview_ownership_observation(label.clone());
     window
         .add_child(
             builder,
@@ -695,6 +695,7 @@ pub async fn create_kiro_auth_webview(
             tauri::LogicalSize::new(width, height),
         )
         .map_err(|e| format!("Failed to create webview: {}", e))?;
+    ownership_observation.commit();
 
     log::info!("[Kiro] Auth webview created successfully");
     Ok(())

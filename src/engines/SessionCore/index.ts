@@ -112,8 +112,13 @@ export {
   sessionIdAtom,
   sessionReloadEpochMapAtom,
   triggerSessionReloadAtom,
+  sessionHydrationCountMapAtom,
+  sessionHydrationByIdAtom,
+  beginSessionHydrationAtom,
+  endSessionHydrationAtom,
   specsAtom,
 } from "./core/atoms";
+export type { SessionHydrationState } from "./core/atoms";
 
 // Action Atoms
 export {
@@ -210,6 +215,9 @@ export {
 } from "./hooks/useSessionStore";
 
 export type { UseSessionStoreReturn } from "./hooks/useSessionStore";
+
+// Per-session live streaming delta selector (avoids whole-Map subscriptions)
+export { useStreamingDeltaForSession } from "./hooks/useStreamingDeltaForSession";
 
 // Session management (hooks/session/) — imported per-file to avoid barrel circularity
 export { useSessionManager } from "./hooks/session/useSessionManager";

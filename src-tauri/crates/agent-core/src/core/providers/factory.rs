@@ -354,7 +354,9 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         | ModelType::MistralVibe
         | ModelType::Autohand
         | ModelType::Omp
-        | ModelType::Pi => return None,
+        | ModelType::Pi
+        | ModelType::QoderCli
+        | ModelType::TraeCli => return None,
     };
     registry::find_by_name(provider_name)
 }

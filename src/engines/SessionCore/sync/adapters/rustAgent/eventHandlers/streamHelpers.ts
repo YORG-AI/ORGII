@@ -84,7 +84,6 @@ export function isSessionStreamingStopped(
 export function resetAllStreamingState(ctx: EventHandlerContext): void {
   if (ctx.assistantStreamRef) resetStreamRefs(ctx.assistantStreamRef.current);
   if (ctx.thinkingStreamRef) resetStreamRefs(ctx.thinkingStreamRef.current);
-  ctx.execOutputBufferRef.current = "";
   if (ctx.toolCallDeltaBuffersRef) ctx.toolCallDeltaBuffersRef.current.clear();
   clearStreamingInfo(ctx);
   if (ctx.streamingCompleteHandledRef) {

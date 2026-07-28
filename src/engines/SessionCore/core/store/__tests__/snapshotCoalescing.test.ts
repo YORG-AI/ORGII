@@ -110,6 +110,117 @@ describe("EventStoreProxy snapshot coalescing", () => {
     unsubscribe();
   });
 
+  it("applies streaming membership deltas without full-history id vectors", async () => {
+    const sessionId = "session-streaming-incremental";
+    const e1 = makeEvent("e1", sessionId);
+    const e2 = makeEvent("e2", sessionId);
+    const listener = vi.fn();
+    const unsubscribe = eventStoreProxy.subscribe(listener);
+
+    await deliver(makeDerivedEnvelope(sessionId, 1, [e1, e2]));
+    await advanceFrame();
+    listener.mockClear();
+
+    const e2Updated: SessionEvent = { ...e2, displayStatus: "failed" };
+    const e3: SessionEvent = {
+      ...makeEvent("e3", sessionId),
+      displayStatus: "running",
+    };
+    await deliver({
+      sessionId,
+      snapshotDelta: true,
+      version: 2,
+      baseVersion: 1,
+      eventCount: 3,
+      upserts: [e2Updated, e3],
+      removedIds: [],
+      eventIds: [],
+      chatEventIds: [],
+      messagesEventIds: [],
+      sortedSimulatorEventIds: [],
+      lastEventId: "e3",
+      chatEventCount: 0,
+      hasRunningEvent: false,
+      incrementalOrders: true,
+      streaming: true,
+      memberships: [
+        {
+          id: "e2",
+          eventIndex: 1,
+          chat: true,
+          messages: false,
+          simulator: true,
+        },
+        {
+          id: "e3",
+          eventIndex: 2,
+          chat: true,
+          messages: true,
+          simulator: true,
+        },
+      ],
+    });
+    await advanceFrame();
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    const [snapshot] = listener.mock.calls[0] as [DerivedSnapshot, string];
+    expect(snapshot.events.map((event) => event.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
+    expect(snapshot.chatEvents.map((event) => event.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
+    expect(snapshot.messagesEvents.map((event) => event.id)).toEqual([
+      "e1",
+      "e3",
+    ]);
+    expect(snapshot.sortedSimulatorEvents.map((event) => event.id)).toEqual([
+      "e1",
+      "e2",
+      "e3",
+    ]);
+    expect(snapshot.hasRunningEvent).toBe(true);
+    expect(snapshot.streaming).toBe(true);
+    expect(rpcMock.sessionCore.eventStore.getSnapshot).not.toHaveBeenCalled();
+
+    // Active materialized deltas remain cached when the session is switched
+    // away; dropping them would force a full-history fetch on the next frame.
+    eventStoreProxy.releaseSessionSnapshotIfIdle(sessionId);
+    expect(eventStoreProxy.getLatestSessionSnapshot(sessionId)).not.toBeNull();
+
+    await deliver({
+      sessionId,
+      snapshotDelta: true,
+      version: 3,
+      baseVersion: 2,
+      eventCount: 3,
+      upserts: [{ ...e3, displayStatus: "completed" }],
+      removedIds: [],
+      eventIds: ["e1", "e2", "e3"],
+      chatEventIds: ["e1", "e2", "e3"],
+      messagesEventIds: ["e1", "e3"],
+      sortedSimulatorEventIds: ["e1", "e2", "e3"],
+      lastEventId: "e3",
+      chatEventCount: 3,
+      hasRunningEvent: false,
+      streaming: false,
+    });
+    await advanceFrame();
+    const settled = eventStoreProxy.getLatestSessionSnapshot(
+      sessionId
+    ) as DerivedSnapshot;
+    expect(settled.streaming).toBe(false);
+    expect(settled.hasRunningEvent).toBe(false);
+    eventStoreProxy.releaseSessionSnapshotIfIdle(sessionId);
+    expect(eventStoreProxy.getLatestSessionSnapshot(sessionId)).toBeNull();
+
+    unsubscribe();
+  });
+
   it("coalesces N same-frame envelopes into exactly one notify carrying the final state", async () => {
     const sessionId = "session-coalesce";
     const e1 = makeEvent("e1", sessionId);

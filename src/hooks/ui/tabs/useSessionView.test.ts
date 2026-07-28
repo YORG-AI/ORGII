@@ -3,6 +3,7 @@ import React from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   activeSessionIdAtom,
   workstationActiveSessionIdAtom,
@@ -39,5 +40,10 @@ describe("useSessionView", () => {
     expect(store.get(chatPanelMaximizedAtom)).toBe(true);
     expect(store.get(workstationActiveSessionIdAtom)).toBe("session-b");
     expect(store.get(activeSessionIdAtom)).toBe("session-b");
+    const tabs = store.get(chatPanelTabsAtom);
+    expect(tabs.tabs.find((tab) => tab.id === tabs.activeTabId)).toMatchObject({
+      type: "session",
+      sessionId: "session-b",
+    });
   });
 });

@@ -14,5 +14,6 @@ export function groupKeyToWireCategory(
     );
   }
   if (groupKey === "cli") return "cli_agent";
+  if (groupKey === "human") return "human_session";
   return "rust_agent";
 }

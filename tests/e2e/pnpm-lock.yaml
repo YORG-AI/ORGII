@@ -23,6 +23,9 @@ importers:
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
+      webdriverio:
+        specifier: ^9.2.0
+        version: 9.27.1
 
 packages:
 

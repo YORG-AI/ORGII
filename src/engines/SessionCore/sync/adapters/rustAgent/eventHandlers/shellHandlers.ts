@@ -5,7 +5,7 @@
  * (agent:shell_process_started, agent:shell_process_backgrounded,
  * agent:shell_process_exited).
  */
-import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { createLogger } from "@src/hooks/logger";
 import { updateShellProcessAtom } from "@src/store/session/shellProcessAtom";
 import {
   type SubagentJobStatus,
@@ -13,36 +13,70 @@ import {
 } from "@src/store/session/subagentJobAtom";
 
 import type { AgentWSEvent } from "../../shared/types";
-import { type EventHandlerContext, MAX_EXEC_BUFFER } from "./types";
+import type { EventHandlerContext } from "./types";
+
+const log = createLogger("ShellLifecycleHandlers");
+
+function exactShellLifecycleIdentity(
+  event: AgentWSEvent,
+  routedSessionId: string | undefined,
+  ctx: EventHandlerContext
+): { sessionId: string; callId: string } | null {
+  const sessionId = event.sessionId?.trim();
+  const callId = event.toolCallId?.trim();
+  const routed = routedSessionId?.trim();
+  const filtered = ctx.filterSessionIdRef.current?.trim();
+
+  if (!sessionId || !callId) {
+    log.warn("Ignoring shell lifecycle event without exact identity", {
+      type: event.type,
+      sessionId,
+      callId,
+    });
+    return null;
+  }
+  if (
+    (routed && routed !== sessionId) ||
+    (filtered && filtered !== sessionId)
+  ) {
+    log.warn("Ignoring cross-session shell lifecycle event", {
+      type: event.type,
+      routedSessionId: routed,
+      filterSessionId: filtered,
+      payloadSessionId: sessionId,
+      callId,
+    });
+    return null;
+  }
+  return { sessionId, callId };
+}
 
 export function handleExecOutput(
   event: AgentWSEvent,
   ctx: EventHandlerContext
 ): void {
-  const execStream = event.stream ?? "stdout";
-  if (!event.chunk || (execStream !== "stdout" && execStream !== "stderr"))
-    return;
-
-  ctx.execOutputBufferRef.current += event.chunk;
-  if (ctx.execOutputBufferRef.current.length > MAX_EXEC_BUFFER) {
-    ctx.execOutputBufferRef.current =
-      ctx.execOutputBufferRef.current.slice(-MAX_EXEC_BUFFER);
-  }
-
-  // Pass event.sessionId explicitly so the update targets the correct session
-  // store. Without it, Rust falls back to active_id() which may differ from
-  // the session that owns the shell tool_call (e.g. a subagent session).
-  eventStoreProxy.updateLastShellOutput(
-    ctx.execOutputBufferRef.current,
-    event.sessionId ?? undefined
+  const identity = exactShellLifecycleIdentity(
+    event,
+    ctx.filterSessionIdRef.current,
+    ctx
   );
+  const execStream = event.stream ?? "stdout";
+  if (
+    !identity ||
+    !event.chunk ||
+    (execStream !== "stdout" && execStream !== "stderr")
+  )
+    return;
 
   // OS Agent dispatches window event
   if (ctx.features.hasCodingSessionBridge) {
     window.dispatchEvent(
       new CustomEvent("agent-exec-output", {
         detail: {
-          sessionId: event.sessionId,
+          sessionId: identity.sessionId,
+          callId: identity.callId,
+          sequence: event.sequence,
+          persistedBytes: event.persistedBytes,
           chunk: event.chunk ?? "",
           stream: execStream,
         },
@@ -60,32 +94,22 @@ export function handleShellProcessStarted(
   sessionId: string | undefined,
   ctx: EventHandlerContext
 ): void {
-  const resolvedSessionId =
-    sessionId || event.sessionId || ctx.filterSessionIdRef.current || "";
+  const identity = exactShellLifecycleIdentity(event, sessionId, ctx);
   const pid = event.pid;
   const command = event.command || "";
-  const logPath = event.logPath;
 
-  if (!pid || !resolvedSessionId) return;
+  if (!pid || !identity) return;
 
   const store = ctx.getDefaultStore();
   if (store) {
     store.set(updateShellProcessAtom, {
       type: "start",
-      sessionId: resolvedSessionId,
+      sessionId: identity.sessionId,
       pid,
+      callId: identity.callId,
       command,
-      logPath,
     });
   }
-
-  eventStoreProxy.updateLastShellProcess(
-    pid,
-    "running",
-    undefined,
-    logPath,
-    resolvedSessionId
-  );
 }
 
 /**
@@ -103,29 +127,20 @@ export function handleShellProcessBackgrounded(
   sessionId: string | undefined,
   ctx: EventHandlerContext
 ): void {
-  const resolvedSessionId =
-    sessionId || event.sessionId || ctx.filterSessionIdRef.current || "";
+  const identity = exactShellLifecycleIdentity(event, sessionId, ctx);
   const pid = event.pid;
-  const logPath = event.logPath;
 
-  if (!pid || !resolvedSessionId) return;
+  if (!pid || !identity) return;
 
   const store = ctx.getDefaultStore();
   if (store) {
     store.set(updateShellProcessAtom, {
       type: "background",
-      sessionId: resolvedSessionId,
+      sessionId: identity.sessionId,
       pid,
+      callId: identity.callId,
     });
   }
-
-  eventStoreProxy.updateLastShellProcess(
-    pid,
-    "background",
-    undefined,
-    logPath,
-    resolvedSessionId
-  );
 }
 
 /**
@@ -137,33 +152,24 @@ export function handleShellProcessExited(
   sessionId: string | undefined,
   ctx: EventHandlerContext
 ): void {
-  const resolvedSessionId =
-    sessionId || event.sessionId || ctx.filterSessionIdRef.current || "";
+  const identity = exactShellLifecycleIdentity(event, sessionId, ctx);
   const pid = event.pid;
   const exitCode = event.exitCode;
   const killed = event.killed ?? false;
 
-  if (!pid || !resolvedSessionId) return;
+  if (!pid || !identity) return;
 
   const store = ctx.getDefaultStore();
   if (store) {
     store.set(updateShellProcessAtom, {
       type: "exit",
-      sessionId: resolvedSessionId,
+      sessionId: identity.sessionId,
       pid,
+      callId: identity.callId,
       exitCode,
       killed,
     });
   }
-
-  const status = killed ? "killed" : "exited";
-  eventStoreProxy.updateLastShellProcess(
-    pid,
-    status,
-    exitCode,
-    undefined,
-    resolvedSessionId
-  );
 }
 
 const SUBAGENT_JOB_STATUSES: ReadonlySet<string> = new Set([

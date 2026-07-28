@@ -1,13 +1,16 @@
 import { RefreshCw } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
+import { buildCodexReauthPath } from "@src/config/mainAppPaths";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
 
 import { InlineCardFooter } from "../../shared/InlineCardPrimitives";
+import { shouldShowCodexReconnect } from "./accountInlineActions";
 
 interface AccountInlineActionsBarProps {
   account: KeyVaultAccount;
@@ -34,6 +37,7 @@ export const AccountInlineActionsBar: React.FC<
 }) => {
   const { t } = useTranslation("integrations");
   const { t: tCommon } = useTranslation();
+  const navigate = useNavigate();
 
   const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
     onRefresh ?? (() => {}),
@@ -43,12 +47,23 @@ export const AccountInlineActionsBar: React.FC<
     useRefreshSpin(onRefreshModels ?? (() => {}), refreshingModels);
 
   const showEdit = !account.listingId && account.hasLocalKey && onEdit;
+  const showCodexReconnect = shouldShowCodexReconnect(account);
   const resolvedRefreshLabel = refreshLabel ?? tCommon("actions.refresh");
   return (
     <InlineCardFooter>
       <div className="mr-auto flex min-h-7 items-center">
         <AccountStatusIndicator account={account} />
       </div>
+      {showCodexReconnect ? (
+        <Button
+          variant="primary"
+          size="small"
+          onClick={() => navigate(buildCodexReauthPath(account.id))}
+          title={tCommon("errors.reconnectCodex")}
+        >
+          {tCommon("errors.reconnectCodex")}
+        </Button>
+      ) : null}
       {onRefresh ? (
         <Button
           variant="secondary"

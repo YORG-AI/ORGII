@@ -12,6 +12,7 @@
     "drafts": "Entwürfe",
     "browser": "Browser",
     "editor": "Editor",
+    "environment": "Umgebung",
     "workspace": "Arbeitsbereich",
     "codeEditor": "Code-Editor",
     "databaseManager": "Datenbank-Manager",
@@ -60,15 +61,9 @@
     "startSession": "Sitzung starten",
     "sessions": "Session",
     "selectProject": "Project auswählen",
-    "startPage": "Startseite",
     "inbox": "Posteingang",
     "login": "Anmelden",
     "setup": "Einrichtung",
-    "devJourney": "Dev Journey",
-    "devRecord": "Entwicklungsprotokoll",
-    "gitDashboard": "Git Dashboard",
-    "devActivity": "Dev Aktivität",
-    "usageHistory": "Nutzungsverlauf",
     "tokenMarket": "Token-Markt",
     "taskMarket": "Aufgabenmarkt",
     "channels": "Kanäle",
@@ -84,20 +79,8 @@
     "ideaArea": "Ideen-Bereich",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Raster anpassen",
-    "horizontalGap": "Horizontaler Abstand",
-    "verticalGap": "Vertikaler Abstand",
-    "resetToDefault": "Auf Standard zurücksetzen"
-  },
-  "greetings": {
-    "morning": "Guten Morgen",
-    "afternoon": "Guten Tag",
-    "evening": "Guten Abend"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Startseite",
       "workstation": "Workstation",
       "manage": "Verwalten",
       "core": "Kern",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "Neu hinzufügen",
       "collapseAll": "Alle einklappen",
-      "markAllRead": "Alle als gelesen markieren",
-      "openHome": "Home öffnen",
-      "openWorkstation": "Workstation öffnen"
+      "markAllRead": "Alle als gelesen markieren"
     },
     "search": {
       "folders": "Workspace suchen...",
@@ -359,22 +340,13 @@
       "projects": "Projekte"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Produktupdates",
-    "commitCount": "{{count}} Commits",
-    "commitCount_one": "{{count}} Commit",
-    "details": "Details",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "ORG wechseln",
     "addOrg": "ORG hinzufügen",
     "createOrg": "Erstellen",
     "joinOrg": "Beitreten",
     "orgSource": "Org-Quelle",
-    "localOrg": "Local",
+    "localOrg": "Lokal",
     "orgName": "ORG-Name",
     "orgNamePlaceholder": "Team Alpha",
     "inviteCode": "Einladungslink oder -code",
@@ -399,7 +371,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -419,14 +395,21 @@
       "error": "Session konnte nicht geforkt werden",
       "sendFailed": "Geforkt, aber die Nachricht konnte nicht gesendet werden — sie wurde im Eingabefeld wiederhergestellt",
       "forkedChipTooltip": "Geforkt von {{name}}",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Anmelden",
     "signOut": "Abmelden",
+    "signedInAs": "Angemeldet als {{name}}",
     "signedInToast": "Bei ORG2 Cloud angemeldet",
+    "sessionExpired": "Deine ORG2-Cloud-Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
     "recommendedBadge": "Empfohlen",
     "recommendedDesc": "Verwaltetes Session-Sharing, Replay-Speicher, Team-Berechtigungen und sichere Share-Links. Kein Supabase-Setup nötig. ORG2 übernimmt Auth, Datenbank-Migrationen, RLS-Richtlinien, Abrechnung, Aufbewahrung, Kontingente und Backend-Upgrades für dich",
     "customEndpoint": {
@@ -466,12 +449,15 @@
       "retentionUpgrade": "Diese Session liegt außerhalb des Replay-Fensters deines Plans — upgrade, um sie zu sehen",
       "importError": "Session konnte nicht importiert werden",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Über mich"
     },
     "sidebar": {
       "teamSessions": "Team-Sessions",
+      "mySessions": "Meine Sessions",
       "memberFilter": "Nach Mitglied filtern",
       "sessionFilter": "Sitzungen filtern",
+      "copyId": "ID kopieren",
       "directlySharedWithMe": "Direkt mit mir geteilt",
       "everyone": "Alle",
       "forkedFrom": "geforkt von @{{name}}",
@@ -545,7 +531,8 @@
         "youTag": "Du",
         "ownerTag": "Inhaber",
         "floorOff": "Kein Minimum",
-        "floorTooltip": "Minimale Freigabestufe für dieses Mitglied. Es gilt die strengere von dieser und der organisationsweiten Untergrenze."
+        "floorTooltip": "Minimale Freigabestufe für dieses Mitglied. Es gilt die strengere von dieser und der organisationsweiten Untergrenze.",
+        "floorOrgMinimum": "Organisationsminimum ({{mode}})"
       },
       "leave": {
         "action": "Organisation verlassen",
@@ -586,7 +573,7 @@
         "joinedFallbackToast": "Der Cloud-Organisation beigetreten"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (verwaltet)",
+        "sourceCloud": "Cloud",
         "signInFirst": "Melde dich bei ORG2 Cloud an, um eine verwaltete Organisation zu erstellen oder ihr beizutreten.",
         "openSettings": "Anmeldeeinstellungen öffnen",
         "createdToast": "Cloud-Organisation erstellt"
@@ -603,25 +590,22 @@
         "inviteInvalid": "Dieser Einladungscode ist ungültig.",
         "inviteRevoked": "Diese Einladung wurde widerrufen.",
         "inviteExpired": "Diese Einladung ist abgelaufen.",
-        "inviteExhausted": "Diese Einladung hat keine Verwendungen mehr."
+        "inviteExhausted": "Diese Einladung hat keine Verwendungen mehr.",
+        "network": "Verbindung zum Cloud-Dienst fehlgeschlagen. Prüfe das Netzwerk und versuche es erneut."
       }
-    },
-    "defaultAccess": {
-      "label": "Standard-Sync-Stufe",
-      "help": "Gilt für Sessions dieses Geräts, die über den Repo-Scope zugeordnet sind und keine eigene Einstellung haben. Mit „Aus“ bleiben Sessions lokal, bis du dich aktiv dafür entscheidest"
     },
     "syncLevel": {
       "menuItem": "Cloud-Sync-Stufe…",
       "title": "Cloud-Sync-Stufe",
       "hint": "Lege je Cloud-Organisation fest, was diese Session teilt — nichts, nur Metadaten oder das vollständige Replay — und wer sie sehen kann.",
-      "orgDefaultOption": "Organisationsstandard ({{mode}})",
       "modeOff": "Aus",
       "modeMetadata": "Nur Metadaten",
       "modeFullReplay": "Vollständiges Replay",
       "visibilityOrg": "Alle in der Organisation",
       "visibilityRestricted": "Nur ich",
       "taggedNote": "Diese Session wurde in diese Organisation verschoben und teilt daher mindestens Metadaten, solange sie markiert ist.",
-      "floorNote": "Der Administrator deiner Organisation verlangt mindestens {{mode}}."
+      "floorNote": "Der Administrator deiner Organisation verlangt mindestens {{mode}}.",
+      "orgMinimumOption": "Organisationsminimum ({{mode}})"
     },
     "share": {
       "menuItem": "Cloud-Freigabe…",
@@ -652,33 +636,23 @@
       "importPasteClipboard": "Aus Zwischenablage einfügen",
       "importSubmit": "Importieren",
       "importInvalidInput": "Das sieht nicht nach einem gültigen Freigabelink oder Token aus.",
-      "selectAll": "Alle ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Agent-Task-Runner",
-      "desc": "Voreinstellungen für Kommentar-Tasks, die aus Session-Threads gestartet werden („Hier ausführen“)",
-      "machineNotice": "Läufe werden auf dieser Maschine mit den Tokens dieses Kontos ausgeführt",
-      "orgLabel": "Organisation",
-      "accountLabel": "Konto",
-      "accountPlaceholder": "Standardkonto",
-      "modelLabel": "Modell",
-      "modelPlaceholder": "Standardmodell",
-      "modeLabel": "Modus",
-      "autoRunLabel": "@agent-Aufgaben automatisch ausführen",
-      "autoRunDesc": "Offene @agent-Kommentaraufgaben in deinen eigenen Sitzungen automatisch übernehmen und ausführen. Standardmäßig aus – @agent-Erwähnungen von Teammitgliedern verbrauchen deine Tokens erst, wenn du dies aktivierst."
+      "selectAll": "Alle ({{count}})",
+      "incomingEndpointMismatch": "Diese Freigabe gehört zu einer anderen benutzerdefinierten Cloud. Konfiguriere diesen Cloud-Endpunkt vor dem Import.",
+      "incomingConnectionError": "Verbindung zum Cloud-Dienst fehlgeschlagen. Prüfe das Netzwerk und versuche es erneut.",
+      "incomingIncompatibleError": "Diese Cloud hat eine inkompatible Freigabeantwort geliefert. Aktualisiere ORGII oder prüfe die Cloud-Bereitstellung.",
+      "incomingServerError": "Der Cloud-Dienst konnte diese Freigabe nicht auflösen. Versuche es erneut.",
+      "incomingAlreadyOnDevice": "Diese Session befindet sich bereits auf diesem Gerät. Öffne das Original, statt ein Duplikat zu importieren.",
+      "incomingOpenExisting": "Session öffnen",
+      "incomingRetry": "Erneut versuchen"
     },
     "comments": {
       "task": {
         "assignFailed": "Kommentar gepostet, aber die Zuweisung des Agents ist fehlgeschlagen — im Thread erneut versuchen",
         "assignUnavailableHere": "Kommentar gepostet — die Agent-Zuweisung ist in dieser Ansicht nicht verfügbar",
-        "turnBadge": "ein Agent arbeitet an diesem Turn",
         "addressingChip": "Bearbeitet Kommentar: „{{excerpt}}“",
         "addressingChipGeneric": "Bearbeitet einen Kommentar",
         "addressingChipTooltip": "Geforkt, um einen Kommentar-Thread der Quell-Session zu bearbeiten",
-        "openBadge_one": "{{count}} Agent-Task wartet auf Übernahme",
-        "openBadge": "{{count}} Agent-Tasks warten auf Übernahme",
-        "activeBadge_one": "Ein Agent arbeitet an dieser Session",
-        "activeBadge": "{{count}} Agenten arbeiten an dieser Session"
+        "mentionSuggestion": "Diesen Kommentar einem Agent zuweisen"
       },
       "toggleLabel": "Kommentare",
       "notesButton": "Session-Notizen",

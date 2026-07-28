@@ -78,6 +78,7 @@ pub const IMPORT_INTERVAL_SECS: u64 = 60;
 pub const MAX_IMPORT_PAGES_PER_TICK: usize = 1;
 
 mod bulk_import;
+mod identity;
 mod merge;
 mod merge_helpers;
 mod pull;
@@ -111,6 +112,17 @@ pub fn start_worker(app_handle: tauri::AppHandle) {
     events::init_emitter(app_handle);
     if let Err(err) = recover_in_flight_orphans() {
         warn!("[sync::worker] in-flight orphan recovery failed: {}", err);
+    }
+    match identity::normalize_existing_external_short_ids() {
+        Ok(count) if count > 0 => info!(
+            "[sync::worker] normalized {} adapter-owned work-item identifier(s)",
+            count
+        ),
+        Ok(_) => {}
+        Err(err) => warn!(
+            "[sync::worker] adapter-owned identifier normalization failed: {}",
+            err
+        ),
     }
     tauri::async_runtime::spawn(async move {
         info!(

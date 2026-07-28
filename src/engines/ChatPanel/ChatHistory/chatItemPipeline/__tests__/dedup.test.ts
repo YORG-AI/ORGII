@@ -551,4 +551,38 @@ describe("buildDedupMaps — assistant message dedup", () => {
     expect(duplicateAssistantIds.has(think2.id)).toBe(false);
     expect(duplicateAssistantIds.has(msg2.id)).toBe(false);
   });
+
+  it("deduplicates cumulative Codex thinking snapshots within one stream", () => {
+    const sessionId = "codexapp-rollout-streaming";
+    const first = makeThinkingMessage(
+      "**Assessing event polling and caching efficiency**\n**Planning finality signaling for loader updates**",
+      { sessionId }
+    );
+    const second = makeThinkingMessage(
+      "**Assessing event polling and caching efficiency**\n**Planning finality signaling for loader updates**\n**Designing turnStatus annotation for task lifecycle**",
+      { sessionId }
+    );
+    const third = makeThinkingMessage(
+      "**Assessing event polling and caching efficiency**\n**Planning finality signaling for loader updates**\n**Designing turnStatus annotation for task lifecycle**\n**Refining polling triggers with sourceVersion caching**",
+      { sessionId }
+    );
+
+    const { duplicateAssistantIds } = buildDedupMaps([first, second, third]);
+
+    expect(duplicateAssistantIds.has(first.id)).toBe(true);
+    expect(duplicateAssistantIds.has(second.id)).toBe(true);
+    expect(duplicateAssistantIds.has(third.id)).toBe(false);
+  });
+
+  it("keeps cumulative-looking thinking snapshots from other providers", () => {
+    const first = makeThinkingMessage("Inspecting the polling path");
+    const second = makeThinkingMessage(
+      "Inspecting the polling path and planning the fix"
+    );
+
+    const { duplicateAssistantIds } = buildDedupMaps([first, second]);
+
+    expect(duplicateAssistantIds.has(first.id)).toBe(false);
+    expect(duplicateAssistantIds.has(second.id)).toBe(false);
+  });
 });

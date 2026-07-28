@@ -9,12 +9,9 @@
  * in the viewport, preserve the scroll position. This prevents jarring scrolls
  * when the user switches between nearby files.
  *
- * LAYOUT SHIFT FIX (Feb 2026):
- * Skip scrolling when WorkStation is hidden (viewMode !== "workStation").
- * scrollIntoView on hidden elements can scroll parent containers (including #root),
- * causing unexpected layout shifts on the visible view.
+ * The file tree now unmounts with the Workbench route branch, so no global
+ * visibility mode is required to guard scrolling.
  */
-import { useAtomValue } from "jotai";
 import {
   type MutableRefObject,
   type RefObject,
@@ -24,7 +21,6 @@ import {
 import type { VirtuosoHandle } from "react-virtuoso";
 
 import { TREE_ROW_HEIGHT } from "@src/components/TreeRow";
-import { viewModeAtom } from "@src/store/ui/viewModeAtom";
 
 import type { FlattenedNode } from "../types";
 import { findFileInNodes } from "../utils/treeUtils";
@@ -76,18 +72,9 @@ export function useRevealPath({
   stickyHeight,
 }: UseRevealPathOptions): void {
   const lastRevealKeyRef = useRef<number | null>(null);
-  const viewMode = useAtomValue(viewModeAtom);
-
-  // Skip scrolling when WorkStation is not visible to prevent layout shifts
-  const isVisible = viewMode === "workStation";
 
   useEffect(() => {
     if (revealKey === null || revealKey === lastRevealKeyRef.current) return;
-
-    if (!isVisible) {
-      lastRevealKeyRef.current = revealKey;
-      return;
-    }
 
     const targetPath = revealPath || selectedPath || "";
     if (!targetPath) {
@@ -150,6 +137,5 @@ export function useRevealPath({
     lastScrollTopRef,
     viewportHeight,
     stickyHeight,
-    isVisible,
   ]);
 }

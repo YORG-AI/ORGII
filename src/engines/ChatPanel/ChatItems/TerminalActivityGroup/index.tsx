@@ -1,16 +1,20 @@
 /**
  * TerminalActivityGroup
  *
- * Displays consecutive `run_shell` events in the same collapsible stack used
- * by exploration summaries. Each command still renders through the registry,
- * preserving TerminalBlock streaming, output, stop, and replay behavior.
+ * Displays consecutive shell commands, MCP calls, and terminal follow-ups in
+ * the same collapsible stack used by exploration summaries. Every item still
+ * renders through the registry, preserving its specialized behavior.
  */
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
+import { isMcpToolEvent } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/classifiers";
 import ToolUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/ToolUsageBadge";
-import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ChatLoadingBlock,
+  StackedBlock,
+} from "@src/engines/ChatPanel/blocks/primitives";
 import {
   type SessionEvent,
   TOOL_USAGE_ARGS_KEY,
@@ -29,17 +33,20 @@ interface TerminalEventItem {
   isLastItem: boolean;
 }
 
-function buildGroupSummary(
+export function buildGroupSummary(
   events: readonly SessionEvent[],
   t: (key: string, opts?: Record<string, unknown>) => string
 ): string {
   let commandCount = 0;
+  let mcpCount = 0;
   let waitCount = 0;
   let inspectCount = 0;
 
   for (const event of events) {
     const canonical = event.uiCanonical || event.functionName;
-    if (canonical === "await_output") {
+    if (isMcpToolEvent(event)) {
+      mcpCount++;
+    } else if (canonical === "await_output") {
       waitCount++;
     } else if (canonical === "inspect_terminals") {
       inspectCount++;
@@ -52,6 +59,9 @@ function buildGroupSummary(
   if (commandCount > 0) {
     parts.push(t("tools.terminalSummary.command", { count: commandCount }));
   }
+  if (mcpCount > 0) {
+    parts.push(t("tools.terminalSummary.mcp", { count: mcpCount }));
+  }
   if (waitCount > 0) {
     parts.push(t("tools.terminalSummary.wait", { count: waitCount }));
   }
@@ -61,19 +71,13 @@ function buildGroupSummary(
   return parts.join(t("tools.terminalSummary.separator"));
 }
 
-const ActivityBlockFallback: React.FC = () => (
-  <div className="h-6 animate-pulse rounded bg-fill-2" />
-);
-
 function ActivityBlock({ event }: { event: SessionEvent }) {
   const eventType = getRegistryEventType(
     event as unknown as Record<string, unknown>
   );
   const EventComponent = getChatLazyComponent(eventType);
   const renderedEvent = React.createElement(EventComponent, { event });
-  return (
-    <Suspense fallback={<ActivityBlockFallback />}>{renderedEvent}</Suspense>
-  );
+  return <Suspense fallback={<ChatLoadingBlock />}>{renderedEvent}</Suspense>;
 }
 
 function suppressLoadingForNonLastRunningEvent(

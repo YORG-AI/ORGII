@@ -7,13 +7,13 @@ import {
   workspaceMatchesRepoFilter,
 } from "./orgScopeRepoFilter";
 
-const SCOPES = ["github.com/yorgai/org2"];
+const SCOPES = ["github.com/org2ai/org2"];
 
 describe("getRepoScopeKeysForOrgFilter", () => {
   it("prefers fs_uri over repo_url and returns the peeked keys", () => {
     const peek = vi.fn(() => [
       "github.com/vantanode/org2",
-      "github.com/yorgai/org2",
+      "github.com/org2ai/org2",
     ]);
     expect(
       getRepoScopeKeysForOrgFilter(
@@ -23,13 +23,13 @@ describe("getRepoScopeKeysForOrgFilter", () => {
         },
         peek
       )
-    ).toEqual(["github.com/vantanode/org2", "github.com/yorgai/org2"]);
+    ).toEqual(["github.com/vantanode/org2", "github.com/org2ai/org2"]);
     expect(peek).toHaveBeenCalledTimes(1);
     expect(peek).toHaveBeenCalledWith("/Users/me/org2-fork");
   });
 
   it("strips a file:// scheme before peeking", () => {
-    const peek = vi.fn(() => ["github.com/yorgai/org2"]);
+    const peek = vi.fn(() => ["github.com/org2ai/org2"]);
     getRepoScopeKeysForOrgFilter({ fs_uri: "file:///Users/me/org2" }, peek);
     expect(peek).toHaveBeenCalledTimes(1);
     expect(peek).toHaveBeenCalledWith("/Users/me/org2");
@@ -39,10 +39,10 @@ describe("getRepoScopeKeysForOrgFilter", () => {
     const peek = vi.fn(() => undefined);
     expect(
       getRepoScopeKeysForOrgFilter(
-        { repo_url: "https://github.com/yorgai/ORG2.git" },
+        { repo_url: "https://github.com/org2ai/ORG2.git" },
         peek
       )
-    ).toEqual(["github.com/yorgai/org2"]);
+    ).toEqual(["github.com/org2ai/org2"]);
     expect(peek).not.toHaveBeenCalled();
   });
 
@@ -58,7 +58,7 @@ describe("repoMatchesOrgScopes (strict)", () => {
   it("matches a repo whose remote url is in scope", () => {
     expect(
       repoMatchesOrgScopes(
-        { repo_url: "https://github.com/yorgai/ORG2.git" },
+        { repo_url: "https://github.com/org2ai/ORG2.git" },
         SCOPES
       )
     ).toBe(true);
@@ -68,7 +68,7 @@ describe("repoMatchesOrgScopes (strict)", () => {
     expect(
       repoMatchesOrgScopes({ fs_uri: "/Users/me/org2-fork" }, SCOPES, () => [
         "github.com/vantanode/org2",
-        "github.com/yorgai/org2",
+        "github.com/org2ai/org2",
       ])
     ).toBe(true);
   });
@@ -78,7 +78,7 @@ describe("repoMatchesOrgScopes (strict)", () => {
       repoMatchesOrgScopes(
         {
           fs_uri: "/Users/me/elsewhere",
-          repo_url: "https://github.com/yorgai/ORG2.git",
+          repo_url: "https://github.com/org2ai/ORG2.git",
         },
         SCOPES,
         () => ["github.com/acme/elsewhere"]
@@ -129,7 +129,7 @@ describe("repoMatchesOrgScopes (strict)", () => {
   });
 
   it("rejects without peeking or priming when scopes are missing or empty", () => {
-    const peek = vi.fn(() => ["github.com/yorgai/org2"]);
+    const peek = vi.fn(() => ["github.com/org2ai/org2"]);
     const prime = vi.fn();
     expect(
       repoMatchesOrgScopes({ fs_uri: "/Users/me/org2" }, undefined, peek, prime)
@@ -177,7 +177,7 @@ describe("repoEligibleForOrgScopedPicker (optimistic)", () => {
       repoEligibleForOrgScopedPicker(
         { fs_uri: "/Users/me/org2-fork" },
         SCOPES,
-        () => ["github.com/vantanode/org2", "github.com/yorgai/org2"]
+        () => ["github.com/vantanode/org2", "github.com/org2ai/org2"]
       )
     ).toBe(true);
   });
@@ -187,7 +187,7 @@ describe("repoEligibleForOrgScopedPicker (optimistic)", () => {
     const prime = vi.fn();
     expect(
       repoEligibleForOrgScopedPicker(
-        { repo_url: "https://github.com/yorgai/ORG2" },
+        { repo_url: "https://github.com/org2ai/ORG2" },
         [],
         peek,
         prime

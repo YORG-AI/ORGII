@@ -21,7 +21,6 @@ import type {
   CollabMemberRecord,
   CollabOrgRecord,
   CollabSessionAccessSettings,
-  RemoteSessionAddressesComment,
   RemoteTeammateSessionMetadata,
 } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
@@ -114,7 +113,12 @@ export function normalizeRepoScopeKey(input: string): string {
  * git remote means no shareable identity.
  */
 export function isLocalRepoPath(value: string): boolean {
-  return value.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(value);
+  return (
+    value.startsWith("/") ||
+    /^[a-zA-Z]:[\\/]/.test(value) ||
+    /^\\\\\?\\(?:[a-zA-Z]:\\|UNC\\)/i.test(value) ||
+    value.startsWith("\\\\")
+  );
 }
 
 /**
@@ -235,8 +239,7 @@ export function toRemoteMetadata(
   org: CollabOrgRecord,
   member: CollabMemberRecord,
   settings: CollabSessionAccessSettings,
-  repoScopeKey?: string | null,
-  addressesComment?: RemoteSessionAddressesComment | null
+  repoScopeKey?: string | null
 ): RemoteTeammateSessionMetadata {
   const effectiveMode = getEffectiveAccessMode(session, settings);
   const externalHistorySource = getExternalHistorySourceId(session.session_id);
@@ -260,6 +263,7 @@ export function toRemoteMetadata(
     // raw values — the consumer formats via formatAgentType/ModelIcon).
     cliAgentType: session.cliAgentType ?? undefined,
     agentDisplayName: session.agentDisplayName,
+    agentDefinitionId: session.agentDefinitionId,
     model: session.model,
     origin: externalHistorySource
       ? {
@@ -290,12 +294,6 @@ export function toRemoteMetadata(
           forkedAt: session.forkedFrom.forkedAt,
         }
       : undefined,
-    // Comment-task provenance (agent-pickup design §4): same opaque-payload
-    // channel as forkedFrom/repoScopeKey — teammates viewing the pushed fork
-    // row link it back to the thread it addresses. Threaded as a parameter
-    // (like repoScopeKey) because the Session row never carries it; the
-    // durable local source is the fork-relay registry's taskContext.
-    addressesComment: addressesComment ?? undefined,
     // Segments summary is server-owned (append/rewrite RPCs maintain it);
     // metadata pushes never carry it.
     eventsEpoch: undefined,

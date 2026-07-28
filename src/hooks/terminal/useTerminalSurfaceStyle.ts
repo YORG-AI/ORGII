@@ -5,7 +5,8 @@
 import { useAtomValue } from "jotai";
 import { type CSSProperties, useMemo } from "react";
 
-import { resolvedCodeFontFamilyAtom } from "@src/store/ui/editorSettingsAtom";
+import { TERMINAL_LINE_HEIGHT } from "@src/config/terminalAppearance";
+import { resolvedTerminalFontFamilyAtom } from "@src/store/ui/editorSettingsAtom";
 // Direct leaf import to avoid pulling @src/store's barrel — which transitively
 // reaches SidebarModules/Terminal → engines/TerminalCore → this file's consumers.
 import {
@@ -23,20 +24,27 @@ export interface TerminalSurfaceStyle {
   /** Terminal panel font size (px), same atom as xterm / TerminalCore */
   terminalFontSize: number;
   typography: CSSProperties;
+  typographyVariables: CSSProperties;
 }
 
 export function useTerminalSurfaceStyle(): TerminalSurfaceStyle {
   const terminalThemeName = useAtomValue(terminalThemeAtom);
   const terminalFontSize = useAtomValue(terminalFontSizeAtom);
   const terminalLetterSpacing = useAtomValue(terminalLetterSpacingAtom);
-  const codeFontFamily = useAtomValue(resolvedCodeFontFamilyAtom);
+  const terminalFontFamily = useAtomValue(resolvedTerminalFontFamilyAtom);
   return useMemo(() => {
     const palette = TERMINAL_THEMES[terminalThemeName];
     const typography: CSSProperties = {
-      fontFamily: codeFontFamily,
+      fontFamily: terminalFontFamily,
       fontSize: terminalFontSize,
       letterSpacing: terminalLetterSpacing,
-      lineHeight: 1.45,
+      lineHeight: TERMINAL_LINE_HEIGHT,
+    };
+    const typographyVariables = {
+      ["--simulator-shell-font-size" as string]: `${terminalFontSize}px`,
+      ["--simulator-shell-font-family" as string]: terminalFontFamily,
+      ["--simulator-shell-letter-spacing" as string]: `${terminalLetterSpacing}px`,
+      ["--simulator-shell-line-height" as string]: String(TERMINAL_LINE_HEIGHT),
     };
 
     return {
@@ -46,9 +54,10 @@ export function useTerminalSurfaceStyle(): TerminalSurfaceStyle {
       errorForeground: palette.red,
       terminalFontSize,
       typography,
+      typographyVariables,
     };
   }, [
-    codeFontFamily,
+    terminalFontFamily,
     terminalFontSize,
     terminalLetterSpacing,
     terminalThemeName,

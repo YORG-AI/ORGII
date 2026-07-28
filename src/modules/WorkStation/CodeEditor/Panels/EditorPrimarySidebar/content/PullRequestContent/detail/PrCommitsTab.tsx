@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import type { GitCommitPerson } from "@src/api/http/git/types";
 import Button from "@src/components/Button";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import GitCommitDetailContent from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/GitCommitDetailContent";
 import GitCommitRow from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent/GitCommitRow";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
@@ -131,7 +132,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
-      <div className="mx-auto w-full max-w-[920px] py-1">
+      <div className={`${DETAIL_PANEL_TOKENS.headerWidth} py-1`}>
         {rows.map((commit) => (
           <GitCommitRow
             key={commit.sha}

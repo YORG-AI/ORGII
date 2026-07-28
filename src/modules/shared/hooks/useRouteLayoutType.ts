@@ -8,7 +8,7 @@ import { useLocation } from "react-router-dom";
 
 import { getSidebarId } from "@src/config/sidebarRegistry";
 
-export type LayoutType = "session" | "home" | "standard";
+export type LayoutType = "session" | "settings" | "standard";
 
 export function useRouteLayoutType(): LayoutType {
   const location = useLocation();
@@ -22,8 +22,8 @@ export function useRouteLayoutType(): LayoutType {
     switch (sidebarId) {
       case "session-sidebar":
         return "session";
-      case "home-sidebar":
-        return "home";
+      case "settings-sidebar":
+        return "settings";
       default:
         return "standard";
     }

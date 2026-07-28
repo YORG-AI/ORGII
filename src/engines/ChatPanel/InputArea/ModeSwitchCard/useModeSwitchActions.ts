@@ -189,6 +189,7 @@ async function switchAgentMode(
       sessionId,
       content: "",
       isResume: true,
+      turnIntentSource: "resume",
       model,
       accountId,
       mode: targetMode,

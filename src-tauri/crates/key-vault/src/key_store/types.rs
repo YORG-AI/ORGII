@@ -106,6 +106,8 @@ pub enum ModelType {
     Autohand,
     Omp,
     Pi,
+    QoderCli,
+    TraeCli,
     // Direct API key providers
     AnthropicApi,
     OpenaiApi,
@@ -171,6 +173,8 @@ impl ModelType {
             ModelType::Autohand => "autohand",
             ModelType::Omp => "omp",
             ModelType::Pi => "pi",
+            ModelType::QoderCli => "qoder_cli",
+            ModelType::TraeCli => "trae_cli",
             // API key providers
             ModelType::AnthropicApi => "anthropic_api",
             ModelType::OpenaiApi => "openai_api",
@@ -230,6 +234,8 @@ impl ModelType {
             "autohand" => Some(ModelType::Autohand),
             "omp" => Some(ModelType::Omp),
             "pi" => Some(ModelType::Pi),
+            "qoder_cli" | "qodercli" => Some(ModelType::QoderCli),
+            "trae_cli" | "trae-agent" => Some(ModelType::TraeCli),
             // API key providers
             "anthropic_api" | "anthropic" => Some(ModelType::AnthropicApi),
             "openai_api" | "openai" => Some(ModelType::OpenaiApi),
@@ -295,6 +301,8 @@ impl ModelType {
                 | ModelType::Autohand
                 | ModelType::Omp
                 | ModelType::Pi
+                | ModelType::QoderCli
+                | ModelType::TraeCli
         )
     }
 

@@ -4,8 +4,16 @@
  * Displays console log entries with filtering and search capabilities.
  */
 import { BrushCleaning, Check, Copy } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
+import { Virtuoso } from "react-virtuoso";
 
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
@@ -63,6 +71,7 @@ function getEntryStyles(level: LogLevel): string {
 }
 
 const MAX_MESSAGE_PREVIEW_LINES = 3;
+const CONSOLE_VIRTUALIZATION_THRESHOLD = 40;
 
 function getMessagePreviewLines(
   message: string,
@@ -222,6 +231,16 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
       new Set()
     );
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+      mountedRef.current = true;
+      return () => {
+        mountedRef.current = false;
+        if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      };
+    }, []);
 
     // Filter entries by level and search query
     const filteredEntries = useMemo(() => {
@@ -245,30 +264,44 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
 
       return result;
     }, [entries, filterLevel, searchQuery]);
+    const retainedEntryIds = useMemo(
+      () => new Set(entries.map((entry) => entry.id)),
+      [entries]
+    );
 
-    const toggleMessageExpanded = useCallback((id: string) => {
-      setExpandedMessageIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    }, []);
+    const toggleMessageExpanded = useCallback(
+      (id: string) => {
+        setExpandedMessageIds((prev) => {
+          const next = new Set(
+            [...prev].filter((entryId) => retainedEntryIds.has(entryId))
+          );
+          if (next.has(id)) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+          return next;
+        });
+      },
+      [retainedEntryIds]
+    );
 
-    const toggleStackExpanded = useCallback((id: string) => {
-      setExpandedStackIds((prev) => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    }, []);
+    const toggleStackExpanded = useCallback(
+      (id: string) => {
+        setExpandedStackIds((prev) => {
+          const next = new Set(
+            [...prev].filter((entryId) => retainedEntryIds.has(entryId))
+          );
+          if (next.has(id)) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+          return next;
+        });
+      },
+      [retainedEntryIds]
+    );
 
     // Copy entry to clipboard
     const handleCopyEntry = useCallback(
@@ -276,12 +309,50 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
         event.stopPropagation();
         const text = `[${entry.level.toUpperCase()}] ${formatTimestamp(entry.timestamp)}\n${entry.message}${entry.stack ? `\n\nStack:\n${entry.stack}` : ""}`;
         void copyText(text).then(() => {
+          if (!mountedRef.current) return;
           setCopiedId(entry.id);
-          setTimeout(() => setCopiedId(null), 1500);
+          if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+          copiedTimerRef.current = setTimeout(() => {
+            copiedTimerRef.current = null;
+            if (mountedRef.current) setCopiedId(null);
+          }, 1500);
         });
       },
       []
     );
+
+    const renderEntry = useCallback(
+      (entry: ConsoleEntry) => (
+        <ConsoleLogEntryRow
+          entry={entry}
+          copiedId={copiedId}
+          messageExpanded={expandedMessageIds.has(entry.id)}
+          stackExpanded={expandedStackIds.has(entry.id)}
+          onToggleMessage={() => toggleMessageExpanded(entry.id)}
+          onToggleStack={() => toggleStackExpanded(entry.id)}
+          onCopy={(event) => handleCopyEntry(entry, event)}
+        />
+      ),
+      [
+        copiedId,
+        expandedMessageIds,
+        expandedStackIds,
+        handleCopyEntry,
+        toggleMessageExpanded,
+        toggleStackExpanded,
+      ]
+    );
+
+    const handleClear = useCallback(() => {
+      setExpandedMessageIds(new Set());
+      setExpandedStackIds(new Set());
+      setCopiedId(null);
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = null;
+      }
+      onClear();
+    }, [onClear]);
 
     return (
       <div className="flex h-full min-w-0 flex-col">
@@ -334,7 +405,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
           <WorkstationToolbarTooltip label={t("tooltips.clearConsole")}>
             <button
               type="button"
-              onClick={onClear}
+              onClick={handleClear}
               className={HEADER_BUTTON.actionTreeRow}
               aria-label={t("tooltips.clearConsole")}
             >
@@ -344,7 +415,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
         </div>
 
         {/* Entries */}
-        <div className="min-w-0 flex-1 select-text overflow-y-auto overflow-x-hidden py-1">
+        <div className="min-w-0 flex-1 select-text overflow-hidden py-1">
           {filteredEntries.length === 0 ? (
             <Placeholder
               variant="empty"
@@ -352,19 +423,22 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
               title={t("placeholders.noOutput")}
               fillParentHeight
             />
+          ) : filteredEntries.length > CONSOLE_VIRTUALIZATION_THRESHOLD ? (
+            <Virtuoso
+              className="h-full overflow-x-hidden"
+              data={filteredEntries}
+              computeItemKey={(_index, entry) => entry.id}
+              increaseViewportBy={200}
+              itemContent={(_index, entry) => renderEntry(entry)}
+            />
           ) : (
-            filteredEntries.map((entry) => (
-              <ConsoleLogEntryRow
-                key={entry.id}
-                entry={entry}
-                copiedId={copiedId}
-                messageExpanded={expandedMessageIds.has(entry.id)}
-                stackExpanded={expandedStackIds.has(entry.id)}
-                onToggleMessage={() => toggleMessageExpanded(entry.id)}
-                onToggleStack={() => toggleStackExpanded(entry.id)}
-                onCopy={(event) => handleCopyEntry(entry, event)}
-              />
-            ))
+            <div className="h-full overflow-y-auto overflow-x-hidden">
+              {filteredEntries.map((entry) => (
+                <React.Fragment key={entry.id}>
+                  {renderEntry(entry)}
+                </React.Fragment>
+              ))}
+            </div>
           )}
         </div>
       </div>

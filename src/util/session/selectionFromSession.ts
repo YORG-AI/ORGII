@@ -9,8 +9,8 @@
  *  - src/engines/ChatPanel/hooks/useWorkspaceChat/useMessageDispatch.ts
  */
 import { isHostedKey } from "@src/api/tauri/session";
-import type { Session } from "@src/store/session";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
+import type { Session } from "@src/store/session/sessionAtom/types";
 
 export function selectionFromSession(
   session: Session | undefined,

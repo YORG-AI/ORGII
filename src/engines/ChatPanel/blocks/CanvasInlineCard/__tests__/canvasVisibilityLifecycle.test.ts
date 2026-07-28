@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   type CanvasPreviewEntry,
+  clearCanvasOnSessionSwitch,
   deriveCanvasForSessionSnapshot,
   dismissCanvasForSession,
 } from "@src/store/session/canvasPreviewAtom";
@@ -106,6 +107,22 @@ describe("canvas visibility lifecycle", () => {
     it("returns null when called with null entry", () => {
       const result = dismissCanvasForSession(null, "session-1");
       expect(result).toBeNull();
+    });
+  });
+
+  describe("clearCanvasOnSessionSwitch", () => {
+    it("clears the single stored entry when switching sessions", () => {
+      expect(
+        clearCanvasOnSessionSwitch(makeEntry(), "session-1", "session-2")
+      ).toBeNull();
+    });
+
+    it("preserves the entry for same-session reloads and first load", () => {
+      const entry = makeEntry();
+      expect(clearCanvasOnSessionSwitch(entry, "session-1", "session-1")).toBe(
+        entry
+      );
+      expect(clearCanvasOnSessionSwitch(entry, null, "session-1")).toBe(entry);
     });
   });
 

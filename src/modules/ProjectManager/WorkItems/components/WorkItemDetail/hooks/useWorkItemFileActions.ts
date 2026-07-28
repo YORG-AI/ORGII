@@ -1,12 +1,17 @@
+import { useAtomValue } from "jotai";
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { ROUTES } from "@src/config/routes";
-import { queueFileOpens } from "@src/store/workstation/tabs";
+import {
+  presentedWorkstationWorkspaceKeyAtom,
+  queueFileOpens,
+} from "@src/store/workstation/tabs";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 
 export function useWorkItemFileActions(repoPath?: string | null) {
   const navigate = useNavigate();
+  const workspace = useAtomValue(presentedWorkstationWorkspaceKeyAtom);
 
   const resolvePath = useCallback(
     (filePath: string) => {
@@ -24,7 +29,7 @@ export function useWorkItemFileActions(repoPath?: string | null) {
         line: file.line,
       }));
 
-      queueFileOpens(resolved);
+      queueFileOpens(workspace, resolved);
 
       for (const { path, line } of resolved) {
         openFileInEditor(path, { line });
@@ -32,7 +37,7 @@ export function useWorkItemFileActions(repoPath?: string | null) {
 
       navigate(ROUTES.workStation.code.path);
     },
-    [resolvePath, navigate]
+    [resolvePath, navigate, workspace]
   );
 
   const handleOpenFileDiff = useCallback(

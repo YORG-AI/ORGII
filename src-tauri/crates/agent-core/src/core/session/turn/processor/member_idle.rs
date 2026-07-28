@@ -383,10 +383,45 @@ mod tests {
         }
     }
 
-    fn seed_lifecycle_task(id: &str, mode: TaskExecutionMode, status: TaskStatus) {
+    fn seed_lifecycle_run() -> String {
+        crate::coordination::agent_org_runs::AgentOrgRunStore::create(
+            crate::coordination::agent_org_runs::CreateAgentOrgRunParams {
+                org_id: "org-lifecycle-gate".to_string(),
+                coordinator_agent_id: "coordinator".to_string(),
+                root_session_id: None,
+                org_snapshot: crate::definitions::orgs::OrgDefinition {
+                    id: "org-lifecycle-gate".to_string(),
+                    name: "Lifecycle Gate Test Org".to_string(),
+                    role: "coordinator".to_string(),
+                    agent_id: "coordinator".to_string(),
+                    description: None,
+                    hierarchy_mode: Default::default(),
+                    plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+                    children: vec![crate::definitions::orgs::OrgMember {
+                        id: "member-worker".to_string(),
+                        name: "Worker".to_string(),
+                        role: "builder".to_string(),
+                        agent_id: "worker-agent".to_string(),
+                        runtime_config: None,
+                        children: Vec::new(),
+                    }],
+                },
+                entry_mode:
+                    crate::coordination::agent_org_runs::AgentOrgRunEntryMode::StandaloneSession,
+                status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Running,
+                work_item_id: None,
+                project_slug: None,
+                routine_fire_id: None,
+            },
+        )
+        .expect("seed lifecycle run")
+        .id
+    }
+
+    fn seed_lifecycle_task(run_id: &str, id: &str, mode: TaskExecutionMode, status: TaskStatus) {
         AgentOrgTaskStore::create(CreateTaskParams {
             id: id.to_string(),
-            org_run_id: "run-lifecycle-gate".to_string(),
+            org_run_id: run_id.to_string(),
             subject: id.to_string(),
             description: String::new(),
             active_form: None,
@@ -407,23 +442,27 @@ mod tests {
         let conn = database::db::get_connection().expect("db");
         crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
         crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        let run_id = seed_lifecycle_run();
         seed_lifecycle_task(
+            &run_id,
             "build-open",
             TaskExecutionMode::Build,
             TaskStatus::InProgress,
         );
         seed_lifecycle_task(
+            &run_id,
             "build-done",
             TaskExecutionMode::Build,
             TaskStatus::Completed,
         );
         seed_lifecycle_task(
+            &run_id,
             "plan-awaiting-approval",
             TaskExecutionMode::Plan,
             TaskStatus::InProgress,
         );
 
-        let feedback = task_lifecycle_stop_feedback("run-lifecycle-gate", "member-worker")
+        let feedback = task_lifecycle_stop_feedback(&run_id, "member-worker")
             .expect("lifecycle check")
             .expect("unfinished build task should stop the turn once");
         assert!(feedback.contains("build-open"));
@@ -437,15 +476,16 @@ mod tests {
         let conn = database::db::get_connection().expect("db");
         crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
         crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+        let run_id = seed_lifecycle_run();
         seed_lifecycle_task(
+            &run_id,
             "plan-awaiting-approval",
             TaskExecutionMode::Plan,
             TaskStatus::InProgress,
         );
 
         assert_eq!(
-            task_lifecycle_stop_feedback("run-lifecycle-gate", "member-worker")
-                .expect("lifecycle check"),
+            task_lifecycle_stop_feedback(&run_id, "member-worker").expect("lifecycle check"),
             None
         );
     }

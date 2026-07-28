@@ -153,19 +153,23 @@ describe("Agent Org recovery and intervention rendered UI", () => {
       );
     }
 
+    await waitForInboxRow(
+      sessionId,
+      (row) => {
+        const payload = parseInboxPayload(row, "failed member idle row");
+        return (
+          row.payloadKind === "member_idle" &&
+          row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
+          payload.member_id === planner.memberId &&
+          payload.reason === "failed" &&
+          payload.failure_reason === failureReason
+        );
+      },
+      "failed member idle row"
+    );
     await waitForAgentOrgRunView(
       sessionId,
       (view) => {
-        const failedIdleRow = (view?.inbox ?? []).some((row) => {
-          const payload = JSON.parse(String(row.payloadJson ?? "{}"));
-          return (
-            row.payloadKind === "member_idle" &&
-            row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-            payload.member_id === planner.memberId &&
-            payload.reason === "failed" &&
-            payload.failure_reason === failureReason
-          );
-        });
         const releasedTask = (view?.tasks ?? []).find(
           (task) => task.id === releasedTaskId
         );
@@ -174,7 +178,6 @@ describe("Agent Org recovery and intervention rendered UI", () => {
             task.status !== AGENT_ORG_TASK_STATUS.IN_PROGRESS || !!task.owner
         );
         return Boolean(
-          failedIdleRow &&
           releasedTask?.status === AGENT_ORG_TASK_STATUS.PENDING &&
           !releasedTask.owner &&
           noOwnerlessInProgress
@@ -313,7 +316,8 @@ describe("Agent Org recovery and intervention rendered UI", () => {
         row.senderName === plannerName &&
         row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
         row.recipientName === coordinatorName &&
-        String(row.payloadJson ?? "").includes(routeSummary),
+        parseInboxPayload(row, "planner to coordinator route").summary ===
+          routeSummary,
       "planner to coordinator inbox row names"
     );
     await assertRenderedInboxPinBarAbsent(
@@ -385,7 +389,11 @@ describe("Agent Org recovery and intervention rendered UI", () => {
     );
 
     const longTaskId = `true-positive-long-task-${RUN_ID}`;
-    const longSubject = `Long Agent Org task ${RUN_ID}: ${"rendered task text must stay collapsed until the user explicitly expands it ".repeat(8)}`;
+    const longSubject =
+      `Long Agent Org task ${RUN_ID}: ${"rendered task text must stay collapsed until the user explicitly expands it ".repeat(8)}`.slice(
+        0,
+        190
+      );
     await createLongTaskPrecondition(
       plannerSessionId,
       longTaskId,

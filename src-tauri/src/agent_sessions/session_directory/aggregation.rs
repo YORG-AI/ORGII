@@ -23,13 +23,16 @@ use orgtrack_core::sources::cursor_ide::history::CursorIdeSessionPage;
 use orgtrack_core::sources::imported_history::cache as imported_history_cache;
 use orgtrack_core::sources::imported_history::metadata::{
     SOURCE_CLAUDE_CODE, SOURCE_CLINE, SOURCE_CODEX_APP, SOURCE_CURSOR_CLI, SOURCE_CURSOR_IDE,
-    SOURCE_OPENCODE, SOURCE_QODER, SOURCE_TRAE, SOURCE_WARP, SOURCE_WINDSURF, SOURCE_WORKBUDDY,
-    SOURCE_ZCODE,
+    SOURCE_MIMO_CODE, SOURCE_OMP, SOURCE_OPENCODE, SOURCE_QODER, SOURCE_QODER_CLI, SOURCE_TRAE,
+    SOURCE_WARP, SOURCE_WINDSURF, SOURCE_WORKBUDDY, SOURCE_ZCODE,
 };
 use orgtrack_core::sources::imported_history::ImportedHistorySessionPage;
 use orgtrack_core::sources::imported_history::IMPORTED_STATUS_COMPLETED;
+use orgtrack_core::sources::mimo_code::history as mimo_code_history;
+use orgtrack_core::sources::omp::history as omp_history;
 use orgtrack_core::sources::opencode::history as opencode_history;
 use orgtrack_core::sources::qoder::history as qoder_history;
+use orgtrack_core::sources::qoder_cli::history as qoder_cli_history;
 use orgtrack_core::sources::trae::history as trae_history;
 use orgtrack_core::sources::warp::history as warp_history;
 use orgtrack_core::sources::windsurf::history as windsurf_history;
@@ -40,8 +43,8 @@ const AGENT_ORG_ICON_ID: &str = "network";
 
 use super::conversion::{
     cli_session_to_aggregate_record, cursor_ide_history_to_aggregate_record,
-    imported_history_to_aggregate_record, os_session_to_aggregate_record,
-    sde_session_to_aggregate_record, AgentMetadataResolver,
+    human_session_to_aggregate_record, imported_history_to_aggregate_record,
+    os_session_to_aggregate_record, sde_session_to_aggregate_record, AgentMetadataResolver,
 };
 use super::display::matches_text_query;
 use super::types::{SessionAggregateRecord, SessionFilter, SessionListResponse};
@@ -166,6 +169,33 @@ fn load_qoder_external_history_page(
         .map(ExternalHistoryPage::Imported)
 }
 
+fn load_mimo_code_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    mimo_code_history::list_mimo_code_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_omp_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    omp_history::list_omp_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
+fn load_qoder_cli_external_history_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    qoder_cli_history::list_qoder_cli_history_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::Imported)
+}
+
 const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
     ExternalHistorySourceLoader {
         source: SOURCE_CLAUDE_CODE,
@@ -215,23 +245,36 @@ const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
         source: SOURCE_QODER,
         load_page: load_qoder_external_history_page,
     },
+    ExternalHistorySourceLoader {
+        source: SOURCE_MIMO_CODE,
+        load_page: load_mimo_code_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_OMP,
+        load_page: load_omp_external_history_page,
+    },
+    ExternalHistorySourceLoader {
+        source: SOURCE_QODER_CLI,
+        load_page: load_qoder_cli_external_history_page,
+    },
 ];
 
-/// Force a source's on-disk store to be re-read and its metadata cache
-/// re-synced, discarding the returned page. This runs the exact sync the
+/// Discover a source's current records and incrementally re-sync its metadata
+/// cache, discarding the returned page. This runs the exact sync the
 /// sidebar/list path performs (re-parsing every record whose signature changed,
-/// e.g. after a parser-version bump), so the manual "Rescan" action can refresh
-/// counts and names immediately instead of waiting for a lazy list load.
+/// e.g. after a parser-version bump), so a manual update can refresh counts and
+/// names immediately instead of waiting for a lazy list load.
 pub fn resync_external_history_source(
     conn: &mut rusqlite::Connection,
     source: &str,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     let loader = EXTERNAL_HISTORY_SOURCE_LOADERS
         .iter()
         .find(|loader| loader.source == source)
         .ok_or_else(|| format!("Unknown external history source: {source}"))?;
+    let changes_before = conn.total_changes();
     (loader.load_page)(conn, IMPORTED_HISTORY_PAGE_SIZE, 0)?;
-    Ok(())
+    Ok(conn.total_changes() > changes_before)
 }
 
 fn append_external_history_page(
@@ -282,7 +325,9 @@ fn decorate_imported_live_status(records: &mut [SessionAggregateRecord]) {
         }
         if record.status == IMPORTED_STATUS_COMPLETED {
             let recently_updated = DateTime::parse_from_rfc3339(&record.updated_at)
-                .map(|updated| now_ms - updated.timestamp_millis() < IMPORTED_MTIME_ACTIVE_WINDOW_MS)
+                .map(|updated| {
+                    now_ms - updated.timestamp_millis() < IMPORTED_MTIME_ACTIVE_WINDOW_MS
+                })
                 .unwrap_or(false);
             if recently_updated {
                 record.status = "running".to_string();
@@ -308,12 +353,20 @@ fn load_imported_history_sessions(
         .and_then(|filter| filter.session_ids.as_ref())
         .filter(|session_ids| !session_ids.is_empty())
     {
+        let include_superseded = filter
+            .and_then(|filter| filter.include_continuation_superseded)
+            .unwrap_or(false);
         for session_id in session_ids {
-            let Some((source, session)) =
+            let resolved = if include_superseded {
+                imported_history_cache::query_cached_session_by_session_id_including_superseded_from_conn(
+                    &conn, session_id,
+                )?
+            } else {
                 imported_history_cache::query_cached_session_by_session_id_from_conn(
                     &conn, session_id,
                 )?
-            else {
+            };
+            let Some((source, session)) = resolved else {
                 continue;
             };
             if source_filter.is_some_and(|expected| expected != source.as_str())
@@ -373,7 +426,9 @@ fn load_imported_history_sessions(
 /// The filter is destructured exhaustively on purpose: adding a field to
 /// `SessionFilter` must fail compilation here so the new field's fast-path
 /// semantics are decided explicitly.
-fn plain_native_page(filter: Option<&SessionFilter>) -> Result<Option<SessionListResponse>, String> {
+fn plain_native_page(
+    filter: Option<&SessionFilter>,
+) -> Result<Option<SessionListResponse>, String> {
     let Some(filter) = filter else {
         return Ok(None);
     };
@@ -397,6 +452,9 @@ fn plain_native_page(filter: Option<&SessionFilter>) -> Result<Option<SessionLis
         created_after_ms,
         created_before_ms,
         active_only,
+        // Only meaningful with session_ids, and plain requires session_ids
+        // to be absent, so the flag cannot affect the fast path.
+        include_continuation_superseded: _,
     } = filter;
 
     let plain = session_ids.is_none()
@@ -467,6 +525,19 @@ fn plain_native_page(filter: Option<&SessionFilter>) -> Result<Option<SessionLis
             let mut resolver = AgentMetadataResolver::new();
             page.into_iter()
                 .map(|session| os_session_to_aggregate_record(session, &mut resolver))
+                .collect::<Vec<_>>()
+        }
+        Some("human") => {
+            let human_filter = agent_core::session::SessionListFilter {
+                type_name: Some(session_type::HUMAN.to_string()),
+                limit: Some(limit),
+                offset: Some(offset),
+                ..Default::default()
+            };
+            session_persistence::list_sessions(&human_filter)
+                .map_err(|err| format!("Failed to load Human session page: {err}"))?
+                .into_iter()
+                .map(human_session_to_aggregate_record)
                 .collect::<Vec<_>>()
         }
         None => return plain_directory_page(filter, limit, offset),
@@ -589,6 +660,9 @@ fn plain_directory_page(
                         t if t == session_type::DESKTOP => {
                             sessions.push(os_session_to_aggregate_record(record, &mut resolver));
                         }
+                        t if t == session_type::HUMAN => {
+                            sessions.push(human_session_to_aggregate_record(record));
+                        }
                         // Gateway/subagent/custom sessions are infrastructure
                         // the merge path never lists either.
                         _ => continue,
@@ -639,6 +713,7 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
             .is_some();
     let load_agent = wants_category("agent");
     let load_os = wants_category("os");
+    let load_human = wants_category("human");
     let mut all_sessions: Vec<SessionAggregateRecord> = Vec::new();
     let mut metadata_resolver = (load_agent || load_os).then(AgentMetadataResolver::new);
 
@@ -709,6 +784,19 @@ pub fn list_all_sessions(filter: Option<&SessionFilter>) -> Result<SessionListRe
         for session in os_sessions {
             all_sessions.push(os_session_to_aggregate_record(session, resolver));
         }
+    }
+    if load_human {
+        let human_filter = agent_core::session::SessionListFilter {
+            type_name: Some(session_type::HUMAN.to_string()),
+            ..Default::default()
+        };
+        let human_sessions = session_persistence::list_sessions(&human_filter)
+            .map_err(|err| format!("Failed to load Human sessions: {err}"))?;
+        all_sessions.extend(
+            human_sessions
+                .into_iter()
+                .map(human_session_to_aggregate_record),
+        );
     }
     // Apply filters
     if let Some(filter) = filter {
@@ -863,9 +951,9 @@ fn apply_sorting(sessions: &mut [SessionAggregateRecord], filter: Option<&Sessio
         }
         "name" => {
             if sort_desc {
-                sessions.sort_by(|a, b| b.name.to_lowercase().cmp(&a.name.to_lowercase()));
+                sessions.sort_by_key(|session| std::cmp::Reverse(session.name.to_lowercase()));
             } else {
-                sessions.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+                sessions.sort_by_key(|a| a.name.to_lowercase());
             }
         }
         _ => {
@@ -957,6 +1045,8 @@ mod tests {
             external_history_source: None,
             user_input: None,
             repo_path: None,
+            repo_root_path: None,
+            repo_remote_urls: None,
             storage_path: None,
             repo_name: None,
             branch: None,

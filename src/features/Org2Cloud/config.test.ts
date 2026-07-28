@@ -6,9 +6,11 @@ import {
   ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
   ORG2_CLOUD_OFFICIAL_WEB_ORIGIN,
   Org2CloudEndpointOverrideSchema,
+  buildCloudAuthBridgeUrl,
   buildCloudAuthCallbackUrl,
   buildCloudBillingLoginUrl,
   buildOrg2CloudLoginUrl,
+  configureCloudAuthCallbackForIdentifier,
   getCloudEndpoint,
 } from "./config";
 
@@ -27,6 +29,7 @@ function storeOverride(value: unknown): void {
 
 afterEach(() => {
   localStorage.removeItem(ORG2_CLOUD_ENDPOINT_OVERRIDE_STORAGE_KEY);
+  configureCloudAuthCallbackForIdentifier("yorg.orgii");
 });
 
 describe("getCloudEndpoint", () => {
@@ -81,6 +84,28 @@ describe("buildCloudAuthCallbackUrl", () => {
     expect(buildCloudAuthCallbackUrl("not a scheme")).toBe(
       "orgii://auth/callback"
     );
+  });
+
+  it("derives an isolated callback from the runtime Tauri identifier", () => {
+    expect(
+      configureCloudAuthCallbackForIdentifier("yorg.orgii.instance2")
+    ).toBe("orgii-instance2://auth/callback");
+    expect(
+      new URL(buildOrg2CloudLoginUrl()).searchParams.get("return_to")
+    ).toBe("orgii-instance2://auth/callback");
+  });
+
+  it("rejects malformed and unbounded runtime instance identifiers", () => {
+    for (const identifier of [
+      "yorg.orgii.instance1",
+      "yorg.orgii.instance100",
+      "yorg.orgii.instance2.extra",
+      "other.orgii.instance2",
+    ]) {
+      expect(configureCloudAuthCallbackForIdentifier(identifier)).toBe(
+        "orgii://auth/callback"
+      );
+    }
   });
 });
 
@@ -160,12 +185,40 @@ describe("buildCloudBillingLoginUrl", () => {
   });
 });
 
+describe("buildCloudAuthBridgeUrl", () => {
+  it("targets the official web origin by default", () => {
+    expect(buildCloudAuthBridgeUrl()).toBe(
+      `${ORG2_CLOUD_OFFICIAL_WEB_ORIGIN}/api/auth/bridge`
+    );
+  });
+
+  it("follows a custom endpoint's web origin", () => {
+    storeOverride(OVERRIDE);
+    expect(buildCloudAuthBridgeUrl()).toBe(
+      `${OVERRIDE.webOrigin}/api/auth/bridge`
+    );
+  });
+
+  it("uses an explicitly passed origin", () => {
+    expect(buildCloudAuthBridgeUrl("https://cloud.other.dev")).toBe(
+      "https://cloud.other.dev/api/auth/bridge"
+    );
+  });
+});
+
 describe("buildOrg2CloudLoginUrl", () => {
   it("keeps the login URL on the same origin with the deep-link return", () => {
     const url = new URL(buildOrg2CloudLoginUrl());
     expect(url.origin).toBe(ORG2_CLOUD_OFFICIAL_WEB_ORIGIN);
     expect(url.pathname).toBe("/login");
     expect(url.searchParams.get("return_to")).toBe("orgii://auth/callback");
+  });
+
+  it("accepts an ephemeral loopback return for tauri dev", () => {
+    const callback =
+      "http://localhost:43123/org2-cloud/auth/callback?state=b8c71b7e-7ac6-4ebd-aeab-c1976bb01e9d";
+    const url = new URL(buildOrg2CloudLoginUrl(callback));
+    expect(url.searchParams.get("return_to")).toBe(callback);
   });
 
   it("follows a custom endpoint's web origin", () => {

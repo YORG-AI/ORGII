@@ -16,7 +16,7 @@
   }
 
   &__hover-target {
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
 
     &:hover + .gantt-dependency-lines__line {
       stroke: var(--color-primary-6);

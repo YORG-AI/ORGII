@@ -351,7 +351,7 @@ impl std::fmt::Display for ScanError {
 fn scan_platform_listening_ports() -> Result<Vec<RawListeningPort>, ScanError> {
     #[cfg(target_os = "macos")]
     {
-        return scan_darwin_lsof_ports();
+        scan_darwin_lsof_ports()
     }
     #[cfg(target_os = "linux")]
     {

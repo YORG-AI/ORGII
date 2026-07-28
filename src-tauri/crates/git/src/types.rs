@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 
 /// A single entry in the working-directory file list reported by `git status`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkingDirectoryFile {
     pub path: String,
     /// Single-character status code: M, A, D, R, C, U, ?, !

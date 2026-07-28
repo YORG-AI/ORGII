@@ -25,7 +25,7 @@ src/util/
 │   ├── state/
 │   │   ├── atomTracker.ts      # Jotai atom tracking & debugging
 │   │   ├── instrumentedStore.ts # Instrumented Jotai store
-│   │   └── windowScopedState.tsx # Window-scoped state management
+│   │   └── windowId.ts         # Storage-safe per-window identity
 │   ├── storage/
 │   │   ├── backgroundImage.ts   # Background image storage
 │   │   ├── cleanup.ts           # Storage cleanup utilities
@@ -250,7 +250,7 @@ import {
 
 - **`atomTracker.ts`** - Debug and track Jotai atom updates
 - **`instrumentedStore.ts`** - Performance-instrumented Jotai store
-- **`windowScopedState.tsx`** - Window-specific state isolation
+- **`windowId.ts`** - Storage-safe per-window identity
 
 #### Storage
 

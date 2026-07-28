@@ -1,11 +1,10 @@
 import { useSetAtom } from "jotai";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import {
   type ChatPanelHeaderContribution,
   type ChatPanelHeaderSlots,
   chatPanelHeaderSlotsAtom,
-  normalizeChatPanelHeaderContribution,
 } from "./chatPanelHeaderSlots";
 
 interface UsePublishChatPanelHeaderOptions {
@@ -18,10 +17,6 @@ export function usePublishChatPanelHeader({
   enabled = true,
 }: UsePublishChatPanelHeaderOptions): void {
   const setHeader = useSetAtom(chatPanelHeaderSlotsAtom);
-  const normalizedContent = useMemo(
-    () => normalizeChatPanelHeaderContribution(content),
-    [content]
-  );
   const ownedContentRef = useRef<ChatPanelHeaderSlots | null>(null);
 
   useLayoutEffect(() => {
@@ -33,9 +28,9 @@ export function usePublishChatPanelHeader({
       return;
     }
 
-    ownedContentRef.current = normalizedContent;
-    setHeader(normalizedContent);
-  }, [enabled, normalizedContent, setHeader]);
+    ownedContentRef.current = content;
+    setHeader(content);
+  }, [content, enabled, setHeader]);
 
   useLayoutEffect(() => {
     return () => {

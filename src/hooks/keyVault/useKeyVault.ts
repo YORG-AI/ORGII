@@ -154,6 +154,7 @@ export function useKeyVault(
     accounts,
     localAccounts,
     loading: local.loading,
+    hasLoaded: local.hasLoaded,
     error: local.error,
     refresh,
     refreshAccount,

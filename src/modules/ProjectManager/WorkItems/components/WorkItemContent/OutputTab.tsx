@@ -30,6 +30,7 @@ const OutputTab: React.FC<OutputTabContentProps> = ({
   const isLiveSde = phase === "sde";
 
   const liveDiffStats = useLiveDiffStats({
+    sessionId: workItem.session_id,
     repoPath,
     branch: proofOfWork?.branch,
     isLive: isLiveSde,

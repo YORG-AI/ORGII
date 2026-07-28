@@ -9,6 +9,7 @@
 import { useAtomValue, useStore } from "jotai";
 import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 
+import { persistedScopeKeysForImportedSession } from "@src/features/TeamCollaboration/importedSessionScopeMatch";
 import {
   getShareableScopeKeyVersion,
   peekShareableScopeKeys,
@@ -35,6 +36,8 @@ import { getActiveCloudShareOrgsForSession } from "./shareEligibility";
  * re-renders the consumer when the keys land).
  */
 function getSessionScopeKeys(session: Session): string[] | null | undefined {
+  const persistedKeys = persistedScopeKeysForImportedSession(session);
+  if (persistedKeys !== undefined) return persistedKeys;
   if (!session.repoPath) return null;
   const keys = peekShareableScopeKeys(session.repoPath);
   if (keys === undefined) primeShareableScopeKey(session.repoPath);

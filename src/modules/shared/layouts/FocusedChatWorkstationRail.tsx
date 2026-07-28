@@ -5,6 +5,8 @@ import {
   File,
   FileDiff,
   Folder,
+  FolderGit2,
+  GitBranch,
   Globe,
   type LucideIcon,
   SquareTerminal,
@@ -21,8 +23,10 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { getTerminalDisplayTitle } from "@src/engines/TerminalCore/types";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
+import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { useCloseTabWithGuard } from "@src/hooks/workStation/tabs/useCloseTabWithGuard";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
@@ -40,7 +44,10 @@ import {
   setActiveTerminalAtom,
   terminalSessionsAtom,
 } from "@src/store/workstation/codeEditor/terminal";
-import { codeEditorTerminalTargetAtom } from "@src/store/workstation/codeEditor/terminalTargetAtom";
+import {
+  clearTerminalTargetReferencesAtom,
+  codeEditorTerminalTargetAtom,
+} from "@src/store/workstation/codeEditor/terminalTargetAtom";
 import {
   type WorkstationTabHost,
   tabToHost,
@@ -56,7 +63,7 @@ const FOCUSED_CHAT_RAIL_COLLAPSED_KEY =
 
 const FOCUSED_CHAT_RAIL_SECTIONS = [
   { key: "tabs", label: "Open Tabs" },
-  { key: "workspace" },
+  { key: "workspace", label: null },
 ] as const;
 
 type FocusedChatRailItem = {
@@ -72,6 +79,26 @@ type FocusedChatRailItem = {
   additions?: number;
   deletions?: number;
 };
+
+function WorkspaceContextRow({
+  icon: Icon,
+  label,
+}: {
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <div
+      className="flex h-7 min-w-0 items-center gap-1.5 overflow-hidden rounded-lg px-2 text-text-1"
+      title={label}
+    >
+      <div className="shrink-0 text-text-1">
+        <Icon size={14} />
+      </div>
+      <span className="min-w-0 flex-1 truncate text-[12px]">{label}</span>
+    </div>
+  );
+}
 
 const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
   code: ROUTES.workStation.code.path,
@@ -124,11 +151,15 @@ export function FocusedChatWorkstationRail() {
     chatPanelSurface.kind === CHAT_PANEL_SURFACE_KIND.WORK_ITEM;
 
   const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
+  const repoName =
+    activeWorkspaceRoot?.repo?.name ?? activeWorkspaceRoot?.name ?? undefined;
+  const { currentBranch } = useRepoSelection({ autoLoad: false });
+  const branchName = currentBranch || undefined;
 
-  // Working-tree +/- shown on the Review row, matching the branch pill's badge.
-  const { repoId, repoPath } = useActiveRepoRef();
+  // Working-tree +/- shown on the Review row.
+  const { repoId, repoPath: activeRepoPath } = useActiveRepoRef();
   const { additions: reviewAdditions, deletions: reviewDeletions } =
-    useWorkingTreeDiffTotals(repoId, repoPath);
+    useWorkingTreeDiffTotals(repoId, activeRepoPath);
 
   const tabEntries = useAtomValue(tabRegistryAtom);
   const terminalSessions = useAtomValue(terminalSessionsAtom);
@@ -137,7 +168,9 @@ export function FocusedChatWorkstationRail() {
   const setFocusedTab = useSetAtom(focusTabAtom);
   const setActiveTerminal = useSetAtom(setActiveTerminalAtom);
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
-  const terminalTarget = useAtomValue(codeEditorTerminalTargetAtom);
+  const clearTerminalTargetReferences = useSetAtom(
+    clearTerminalTargetReferencesAtom
+  );
   const closeTerminalSession = useSetAtom(closeTerminalSessionAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
@@ -186,14 +219,9 @@ export function FocusedChatWorkstationRail() {
   const closePtySession = useCallback(
     (sessionId: string) => {
       void closeTerminalSession(sessionId);
-      if (
-        terminalTarget?.kind === "pty" &&
-        terminalTarget.ptySessionId === sessionId
-      ) {
-        setTerminalTarget(null);
-      }
+      clearTerminalTargetReferences(sessionId);
     },
-    [closeTerminalSession, setTerminalTarget, terminalTarget]
+    [clearTerminalTargetReferences, closeTerminalSession]
   );
 
   const openTabItems = useMemo<FocusedChatRailItem[]>(() => {
@@ -310,7 +338,6 @@ export function FocusedChatWorkstationRail() {
       : []),
     {
       ...FOCUSED_CHAT_RAIL_SECTIONS[1],
-      label: activeWorkspaceRoot?.name ?? "Workspace",
       items: workspaceItems,
     },
   ];
@@ -320,30 +347,48 @@ export function FocusedChatWorkstationRail() {
   }
 
   return (
-    <div className="pointer-events-none absolute right-1 top-12 z-20 hidden xl:flex">
+    <div className="pointer-events-none absolute right-1 top-[88px] z-20 hidden xl:flex">
       <div
-        className={`pointer-events-auto flex bg-bg-2/90 transition-all ${
+        data-workstation-pane-control
+        className={`pointer-events-auto flex transition-all ${EDITOR_TAB_CANVAS_BG_CLASS} ${
           collapsed
             ? "flex-col items-center rounded-xl border-[1px] border-border-1 p-1"
             : "w-64 flex-col rounded-xl border-[1px] border-border-1 p-1"
         }`}
       >
-        <button
-          type="button"
-          className="text-text-tertiary hover:text-text-primary mb-1 flex h-7 w-7 items-center justify-center self-end rounded-lg transition hover:bg-fill-2"
-          onClick={() =>
-            setCollapsed((value) => {
-              const nextValue = !value;
-              persistRailCollapsed(nextValue);
-              return nextValue;
-            })
-          }
-          aria-label={
-            collapsed ? "Expand workstation info" : "Collapse workstation info"
-          }
+        <div
+          className={`mb-1 flex h-7 items-center ${
+            collapsed ? "justify-center" : "w-full justify-between"
+          }`}
         >
-          {collapsed ? <ChevronsLeft size={14} /> : <ChevronsRight size={14} />}
-        </button>
+          {!collapsed && (
+            <div className="text-text-tertiary min-w-0 truncate px-1 text-[11px] font-medium uppercase tracking-wide">
+              {t("navigation:labels.environment")}
+            </div>
+          )}
+          <button
+            type="button"
+            className="text-text-tertiary hover:text-text-primary flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition hover:bg-fill-2"
+            onClick={() =>
+              setCollapsed((value) => {
+                const nextValue = !value;
+                persistRailCollapsed(nextValue);
+                return nextValue;
+              })
+            }
+            aria-label={
+              collapsed
+                ? "Expand workstation info"
+                : "Collapse workstation info"
+            }
+          >
+            {collapsed ? (
+              <ChevronsLeft size={14} />
+            ) : (
+              <ChevronsRight size={14} />
+            )}
+          </button>
+        </div>
 
         {collapsed ? (
           <div className="flex flex-col items-center gap-1">
@@ -375,9 +420,24 @@ export function FocusedChatWorkstationRail() {
           <div className="space-y-3">
             {sections.map((section) => (
               <div key={section.key}>
-                <div className="text-text-tertiary mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide">
-                  {section.label}
-                </div>
+                {section.label && (
+                  <div className="text-text-tertiary mb-1.5 px-1 text-[11px] font-medium uppercase tracking-wide">
+                    {section.label}
+                  </div>
+                )}
+                {section.key === "workspace" && (repoName || branchName) && (
+                  <div className="mb-1.5 space-y-1">
+                    {repoName && (
+                      <WorkspaceContextRow icon={FolderGit2} label={repoName} />
+                    )}
+                    {branchName && (
+                      <WorkspaceContextRow
+                        icon={GitBranch}
+                        label={branchName}
+                      />
+                    )}
+                  </div>
+                )}
                 <div className="space-y-1">
                   {section.items.map((item) => {
                     const Icon = item.icon;

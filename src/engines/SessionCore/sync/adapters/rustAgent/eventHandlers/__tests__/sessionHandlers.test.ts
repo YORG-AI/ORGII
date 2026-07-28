@@ -29,7 +29,6 @@ function ref<T>(value: T): { current: T } {
 function createCtx(): EventHandlerContext {
   return {
     filterSessionIdRef: ref("session-1"),
-    execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(undefined),
     onContextUsageRef: ref(undefined),
     onTokenUpdateRef: ref(undefined),

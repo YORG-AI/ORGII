@@ -42,6 +42,8 @@ pub enum CliAgentType {
     Autohand,
     Omp,
     Pi,
+    QoderCli,
+    TraeCli,
 }
 
 impl CliAgentType {
@@ -75,6 +77,8 @@ impl CliAgentType {
             Self::Autohand => "autohand",
             Self::Omp => "omp",
             Self::Pi => "pi",
+            Self::QoderCli => "qoder_cli",
+            Self::TraeCli => "trae_cli",
         }
     }
 
@@ -108,6 +112,8 @@ impl CliAgentType {
             "autohand" => Some(Self::Autohand),
             "omp" => Some(Self::Omp),
             "pi" => Some(Self::Pi),
+            "qoder_cli" | "qodercli" => Some(Self::QoderCli),
+            "trae_cli" | "trae-agent" => Some(Self::TraeCli),
             _ => None,
         }
     }

@@ -24,7 +24,10 @@ import type {
   SessionLaunchOrgContext,
   SessionSource,
 } from "@src/store/session/creatorStateAtom";
-import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
+import {
+  type WorktreeLaunchSelection,
+  resolveWorktreeSelectionRepoKey,
+} from "@src/store/session/worktreeLaunchSourceAtom";
 
 import type { ResolvedKeys } from "./resolveKeys";
 
@@ -45,11 +48,10 @@ export interface BuildSessionLaunchParamsOptions {
   runningLocation: RunningLocation;
   selectedAgentDefId: string | null;
   selectedAgentOrgId: string | null;
-  selectedWorktreePath: string | null;
   sessionName: string;
   targetKind: SessionTargetKind;
   workspaceFolders: WorkspaceFolderRef[];
-  worktreeLaunchSource: WorktreeLaunchSource | null;
+  worktreeLaunchSelection: WorktreeLaunchSelection | null;
 }
 
 interface BuildLaunchPayloadResult {
@@ -159,13 +161,13 @@ function getRustAgentIdentityFields(options: {
  *  - Not a worktree launch → `{}` (plain local workspace).
  *  - Reusing an existing worktree path → `{ worktreePath }`. The base ref is
  *    already baked into that checkout, so the picked source metadata is moot.
- *  - Fresh isolated worktree → `{ isolate: true }`, plus `branch` when the
- *    picked source carries a base ref. The backend's
+ *  - Fresh isolated worktree → `{ isolate: true }`, plus `worktreeBaseRef`
+ *    when the picked source carries a base ref. The backend's
  *    `create_session_worktree` runs `git worktree add -b agent/<session>
  *    <path> <base>`, so `branch` is literally the git base ref the isolated
  *    worktree is created from. Forwarding the picked source's base ref here
  *    makes the isolated worktree track the chosen PR head / branch / smart
- *    base explicitly, independent of whatever the branch selector last held.
+ *    base explicitly, independent of the session's display branch.
  *
  * `resolvedBaseRef` wins over `baseBranch` when present: it is the concrete
  * commit-ish (PR head SHA) that `worktree_resolve_pr_base` fetched, which is
@@ -178,25 +180,30 @@ function getRustAgentIdentityFields(options: {
  */
 export function getWorktreeFields(options: {
   runningLocation: RunningLocation;
-  selectedWorktreePath: string | null;
-  worktreeLaunchSource: WorktreeLaunchSource | null;
+  repoId?: string;
+  repoPath?: string;
+  worktreeLaunchSelection: WorktreeLaunchSelection | null;
 }): Partial<SessionLaunchParams> {
-  const { runningLocation, selectedWorktreePath, worktreeLaunchSource } =
+  const { runningLocation, repoId, repoPath, worktreeLaunchSelection } =
     options;
   if (runningLocation !== "worktree") {
     return {};
   }
 
-  if (selectedWorktreePath) {
-    return { worktreePath: selectedWorktreePath };
+  const repoKey = resolveWorktreeSelectionRepoKey(repoId, repoPath);
+  const source =
+    repoKey && worktreeLaunchSelection?.repoKey === repoKey
+      ? worktreeLaunchSelection.source
+      : null;
+
+  if (source?.existingWorktreePath) {
+    return { worktreePath: source.existingWorktreePath };
   }
 
-  const base =
-    worktreeLaunchSource?.resolvedBaseRef?.trim() ||
-    worktreeLaunchSource?.baseBranch?.trim();
+  const base = source?.resolvedBaseRef?.trim() || source?.baseBranch?.trim();
   return {
     isolate: true,
-    ...(base ? { branch: base } : {}),
+    ...(base ? { worktreeBaseRef: base } : {}),
   };
 }
 
@@ -216,11 +223,10 @@ export function buildSessionLaunchPayload(
     runningLocation,
     selectedAgentDefId,
     selectedAgentOrgId,
-    selectedWorktreePath,
     sessionName,
     targetKind,
     workspaceFolders,
-    worktreeLaunchSource,
+    worktreeLaunchSelection,
   } = options;
 
   const sessionRepoPath = effectiveSource?.repoPath ?? "";
@@ -229,6 +235,14 @@ export function buildSessionLaunchPayload(
     : (resolvedKeys.branch ?? effectiveSource?.branch ?? undefined);
   const sessionUsesHostedKey = isHostedKey(resolvedKeys.keySource);
   const hasImages = !!imageDataUrls && imageDataUrls.length > 0;
+  if (
+    dispatchCategory !== DISPATCH_CATEGORY.RUST_AGENT &&
+    dispatchCategory !== DISPATCH_CATEGORY.CLI_AGENT
+  ) {
+    throw new Error(
+      `Unified session launch does not support category: ${dispatchCategory}`
+    );
+  }
   const isRustAgent = dispatchCategory === DISPATCH_CATEGORY.RUST_AGENT;
   const additionalDirectories = getAdditionalDirectories(
     sessionRepoPath,
@@ -272,8 +286,9 @@ export function buildSessionLaunchPayload(
       : {}),
     ...getWorktreeFields({
       runningLocation,
-      selectedWorktreePath,
-      worktreeLaunchSource,
+      repoId: effectiveSource?.repoId,
+      repoPath: effectiveSource?.repoPath,
+      worktreeLaunchSelection,
     }),
     ...(additionalDirectories.length > 0 ? { additionalDirectories } : {}),
   };
@@ -312,7 +327,8 @@ export function buildSessionFromLaunchResult(options: {
     user_input: result.userInput || result.name,
     repo_name: effectiveSource?.repoName ?? "",
     name: result.name,
-    branch: result.branch || effectiveSource?.branch || "",
+    branch:
+      result.worktreeBranch || result.branch || effectiveSource?.branch || "",
     is_active: !isBackgroundLaunch,
     category: result.category as
       | typeof DISPATCH_CATEGORY.RUST_AGENT
@@ -344,6 +360,7 @@ export function buildSessionFromLaunchResult(options: {
       : {}),
     ...(result.background ? { background: true } : {}),
     ...(result.worktreePath ? { worktreePath: result.worktreePath } : {}),
+    ...(result.worktreeBranch ? { worktreeBranch: result.worktreeBranch } : {}),
     ...(result.workspacePath ? { repoPath: result.workspacePath } : {}),
   };
 }

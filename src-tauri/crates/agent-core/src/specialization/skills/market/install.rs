@@ -152,7 +152,7 @@ pub async fn skills_hub_install(
     let snapshot = fetch_skill_snapshot(&client, &slug).await?;
     let content = snapshot_skill_md(&snapshot).unwrap_or_default();
 
-    let skill_name = extract_skill_name(&content).unwrap_or_else(|| slug.clone());
+    let skill_name = extract_skill_name(content).unwrap_or_else(|| slug.clone());
 
     let skills_dir = global_skills_dir();
     let skill_dir = skills_dir.join(&skill_name);

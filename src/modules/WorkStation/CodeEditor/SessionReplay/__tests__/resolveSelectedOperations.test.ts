@@ -2,8 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import { resolveSelectedFileOperation } from "../resolveSelectedOperations";
-import { FILE_OPERATION_TYPE, type FileOperationEntry } from "../types";
+import {
+  resolveSelectedFileOperation,
+  resolveSelectedShellOperation,
+} from "../resolveSelectedOperations";
+import {
+  FILE_OPERATION_TYPE,
+  type FileOperationEntry,
+  type ShellOperationEntry,
+} from "../types";
 
 function minimalSessionEvent(
   overrides: Partial<SessionEvent> = {}
@@ -43,6 +50,24 @@ function fileOperation(
   };
 }
 
+function shellOperation(
+  overrides: Partial<ShellOperationEntry> = {}
+): ShellOperationEntry {
+  const event = minimalSessionEvent({
+    id: overrides.eventId ?? "shell-1",
+    functionName: "run_shell",
+  });
+  return {
+    command: "pwd",
+    shortCommand: "pwd",
+    commandKeywords: "pwd",
+    event,
+    eventId: event.id,
+    isCurrent: false,
+    ...overrides,
+  };
+}
+
 describe("resolveSelectedFileOperation", () => {
   it("prioritizes a running read over a stale manual selection", () => {
     const manualSelection = fileOperation({
@@ -71,5 +96,43 @@ describe("resolveSelectedFileOperation", () => {
     expect(selected?.eventId).toBe("read-running");
     expect(selected?.filePath).toBe("/repo/live.ts");
     expect(selected?.isLoading).toBe(true);
+  });
+});
+
+describe("resolveSelectedShellOperation", () => {
+  it("keeps following the running command until the user selects one", () => {
+    const completed = shellOperation({ eventId: "shell-completed" });
+    const running = shellOperation({
+      eventId: "shell-running",
+      isCurrent: true,
+      isLoading: true,
+      streamOutput: "still running",
+    });
+
+    expect(
+      resolveSelectedShellOperation([completed, running], null, null)?.eventId
+    ).toBe("shell-running");
+  });
+
+  it("honors a manual command selection while another command is running", () => {
+    const completed = shellOperation({
+      eventId: "shell-completed",
+      output: "finished output",
+    });
+    const running = shellOperation({
+      eventId: "shell-running",
+      isCurrent: true,
+      isLoading: true,
+      streamOutput: "still running",
+    });
+
+    const selected = resolveSelectedShellOperation(
+      [completed, running],
+      running,
+      "shell-completed"
+    );
+
+    expect(selected?.eventId).toBe("shell-completed");
+    expect(selected?.output).toBe("finished output");
   });
 });

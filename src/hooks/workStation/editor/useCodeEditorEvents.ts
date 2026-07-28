@@ -43,6 +43,7 @@ import {
   createFileTab,
   createTerminalContentTab,
   openTab,
+  presentedWorkstationWorkspaceKeyAtom,
   switchTab,
 } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
@@ -445,7 +446,10 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
       const customEvent = event as CustomEvent<{ tabId?: string }>;
       const tabId = customEvent.detail?.tabId;
       if (!tabId) return;
-      consumePendingCodeEditorTab();
+      const workspace = getInstrumentedStore().get(
+        presentedWorkstationWorkspaceKeyAtom
+      );
+      consumePendingCodeEditorTab(workspace);
       switchPrimaryTab(tabId);
     };
 
@@ -471,8 +475,11 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
     window.addEventListener("workstation-open-code-tab", handleOpenCodeTab);
     window.addEventListener("close-all-tabs", handleCloseAllTabs);
 
-    // Consume any files queued by other pages before this hook mounted
-    const pendingFiles = consumePendingFileOpens();
+    // Consume only the files queued for the workspace captured by the producer.
+    const workspace = getInstrumentedStore().get(
+      presentedWorkstationWorkspaceKeyAtom
+    );
+    const pendingFiles = consumePendingFileOpens(workspace);
     if (pendingFiles.length > 0) {
       for (const { path, line } of pendingFiles) {
         const tab = createFileTab(path, line);
@@ -481,7 +488,7 @@ export function useCodeEditorEvents(options: CodeEditorEventsOptions): void {
       opts.selectFile(pendingFiles[pendingFiles.length - 1].path);
     }
 
-    const pendingCodeTabId = consumePendingCodeEditorTab();
+    const pendingCodeTabId = consumePendingCodeEditorTab(workspace);
     if (pendingCodeTabId) {
       switchPrimaryTab(pendingCodeTabId);
     }

@@ -4,8 +4,10 @@ import {
   WORKTREE_GITHUB_CACHE_TTL_MS,
   WORKTREE_SOURCE_CACHE_MAX_ENTRIES,
   createInflightRegistry,
+  evictOtherWorktreeGithubIdentities,
   getWorktreeCacheFreshness,
   isWorktreeCacheFresh,
+  resolveWorktreeGithubCacheKey,
   resolveWorktreeRepoKey,
   writeWorktreeCacheEntry,
 } from "../worktreeSourceCache";
@@ -21,6 +23,49 @@ describe("resolveWorktreeRepoKey", () => {
 
   it("returns null when neither is available", () => {
     expect(resolveWorktreeRepoKey("", "  ")).toBeNull();
+  });
+});
+
+describe("resolveWorktreeGithubCacheKey", () => {
+  it("isolates the same repo across authenticated connections", () => {
+    const repoKey = "id:repo-1";
+    expect(
+      resolveWorktreeGithubCacheKey(repoKey, "github.com:connection-a:pat")
+    ).not.toBe(
+      resolveWorktreeGithubCacheKey(repoKey, "github.com:connection-b:oauth")
+    );
+  });
+});
+
+describe("evictOtherWorktreeGithubIdentities", () => {
+  it("drops previous identities for the active repo and keeps other repos", () => {
+    const previous = new Map([
+      ["github.com:connection-a:pat:alice|id:repo-1", { fetchedAt: 1 }],
+      ["github.com:connection-b:oauth:bob|id:repo-1", { fetchedAt: 2 }],
+      ["github.com:connection-a:pat:alice|id:repo-2", { fetchedAt: 3 }],
+    ]);
+    const activeKey = "github.com:connection-b:oauth:bob|id:repo-1";
+
+    const next = evictOtherWorktreeGithubIdentities(
+      previous,
+      "id:repo-1",
+      activeKey
+    );
+
+    expect(next.has("github.com:connection-a:pat:alice|id:repo-1")).toBe(false);
+    expect(next.has(activeKey)).toBe(true);
+    expect(next.has("github.com:connection-a:pat:alice|id:repo-2")).toBe(true);
+  });
+
+  it("preserves map identity when there is nothing to evict", () => {
+    const previous = new Map([["active|id:repo-1", { fetchedAt: 1 }]]);
+    expect(
+      evictOtherWorktreeGithubIdentities(
+        previous,
+        "id:repo-1",
+        "active|id:repo-1"
+      )
+    ).toBe(previous);
   });
 });
 

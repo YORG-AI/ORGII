@@ -239,7 +239,7 @@ pub fn group_sessions(sessions: &[SessionRecord], group_by: &str) -> Vec<Session
         })
         .collect();
 
-    result.sort_by(|a, b| b.count.cmp(&a.count));
+    result.sort_by_key(|entry| std::cmp::Reverse(entry.count));
     result
 }
 

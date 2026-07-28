@@ -16,6 +16,8 @@ import {
   recordCacheMissAtom,
 } from "@src/store/workstation/codeEditor/search/cacheAtom";
 
+import { LatestRequestGuard } from "./latestRequestGuard";
+
 export type { CodeSearchResult } from "@src/api/tauri/search";
 
 export type CodeSearchMode = "regex" | "semantic" | "hybrid";
@@ -90,6 +92,12 @@ export function useCodeSearch(
   const recordCacheHit = useSetAtom(recordCacheHitAtom);
   const recordCacheMiss = useSetAtom(recordCacheMissAtom);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // The Tauri search API does not currently accept an AbortSignal, so only the
+  // latest request generation is allowed to commit results or loading state.
+  const latestRequestGuardRef = useRef<LatestRequestGuard | null>(null);
+  if (latestRequestGuardRef.current === null) {
+    latestRequestGuardRef.current = new LatestRequestGuard();
+  }
 
   const toggleSearchMode = useCallback(() => {
     setSearchMode((currentMode) => {
@@ -101,6 +109,9 @@ export function useCodeSearch(
   }, []);
 
   const search = useCallback(async () => {
+    const latestRequestGuard = latestRequestGuardRef.current!;
+    const searchGeneration = latestRequestGuard.issue();
+    const isLatestSearch = () => latestRequestGuard.isCurrent(searchGeneration);
     const trimmedQuery = query.trim();
 
     if (!trimmedQuery) {
@@ -137,6 +148,8 @@ export function useCodeSearch(
         repoFilter ? [repoFilter] : [],
         { max_results: opts.maxResults + 1 }
       );
+      if (!isLatestSearch()) return;
+
       const hasMoreResults = regexResults.length > opts.maxResults;
       let searchResults = hasMoreResults
         ? regexResults.slice(0, opts.maxResults)
@@ -168,6 +181,7 @@ export function useCodeSearch(
         setSearchHistory((prev) => [trimmedQuery, ...prev.slice(0, 9)]);
       }
     } catch (err: unknown) {
+      if (!isLatestSearch()) return;
       if (err instanceof Error && err.name === "AbortError") return;
       const errorMsg =
         typeof err === "string"
@@ -178,8 +192,10 @@ export function useCodeSearch(
       setError(errorMsg);
       setResults([]);
     } finally {
-      setLoading(false);
-      abortControllerRef.current = null;
+      if (isLatestSearch()) {
+        setLoading(false);
+        abortControllerRef.current = null;
+      }
     }
   }, [
     query,
@@ -196,7 +212,11 @@ export function useCodeSearch(
   ]);
 
   const clearResults = useCallback(() => {
+    latestRequestGuardRef.current?.invalidate();
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setResults([]);
+    setLoading(false);
     setError(null);
     setCurrentPage(1);
     setHasMore(false);
@@ -222,12 +242,17 @@ export function useCodeSearch(
       debouncedSearch();
     } else {
       debouncedSearch.cancel();
+      latestRequestGuardRef.current?.invalidate();
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
       setResults([]);
+      setLoading(false);
     }
   }, [query, opts.autoSearch, debouncedSearch, search]);
 
   useEffect(() => {
     return () => {
+      latestRequestGuardRef.current?.invalidate();
       abortControllerRef.current?.abort();
     };
   }, []);

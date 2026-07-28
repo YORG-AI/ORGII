@@ -2,7 +2,10 @@
 
 use super::*;
 use crate::projects::io::projects::write_project;
-use crate::projects::types::{LabelEntry, LabelsFile, ProjectMeta, WorkItemHistoryAction};
+use crate::projects::types::{
+    LabelEntry, LabelsFile, OrchestratorConfig, ProjectMeta, WorkItemHistoryAction,
+    WorkItemReadBucket, WorkItemSchedule,
+};
 use test_helpers::test_env;
 
 fn project_fixture(id: &str, _slug: &str, name: &str) -> ProjectMeta {
@@ -93,6 +96,120 @@ fn write_then_read_round_trips_core_fields() {
     assert_eq!(back.body, "## Body\n\nhello");
     assert_eq!(back.frontmatter.project.as_deref(), Some("p1"));
     assert_eq!(back.filename, "AAA-0001");
+}
+
+#[test]
+fn scheduled_candidate_read_skips_unrelated_work_item_payloads() {
+    let _sandbox = test_env::sandbox();
+    seed_project("demo", "p1");
+
+    let unrelated = work_item_fixture("w1", "AAA-0001", "Unrelated");
+    write_work_item("demo", "AAA-0001", &unrelated, "large body").expect("write unrelated");
+
+    let mut start_dated = work_item_fixture("w2", "AAA-0002", "Start dated");
+    start_dated.start_date = Some("2099-01-01".to_string());
+    start_dated.orchestrator_config = Some(OrchestratorConfig {
+        selected_account_id: Some("account-1".to_string()),
+        ..Default::default()
+    });
+    write_work_item("demo", "AAA-0002", &start_dated, "ignored body").expect("write start-dated");
+
+    let mut scheduled = work_item_fixture("w3", "AAA-0003", "One shot");
+    scheduled.schedule = Some(WorkItemSchedule {
+        at: Some("2099-01-02T03:04:05Z".to_string()),
+        cron: None,
+        enabled: true,
+        last_run: None,
+    });
+    write_work_item("demo", "AAA-0003", &scheduled, "also ignored").expect("write scheduled");
+
+    let candidates = read_scheduled_work_item_candidates().expect("read candidates");
+    assert_eq!(candidates.len(), 2);
+    assert_eq!(candidates[0].project_slug, "demo");
+    assert_eq!(candidates[0].short_id, "AAA-0002");
+    assert_eq!(
+        candidates[0]
+            .orchestrator_config
+            .as_ref()
+            .and_then(|config| config.selected_account_id.as_deref()),
+        Some("account-1")
+    );
+    assert_eq!(candidates[1].short_id, "AAA-0003");
+    assert_eq!(
+        candidates[1]
+            .schedule
+            .as_ref()
+            .and_then(|schedule| schedule.at.as_deref()),
+        Some("2099-01-02T03:04:05Z")
+    );
+}
+
+#[test]
+fn bucketed_reads_defer_native_completed_and_github_closed_items() {
+    let _sandbox = test_env::sandbox();
+    seed_project("demo", "p1");
+
+    for (index, status) in ["open", "in_progress", "completed", "closed"]
+        .into_iter()
+        .enumerate()
+    {
+        let short_id = format!("AAA-{:04}", index + 1);
+        let mut fm = work_item_fixture(&format!("w{}", index + 1), &short_id, status);
+        fm.status = status.to_string();
+        write_work_item("demo", &short_id, &fm, "").expect("write fixture");
+    }
+
+    let active =
+        read_all_work_items_scoped_filtered("demo", None, Some(WorkItemReadBucket::Active))
+            .expect("active bucket");
+    let completed =
+        read_all_work_items_scoped_filtered("demo", None, Some(WorkItemReadBucket::Completed))
+            .expect("completed bucket");
+
+    let mut active_statuses = active
+        .iter()
+        .map(|item| item.frontmatter.status.as_str())
+        .collect::<Vec<_>>();
+    active_statuses.sort_unstable();
+    let mut completed_statuses = completed
+        .iter()
+        .map(|item| item.frontmatter.status.as_str())
+        .collect::<Vec<_>>();
+    completed_statuses.sort_unstable();
+
+    assert_eq!(active_statuses, ["in_progress", "open"]);
+    assert_eq!(completed_statuses, ["closed", "completed"]);
+}
+
+#[test]
+fn standalone_bucketed_reads_use_the_same_terminal_partition() {
+    let _sandbox = test_env::sandbox();
+
+    for (index, status) in ["open", "completed", "closed"].into_iter().enumerate() {
+        let short_id = format!("ORG-{:04}", index + 1);
+        let mut fm = work_item_fixture(&format!("w{}", index + 1), &short_id, status);
+        fm.status = status.to_string();
+        write_standalone_work_item(Some("personal-org"), &short_id, &fm, "")
+            .expect("write standalone fixture");
+    }
+
+    let active =
+        read_standalone_work_items_filtered(Some("personal-org"), Some(WorkItemReadBucket::Active))
+            .expect("active standalone bucket");
+    let completed = read_standalone_work_items_filtered(
+        Some("personal-org"),
+        Some(WorkItemReadBucket::Completed),
+    )
+    .expect("completed standalone bucket");
+
+    assert_eq!(active.len(), 1);
+    assert_eq!(active[0].frontmatter.status, "open");
+    let mut completed_statuses = completed
+        .iter()
+        .map(|item| item.frontmatter.status.as_str())
+        .collect::<Vec<_>>();
+    completed_statuses.sort_unstable();
+    assert_eq!(completed_statuses, ["closed", "completed"]);
 }
 
 #[test]

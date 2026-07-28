@@ -38,6 +38,7 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
   browserOpen,
   setBrowserOpen,
   browserCloseSignal,
+  autoStartLogin = false,
 }) => {
   const { t } = useTranslation("integrations");
 
@@ -118,6 +119,7 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
           onSessionCaptured={onSessionCaptured}
           onBrowserStateChange={setBrowserOpen}
           closeSignal={browserCloseSignal}
+          autoStart={autoStartLogin}
         />
       )}
 

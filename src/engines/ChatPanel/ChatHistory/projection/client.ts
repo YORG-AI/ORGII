@@ -173,16 +173,21 @@ export class ChatProjectionClient {
 
   disposeSession(sessionId: string): void {
     const state = this.sessions.get(sessionId);
-    if (!state || !this.worker) return;
-    const request: ChatProjectionRequest = {
-      type: "disposeSession",
-      protocolVersion: CHAT_PROJECTION_PROTOCOL_VERSION,
-      sessionId,
-      generation: state.generation,
-      sourceVersion: state.sourceVersion,
-      requestId: ++this.nextRequestId,
-    };
-    this.worker.postMessage(request);
+    if (!state) return;
+    // Always free local session state, even when the worker is gone
+    // (crashed/disabled) — otherwise the session's retained snapshot leaks for
+    // the app lifetime. Only notify the worker when one still exists.
+    if (this.worker) {
+      const request: ChatProjectionRequest = {
+        type: "disposeSession",
+        protocolVersion: CHAT_PROJECTION_PROTOCOL_VERSION,
+        sessionId,
+        generation: state.generation,
+        sourceVersion: state.sourceVersion,
+        requestId: ++this.nextRequestId,
+      };
+      this.worker.postMessage(request);
+    }
     const pendingRequestId = this.latestPendingBySession.get(sessionId);
     if (pendingRequestId !== undefined) {
       const pending = this.pending.get(pendingRequestId);
@@ -352,7 +357,12 @@ export class ChatProjectionClient {
     this.pending.clear();
     this.latestPendingBySession.clear();
     for (const state of this.sessions.values()) state.generation += 1;
-    if (this.failureCount >= MAX_FAILURES_BEFORE_DISABLE) this.disabled = true;
+    if (this.failureCount >= MAX_FAILURES_BEFORE_DISABLE) {
+      this.disabled = true;
+      // The worker path is permanently off now; its retained per-session
+      // snapshots are dead weight (the main-thread fallback never reads them).
+      this.sessions.clear();
+    }
   }
 }
 

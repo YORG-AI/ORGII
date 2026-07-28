@@ -392,7 +392,7 @@ const RepoDetailPage: React.FC<RepoDetailPageProps> = ({
     <div className="flex flex-col">
       {/* Info Section */}
       <div className={DETAIL_PANEL_TOKENS.sectionGap}>
-        <div className={DETAIL_PANEL_TOKENS.chatPanelInfoContainer}>
+        <div className={DETAIL_PANEL_TOKENS.primaryContainer}>
           <h3
             className="mb-3 truncate text-[14px] font-semibold text-text-1"
             title={repoName}
@@ -435,7 +435,7 @@ const RepoDetailPage: React.FC<RepoDetailPageProps> = ({
       {configFiles.length > 0 && (
         <CollapsibleSection title={t("launchpad.preview.configFiles")}>
           <div
-            className={`${DETAIL_PANEL_TOKENS.contentStack} ${DETAIL_PANEL_TOKENS.chatPanelInfoContainer}`}
+            className={`${DETAIL_PANEL_TOKENS.contentStack} ${DETAIL_PANEL_TOKENS.primaryContainer}`}
           >
             {configFiles.map((file) => (
               <div
@@ -481,7 +481,6 @@ const RepoDetailPage: React.FC<RepoDetailPageProps> = ({
           rows={filteredEnvVars}
           getRowKey={(row) => row.key}
           headerHeight="compact"
-          surfaceVariant="chatPanel"
           emptyTitle={
             envSearch
               ? t("common:status.noResults")
@@ -529,7 +528,6 @@ const RepoDetailPage: React.FC<RepoDetailPageProps> = ({
           rows={filteredScripts}
           getRowKey={(row) => `${row.source}:${row.command}`}
           headerHeight="tall"
-          surfaceVariant="chatPanel"
           className="table-layout-fixed"
           searchBar={{
             searchValue: scriptSearch,

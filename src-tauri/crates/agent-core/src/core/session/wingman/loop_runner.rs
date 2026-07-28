@@ -236,6 +236,7 @@ impl WingmanLoop {
             // Same id used for the TurnInput above — keeps the wire
             // boundary and the turn execution observing a single intent.
             turn_intent_id,
+            org_run_id: None,
             content: "[wingman:observe]".to_string(),
             execute,
         };
@@ -246,6 +247,7 @@ impl WingmanLoop {
         crate::foundation::session_bridge::upsert_turn_intent(
             &self.session_id,
             &msg.turn_intent_id,
+            None,
             None,
             crate::foundation::session_bridge::TurnIntentBridgeSource::Wingman,
             crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,

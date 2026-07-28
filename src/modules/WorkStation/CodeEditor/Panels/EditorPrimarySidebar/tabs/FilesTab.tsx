@@ -1,7 +1,8 @@
 /**
  * FilesTab Configuration
  *
- * Defines the Files tab structure with sections: Files Tree, Outline, Timeline
+ * Defines the Files tab structure with sections: Files Tree, Outline, Git
+ * Timeline, and Agent Timeline.
  *
  * ARCHITECTURE (Jan 2026):
  * Uses useSelectedFile hook for single source of truth - selectedFilePath
@@ -87,10 +88,11 @@ export function useFilesTabConfig({
           defaultCollapsed: true,
         },
         {
-          key: "timeline",
-          title: t("labels.timeline"),
+          key: "git-timeline",
+          title: `Git ${t("labels.timeline")}`,
           content: (
             <TimelineContent
+              variant="git"
               repoId={repoId || repoPath}
               repoPath={repoPath}
               filePath={selectedFilePath}
@@ -102,7 +104,26 @@ export function useFilesTabConfig({
           defaultFlexGrow: 1,
           resizable: true,
           defaultCollapsed: true,
-          headerTestId: "code-editor-timeline-section-toggle",
+          headerTestId: "code-editor-git-timeline-section-toggle",
+        },
+        {
+          key: "session-timeline",
+          title: `Agent ${t("labels.timeline")}`,
+          content: (
+            <TimelineContent
+              variant="session"
+              repoId={repoId || repoPath}
+              repoPath={repoPath}
+              filePath={selectedFilePath}
+              selectedCommitSha={selectedCommitSha ?? null}
+              onCommitClick={onTimelineCommitClick}
+              loading={loading}
+            />
+          ),
+          defaultFlexGrow: 1,
+          resizable: true,
+          defaultCollapsed: true,
+          headerTestId: "code-editor-agent-timeline-section-toggle",
         },
       ],
     }),

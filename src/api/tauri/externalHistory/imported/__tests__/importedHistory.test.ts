@@ -37,6 +37,9 @@ describe("imported history source helpers", () => {
     expect(isImportedHistoryReplayableSourceId("codex_app")).toBe(true);
     expect(isImportedHistoryReplayableSourceId("claude_code")).toBe(true);
     expect(isImportedHistoryReplayableSourceId("warp")).toBe(true);
+    expect(isImportedHistoryReplayableSourceId("mimo_code")).toBe(true);
+    expect(isImportedHistoryReplayableSourceId("omp")).toBe(true);
+    expect(isImportedHistoryReplayableSourceId("qoder_cli")).toBe(true);
     expect(isImportedHistoryReplayableSourceId("qwen_code")).toBe(false);
     expect(isImportedHistoryReplayableSourceId(null)).toBe(false);
   });

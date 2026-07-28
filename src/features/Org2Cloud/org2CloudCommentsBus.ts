@@ -11,6 +11,35 @@ export const COMMENTS_CHANGED_EVENT = "comments-changed";
 /** `orgId|sessionId` → monotonically increasing nudge counter. */
 export const org2CloudCommentsSignalAtom = atom<Record<string, number>>({});
 
+/**
+ * Signal keys accumulate one counter per (org, session) ever nudged in this
+ * identity epoch (the realtime root clears the atom on identity change). Cap
+ * the record so a months-long uptime cannot grow it without bound. An evicted
+ * key restarts at 0; consumers seed from the current value on mount and
+ * compare by inequality, so the worst case is one deduped force-refetch that
+ * the next nudge or the TTL fetch covers.
+ */
+export const MAX_COMMENTS_SIGNAL_KEYS = 256;
+
+/** Pure bounded bump: re-appends the key (LRU order) and evicts the oldest
+ * keys beyond the cap. Every writer of the signal atom must go through this. */
+export function bumpCommentsSignalKey(
+  current: Record<string, number>,
+  key: string
+): Record<string, number> {
+  const next: Record<string, number> = {};
+  for (const existing of Object.keys(current)) {
+    if (existing !== key) next[existing] = current[existing]!;
+  }
+  next[key] = (current[key] ?? 0) + 1;
+  const keys = Object.keys(next);
+  const overflow = keys.length - MAX_COMMENTS_SIGNAL_KEYS;
+  for (let index = 0; index < overflow; index += 1) {
+    delete next[keys[index]!];
+  }
+  return next;
+}
+
 export function sessionCommentsKey(orgId: string, sessionId: string): string {
   return `${orgId}|${sessionId}`;
 }
@@ -49,11 +78,10 @@ export function bumpLocalCommentsSignal(
     return;
   }
   const key = sessionCommentsKey(orgId, sessionId);
-  const current = store.get(org2CloudCommentsSignalAtom);
-  store.set(org2CloudCommentsSignalAtom, {
-    ...current,
-    [key]: (current[key] ?? 0) + 1,
-  });
+  store.set(
+    org2CloudCommentsSignalAtom,
+    bumpCommentsSignalKey(store.get(org2CloudCommentsSignalAtom), key)
+  );
 }
 
 /** Notify peers without invalidating this instance's already-patched cache. */

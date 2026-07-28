@@ -186,25 +186,30 @@ impl GitApiError {
     /// Create from a generic git error message (for backward compatibility)
     pub fn from_git_error(message: impl Into<String>) -> Self {
         let msg = message.into();
+        let normalized = msg.to_ascii_lowercase();
 
         // Parse known error patterns
-        if msg.contains("not a git repository") {
+        if normalized.contains("not a git repository") {
             return GitApiError::NotAGitRepo {
                 path: PathBuf::from("unknown"),
             };
         }
-        if msg.contains("nothing to commit") {
+        if normalized.contains("nothing to commit") {
             return GitApiError::NothingToCommit;
         }
-        if msg.contains("non-fast-forward") || msg.contains("rejected") {
+        if normalized.contains("non-fast-forward") || normalized.contains("rejected") {
             return GitApiError::NonFastForward { message: msg };
         }
-        if msg.contains("Authentication failed") || msg.contains("could not read Username") {
+        if normalized.contains("authentication failed")
+            || normalized.contains("could not read username")
+        {
             return GitApiError::AuthenticationFailed {
                 remote: "origin".into(),
             };
         }
-        if msg.contains("Could not resolve host") || msg.contains("Connection refused") {
+        if normalized.contains("could not resolve host")
+            || normalized.contains("connection refused")
+        {
             return GitApiError::NetworkError { message: msg };
         }
 

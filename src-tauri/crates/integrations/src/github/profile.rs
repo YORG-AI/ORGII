@@ -197,7 +197,7 @@ async fn aggregate_language_stats(
         })
         .collect();
 
-    stats.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    stats.sort_by_key(|stat| std::cmp::Reverse(stat.bytes));
     Ok(stats)
 }
 

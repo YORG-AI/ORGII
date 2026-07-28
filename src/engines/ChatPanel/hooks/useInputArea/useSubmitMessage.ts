@@ -77,6 +77,10 @@ export function stripContextPillBase64(text: string): string {
 export interface UseSubmitMessageOptions {
   refs: InputAreaRefs;
   draftSessionId: string;
+  /** Session whose comment threads Address Comments targets when the
+   * composer dispatches elsewhere (external-history fork composer, where
+   * `draftSessionId` is empty by design). */
+  addressSessionId?: string | null;
   replyTargetEventId: string | undefined;
   flushDraft: (text: string) => Promise<void>;
   clearReplyTarget: () => Promise<void>;
@@ -100,6 +104,7 @@ export interface UseSubmitMessageOptions {
   ) => Promise<void>;
   onSubmitOverride?: (input: SubmitOverrideInput) => Promise<boolean>;
   submitDisabled?: boolean;
+  enableAgentInterceptors?: boolean;
 }
 
 // ============================================================================
@@ -115,6 +120,7 @@ function lastSerializedPillLabel(rawLabel: string): string {
 export function useSubmitMessage({
   refs,
   draftSessionId,
+  addressSessionId,
   replyTargetEventId,
   flushDraft,
   clearReplyTarget,
@@ -123,6 +129,7 @@ export function useSubmitMessage({
   handleSessChatSubmit,
   onSubmitOverride,
   submitDisabled = false,
+  enableAgentInterceptors = true,
 }: UseSubmitMessageOptions): (options?: SubmitMessageOptions) => Promise<void> {
   const { t } = useTranslation("sessions");
   const store = useStore();
@@ -131,7 +138,7 @@ export function useSubmitMessage({
   const { runManualCompact } = useManualCompact();
   const guardAgainstSecrets = useSecretScanGuard();
   const addressComments = useAddressCommentsSlashCommand(
-    draftSessionId || null
+    draftSessionId || addressSessionId || null
   );
 
   return useCallback(
@@ -176,7 +183,7 @@ export function useSubmitMessage({
       // of dispatching a message (Claude Code parity). Only a pure text
       // command qualifies — attached images mean the user is sending real
       // content that happens to start with "/compact".
-      if (hasText && !hasAttachedImages) {
+      if (enableAgentInterceptors && hasText && !hasAttachedImages) {
         const compactCommand = parseCompactSlashCommand(displayText);
         if (compactCommand) {
           refs.composerInputRef.current.clear();
@@ -193,9 +200,11 @@ export function useSubmitMessage({
         const addressDraft = parseAddressCommentsSlashCommand(displayText);
         if (addressDraft) {
           refs.composerInputRef.current.clear();
-          void flushDraft("").catch((err: unknown) => {
-            log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
-          });
+          if (draftSessionId) {
+            void flushDraft("").catch((err: unknown) => {
+              log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
+            });
+          }
           addressComments.run({
             selectedHeadIds: addressDraft.selectedHeadIds,
             instruction: addressDraft.instruction,
@@ -221,7 +230,7 @@ export function useSubmitMessage({
       // ── Question intercept ────────────────────────────────────────────────
       // When the agent asked a question and the user typed a reply in the main
       // input, forward the typed text as the question answer before dispatching.
-      if (hasText && draftSessionId) {
+      if (enableAgentInterceptors && hasText && draftSessionId) {
         const events = store.get(chatEventsAtom);
         for (const event of events) {
           if (event.sessionId && event.sessionId !== draftSessionId) continue;
@@ -249,16 +258,18 @@ export function useSubmitMessage({
       }
 
       // ── MCP slash-command resolution ─────────────────────────────────────
-      try {
-        const rendered = await resolveMcpSlashCommand(displayText.trim());
-        if (rendered !== null) {
-          displayText = rendered;
+      if (enableAgentInterceptors) {
+        try {
+          const rendered = await resolveMcpSlashCommand(displayText.trim());
+          if (rendered !== null) {
+            displayText = rendered;
+          }
+        } catch (err) {
+          Message.error(
+            `MCP prompt failed: ${err instanceof Error ? err.message : String(err)}`
+          );
+          return;
         }
-      } catch (err) {
-        Message.error(
-          `MCP prompt failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-        return;
       }
 
       // ── Skill pill expansion ──────────────────────────────────────────────
@@ -525,6 +536,7 @@ export function useSubmitMessage({
       clearReplyTarget,
       onSubmitOverride,
       submitDisabled,
+      enableAgentInterceptors,
       runManualCompact,
       addressComments,
     ]

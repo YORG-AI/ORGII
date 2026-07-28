@@ -51,9 +51,14 @@ export function NavigationMenuRowAccessorySlot({
   );
   const stackedContent = hasStacked ? (
     <span className="grid items-center justify-end leading-none">
+      {/* Both layers share one grid cell and must be `justify-self-end`. The
+          cell is as wide as the widest layer, and a stretched item whose
+          `max-width` clamps it falls back to *start* alignment — so while the
+          reveal animates `max-w-0 → 11rem` the buttons would slide rightwards
+          from behind the persistent layer instead of staying put. */}
       {(persistentContent || workingIndicatorContent) && (
         <span
-          className={`col-start-1 row-start-1 inline-flex items-center justify-end leading-none transition-opacity duration-150 ${persistentHoverClasses}`}
+          className={`col-start-1 row-start-1 inline-flex items-center justify-end justify-self-end leading-none transition-opacity duration-150 ${persistentHoverClasses}`}
         >
           {persistentContent}
           {workingIndicatorContent}
@@ -61,7 +66,7 @@ export function NavigationMenuRowAccessorySlot({
       )}
       {(hoverContent || actionContent) && (
         <span
-          className={`pointer-events-none col-start-1 row-start-1 inline-flex max-w-0 items-center justify-end gap-1.5 overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-150 ${revealedHoverClasses}`}
+          className={`pointer-events-none col-start-1 row-start-1 inline-flex max-w-0 items-center justify-end gap-1.5 justify-self-end overflow-hidden whitespace-nowrap opacity-0 transition-[max-width,opacity] duration-150 ${revealedHoverClasses}`}
         >
           {hoverContent && (
             <span className="inline-flex max-w-[4rem] items-center justify-end overflow-hidden">

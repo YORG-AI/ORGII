@@ -35,7 +35,6 @@ export function createEventHandlerContext(
 ): EventHandlerContext {
   const ctx: EventHandlerContext = {
     filterSessionIdRef: ref(sessionId),
-    execOutputBufferRef: ref(""),
     onAgentCompleteRef: ref(callbacks.onAgentComplete),
     onContextUsageRef: ref(callbacks.onContextUsage),
     onTokenUpdateRef: ref(callbacks.onTokenUpdate),

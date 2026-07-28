@@ -7,6 +7,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import type { MutableRefObject } from "react";
 
+import { TERMINAL_LINE_HEIGHT } from "@src/config/terminalAppearance";
 import { ShellIntegrationAddon } from "@src/engines/TerminalCore/addons/ShellIntegrationAddon";
 import { createLogger } from "@src/hooks/logger";
 // Direct leaf import to avoid pulling @src/store's barrel — which transitively
@@ -53,7 +54,7 @@ export function createTerminalInstance({
     fontWeight: "400",
     fontWeightBold: "700",
     letterSpacing: terminalLetterSpacing,
-    lineHeight: 1.2,
+    lineHeight: TERMINAL_LINE_HEIGHT,
     cursorBlink: true,
     cursorStyle: "bar",
     cursorInactiveStyle: "outline",

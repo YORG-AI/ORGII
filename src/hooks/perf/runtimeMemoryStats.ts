@@ -45,7 +45,6 @@ const EMPTY_RUNTIME_MEMORY_STATS: RuntimeMemoryStats = {
 };
 
 export const SIDEBAR_MEMORY_KIND = {
-  START_PAGE: "start_page",
   SESSION: "session",
   SECOND_LEVEL: "second_level",
   SETTINGS: "settings",
@@ -365,7 +364,6 @@ export function removeSidebarMemoryEntry(key: symbol): void {
 
 export function getSidebarMemoryStatsByKind(): SidebarMemoryStatsByKind {
   const entriesByKind: Record<SidebarMemoryKind, SidebarMemoryEntry[]> = {
-    [SIDEBAR_MEMORY_KIND.START_PAGE]: [],
     [SIDEBAR_MEMORY_KIND.SESSION]: [],
     [SIDEBAR_MEMORY_KIND.SECOND_LEVEL]: [],
     [SIDEBAR_MEMORY_KIND.SETTINGS]: [],
@@ -376,10 +374,6 @@ export function getSidebarMemoryStatsByKind(): SidebarMemoryStatsByKind {
   }
 
   return {
-    [SIDEBAR_MEMORY_KIND.START_PAGE]: summarizeRuntimeMemoryEntries(
-      entriesByKind[SIDEBAR_MEMORY_KIND.START_PAGE],
-      entriesByKind[SIDEBAR_MEMORY_KIND.START_PAGE].length
-    ),
     [SIDEBAR_MEMORY_KIND.SESSION]: summarizeRuntimeMemoryEntries(
       entriesByKind[SIDEBAR_MEMORY_KIND.SESSION],
       entriesByKind[SIDEBAR_MEMORY_KIND.SESSION].length

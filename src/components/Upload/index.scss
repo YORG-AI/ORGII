@@ -23,7 +23,7 @@
     border: 2px dashed var(--color-border-2);
     border-radius: 6px;
     background: var(--color-bg-1);
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.2s ease;
 
     &:focus-visible {
@@ -75,7 +75,7 @@
     border: 1px dashed var(--color-border-2);
     border-radius: 6px;
     background: var(--color-fill-1);
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.2s ease;
     padding: 0;
 
@@ -168,7 +168,7 @@
         border: none;
         border-radius: 4px;
         color: var(--color-text-3);
-        cursor: pointer;
+        cursor: var(--interactive-cursor, default);
         transition: all 0.2s ease;
         flex-shrink: 0;
 
@@ -272,7 +272,7 @@
             border: none;
             border-radius: 4px;
             color: #fff;
-            cursor: pointer;
+            cursor: var(--interactive-cursor, default);
             transition: all 0.2s ease;
 
             svg {

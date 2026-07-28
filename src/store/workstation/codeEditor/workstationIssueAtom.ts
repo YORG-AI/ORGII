@@ -1,7 +1,10 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai-family";
 
-import type { GitHubIssue, GitHubIssueComment } from "@src/api/tauri/github";
+import type {
+  GitHubIssue,
+  GitHubIssueTimelineItem,
+} from "@src/api/tauri/github";
 
 import { DEFAULT_WORKSTATION_REPO_SCOPE } from "./workstationPrAtom";
 
@@ -20,9 +23,9 @@ export interface WorkstationIssueListState {
 
 export interface WorkstationSelectedIssueState {
   issue: GitHubIssue | null;
-  comments: GitHubIssueComment[];
+  timeline: GitHubIssueTimelineItem[];
   loading: boolean;
-  commentsLoading: boolean;
+  timelineLoading: boolean;
   error: string | null;
   submittingComment: boolean;
 }
@@ -40,9 +43,9 @@ const initialListState: WorkstationIssueListState = {
 
 const initialSelectedState: WorkstationSelectedIssueState = {
   issue: null,
-  comments: [],
+  timeline: [],
   loading: false,
-  commentsLoading: false,
+  timelineLoading: false,
   error: null,
   submittingComment: false,
 };
@@ -64,7 +67,7 @@ export const workstationSelectedIssueAtomFamily = atomFamily(
   (scopeKey: string) => {
     const scopedAtom = atom<WorkstationSelectedIssueState>({
       ...initialSelectedState,
-      comments: [],
+      timeline: [],
     });
     scopedAtom.debugLabel = `workstationSelectedIssueAtom(${scopeKey})`;
     return scopedAtom;

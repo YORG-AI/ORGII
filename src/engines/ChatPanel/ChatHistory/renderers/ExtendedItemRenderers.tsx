@@ -14,7 +14,7 @@ import React from "react";
 
 import ToolCallBlock from "@src/engines/ChatPanel/blocks/ToolCallBlock";
 import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
-import { streamingDeltaContentAtom } from "@src/engines/SessionCore";
+import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
@@ -37,21 +37,11 @@ function isSyntheticLiveActivity(event: SessionEvent): boolean {
   return event.args?.syntheticLive === true;
 }
 
-const ActivityRow: React.FC<{
+const ActivityRowShell: React.FC<{
   event: SessionEvent;
   index: number;
   itemKey: string;
 }> = ({ event, index, itemKey }) => {
-  const sessionId = useAtomValue(sessionIdAtom);
-  const streamingMap = useAtomValue(streamingDeltaContentAtom);
-  const liveDelta = sessionId ? streamingMap.get(sessionId) : undefined;
-  const streamingContent =
-    liveDelta?.kind === "message" ? liveDelta.content : undefined;
-
-  if (isSyntheticLiveActivity(event) && !streamingContent?.trim()) {
-    return null;
-  }
-
   const isTextActivity = event.actionType === "assistant";
 
   return (
@@ -70,6 +60,25 @@ const ActivityRow: React.FC<{
   );
 };
 
+// Only the synthetic-live activity row consumes the streaming delta — and only
+// to decide whether any text has arrived yet. Isolating the subscription here
+// stops a token flush from re-rendering every other (static) activity row in
+// the visible window.
+const LiveActivityRow: React.FC<{
+  event: SessionEvent;
+  index: number;
+  itemKey: string;
+}> = ({ event, index, itemKey }) => {
+  const sessionId = useAtomValue(sessionIdAtom);
+  const liveDelta = useStreamingDeltaForSession(sessionId);
+  const streamingContent =
+    liveDelta?.kind === "message" ? liveDelta.content : undefined;
+
+  if (!streamingContent?.trim()) return null;
+
+  return <ActivityRowShell event={event} index={index} itemKey={itemKey} />;
+};
+
 // ============================================
 // Renderer Functions
 // ============================================
@@ -85,8 +94,24 @@ export function renderActivity(
   }
   if (!event) return null;
 
+  if (isSyntheticLiveActivity(event)) {
+    return (
+      <LiveActivityRow
+        key={itemKey}
+        event={event}
+        index={index}
+        itemKey={itemKey}
+      />
+    );
+  }
+
   return (
-    <ActivityRow key={itemKey} event={event} index={index} itemKey={itemKey} />
+    <ActivityRowShell
+      key={itemKey}
+      event={event}
+      index={index}
+      itemKey={itemKey}
+    />
   );
 }
 

@@ -8,6 +8,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
@@ -31,6 +32,12 @@ interface ChatHistoryEmptyStateProps {
   onReload: () => void;
 }
 
+const ChatHistoryLoadingState: React.FC = () => (
+  <div className="p-2">
+    <ChatLoadingBlock />
+  </div>
+);
+
 const ChatHistoryEmptyState: React.FC<ChatHistoryEmptyStateProps> = memo(
   ({
     sessionLoadStatus,
@@ -44,7 +51,7 @@ const ChatHistoryEmptyState: React.FC<ChatHistoryEmptyStateProps> = memo(
     const { t } = useTranslation();
 
     if (projectionPending) {
-      return <Placeholder variant="loading" placement="sidebar" />;
+      return <ChatHistoryLoadingState />;
     }
 
     if (sessionLoadStatus === "error") {
@@ -63,7 +70,7 @@ const ChatHistoryEmptyState: React.FC<ChatHistoryEmptyStateProps> = memo(
     }
 
     if (sessionLoadStatus !== "loaded") {
-      return <Placeholder variant="loading" placement="sidebar" />;
+      return <ChatHistoryLoadingState />;
     }
 
     if (shouldShowEmpty && emptyConfirmed && !isRolledBack) {
@@ -82,7 +89,7 @@ const ChatHistoryEmptyState: React.FC<ChatHistoryEmptyStateProps> = memo(
     }
 
     if (shouldShowEmpty) {
-      return <Placeholder variant="loading" placement="sidebar" />;
+      return <ChatHistoryLoadingState />;
     }
 
     return (

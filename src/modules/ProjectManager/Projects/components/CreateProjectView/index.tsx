@@ -28,9 +28,12 @@ import { useTranslation } from "react-i18next";
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
@@ -44,7 +47,6 @@ import {
   type ProjectData,
   ProjectPropertyFields,
 } from "@src/modules/ProjectManager/shared";
-import { PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { reposAtom } from "@src/store/repo";
 import {
   type ProjectDraft,
@@ -54,6 +56,8 @@ import {
   removeProjectDraftAtom,
   setProjectDraftAtom,
 } from "@src/store/workstation/projectManager";
+
+import { filterSelectableProjectOrgs } from "../../../projectOrgVisibility";
 
 // ============================================
 // Types
@@ -108,6 +112,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const [editorResetKey, setEditorResetKey] = useState(0);
 
   // Read draft from atom (survives tab switches)
@@ -189,7 +194,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   );
 
   const handleDescriptionChange = useCallback(
-    (html: string, _text: string) => updateDraft({ description: html }),
+    (markdown: string, _text: string) => updateDraft({ description: markdown }),
     [updateDraft]
   );
 
@@ -252,9 +257,9 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     setSaving(true);
     try {
       const name = draft.name.trim();
-      const descriptionText =
-        editorRef.current?.getDescriptionText()?.trim() ?? "";
-      const parts = [draft.summary.trim(), descriptionText].filter(Boolean);
+      const descriptionMarkdown =
+        editorRef.current?.getMarkdown()?.trim() ?? "";
+      const parts = [draft.summary.trim(), descriptionMarkdown].filter(Boolean);
       const description = parts.join("\n\n");
 
       const slug = name
@@ -315,15 +320,26 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
 
   useKeyboardSave(handleCreate, !saving && !!draft.name.trim());
 
+  const selectableOrgs = useMemo(
+    () => filterSelectableProjectOrgs(availableOrgs, cloudOrgs),
+    [availableOrgs, cloudOrgs]
+  );
+
+  useEffect(() => {
+    if (availableOrgs.length === 0 || !draft.orgId) return;
+    if (selectableOrgs.some((org) => org.id === draft.orgId)) return;
+    patchDraft({ tabId, patch: { orgId: "personal-org" } });
+  }, [availableOrgs.length, draft.orgId, patchDraft, selectableOrgs, tabId]);
+
   const orgOptions = useMemo<SelectOption[]>(
     () =>
-      availableOrgs.map((org) => ({
+      selectableOrgs.map((org) => ({
         value: org.id,
         label: org.name,
         triggerLabel: org.name,
         dataTestId: `create-project-org-option-${org.id}`,
       })),
-    [availableOrgs]
+    [selectableOrgs]
   );
 
   const selectedOrgLabel =
@@ -380,7 +396,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       fieldVariant="ghost"
       size="small"
       className="flex-1"
-      inputClassName={PROJECT_MANAGER_TEXT_PLACEHOLDER_CLASS}
+      inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
       data-testid="create-project-title-input"
     />
   );
@@ -391,7 +407,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       hideHeader
       publishHeaderToWorkstation={publishHeaderToWorkstation}
       leftContent={
-        <div className="mx-auto h-full w-full max-w-[932px] px-4">
+        <div className={`${DETAIL_PANEL_TOKENS.headerWidth} h-full px-4`}>
           <WorkItemContentStack
             className="h-full w-full"
             titleContent={titleSection}

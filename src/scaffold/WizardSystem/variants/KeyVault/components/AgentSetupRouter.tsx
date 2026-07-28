@@ -7,6 +7,7 @@
 import React from "react";
 
 import {
+  type OAuthModelCatalog,
   getClaudeCodeOAuthModels as fetchClaudeCodeOAuthModels,
   getCodexOAuthModels as fetchCodexOAuthModels,
   getOAuthModelCatalog,
@@ -52,6 +53,7 @@ interface AgentSetupRouterProps extends AgentSetupProps {
   handleSessionTokenCaptured: (sessionToken: string) => void;
   handleUrlChange: (url: string) => void;
   hasSessionToken: boolean;
+  autoStartCodexLogin?: boolean;
 }
 
 /**
@@ -77,6 +79,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
   handleSessionTokenCaptured,
   handleUrlChange,
   hasSessionToken,
+  autoStartCodexLogin,
   ...sharedProps
 }) => {
   const { onChange } = sharedProps;
@@ -121,8 +124,17 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           onDetectToken={sharedProps.onAutoDetect ?? (() => {})}
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}
+          autoStartLogin={autoStartCodexLogin}
           onSessionCaptured={async (values: CodexSessionValues) => {
-            const catalog = await getOAuthModelCatalog(CLI_AGENT.CODEX);
+            let catalog: OAuthModelCatalog = {
+              models: [],
+              defaultEnabledModels: [],
+            };
+            try {
+              catalog = await getOAuthModelCatalog(CLI_AGENT.CODEX);
+            } catch (err) {
+              log.warn("[ApiSetup] Codex OAuth catalog fetch failed:", err);
+            }
             let discoveredModels: string[] = [];
             try {
               discoveredModels = await fetchCodexOAuthModels(
@@ -131,7 +143,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
               );
             } catch (err) {
               log.warn(
-                "[ApiSetup] Codex OAuth model discovery failed; using Rust catalog:",
+                "[ApiSetup] Codex OAuth model discovery failed; falling back to catalog:",
                 err
               );
             }
@@ -145,7 +157,10 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
                 ? defaultEnabledModels
                 : codexModels.slice(0, 1);
             onChange({
-              name: "OpenAI",
+              // Intentionally do NOT set `name` here. Forcing "OpenAI" either
+              // trips `isDuplicateName` (disabling Done) or shadows the
+              // `nextDefaultName` dedupe in `submit()`. Let the wizard's own
+              // name-resolution handle it (empty → "OpenAI" / "OpenAI-1" ...).
               auth_method: "oauth",
               oauth_session_token: values.accessToken,
               raw_key_input: "",
@@ -235,7 +250,18 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}
           onSessionCaptured={async (values: ClaudeCodeSessionValues) => {
-            const catalog = await getOAuthModelCatalog(CLI_AGENT.CLAUDE_CODE);
+            let catalog: OAuthModelCatalog = {
+              models: [],
+              defaultEnabledModels: [],
+            };
+            try {
+              catalog = await getOAuthModelCatalog(CLI_AGENT.CLAUDE_CODE);
+            } catch (err) {
+              log.warn(
+                "[ApiSetup] Claude Code OAuth catalog fetch failed:",
+                err
+              );
+            }
             let discoveredModels: string[] = [];
             try {
               discoveredModels = await fetchClaudeCodeOAuthModels(
@@ -243,7 +269,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
               );
             } catch (err) {
               log.warn(
-                "[ApiSetup] Claude Code OAuth model discovery failed; using Rust catalog:",
+                "[ApiSetup] Claude Code OAuth model discovery failed; falling back to catalog:",
                 err
               );
             }
@@ -259,7 +285,6 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
             const expiresAt = values.expiresIn
               ? Date.now() + values.expiresIn * 1000
               : undefined;
-            const accountName = "Anthropic";
             const envVars = [
               ...(values.refreshToken
                 ? [
@@ -292,7 +317,10 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
               raw_key_input: "",
               env_vars: envVars,
               account_metadata: values.accountMetadata ?? {},
-              ...(accountName ? { name: accountName } : {}),
+              // Intentionally do NOT set `name` here. Forcing "Anthropic"
+              // trips `isDuplicateName` (disabling Done) or shadows the
+              // `nextDefaultName` dedupe in `submit()`. The wizard resolves
+              // the account name itself (empty → brand label / "-1" / ...).
               available_models: claudeCodeModels,
               model_context_lengths: {},
               enabled_models: enabledModels,

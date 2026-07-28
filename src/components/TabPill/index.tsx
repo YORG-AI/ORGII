@@ -39,6 +39,7 @@ const TabPill: React.FC<TabPillProps> = ({
   size = "default",
   colorScheme = "default",
   buttonStyle = false,
+  height,
   onDropdownRef,
 }) => {
   const isMulti = activeTabs !== undefined;
@@ -277,6 +278,7 @@ const TabPill: React.FC<TabPillProps> = ({
           data-tab-key={tab.key}
           data-testid={tab.dataTestId}
           onClick={() => handleImmediateTabClick(tab, isActive)}
+          onMouseEnter={() => setHoveredTabKey(tab.key)}
           onMouseLeave={handleImmediateTabMouseLeave}
           disabled={tab.disabled}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
@@ -303,7 +305,13 @@ const TabPill: React.FC<TabPillProps> = ({
             fillWidth && (wrap ? "min-w-[5rem] flex-1" : "flex-1")
           )}
         >
-          {renderTabContent(tab, iconOnly, true, isActive)}
+          {renderTabContent(
+            tab,
+            iconOnly,
+            true,
+            isActive,
+            hoveredTabKey === tab.key
+          )}
           <span
             className={cn(
               "mt-1 h-1 w-1 rounded-full",
@@ -363,6 +371,7 @@ const TabPill: React.FC<TabPillProps> = ({
                   : size === "chatPanel"
                     ? "h-7 px-3 py-[3px]"
                     : "h-[28px] px-3 py-[3px]",
+          height !== undefined && "!h-full",
           "border-0 outline-none",
           buttonStyle
             ? isActive || isDropdownOpen
@@ -425,7 +434,7 @@ const TabPill: React.FC<TabPillProps> = ({
           iconOnly,
           isPill,
           isActive || isDropdownOpen,
-          isMulti ? hoveredTabKey === tab.key : undefined,
+          hoveredTabKey === tab.key,
           !isMulti
         )}
       </button>
@@ -442,6 +451,7 @@ const TabPill: React.FC<TabPillProps> = ({
   return (
     <div
       ref={containerRef}
+      style={height === undefined ? undefined : { height }}
       className={cn(
         "relative z-10 items-stretch",
         usePillWrapGrid

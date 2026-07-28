@@ -13,20 +13,27 @@
  *   3. **Failed / cancelled** — infinity icon, error body.
  */
 import { Infinity, Square } from "lucide-react";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
+import { ChatBubbleAvatar, ChatBubbleBody } from "@src/components/ChatBubble";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
-  EVENT_BLOCK_ICON_WRAPPER_CLASSES,
   EVENT_LOADING_SHIMMER_TEXT_CLASSES,
-  EventBlockHeader,
+  EventNavigateIcon,
   SESSION_UI_TOKENS,
-  getEventBlockContainerClasses,
 } from "../primitives";
+import { InSimulatorReplayContext } from "../primitives/inSimulatorReplayContext";
 import { SubagentPromptPreview, formatElapsedTime } from "./SubagentHelpers";
 
 const log = createLogger("SubagentBlock");
@@ -38,6 +45,17 @@ const log = createLogger("SubagentBlock");
 export interface SubagentBlockProps {
   description: string;
   subagentType?: string;
+  /**
+   * Resolved display name of the delegated agent (e.g. "Explore"). Rendered
+   * as the bubble's sender label `@{agentName}`. Falls back to a generic
+   * "Subagent" label when absent.
+   */
+  agentName?: string;
+  /**
+   * Lucide icon slug for the delegated agent's avatar. Falls back to the
+   * delegation (infinity) mark when the agent has no resolved icon.
+   */
+  agentIconId?: string;
   resultContent?: string;
   resultSummary?: string;
   isLoading?: boolean;
@@ -62,6 +80,8 @@ export interface SubagentBlockProps {
 const SubagentBlock: React.FC<SubagentBlockProps> = memo(
   ({
     description,
+    agentName,
+    agentIconId,
     isLoading = false,
     elapsedMs,
     subagentSessionId,
@@ -74,6 +94,7 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
   }) => {
     const { t } = useTranslation("sessions");
     const { t: tCommon } = useTranslation();
+    const inSimulatorReplay = useContext(InSimulatorReplayContext);
 
     const hasNestedSession = Boolean(subagentSessionId);
     const hasPrompt = Boolean(prompt && prompt.trim().length > 0);
@@ -124,11 +145,17 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
       [subagentSessionId, effectiveIsStopping]
     );
 
-    // ── Header text ──
-    const taskName = description || t("tools.subagentDefaultName");
-    const subtitleParts: string[] = [taskName];
-    if (timingLabel && !isLoading) subtitleParts.push(timingLabel);
-    const subtitle = subtitleParts.join(" · ");
+    // ── Bubble content ──
+    // Mirrors the Agent Team group-chat bubble: a localized title row aligns
+    // with the avatar (elapsed time + controls on its right), and the delegated
+    // agent reads as an "@mention" (primary-6) inside the neutral bubble below,
+    // followed by the task headline and the assignment prompt as the body.
+    const title = t("tools.assignedTaskToSubagent");
+    const nameLabel = agentName?.trim() || t("tools.subagentDefaultName");
+    const mention = `@${nameLabel}`;
+
+    const AgentIcon = agentIconId ? resolveAgentIcon(agentIconId) : Infinity;
+    const showNavigate = Boolean(onNavigate) && !inSimulatorReplay;
 
     const headerRight =
       toolUsage || canStop ? (
@@ -154,63 +181,95 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
         </div>
       ) : undefined;
 
-    const displayTitle = t("tools.assignedTaskToSubagent");
-    const hasBody =
-      hasPrompt || (isFailure && hasErrorMessage) || (isLoading && !hasPrompt);
-
     return (
-      <div className={getEventBlockContainerClasses(true)}>
-        <EventBlockHeader
-          isCollapsed={false}
-          withHover
-          onNavigate={onNavigate}
-          className={
-            hasBody
-              ? "border-b border-solid border-border-1"
-              : "border-b border-solid border-transparent"
-          }
-          rightContent={headerRight}
-        >
-          <div className={EVENT_BLOCK_ICON_WRAPPER_CLASSES}>
-            <Infinity size={14} strokeWidth={1.75} className="text-text-2" />
-          </div>
-          <span
-            className={`shrink-0 truncate font-medium ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-text-3" : "text-text-1"}`}
-            title={displayTitle}
-          >
-            {displayTitle}
-          </span>
-          {subtitle && (
+      <div
+        className="group/chat-block-header flex gap-2.5"
+        data-testid="subagent-bubble"
+      >
+        <div className="flex h-7 shrink-0 items-center">
+          <ChatBubbleAvatar
+            className="h-7 w-7 bg-fill-2"
+            icon={
+              <AgentIcon
+                size={15}
+                strokeWidth={1.75}
+                className={isFailure ? "text-text-3" : "text-text-2"}
+              />
+            }
+          />
+        </div>
+        <div className="min-w-0 max-w-[min(750px,100%)] flex-1">
+          {/* Title row — aligns with the avatar */}
+          <div className="flex h-7 items-center gap-2">
             <span
-              className={`min-w-0 shrink truncate ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-danger-5" : "text-text-3"}`}
-              title={subtitle}
+              className={`min-w-0 truncate font-medium ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-text-3" : "text-text-1"}`}
+              title={title}
             >
-              {subtitle}
+              {title}
             </span>
-          )}
-        </EventBlockHeader>
-
-        {hasPrompt && (
-          <div className="px-3.5 py-2.5">
-            <SubagentPromptPreview prompt={prompt as string} />
+            {timingLabel && !isLoading && (
+              <span
+                className={`shrink-0 ${SESSION_UI_TOKENS.FONT_SIZE_SM} text-text-3`}
+              >
+                {timingLabel}
+              </span>
+            )}
+            {(headerRight || showNavigate) && (
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                {headerRight}
+                {showNavigate && onNavigate && (
+                  <EventNavigateIcon onClick={onNavigate} />
+                )}
+              </div>
+            )}
           </div>
-        )}
 
-        {isFailure && hasErrorMessage && (
-          <div
-            className={`${hasPrompt ? "border-t border-fill-3" : ""} px-3.5 py-2.5 ${SESSION_UI_TOKENS.FONT_SIZE_SM} leading-relaxed text-danger-5`}
+          <ChatBubbleBody
+            variant="neutral"
+            className="!rounded-2xl !px-3 !py-2"
           >
-            {errorMessage}
-          </div>
-        )}
+            <div className="break-words">
+              <span
+                className={`font-medium ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-text-3" : "text-primary-6"}`}
+                title={mention}
+              >
+                {mention}
+              </span>
+              {description && (
+                <span
+                  className={`ml-1.5 ${isLoading ? EVENT_LOADING_SHIMMER_TEXT_CLASSES : isFailure ? "text-danger-5" : "text-text-1"}`}
+                >
+                  {description}
+                </span>
+              )}
+            </div>
 
-        {isLoading && !hasPrompt && (
-          <div
-            className={`px-3.5 py-2.5 ${SESSION_UI_TOKENS.FONT_SIZE_SM} ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}`}
-          >
-            {t("tools.runningSubagent")}
-          </div>
-        )}
+            {hasPrompt && (
+              <div className="mt-1">
+                <SubagentPromptPreview
+                  prompt={prompt as string}
+                  fadeFrom="from-fill-2"
+                />
+              </div>
+            )}
+
+            {isFailure && hasErrorMessage && (
+              <div
+                className={`mt-1 ${SESSION_UI_TOKENS.FONT_SIZE_SM} leading-relaxed text-danger-5`}
+              >
+                {errorMessage}
+              </div>
+            )}
+
+            {isLoading && !hasPrompt && (
+              <div
+                className={`mt-1 ${SESSION_UI_TOKENS.FONT_SIZE_SM} ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}`}
+              >
+                {t("tools.runningSubagent")}
+              </div>
+            )}
+          </ChatBubbleBody>
+        </div>
       </div>
     );
   }

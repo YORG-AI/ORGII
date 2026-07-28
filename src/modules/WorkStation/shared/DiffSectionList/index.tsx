@@ -1,9 +1,11 @@
-import React, { memo, useEffect, useRef } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import DiffFileSection from "../DiffFileSection";
 import type { DiffFileSectionData } from "../DiffFileSection";
+import { getDefaultDiffSectionExpanded } from "./expansion";
 
 export interface DiffSectionListItem<TFile extends DiffFileSectionData> {
   key: string;
@@ -17,12 +19,15 @@ export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   emptySubtitle?: string;
   repoPath?: string;
   collapseThreshold?: number;
+  /** Start collapsible sections closed regardless of list size. */
+  defaultCollapsed?: boolean;
   collapseSignal?: number;
   getSectionRef?: (path: string) => React.RefObject<HTMLDivElement | null>;
   focusedPath?: string | null;
   focusedNonce?: number;
   onFileSelect?: (path: string) => void;
   onRequestContent?: (file: TFile) => void;
+  onExpansionChange?: (file: TFile, expanded: boolean) => void;
   sectionKeySuffix?: (section: DiffSectionListItem<TFile>) => string | number;
   showBottomBorder?: boolean;
   /** Show the original path after renamed files in each section header. */
@@ -35,6 +40,17 @@ export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
 
 const DEFAULT_COLLAPSE_THRESHOLD = 10;
 
+interface RememberedExpansion {
+  signal: number;
+  expanded: boolean;
+}
+
+function DiffListFooter() {
+  return <div className="h-[100px]" aria-hidden />;
+}
+
+const DIFF_LIST_COMPONENTS = { Footer: DiffListFooter };
+
 function DiffSectionListInner<TFile extends DiffFileSectionData>({
   sections,
   loading = false,
@@ -42,25 +58,86 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
   emptySubtitle,
   repoPath,
   collapseThreshold = DEFAULT_COLLAPSE_THRESHOLD,
+  defaultCollapsed = false,
   collapseSignal = 0,
   getSectionRef,
   focusedPath,
   focusedNonce = 0,
   onFileSelect,
   onRequestContent,
+  onExpansionChange,
   sectionKeySuffix,
   showBottomBorder,
   showRenamePath = false,
   flat = false,
   hideBottomPadding = false,
 }: DiffSectionListProps<TFile>) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const rememberedExpansionsRef = useRef(
+    new Map<string, RememberedExpansion>()
+  );
+
+  const keyedSections = useMemo(
+    () =>
+      sections.map((section) => {
+        const suffix = sectionKeySuffix?.(section) ?? "";
+        return {
+          section,
+          renderKey: `${section.key}-${suffix}`,
+        };
+      }),
+    [sectionKeySuffix, sections]
+  );
+
+  const keyedSectionsSignature = keyedSections
+    .map(({ renderKey }) => renderKey)
+    .join("\0");
+
+  // Expansion state belongs to this mounted list, not to recycled rows. Prune
+  // removed files and discard all remembered overrides on a collapse signal so
+  // virtual row unmount/remount does not either lose or leak state.
+  useEffect(() => {
+    const validKeys = new Set(keyedSections.map(({ renderKey }) => renderKey));
+    const rememberedExpansions = rememberedExpansionsRef.current;
+    for (const key of rememberedExpansions.keys()) {
+      if (!validKeys.has(key)) rememberedExpansions.delete(key);
+    }
+  }, [keyedSections, keyedSectionsSignature]);
+
+  useEffect(() => {
+    rememberedExpansionsRef.current.clear();
+  }, [collapseSignal]);
+
+  const handleExpansionChange = useCallback(
+    (
+      renderKey: string,
+      file: TFile,
+      expansionSignal: number,
+      expanded: boolean
+    ) => {
+      rememberedExpansionsRef.current.set(renderKey, {
+        signal: expansionSignal,
+        expanded,
+      });
+      onExpansionChange?.(file, expanded);
+    },
+    [onExpansionChange]
+  );
 
   useEffect(() => {
     if (!focusedPath) return;
-    if (!sections.some((section) => section.file.path === focusedPath)) return;
+    const focusedIndex = keyedSections.findIndex(
+      ({ section }) => section.file.path === focusedPath
+    );
+    if (focusedIndex < 0) return;
 
-    window.requestAnimationFrame(() => {
+    virtuosoRef.current?.scrollToIndex({
+      index: focusedIndex,
+      align: "start",
+      behavior: "auto",
+    });
+
+    const frame = window.requestAnimationFrame(() => {
       const externalRef = getSectionRef?.(focusedPath);
       if (externalRef?.current) {
         externalRef.current.scrollIntoView({
@@ -69,13 +146,10 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
         });
         return;
       }
-
-      const target = scrollContainerRef.current?.querySelector<HTMLElement>(
-        `[data-diff-section-path="${CSS.escape(focusedPath)}"]`
-      );
-      target?.scrollIntoView({ block: "start", behavior: "auto" });
     });
-  }, [focusedPath, focusedNonce, getSectionRef, sections]);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusedPath, focusedNonce, getSectionRef, keyedSections]);
 
   if (loading && sections.length === 0) {
     return (
@@ -99,43 +173,67 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
     );
   }
 
-  const shouldAutoCollapse = sections.length > collapseThreshold;
-
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div
-        ref={scrollContainerRef}
-        className={`min-h-0 flex-1 overflow-auto${hideBottomPadding ? "" : "pb-[100px]"}`}
-      >
-        {sections.map((section) => {
-          const isFocused = focusedPath === section.file.path;
-          const suffix = sectionKeySuffix?.(section) ?? "";
-          return (
-            <DiffFileSection
-              key={`${section.key}-${suffix}`}
-              file={section.file}
-              defaultExpanded={
-                flat ||
-                isFocused ||
-                (collapseSignal > 0 ? false : !shouldAutoCollapse)
-              }
-              expansionSignal={collapseSignal + (isFocused ? focusedNonce : 0)}
-              repoPath={repoPath}
-              sectionRef={getSectionRef?.(section.file.path)}
-              dataPath={section.file.path}
-              onFileSelect={onFileSelect}
-              onRequestContent={
-                onRequestContent
-                  ? () => onRequestContent(section.file)
-                  : undefined
-              }
-              showBottomBorder={showBottomBorder}
-              showRenamePath={showRenamePath}
-              flat={flat}
-              noBottomPadding={hideBottomPadding}
-            />
-          );
-        })}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <Virtuoso
+          ref={virtuosoRef}
+          className="h-full scrollbar-hide"
+          data={keyedSections}
+          computeItemKey={(_index, item) => item.renderKey}
+          overscan={600}
+          components={hideBottomPadding ? undefined : DIFF_LIST_COMPONENTS}
+          itemContent={(_index, { section, renderKey }) => {
+            const isFocused = focusedPath === section.file.path;
+            const expansionSignal =
+              collapseSignal + (isFocused ? focusedNonce : 0);
+            const rememberedExpansion =
+              rememberedExpansionsRef.current.get(renderKey);
+            const expandedOverride =
+              rememberedExpansion?.signal === expansionSignal
+                ? rememberedExpansion.expanded
+                : undefined;
+
+            return (
+              <DiffFileSection
+                file={section.file}
+                defaultExpanded={
+                  expandedOverride ??
+                  getDefaultDiffSectionExpanded({
+                    flat,
+                    isFocused,
+                    collapseSignal,
+                    defaultCollapsed,
+                    sectionCount: sections.length,
+                    collapseThreshold,
+                  })
+                }
+                expansionSignal={expansionSignal}
+                repoPath={repoPath}
+                sectionRef={getSectionRef?.(section.file.path)}
+                dataPath={section.file.path}
+                onFileSelect={onFileSelect}
+                onRequestContent={
+                  onRequestContent
+                    ? () => onRequestContent(section.file)
+                    : undefined
+                }
+                onExpansionChange={(expanded) =>
+                  handleExpansionChange(
+                    renderKey,
+                    section.file,
+                    expansionSignal,
+                    expanded
+                  )
+                }
+                showBottomBorder={showBottomBorder}
+                showRenamePath={showRenamePath}
+                flat={flat}
+                noBottomPadding={hideBottomPadding}
+              />
+            );
+          }}
+        />
       </div>
     </div>
   );

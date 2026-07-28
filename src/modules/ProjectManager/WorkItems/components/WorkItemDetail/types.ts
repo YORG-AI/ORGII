@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { WorkstationTabHeaderHost } from "@src/hooks/workStation";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -52,6 +54,8 @@ export interface WorkItemDetailProps {
   initialPendingUpdates?: Partial<WorkItemExtended>;
   surface?: WorkItemDetailSurface;
   breadcrumbProjectName?: string;
+  breadcrumbIcon?: ReactNode;
+  titleEditable?: boolean;
   propertiesOpen?: boolean;
   onToggleProperties?: () => void;
   publishHeaderToWorkstation?: boolean;

@@ -302,13 +302,11 @@ impl LLMProvider for CodexNativeClient {
                                 let has_partial_data = !accumulated_text.is_empty()
                                     || stream_normalizer.has_pending_tool_calls()
                                     || !tool_calls.is_empty();
-                                if error.is_auth_error() {
-                                    if !auth_retry_used && !has_partial_data {
-                                        warn!("[codex-native] Access token rejected inside stream before output; refreshing and retrying once");
-                                        self.refresh_auth_after_unauthorized().await?;
-                                        auth_retry_used = true;
-                                        continue 'request_attempt;
-                                    }
+                                if error.is_auth_error() && !auth_retry_used && !has_partial_data {
+                                    warn!("[codex-native] Access token rejected inside stream before output; refreshing and retrying once");
+                                    self.refresh_auth_after_unauthorized().await?;
+                                    auth_retry_used = true;
+                                    continue 'request_attempt;
                                 }
                                 return Err(error.into_provider_error());
                             }

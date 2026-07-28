@@ -68,6 +68,7 @@ export function useFileWatchHeartbeat(
   const heartbeatIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivityRef = useRef<number>(0);
   const watchActiveRef = useRef<boolean>(false);
+  const idleReportedRef = useRef<boolean>(false);
 
   /**
    * Log file watch events to the output channel.
@@ -86,8 +87,10 @@ export function useFileWatchHeartbeat(
       // Update state based on event type
       if (eventType === "start") {
         watchActiveRef.current = true;
+        idleReportedRef.current = false;
       } else if (eventType === "change") {
         lastActivityRef.current = Date.now();
+        idleReportedRef.current = false;
       } else if (eventType === "end") {
         watchActiveRef.current = false;
       }
@@ -109,6 +112,7 @@ export function useFileWatchHeartbeat(
 
     watchActiveRef.current = true;
     lastActivityRef.current = Date.now();
+    idleReportedRef.current = false;
 
     // Check periodically for idle status
     heartbeatIntervalRef.current = setInterval(() => {
@@ -118,7 +122,7 @@ export function useFileWatchHeartbeat(
       const idleTime = now - lastActivityRef.current;
 
       // Show idle message if inactive for threshold duration
-      if (idleTime >= IDLE_THRESHOLD) {
+      if (idleTime >= IDLE_THRESHOLD && !idleReportedRef.current) {
         const channel = getGitChannel();
         const timestamp = formatTimestamp();
         const minutesIdle = Math.floor(idleTime / IDLE_THRESHOLD);
@@ -126,9 +130,7 @@ export function useFileWatchHeartbeat(
         const message = formatWatchMessage(timestamp, "idle", details);
 
         outputState.appendToChannel(channel.id, message);
-
-        // Reset to show next message in another minute
-        lastActivityRef.current = now;
+        idleReportedRef.current = true;
       }
     }, HEARTBEAT_CHECK_INTERVAL);
   }, [enableWatchHeartbeat, getGitChannel, outputState]);
@@ -150,6 +152,7 @@ export function useFileWatchHeartbeat(
    */
   const resetHeartbeat = useCallback(() => {
     lastActivityRef.current = Date.now();
+    idleReportedRef.current = false;
   }, []);
 
   /**

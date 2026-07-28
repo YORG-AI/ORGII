@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatBubbleBody } from "@src/components/ChatBubble";
+import ClampedContent from "@src/components/ClampedContent";
 import Markdown from "@src/components/MarkDown";
 import {
   formatSmartDateTime,
@@ -139,7 +140,7 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
       className="flex gap-1"
     >
       {avatar}
-      <div className="min-w-0 flex-1 overflow-hidden">
+      <div className="min-w-0 max-w-[min(750px,100%)] flex-1 overflow-hidden">
         {showSenderChrome && (
           <div className="flex h-9 items-center">
             <div className="flex h-4 items-center gap-2 leading-none">
@@ -152,31 +153,35 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
             </div>
           </div>
         )}
-        <ChatBubbleBody variant="neutral" className="!px-2 !py-2">
-          {trimmedRecipient ? (
-            <>
-              <div className="break-words">
-                <span className="text-primary-6">@{trimmedRecipient}</span>
-                {"  "}
-                {firstLine}
-              </div>
-              {restBody && (
-                <Markdown
-                  textContent={restBody}
-                  useChatCodeBlock={true}
-                  enableFileNavigation={true}
-                  skipPreprocess={false}
-                />
-              )}
-            </>
-          ) : (
-            <Markdown
-              textContent={trimmedBody}
-              useChatCodeBlock={true}
-              enableFileNavigation={true}
-              skipPreprocess={false}
-            />
-          )}
+        <ChatBubbleBody variant="neutral" className="!rounded-2xl !px-3 !py-2">
+          {/* Clamp long agent messages to a ~20-line preview (ClampedContent's
+              default); the expand/collapse pill fades into the neutral bubble. */}
+          <ClampedContent fadeFrom="from-fill-2">
+            {trimmedRecipient ? (
+              <>
+                <div className="break-words">
+                  <span className="text-primary-6">@{trimmedRecipient}</span>
+                  {"  "}
+                  {firstLine}
+                </div>
+                {restBody && (
+                  <Markdown
+                    textContent={restBody}
+                    useChatCodeBlock={true}
+                    enableFileNavigation={true}
+                    skipPreprocess={false}
+                  />
+                )}
+              </>
+            ) : (
+              <Markdown
+                textContent={trimmedBody}
+                useChatCodeBlock={true}
+                enableFileNavigation={true}
+                skipPreprocess={false}
+              />
+            )}
+          </ClampedContent>
         </ChatBubbleBody>
         {toolUseSummaryLabel && (
           <div className="mt-1 px-2 text-[13px] leading-5 text-text-3">

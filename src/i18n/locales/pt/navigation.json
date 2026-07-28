@@ -12,6 +12,7 @@
     "drafts": "Rascunhos",
     "browser": "Navegador",
     "editor": "Editor",
+    "environment": "Ambiente",
     "workspace": "Workspace",
     "codeEditor": "Editor de Código",
     "databaseManager": "Gerenciador de Banco",
@@ -60,15 +61,9 @@
     "startSession": "Iniciar sessão",
     "sessions": "Sessões",
     "selectProject": "Selecionar História",
-    "startPage": "Página Inicial",
     "inbox": "Caixa de Entrada",
     "login": "Entrar",
     "setup": "Configurar",
-    "devJourney": "Jornada de Dev",
-    "devRecord": "Registro de Dev",
-    "gitDashboard": "Painel do Git",
-    "devActivity": "Atividade de Dev",
-    "usageHistory": "Histórico de Uso",
     "tokenMarket": "Mercado de Tokens",
     "taskMarket": "Mercado de Tarefas",
     "channels": "Canais",
@@ -84,20 +79,8 @@
     "ideaArea": "Área de Ideias",
     "changelog": "Changelog"
   },
-  "appGrid": {
-    "customizeGrid": "Personalizar Grade",
-    "horizontalGap": "Espaço Horizontal",
-    "verticalGap": "Espaço Vertical",
-    "resetToDefault": "Restaurar Padrão"
-  },
-  "greetings": {
-    "morning": "Bom dia",
-    "afternoon": "Boa tarde",
-    "evening": "Boa noite"
-  },
   "sidebar": {
     "tabs": {
-      "build": "Início",
       "workstation": "Workstation",
       "manage": "Gerenciar",
       "core": "Núcleo",
@@ -133,9 +116,7 @@
     "actions": {
       "addNew": "Adicionar",
       "collapseAll": "Recolher tudo",
-      "markAllRead": "Marcar tudo como lido",
-      "openHome": "Abrir início",
-      "openWorkstation": "Abrir Workstation"
+      "markAllRead": "Marcar tudo como lido"
     },
     "search": {
       "folders": "Pesquisar no Workspace...",
@@ -359,15 +340,6 @@
       "projects": "Projetos"
     }
   },
-  "changelog": {
-    "title": "Changelog",
-    "subtitle": "Atualizações do produto",
-    "commitCount": "{{count}} commits",
-    "commitCount_one": "{{count}} commit",
-    "details": "Detalhes",
-    "frontend": "Frontend",
-    "backend": "Backend"
-  },
   "collaboration": {
     "switchOrg": "Trocar de ORG",
     "addOrg": "Adicionar ORG",
@@ -399,7 +371,11 @@
       "forkSetupNoWorkspace": "Continue without a workspace",
       "forkSetupAccount": "Account",
       "forkSetupModel": "Model",
-      "forkSetupContinue": "Fork & continue"
+      "forkSetupContinue": "Fork & continue",
+      "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "forkAgentUnavailable": "Choose a local agent before forking.",
+      "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -419,14 +395,21 @@
       "error": "Falha ao fazer fork da sessão",
       "sendFailed": "Fork concluído, mas o envio da mensagem falhou — ela foi restaurada no editor",
       "forkedChipTooltip": "Fork de {{name}}",
-      "continuePlaceholder": "Message to fork and continue in ORGII…"
+      "continuePlaceholder": "Message to fork and continue in ORGII…",
+      "snapshotError": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
+      "agentError": "Choose a local agent before forking.",
+      "backendError": "The session history was copied, but the runnable fork could not be registered. Retry.",
+      "parentOpenUnavailable": "The source session could not be opened from this fork.",
+      "replayError": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
     }
   },
   "cloud": {
     "title": "ORG2 Cloud",
     "signIn": "Entrar",
     "signOut": "Sair",
+    "signedInAs": "Sessão iniciada como {{name}}",
     "signedInToast": "Signed in to ORG2 Cloud",
+    "sessionExpired": "Sua sessão do ORG2 Cloud expirou. Entre novamente para continuar.",
     "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
@@ -466,12 +449,15 @@
       "retentionUpgrade": "This session is outside your plan's replay window — upgrade to view it",
       "importError": "Couldn't import the session",
       "manageBilling": "Manage billing",
-      "manageBillingNote": "Cancel or change your plan in the billing portal"
+      "manageBillingNote": "Cancel or change your plan in the billing portal",
+      "aboutMeTitle": "Sobre mim"
     },
     "sidebar": {
       "teamSessions": "Sessões da equipe",
+      "mySessions": "Minhas sessões",
       "memberFilter": "Filtrar por membro",
       "sessionFilter": "Filtrar sessões",
+      "copyId": "Copiar ID",
       "directlySharedWithMe": "Compartilhadas diretamente comigo",
       "everyone": "Todos",
       "forkedFrom": "bifurcada de @{{name}}",
@@ -545,7 +531,8 @@
         "youTag": "Você",
         "ownerTag": "Proprietário",
         "floorOff": "Sem mínimo",
-        "floorTooltip": "Nível mínimo de compartilhamento para este membro. Aplica-se o mais rigoroso entre este e o mínimo da organização."
+        "floorTooltip": "Nível mínimo de compartilhamento para este membro. Aplica-se o mais rigoroso entre este e o mínimo da organização.",
+        "floorOrgMinimum": "Mínimo da organização ({{mode}})"
       },
       "leave": {
         "action": "Sair da organização",
@@ -586,7 +573,7 @@
         "joinedFallbackToast": "Você entrou na organização na nuvem"
       },
       "create": {
-        "sourceCloud": "ORG2 Cloud (gerenciado)",
+        "sourceCloud": "Nuvem",
         "signInFirst": "Entre no ORG2 Cloud para criar ou entrar em uma organização gerenciada.",
         "openSettings": "Abrir configurações de login",
         "createdToast": "Organização na nuvem criada"
@@ -603,25 +590,22 @@
         "inviteInvalid": "Este código de convite não é válido.",
         "inviteRevoked": "Este convite foi revogado.",
         "inviteExpired": "Este convite expirou.",
-        "inviteExhausted": "Este convite não tem mais usos."
+        "inviteExhausted": "Este convite não tem mais usos.",
+        "network": "Não foi possível conectar ao serviço de nuvem. Verifique a rede e tente novamente."
       }
-    },
-    "defaultAccess": {
-      "label": "Nível de sincronização padrão",
-      "help": "Aplica-se às sessões deste dispositivo correspondentes a um escopo de repositório e sem ajuste próprio. Em “Desligado”, as sessões ficam locais até você ativar"
     },
     "syncLevel": {
       "menuItem": "Nível de sincronização na nuvem…",
       "title": "Nível de sincronização na nuvem",
       "hint": "Escolha o que esta sessão compartilha com cada organização na nuvem — nada, apenas metadados ou o replay completo — e quem pode vê-la.",
-      "orgDefaultOption": "Padrão da organização ({{mode}})",
       "modeOff": "Desligado",
       "modeMetadata": "Apenas metadados",
       "modeFullReplay": "Replay completo",
       "visibilityOrg": "Todos na organização",
       "visibilityRestricted": "Somente eu",
       "taggedNote": "Esta sessão foi movida para esta organização; enquanto estiver marcada, compartilha ao menos os metadados.",
-      "floorNote": "O administrador da sua organização exige compartilhar pelo menos {{mode}}."
+      "floorNote": "O administrador da sua organização exige compartilhar pelo menos {{mode}}.",
+      "orgMinimumOption": "Mínimo da organização ({{mode}})"
     },
     "share": {
       "menuItem": "Compartilhamento na nuvem…",
@@ -652,33 +636,23 @@
       "importPasteClipboard": "Colar da área de transferência",
       "importSubmit": "Importar",
       "importInvalidInput": "Isto não parece um link de compartilhamento ou token válido.",
-      "selectAll": "Todos ({{count}})"
-    },
-    "agentRunner": {
-      "title": "Executor de tarefas de agente",
-      "desc": "Padrões para tarefas de comentário executadas a partir de threads de sessão (“Executar aqui”)",
-      "machineNotice": "As execuções acontecem nesta máquina com os tokens desta conta",
-      "orgLabel": "Organização",
-      "accountLabel": "Conta",
-      "accountPlaceholder": "Conta padrão",
-      "modelLabel": "Modelo",
-      "modelPlaceholder": "Modelo padrão",
-      "modeLabel": "Modo",
-      "autoRunLabel": "Executar tarefas @agent automaticamente",
-      "autoRunDesc": "Reivindica e executa automaticamente tarefas de comentários @agent nas sessões que você possui. Desativado por padrão — as menções @agent de colegas não gastarão seus tokens até você ativar isto."
+      "selectAll": "Todos ({{count}})",
+      "incomingEndpointMismatch": "Este compartilhamento pertence a outra nuvem personalizada. Configure esse endpoint antes de importar.",
+      "incomingConnectionError": "Não foi possível conectar ao serviço de nuvem. Verifique a rede e tente novamente.",
+      "incomingIncompatibleError": "A nuvem retornou uma resposta incompatível. Atualize o ORGII ou verifique a implantação.",
+      "incomingServerError": "O serviço de nuvem não conseguiu resolver este compartilhamento. Tente novamente.",
+      "incomingAlreadyOnDevice": "Esta sessão já está neste dispositivo. Abra a original em vez de importar uma duplicata.",
+      "incomingOpenExisting": "Abrir sessão",
+      "incomingRetry": "Tentar novamente"
     },
     "comments": {
       "task": {
         "assignFailed": "O comentário foi publicado, mas a atribuição do agente falhou — tente novamente pela thread",
         "assignUnavailableHere": "O comentário foi publicado — a atribuição do agente não está disponível nesta visualização",
-        "turnBadge": "um agente está neste turno",
         "addressingChip": "Tratando o comentário: “{{excerpt}}”",
         "addressingChipGeneric": "Tratando um comentário",
         "addressingChipTooltip": "Fork criado para tratar uma thread de comentários da sessão de origem",
-        "openBadge_one": "{{count}} tarefa de agente aguardando atendimento",
-        "openBadge": "{{count}} tarefas de agente aguardando atendimento",
-        "activeBadge_one": "{{count}} agente está trabalhando nesta sessão",
-        "activeBadge": "{{count}} agentes estão trabalhando nesta sessão"
+        "mentionSuggestion": "Atribuir este comentário a um agente"
       },
       "toggleLabel": "Comentários",
       "notesButton": "Notas da sessão",

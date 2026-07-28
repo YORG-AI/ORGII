@@ -4,7 +4,6 @@ import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSes
 import { resolveShareableScopeKeys } from "@src/features/TeamCollaboration/repoScopeResolver";
 import type { Session } from "@src/store/session";
 import type { ActivityChunk } from "@src/types/session/session";
-import { BUILTIN_SDE_DEF_ID } from "@src/util/session/sessionDispatch";
 
 const MAX_HISTORY_ITEMS = 80;
 const MAX_TEXT_LENGTH = 1200;
@@ -138,6 +137,10 @@ export async function forkExternalHistoryIntoOrgiiSession(params: {
     params.userMessage,
     source.displayName
   );
+  // This continuation is a normal top-level ORGII session. `parentSessionId`
+  // is reserved for real subagents and would hide the continuation from the
+  // primary session list after a reload. The handoff prompt carries the
+  // external source context without changing the new session's hierarchy.
   const result = await SessionService.create({
     task: content,
     imageDataUrls: params.imageDataUrls,
@@ -146,9 +149,8 @@ export async function forkExternalHistoryIntoOrgiiSession(params: {
     model: setup.execution.model,
     accountId: setup.execution.accountId,
     keySource: "own_key",
-    agentDefinitionId: BUILTIN_SDE_DEF_ID,
+    agentDefinitionId: setup.execution.agentDefinitionId,
     mode: "build",
-    parentSessionId: params.sourceSessionId,
   });
   return result.sessionId;
 }

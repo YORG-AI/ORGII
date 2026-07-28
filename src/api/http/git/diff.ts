@@ -91,7 +91,6 @@ export const getGitBatchFileDiffs = async (params: {
   files?: (string | GitBatchFileDiffInput)[];
   from_ref?: string;
   to_ref?: string;
-  include_content?: boolean;
   context_lines?: number;
 }): Promise<GitBatchFileDiffResult | undefined> => {
   try {
@@ -128,7 +127,6 @@ export const getGitBatchFileDiffs = async (params: {
           Object.keys(originalPaths).length > 0 ? originalPaths : undefined,
         from_ref: params.from_ref ?? "HEAD",
         to_ref: params.to_ref ?? null,
-        include_content: params.include_content ?? false,
         context_lines: params.context_lines ?? 3,
       }),
     });

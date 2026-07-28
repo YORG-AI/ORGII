@@ -730,6 +730,7 @@ const CLI_ALIAS_MAP_FIXTURE: Map<string, AliasEntry> = new Map([
   ["manage_session", subagentMsg("subagent", "subagent")],
   ["agent", subagentMsg("subagent", "subagent")],
   ["spawn", subagentMsg("subagent", "subagent")],
+  ["spawn_agent", subagentMsg("subagent", "subagent")],
   ["spawn_sub_agent", subagentMsg("subagent", "subagent")],
 
   // ═══════════════════════════════════════════════════════════════════════════

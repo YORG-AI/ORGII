@@ -139,12 +139,8 @@ const ActionCard: React.FC<ActionCardProps> = ({
   const showTrailingCheck =
     showSelect && showSelectionCheck && !showCheckbox && !showRadio && selected;
 
-  return (
-    <div
-      className={containerClass}
-      onClick={handleCardClick}
-      data-testid={dataTestId}
-    >
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         {showCheckbox && !showRadio && (
           <CheckboxIndicator selected={selected} />
@@ -205,7 +201,36 @@ const ActionCard: React.FC<ActionCardProps> = ({
           />
         )}
       </div>
-    </div>
+    </>
+  );
+
+  // A clickable card is an interactive control, not a generic div. Native
+  // button semantics make every wizard/selection surface keyboard reachable
+  // (Tab + Enter/Space) and expose the control to assistive technology. Cards
+  // with their own trailing Button remain a non-interactive container to avoid
+  // invalid nested buttons; only that explicit action performs the callback.
+  if (hasButton) {
+    return (
+      <div className={containerClass} data-testid={dataTestId}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        "w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-2",
+        containerClass
+      )}
+      onClick={handleCardClick}
+      disabled={disabled}
+      aria-pressed={hasSelector ? selected : undefined}
+      data-testid={dataTestId}
+    >
+      {content}
+    </button>
   );
 };
 

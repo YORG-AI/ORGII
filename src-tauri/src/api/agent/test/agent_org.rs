@@ -3,19 +3,20 @@
 //! Inter-agent E2E observability probes for Agent Org runs. Most
 //! endpoints in this module are **helper-isolation / symbol-pinning**
 //! probes (driving an `AgentInboxStore` / `AgentOrgRunContext` helper
-//! directly, no live session, no LLM); the only true caller-path
-//! probe is `launch-coordinator`, which drives the canonical
-//! `session_launch_impl` end-to-end. Each endpoint's individual doc
-//! states which kind it is. The design tradeoff: helper-isolation
-//! probes catch contract drift cheaply, but require pairing with at
-//! least one LLM-driven scenario (see `agent_org_llm.rs`) to catch
-//! regressions where the production caller stops invoking the helper.
+//! directly, no live session, no LLM). The caller-path exceptions are
+//! `launch-coordinator`, which drives the canonical `session_launch_impl`,
+//! and `session-return-to-work`, which drives the production wake scheduler
+//! and inbox drain on a materialized member session. Each endpoint's
+//! individual doc states which kind it is. Helper-isolation probes catch
+//! contract drift cheaply; the deterministic fake-provider return-to-work
+//! scenario catches regressions where the real turn processor stops draining
+//! or persisting inbox input.
 //!
 //! Currently exposed:
 //!
-//! - `POST /test/agent-org/inbox/list-by-run` — list every persisted
-//!   `agent_inbox` row tagged with the given `org_run_id`, decoded into
-//!   the typed `AgentMessage`. Used by the inter-agent communication
+//! - `POST /test/agent-org/inbox/list-by-run` — list one bounded cursor page
+//!   of persisted `agent_inbox` rows tagged with the given `org_run_id`,
+//!   decoded into the typed `AgentMessage`. Used by inter-agent communication
 //!   E2E to assert "coordinator's send actually landed in the worker's
 //!   inbox queue with the right kind/payload".
 //! - `POST /test/agent-org/send-message-direct` — drive
@@ -37,6 +38,10 @@
 //!   set. Init parity is automatic because we drive the same path the
 //!   production frontend uses; we never re-implement runtime assembly
 //!   here.
+//! - `POST /test/agent-org/session-return-to-work` — call the same
+//!   `agent_org_session_return_to_work_impl` as the Tauri command. This is a
+//!   narrow HTTP bridge, not a replacement drain helper: the production
+//!   scheduler, turn processor, inbox persistence, and provider path all run.
 //!
 //! `payload_kind` and `payload_decoded` are returned alongside the raw
 //! row so a corrupted serde tag (anti-pattern caught by
@@ -64,6 +69,8 @@ use agent_core::tools::impls::orchestration::org_send_message::{
     NoopInboxWakeHook, OrgSendMessageTool,
 };
 use agent_core::tools::traits::Tool;
+
+const E2E_RUN_FIXTURE_ORG_PREFIX: &str = "e2e-agent-org-fixture:";
 
 /// `POST /test/agent-org/seed`
 ///
@@ -290,6 +297,7 @@ pub async fn test_agent_org_launch_coordinator(
         native_harness_type,
         platform: None,
         branch: None,
+        worktree_base_ref: None,
         hosted_token: None,
         tier: None,
         name: name_hint,
@@ -432,7 +440,7 @@ pub async fn test_agent_org_launch_coordinator(
                         agent_core::lifecycle::finalize_session(
                             &result.session_id,
                             &content_result,
-                            Some(&handle),
+                            Some(handle),
                             Some(sync_workspace_path.as_path()),
                             true,
                             Some(agent_core::lifecycle::TerminalTurnSignal {
@@ -457,7 +465,7 @@ pub async fn test_agent_org_launch_coordinator(
                         agent_core::lifecycle::finalize_session(
                             &result.session_id,
                             &content_result,
-                            Some(&handle),
+                            Some(handle),
                             Some(sync_workspace_path.as_path()),
                             true,
                             None,
@@ -482,7 +490,7 @@ pub async fn test_agent_org_launch_coordinator(
                         agent_core::lifecycle::finalize_session(
                             &result.session_id,
                             &content_result,
-                            Some(&handle),
+                            Some(handle),
                             Some(sync_workspace_path.as_path()),
                             true,
                             None,
@@ -529,15 +537,39 @@ pub async fn test_agent_org_inbox_list_by_run(
             }))
         }
     };
+    let after_id = match obj.get("after_id") {
+        None | Some(serde_json::Value::Null) => None,
+        Some(value) => match value.as_i64() {
+            Some(value) if value >= 0 => Some(value),
+            _ => {
+                return Json(serde_json::json!({
+                    "ok": false,
+                    "error": "after_id must be a non-negative integer when provided"
+                }))
+            }
+        },
+    };
+    let limit = match obj.get("limit") {
+        None | Some(serde_json::Value::Null) => 100usize,
+        Some(value) => match value.as_u64().and_then(|value| usize::try_from(value).ok()) {
+            Some(value) if value > 0 => value,
+            _ => {
+                return Json(serde_json::json!({
+                    "ok": false,
+                    "error": "limit must be a positive integer when provided"
+                }))
+            }
+        },
+    };
 
-    // Pull the raw rows synchronously off the SQLite connection on the
-    // blocking pool; rusqlite is not async-friendly and the worker
-    // surface here is small (an org run rarely has > a few hundred
-    // messages in the lifetime of a session).
+    // Pull a bounded page synchronously on the blocking pool; rusqlite is
+    // not async-friendly and debug history must not grow one response without
+    // bound just because a Run has lived for a long time.
     let org_run_id_for_blocking = org_run_id.clone();
-    let listed =
-        tokio::task::spawn_blocking(move || AgentInboxStore::list_by_run(&org_run_id_for_blocking))
-            .await;
+    let listed = tokio::task::spawn_blocking(move || {
+        AgentInboxStore::list_page_by_run(&org_run_id_for_blocking, after_id, limit)
+    })
+    .await;
 
     match listed {
         Err(join_err) => Json(serde_json::json!({
@@ -550,8 +582,9 @@ pub async fn test_agent_org_inbox_list_by_run(
             "org_run_id": org_run_id,
             "error": err,
         })),
-        Ok(Ok(rows)) => {
-            let messages: Vec<serde_json::Value> = rows
+        Ok(Ok(page)) => {
+            let messages: Vec<serde_json::Value> = page
+                .rows
                 .into_iter()
                 .map(|row| {
                     // Decode lazily per row so a single corrupted row
@@ -584,6 +617,8 @@ pub async fn test_agent_org_inbox_list_by_run(
                 "ok": true,
                 "org_run_id": org_run_id,
                 "messages": messages,
+                "has_more": page.has_more,
+                "next_cursor": page.next_cursor,
             }))
         }
     }
@@ -844,8 +879,10 @@ pub async fn test_agent_org_inbox_seed(
 /// caller (`UnifiedMessageProcessor::process`) actually invokes
 /// `drain_and_render_deferred` with the correct `org_context` and
 /// `recipient_agent_id` at the start of every turn. The full
-/// caller-path is exercised only via LLM-driven scenarios in
-/// `agent_org_llm.rs`.
+/// caller-path is exercised by
+/// `agent_org::production_return_to_work_drains_inbox_into_member_transcript`,
+/// which launches a real member session and uses the deterministic debug
+/// provider while leaving the scheduler and turn processor unchanged.
 ///
 /// Response shape: `{ ok: true, drained_count: usize, rendered: usize, messages: Value[] }`.
 pub async fn test_agent_org_drain_inbox(
@@ -971,11 +1008,20 @@ pub async fn test_agent_org_drain_inbox(
     // `&AgentSession`. Pick the SDE definition (matches the rest of
     // the agent-org test surface).
     let definition = agent_core::core::definitions::builtin::sde_agent();
-    let throwaway_session_id = format!("e2e-drain-{}", uuid::Uuid::new_v4());
+    let identity = format!(
+        "{}\0{}\0{}",
+        context.run_id,
+        recipient_member_id.as_deref().unwrap_or("unknown"),
+        recipient_agent_id
+    );
+    use std::hash::{Hash, Hasher};
+    let mut identity_hasher = std::collections::hash_map::DefaultHasher::new();
+    identity.hash(&mut identity_hasher);
+    let throwaway_session_id = format!("e2e-drain-{:016x}", identity_hasher.finish());
     let session = agent_core::state::AgentSession::new(throwaway_session_id, definition);
 
     let mut messages: Vec<serde_json::Value> = Vec::new();
-    let guard = drain_and_render_deferred(
+    let mut guard = drain_and_render_deferred(
         &context,
         &recipient_agent_id,
         recipient_member_id.as_deref(),
@@ -983,6 +1029,26 @@ pub async fn test_agent_org_drain_inbox(
         Some(&session),
     );
     let drained = guard.drained_count();
+    if let Some(transcript) = guard.transcript_content().map(str::to_string) {
+        let Some((message_id, intent_id)) = guard.transcript_identity(&session.id) else {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": "drained Inbox transcript was missing a stable identity"
+            }));
+        };
+        match agent_core::session::persistence::materialize_agent_org_inbox_transcript(
+            &session.id,
+            guard.new_materialization_ids(),
+            &message_id,
+            &intent_id,
+            &transcript,
+        ) {
+            Ok((materialization, _)) => guard.remember_materialization(materialization),
+            Err(error) => {
+                return Json(serde_json::json!({ "ok": false, "error": error }));
+            }
+        }
+    }
     guard.commit();
 
     Json(serde_json::json!({
@@ -991,6 +1057,60 @@ pub async fn test_agent_org_drain_inbox(
         "rendered": messages.len(),
         "messages": messages,
     }))
+}
+
+/// `POST /test/agent-org/session-return-to-work`
+///
+/// Debug HTTP bridge to the production return-to-work command implementation.
+/// It deliberately does not drain or mark any inbox row itself. The invoked
+/// implementation must resolve the persisted member session, enqueue the
+/// idempotent Agent Org wake, run the real scheduler/turn processor/provider,
+/// and observe the production drain's durable acknowledgement.
+///
+/// Body: `{ "session_id": "agent-..." }`.
+/// Response: `{ "ok": true, "woke": true }` on a real wake, or a structured
+/// error. E2E preconditions may use a seeded inbox row, but the behavior under
+/// test starts at this bridge and cannot pass through `drain-inbox`.
+pub async fn test_agent_org_session_return_to_work(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use tauri::Manager;
+
+    let session_id = match body.get("session_id").and_then(|value| value.as_str()) {
+        Some(value) if !value.trim().is_empty() => value.to_string(),
+        _ => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": "session_id is required (non-empty string)"
+            }))
+        }
+    };
+
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "AppHandle not initialized."
+        }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+
+    match agent_core::state::commands::session::org_tasks::agent_org_session_return_to_work_impl(
+        &state,
+        session_id.clone(),
+    )
+    .await
+    {
+        Ok(woke) => Json(serde_json::json!({
+            "ok": true,
+            "session_id": session_id,
+            "woke": woke,
+        })),
+        Err(error) => Json(serde_json::json!({
+            "ok": false,
+            "session_id": session_id,
+            "error": error,
+        })),
+    }
 }
 
 /// Render a `ToolError` into the stable `{error_kind, error_message}`
@@ -1349,45 +1469,11 @@ pub async fn test_agent_org_task_tool_direct(
     }
 }
 
-/// `POST /test/agent-org/find-worker-session`
+/// `POST /test/agent-org/run-view`
 ///
-/// Caller-path probe. Wraps [`AgentOrgRunStore::find_worker_session_by_member_id`]
-/// over HTTP so deterministic runtime scenarios can poll the production
-/// `(org_run_id, member_id) → most recent materialized worker session` mapping.
-///
-/// Body:
-/// ```json
-/// {
-///   "org_run_id": "run-123",
-///   "member_id": "sde-planner"
-/// }
-/// ```
-///
-/// Response (success, worker exists):
-/// ```json
-/// {
-///   "ok": true,
-///   "found": true,
-///   "session_id": "agent-...",
-///   "status": "completed"
-/// }
-/// ```
-///
-/// Response (success, no worker yet):
-/// ```json
-/// { "ok": true, "found": false }
-/// ```
-///
-/// Why this exists. The inbox `read_at` flip is one positive pin for
-/// "the wake fired and the drain ran", but it requires the resumed
-/// worker to actually take an LLM turn (~30s + cost). The session row's
-/// `status` flip from a terminal state to `Running` happens in
-/// `send_message_impl` BEFORE any LLM call (line 125 of
-/// `state/commands/session/message.rs`), so polling status alone is a
-/// faster, cheaper signal that the wake chain wired through the hook
-/// → resolver → terminal-state gate → `send_message_impl_for_org_wake` →
-/// scheduler enqueue path. A scenario can pin both signals to keep
-/// each other honest.
+/// Read-only HTTP bridge to the production Agent Org Run View projection.
+/// It is used for runtime/read-model assertions only; opening this view must
+/// not reconcile or otherwise mutate the run.
 pub async fn test_agent_org_run_view(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
@@ -1521,7 +1607,7 @@ pub async fn test_agent_org_durable_invariants(
             None => 0,
         };
 
-        let invalid_running_open_work =
+        let running_open_work_without_live_worker =
             run_status == "running" && live_worker_count == 0 && open_task_count > 0;
         Ok(serde_json::json!({
             "ok": true,
@@ -1531,7 +1617,7 @@ pub async fn test_agent_org_durable_invariants(
             "openTaskCount": open_task_count,
             "ownerlessInProgressCount": ownerless_in_progress_count,
             "unreadInboxCount": unread_inbox_count,
-            "invalidRunningOpenWork": invalid_running_open_work,
+            "runningOpenWorkWithoutLiveWorker": running_open_work_without_live_worker,
         }))
     })
     .await;
@@ -1547,7 +1633,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     use agent_core::coordination::agent_org_runs::{
-        AgentOrgRunEntryMode, AgentOrgRunStatus, CreateAgentOrgRunParams,
+        AgentOrgRunEntryMode, AgentOrgRunStatus, CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
     };
     use agent_core::core::definitions::orgs::{OrgDefinition, OrgMember};
     use agent_core::core::session::persistence::{
@@ -1605,6 +1691,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
             status: SessionStatus::Running.as_str().to_string(),
             session_type: session_type::GENERIC.to_string(),
             agent_definition_id: Some(coordinator_agent_id.clone()),
+            org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
             created_at: now.clone(),
             updated_at: now.clone(),
             ..Default::default()
@@ -1739,6 +1826,15 @@ pub async fn test_agent_org_seed_stale_worker_run(
     }
 }
 
+/// `POST /test/agent-org/find-worker-session`
+///
+/// Read-only bridge around
+/// [`AgentOrgRunStore::find_worker_session_by_member_id`]. Runtime scenarios
+/// use it to poll production background member materialization and to obtain
+/// the real session id needed for a subsequent caller-path action. A status
+/// value alone is not accepted as proof of inbox delivery; the production
+/// return-to-work scenario also checks `read_at` and persisted transcript
+/// input.
 pub async fn test_agent_org_find_worker_session(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
@@ -1804,13 +1900,12 @@ pub async fn test_agent_org_find_worker_session(
 /// and the diff is observable from E2E.
 ///
 /// This is **not** a caller-path probe: it does not drive
-/// `AgentTool::execute(_text)?` end-to-end. The full caller-path
-/// (tool dispatch + arg parsing + rejection rendering) is exercised
-/// only by `agent_org_llm.rs` LLM-driven scenarios. Caveat: if
+/// `AgentTool::execute(_text)?` end-to-end. Caller-path claims for the agent
+/// tool must therefore come from session-scoped tool-policy/runtime tests or
+/// rendered E2E, not from this endpoint. Caveat: if
 /// `AgentTool::execute` ever stops calling
 /// `org_roster_spawn_rejection` (e.g. someone inlines the check or
-/// short-circuits earlier), this probe still passes — only the LLM
-/// scenarios would catch it.
+/// short-circuits earlier), this probe still passes.
 ///
 /// Body:
 /// ```json
@@ -2024,11 +2119,10 @@ pub async fn test_agent_org_check_member_spawn_gate(
 /// [`agent_core::core::session::turn::processor::UnifiedMessageProcessor::process`]
 /// actually invokes `maybe_emit_member_idle` at turn end with the
 /// right `idle_reason` (Cancelled → Interrupted, Completed →
-/// Available). The full caller-path is currently only exercised by
-/// `agent_org_llm.rs` LLM-driven scenarios; the deferred `Failed`
-/// arm (see `member_idle.rs` module docs) has no caller-path
-/// coverage at all because the wrapping catch around `process` has
-/// not landed yet.
+/// Available). The completed/Available caller path is exercised incidentally
+/// by the production return-to-work scenario, which runs a real member turn;
+/// Interrupted and Failed lifecycle classification remain pinned by focused
+/// lifecycle/unit coverage rather than this helper endpoint.
 ///
 /// Body shape mirrors the other agent-org probes (`org_run_id`,
 /// `coordinator_agent_id`, `members`, plus a top-level
@@ -2213,9 +2307,7 @@ pub async fn test_agent_org_post_member_idle(
     // Snapshot the row count before emit so we can attribute the new
     // row to this call instead of relying on a global "0 → 1"
     // invariant (the test DB may have unrelated rows).
-    let before_count = AgentInboxStore::list_by_run(&org_run_id)
-        .map(|rows| rows.len())
-        .unwrap_or(0);
+    let before_count = AgentInboxStore::count_by_run(&org_run_id).unwrap_or(0);
 
     let member_id = obj
         .get("member_id")
@@ -2244,9 +2336,7 @@ pub async fn test_agent_org_post_member_idle(
         Vec::new(),
     );
 
-    let after_count = AgentInboxStore::list_by_run(&org_run_id)
-        .map(|rows| rows.len())
-        .unwrap_or(before_count);
+    let after_count = AgentInboxStore::count_by_run(&org_run_id).unwrap_or(before_count);
     let emitted = after_count > before_count;
 
     Json(serde_json::json!({
@@ -2262,6 +2352,188 @@ pub async fn test_agent_org_post_member_idle(
 // ────────────────────────────────────────────────────────────────────────
 // Agent Org task store probes
 // ────────────────────────────────────────────────────────────────────────
+
+/// `POST /test/agent-org/run/seed`
+///
+/// Create a real `Running` run row for deterministic HTTP E2E fixtures.
+/// Production task mutation requires this row, so real-binary tests establish
+/// the same invariant explicitly instead of depending on a unit-test bypass.
+pub async fn test_agent_org_run_seed(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use agent_core::coordination::agent_org_runs::{
+        AgentOrgRunEntryMode, AgentOrgRunStatus, CreateAgentOrgRunParams,
+    };
+
+    let Some(obj) = body.as_object() else {
+        return Json(serde_json::json!({ "ok": false, "error": "body must be an object" }));
+    };
+    let org_id = obj
+        .get("org_id")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("agent-org-e2e-{}", uuid::Uuid::new_v4()));
+    let org_name = obj
+        .get("org_name")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("Agent Org E2E")
+        .to_string();
+    let org_role = obj
+        .get("org_role")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("coordinator")
+        .to_string();
+    let coordinator_agent_id = obj
+        .get("coordinator_agent_id")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("coord")
+        .to_string();
+    let Some(members) = obj.get("members").and_then(|value| value.as_array()) else {
+        return Json(serde_json::json!({ "ok": false, "error": "members must be an array" }));
+    };
+    let mut children = Vec::with_capacity(members.len());
+    for (index, member) in members.iter().enumerate() {
+        let Some(member) = member.as_object() else {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("members[{index}] must be an object")
+            }));
+        };
+        let member_id = member
+            .get("member_id")
+            .or_else(|| member.get("id"))
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("m{index}"));
+        let Some(agent_id) = member
+            .get("agent_id")
+            .and_then(|value| value.as_str())
+            .filter(|value| !value.trim().is_empty())
+        else {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("members[{index}].agent_id is required")
+            }));
+        };
+        children.push(OrgMember {
+            id: member_id.clone(),
+            name: member
+                .get("name")
+                .and_then(|value| value.as_str())
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or(&member_id)
+                .to_string(),
+            role: member
+                .get("role")
+                .and_then(|value| value.as_str())
+                .filter(|value| !value.trim().is_empty())
+                .unwrap_or("worker")
+                .to_string(),
+            agent_id: agent_id.to_string(),
+            runtime_config: None,
+            children: Vec::new(),
+        });
+    }
+
+    let result = tokio::task::spawn_blocking(move || {
+        AgentOrgRunStore::create(CreateAgentOrgRunParams {
+            org_id: org_id.clone(),
+            coordinator_agent_id: coordinator_agent_id.clone(),
+            root_session_id: None,
+            org_snapshot: OrgDefinition {
+                id: org_id,
+                name: org_name,
+                role: org_role,
+                agent_id: coordinator_agent_id,
+                description: Some("Deterministic real-binary E2E fixture".to_string()),
+                hierarchy_mode: Default::default(),
+                plan_approval_policy: Default::default(),
+                children,
+            },
+            entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+            status: AgentOrgRunStatus::Running,
+            work_item_id: None,
+            project_slug: None,
+            routine_fire_id: None,
+        })
+    })
+    .await;
+
+    match result {
+        Err(join_err) => Json(serde_json::json!({
+            "ok": false,
+            "error": format!("spawn_blocking join error: {join_err}")
+        })),
+        Ok(Err(error)) => Json(serde_json::json!({ "ok": false, "error": error })),
+        Ok(Ok(run)) => Json(serde_json::json!({
+            "ok": true,
+            "org_run_id": run.id,
+            "run_status": run.status.as_str()
+        })),
+    }
+}
+
+/// `POST /test/agent-org/run/cleanup`
+///
+/// Delete runs created by the deterministic `run/seed` and stale-worker
+/// fixtures. With `org_run_id`, cleanup is scoped to that one run; without it,
+/// every run carrying the reserved E2E fixture org prefix is removed. The
+/// prefix guard prevents this debug-only endpoint from deleting a real run.
+pub async fn test_agent_org_run_cleanup(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let requested_run_id = body
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string);
+
+    let result = tokio::task::spawn_blocking(move || -> Result<Vec<String>, String> {
+        let run_ids = {
+            let conn = database::db::get_connection().map_err(|err| err.to_string())?;
+            let mut stmt = conn
+                .prepare(
+                    "SELECT id
+                     FROM agent_org_runs
+                     WHERE org_id LIKE ?1
+                       AND (?2 IS NULL OR id = ?2)",
+                )
+                .map_err(|err| err.to_string())?;
+            let prefix_pattern = format!("{E2E_RUN_FIXTURE_ORG_PREFIX}%");
+            let rows = stmt
+                .query_map(rusqlite::params![prefix_pattern, requested_run_id], |row| {
+                    row.get::<_, String>(0)
+                })
+                .map_err(|err| err.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|err| err.to_string())?
+        };
+
+        for run_id in &run_ids {
+            AgentOrgRunStore::delete_by_id(run_id)?;
+        }
+        Ok(run_ids)
+    })
+    .await;
+
+    match result {
+        Err(join_err) => Json(serde_json::json!({
+            "ok": false,
+            "error": format!("spawn_blocking join error: {join_err}")
+        })),
+        Ok(Err(error)) => Json(serde_json::json!({ "ok": false, "error": error })),
+        Ok(Ok(run_ids)) => Json(serde_json::json!({
+            "ok": true,
+            "deleted_count": run_ids.len(),
+            "deleted_run_ids": run_ids,
+        })),
+    }
+}
 
 /// `POST /test/agent-org/tasks/seed`
 ///
@@ -2293,9 +2565,18 @@ pub async fn test_agent_org_post_member_idle(
 pub async fn test_agent_org_tasks_seed(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    use agent_core::coordination::agent_org_tasks::{
-        AgentOrgTaskStore, CreateTaskParams, TaskStatus,
+    use agent_core::coordination::agent_org_plan_approvals::{
+        AgentOrgPlanApprovalStore, CreateAgentOrgPlanApprovalParams,
     };
+    use agent_core::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+    use agent_core::coordination::agent_org_tasks::{
+        AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_EXECUTION_MODE,
+    };
+    use agent_core::core::session::persistence::{
+        session_type, upsert_session, UnifiedSessionRecord,
+    };
+    use agent_core::core::session::SessionStatus;
+    use agent_core::definitions::orgs::PlanApprovalPolicy;
 
     let Some(obj) = body.as_object() else {
         return Json(serde_json::json!({ "ok": false, "error": "body must be an object" }));
@@ -2368,6 +2649,18 @@ pub async fn test_agent_org_tasks_seed(
                 .filter_map(|value| value.as_str().map(str::to_string))
                 .collect::<Vec<_>>()
         });
+    let execution_mode = match obj.get("execution_mode").and_then(|value| value.as_str()) {
+        None => None,
+        Some("build") => Some("build".to_string()),
+        Some("plan") => Some("plan".to_string()),
+        Some(other) => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("unknown execution_mode '{other}' — expected build|plan"),
+            }))
+        }
+    };
+    let pending_plan_approval = obj.get("pending_plan_approval").cloned();
 
     let mut params = CreateTaskParams {
         id: id.clone(),
@@ -2383,10 +2676,10 @@ pub async fn test_agent_org_tasks_seed(
     };
 
     match tokio::task::spawn_blocking(move || {
-        if params.owner.is_none() && params.status == TaskStatus::Pending {
-            let eligible_member_ids = match requested_eligible_member_ids {
-                Some(member_ids) => member_ids,
-                None => AgentOrgRunStore::context_for_run(&params.org_run_id, &orgs_store())?
+        let eligible_member_ids = match requested_eligible_member_ids {
+            Some(member_ids) => Some(member_ids),
+            None if params.owner.is_none() && params.status == TaskStatus::Pending => Some(
+                AgentOrgRunStore::context_for_run(&params.org_run_id, &orgs_store())?
                     .map(|context| {
                         context
                             .members
@@ -2395,12 +2688,105 @@ pub async fn test_agent_org_tasks_seed(
                             .collect()
                     })
                     .unwrap_or_default(),
-            };
-            params.metadata = Some(serde_json::json!({
-                TASK_METADATA_ELIGIBLE_MEMBER_IDS: eligible_member_ids,
-            }));
+            ),
+            None => None,
+        };
+        let mut metadata = serde_json::Map::new();
+        if let Some(eligible_member_ids) = eligible_member_ids {
+            metadata.insert(
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS.to_string(),
+                serde_json::json!(eligible_member_ids),
+            );
         }
-        AgentOrgTaskStore::create(params)
+        if let Some(execution_mode) = execution_mode {
+            metadata.insert(
+                TASK_METADATA_EXECUTION_MODE.to_string(),
+                serde_json::Value::String(execution_mode),
+            );
+        }
+        if !metadata.is_empty() {
+            params.metadata = Some(serde_json::Value::Object(metadata));
+        }
+
+        let task = AgentOrgTaskStore::create(params)?;
+        let approval = if let Some(pending) = pending_plan_approval {
+            let pending = pending
+                .as_object()
+                .ok_or_else(|| "pending_plan_approval must be an object".to_string())?;
+            let request_id = pending
+                .get("request_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "pending_plan_approval.request_id is required".to_string())?
+                .to_string();
+            let source_member_id = pending
+                .get("source_member_id")
+                .and_then(serde_json::Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "pending_plan_approval.source_member_id is required".to_string())?
+                .to_string();
+
+            let fixture_id = uuid::Uuid::new_v4();
+            let root_session_id = format!("agent-org-plan-root-{fixture_id}");
+            let source_session_id = format!("agent-org-plan-source-{fixture_id}");
+            let workspace_path =
+                std::env::temp_dir().join(format!("orgii-agent-org-plan-e2e-{fixture_id}"));
+            std::fs::create_dir_all(&workspace_path).map_err(|err| err.to_string())?;
+            let workspace_path = workspace_path.to_string_lossy().into_owned();
+            let now = chrono::Utc::now().to_rfc3339();
+
+            upsert_session(&UnifiedSessionRecord {
+                session_id: root_session_id.clone(),
+                name: "Agent Org plan E2E root".to_string(),
+                status: SessionStatus::Idle.as_str().to_string(),
+                session_type: session_type::GENERIC.to_string(),
+                workspace_path: Some(workspace_path.clone()),
+                agent_definition_id: Some("coord".to_string()),
+                org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                ..Default::default()
+            })
+            .map_err(|err| err.to_string())?;
+            upsert_session(&UnifiedSessionRecord {
+                session_id: source_session_id.clone(),
+                name: "Agent Org plan E2E source".to_string(),
+                status: SessionStatus::Idle.as_str().to_string(),
+                session_type: session_type::ORG_MEMBER.to_string(),
+                workspace_path: Some(workspace_path),
+                agent_definition_id: Some("alice-agent".to_string()),
+                org_member_id: Some(source_member_id.clone()),
+                parent_session_id: Some(root_session_id.clone()),
+                created_at: now.clone(),
+                updated_at: now,
+                ..Default::default()
+            })
+            .map_err(|err| err.to_string())?;
+
+            let plan_path = AgentOrgPlanApprovalStore::managed_plan_path_for_session(
+                &source_session_id,
+                &format!("{fixture_id}.plan.md"),
+            )?
+            .to_string_lossy()
+            .into_owned();
+            Some(AgentOrgPlanApprovalStore::create_pending(
+                CreateAgentOrgPlanApprovalParams {
+                    request_id,
+                    org_run_id: task.org_run_id.clone(),
+                    source_task_id: task.id.clone(),
+                    source_member_id,
+                    source_session_id,
+                    root_session_id,
+                    policy: PlanApprovalPolicy::Coordinator,
+                    plan_title: "Typed message E2E plan".to_string(),
+                    plan_path,
+                    plan_content: "# Typed message E2E plan\n\nRevise this plan.".to_string(),
+                },
+            )?)
+        } else {
+            None
+        };
+        Ok::<_, String>((task, approval))
     })
     .await
     {
@@ -2409,7 +2795,11 @@ pub async fn test_agent_org_tasks_seed(
             "error": format!("spawn_blocking join error: {join_err}"),
         })),
         Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
-        Ok(Ok(_)) => Json(serde_json::json!({ "ok": true, "id": id })),
+        Ok(Ok((_, approval))) => Json(serde_json::json!({
+            "ok": true,
+            "id": id,
+            "plan_approval_id": approval.map(|value| value.approval_id),
+        })),
     }
 }
 
@@ -2503,6 +2893,7 @@ pub async fn test_agent_org_seed_cli_member_run(
 ) -> Json<serde_json::Value> {
     use agent_core::coordination::agent_org_runs::{
         AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
+        COORDINATOR_MEMBER_ID,
     };
     use agent_core::core::definitions::orgs::{OrgDefinition, OrgMember};
     use agent_core::core::session::persistence::{
@@ -2549,7 +2940,10 @@ pub async fn test_agent_org_seed_cli_member_run(
         let now = chrono::Utc::now().to_rfc3339();
         let root_session_id = format!("agent-org-cli-root-{}", uuid::Uuid::new_v4());
         let cli_session_id = format!("code-session-cli-member-{}", uuid::Uuid::new_v4());
-        let org_id = format!("cli-member-idle-org-{}", uuid::Uuid::new_v4());
+        let org_id = format!(
+            "{E2E_RUN_FIXTURE_ORG_PREFIX}cli-member-idle-org-{}",
+            uuid::Uuid::new_v4()
+        );
         let coordinator_agent_id = "builtin:sde".to_string();
 
         upsert_session(&UnifiedSessionRecord {
@@ -2558,6 +2952,7 @@ pub async fn test_agent_org_seed_cli_member_run(
             status: SessionStatus::Running.as_str().to_string(),
             session_type: session_type::GENERIC.to_string(),
             agent_definition_id: Some(coordinator_agent_id.clone()),
+            org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
             created_at: now.clone(),
             updated_at: now.clone(),
             ..Default::default()
@@ -2596,8 +2991,9 @@ pub async fn test_agent_org_seed_cli_member_run(
 
         conn.execute(
             "INSERT INTO code_sessions (
-                session_id, cli_agent_type, status, parent_session_id, org_member_id, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                session_id, cli_agent_type, status, parent_session_id, org_member_id,
+                created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)
              ON CONFLICT(session_id) DO UPDATE SET
                 cli_agent_type = excluded.cli_agent_type,
                 status = excluded.status,

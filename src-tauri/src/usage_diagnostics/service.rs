@@ -1,5 +1,4 @@
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
 
 use tokio::sync::RwLock;
 
@@ -7,15 +6,14 @@ use super::queue::{
     enqueue_snapshot, ensure_install_id, now_rfc3339, read_unsent_records, unsent_count,
     DiagnosticsPaths,
 };
-use super::sanitize::{bucket_cpu_percent, bucket_duration_ms, bucket_ram_mb, sanitize_snapshot};
+use super::sanitize::sanitize_snapshot;
 use super::types::{
-    DiagnosticsFlushStatus, DiagnosticsLevel, DiagnosticsQueueRecord, DiagnosticsServiceConfig,
-    DiagnosticsUploadPayload, DiagnosticsUsageSnapshot, DIAGNOSTICS_SCHEMA_VERSION,
+    DiagnosticsFlushStatus, DiagnosticsServiceConfig, DiagnosticsUploadPayload,
+    DiagnosticsUsageSnapshot, DIAGNOSTICS_SCHEMA_VERSION,
 };
 
 const ENDPOINT_ENV: &str = "ORGII_DIAGNOSTICS_ENDPOINT";
 const TOKEN_ENV: &str = "ORGII_DIAGNOSTICS_TOKEN";
-const APP_VERSION_ENV: &str = "ORGII_APP_VERSION";
 const USER_AGENT: &str = "ORGII Diagnostics";
 
 static GLOBAL_SERVICE: OnceLock<Arc<DiagnosticsService>> = OnceLock::new();
@@ -25,7 +23,6 @@ pub struct DiagnosticsService {
     paths: DiagnosticsPaths,
     config: RwLock<DiagnosticsServiceConfig>,
     install_id: RwLock<Option<String>>,
-    scheduler_started: OnceLock<()>,
 }
 
 impl DiagnosticsService {
@@ -36,75 +33,36 @@ impl DiagnosticsService {
                     paths: DiagnosticsPaths::new(app_paths::diagnostics_dir()),
                     config: RwLock::new(DiagnosticsServiceConfig::default()),
                     install_id: RwLock::new(None),
-                    scheduler_started: OnceLock::new(),
                 })
             })
             .clone()
     }
 
-    pub async fn start(self: Arc<Self>, config: DiagnosticsServiceConfig) -> Result<(), String> {
+    pub async fn initialize(&self, config: DiagnosticsServiceConfig) -> Result<(), String> {
         self.configure(config).await;
         self.ensure_install_id().await?;
-        self.start_scheduler();
         Ok(())
     }
 
-    pub async fn configure(&self, config: DiagnosticsServiceConfig) {
+    async fn configure(&self, config: DiagnosticsServiceConfig) {
         let mut guard = self.config.write().await;
-        *guard = config.normalized();
+        *guard = config;
     }
 
-    pub async fn record_usage_snapshot(
+    pub async fn submit_usage_snapshot(
         &self,
         snapshot: DiagnosticsUsageSnapshot,
-    ) -> Result<DiagnosticsQueueRecord, String> {
+    ) -> Result<DiagnosticsFlushStatus, String> {
         let config = self.config.read().await.clone();
         let sanitized = sanitize_snapshot(snapshot, config.diagnostics_level);
         let paths = self.paths.clone();
         tokio::task::spawn_blocking(move || enqueue_snapshot(&paths, sanitized))
             .await
-            .map_err(|err| format!("Task join error: {}", err))?
+            .map_err(|err| format!("Task join error: {}", err))??;
+        self.flush_now().await
     }
 
-    pub async fn record_performance_snapshot(&self) -> Result<DiagnosticsQueueRecord, String> {
-        let config = self.config.read().await.clone();
-        if config.diagnostics_level == DiagnosticsLevel::Off {
-            return Err("Diagnostics are disabled".to_string());
-        }
-        let metrics = perf_utils::get_process_metrics();
-        let snapshot = DiagnosticsUsageSnapshot {
-            schema_version: DIAGNOSTICS_SCHEMA_VERSION,
-            diagnostics_level: DiagnosticsLevel::PerformanceOnly,
-            captured_at: now_rfc3339(),
-            app_version: app_version(),
-            app_launch_count: 1,
-            app_usage_duration_bucket: Some(
-                bucket_duration_ms((metrics.uptime_secs as f64) * 1000.0).to_string(),
-            ),
-            system_profile: None,
-            app_resource_usage: Some(serde_json::json!({
-                "appAvgRamBucket": bucket_ram_mb(metrics.memory_rss_mb),
-                "appPeakRamBucket": bucket_ram_mb(metrics.memory_rss_mb),
-                "appAvgCpuBucket": bucket_cpu_percent(metrics.cpu_percent as f64),
-                "uptimeBucket": bucket_duration_ms((metrics.uptime_secs as f64) * 1000.0),
-            })),
-            sessions: None,
-            workspaces: None,
-            model_usage: None,
-            top_models_by_run_count: None,
-            rust_agent_top_sessions_by_duration: None,
-            external_tools: None,
-            top_languages: None,
-            rpc: None,
-            http: None,
-        };
-        let paths = self.paths.clone();
-        tokio::task::spawn_blocking(move || enqueue_snapshot(&paths, snapshot))
-            .await
-            .map_err(|err| format!("Task join error: {}", err))?
-    }
-
-    pub async fn flush_now(&self) -> Result<DiagnosticsFlushStatus, String> {
+    async fn flush_now(&self) -> Result<DiagnosticsFlushStatus, String> {
         let config = self.config.read().await.clone();
         if !config.uploads_enabled() {
             let paths = self.paths.clone();
@@ -204,26 +162,13 @@ impl DiagnosticsService {
         Ok(install_id)
     }
 
-    fn start_scheduler(self: &Arc<Self>) {
-        if self.scheduler_started.set(()).is_err() {
-            return;
+    #[cfg(test)]
+    pub(super) fn new_for_test(paths: DiagnosticsPaths) -> Self {
+        Self {
+            paths,
+            config: RwLock::new(DiagnosticsServiceConfig::default()),
+            install_id: RwLock::new(None),
         }
-        let service = self.clone();
-        tauri::async_runtime::spawn(async move {
-            loop {
-                let hours = service.config.read().await.upload_interval_hours;
-                tokio::time::sleep(Duration::from_secs(
-                    hours.saturating_mul(60).saturating_mul(60),
-                ))
-                .await;
-                if let Err(err) = service.record_performance_snapshot().await {
-                    tracing::warn!(error = %err, "[Diagnostics] Failed to record scheduled performance snapshot");
-                }
-                if let Err(err) = service.flush_now().await {
-                    tracing::warn!(error = %err, "[Diagnostics] Scheduled flush failed");
-                }
-            }
-        });
     }
 }
 
@@ -240,13 +185,5 @@ fn auth_token() -> Option<String> {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .or_else(|| option_env!("ORGII_DIAGNOSTICS_TOKEN").map(ToOwned::to_owned))
-        .filter(|value| !value.trim().is_empty())
-}
-
-fn app_version() -> Option<String> {
-    std::env::var(APP_VERSION_ENV)
-        .ok()
-        .filter(|value| !value.trim().is_empty())
-        .or_else(|| option_env!("ORGII_APP_VERSION").map(ToOwned::to_owned))
         .filter(|value| !value.trim().is_empty())
 }

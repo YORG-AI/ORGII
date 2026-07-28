@@ -122,7 +122,7 @@
     border: none;
     border-radius: 6px;
     font-size: 14px;
-    cursor: pointer;
+    cursor: var(--interactive-cursor, default);
     transition: all 0.15s ease;
 
     &:hover {
@@ -198,7 +198,7 @@
   border: 1px solid var(--color-border-2);
   border-radius: 8px;
   font-size: 14px;
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
   transition: all 0.15s ease;
 
   &:hover {

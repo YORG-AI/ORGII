@@ -153,9 +153,7 @@ fn cached_available_agents(
     let Ok(cache) = cache.lock() else {
         return None;
     };
-    let Some(entry) = cache.as_ref() else {
-        return None;
-    };
+    let entry = cache.as_ref()?;
     if entry.path == path
         && entry.key_signature == key_signature
         && entry.binary_signature == binary_signature
@@ -225,10 +223,9 @@ fn is_executable_file(path: &Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        return path
-            .metadata()
+        path.metadata()
             .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
-            .unwrap_or(false);
+            .unwrap_or(false)
     }
 
     #[cfg(not(unix))]

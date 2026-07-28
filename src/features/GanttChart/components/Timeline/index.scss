@@ -55,6 +55,8 @@
 
   &__header-primary {
     display: flex;
+    position: relative;
+    flex-shrink: 0;
   }
 
   &__header-cell-label {
@@ -177,10 +179,6 @@
     display: flex;
     position: relative;
     border-bottom: 1px solid var(--color-border-1);
-
-    &:last-child {
-      border-bottom: none;
-    }
   }
 
   &__marker-row {

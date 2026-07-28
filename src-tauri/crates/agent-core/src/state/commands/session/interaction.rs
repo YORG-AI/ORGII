@@ -557,6 +557,7 @@ pub(crate) async fn plan_approval_response_impl(
         None,
         None,
         None,
+        None,
         crate::foundation::session_bridge::TurnIntentBridgeSource::UserSubmit,
     )
     .await

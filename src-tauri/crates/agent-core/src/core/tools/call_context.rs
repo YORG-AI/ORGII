@@ -27,6 +27,11 @@
 //!   `ToolRegistry::set_session_key` shared mutable state that was the
 //!   root cause of the `create_plan` subagent-misattribution saga.
 //!
+//! - `turn_intent_id` and `projected_inbox_ids`: identify the exact durable
+//!   turn and Inbox batch whose effects become committed only after this turn
+//!   succeeds.  Agent Org finality uses them to build a prospective
+//!   completion certificate without guessing or subtracting unrelated work.
+//!
 //! ## Defaults
 //!
 //! `CallContext::default()` is a zero-value context (empty strings).
@@ -48,6 +53,12 @@ pub struct CallContext {
     pub call_id: String,
     /// Identifier of the dispatching session.
     pub session_id: String,
+    /// Durable lifecycle identity of the dispatching turn. Empty for
+    /// maintenance/direct test calls that do not belong to a real turn.
+    pub turn_intent_id: String,
+    /// Exact Agent Org Inbox rows held by this turn's deferred drain guard.
+    /// These rows are acknowledged only when the turn succeeds.
+    pub projected_inbox_ids: Vec<i64>,
 }
 
 impl CallContext {
@@ -56,6 +67,22 @@ impl CallContext {
         Self {
             call_id: call_id.into(),
             session_id: session_id.into(),
+            turn_intent_id: String::new(),
+            projected_inbox_ids: Vec::new(),
+        }
+    }
+
+    pub fn for_turn(
+        call_id: impl Into<String>,
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+        projected_inbox_ids: Vec<i64>,
+    ) -> Self {
+        Self {
+            call_id: call_id.into(),
+            session_id: session_id.into(),
+            turn_intent_id: turn_intent_id.into(),
+            projected_inbox_ids,
         }
     }
 }

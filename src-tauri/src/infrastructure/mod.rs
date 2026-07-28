@@ -10,6 +10,9 @@
 // Frontend log persistence (IPC → ~/.orgii/logs/frontend.log)
 pub mod frontend_log;
 
+// Dev-only bridge from the bundled macOS WebKit origin to tauri dev auth.
+pub mod dev_bundled_auth;
+
 // macOS main-run-loop wake nudge for backend → frontend notification delivery
 pub mod main_runloop;
 

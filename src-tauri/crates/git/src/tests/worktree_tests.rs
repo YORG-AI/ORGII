@@ -372,3 +372,20 @@ branch refs/heads/staging
     assert!(!entries[1].is_main);
     assert!(!entries[2].is_main);
 }
+
+#[cfg(unix)]
+#[test]
+fn worktree_setup_command_is_terminated_at_deadline() {
+    let dir = std::env::temp_dir();
+    let started = std::time::Instant::now();
+    let error = run_worktree_setup_command_with_timeout(
+        &dir,
+        &dir,
+        "sleep 2",
+        std::time::Duration::from_millis(50),
+    )
+    .expect_err("sleeping setup hook should time out");
+
+    assert!(error.contains("timed out"));
+    assert!(started.elapsed() < std::time::Duration::from_secs(1));
+}

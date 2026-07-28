@@ -37,18 +37,22 @@ pub(super) fn spawn_file_watch(
             watch_paths.len()
         );
 
-        let (notify_tx, notify_rx) = std::sync::mpsc::channel::<()>();
+        // Capacity one is intentional: filesystem storms carry only
+        // invalidation semantics, so duplicate notifications coalesce instead
+        // of building an unbounded queue behind the debounce window.
+        let (notify_tx, mut notify_rx) = mpsc::channel::<()>(1);
         let rid_for_callback = rid.clone();
         let mut watcher = match notify::recommended_watcher(
             move |result: Result<notify::Event, notify::Error>| match result {
-                Ok(_event) => {
-                    if notify_tx.send(()).is_err() {
+                Ok(_event) => match notify_tx.try_send(()) {
+                    Ok(()) | Err(mpsc::error::TrySendError::Full(())) => {}
+                    Err(mpsc::error::TrySendError::Closed(())) => {
                         debug!(
                             "[automation] FileWatch debounce channel for rule '{}' was closed",
                             rid_for_callback
                         );
                     }
-                }
+                },
                 Err(err) => {
                     error!(
                         "[automation] FileWatch error for rule '{}': {}",
@@ -81,38 +85,39 @@ pub(super) fn spawn_file_watch(
         info!("[automation] FileWatch trigger started for rule '{}'", rid);
         let debounce_duration = tokio::time::Duration::from_millis(debounce_ms.max(100));
 
-        while running_clone.load(Ordering::Relaxed) {
-            match notify_rx.try_recv() {
-                Ok(()) => {
-                    tokio::time::sleep(debounce_duration).await;
-                    while notify_rx.try_recv().is_ok() {}
+        'watch_loop: while running_clone.load(Ordering::Relaxed) {
+            if notify_rx.recv().await.is_none() {
+                warn!(
+                    "[automation] FileWatch notify channel disconnected for rule '{}'",
+                    rid
+                );
+                break;
+            }
 
-                    if !running_clone.load(Ordering::Relaxed) {
+            // Wait for a full quiet window. Each coalesced signal resets the
+            // deadline without allocating another queued event.
+            loop {
+                match tokio::time::timeout(debounce_duration, notify_rx.recv()).await {
+                    Ok(Some(())) => continue,
+                    Ok(None) => break 'watch_loop,
+                    Err(_) => {
+                        if !running_clone.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        if let Err(err) = event_tx
+                            .send(TriggerEvent {
+                                rule_id: rid.clone(),
+                            })
+                            .await
+                        {
+                            error!(
+                                "[automation] Failed to send file watch trigger event for rule '{}': {}",
+                                rid, err
+                            );
+                            break 'watch_loop;
+                        }
                         break;
                     }
-
-                    if let Err(err) = event_tx
-                        .send(TriggerEvent {
-                            rule_id: rid.clone(),
-                        })
-                        .await
-                    {
-                        error!(
-                            "[automation] Failed to send file watch trigger event for rule '{}': {}",
-                            rid, err
-                        );
-                        break;
-                    }
-                }
-                Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-                }
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    warn!(
-                        "[automation] FileWatch notify channel disconnected for rule '{}'",
-                        rid
-                    );
-                    break;
                 }
             }
         }

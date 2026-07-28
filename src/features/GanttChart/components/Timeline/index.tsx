@@ -3,6 +3,7 @@
  *
  * Timeline grid with header and task bars.
  */
+import type { VirtualItem } from "@tanstack/react-virtual";
 import React, { RefObject, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -88,6 +89,9 @@ export interface GanttTimelineProps {
     viewScope: GanttViewScope
   ) => boolean;
   showCurrentTimeMarker?: boolean;
+  virtualRows: VirtualItem[];
+  totalRowSize: number;
+  virtualPeriods: VirtualItem[];
 }
 
 const GanttTimeline: React.FC<GanttTimelineProps> = ({
@@ -125,6 +129,9 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
   formatPrimaryHeaderLabel,
   isPrimaryHeaderLabelEmphasized,
   showCurrentTimeMarker = false,
+  virtualRows,
+  totalRowSize,
+  virtualPeriods,
 }) => {
   const { t } = useTranslation();
 
@@ -190,6 +197,7 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
       string,
       { left: number; width: number; top: number; index: number }
     >();
+    if (!showDependencies) return positions;
 
     const msPerColumn = getMsPerColumn(viewScope);
     const pxPerMs = columnWidth / msPerColumn;
@@ -212,13 +220,28 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
       positions.set(task.id, {
         left: msFromStart * pxPerMs,
         width: taskDurationMs * pxPerMs,
-        top: index * config.rowHeight,
+        top: (markerRows.length + index) * config.rowHeight,
         index,
       });
     });
 
     return positions;
-  }, [tasks, viewStart, viewScope, columnWidth, config.rowHeight]);
+  }, [
+    tasks,
+    viewStart,
+    viewScope,
+    columnWidth,
+    config.rowHeight,
+    markerRows.length,
+    showDependencies,
+  ]);
+
+  const visibleRowStart = virtualRows[0]?.start ?? 0;
+  const visibleRowEnd =
+    virtualRows[virtualRows.length - 1]?.end ?? totalRowSize;
+  const visiblePeriodStart = virtualPeriods[0]?.start ?? 0;
+  const visiblePeriodEnd =
+    virtualPeriods[virtualPeriods.length - 1]?.end ?? totalWidth;
 
   return (
     <div
@@ -255,9 +278,11 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
           )}
           <div
             className="gantt-timeline__header-primary"
-            style={{ height: config.headerHeight / 2 }}
+            style={{ height: config.headerHeight / 2, width: totalWidth }}
           >
-            {periods.map((period, index) => {
+            {virtualPeriods.map((virtualPeriod) => {
+              const period = periods[virtualPeriod.index];
+              if (!period) return null;
               const label =
                 formatPrimaryHeaderLabel?.(period.date, viewScope) ??
                 period.label;
@@ -269,7 +294,7 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
 
               return (
                 <div
-                  key={index}
+                  key={virtualPeriod.key}
                   className={`gantt-timeline__header-cell ${
                     period.isToday ? "gantt-timeline__header-cell--today" : ""
                   } ${
@@ -277,7 +302,11 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
                       ? "gantt-timeline__header-cell--weekend"
                       : ""
                   } ${emphasized ? "gantt-timeline__header-cell--emphasized" : ""}`}
-                  style={{ width: columnWidth }}
+                  style={{
+                    width: virtualPeriod.size,
+                    position: "absolute",
+                    left: virtualPeriod.start,
+                  }}
                 >
                   <span className="gantt-timeline__header-cell-label">
                     {label}
@@ -302,7 +331,10 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
             subtitle={t("placeholders.noTasksWithDatesSubtitle")}
           />
         ) : (
-          <div className="gantt-timeline__scroll" style={{ width: totalWidth }}>
+          <div
+            className="gantt-timeline__scroll"
+            style={{ width: totalWidth, height: totalRowSize }}
+          >
             {currentTimePosition !== null && (
               <div
                 className="gantt-timeline__current-time-marker"
@@ -317,6 +349,8 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
                 taskPositions={taskPositions}
                 config={config}
                 highlightedTask={highlightedTaskId}
+                visibleTop={visibleRowStart}
+                visibleBottom={visibleRowEnd}
               />
             )}
 
@@ -330,7 +364,12 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
               const msFromStart = milestoneDate.getTime() - viewStart.getTime();
               const position = (msFromStart / msPerColumn) * columnWidth;
 
-              if (position < 0 || position > totalWidth) return null;
+              if (
+                position < visiblePeriodStart ||
+                position > visiblePeriodEnd
+              ) {
+                return null;
+              }
 
               return (
                 <GanttMilestoneMarker
@@ -343,43 +382,62 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
               );
             })}
 
-            {markerRows.map((markerRow) => (
-              <MarkerTimelineRow
-                key={markerRow.id}
-                markerRow={markerRow}
-                periods={periods}
-                viewScope={viewScope}
-                viewStart={viewStart}
-                columnWidth={columnWidth}
-                totalWidth={totalWidth}
-                config={config}
-                renderMarkerTooltipWrapper={renderMarkerTooltipWrapper}
-                isPrimaryHeaderLabelEmphasized={isPrimaryHeaderLabelEmphasized}
-              />
-            ))}
+            {virtualRows.map((virtualRow) => {
+              if (virtualRow.index < markerRows.length) {
+                const markerRow = markerRows[virtualRow.index];
+                if (!markerRow) return null;
+                return (
+                  <MarkerTimelineRow
+                    key={virtualRow.key}
+                    markerRow={markerRow}
+                    periods={periods}
+                    viewScope={viewScope}
+                    viewStart={viewStart}
+                    columnWidth={columnWidth}
+                    totalWidth={totalWidth}
+                    config={config}
+                    renderMarkerTooltipWrapper={renderMarkerTooltipWrapper}
+                    isPrimaryHeaderLabelEmphasized={
+                      isPrimaryHeaderLabelEmphasized
+                    }
+                    virtualStart={virtualRow.start}
+                    virtualPeriods={virtualPeriods}
+                    visiblePeriodStart={visiblePeriodStart}
+                    visiblePeriodEnd={visiblePeriodEnd}
+                  />
+                );
+              }
 
-            {tasks.map((task) => (
-              <TimelineRow
-                key={task.id}
-                task={task}
-                periods={periods}
-                viewScope={viewScope}
-                viewStart={viewStart}
-                columnWidth={columnWidth}
-                config={config}
-                onTaskClick={onTaskClick}
-                editable={editable}
-                onTaskResizeStart={onTaskResizeStart}
-                onTaskMoveStart={onTaskMoveStart}
-                showTooltips={showTooltips}
-                renderTooltipWrapper={renderTooltipWrapper}
-                dragState={dragState}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                onStatusChange={onStatusChange}
-                isPrimaryHeaderLabelEmphasized={isPrimaryHeaderLabelEmphasized}
-              />
-            ))}
+              const task = tasks[virtualRow.index - markerRows.length];
+              if (!task) return null;
+              return (
+                <TimelineRow
+                  key={virtualRow.key}
+                  task={task}
+                  periods={periods}
+                  viewScope={viewScope}
+                  viewStart={viewStart}
+                  columnWidth={columnWidth}
+                  config={config}
+                  onTaskClick={onTaskClick}
+                  editable={editable}
+                  onTaskResizeStart={onTaskResizeStart}
+                  onTaskMoveStart={onTaskMoveStart}
+                  showTooltips={showTooltips}
+                  renderTooltipWrapper={renderTooltipWrapper}
+                  dragState={dragState}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onStatusChange={onStatusChange}
+                  isPrimaryHeaderLabelEmphasized={
+                    isPrimaryHeaderLabelEmphasized
+                  }
+                  virtualStart={virtualRow.start}
+                  virtualPeriods={virtualPeriods}
+                  totalWidth={totalWidth}
+                />
+              );
+            })}
 
             {dragState && ghostPreview && (
               <div
@@ -387,7 +445,13 @@ const GanttTimeline: React.FC<GanttTimelineProps> = ({
                 style={{
                   height: config.rowHeight,
                   position: "absolute",
-                  top: 0,
+                  top:
+                    (markerRows.length +
+                      Math.max(
+                        0,
+                        tasks.findIndex((task) => task.id === dragState.taskId)
+                      )) *
+                    config.rowHeight,
                   left: 0,
                   right: 0,
                   pointerEvents: "none",

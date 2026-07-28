@@ -5,7 +5,7 @@ import {
 } from "@/src/engines/TerminalCore/exports";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Trash2 } from "lucide-react";
-import React, { Suspense, memo, useCallback, useMemo } from "react";
+import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -16,7 +16,12 @@ import {
   TerminalNewSessionSplitButton,
 } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { codeEditorTerminalTargetAtom } from "@src/store/workstation/codeEditor";
+import {
+  clearTerminalTargetReferencesAtom,
+  codeEditorTerminalTargetAtom,
+} from "@src/store/workstation/codeEditor";
+
+import { resolveRestoredPtySessionId } from "./restorePtySelection";
 
 const TerminalCore = React.lazy(
   () => import("@/src/engines/TerminalCore/exports")
@@ -41,6 +46,9 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const { t } = useTranslation();
   const terminalTarget = useAtomValue(codeEditorTerminalTargetAtom);
   const setTerminalTarget = useSetAtom(codeEditorTerminalTargetAtom);
+  const clearTerminalTargetReferences = useSetAtom(
+    clearTerminalTargetReferencesAtom
+  );
 
   const activePtySession = terminalState.activeSession;
   const terminalKindLabel =
@@ -57,6 +65,17 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const isAgentTerminal = terminalTarget?.kind === "agent";
   const terminalPid = activePtySession?.pid;
   const terminalShell = activePtySession?.shell ?? "zsh";
+
+  useEffect(() => {
+    const restoredSessionId = resolveRestoredPtySessionId(
+      terminalTarget,
+      terminalState.sessions,
+      terminalState.activeSessionId
+    );
+    if (restoredSessionId) {
+      terminalState.setActiveSession(restoredSessionId);
+    }
+  }, [terminalState, terminalTarget]);
 
   const handleNewTerminal = useCallback(
     (options?: {
@@ -77,9 +96,18 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
       setTerminalTarget(null);
       return;
     }
-    terminalState.closeSession(terminalState.activeSessionId);
-    setTerminalTarget(null);
-  }, [terminalState, terminalTarget, setTerminalTarget]);
+    const ptySessionId =
+      terminalTarget?.kind === "pty"
+        ? terminalTarget.ptySessionId
+        : terminalState.activeSessionId;
+    terminalState.closeSession(ptySessionId);
+    if (ptySessionId) clearTerminalTargetReferences(ptySessionId);
+  }, [
+    clearTerminalTargetReferences,
+    setTerminalTarget,
+    terminalState,
+    terminalTarget,
+  ]);
 
   const handleOpenFileLink = useCallback<
     NonNullable<TerminalCoreProps["onOpenFileLink"]>

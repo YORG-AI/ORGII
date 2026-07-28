@@ -5,10 +5,9 @@ import type { DOMTreeNode } from "@src/modules/WorkStation/Browser/hooks/useWebv
 
 import type { FlattenedDOMNode } from "./types";
 
-/**
- * Flatten a DOM tree into an array for virtualization.
- * Only includes nodes whose parents are expanded.
- */
+const DOM_TREE_VIRTUALIZATION_THRESHOLD = 50;
+
+/** Flatten the visible portion of a DOM tree for list rendering. */
 export function flattenDOMTree(
   tree: DOMTreeNode | null,
   expandedNodes: Set<string>
@@ -32,28 +31,14 @@ export function flattenDOMTree(
   return result;
 }
 
-/**
- * Find the index of a node by xpath in a flattened list
- */
+export function shouldVirtualizeDOMTree(nodeCount: number): boolean {
+  return nodeCount > DOM_TREE_VIRTUALIZATION_THRESHOLD;
+}
+
+/** Find a node index by xpath in the flattened visible list. */
 export function findNodeIndex(
   flattenedNodes: FlattenedDOMNode[],
   xpath: string
 ): number {
   return flattenedNodes.findIndex((item) => item.node.xpath === xpath);
-}
-
-/**
- * Get all parent xpaths for a given xpath
- */
-export function getParentXpaths(xpath: string): string[] {
-  const paths: string[] = [];
-  const parts = xpath.split("/").filter(Boolean);
-
-  let current = "";
-  for (let index = 0; index < parts.length - 1; index++) {
-    current += "/" + parts[index];
-    paths.push(current);
-  }
-
-  return paths;
 }

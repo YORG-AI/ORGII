@@ -20,7 +20,7 @@ export interface CollapsibleTableSectionProps {
   actions?: React.ReactNode;
   /** Table content (typically SettingsTable) */
   children: React.ReactNode;
-  /** When true, render children directly without the rounded surface-container px-4 wrapper.
+  /** When true, render children directly without the rounded primary-container px-4 wrapper.
    *  Use when child (e.g. SettingsTable) has its own card styling. */
   noWrapper?: boolean;
   /** Add overflow-hidden to container for horizontal scroll. Ignored when noWrapper. */

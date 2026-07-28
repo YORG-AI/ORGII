@@ -1,0 +1,23 @@
+# Example orgtrack exec loader plugin.
+#
+# An exec loader is any executable that speaks the orgtrack plugin JSON protocol
+# over stdin/stdout (see scan.py). Because it runs code, it is INERT until
+# trusted:
+#   orgtrack plugins list                 # shows it as UNTRUSTED
+#   orgtrack plugins trust my_agent       # pins a sha256 of manifest + exec
+#   orgtrack list --source my_agent       # now it runs
+#   orgtrack show my_agent-<id>
+#
+# Trust re-arms automatically if either the manifest or the executable changes.
+
+[plugin]
+id       = "my_agent"          # stable source id: [a-z0-9_]
+label    = "My Agent"
+kind     = "loader"
+format   = "exec"
+exec     = "./scan.py"         # run with CWD = this directory
+protocol = 1                   # wire protocol version
+
+[loader]
+session_prefix = "my_agent-"   # session ids are `<prefix><sourceSessionId>`
+parser_version = 1

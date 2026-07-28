@@ -13,6 +13,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { shouldEnableBrowserLogPolling } from "@src/hooks/workStation/browser/browserDiagnosticsPolicy";
 import { useWorkStationPanels } from "@src/hooks/workStation/panels/useWorkStationPanels";
 import { useBrowserConsole } from "@src/modules/WorkStation/Browser/hooks/useBrowserConsole";
 import { useBrowserNetworkLogs } from "@src/modules/WorkStation/Browser/hooks/useBrowserNetworkLogs";
@@ -135,9 +136,12 @@ export function useBrowserSessions(
   const pollingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || devToolsCollapsed) {
+      return;
+    }
 
     pollingTimerRef.current = setTimeout(() => {
+      pollingTimerRef.current = null;
       setPollingEnabled(true);
     }, POLLING_START_DELAY_MS);
 
@@ -147,9 +151,14 @@ export function useBrowserSessions(
         pollingTimerRef.current = null;
       }
     };
-  }, [enabled]);
+  }, [devToolsCollapsed, enabled]);
 
-  const effectivePollingEnabled = enabled && pollingEnabled;
+  const effectivePollingEnabled =
+    enabled && pollingEnabled && !devToolsCollapsed;
+  const logPollingEnabled = shouldEnableBrowserLogPolling(
+    effectivePollingEnabled,
+    process.env.NODE_ENV
+  );
 
   // Compute active session info
   const activeSessionId = browserState.activeSessionId || "";
@@ -164,26 +173,28 @@ export function useBrowserSessions(
     errorCount,
     warningCount,
     clearEntries,
+    clearSessionEntries: clearConsoleSessionEntries,
     setWebviewLabel,
     setSessionId,
   } = useBrowserConsole({
     sessionId: activeSessionId,
     webviewLabel: activeWebviewLabel,
     pollInterval: 1000,
-    enabled: effectivePollingEnabled,
+    enabled: logPollingEnabled,
   });
 
   // Network log management - delayed start
   const {
     entries: networkEntries,
     clearEntries: clearNetworkEntries,
+    clearSessionEntries: clearNetworkSessionEntries,
     setWebviewLabel: setNetworkWebviewLabel,
     setSessionId: setNetworkSessionId,
   } = useBrowserNetworkLogs({
     sessionId: activeSessionId,
     webviewLabel: activeWebviewLabel,
     pollInterval: 1000,
-    enabled: effectivePollingEnabled,
+    enabled: logPollingEnabled,
   });
 
   // Element inspector - delayed start
@@ -292,12 +303,16 @@ export function useBrowserSessions(
       } else if (selectedElement) {
         await clearSelection();
       }
+      clearConsoleSessionEntries(sessionId);
+      clearNetworkSessionEntries(sessionId);
       browserState.closeSession(sessionId);
     },
     [
       activeSessionId,
       browserState,
       clearSelection,
+      clearConsoleSessionEntries,
+      clearNetworkSessionEntries,
       disableInspectMode,
       selectedElement,
     ]

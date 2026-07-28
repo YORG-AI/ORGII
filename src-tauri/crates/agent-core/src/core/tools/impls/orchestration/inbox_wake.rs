@@ -56,6 +56,7 @@ pub enum WakeRequestOutcome {
     Coalesced,
     DeferredPaused,
     DeferredIntervention,
+    DeferredBackoff,
     RunTerminal,
     SessionUnavailable,
     Failed(String),
@@ -80,15 +81,7 @@ impl InboxWakeHook for AppHandleInboxWakeHook {
 }
 
 fn should_dispatch_wake(status: SessionStatus) -> bool {
-    matches!(
-        status,
-        SessionStatus::Idle
-            | SessionStatus::Completed
-            | SessionStatus::Failed
-            | SessionStatus::Cancelled
-            | SessionStatus::Abandoned
-            | SessionStatus::Timeout
-    )
+    status.is_agent_org_wakeable()
 }
 
 async fn wake_one_member(
@@ -217,12 +210,35 @@ async fn wake_one_member(
         return WakeRequestOutcome::SessionUnavailable;
     };
 
+    // Recovery throttling follows the durable input being delivered, not just
+    // the member's broad session status. A newly-arrived unread inbox row gets
+    // a new fingerprint and is therefore dispatchable immediately even when a
+    // previous wake for the same stopped session is still in backoff.
+    let recovery_fingerprint =
+        match crate::coordination::agent_org_watchdog::member_rewake_fingerprint(
+            org_run_id,
+            member_id,
+            info.status,
+        ) {
+            Ok(fingerprint) => fingerprint,
+            Err(err) => {
+                warn!(
+                    run_id = %org_run_id,
+                    member_id = %member_id,
+                    error = %err,
+                    "[inbox_wake] recovery fingerprint lookup failed; refusing wake"
+                );
+                return WakeRequestOutcome::Failed(err);
+            }
+        };
+
     wake_session(
         app_handle,
         &info.session_id,
         info.status,
         member_id,
         org_run_id,
+        &recovery_fingerprint,
     )
     .await
 }
@@ -233,6 +249,7 @@ async fn wake_session(
     status: SessionStatus,
     recipient_member_id: &str,
     org_run_id: &str,
+    recovery_fingerprint: &str,
 ) -> WakeRequestOutcome {
     if !should_dispatch_wake(status) {
         info!(
@@ -257,6 +274,41 @@ async fn wake_session(
                 "[inbox_wake] AgentAppState not registered on app handle; cannot wake"
             );
             return WakeRequestOutcome::Failed("AgentAppState is unavailable".to_string());
+        }
+    };
+
+    // Analyzer decisions are snapshots, and inbox/lifecycle hooks can request
+    // wakes without going through the watchdog at all. Atomically reserve one
+    // durable attempt immediately before crossing into the scheduler. This
+    // makes the crash-safe direction conservative: a crash may spend one
+    // cooldown, but an accepted provider turn can never escape budget
+    // accounting. Failed/coalesced requests refund their own CAS token below.
+    let reservation = match crate::coordination::agent_org_watchdog::reserve_member_rewake_dispatch(
+        org_run_id,
+        recipient_member_id,
+        recovery_fingerprint,
+    ) {
+        Ok(crate::coordination::agent_org_watchdog::MemberRewakeReservationOutcome::Reserved(
+            reservation,
+        )) => reservation,
+        Ok(crate::coordination::agent_org_watchdog::MemberRewakeReservationOutcome::Deferred) => {
+            info!(
+                run_id = %org_run_id,
+                member_id = %recipient_member_id,
+                session_id = %session_id,
+                "[inbox_wake] durable recovery budget is in backoff or exhausted; deferring wake"
+            );
+            return WakeRequestOutcome::DeferredBackoff;
+        }
+        Err(err) => {
+            warn!(
+                run_id = %org_run_id,
+                member_id = %recipient_member_id,
+                session_id = %session_id,
+                error = %err,
+                "[inbox_wake] recovery budget reservation failed; refusing wake"
+            );
+            return WakeRequestOutcome::Failed(err);
         }
     };
 
@@ -287,23 +339,33 @@ async fn wake_session(
                 "[inbox_wake] processed resume dispatch for stopped recipient"
             );
             if coalesced {
+                if let Err(err) =
+                    crate::coordination::agent_org_watchdog::refund_member_rewake_reservation(
+                        &reservation,
+                    )
+                {
+                    warn!(run_id = %org_run_id, member_id = %recipient_member_id, error = %err, "[inbox_wake] coalesced wake but failed to refund provisional recovery attempt");
+                }
                 WakeRequestOutcome::Coalesced
             } else {
-                if status != SessionStatus::Idle {
-                    if let Err(err) =
-                        crate::coordination::agent_org_watchdog::record_accepted_member_rewake(
-                            org_run_id,
-                            recipient_member_id,
-                            status,
-                        )
-                    {
-                        warn!(run_id = %org_run_id, member_id = %recipient_member_id, error = %err, "[inbox_wake] accepted wake but failed to persist recovery attempt");
-                    }
+                if let Err(err) =
+                    crate::coordination::agent_org_watchdog::commit_member_rewake_reservation(
+                        &reservation,
+                    )
+                {
+                    warn!(run_id = %org_run_id, member_id = %recipient_member_id, error = %err, "[inbox_wake] accepted wake was charged, but clearing its reservation token failed");
                 }
                 WakeRequestOutcome::Enqueued
             }
         }
         Err(err) => {
+            if let Err(refund_err) =
+                crate::coordination::agent_org_watchdog::refund_member_rewake_reservation(
+                    &reservation,
+                )
+            {
+                warn!(run_id = %org_run_id, member_id = %recipient_member_id, error = %refund_err, "[inbox_wake] failed wake but provisional recovery attempt could not be refunded");
+            }
             warn!(
                 run_id = %org_run_id,
                 member_id = %recipient_member_id,

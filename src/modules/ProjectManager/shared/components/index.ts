@@ -29,3 +29,5 @@ export {
   PROJECT_PROPERTY_CONCISE_FIELDS,
 } from "./PropertiesPanel/ProjectPropertyFields";
 export type { ProjectPropertyFieldsProps } from "./PropertiesPanel/ProjectPropertyFields";
+export { default as VirtualizedGroupedList } from "./VirtualizedGroupedList";
+export type { VirtualizedGroup } from "./VirtualizedGroupedList";

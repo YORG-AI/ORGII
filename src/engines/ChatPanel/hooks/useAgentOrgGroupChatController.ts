@@ -4,13 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AGENT_ORG_RUN_STATUS,
   AGENT_ORG_USER_SENDER_ID,
-  type AgentOrgInboxRow,
+  type AgentOrgGroupChatHistoryRow,
+  type AgentOrgInboxRuntimeRow,
   type AgentOrgRunMemberView,
   type AgentOrgRunView,
   resumeAgentOrgRun,
   sendAgentOrgGroupChatMessage,
 } from "@src/api/tauri/agent";
 import { useGroupChatMergedEvents } from "@src/engines/ChatPanel/ChatHistory/GroupChatView/useGroupChatMergedEvents";
+import {
+  isGroupChatPendingDeliverySettled,
+  useAgentOrgGroupChatHistory,
+} from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatHistory";
 import type {
   CustomMentionOption,
   SubmitOverrideInput,
@@ -33,7 +38,8 @@ interface GroupChatPendingMessage {
   targetMemberName: string;
   createdAt: string;
   displayText: string;
-  inboxRow: AgentOrgInboxRow;
+  text: string;
+  inboxRow: AgentOrgInboxRuntimeRow;
 }
 
 interface UseAgentOrgGroupChatControllerOptions {
@@ -48,10 +54,6 @@ function normalizeMentionToken(value: string): string {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "");
-}
-
-function isInboxRowRead(row: AgentOrgInboxRow | undefined): boolean {
-  return Boolean(row?.readAt && row.readAt.trim());
 }
 
 function timestampMs(value: string | null | undefined): number | null {
@@ -74,7 +76,7 @@ function makeOptimisticInboxRow({
   targetAgentId: string;
   body: string;
   displayText: string;
-}): AgentOrgInboxRow {
+}): AgentOrgInboxRuntimeRow {
   const createdAt = new Date().toISOString();
   return {
     id,
@@ -171,14 +173,10 @@ export function useAgentOrgGroupChatController({
   const nextOptimisticInboxRowIdRef = useRef(-1);
   const [groupChatPendingMessage, setGroupChatPendingMessage] =
     useState<GroupChatPendingMessage | null>(null);
-  const [groupChatDisplayOverrides, setGroupChatDisplayOverrides] = useState<
-    ReadonlyMap<number, string>
-  >(() => new Map());
   const [isResumingGroupChat, setIsResumingGroupChat] = useState(false);
 
   useEffect(() => {
     setGroupChatPendingMessage(null);
-    setGroupChatDisplayOverrides(new Map());
   }, [sessionId]);
 
   const groupChatViewActive = groupChatViewSessionId === sessionId;
@@ -198,7 +196,6 @@ export function useAgentOrgGroupChatController({
       groupChatDefaultAppliedRef.current.add(sessionId);
       if (!active) {
         setGroupChatPendingMessage(null);
-        setGroupChatDisplayOverrides(new Map());
       } else {
         setActiveSessionId(sessionId);
       }
@@ -220,14 +217,50 @@ export function useAgentOrgGroupChatController({
     }
   }, [groupChatViewActive, groupChatViewAvailable, setGroupChatViewSessionId]);
 
-  const groupChatInboxRows = useMemo(() => {
+  const groupChatHistoryRefreshToken = useMemo(() => {
     const rows = agentOrgRunView?.inbox ?? [];
-    if (!groupChatPendingMessage) return rows;
-    if (rows.some((row) => row.id === groupChatPendingMessage.rowId)) {
-      return rows;
+    return rows
+      .filter((row) => row.senderAgentId === AGENT_ORG_USER_SENDER_ID)
+      .map(
+        (row) => `${row.id}:${row.readAt ?? ""}:${row.deliveryResolution ?? ""}`
+      )
+      .join("|");
+  }, [agentOrgRunView?.inbox]);
+  const {
+    rows: durableGroupChatHistoryRows,
+    hasMore: groupChatHistoryHasMore,
+    loading: groupChatHistoryLoading,
+    error: groupChatHistoryError,
+    loadOlder: loadOlderGroupChatHistory,
+    retry: retryGroupChatHistory,
+  } = useAgentOrgGroupChatHistory(
+    sessionId,
+    groupChatViewActive,
+    groupChatHistoryRefreshToken
+  );
+  const groupChatHistoryRows = useMemo<AgentOrgGroupChatHistoryRow[]>(() => {
+    if (!groupChatPendingMessage) return durableGroupChatHistoryRows;
+    if (
+      durableGroupChatHistoryRows.some(
+        (row) => row.inboxId === groupChatPendingMessage.rowId
+      )
+    ) {
+      return durableGroupChatHistoryRows;
     }
-    return [...rows, groupChatPendingMessage.inboxRow];
-  }, [agentOrgRunView?.inbox, groupChatPendingMessage]);
+    return [
+      ...durableGroupChatHistoryRows,
+      {
+        inboxId: groupChatPendingMessage.rowId,
+        targetMemberId: groupChatPendingMessage.targetMemberId,
+        targetMemberName: groupChatPendingMessage.targetMemberName,
+        text: groupChatPendingMessage.text,
+        displayText: groupChatPendingMessage.displayText,
+        createdAt: groupChatPendingMessage.createdAt,
+        readAt: null,
+        deliveryResolution: null,
+      },
+    ].sort((left, right) => left.inboxId - right.inboxId);
+  }, [durableGroupChatHistoryRows, groupChatPendingMessage]);
 
   const {
     mergedEvents: groupChatMergedEvents,
@@ -236,8 +269,8 @@ export function useAgentOrgGroupChatController({
   } = useGroupChatMergedEvents(
     groupChatViewActive ? sessionId : null,
     agentOrgRunView?.members ?? [],
-    groupChatInboxRows,
-    groupChatDisplayOverrides
+    groupChatHistoryRows,
+    agentOrgRunView?.inbox ?? []
   );
 
   const groupChatMentionOptions = useMemo<ReadonlyArray<CustomMentionOption>>(
@@ -261,7 +294,13 @@ export function useAgentOrgGroupChatController({
     const pendingRow = agentOrgRunView.inbox.find(
       (row) => row.id === groupChatPendingMessage.rowId
     );
-    if (isInboxRowRead(pendingRow)) {
+    if (
+      isGroupChatPendingDeliverySettled(
+        groupChatPendingMessage.rowId,
+        pendingRow,
+        durableGroupChatHistoryRows
+      )
+    ) {
       setGroupChatPendingMessage(null);
       return;
     }
@@ -290,6 +329,7 @@ export function useAgentOrgGroupChatController({
     }
   }, [
     agentOrgRunView,
+    durableGroupChatHistoryRows,
     groupChatMergedEvents,
     groupChatPendingMessage,
     sessionId,
@@ -345,37 +385,29 @@ export function useAgentOrgGroupChatController({
         body: route.body,
         displayText: route.displayText,
       });
-      setGroupChatDisplayOverrides((prev) => {
-        const next = new Map(prev);
-        next.set(optimisticRowId, route.displayText);
-        return next;
-      });
       setGroupChatPendingMessage({
         rowId: optimisticRowId,
         targetMemberId: targetMember.memberId,
         targetMemberName: targetMember.name,
         createdAt: optimisticRow.createdAt,
         displayText: route.displayText,
+        text: route.body,
         inboxRow: optimisticRow,
       });
       try {
         const response = await sendAgentOrgGroupChatMessage(
           sessionId,
           route.targetMemberId,
-          route.body
+          route.body,
+          route.displayText
         );
-        setGroupChatDisplayOverrides((prev) => {
-          const next = new Map(prev);
-          next.delete(optimisticRowId);
-          next.set(response.inboxRow.id, route.displayText);
-          return next;
-        });
         setGroupChatPendingMessage({
           rowId: response.inboxRow.id,
           targetMemberId: response.targetMemberId,
           targetMemberName: response.targetMemberName,
           createdAt: response.inboxRow.createdAt,
           displayText: route.displayText,
+          text: route.body,
           inboxRow: response.inboxRow,
         });
         void refreshAgentOrgRunView().catch((err: unknown) => {
@@ -388,11 +420,6 @@ export function useAgentOrgGroupChatController({
         setGroupChatPendingMessage((current) =>
           current?.rowId === optimisticRowId ? null : current
         );
-        setGroupChatDisplayOverrides((prev) => {
-          const next = new Map(prev);
-          next.delete(optimisticRowId);
-          return next;
-        });
         throw err;
       }
       return true;
@@ -411,6 +438,11 @@ export function useAgentOrgGroupChatController({
     groupChatMentionOptions,
     groupChatRunPaused,
     groupChatPendingMessage,
+    groupChatHistoryHasMore,
+    groupChatHistoryLoading,
+    groupChatHistoryError,
+    loadOlderGroupChatHistory,
+    retryGroupChatHistory,
     isResumingGroupChat,
     handleResumeGroupChatRun,
     handleGroupChatViewToggle,

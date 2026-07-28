@@ -1,14 +1,10 @@
 /**
- * useEditorCache Hook (v2)
+ * useEditorCache Hook (v3)
  *
- * Manages per-repo FILE tab caching.
- *
- * IMPORTANT: Only FILE tabs are cached per-repo.
- * Terminal and Browser tabs are GLOBAL - they stay in place during repo switches.
- *
- * When switching repos:
- * - File tabs (file, git-diff, etc.) are saved to cache and swapped
- * - Tool tabs (terminal, browser, etc.) are NOT touched
+ * Manages FILE-tab caches for the currently presented WorkStation workspace.
+ * Repository identity is nested beneath workspace identity, so two sessions on
+ * the same repository retain independent file tabs and active repo selection.
+ * Shared resource tabs stay in the compatibility layout during repo switches.
  *
  * Created: 2026-01-29
  */

@@ -125,7 +125,27 @@ function hasShellOutput(result: Record<string, unknown>): boolean {
   );
 }
 
+const willRenderContentCache = new WeakMap<SessionEvent, boolean>();
+
+/**
+ * Memoized `willEventRenderContent`. Events are immutable (copy-on-write via
+ * `snapshotMaterialization.swapChangedEvents`), so a given event object's
+ * classification never changes and the cached verdict stays valid. The chat
+ * projection re-runs over the full event list on every new event in a turn;
+ * without this cache each re-run re-ran the full
+ * `stripThinkTags`/`extractThinkContent`/`hasShellOutput` classification over
+ * every prior event (O(n) per new event → O(n²) per turn). The registry it
+ * consults (`getActionConfig`) is static, so there is no staleness window.
+ */
 export function willEventRenderContent(event: SessionEvent): boolean {
+  const cached = willRenderContentCache.get(event);
+  if (cached !== undefined) return cached;
+  const result = computeWillEventRenderContent(event);
+  willRenderContentCache.set(event, result);
+  return result;
+}
+
+function computeWillEventRenderContent(event: SessionEvent): boolean {
   const actionType = event.actionType;
   const functionName = event.functionName;
 

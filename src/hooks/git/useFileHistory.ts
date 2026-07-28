@@ -3,7 +3,7 @@
  *
  * Fetches Git commit history for a specific file using the Rust Git API.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { type GitCommitInfo, getGitCommits } from "@src/api/http/git";
 
@@ -51,6 +51,15 @@ export function useFileHistory({
   const [error, setError] = useState<string | null>(null);
   const [totalCount, setTotalCount] = useState<number | null>(null);
 
+  // Callback props are mirrored into refs so `refresh` stays stable. Keeping
+  // them in the dep array meant any caller passing an inline arrow rebuilt
+  // `refresh` every render, and the autoLoad effect below — keyed on
+  // `refresh` — would then re-issue GET /commits on every render.
+  const onSuccessRef = useRef(onSuccess);
+  onSuccessRef.current = onSuccess;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
   const refresh = useCallback(async () => {
     // Don't fetch if no file is selected
     if (!filePath) {
@@ -72,7 +81,7 @@ export function useFileHistory({
       if (result) {
         setCommits(result.commits);
         setTotalCount(result.total_count);
-        onSuccess?.(result.commits);
+        onSuccessRef.current?.(result.commits);
       } else {
         setCommits([]);
         setTotalCount(null);
@@ -82,11 +91,11 @@ export function useFileHistory({
       setError(errorMessage);
       setCommits([]);
       setTotalCount(null);
-      onError?.(errorMessage);
+      onErrorRef.current?.(errorMessage);
     } finally {
       setLoading(false);
     }
-  }, [repoId, filePath, limit, onSuccess, onError]);
+  }, [repoId, filePath, limit]);
 
   // Auto-load on mount or when dependencies change
   useEffect(() => {

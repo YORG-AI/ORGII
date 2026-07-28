@@ -2611,9 +2611,9 @@ mod dto_extended_tests {
         let view = AgentLearningsView::from(&cfg);
         let json = serde_json::to_string(&view).expect("serialize");
         let back: AgentLearningsView = serde_json::from_str(&json).expect("deserialize");
-        assert_eq!(back.enabled, false);
-        assert_eq!(back.extract_memories_enabled, false);
-        assert_eq!(back.auto_dream_enabled, false);
+        assert!(!back.enabled);
+        assert!(!back.extract_memories_enabled);
+        assert!(!back.auto_dream_enabled);
     }
 
     #[test]

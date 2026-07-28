@@ -84,6 +84,128 @@ describe("buildTimeline", () => {
 
     expect(buildTimeline([rejectedMessage]).todos).toEqual([]);
   });
+
+  it("adds every task from a persisted task graph without replacing existing rows", () => {
+    const graphMessage: MessageEntry = {
+      eventId: "task-graph",
+      event: {
+        id: "task-graph",
+        functionName: "task_graph_create",
+        displayStatus: "completed",
+        result: { created: true, tasks: [{ id: "task-a" }, { id: "task-b" }] },
+        extracted: {
+          kind: "orgTask",
+          action: "create",
+          outcome: "succeeded",
+          tasks: [
+            {
+              id: "task-a",
+              subject: "Implement change",
+              status: "pending",
+              blocks: [],
+              blockedBy: [],
+            },
+            {
+              id: "task-b",
+              subject: "Review change",
+              status: "pending",
+              blocks: [],
+              blockedBy: ["task-a"],
+            },
+          ],
+        },
+      } as unknown as SessionEvent,
+      type: "todo",
+      content: "",
+      sender: "agent",
+      timestamp: "2026-07-10T10:00:01Z",
+      order: 1,
+      isCurrent: false,
+    };
+
+    const { todos } = buildTimeline([
+      todoMessage("existing", 0, [
+        { id: "existing", content: "Existing task", status: "pending" },
+      ]),
+      graphMessage,
+    ]);
+
+    expect(todos.map((task) => task.id)).toEqual([
+      "existing",
+      "task-a",
+      "task-b",
+    ]);
+  });
+
+  it("does not clear replay state for a legacy graph event without extraction", () => {
+    const legacyGraphMessage: MessageEntry = {
+      eventId: "legacy-task-graph",
+      event: {
+        id: "legacy-task-graph",
+        functionName: "task_graph_create",
+        displayStatus: "completed",
+        result: { created: true, tasks: [{ id: "task-a" }] },
+      } as unknown as SessionEvent,
+      type: "todo",
+      content: "",
+      sender: "agent",
+      timestamp: "2026-07-10T10:00:01Z",
+      order: 1,
+      isCurrent: false,
+    };
+
+    expect(
+      buildTimeline([
+        todoMessage("existing", 0, [
+          { id: "existing", content: "Existing task", status: "pending" },
+        ]),
+        legacyGraphMessage,
+      ]).todos
+    ).toEqual([
+      { id: "existing", content: "Existing task", status: "pending" },
+    ]);
+  });
+
+  it("removes a durably deleted task instead of moving it to Cancelled", () => {
+    const deleteMessage: MessageEntry = {
+      eventId: "delete-task",
+      event: {
+        id: "delete-task",
+        functionName: "task_update",
+        displayStatus: "completed",
+        result: { deleted: true, id: "task-a" },
+        extracted: {
+          kind: "orgTask",
+          action: "delete",
+          outcome: "succeeded",
+          task: {
+            id: "task-a",
+            subject: "Retired task",
+            status: "deleted",
+            blocks: [],
+            blockedBy: [],
+          },
+          tasks: [],
+        },
+      } as unknown as SessionEvent,
+      type: "todo",
+      content: "",
+      sender: "agent",
+      timestamp: "2026-07-10T10:00:01Z",
+      order: 1,
+      isCurrent: false,
+    };
+
+    expect(
+      buildTimeline([
+        todoMessage("existing", 0, [
+          { id: "task-a", content: "Retired task", status: "pending" },
+          { id: "task-b", content: "Keep task", status: "pending" },
+        ]),
+        deleteMessage,
+      ]).todos
+    ).toEqual([{ id: "task-b", content: "Keep task", status: "pending" }]);
+  });
 });
 
 describe("buildAgentOrgTaskTimeline", () => {
@@ -103,6 +225,7 @@ describe("buildAgentOrgTaskTimeline", () => {
       status: "completed",
       blocks: [],
       blockedBy: [],
+      executionMode: "build",
       createdAt: "2026-07-10T10:00:00Z",
       updatedAt: "2026-07-10T10:05:00Z",
     };

@@ -15,7 +15,9 @@
 //! - Pagination: limit, offset, combined
 //! - Text query on empty session list
 
-use crate::agent_sessions::session_directory::display::{generate_display_label, matches_text_query};
+use crate::agent_sessions::session_directory::display::{
+    generate_display_label, matches_text_query,
+};
 use crate::agent_sessions::session_directory::status::is_active_status;
 use crate::agent_sessions::session_directory::types::{SessionAggregateRecord, SessionCategory};
 use core_types::key_source::KeySource;
@@ -40,6 +42,8 @@ fn make_session(
         external_history_source: None,
         user_input: None,
         repo_path: None,
+        repo_root_path: None,
+        repo_remote_urls: None,
         storage_path: None,
         repo_name: None,
         branch: None,
@@ -205,10 +209,12 @@ fn session_category_variants_are_distinct() {
     let cli = make_session("c1", "running", SessionCategory::Cli, "CLI S");
     let agent = make_session("a1", "running", SessionCategory::Agent, "Agent S");
     let os = make_session("o1", "running", SessionCategory::Os, "OS S");
+    let human = make_session("h1", "completed", SessionCategory::Human, "Human S");
 
     assert!(matches!(cli.category, SessionCategory::Cli));
     assert!(matches!(agent.category, SessionCategory::Agent));
     assert!(matches!(os.category, SessionCategory::Os));
+    assert!(matches!(human.category, SessionCategory::Human));
 }
 
 // ============================================================================

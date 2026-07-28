@@ -5,6 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
+
+use crate::providers::traits::usage_key;
 
 /// Request body for OpenAI-compatible chat completions.
 #[derive(Debug, Serialize)]
@@ -166,12 +169,143 @@ pub(super) struct FunctionCallResponse {
 
 #[derive(Debug, Deserialize)]
 pub(super) struct Usage {
-    #[serde(default)]
+    #[serde(default, alias = "promptTokens")]
     pub prompt_tokens: i64,
-    #[serde(default)]
+    #[serde(default, alias = "completionTokens")]
     pub completion_tokens: i64,
-    #[serde(default)]
+    #[serde(default, alias = "totalTokens")]
     pub total_tokens: i64,
+    /// Standard OpenAI-compatible prompt-token details. OpenAI, Zhipu,
+    /// DashScope, Groq, xAI, MiniMax, and aggregators such as OpenRouter use
+    /// this shape for cache reads; OpenRouter can also report cache writes.
+    #[serde(default, alias = "promptTokensDetails")]
+    pub prompt_tokens_details: Option<PromptTokensDetails>,
+    /// DeepSeek legacy prompt-cache hit counter. DeepSeek's docs describe a
+    /// top-level hit/miss split (`prompt_tokens == hit + miss`), but DeepSeek
+    /// V4+ actually reports cache hits via the standard nested
+    /// `prompt_tokens_details.cached_tokens` shape, handled above. This field
+    /// remains for relays that still forward the legacy split and for older
+    /// DeepSeek deployments.
+    #[serde(default, alias = "promptCacheHitTokens")]
+    pub prompt_cache_hit_tokens: Option<i64>,
+    /// DeepSeek legacy uncached prompt counter (companion to
+    /// `prompt_cache_hit_tokens`); a miss is regular prompt input, not a
+    /// cache write. See that field's doc for the V4 nested-shape note.
+    #[serde(default, alias = "promptCacheMissTokens")]
+    pub prompt_cache_miss_tokens: Option<i64>,
+    /// Normalized top-level cache counters emitted by some relays. These
+    /// relays already report `prompt_tokens` excluding the cache counters.
+    #[serde(default, alias = "cacheReadTokens")]
+    pub cache_read_tokens: i64,
+    #[serde(default, alias = "cacheWriteTokens")]
+    pub cache_write_tokens: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct PromptTokensDetails {
+    #[serde(default, alias = "cachedTokens")]
+    pub cached_tokens: Option<i64>,
+    #[serde(default, alias = "cacheWriteTokens")]
+    pub cache_write_tokens: Option<i64>,
+}
+
+#[derive(Debug, Default)]
+struct NormalizedPromptUsage {
+    prompt_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+}
+
+impl Usage {
+    /// Convert provider usage into ORGII's normalized accounting contract:
+    /// `prompt_tokens` contains uncached input, while cache reads and writes
+    /// live in their own counters.
+    ///
+    /// OpenAI-style nested counters are included in the provider's
+    /// `prompt_tokens`, so they are subtracted exactly once. DeepSeek reports
+    /// the same inclusive total plus an explicit hit/miss split; its miss
+    /// counter becomes normalized prompt input. Already-normalized relay
+    /// counters remain separate and therefore are not subtracted.
+    pub(super) fn to_usage_map(&self) -> HashMap<String, i64> {
+        let prompt = self.normalized_prompt_usage();
+
+        let mut usage = HashMap::new();
+        usage.insert(usage_key::PROMPT_TOKENS.to_string(), prompt.prompt_tokens);
+        usage.insert(
+            usage_key::COMPLETION_TOKENS.to_string(),
+            self.completion_tokens,
+        );
+        usage.insert(usage_key::TOTAL_TOKENS.to_string(), self.total_tokens);
+        if prompt.cache_read_tokens > 0 {
+            usage.insert(
+                usage_key::CACHE_READ_TOKENS.to_string(),
+                prompt.cache_read_tokens,
+            );
+        }
+        if prompt.cache_write_tokens > 0 {
+            usage.insert(
+                usage_key::CACHE_WRITE_TOKENS.to_string(),
+                prompt.cache_write_tokens,
+            );
+        }
+        usage
+    }
+
+    fn normalized_prompt_usage(&self) -> NormalizedPromptUsage {
+        let raw_prompt = self.prompt_tokens.max(0);
+        let has_deepseek_split =
+            self.prompt_cache_hit_tokens.is_some() || self.prompt_cache_miss_tokens.is_some();
+
+        // Standard OpenAI Chat Completions shape. Option-valued detail fields
+        // let an empty `{}` fall through instead of shadowing a vendor shape.
+        // Some relays emit both shapes but leave nested `cached_tokens` at
+        // zero; in that case a non-empty DeepSeek split is authoritative.
+        if let Some(details) = self.prompt_tokens_details.as_ref().filter(|details| {
+            let has_nested_fields =
+                details.cached_tokens.is_some() || details.cache_write_tokens.is_some();
+            let has_nested_cache = details.cached_tokens.unwrap_or(0) > 0
+                || details.cache_write_tokens.unwrap_or(0) > 0;
+            has_nested_fields && (!has_deepseek_split || has_nested_cache)
+        }) {
+            let cache_read = details.cached_tokens.unwrap_or(0).max(0);
+            let cache_write = details.cache_write_tokens.unwrap_or(0).max(0);
+            return NormalizedPromptUsage {
+                prompt_tokens: raw_prompt
+                    .saturating_sub(cache_read)
+                    .saturating_sub(cache_write)
+                    .max(0),
+                cache_read_tokens: cache_read,
+                cache_write_tokens: cache_write,
+            };
+        }
+
+        // DeepSeek exposes a top-level hit/miss split. Derive a missing half
+        // from the inclusive prompt total for compatibility with relays that
+        // forward only one of the two vendor fields.
+        if has_deepseek_split {
+            let cache_read = self
+                .prompt_cache_hit_tokens
+                .map(|value| value.max(0))
+                .unwrap_or_else(|| {
+                    raw_prompt.saturating_sub(self.prompt_cache_miss_tokens.unwrap_or(0).max(0))
+                });
+            let uncached_prompt = self
+                .prompt_cache_miss_tokens
+                .map(|value| value.max(0))
+                .unwrap_or_else(|| raw_prompt.saturating_sub(cache_read));
+            return NormalizedPromptUsage {
+                prompt_tokens: uncached_prompt,
+                cache_read_tokens: cache_read,
+                cache_write_tokens: 0,
+            };
+        }
+
+        NormalizedPromptUsage {
+            prompt_tokens: raw_prompt,
+            cache_read_tokens: self.cache_read_tokens.max(0),
+            cache_write_tokens: self.cache_write_tokens.max(0),
+        }
+    }
 }
 
 /// Error response from the API.
@@ -281,5 +415,143 @@ mod tests {
             serde_json::from_str(r#"{"content":"x","reasoning":"trace"}"#).unwrap();
         assert_eq!(m.content.as_deref(), Some("x"));
         assert_eq!(m.reasoning_content.as_deref(), Some("trace"));
+    }
+
+    #[test]
+    fn standard_prompt_cache_details_are_normalized() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_tokens_details":{"cached_tokens":800}}"#,
+        )
+        .expect("standard OpenAI-compatible usage shape should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
+
+    #[test]
+    fn deepseek_prompt_cache_hit_and_miss_are_normalized() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_cache_hit_tokens":800,"prompt_cache_miss_tokens":400}"#,
+        )
+        .expect("DeepSeek usage shape should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
+
+    #[test]
+    fn deepseek_split_wins_when_relay_emits_empty_nested_details() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_tokens_details":{"cached_tokens":0},"prompt_cache_hit_tokens":800,"prompt_cache_miss_tokens":400}"#,
+        )
+        .expect("dual-shape relay usage should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+    }
+
+    #[test]
+    fn deepseek_split_derives_missing_miss_from_prompt_total() {
+        // A relay forwards only the hit counter; the miss half is derived as
+        // `prompt_tokens - hit`, so the normalized billable prompt is non-zero.
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_cache_hit_tokens":800}"#,
+        )
+        .expect("DeepSeek hit-only usage should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
+
+    #[test]
+    fn deepseek_split_derives_missing_hit_from_prompt_total() {
+        // A relay forwards only the miss counter; the hit half is derived as
+        // `prompt_tokens - miss`.
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_cache_miss_tokens":400}"#,
+        )
+        .expect("DeepSeek miss-only usage should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert!(!usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
+
+    #[test]
+    fn nested_cache_write_tokens_are_normalized() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":1200,"completion_tokens":300,"total_tokens":1500,"prompt_tokens_details":{"cached_tokens":0,"cache_write_tokens":800}}"#,
+        )
+        .expect("OpenRouter cache-write usage shape should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert!(!usage.contains_key(usage_key::CACHE_READ_TOKENS));
+        assert_eq!(usage[usage_key::CACHE_WRITE_TOKENS], 800);
+    }
+
+    #[test]
+    fn camel_case_openai_compat_usage_is_normalized() {
+        let u: Usage = serde_json::from_str(
+            r#"{"promptTokens":1200,"completionTokens":300,"totalTokens":1500,"promptTokensDetails":{"cachedTokens":800}}"#,
+        )
+        .expect("camelCase OpenAI-compatible usage shape should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(usage[usage_key::TOTAL_TOKENS], 1500);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 800);
+    }
+
+    #[test]
+    fn usage_without_cache_fields_defaults_to_zero() {
+        let u: Usage =
+            serde_json::from_str(r#"{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}"#)
+                .expect("plain OpenAI usage should still parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 10);
+        assert_eq!(usage[usage_key::COMPLETION_TOKENS], 5);
+        assert_eq!(usage[usage_key::TOTAL_TOKENS], 15);
+        assert!(!usage.contains_key(usage_key::CACHE_READ_TOKENS));
+        assert!(!usage.contains_key(usage_key::CACHE_WRITE_TOKENS));
+    }
+
+    #[test]
+    fn normalized_top_level_cache_counters_remain_supported() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":200,"completion_tokens":50,"total_tokens":350,"cache_read_tokens":100,"cache_write_tokens":25}"#,
+        )
+        .expect("normalized relay usage should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 200);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 100);
+        assert_eq!(usage[usage_key::CACHE_WRITE_TOKENS], 25);
+    }
+
+    #[test]
+    fn malformed_nested_cache_count_cannot_make_prompt_negative() {
+        let u: Usage = serde_json::from_str(
+            r#"{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110,"prompt_tokens_details":{"cached_tokens":150}}"#,
+        )
+        .expect("usage should parse");
+        let usage = u.to_usage_map();
+
+        assert_eq!(usage[usage_key::PROMPT_TOKENS], 0);
+        assert_eq!(usage[usage_key::CACHE_READ_TOKENS], 150);
     }
 }

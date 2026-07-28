@@ -406,7 +406,7 @@ mod tests {
     fn provider_prompt_payloads_share_the_effective_instructions() {
         let system_prompt = build_system_prompt(Some("Include a detailed body."))
             .expect("custom instructions should be accepted");
-        let messages = vec![
+        let messages = [
             json!({ "role": "system", "content": &system_prompt }),
             json!({ "role": "user", "content": "diff summary" }),
         ];

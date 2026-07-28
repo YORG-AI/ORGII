@@ -11,7 +11,14 @@
  * - useDropdownAutoKeyboard: DOM auto-discover keyboard fallback. Wired
  *   automatically by `useDropdownEngine` when `listNavigation` is not
  *   provided.
+ * - getDropdownPanelStyle: turns the engine's `panelPosition` into the
+ *   panel's inline style (flip side, alignment, width, max height).
  */
+
+export {
+  getDropdownPanelStyle,
+  type DropdownPanelStyleOptions,
+} from "./dropdownPanelStyle";
 
 export {
   useDropdownEngine,

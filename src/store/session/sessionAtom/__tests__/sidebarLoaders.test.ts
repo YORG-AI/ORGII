@@ -8,8 +8,10 @@ import { sessionsAtom } from "../atoms";
 import {
   __TESTS_ONLY,
   loadMoreCategory,
+  loadSessionRoster,
   loadSidebarSessionById,
   loadSidebarSessions,
+  loadSidebarSessionsByIds,
 } from "../loaders";
 import { sessionPaginationAtom } from "../paginationAtoms";
 
@@ -55,6 +57,10 @@ describe("loadSidebarSessions", () => {
     mocks.externalHistorySidebarList.mockReset();
     mocks.sessionAggregateList.mockReset();
     mocks.persistSessions.mockReset();
+  });
+
+  it("keeps legacy sidebar callers on the canonical roster coordinator", () => {
+    expect(loadSidebarSessions).toBe(loadSessionRoster);
   });
 
   it("loads an independent initial page for every external-history source", async () => {
@@ -249,6 +255,57 @@ describe("loadSidebarSessions", () => {
     );
     expect(mocks.externalHistorySidebarList).not.toHaveBeenCalled();
     expect(mocks.store?.get(sessionsAtom)).toContainEqual(historicalSession);
+  });
+
+  it("batches and single-flights exact historical session hydration", async () => {
+    let resolveList:
+      | ((value: { sessions: Array<{ session_id: string }> }) => void)
+      | undefined;
+    mocks.sessionAggregateList.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveList = resolve;
+        })
+    );
+
+    const first = loadSidebarSessionsByIds(["older-b", "older-a", "older-a"]);
+    const second = loadSidebarSessionsByIds(["older-a", "older-b"]);
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(1);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionIds: ["older-b", "older-a"],
+        includeExternalHistory: true,
+        limit: 2,
+      })
+    );
+
+    resolveList?.({
+      sessions: [{ session_id: "older-a" }, { session_id: "older-b" }],
+    });
+    await expect(first).resolves.toHaveLength(2);
+    await expect(second).resolves.toHaveLength(2);
+  });
+
+  it("isolates exact hydration single-flight state per Jotai store", async () => {
+    mocks.sessionAggregateList.mockResolvedValue({
+      sessions: [{ session_id: "shared-id" }],
+    });
+    const firstStore = mocks.store;
+    const first = loadSidebarSessionsByIds(["shared-id"]);
+
+    const secondStore = createStore();
+    mocks.store = secondStore;
+    const second = loadSidebarSessionsByIds(["shared-id"]);
+
+    await Promise.all([first, second]);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(firstStore?.get(sessionsAtom)).toContainEqual({
+      session_id: "shared-id",
+    });
+    expect(secondStore.get(sessionsAtom)).toContainEqual({
+      session_id: "shared-id",
+    });
   });
 
   it("enriches an existing lightweight child with canonical parent metadata", async () => {

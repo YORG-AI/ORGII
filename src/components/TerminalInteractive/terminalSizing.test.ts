@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createRedrawTerminalAfterLayoutChange } from "./terminalSizing";
+import {
+  createFitTerminal,
+  createRedrawTerminalAfterLayoutChange,
+} from "./terminalSizing";
 
 function visibleContainer() {
   return {
@@ -47,6 +50,26 @@ describe("terminal sizing lifecycle", () => {
     expect(oldFitAddon.fit).not.toHaveBeenCalled();
     expect(newFitAddon.fit).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+
+  it("fits layout changes without clearing the renderer or forcing a full refresh", () => {
+    const terminal = {
+      clearTextureAtlas: vi.fn(),
+      refresh: vi.fn(),
+      rows: 24,
+    };
+    const fitAddon = { fit: vi.fn() };
+    const refs = {
+      containerRef: { current: visibleContainer() },
+      fitAddonRef: { current: fitAddon },
+      terminalRef: { current: terminal },
+    };
+
+    createFitTerminal(refs as never)();
+
+    expect(fitAddon.fit).toHaveBeenCalledOnce();
+    expect(terminal.clearTextureAtlas).not.toHaveBeenCalled();
+    expect(terminal.refresh).not.toHaveBeenCalled();
   });
 
   it("redraws only when terminal, addon, and container identities remain live", () => {

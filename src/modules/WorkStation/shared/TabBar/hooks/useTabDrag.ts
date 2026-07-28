@@ -17,6 +17,12 @@ import {
   clearWorkstationTabDrag,
   setWorkstationTabDrag,
 } from "@src/shared/dnd/dragSideChannel";
+import {
+  type SessionTabTransfer,
+  dispatchSessionTabDragCancel,
+  dispatchSessionTabDragEnd,
+  dispatchSessionTabDragStart,
+} from "@src/shared/dnd/sessionTabDrag";
 
 import { TAB_BAR_HEIGHT } from "../config";
 import type { TabDragEventDetail, TabDragPillPayload } from "../tabDragTypes";
@@ -142,6 +148,20 @@ function getTabPillPayload(tab: WorkStationTab): TabDragPillPayload | null {
   return null;
 }
 
+function getSessionTabTransfer(
+  tab: WorkStationTab | undefined
+): SessionTabTransfer | null {
+  if (tab?.type !== "chat-session") return null;
+  const sessionId = readStringField(tab.data, "sessionId");
+  if (!sessionId) return null;
+  return {
+    source: "workstation",
+    sourceTabId: tab.id,
+    sessionId,
+    title: tab.title,
+  };
+}
+
 // ============================================
 // Hook Implementation
 // ============================================
@@ -171,6 +191,19 @@ export function useTabDrag({
       const tabId = event.active.id as string;
       setDraggingTabId(tabId);
 
+      const activatorEvent = event.activatorEvent;
+      if (
+        "clientX" in activatorEvent &&
+        "clientY" in activatorEvent &&
+        typeof activatorEvent.clientX === "number" &&
+        typeof activatorEvent.clientY === "number"
+      ) {
+        lastPointerPositionRef.current = {
+          x: activatorEvent.clientX,
+          y: activatorEvent.clientY,
+        };
+      }
+
       if (pointerMoveHandlerRef.current) {
         window.removeEventListener(
           "pointermove",
@@ -192,6 +225,10 @@ export function useTabDrag({
 
       if (pill) {
         setWorkstationTabDrag(pill);
+      }
+      const sessionTransfer = getSessionTabTransfer(foundTab);
+      if (sessionTransfer) {
+        dispatchSessionTabDragStart(sessionTransfer);
       }
 
       document.dispatchEvent(
@@ -403,6 +440,18 @@ export function useTabDrag({
       const pointerY = lastPointerPositionRef.current?.y;
       lastPointerPositionRef.current = null;
 
+      const sessionTransfer = getSessionTabTransfer(foundTab);
+      const movedToChatPanel =
+        sessionTransfer && pointerX !== undefined && pointerY !== undefined
+          ? dispatchSessionTabDragEnd(sessionTransfer, pointerX, pointerY)
+          : false;
+      if (
+        sessionTransfer &&
+        (pointerX === undefined || pointerY === undefined)
+      ) {
+        dispatchSessionTabDragCancel();
+      }
+
       document.dispatchEvent(
         new CustomEvent<TabDragEventDetail>("tab-drag-end", {
           detail: {
@@ -417,7 +466,7 @@ export function useTabDrag({
         })
       );
 
-      if (over && active.id !== over.id && onTabReorder) {
+      if (!movedToChatPanel && over && active.id !== over.id && onTabReorder) {
         const oldIndex = tabs.findIndex((tab) => tab.id === active.id);
         const newIndex = tabs.findIndex((tab) => tab.id === over.id);
 
@@ -432,6 +481,7 @@ export function useTabDrag({
   const handleDragCancel = useCallback(() => {
     setDraggingTabId(null);
     clearTabDragGlobals();
+    dispatchSessionTabDragCancel();
     removePointerTracker();
     lastPointerPositionRef.current = null;
   }, [clearTabDragGlobals, removePointerTracker]);

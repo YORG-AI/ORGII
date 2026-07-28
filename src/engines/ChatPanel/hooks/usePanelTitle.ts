@@ -12,12 +12,8 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SESSION_CONFIG } from "@src/config/sessionCreatorConfig";
-import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
-import {
-  type Session,
-  sessionByIdAtom,
-  workstationActiveSessionIdAtom,
-} from "@src/store/session";
+import { activeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { type Session, sessionByIdAtom } from "@src/store/session";
 import { stripPillReferences } from "@src/util/session/stripPillReferences";
 
 export interface UsePanelTitleResult {
@@ -35,13 +31,17 @@ export interface UsePanelTitleResult {
 export function usePanelTitle(): UsePanelTitleResult {
   const { t } = useTranslation("sessions");
 
-  const coreSessionId = useAtomValue(sessionIdAtom);
-  // The docked ChatPanel header reflects WorkStation's selection,
-  // not the live pipeline — secondary surfaces that temporarily
-  // claim the pipeline shouldn't change the panel title.
-  const workstationSessionId = useAtomValue(workstationActiveSessionIdAtom);
-
-  const currentSessionId = workstationSessionId || coreSessionId || null;
+  // The chat pane shows the session owned by its OWN active tab — never the
+  // shared workstation/pipeline session atoms. Those atoms are a single global
+  // selection observed by both surfaces: a `secondary` WorkStation ChatView
+  // claiming the pipeline (or WorkStation's remembered selection) would
+  // otherwise leak a session into this pane while it sits on Launchpad. Keying
+  // off the active tab guarantees a live session is owned by exactly one
+  // surface — so moving a chat to My Station and switching WorkStation tabs no
+  // longer mistriggers the session here.
+  const activeTab = useAtomValue(activeChatPanelTabAtom);
+  const currentSessionId =
+    activeTab?.type === "session" ? (activeTab.sessionId ?? null) : null;
 
   const currentSession =
     (useAtomValue(sessionByIdAtom(currentSessionId ?? "")) as

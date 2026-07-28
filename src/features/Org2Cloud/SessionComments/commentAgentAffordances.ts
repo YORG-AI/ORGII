@@ -1,9 +1,4 @@
 /** Pure predicates behind the thread-list / turn-chrome agent affordances. */
-import type {
-  CloudCommentTask,
-  CloudCommentTaskState,
-} from "../org2CloudCommentTasksClient";
-import type { CommentThread } from "../org2CloudSessionCommentsAtom";
 
 /**
  * The composer sugar token (design §1): promotion is EXPLICIT — a literal
@@ -32,6 +27,20 @@ export interface AgentMentionBodyParts {
 }
 
 /**
+ * Composer suggestion is deliberately prefix-only and canonical: typing `@`
+ * or any leading prefix of `@agent` offers the one supported agent target.
+ * Once a space/body exists the suggestion closes; manual full-token input
+ * continues through the same submit parser.
+ */
+export function shouldShowAgentSuggestion(body: string): boolean {
+  return (
+    body.length > 0 &&
+    body.length <= "@agent".length &&
+    "@agent".startsWith(body)
+  );
+}
+
+/**
  * Splits the submitted sugar into a semantic mention token and its brief.
  * Keeping this beside the detector ensures the rendered pill and task
  * creation always use the exact same grammar.
@@ -44,35 +53,4 @@ export function splitAgentMentionBody(
     mention: "@agent",
     brief: body.slice(AGENT_COMPOSER_PREFIX.length),
   };
-}
-
-/**
- * "Live" for the turn badge (design §4 item 3) = open/claimed/running.
- * Lease-expired claimed/running rows COUNT: their state is still live and
- * the task is one reclaim away from running — the badge advertises "an
- * agent is (to be) on this turn", not lease health.
- */
-const LIVE_TASK_STATES: ReadonlySet<CloudCommentTaskState> = new Set([
-  "open",
-  "claimed",
-  "running",
-]);
-
-export function isLiveTaskState(state: CloudCommentTaskState): boolean {
-  return LIVE_TASK_STATES.has(state);
-}
-
-/**
- * TurnCommentChrome badge predicate: any of the turn's threads carries a
- * live task. Tasks key on the thread HEAD (UNIQUE `comment_id` — replies
- * are never promoted), so only `thread.top.id` is ever looked up.
- */
-export function threadsHaveLiveAgentTask(
-  threads: readonly CommentThread[],
-  taskForThread: (commentId: string) => CloudCommentTask | undefined
-): boolean {
-  return threads.some((thread) => {
-    const task = taskForThread(thread.top.id);
-    return task !== undefined && isLiveTaskState(task.state);
-  });
 }

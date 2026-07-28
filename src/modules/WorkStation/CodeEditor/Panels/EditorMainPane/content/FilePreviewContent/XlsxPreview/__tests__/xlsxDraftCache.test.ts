@@ -3,6 +3,7 @@ import {
   clearXlsxDraft,
   getXlsxDraft,
   setXlsxDraft,
+  xlsxDraftCacheTestApi,
 } from "../xlsxDraftCache";
 
 function createDraftEntry(label: string): XlsxDraftEntry {
@@ -52,6 +53,7 @@ describe("xlsxDraftCache", () => {
 
   afterEach(() => {
     clearDrafts(filePaths);
+    xlsxDraftCacheTestApi.clear();
   });
 
   it("returns null when a file has no draft", () => {
@@ -169,5 +171,24 @@ describe("xlsxDraftCache", () => {
       "Sheet replacement"
     );
     expect(getXlsxDraft(filePaths[1])).toBeNull();
+  });
+
+  it("rejects a single draft above the byte budget", () => {
+    const entry = createDraftEntry("oversized");
+    entry.sheetStates["Sheet oversized"].rows = [
+      ["x".repeat(xlsxDraftCacheTestApi.limits.entryBytes)],
+    ];
+
+    expect(setXlsxDraft(filePaths[0], entry)).toBe(false);
+    expect(getXlsxDraft(filePaths[0])).toBeNull();
+    expect(xlsxDraftCacheTestApi.stats()).toEqual({ entries: 0, bytes: 0 });
+  });
+
+  it("releases retained bytes when a draft is cleared", () => {
+    setXlsxDraft(filePaths[0], createDraftEntry("bytes"));
+    expect(xlsxDraftCacheTestApi.stats().bytes).toBeGreaterThan(0);
+
+    clearXlsxDraft(filePaths[0]);
+    expect(xlsxDraftCacheTestApi.stats()).toEqual({ entries: 0, bytes: 0 });
   });
 });

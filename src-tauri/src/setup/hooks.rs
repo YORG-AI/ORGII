@@ -45,6 +45,7 @@ pub(crate) fn register_database_schemas() {
 
         orgtrack_core::store::sqlite::SqliteRecordStore::init_tables(conn)?;
         orgtrack_core::store::sqlite::SqliteRecordStore::init_source_cache_tables(conn)?;
+        orgtrack_core::profile::store::init_tables(conn)?;
 
         project_management::lineage::schema::init_lineage_tables(conn)?;
 
@@ -63,12 +64,7 @@ pub(crate) fn register_database_schemas() {
             );
         }
 
-        agent_core::coordination::agent_org_runs::init_schema(conn)?;
-        agent_core::coordination::agent_inbox::init_schema(conn)?;
-        agent_core::coordination::agent_org_plan_approvals::init_schema(conn)?;
-        agent_core::coordination::agent_org_tasks::init_schema(conn)?;
-        agent_core::coordination::agent_org_watchdog::init_schema(conn)?;
-        agent_core::coordination::agent_member_interventions::init_schema(conn)?;
+        agent_core::coordination::init_agent_org_schemas(conn)?;
 
         // Pending plan-approval snapshots (one row per session with a Build
         // button still awaiting the user). Persists the pending action so the

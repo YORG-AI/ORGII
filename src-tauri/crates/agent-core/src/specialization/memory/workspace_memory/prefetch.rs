@@ -699,8 +699,7 @@ mod tests {
     fn test_truncate_memory_to_file_budget_cuts_at_line_boundary_with_marker() {
         // ~100-byte lines, well past the 4KB cap.
         let line = "x".repeat(99);
-        let content: String = std::iter::repeat(line.as_str())
-            .take(100)
+        let content: String = std::iter::repeat_n(line.as_str(), 100)
             .collect::<Vec<_>>()
             .join("\n");
         assert!(content.len() > MAX_MEMORY_FILE_BYTES);
@@ -786,8 +785,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let mem_dir = tmp.path().join(".orgii").join("workspace-memory");
         std::fs::create_dir_all(&mem_dir).unwrap();
-        let big_body: String = std::iter::repeat("z".repeat(80))
-            .take(200) // ~16KB, 4x over the per-file cap
+        let big_body: String = std::iter::repeat_n("z".repeat(80), 200) // ~16KB, 4x over the per-file cap
             .collect::<Vec<_>>()
             .join("\n");
         std::fs::write(

@@ -41,9 +41,9 @@ const log = createLogger("ProcessReconciliation");
 
 interface RunningShellJob {
   session_id: string;
+  call_id: string;
   pid: number;
   command: string;
-  log_path: string | null;
 }
 
 interface RunningSubagentJob {
@@ -66,19 +66,31 @@ interface PtySessionInfo {
 export function findStaleShellProcesses(
   processMap: ShellProcessMap,
   runningJobs: readonly RunningShellJob[]
-): Array<{ sessionId: string; pid: number }> {
+): Array<{ sessionId: string; pid: number; callId: string }> {
   const liveJobKeys = new Set(
-    runningJobs.map((job) => `${job.session_id}:${job.pid}`)
+    runningJobs.map((job) =>
+      JSON.stringify([job.session_id, job.call_id, job.pid])
+    )
   );
-  const staleProcesses: Array<{ sessionId: string; pid: number }> = [];
+  const staleProcesses: Array<{
+    sessionId: string;
+    pid: number;
+    callId: string;
+  }> = [];
 
   for (const [sessionId, sessionProcesses] of processMap.entries()) {
     for (const process of sessionProcesses.values()) {
       if (
         (process.status === "running" || process.status === "background") &&
-        !liveJobKeys.has(`${sessionId}:${process.pid}`)
+        !liveJobKeys.has(
+          JSON.stringify([sessionId, process.callId, process.pid])
+        )
       ) {
-        staleProcesses.push({ sessionId, pid: process.pid });
+        staleProcesses.push({
+          sessionId,
+          pid: process.pid,
+          callId: process.callId,
+        });
       }
     }
   }
@@ -141,25 +153,37 @@ export function useProcessReconciliation(): void {
             "agent_list_running_shell_jobs"
           );
           if (cancelled) return;
+          const exactRunningJobs = runningJobs.filter((job) => {
+            const exact = Boolean(job.session_id && job.call_id && job.pid);
+            if (!exact) {
+              log.warn(
+                "[ProcessReconciliation] ignored shell job without sessionId+callId",
+                job
+              );
+            }
+            return exact;
+          });
 
           for (const process of findStaleShellProcesses(
             shellProcessMapRef.current,
-            runningJobs
+            exactRunningJobs
           )) {
             dispatchUpdateShellProcessRef.current({
               type: "exit",
               sessionId: process.sessionId,
               pid: process.pid,
+              callId: process.callId,
               killed: false,
             });
           }
 
-          for (const job of runningJobs) {
+          for (const job of exactRunningJobs) {
             const existing = shellProcessMapRef.current
               .get(job.session_id)
               ?.get(job.pid);
             if (
               !existing ||
+              existing.callId !== job.call_id ||
               existing.status === "exited" ||
               existing.status === "killed"
             ) {
@@ -167,8 +191,8 @@ export function useProcessReconciliation(): void {
                 type: "start",
                 sessionId: job.session_id,
                 pid: job.pid,
+                callId: job.call_id,
                 command: job.command,
-                logPath: job.log_path ?? undefined,
               });
             }
           }

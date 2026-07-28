@@ -25,6 +25,8 @@ const GENERIC_DESCRIPTION =
 
 const CURSOR_IDE_DESCRIPTION =
   "Browse and continue Cursor IDE chat sessions inside ORGII";
+const HUMAN_SESSION_DESCRIPTION =
+  "Start with one note, then keep appending updates over time";
 
 /** English-only hero copy for built-in agents when the definition has no description. */
 const BUILTIN_HERO_DESCRIPTIONS: Record<string, string> = {
@@ -142,6 +144,14 @@ export function resolveSessionCreatorAgentHeroContent(options: {
     return {
       name: resolvedAgentName ?? "Cursor IDE",
       description: CURSOR_IDE_DESCRIPTION,
+      danger: false,
+    };
+  }
+
+  if (dispatchCategory === "human_session") {
+    return {
+      name: resolvedAgentName ?? "Work log",
+      description: HUMAN_SESSION_DESCRIPTION,
       danger: false,
     };
   }

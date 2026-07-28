@@ -21,6 +21,7 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import {
   type ParsedTaskAssignedPrompt,
   parseTaskAssignedPrompt,
@@ -127,7 +128,7 @@ const SubagentPromptToggleComponent: React.FC<SubagentPromptToggleProps> = ({
             ref={panelRef}
             role="dialog"
             aria-label={label}
-            className="z-50 flex min-w-[280px] flex-col overflow-hidden rounded-lg border border-border-2 bg-[var(--cm-editor-background)] shadow-lg"
+            className={`z-50 flex min-w-[280px] flex-col overflow-hidden rounded-lg border border-border-2 shadow-lg ${EDITOR_TAB_CANVAS_BG_CLASS}`}
             style={panelStyle}
           >
             {prompt.parsed ? (

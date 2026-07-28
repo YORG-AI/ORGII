@@ -27,7 +27,7 @@ pub fn scan_memory_files(dir: &Path) -> Vec<MemoryHeader> {
 
     scan_recursive(dir, dir, &mut headers);
 
-    headers.sort_by(|a, b| b.mtime_ms.cmp(&a.mtime_ms));
+    headers.sort_by_key(|header| std::cmp::Reverse(header.mtime_ms));
     headers.truncate(MAX_MEMORY_FILES);
     headers
 }
@@ -493,8 +493,7 @@ mod tests {
         // 300-byte CJK lines (100 chars * 3 bytes), well under the 200-line cap
         // but together far over the 25_000-byte budget.
         let line = "你".repeat(100);
-        let content: String = std::iter::repeat(line.as_str())
-            .take(100)
+        let content: String = std::iter::repeat_n(line.as_str(), 100)
             .collect::<Vec<_>>()
             .join("\n");
         assert!(content.lines().count() <= MAX_ENTRYPOINT_LINES);

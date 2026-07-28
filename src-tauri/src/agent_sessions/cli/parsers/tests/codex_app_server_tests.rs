@@ -5,9 +5,7 @@
 
 use serde_json::{json, Value};
 
-use super::{
-    approval_auto_accept, thread_permission_params, CodexAppServerEventParser,
-};
+use super::{approval_auto_accept, thread_permission_params, CodexAppServerEventParser};
 use crate::agent_sessions::cli::session_runner::launch_profiles::CliPermissionMode;
 
 const SESSION_ID: &str = "test-session";
@@ -16,7 +14,11 @@ fn parser() -> CodexAppServerEventParser {
     CodexAppServerEventParser::new(SESSION_ID)
 }
 
-fn notif(parser: &mut CodexAppServerEventParser, method: &str, params: Value) -> Vec<core_types::activity::ActivityChunk> {
+fn notif(
+    parser: &mut CodexAppServerEventParser,
+    method: &str,
+    params: Value,
+) -> Vec<core_types::activity::ActivityChunk> {
     parser.handle_notification(method, &params)
 }
 
@@ -470,7 +472,8 @@ async fn live_smoke_trivial_turn() {
         image_paths: vec![],
     };
 
-    let protocol = tokio::spawn(async move { run_app_server_turn(stdin, stdout, turn, chunk_tx).await });
+    let protocol =
+        tokio::spawn(async move { run_app_server_turn(stdin, stdout, turn, chunk_tx).await });
 
     let mut saw_session_start_thread_id = false;
     let mut assistant_text = String::new();
@@ -507,7 +510,10 @@ async fn live_smoke_trivial_turn() {
 
     assert!(!result.thread_id.is_empty(), "thread id captured");
     assert_eq!(result.turn_status, "completed");
-    assert!(saw_session_start_thread_id, "session_start carried thread_id");
+    assert!(
+        saw_session_start_thread_id,
+        "session_start carried thread_id"
+    );
     assert!(
         assistant_text.to_lowercase().contains("pong"),
         "assistant replied: {assistant_text:?}"
@@ -538,5 +544,9 @@ async fn live_smoke_trivial_turn() {
             }
         }
     }
-    assert!(found_rollout, "rollout jsonl written for {}", result.thread_id);
+    assert!(
+        found_rollout,
+        "rollout jsonl written for {}",
+        result.thread_id
+    );
 }

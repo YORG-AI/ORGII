@@ -6,7 +6,11 @@
  */
 import { createLogger } from "@src/hooks/logger";
 
-import { mergeStreamingText } from "../../shared/streamTextAccumulator";
+import {
+  appendBoundedToolCallArgs,
+  makeRoomForToolCallDelta,
+  mergeStreamingText,
+} from "../../shared/streamTextAccumulator";
 import { capStreamContent } from "../../shared/subagentTracking";
 import type { AgentWSEvent, StreamRefs } from "../../shared/types";
 import {
@@ -116,6 +120,7 @@ export function handleToolCallDelta(
   let buffer = ctx.toolCallDeltaBuffersRef.current.get(deltaIndex);
   const isNewBuffer = !buffer;
   if (!buffer) {
+    makeRoomForToolCallDelta(ctx.toolCallDeltaBuffersRef.current, deltaIndex);
     buffer = {
       toolCallId: incomingId || undefined,
       toolName: getToolName(event),
@@ -160,7 +165,7 @@ export function handleToolCallDelta(
       buffer.messageId = toolCallDeltaMessageId(buffer.toolCallId);
     }
   }
-  buffer.argsJson += argsDelta;
+  buffer.argsJson = appendBoundedToolCallArgs(buffer.argsJson, argsDelta);
 
   if (!buffer.toolCallId || !buffer.messageId) {
     return;

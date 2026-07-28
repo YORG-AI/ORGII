@@ -90,10 +90,15 @@ const patchTauriInternals = () => {
  */
 const patchTauriEventPluginInternals = () => {
   if (typeof window === "undefined") return;
+  const targetWindow = window;
 
   // The event plugin internals may not be available immediately, so we set up a polling mechanism
   const tryPatch = () => {
-    const eventInternals = window.__TAURI_EVENT_PLUGIN_INTERNALS__;
+    // Stop an old environment's bounded retry after teardown/replacement. This
+    // prevents a late startup timer from touching a new window or a missing one.
+    if (typeof window === "undefined" || window !== targetWindow) return true;
+
+    const eventInternals = targetWindow.__TAURI_EVENT_PLUGIN_INTERNALS__;
     if (!eventInternals) return false;
 
     try {

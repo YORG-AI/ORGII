@@ -63,6 +63,16 @@ fn scoped_system_message(text: String, scope: RenderedSystemBlockScope) -> Value
     })
 }
 
+fn reconcile_inbox_transcript_replay(
+    messages: &mut Vec<Value>,
+    message_count_before_inbox: usize,
+    transcript_inserted: bool,
+) {
+    if !transcript_inserted {
+        messages.truncate(message_count_before_inbox);
+    }
+}
+
 // ============================================
 // Per-Turn Input
 // ============================================
@@ -536,7 +546,7 @@ impl UnifiedMessageProcessor {
             .map_err(|err| format!("Failed to save user message: {}", err))?;
 
             if let Some(handle) = self.app_handle.as_ref() {
-                tokio::task::block_in_place(|| {
+                if let Err(err) = tokio::task::block_in_place(|| {
                     crate::bus::event_pipeline_bridge::persist_user_message_event(
                         handle,
                         session_id,
@@ -546,8 +556,14 @@ impl UnifiedMessageProcessor {
                         context.images.as_deref(),
                         crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
                         context.turn_intent_id.as_str(),
+                    )
+                }) {
+                    tracing::warn!(
+                        session_id,
+                        error = %err,
+                        "[unified_processor] failed to persist user-message UI event"
                     );
-                });
+                }
             }
         }
 
@@ -577,14 +593,6 @@ impl UnifiedMessageProcessor {
         // 3. Build system prompt, split into the stable cacheable prefix and
         // the volatile per-turn body (environment/IDE/presence/mode suffix).
         let (system_prompt, volatile_prompt) = self.build_system_prompt(session_id).await;
-
-        // 3b. Build dynamic context (changes per-turn). Joined with the
-        // volatile prompt body and appended AFTER the history (step 6c) so
-        // the provider prompt-cache prefix — stable system + history — stays
-        // byte-identical across turns.
-        let dynamic_sections = self
-            .build_dynamic_sections(session_id, None, Some(content))
-            .await;
 
         // 4. Build provider messages from the already-loaded history.
         let mut messages: Vec<Value> = Vec::with_capacity(history.len() + 3);
@@ -703,6 +711,7 @@ impl UnifiedMessageProcessor {
         }
 
         let message_count_before_inbox = messages.len();
+        let mut inbox_had_real_input = false;
         let mut inbox_guard = self.runtime.agent_org_context.as_ref().map(|org_context| {
             inbox_drain::drain_and_render_deferred(
                 org_context,
@@ -712,41 +721,66 @@ impl UnifiedMessageProcessor {
                 Some(self.session.as_ref()),
             )
         });
-        if let Some(guard) = inbox_guard.as_ref() {
+        if let Some(guard) = inbox_guard.as_mut() {
+            inbox_had_real_input = guard.has_pending_input();
             if let Some(transcript_content) = guard.transcript_content() {
                 if !transcript_content.trim().is_empty() {
-                    let message_id = tokio::task::block_in_place(|| {
-                        unified_persistence::save_user_msg(session_id, transcript_content, None)
+                    let (stable_message_id, stable_intent_id) = guard
+                        .transcript_identity(session_id)
+                        .expect("a non-empty drained transcript has stable source row ids");
+                    let (materialization, inserted) = tokio::task::block_in_place(|| {
+                        unified_persistence::materialize_agent_org_inbox_transcript(
+                            session_id,
+                            guard.new_materialization_ids(),
+                            &stable_message_id,
+                            &stable_intent_id,
+                            transcript_content,
+                        )
                     })
-                    .map_err(|err| format!("Failed to save inbox transcript message: {}", err))?;
+                    .map_err(|err| {
+                        format!("Failed to materialize Agent Org inbox transcript: {err}")
+                    })?;
 
-                    if let Some(handle) = self.app_handle.as_ref() {
-                        // Inbox transcript is its own logical user intent
-                        // (an agent-org subagent delivered an answer to a
-                        // parent waiting on inbox_drain). Mint a dedicated
-                        // turn_intent_id with source `agent_org` so the
-                        // turn indexer can collapse this row with any
-                        // matching synthetic event without confusing it
-                        // with the parent user's submit.
-                        let transcript_intent_id = uuid::Uuid::new_v4().to_string();
-                        tokio::task::block_in_place(|| {
-                            crate::bus::event_pipeline_bridge::persist_user_message_event(
-                                handle,
-                                session_id,
-                                &message_id,
-                                transcript_content,
-                                None,
-                                None,
-                                crate::bus::event_pipeline_bridge::PersistedUserMessageSource::AgentOrgInboxTranscript,
-                                &transcript_intent_id,
-                            );
-                        });
+                    if !inserted {
+                        // The stable transcript row is already part of the
+                        // history loaded at the beginning of this turn. Drain
+                        // appended the same attachment once more in memory;
+                        // remove only that newly-rendered tail so the provider
+                        // sees one copy, while leaving the source inbox rows
+                        // unread until this replayed turn succeeds.
+                        reconcile_inbox_transcript_replay(
+                            &mut messages,
+                            message_count_before_inbox,
+                            inserted,
+                        );
                     }
+                    guard.remember_materialization(materialization);
                 }
             }
-        }
-        if let Some(guard) = inbox_guard.take() {
-            guard.commit();
+
+            if let Some(handle) = self.app_handle.as_ref() {
+                // Ensure every durable transcript has its matching stable UI
+                // event on both first delivery and replay. Persistence happens
+                // before the in-memory merge; failure leaves source rows unread
+                // and aborts the provider call so the next Wake can repair it.
+                for materialization in guard.materializations() {
+                    tokio::task::block_in_place(|| {
+                        crate::bus::event_pipeline_bridge::persist_user_message_event(
+                            handle,
+                            session_id,
+                            &materialization.message_id,
+                            &materialization.content,
+                            None,
+                            None,
+                            crate::bus::event_pipeline_bridge::PersistedUserMessageSource::AgentOrgInboxTranscript,
+                            &materialization.intent_id,
+                        )
+                    })
+                    .map_err(|err| {
+                        format!("Failed to persist Agent Org inbox transcript event: {err}")
+                    })?;
+                }
+            }
         }
 
         // An Agent Org wake is only a doorbell. If another worker consumed the
@@ -756,6 +790,7 @@ impl UnifiedMessageProcessor {
         if context.is_resume
             && content.trim().is_empty()
             && self.runtime.agent_org_context.is_some()
+            && !inbox_had_real_input
             && messages.len() == message_count_before_inbox
         {
             info!(session_id = %session_id, "[unified_processor] Agent Org wake had no durable work; returning WakeNoop");
@@ -818,6 +853,15 @@ impl UnifiedMessageProcessor {
             ),
         }
 
+        // Build dynamic context only after every no-provider early return
+        // (terminal/paused wake, WakeNoop, compact-fork redirect). For a
+        // coordinator this stages the exact work revision rendered into the
+        // live task-board snapshot. A later successful provider turn may
+        // observe that revision; an empty wake must never consume it.
+        let (dynamic_sections, coordinator_presented_work_revision) = self
+            .build_dynamic_sections(session_id, None, Some(content))
+            .await;
+
         if super::super::recovery::ensure_tool_result_pairing(&mut messages) {
             info!(
                 "[unified_processor] Normalized tool_result pairing before provider request for session {}",
@@ -852,12 +896,18 @@ impl UnifiedMessageProcessor {
         // Reasoning trigger words are detected on the CURRENT user input
         // only (never history) so escalation stays per-turn.
         let reasoning_trigger = crate::providers::thinking_mode::detect_reasoning_trigger(content);
+        let projected_inbox_ids = inbox_guard
+            .as_ref()
+            .map(|guard| guard.pending_ids().to_vec())
+            .unwrap_or_default();
         let turn_result = self
             .execute_turn_with_reactive_retry(
                 session_id,
                 &turn_id,
                 &mut messages,
                 reasoning_trigger,
+                &context.turn_intent_id,
+                projected_inbox_ids,
             )
             .await;
         if let Some(prefetch_hook) = self.turn_prefetch_hook.lock().await.take() {
@@ -912,6 +962,51 @@ impl UnifiedMessageProcessor {
         } else {
             DialogTurnState::Completed
         };
+
+        // A successful provider response is not enough when the user pressed
+        // Stop concurrently. Only a genuinely Completed turn acknowledges
+        // Inbox input. On Cancelled, dropping the guard preserves unread rows;
+        // the durable transcript receipt makes the later retry idempotent.
+        if matches!(final_turn_state, DialogTurnState::Completed) {
+            if let Some(guard) = inbox_guard.take() {
+                guard.commit();
+            }
+        }
+
+        if matches!(final_turn_state, DialogTurnState::Completed) {
+            if let (Some(org_context), Some(presented_work_revision)) = (
+                self.runtime.agent_org_context.as_ref(),
+                coordinator_presented_work_revision,
+            ) {
+                if self.runtime.agent_org_current_member_id.as_deref()
+                    == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
+                {
+                    let run_id = org_context.run_id.clone();
+                    match tokio::task::spawn_blocking(move || {
+                        crate::coordination::agent_org_runs::AgentOrgRunStore::mark_coordinator_observed_work_revision(
+                            &run_id,
+                            presented_work_revision,
+                        )
+                    })
+                    .await
+                    {
+                        Ok(Ok(_)) => {}
+                        Ok(Err(error)) => warn!(
+                            run_id = %org_context.run_id,
+                            presented_work_revision,
+                            error = %error,
+                            "[unified_processor] failed to record Agent Org work revision observed by coordinator provider turn"
+                        ),
+                        Err(error) => warn!(
+                            run_id = %org_context.run_id,
+                            presented_work_revision,
+                            error = %error,
+                            "[unified_processor] coordinator work-revision observation task failed"
+                        ),
+                    }
+                }
+            }
+        }
 
         info!(
             "[unified_processor] Turn {}: session={}, state={:?}, tokens={}, tool_calls={}",
@@ -1080,5 +1175,23 @@ mod post_turn_work_tests {
             false,
             DialogTurnState::Cancelled
         ));
+    }
+
+    #[test]
+    fn persisted_unread_inbox_replay_keeps_one_prompt_copy() {
+        let durable_transcript = serde_json::json!({
+            "role": "user",
+            "content": "<agent-org-inbox>durable transcript</agent-org-inbox>",
+        });
+        let mut messages = vec![durable_transcript.clone()];
+        let before_inbox = messages.len();
+
+        // `drain_and_render_deferred` re-renders the still-unread source row,
+        // but the stable transcript insert reports that this exact delivery
+        // was already persisted during the crashed attempt.
+        messages.push(durable_transcript.clone());
+        reconcile_inbox_transcript_replay(&mut messages, before_inbox, false);
+
+        assert_eq!(messages, vec![durable_transcript]);
     }
 }

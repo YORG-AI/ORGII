@@ -12,10 +12,10 @@ export interface UseRenameSessionModalResult {
   visible: boolean;
   currentName: string;
   loading: boolean;
-  open: (sessionId: string, sessionMap: Map<string, Session>) => void;
+  open: (sessionId: string, sessionMap: ReadonlyMap<string, Session>) => void;
   onConfirm: (
     newName: string,
-    sessionMap: Map<string, Session>
+    sessionMap: ReadonlyMap<string, Session>
   ) => Promise<void>;
   onCancel: () => void;
   renameSessionId: string | null;
@@ -32,7 +32,7 @@ export function useRenameSessionModal(): UseRenameSessionModalResult {
   const untitledSession = t("sidebar.defaults.untitledSession");
 
   const open = useCallback(
-    (sessionId: string, sessionMap: Map<string, Session>) => {
+    (sessionId: string, sessionMap: ReadonlyMap<string, Session>) => {
       const session = sessionMap.get(sessionId);
       const name = session
         ? getSessionListDisplayName(session, untitledSession)
@@ -45,7 +45,7 @@ export function useRenameSessionModal(): UseRenameSessionModalResult {
   );
 
   const onConfirm = useCallback(
-    async (newName: string, sessionMap: Map<string, Session>) => {
+    async (newName: string, sessionMap: ReadonlyMap<string, Session>) => {
       if (!renameSessionId) return;
       const existing = sessionMap.get(renameSessionId);
       if (!existing) return;

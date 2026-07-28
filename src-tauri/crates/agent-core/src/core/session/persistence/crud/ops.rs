@@ -301,9 +301,9 @@ pub fn mark_stale_running_sessions_abandoned() -> SqliteResult<usize> {
             params![
                 SessionStatus::Abandoned.as_str(),
                 now,
-                SessionStatus::Running.as_str(),
-                SessionStatus::WaitingForUser.as_str(),
-                SessionStatus::WaitingForFunds.as_str(),
+                SessionStatus::IN_FLIGHT[0].as_str(),
+                SessionStatus::IN_FLIGHT[1].as_str(),
+                SessionStatus::IN_FLIGHT[2].as_str(),
             ],
         )?;
         Ok(updated)
@@ -380,18 +380,19 @@ pub fn reconcile_sessions_with_terminal_turn_markers() -> SqliteResult<usize> {
         let updated = conn.execute(
             "UPDATE agent_sessions
              SET status = CASE
-                   WHEN last_terminal_turn_status = ?4 THEN ?5
-                   WHEN last_terminal_turn_status = ?6 THEN ?7
+                   WHEN last_terminal_turn_status = ?5 THEN ?6
+                   WHEN last_terminal_turn_status = ?7 THEN ?8
                    ELSE ?1
                  END,
                  updated_at = COALESCE(last_terminal_turn_at, updated_at)
-             WHERE status IN (?2, ?3)
+             WHERE status IN (?2, ?3, ?4)
                AND last_terminal_turn_id IS NOT NULL
-               AND last_terminal_turn_status IN (?4, ?6, ?8)",
+               AND last_terminal_turn_status IN (?5, ?7, ?9)",
             params![
                 SessionStatus::Completed.as_str(),
-                SessionStatus::Running.as_str(),
-                SessionStatus::WaitingForFunds.as_str(),
+                SessionStatus::IN_FLIGHT[0].as_str(),
+                SessionStatus::IN_FLIGHT[1].as_str(),
+                SessionStatus::IN_FLIGHT[2].as_str(),
                 "cancelled",
                 SessionStatus::Cancelled.as_str(),
                 "failed",
@@ -682,10 +683,14 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 
 /// Delete a session and all related data.
 ///
-/// Cascade order — each step is best-effort; a failure in a later step does
-/// not roll back earlier ones because the row-level cleanups are independent:
+/// Cascade order — hard-delete database rows and optional Agent Org
+/// materialization receipts are committed atomically; filesystem/lineage
+/// cleanup remains best-effort after that database boundary:
 ///
-/// 1. **Hard-delete tables** via `delete_session_cascade` (keyed by
+/// 1. Delete optional `agent_inbox_materializations` receipts when the Agent
+///    Org coordination schema is installed. Source Inbox rows stay unread so
+///    a replacement Session can retry.
+/// 2. **Hard-delete tables** via `delete_session_cascade` (keyed by
 ///    `session_id`):
 ///    - `agent_messages` (with associated image-file cleanup)
 ///    - `agent_todos`
@@ -697,16 +702,18 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 ///    - `events` (event-sourced history)
 ///    - `pending_plan_approvals` (Plan-mode approval state)
 ///    - `agent_sessions` (the row itself, always last)
-/// 2. **Lineage rows** via `lineage::delete_session_lineage`. Both
+/// 3. **Lineage rows** via `lineage::delete_session_lineage`. Both
 ///    `node_provenance` (keyed by `session_id`) and `commit_lineage`
 ///    (keyed by `provenance_id` → `node_provenance.id`) — `commit_lineage`
 ///    can't ride the generic cascade because it has no `session_id` column.
-/// 3. **Null-out soft references** in `learnings.source_session_id` — a
+/// 4. **Null-out soft references** in `learnings.source_session_id` — a
 ///    learning is a knowledge artefact that outlives the session that
 ///    produced it; we keep the row and only drop the back-pointer so it
 ///    never dangles to a dead session.
-/// 4. **Per-session file-history directory** under `~/.orgii/file-history/`.
-/// 5. **Agent worktree** (git worktree + `agent/<sid>` branch) under
+/// 5. **Per-session file-history directory** under `~/.orgii/file-history/`.
+/// 6. **Append-only shell replay artifacts and manifest rows** under the
+///    global `app_paths::shell_replays_dir()` root.
+/// 7. **Agent worktree** (git worktree + `agent/<sid>` branch) under
 ///    `~/.orgii/agent-worktrees/<repo_hash>/<sid>/`. Only attempted when
 ///    the session had a `workspace_path` (worktree is rooted under the
 ///    project repo). The CLI-agent path cleans up via
@@ -720,25 +727,55 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 /// run_deferred_cleanup` instead, which can delete DB rows without
 /// racing the runtime because the cache rehydrates from DB at startup.
 pub fn delete_session(session_id: &str) -> SqliteResult<()> {
-    let workspace_path = {
+    if let Err(error) =
+        crate::tools::impls::coding::exec::shell_replay::ensure_session_replays_deletable(
+            session_id,
+        )
+    {
+        return Err(rusqlite::Error::ToSqlConversionFailure(Box::new(
+            std::io::Error::other(error),
+        )));
+    }
+    crate::tools::impls::coding::exec::shell_replay::queue_session_replay_cleanup(session_id)
+        .map_err(|error| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(error)))
+        })?;
+    let cleanup_context = {
         let conn = get_connection()?;
-        let row: SqliteResult<Option<String>> = conn.query_row(
-            "SELECT workspace_path FROM agent_sessions WHERE session_id = ?1",
+        let row: SqliteResult<(Option<String>, Option<String>, Option<String>)> = conn.query_row(
+            "SELECT workspace_path, worktree_path, base_branch FROM agent_sessions WHERE session_id = ?1",
             [session_id],
-            |row| row.get::<_, Option<String>>(0),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         );
         match row {
-            Ok(p) => p,
+            Ok(context) => Some(context),
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(err) => {
-                warn!(
-                    "Failed to read workspace_path for session {}: {}",
-                    session_id, err
-                );
-                None
-            }
+            Err(err) => return Err(err),
         }
     };
+
+    // Session-owned worktrees must be removed before the row that identifies
+    // their repo/path/branch. A failed Git cleanup keeps the row intact so a
+    // later delete can retry. Reused linked worktrees have no `base_branch`
+    // metadata and are deliberately not removed.
+    if let Some((Some(repo_path), worktree_path, Some(_base_branch))) = cleanup_context.as_ref() {
+        let repo_path = std::path::PathBuf::from(repo_path);
+        let worktree_still_exists = worktree_path
+            .as_deref()
+            .is_some_and(|path| std::path::Path::new(path).exists());
+        if repo_path.exists() {
+            git::worktree::remove_session_worktree(&repo_path, session_id, true)
+                .map_err(|error| rusqlite::Error::ToSqlConversionFailure(error.into()))?;
+        } else if worktree_still_exists {
+            return Err(rusqlite::Error::ToSqlConversionFailure(
+                format!(
+                    "Cannot clean worktree for session {session_id}: repository path no longer exists: {}",
+                    repo_path.display()
+                )
+                .into(),
+            ));
+        }
+    }
 
     shared::delete_session_cascade(
         session_id,
@@ -796,21 +833,16 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
         );
     }
 
-    // Tear down the per-session worktree + `agent/<sid>` branch. Only
-    // meaningful when the session was grounded in a project; pure-channel
-    // OS sessions without a `workspace_path` never had a worktree.
-    if let Some(ref repo_path_str) = workspace_path {
-        let repo_path = std::path::PathBuf::from(repo_path_str);
-        if repo_path.exists() {
-            if let Err(err) = git::worktree::remove_session_worktree(&repo_path, session_id, true) {
-                warn!(
-                    "Failed to remove agent worktree for deleted session {}: {}",
-                    session_id, err
-                );
-            }
-        }
+    // Replays deliberately outlive EventStore/cache TTL eviction. They are
+    // removed only on this explicit durable Session deletion path.
+    if let Err(err) =
+        crate::tools::impls::coding::exec::shell_replay::remove_session_replays(session_id)
+    {
+        warn!(
+            "Failed to remove shell replays for deleted session {}: {}",
+            session_id, err
+        );
     }
-
     Ok(())
 }
 

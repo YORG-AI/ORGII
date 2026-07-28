@@ -18,14 +18,15 @@ import {
 // ── Enums ──
 
 /**
- * Wire category from Rust (cli | agent | os).
+ * Wire category from Rust (cli | agent | os | human).
  * Transformed at parse time to `DispatchCategory` so consumers never see the
  * wire value — only the routing value used by the frontend.
  */
 const WireCategorySchema = z
-  .enum(["cli", "agent", "os"])
-  .transform((cat): "cli_agent" | "rust_agent" => {
+  .enum(["cli", "agent", "os", "human"])
+  .transform((cat): "cli_agent" | "rust_agent" | "human_session" => {
     if (cat === "cli") return "cli_agent";
+    if (cat === "human") return "human_session";
     return "rust_agent";
   });
 
@@ -52,6 +53,7 @@ export const SessionFilterInput = z.object({
   externalHistorySource: z.string().optional(),
   disabledExternalHistorySources: z.array(z.string()).optional(),
   activeOnly: z.boolean().optional(),
+  includeContinuationSuperseded: z.boolean().optional(),
 });
 
 export const SessionAggregateListInput = z.object({
@@ -173,6 +175,8 @@ export const SessionAggregateRecordSchema = z.object({
   externalHistorySource: z.string().optional(),
   userInput: z.string().optional(),
   repoPath: z.string().optional(),
+  repoRootPath: z.string().optional(),
+  repoRemoteUrls: z.array(z.string()).optional(),
   storagePath: z.string().optional(),
   repoName: z.string().optional(),
   branch: z.string().optional(),
@@ -240,6 +244,8 @@ export const ExternalHistorySidebarRowSchema = z.object({
   status: z.string().optional(),
   isActive: z.boolean().optional(),
   repoPath: z.string().optional(),
+  repoRootPath: z.string().optional(),
+  repoRemoteUrls: z.array(z.string()).optional(),
   // The source app's transcript file. Imported sessions have no sessions.db
   // copy, so this is their only storage path.
   storagePath: z.string().optional(),

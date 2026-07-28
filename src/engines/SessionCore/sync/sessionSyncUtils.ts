@@ -15,6 +15,7 @@ import {
 } from "@src/engines/SessionCore/storage/cacheAdapter";
 import { createLogger } from "@src/hooks/logger";
 import type { CliSessionStatus } from "@src/types/session/session";
+import { isCollaborationImportedSession } from "@src/util/session/sessionDispatch";
 
 import type { SessionAdapter } from "./types";
 
@@ -104,7 +105,10 @@ export function waitForReconcileDelay(delayMs: number): Promise<void> {
 export async function loadOwnSessionInitialEvents(
   sessionId: string
 ): Promise<SessionEvent[]> {
-  const window = await loadInitialTurnWindow(sessionId);
+  const window = await loadInitialTurnWindow(
+    sessionId,
+    isCollaborationImportedSession(sessionId) ? 0 : undefined
+  );
   if (window.turns.length === 0) {
     return loadEvents(sessionId);
   }

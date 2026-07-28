@@ -16,9 +16,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useMemo } from "react";
 
+import { formatAgentType } from "@src/assets/providers";
 import { navigateToEventAtom } from "@src/engines/SessionCore/core/atoms/actions";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
   focusedSubagentCellAtom,
@@ -27,6 +29,7 @@ import {
 } from "@src/store/ui/simulatorAtom";
 
 import SubagentBlock from "../../blocks/SubagentBlock";
+import { resolveSubagentPresentation } from "./subagentPresentation";
 import {
   extractSubagentPromptFromChildEvents,
   firstSubagentAssignmentPrompt,
@@ -122,6 +125,24 @@ export const SubagentAdapter: React.FC<UniversalEventProps> = (props) => {
   const isAwaitingPrompt =
     Boolean(data.subagentSessionId) && !hasPrompt && childEvents.length === 0;
 
+  // Native agents prefer their child-session display name. Imported Codex
+  // sessions instead prefer the nickname parsed from thread_spawn because
+  // their child-session display name is the assignment prompt, not an identity.
+  const subagentSession = useAtomValue(
+    sessionByIdAtom(data.subagentSessionId ?? EMPTY_SUBAGENT_SESSION_ID)
+  );
+  const presentation = resolveSubagentPresentation({
+    sessionId: data.subagentSessionId,
+    hasCodexThreadIdentity: typeof props.args.codexAgentThreadId === "string",
+    parsedAgentName: data.subagentType
+      ? formatAgentType(data.subagentType)
+      : undefined,
+    sessionAgentName: subagentSession?.agentDisplayName,
+    description: data.description,
+    prompt,
+  });
+  const agentIconId = subagentSession?.agentIconId;
+
   const setFocusedCell = useSetAtom(focusedSubagentCellAtom);
   const setPanelReveal = useSetAtom(subagentPanelRevealRequestAtom);
   const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
@@ -154,8 +175,10 @@ export const SubagentAdapter: React.FC<UniversalEventProps> = (props) => {
   return (
     <div data-tool-call-event-id={props.eventId} data-tool-call-name="agent">
       <SubagentBlock
-        description={data.description}
+        description={presentation.description}
         subagentType={data.subagentType}
+        agentName={presentation.agentName}
+        agentIconId={agentIconId}
         resultContent={data.resultContent}
         resultSummary={data.resultSummary}
         isLoading={

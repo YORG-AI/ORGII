@@ -12,7 +12,6 @@
  * - DeferredWindowFocusTracking
  * - DeferredGitAutoFetch      — background git remote polling
  * - DeferredProcessReconciliation — reseed shell/PTY state from Rust
- * - AutoIndexingProvider      — repo indexing scheduler
  * - AppUpdater                — Tauri auto-update poller
  * - APICallPanelProvider      — DevTools API call inspector
  * - SecretCaptureModal        — out-of-band secret capture overlay
@@ -27,13 +26,6 @@ const GlobalDragDrop = React.lazy(
   () =>
     import(
       /* webpackChunkName: "deferred-services" */ "@src/components/GlobalDragDrop"
-    )
-);
-
-const AutoIndexingProvider = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "deferred-services" */ "@src/components/System/AutoIndexingProvider"
     )
 );
 
@@ -131,16 +123,24 @@ const DeferredTerminalPersistence = React.lazy(() =>
             log.warn("[TerminalPersistence] Failed to load buffers:", error);
           });
 
-        terminalPersistence.startAutoSave();
-
         const handleBeforeUnload = () => {
           void terminalPersistence.flushPendingWrites();
         };
+        const handleVisibilityChange = () => {
+          if (document.visibilityState === "hidden") {
+            void terminalPersistence.flushPendingWrites();
+          }
+        };
         window.addEventListener("beforeunload", handleBeforeUnload);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
 
         return () => {
           window.removeEventListener("beforeunload", handleBeforeUnload);
-          terminalPersistence.stopAutoSave();
+          document.removeEventListener(
+            "visibilitychange",
+            handleVisibilityChange
+          );
+          void terminalPersistence.flushPendingWrites();
         };
       }, []);
 
@@ -180,9 +180,6 @@ export const AppDeferredServices: React.FC<{ ready: boolean }> = ({
       </DeferredServiceBoundary>
       <DeferredServiceBoundary>
         <DeferredTerminalPersistence />
-      </DeferredServiceBoundary>
-      <DeferredServiceBoundary>
-        <AutoIndexingProvider />
       </DeferredServiceBoundary>
       <DeferredServiceBoundary>
         <AppUpdater />

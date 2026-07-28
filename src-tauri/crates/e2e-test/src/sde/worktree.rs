@@ -171,9 +171,8 @@ pub async fn worktree_tool_hidden_from_os_agent(cfg: &Config) -> bool {
     let session_id = format!("{}-wt-hidden-os", cfg.session_prefix);
 
     println!("  [step 1] Initialising OS Agent session...");
-    match harness::send_os_message(cfg, "Say hello briefly.", &session_id).await {
-        Err(err) => return harness::print_error("Worktree Hidden From OS Agent", &err),
-        Ok(_) => {}
+    if let Err(err) = harness::send_os_message(cfg, "Say hello briefly.", &session_id).await {
+        return harness::print_error("Worktree Hidden From OS Agent", &err);
     }
 
     println!("  [step 2] Fetching session-scoped effective tools for OS Agent session...");

@@ -11,7 +11,9 @@ use uuid::Uuid;
 
 use crate::persistence::images;
 
-use super::super::{insert_message_retry, message_role, AgentMessageRow};
+use super::super::{
+    insert_message_if_absent_retry, insert_message_retry, message_role, AgentMessageRow,
+};
 
 pub fn save_system_msg(prefix: &str, session_id: &str, content: &str) -> SqliteResult<String> {
     let msg = AgentMessageRow {
@@ -108,6 +110,37 @@ pub fn save_user_msg(
         compact_tokens_after: None,
     };
     insert_message_retry(prefix, &msg)
+}
+
+/// Save a user message under a caller-supplied stable id. Repeating the same
+/// id is an idempotent no-op in the shared insert primitive. This is used for
+/// at-least-once inputs such as Agent Org inbox drains, where a crash between
+/// transcript persistence and inbox acknowledgement must not duplicate the
+/// visible message on replay.
+pub fn save_user_msg_with_id(
+    prefix: &str,
+    message_id: &str,
+    session_id: &str,
+    content: &str,
+) -> SqliteResult<(String, bool)> {
+    let msg = AgentMessageRow {
+        id: message_id.to_string(),
+        session_id: session_id.to_string(),
+        role: message_role::USER.to_string(),
+        content: content.to_string(),
+        tool_name: None,
+        tool_call_id: None,
+        tool_input: None,
+        tool_output: None,
+        model: None,
+        sequence: 0,
+        created_at: Utc::now().to_rfc3339(),
+        images: None,
+        compact_from_sequence: None,
+        compact_tokens_before: None,
+        compact_tokens_after: None,
+    };
+    insert_message_if_absent_retry(prefix, &msg)
 }
 
 /// Save an assistant message.

@@ -6,6 +6,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
+};
 use crate::coordination::agent_org_tasks::{
     self, task_dependency_closure, AgentOrgTaskStore, CreateTaskParams, TaskExecutionMode,
     TaskStatus, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR,
@@ -14,8 +17,8 @@ use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    map_task_write_error, merge_task_metadata, task_dependencies_resolved, task_to_json,
-    validate_freeform_task_metadata, TaskToolsContext,
+    map_task_write_error, merge_task_metadata, task_to_json, validate_freeform_task_metadata,
+    TaskToolsContext,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -48,7 +51,7 @@ pub struct TaskGraphNodeParams {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TaskGraphCreateParams {
-    /// Complete graph patch to create atomically. Use 1..=32 nodes.
+    /// Complete graph patch to create atomically. Use at most 32 nodes.
     pub tasks: Vec<TaskGraphNodeParams>,
     /// Required only when this graph intentionally starts a new independent
     /// branch while older open tasks remain outside the graph.
@@ -115,14 +118,29 @@ impl Tool for TaskGraphCreateTool {
                 "Only the coordinator may create a cross-member task graph. Send the proposed graph to the coordinator.",
             );
         }
-        if params.tasks.is_empty() || params.tasks.len() > 32 {
-            return Err(ToolError::InvalidParams(
-                "task_graph_create requires 1..=32 tasks".to_string(),
-            ));
+        if params.tasks.is_empty() || params.tasks.len() > TASK_GRAPH_CREATE_MAX_TASKS {
+            return Err(ToolError::InvalidParams(format!(
+                "task_graph_create requires 1..={TASK_GRAPH_CREATE_MAX_TASKS} tasks per request"
+            )));
+        }
+        for (index, node) in params.tasks.iter().enumerate() {
+            validate_task_identifier_list(
+                &format!("task_graph_create.tasks[{index}].depends_on"),
+                &node.depends_on,
+            )
+            .map_err(ToolError::InvalidParams)?;
         }
 
-        let existing_tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
-            .map_err(ToolError::ExecutionFailed)?;
+        let read_run_id = self.ctx.org_context.run_id.clone();
+        let existing_tasks =
+            tokio::task::spawn_blocking(move || AgentOrgTaskStore::list(&read_run_id))
+                .await
+                .map_err(|err| {
+                    ToolError::ExecutionFailed(format!(
+                        "task_graph_create read worker failed: {err}"
+                    ))
+                })?
+                .map_err(ToolError::ExecutionFailed)?;
         let existing_ids = existing_tasks
             .iter()
             .map(|task| task.id.clone())
@@ -269,10 +287,22 @@ impl Tool for TaskGraphCreateTool {
             });
         }
 
-        let created = match AgentOrgTaskStore::create_batch(
-            create_params,
-            params.allow_parallel_with_existing_open_tasks,
-        ) {
+        let create_context = Arc::clone(&self.ctx);
+        let allow_parallel = params.allow_parallel_with_existing_open_tasks;
+        let create_result = tokio::task::spawn_blocking(move || {
+            AgentOrgTaskStore::create_batch_with_transactional_effects(
+                create_params,
+                allow_parallel,
+                |tx, created, all_tasks| {
+                    create_context.persist_created_tasks_outbox_in_tx(tx, created, all_tasks)
+                },
+            )
+        })
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_graph_create mutation worker failed: {err}"))
+        })?;
+        let (created, outbox) = match create_result {
             Ok(created) => created,
             Err(error) => {
                 if let Some(task_ids) = error
@@ -294,17 +324,8 @@ impl Tool for TaskGraphCreateTool {
                 return Err(map_task_write_error(error));
             }
         };
-        let all_tasks = AgentOrgTaskStore::list(&self.ctx.org_context.run_id)
-            .map_err(ToolError::ExecutionFailed)?;
-        let mut dispatched_task_ids = Vec::new();
-        for task in &created {
-            if task.owner.is_some()
-                && task_dependencies_resolved(&all_tasks, task)
-                && self.ctx.dispatch_task_assigned(task)
-            {
-                dispatched_task_ids.push(task.id.clone());
-            }
-        }
+        self.ctx.wake_committed_task_outbox(&outbox);
+        let dispatched_task_ids = outbox.task_assigned_ids;
         let assignment_required_task_ids: Vec<String> = created
             .iter()
             .filter(|task| task.owner.is_none())

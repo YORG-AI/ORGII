@@ -44,6 +44,8 @@ impl UnifiedSubagentHandler {
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         };
         event.recompute_extracted();
@@ -93,6 +95,8 @@ impl UnifiedSubagentHandler {
                 repo_path: None,
                 extracted: None,
                 payload_refs: Vec::new(),
+                shell_replay: None,
+                shell_replay_bookmarks: None,
                 last_extract_at: None,
             };
             event.recompute_extracted();
@@ -128,6 +132,8 @@ impl UnifiedSubagentHandler {
                 repo_path: None,
                 extracted: None,
                 payload_refs: Vec::new(),
+                shell_replay: None,
+                shell_replay_bookmarks: None,
                 last_extract_at: None,
             };
             event.recompute_extracted();
@@ -220,6 +226,8 @@ impl UnifiedSubagentHandler {
             repo_path: None,
             extracted: None,
             payload_refs: Vec::new(),
+            shell_replay: None,
+            shell_replay_bookmarks: None,
             last_extract_at: None,
         }
     }

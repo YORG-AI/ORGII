@@ -7,8 +7,13 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::traits::{
-    finish_reason, usage_key, LLMProvider, LLMResponse, ProviderError, StreamDelta,
+    finish_reason, usage_key, LLMProvider, LLMResponse, ProviderError, StreamDelta, ToolCallRequest,
 };
+
+const ADDRESS_COMMENTS_MARKER: &str =
+    "Teammates left review comments on this session. Address every comment below";
+const ADDRESS_COMMENT_ID_MARKER: &str = " — id: ";
+const REPLY_SESSION_COMMENT_TOOL: &str = "reply_session_comment";
 
 pub const E2E_FAKE_PROVIDER_MODEL_PREFIX: &str = "e2e-fake-provider";
 
@@ -42,6 +47,77 @@ impl E2eFakeProvider {
 
         format!("E2E_FAKE_PROVIDER_REPLY: {latest_user}")
     }
+
+    fn address_comment_ids(messages: &[Value]) -> Vec<String> {
+        let Some(latest_user_index) = messages
+            .iter()
+            .rposition(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+        else {
+            return Vec::new();
+        };
+        if messages[latest_user_index + 1..]
+            .iter()
+            .any(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+        {
+            return Vec::new();
+        }
+        let Some(text) = messages[latest_user_index]
+            .get("content")
+            .and_then(content_text)
+        else {
+            return Vec::new();
+        };
+        if !text.contains(ADDRESS_COMMENTS_MARKER) {
+            return Vec::new();
+        }
+
+        let mut ids = Vec::new();
+        for line in text.lines() {
+            let Some((_, id)) = line.split_once(ADDRESS_COMMENT_ID_MARKER) else {
+                continue;
+            };
+            let id = id.trim();
+            if !id.is_empty() && !ids.iter().any(|existing| existing == id) {
+                ids.push(id.to_string());
+            }
+        }
+        ids
+    }
+
+    fn has_tool(tools: Option<&[Value]>, name: &str) -> bool {
+        tools.is_some_and(|tools| {
+            tools.iter().any(|tool| {
+                tool.get("name").and_then(Value::as_str) == Some(name)
+                    || tool
+                        .get("function")
+                        .and_then(|function| function.get("name"))
+                        .and_then(Value::as_str)
+                        == Some(name)
+            })
+        })
+    }
+
+    fn address_comment_tool_calls(
+        messages: &[Value],
+        tools: Option<&[Value]>,
+    ) -> Vec<ToolCallRequest> {
+        if !Self::has_tool(tools, REPLY_SESSION_COMMENT_TOOL) {
+            return Vec::new();
+        }
+        Self::address_comment_ids(messages)
+            .into_iter()
+            .enumerate()
+            .map(|(index, comment_id)| ToolCallRequest {
+                id: format!("e2e-reply-session-comment-{index}"),
+                name: REPLY_SESSION_COMMENT_TOOL.to_string(),
+                arguments: serde_json::json!({
+                    "commentId": comment_id,
+                    "body": format!("E2E addressed comment {comment_id}"),
+                }),
+                thought_signature: None,
+            })
+            .collect()
+    }
 }
 
 fn content_text(value: &Value) -> Option<String> {
@@ -63,17 +139,25 @@ impl LLMProvider for E2eFakeProvider {
     async fn chat(
         &self,
         messages: &[Value],
-        _tools: Option<&[Value]>,
+        tools: Option<&[Value]>,
         _model: &str,
         _max_tokens: u32,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
-        let content = Self::response_for(messages);
+        let tool_calls = Self::address_comment_tool_calls(messages, tools);
+        let content = if tool_calls.is_empty() {
+            Some(Self::response_for(messages))
+        } else {
+            None
+        };
         let prompt_tokens = messages
             .iter()
             .map(|message| message.to_string().len() as i64 / 4)
             .sum::<i64>();
-        let completion_tokens = (content.len() as i64 / 4).max(1);
+        let completion_tokens = content
+            .as_deref()
+            .map_or(tool_calls.len() as i64 * 12, |text| text.len() as i64 / 4)
+            .max(1);
         let mut usage = HashMap::new();
         usage.insert(usage_key::PROMPT_TOKENS.to_string(), prompt_tokens);
         usage.insert(usage_key::COMPLETION_TOKENS.to_string(), completion_tokens);
@@ -83,9 +167,13 @@ impl LLMProvider for E2eFakeProvider {
         );
 
         Ok(LLMResponse {
-            content: Some(content),
-            tool_calls: Vec::new(),
-            finish_reason: finish_reason::STOP.to_string(),
+            content,
+            finish_reason: if tool_calls.is_empty() {
+                finish_reason::STOP.to_string()
+            } else {
+                finish_reason::TOOL_CALLS.to_string()
+            },
+            tool_calls,
             usage,
             reasoning_content: None,
             blocks: Vec::new(),
@@ -136,5 +224,65 @@ impl LLMProvider for E2eFakeProvider {
 
     fn provider_name(&self) -> &str {
         "e2e_fake_provider"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn reply_tool() -> Value {
+        json!({
+            "type": "function",
+            "function": { "name": REPLY_SESSION_COMMENT_TOOL }
+        })
+    }
+
+    #[test]
+    fn address_comments_briefing_emits_one_tool_call_per_comment() {
+        let messages = vec![json!({
+            "role": "user",
+            "content": format!(
+                "{ADDRESS_COMMENTS_MARKER}.\n### Comment 1 — id: c-1\n### Comment 2 — id: c-2"
+            )
+        })];
+
+        let calls = E2eFakeProvider::address_comment_tool_calls(&messages, Some(&[reply_tool()]));
+
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, REPLY_SESSION_COMMENT_TOOL);
+        assert_eq!(calls[0].arguments["commentId"], "c-1");
+        assert_eq!(calls[1].arguments["commentId"], "c-2");
+    }
+
+    #[test]
+    fn tool_result_stops_the_fake_provider_from_repeating_replies() {
+        let messages = vec![
+            json!({
+                "role": "user",
+                "content": format!("{ADDRESS_COMMENTS_MARKER}.\n### Comment 1 — id: c-1")
+            }),
+            json!({
+                "role": "tool",
+                "tool_call_id": "e2e-reply-session-comment-0",
+                "content": "ok"
+            }),
+        ];
+
+        assert!(
+            E2eFakeProvider::address_comment_tool_calls(&messages, Some(&[reply_tool()]))
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn ordinary_fake_provider_prompts_never_gain_comment_tool_calls() {
+        let messages = vec![json!({ "role": "user", "content": "fix the tests" })];
+
+        assert!(
+            E2eFakeProvider::address_comment_tool_calls(&messages, Some(&[reply_tool()]))
+                .is_empty()
+        );
     }
 }

@@ -2,7 +2,13 @@
  * Session Action Atoms (Write-only)
  *
  * Compound actions for session state management.
- * Helpers are in actionsUtils.ts.
+ * Helpers are in actionsUtils.ts. Simulator-preview projection lives in
+ * actions.simulatorPreview.ts, user-message reconciliation helpers in
+ * actions.userMessageSync.ts, departing-session cache release in
+ * actions.snapshotLifecycle.ts, event-mutation atoms in
+ * actions.eventUpdates.ts, and replay-navigation atoms in
+ * actions.navigation.ts — all re-exported below to keep a single import
+ * surface at this path.
  */
 import { atom } from "jotai";
 
@@ -20,24 +26,26 @@ import {
 } from "../../sync/utils/activityIds";
 import { isLiveRuntimeResourceEvent } from "../runningEventGate";
 import { eventStoreProxy } from "../store/EventStoreProxy";
-import type {
-  SessionEvent,
-  SessionSpec,
-  SimulatorEventPreview,
-} from "../types";
+import type { SessionEvent, SessionSpec } from "../types";
+import {
+  buildSimulatorPreviewFields,
+  isSimulatorVisibleApprox,
+} from "./actions.simulatorPreview";
+import { releaseDepartingSessionSnapshot } from "./actions.snapshotLifecycle";
+import {
+  getUserMessageContent,
+  getUserMessageImages,
+  hasUserMessageImages,
+  syntheticMatchesQueuedMessage,
+  withUserMessageImages,
+} from "./actions.userMessageSync";
 import {
   applyRunningArgs,
   extendRunningArgsCache,
-  navigateToEventAndUpdateBar,
   resetRunningArgsCache,
   resetSessionUIState,
 } from "./actionsUtils";
-import {
-  derivedSnapshotAtom,
-  eventIndexAtom,
-  eventsAtom,
-  sortedEventsAtom,
-} from "./events";
+import { derivedSnapshotAtom, eventsAtom } from "./events";
 import {
   isFromCacheAtom,
   lastFetchedAtom,
@@ -49,188 +57,12 @@ import {
 } from "./metadata";
 import {
   currentEventIdAtom,
-  currentEventIndexAtom,
   replayBarValueAtom,
   replayModeAtom,
   replayTimeRangeAtom,
 } from "./replay";
 
 const log = createLogger("loadSession");
-
-function normalizeUserText(value: string | undefined): string {
-  return (value ?? "").replace(/\s+/g, " ").trim();
-}
-
-function getUserMessageContent(event: SessionEvent): string {
-  return typeof event.result?.message === "object" &&
-    event.result.message !== null &&
-    "content" in event.result.message
-    ? String(event.result.message.content ?? "")
-    : event.displayText;
-}
-
-function getUserMessageImages(event: SessionEvent): string[] | undefined {
-  const images = event.result?.images;
-  if (!Array.isArray(images) || images.length === 0) return undefined;
-  return images.filter((image): image is string => typeof image === "string");
-}
-
-function hasUserMessageImages(event: SessionEvent): boolean {
-  return Boolean(getUserMessageImages(event)?.length);
-}
-
-function withUserMessageImages(
-  event: SessionEvent,
-  images: string[]
-): SessionEvent {
-  return {
-    ...event,
-    result: {
-      ...(event.result ?? {}),
-      images,
-    },
-  };
-}
-
-/**
- * Local approximation of the Rust simulator/messages visibility rule
- * (`is_visible_in_simulator_or_messages` in `derived.rs`).
- *
- * Used ONLY for synchronous optimistic paths: seeding the local snapshot
- * before the Rust `mergeEvents` push lands, and picking a follow/display
- * target from freshly appended events. The authoritative pre-filtered arrays
- * (`sortedSimulatorEvents` / `messagesEvents`) arrive with the next Rust
- * snapshot and overwrite anything computed here.
- */
-function isSimulatorVisibleApprox(event: SessionEvent): boolean {
-  if (event.isDelta) return false;
-  if (event.actionType === "tool_result") return false;
-  if (
-    isLiveRuntimeResourceEvent(event) &&
-    event.displayVariant !== "tool_call"
-  ) {
-    return false;
-  }
-  return (
-    event.displayVariant === "tool_call" ||
-    event.displayVariant === "thinking" ||
-    event.displayVariant === "message"
-  );
-}
-
-function getSimulatorFilterCategory(
-  event: SessionEvent
-): SimulatorEventPreview["filterCategory"] {
-  if (event.source === "user") return "key_interactions";
-  if (
-    event.uiCanonical === "edit_file" ||
-    event.uiCanonical === "delete_file"
-  ) {
-    return "file_changes";
-  }
-  if (event.command || event.uiCanonical === "run_shell") {
-    return "terminal_events";
-  }
-  if (
-    event.uiCanonical === "read_file" ||
-    event.uiCanonical === "list_dir" ||
-    event.uiCanonical === "code_search" ||
-    event.uiCanonical === "glob" ||
-    event.uiCanonical === "find_files" ||
-    event.uiCanonical === "search"
-  ) {
-    return "explore";
-  }
-  if (event.filePath) return "file_changes";
-  return "other";
-}
-
-function buildSimulatorPreview(event: SessionEvent): SimulatorEventPreview {
-  return {
-    id: event.id,
-    sessionId: event.sessionId,
-    createdAt: event.createdAt,
-    functionName: event.functionName,
-    uiCanonical: event.uiCanonical,
-    actionType: event.actionType,
-    source: event.source,
-    displayText: event.displayText,
-    displayStatus: event.displayStatus,
-    displayVariant: event.displayVariant,
-    activityStatus: event.activityStatus,
-    filterCategory: getSimulatorFilterCategory(event),
-    threadId: event.threadId,
-    processId: event.processId,
-    callId: event.callId,
-    filePath: event.filePath,
-    command: event.command,
-    isDelta: event.isDelta,
-    repoId: event.repoId,
-    repoPath: event.repoPath,
-  };
-}
-
-function buildSimulatorPreviewFields(events: SessionEvent[]): {
-  sortedSimulatorEventIds: string[];
-  eventPreviewById: Record<string, SimulatorEventPreview>;
-  createdAtById: Record<string, string>;
-  threadIdById: Record<string, string>;
-  functionNameById: Record<string, string>;
-  displayStatusById: Record<string, string>;
-  displayVariantById: Record<string, string>;
-} {
-  const sortedSimulatorEventIds: string[] = [];
-  const eventPreviewById: Record<string, SimulatorEventPreview> = {};
-  const createdAtById: Record<string, string> = {};
-  const threadIdById: Record<string, string> = {};
-  const functionNameById: Record<string, string> = {};
-  const displayStatusById: Record<string, string> = {};
-  const displayVariantById: Record<string, string> = {};
-
-  for (const event of events) {
-    sortedSimulatorEventIds.push(event.id);
-    eventPreviewById[event.id] = buildSimulatorPreview(event);
-    createdAtById[event.id] = event.createdAt;
-    if (event.threadId) threadIdById[event.id] = event.threadId;
-    functionNameById[event.id] = event.functionName;
-    displayStatusById[event.id] = event.displayStatus;
-    displayVariantById[event.id] = event.displayVariant;
-  }
-
-  return {
-    sortedSimulatorEventIds,
-    eventPreviewById,
-    createdAtById,
-    threadIdById,
-    functionNameById,
-    displayStatusById,
-    displayVariantById,
-  };
-}
-
-function syntheticMatchesQueuedMessage(
-  event: SessionEvent,
-  queued: { sessionId: string; content: string; displayContent: string }
-): boolean {
-  if (event.sessionId !== queued.sessionId) return false;
-  const eventText = normalizeUserText(event.displayText);
-  const resultMessage = event.result?.message;
-  const eventContent = normalizeUserText(
-    typeof resultMessage === "object" &&
-      resultMessage !== null &&
-      "content" in resultMessage
-      ? String(resultMessage.content ?? "")
-      : event.displayText
-  );
-  const queuedDisplay = normalizeUserText(queued.displayContent);
-  const queuedContent = normalizeUserText(queued.content);
-  return (
-    eventText === queuedDisplay ||
-    eventText === queuedContent ||
-    eventContent === queuedDisplay ||
-    eventContent === queuedContent
-  );
-}
 
 // ============================================
 // Compound Actions (Write-only atoms)
@@ -258,10 +90,10 @@ export const clearSessionAtom = atom(null, (get, set) => {
   if (currentSessionId) {
     clearLoadedTurnRegistry(currentSessionId);
     // Free the departing session's JS snapshot mirror (full event arrays,
-    // inflated further by any replay-loaded turn bodies) after a grace
-    // window, so rapid switch-backs stay warm. Skipped while it is still
-    // streaming; Rust remains the source of truth either way.
-    eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
+    // inflated further by any replay-loaded turn bodies). Read-only imported
+    // history is released immediately; live sessions retain the normal grace
+    // window and streaming guard. Rust remains the source of truth either way.
+    releaseDepartingSessionSnapshot(currentSessionId);
   }
   // NOTE: Do NOT call set(eventsAtom, []) here. eventsAtom's write handler
   // fires eventStoreProxy.set([]) which is an async fire-and-forget IPC to
@@ -378,9 +210,10 @@ export const loadSessionAtom = atom(
         set(pendingSyntheticEventAtom, null);
       }
       resetSessionUIState(set, currentSessionId);
+      clearLoadedTurnRegistry(currentSessionId);
       // Direct A→B switches come through here without clearSessionAtom —
-      // schedule the outgoing session's snapshot release here too.
-      eventStoreProxy.scheduleSessionSnapshotRelease(currentSessionId);
+      // apply the same imported-immediate/live-deferred release policy.
+      releaseDepartingSessionSnapshot(currentSessionId);
     }
 
     set(sessionIdAtom, sessionId);
@@ -607,215 +440,19 @@ export const loadSessionAtom = atom(
 );
 loadSessionAtom.debugLabel = "session/load";
 
-/**
- * Append new events (from WebSocket or incremental load).
- *
- * Also merges args from running events into their completed counterparts.
- * Backend sends tool_call as two events: running (with args) + result (args empty).
- * We match by callId and propagate args so downstream consumers (Simulator, ChatPanel)
- * can access file paths, commands, etc.
- */
-export const appendEventsAtom = atom(
-  null,
-  (get, set, newEvents: SessionEvent[]) => {
-    // Dedupe by ID — use eventIndexAtom (already-maintained Map) instead of
-    // rebuilding a temporary Set on every append
-    const existingIndex = get(eventIndexAtom);
-    const uniqueNew = newEvents.filter((evt) => !existingIndex.has(evt.id));
+// ============================================
+// Re-exports (moved to sibling modules; kept importable from this path)
+// ============================================
 
-    if (uniqueNew.length > 0) {
-      const existingEvents = get(eventsAtom);
-      const syntheticImagesByContent = new Map<string, string[]>();
-      for (const event of existingEvents) {
-        if (!isSyntheticUserInputEvent(event)) continue;
-        const content = getUserMessageContent(event);
-        const images = getUserMessageImages(event);
-        if (content && images?.length) {
-          syntheticImagesByContent.set(content, images);
-        }
-      }
-
-      const uniqueNewWithImages = uniqueNew.map((event) => {
-        if (!isBackendUserMessageEvent(event) || hasUserMessageImages(event)) {
-          return event;
-        }
-        const images = syntheticImagesByContent.get(
-          getUserMessageContent(event)
-        );
-        return images?.length ? withUserMessageImages(event, images) : event;
-      });
-
-      // When the backend echoes the real user message, evict the synthetic
-      // placeholder so the user doesn't see a duplicate first message.
-      // Use a semantic Rust-side removal instead of the getEvents→filter→set
-      // pattern; events arriving between a TS-side read and write would be
-      // silently dropped.
-      const hasRealUserMessage = uniqueNewWithImages.some(
-        isBackendUserMessageEvent
-      );
-      if (hasRealUserMessage) {
-        eventStoreProxy.removeSyntheticUserInputEvents();
-      }
-
-      // Incrementally extend the cached running-args map with new events
-      // instead of rescanning all existing events (O(newEvents) vs O(allEvents)).
-      const argsMap = extendRunningArgsCache(uniqueNewWithImages);
-      const enrichedNew = applyRunningArgs(argsMap, uniqueNewWithImages);
-
-      eventStoreProxy.append(enrichedNew);
-
-      // Update time range if needed
-      const currentRange = get(replayTimeRangeAtom);
-      const lastNew = uniqueNewWithImages[uniqueNewWithImages.length - 1];
-
-      if (
-        !currentRange.end ||
-        new Date(lastNew.createdAt) > new Date(currentRange.end)
-      ) {
-        set(replayTimeRangeAtom, {
-          ...currentRange,
-          end: lastNew.createdAt,
-        });
-      }
-
-      // Auto-follow in live mode — prefer the last visible event so
-      // the simulator doesn't jump to an unrenderable session_end
-      const mode = get(replayModeAtom);
-      if (mode === "follow") {
-        let followTarget = lastNew;
-        for (let idx = uniqueNewWithImages.length - 1; idx >= 0; idx--) {
-          if (isSimulatorVisibleApprox(uniqueNewWithImages[idx])) {
-            followTarget = uniqueNewWithImages[idx];
-            break;
-          }
-        }
-        set(currentEventIdAtom, followTarget.id);
-        set(replayBarValueAtom, REPLAY_CONFIG.MAX_VALUE);
-      }
-    }
-  }
-);
-appendEventsAtom.debugLabel = "session/appendEvents";
-
-/**
- * Update a single event (e.g., when tool_call completes).
- * Uses O(1) index lookup via EventStore._idIndex.
- */
-export const updateEventAtom = atom(
-  null,
-  (_get, _set, updatedEvent: SessionEvent) => {
-    eventStoreProxy.upsert(updatedEvent);
-  }
-);
-updateEventAtom.debugLabel = "session/updateEvent";
-
-/**
- * O(1) update by known event ID.
- * Preferred over updateEventByPredicateAtom when the event ID is known.
- */
-export const updateEventByIdAtom = atom(
-  null,
-  (
-    get,
-    _set,
-    payload: {
-      id: string;
-      updater: (event: SessionEvent) => SessionEvent;
-    }
-  ) => {
-    const index = get(eventIndexAtom);
-    const existing = index.get(payload.id);
-    if (existing) {
-      const updated = payload.updater(existing);
-      eventStoreProxy.upsert(updated);
-    }
-  }
-);
-updateEventByIdAtom.debugLabel = "session/updateEventById";
-
-/**
- * Update the first event matching a predicate with a partial update.
- * Uses O(n) scan — prefer updateEventByIdAtom when ID is known.
- */
-export const updateEventByPredicateAtom = atom(
-  null,
-  (
-    get,
-    _set,
-    payload: {
-      predicate: (event: SessionEvent) => boolean;
-      updater: (event: SessionEvent) => SessionEvent;
-    }
-  ) => {
-    const events = get(eventsAtom);
-    const found = events.find(payload.predicate);
-
-    if (found) {
-      const updated = payload.updater(found);
-      eventStoreProxy.upsert(updated);
-    }
-  }
-);
-updateEventByPredicateAtom.debugLabel = "session/updateEventByPredicate";
-
-/**
- * Navigate to a specific event by ID.
- */
-export const navigateToEventAtom = atom(null, (get, set, eventId: string) => {
-  const index = get(eventIndexAtom);
-  const event = index.get(eventId);
-  if (event) {
-    navigateToEventAndUpdateBar(get, set, event);
-  }
-});
-navigateToEventAtom.debugLabel = "session/navigateToEvent";
-
-/**
- * Navigate to next event.
- */
-export const navigateNextAtom = atom(null, (get, set) => {
-  const currentIndex = get(currentEventIndexAtom);
-  const sorted = get(sortedEventsAtom);
-
-  if (currentIndex < sorted.length - 1) {
-    navigateToEventAndUpdateBar(get, set, sorted[currentIndex + 1]);
-  }
-});
-navigateNextAtom.debugLabel = "session/navigateNext";
-
-/**
- * Navigate to previous event.
- */
-export const navigatePrevAtom = atom(null, (get, set) => {
-  const currentIndex = get(currentEventIndexAtom);
-  const sorted = get(sortedEventsAtom);
-
-  if (currentIndex > 0) {
-    navigateToEventAndUpdateBar(get, set, sorted[currentIndex - 1]);
-  }
-});
-navigatePrevAtom.debugLabel = "session/navigatePrev";
-
-/**
- * Switch to live mode (follow latest).
- */
-export const goLiveAtom = atom(null, (get, set) => {
-  const sorted = get(sortedEventsAtom);
-
-  set(replayModeAtom, "follow");
-  set(replayBarValueAtom, REPLAY_CONFIG.MAX_VALUE);
-
-  if (sorted.length > 0) {
-    // Prefer the last simulator-visible event so the center
-    // doesn't land on an unrenderable session_end
-    let target = sorted[sorted.length - 1];
-    for (let idx = sorted.length - 1; idx >= 0; idx--) {
-      if (isSimulatorVisibleApprox(sorted[idx])) {
-        target = sorted[idx];
-        break;
-      }
-    }
-    set(currentEventIdAtom, target.id);
-  }
-});
-goLiveAtom.debugLabel = "session/goLive";
+export {
+  appendEventsAtom,
+  updateEventAtom,
+  updateEventByIdAtom,
+  updateEventByPredicateAtom,
+} from "./actions.eventUpdates";
+export {
+  goLiveAtom,
+  navigateNextAtom,
+  navigatePrevAtom,
+  navigateToEventAtom,
+} from "./actions.navigation";

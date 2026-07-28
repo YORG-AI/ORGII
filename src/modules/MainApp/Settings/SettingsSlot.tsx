@@ -30,7 +30,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { ChevronLeft, GalleryThumbnails, Maximize2 } from "lucide-react";
 import React, { Suspense, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
@@ -44,6 +44,7 @@ import {
   buildSettingsPath,
   classifySettingsRouteRoot,
   getDefaultSettingsSectionTab,
+  getDevOnlyIntegrationRedirect,
   parseSettingsSectionTab,
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
@@ -62,10 +63,11 @@ import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
 import { getPagePanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { AgentOrgsPage, MyRolePage } from "@src/router/lazy/pages";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import { toggleChatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
-import { settingsReturnRouteAtom } from "@src/store/ui/viewModeAtom";
 import type { ChatPanelPosition } from "@src/store/ui/workStationLayout/chatPositionAtoms";
 
 import SettingsHeaderActions from "./components/SettingsHeaderActions";
@@ -251,8 +253,9 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
   const toggleMaximized = useSetAtom(toggleChatPanelMaximizedAtom);
   const location = useLocation();
   const navigate = useNavigate();
-  const settingsReturnRoute = useAtomValue(settingsReturnRouteAtom);
+  const settingsReturnPath = useAtomValue(settingsReturnPathAtom);
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const pageOpacityStyle = getPagePanelBackgroundStyle(
     backgroundConfig.pageOpacity
@@ -272,13 +275,17 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
     [location.pathname]
   );
   const Body = SETTINGS_BODY_BY_ROOT[routeRoot];
+  const devOnlyRedirect = getDevOnlyIntegrationRedirect(
+    location.pathname,
+    devModeEnabled
+  );
   const handleBack = useCallback(() => {
     if (isAgentOrgsRoute(location.pathname)) {
       navigate(buildSettingsPath());
       return;
     }
-    navigate(settingsReturnRoute || ROUTES.app.home.start.path);
-  }, [location.pathname, navigate, settingsReturnRoute]);
+    navigate(settingsReturnPath || ROUTES.workStation.base.path);
+  }, [location.pathname, navigate, settingsReturnPath]);
 
   // Mirror ChatPanel's tooltip: same shortcut, same restore copy
   // (`sessions:chat.restoreSplitView` = "Show Workstation") — only the
@@ -389,7 +396,11 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
             } as React.CSSProperties
           }
         >
-          <Body />
+          {devOnlyRedirect ? (
+            <Navigate replace to={devOnlyRedirect} />
+          ) : (
+            <Body />
+          )}
         </div>
       </div>
     </div>

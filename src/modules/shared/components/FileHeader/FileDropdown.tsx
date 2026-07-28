@@ -36,6 +36,8 @@ import {
 } from "@src/store/git/gitStatusAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import { calculateFileDropdownPosition } from "./fileDropdownPosition";
+
 // ============================================
 // Types
 // ============================================
@@ -162,25 +164,17 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
     if (!triggerRef?.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const { width: vw, height: vh } = getViewportSize();
-    const preferredLeft = rect.right + DROPDOWN_PANEL.triggerGapTight;
-    const fallbackLeft = rect.left;
-    const left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(
-        preferredLeft + FILE_TREE_DROPDOWN_WIDTH <= vw - VIEWPORT_MARGIN
-          ? preferredLeft
-          : fallbackLeft,
-        vw - FILE_TREE_DROPDOWN_WIDTH - VIEWPORT_MARGIN
-      )
+    setPosition(
+      calculateFileDropdownPosition({
+        triggerRect: rect,
+        viewportWidth: vw,
+        viewportHeight: vh,
+        dropdownWidth: FILE_TREE_DROPDOWN_WIDTH,
+        dropdownMaxHeight: MAX_VISIBLE_ROWS * TREE_ROW_HEIGHT,
+        viewportMargin: VIEWPORT_MARGIN,
+        triggerGap: DROPDOWN_PANEL.triggerGapTight,
+      })
     );
-    const top = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(
-        rect.top,
-        vh - Math.min(MAX_VISIBLE_ROWS * TREE_ROW_HEIGHT, vh) - VIEWPORT_MARGIN
-      )
-    );
-    setPosition({ top, left });
     setIsPositioned(true);
   }, [triggerRef]);
 

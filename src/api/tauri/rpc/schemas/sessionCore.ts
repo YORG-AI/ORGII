@@ -3,6 +3,11 @@ import { z } from "zod/v4";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 const UnknownRecordSchema = z.record(z.string(), z.unknown());
+const SafeU64NumberSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .max(Number.MAX_SAFE_INTEGER);
 
 function normalizeEventRecordValue(value: unknown): Record<string, unknown> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
@@ -60,6 +65,59 @@ export const EventPayloadBodySchema = z.object({
   fullSizeBytes: z.number(),
 });
 
+export const ShellReplayStatusSchema = z.enum([
+  "running",
+  "complete",
+  "incomplete",
+]);
+
+export const ShellReplayRefSchema = z.object({
+  sessionId: z.string(),
+  callId: z.string(),
+  formatVersion: z.number().int().positive(),
+});
+
+export const ShellReplayBookmarkSchema = z.object({
+  visibleThroughSequence: SafeU64NumberSchema,
+  visibleBytes: SafeU64NumberSchema,
+});
+
+export const ShellReplayStateSchema = z.object({
+  ref: ShellReplayRefSchema,
+  bookmark: ShellReplayBookmarkSchema,
+  terminalPreview: z.string(),
+  status: ShellReplayStatusSchema,
+  completedAt: z.string().nullable().optional(),
+  error: z.string().nullable().optional(),
+});
+
+export const ShellReplayRangeInput = z.object({
+  sessionId: z.string().min(1),
+  callId: z.string().min(1),
+  visibleThroughSequence: SafeU64NumberSchema,
+  visibleBytes: SafeU64NumberSchema,
+  offsetBytes: SafeU64NumberSchema,
+  limitBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(256 * 1024),
+});
+
+export const ShellReplayFrameSchema = z.object({
+  sequence: SafeU64NumberSchema,
+  stream: z.enum(["stdout", "stderr"]),
+  byteStart: SafeU64NumberSchema,
+  byteEnd: SafeU64NumberSchema,
+  text: z.string(),
+});
+
+export const ShellReplayRangeSchema = z.object({
+  frames: z.array(ShellReplayFrameSchema),
+  nextOffsetBytes: SafeU64NumberSchema,
+  eof: z.boolean(),
+});
+
 const SessionEventRuntimeSchema = z
   .object({
     chunk_id: z.string().nullable(),
@@ -90,6 +148,10 @@ const SessionEventRuntimeSchema = z
       .optional(),
     shellExitCode: z.number().optional(),
     shellLogPath: z.string().optional(),
+    shellReplay: ShellReplayStateSchema.optional(),
+    shellReplayBookmarks: z
+      .record(z.string(), ShellReplayStateSchema)
+      .optional(),
     extracted: ExtractedDataSchema.optional(),
     payloadRefs: z.array(PayloadRefSchema).optional(),
   })
@@ -247,19 +309,6 @@ export const ReplaceAndRemoveInput = z.object({
 export const UpdateActiveTaskArgsInput = z.object({
   mergeArgs: UnknownRecordSchema,
   functionNames: z.array(z.string()).nullable(),
-  sessionId: z.string().nullable(),
-});
-
-export const UpdateLastShellOutputInput = z.object({
-  streamOutput: z.string(),
-  sessionId: z.string().nullable(),
-});
-
-export const UpdateLastShellProcessInput = z.object({
-  pid: z.number(),
-  status: z.enum(["running", "background", "exited", "killed"]),
-  exitCode: z.number().nullable(),
-  logPath: z.string().nullable(),
   sessionId: z.string().nullable(),
 });
 

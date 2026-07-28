@@ -9,23 +9,66 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
-import type { CliAgentType } from "@src/api/types/keys";
+import { rpc } from "@src/api/tauri/rpc";
+import type { CliLaunchProfileView } from "@src/api/tauri/rpc/schemas/agentOrgs";
+import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 
 export interface CliTuiSessionCreateParams {
   platform: CliAgentType;
   name: string;
   repoPath?: string;
-  /** Create a fresh isolated worktree (`branch` = base ref when set). */
+  /** Create a fresh isolated worktree. */
   isolate?: boolean;
-  branch?: string;
+  /** Dedicated base ref for a fresh isolated worktree. */
+  worktreeBaseRef?: string;
   /** Reuse an existing worktree checkout (mutually exclusive with isolate). */
   worktreePath?: string;
+  /** Session ownership scope selected in the sidebar. */
+  orgId?: string;
 }
 
 export interface CliTuiSessionInfo {
   sessionId: string;
   worktreePath?: string | null;
   repoPath?: string | null;
+}
+
+function quotePosixShellArg(value: string): string {
+  if (/^[A-Za-z0-9_./:@%+=,-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+export function formatCliTuiCommand(
+  profile: CliLaunchProfileView,
+  detectedCommand: string
+): string {
+  const executable = profile.commandOverridden
+    ? profile.command
+    : detectedCommand;
+  // `codex exec` is the headless runner and requires a prompt. TUI launches
+  // must start Codex's interactive CLI instead, while retaining its selected
+  // permission-mode flags (which Codex also accepts at the top level).
+  const requiredArgs =
+    profile.agentName === CLI_AGENT.CODEX ? [] : profile.requiredArgs;
+  return [executable, ...requiredArgs, ...profile.args]
+    .filter((part) => part.trim().length > 0)
+    .map(quotePosixShellArg)
+    .join(" ");
+}
+
+/** Resolve a terminal-safe command from the managed CLI launch profile. */
+export async function resolveCliTuiCommand(
+  platform: CliAgentType,
+  detectedCommand: string
+): Promise<string> {
+  try {
+    const profile = await rpc.agentOrgs.launchProfiles.get({
+      agentName: platform,
+    });
+    return formatCliTuiCommand(profile, detectedCommand);
+  } catch {
+    return detectedCommand;
+  }
 }
 
 export async function cliAgentCreateTuiSession(
@@ -39,8 +82,11 @@ export async function cliAgentCreateTuiSession(
       runner: "tui",
       ...(params.repoPath ? { repoPath: params.repoPath } : {}),
       ...(params.isolate ? { isolate: true } : {}),
-      ...(params.branch ? { branch: params.branch } : {}),
+      ...(params.worktreeBaseRef
+        ? { worktreeBaseRef: params.worktreeBaseRef }
+        : {}),
       ...(params.worktreePath ? { worktreePath: params.worktreePath } : {}),
+      ...(params.orgId ? { orgId: params.orgId } : {}),
     },
   });
 }

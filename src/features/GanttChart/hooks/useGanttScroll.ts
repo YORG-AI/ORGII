@@ -20,14 +20,29 @@ export function useGanttScroll({
     if (timelineBodyRef.current) {
       // Sync vertical scroll with sidebar
       if (sidebarContentRef.current) {
-        sidebarContentRef.current.scrollTop = timelineBodyRef.current.scrollTop;
+        const nextScrollTop = timelineBodyRef.current.scrollTop;
+        if (sidebarContentRef.current.scrollTop !== nextScrollTop) {
+          sidebarContentRef.current.scrollTop = nextScrollTop;
+        }
       }
       // Sync horizontal scroll with header
       if (headerScrollRef?.current) {
-        headerScrollRef.current.scrollLeft = timelineBodyRef.current.scrollLeft;
+        const nextScrollLeft = timelineBodyRef.current.scrollLeft;
+        if (headerScrollRef.current.scrollLeft !== nextScrollLeft) {
+          headerScrollRef.current.scrollLeft = nextScrollLeft;
+        }
       }
     }
   }, [timelineBodyRef, sidebarContentRef, headerScrollRef]);
 
-  return { handleTimelineScroll };
+  const handleSidebarScroll = useCallback(() => {
+    if (!sidebarContentRef.current || !timelineBodyRef.current) return;
+
+    const nextScrollTop = sidebarContentRef.current.scrollTop;
+    if (timelineBodyRef.current.scrollTop !== nextScrollTop) {
+      timelineBodyRef.current.scrollTop = nextScrollTop;
+    }
+  }, [sidebarContentRef, timelineBodyRef]);
+
+  return { handleTimelineScroll, handleSidebarScroll };
 }

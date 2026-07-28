@@ -170,6 +170,7 @@ function seedOrgiiHomeForParallel(sourceHome, targetHome) {
   if (resolve(sourceHome) === resolve(targetHome)) return;
   mkdirSync(targetHome, { recursive: true });
   for (const entry of ORGII_HOME_SEED_ENTRIES) {
+    if (providerMode === "mock" && entry === "credentials.json") continue;
     if (ORGII_HOME_SECRET_SEED_ENTRIES.has(entry)) {
       throw new Error(
         `Refusing to seed OAuth/secret ORGII home entry into E2E home: ${entry}`
@@ -186,6 +187,63 @@ function seedOrgiiHomeForParallel(sourceHome, targetHome) {
       recursive: true,
     });
   }
+}
+
+function seedMockApiAccount(targetHome) {
+  if (providerMode !== "mock" || !targetHome) return;
+  const accountId = "e2ea0272";
+  const accountName = "E2E Agent Org Mock";
+  const model = "e2e-fake-provider-agent-org-ui";
+  const now = new Date().toISOString();
+  writeFileSync(
+    join(targetHome, "credentials.json"),
+    `${JSON.stringify(
+      {
+        credentials: {
+          [accountId]: {
+            account_metadata: {},
+            agent_type: "openai_api",
+            api_key: "e2e-fake-provider-key",
+            auth_method: "api_key",
+            available_models: [model],
+            base_url: null,
+            created_at: now,
+            default_variants: [],
+            description: null,
+            enabled: true,
+            enabled_models: [model],
+            env_vars: {},
+            has_local_key: true,
+            health_status: "unknown",
+            id: accountId,
+            is_listed: false,
+            last_oauth_refresh_failed_at: null,
+            last_upstream_error_type: null,
+            last_upstream_status: null,
+            last_validated_at: null,
+            last_validation_error: null,
+            listing_id: null,
+            model_aliases: [],
+            model_variants: [],
+            name: accountName,
+            oauth_refresh_failure_count: 0,
+            protocol: null,
+            quota_info: null,
+            rate_limit_reset_at: null,
+            session_token: null,
+            temporary_unavailable_reason: null,
+            temporary_unavailable_until: null,
+            updated_at: now,
+          },
+        },
+        updated_at: now,
+        version: "2.0",
+      },
+      null,
+      2
+    )}\n`,
+    "utf8"
+  );
 }
 
 // E2E hit-testing (elementFromPoint vs getBoundingClientRect) assumes
@@ -211,6 +269,7 @@ function resetDerivedProjectDatabaseForIsolatedRun(targetHome) {
 
 if (orgiiHome) {
   seedOrgiiHomeForParallel(sourceOrgiiHome, orgiiHome);
+  seedMockApiAccount(orgiiHome);
   normalizeUiScaleForIsolatedRun(orgiiHome);
   resetDerivedProjectDatabaseForIsolatedRun(orgiiHome);
   process.env.ORGII_HOME = orgiiHome;
@@ -308,6 +367,7 @@ function releaseOAuthLiveLease() {
 // Mirror rotated credentials back to the source home so OAuth token
 // rotations that happened during the E2E run are not lost.
 function mirrorCredentialsBackToSource() {
+  if (!oauthLiveMode) return;
   if (!orgiiHome || !sourceOrgiiHome) return;
   if (resolve(orgiiHome) === resolve(sourceOrgiiHome)) return;
   const isolatedCreds = join(orgiiHome, "credentials.json");

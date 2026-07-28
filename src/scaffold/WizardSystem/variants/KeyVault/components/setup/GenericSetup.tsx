@@ -149,7 +149,8 @@ const GenericSetup: FC<AgentSetupProps> = ({
   const offersEndpointChoice = hasEndpointChoice(endpoints);
   const selectedEndpoint = resolveSelectedEndpoint(
     endpoints,
-    data.extracted_base_url
+    data.extracted_base_url,
+    data.selected_endpoint_id
   );
   const officialBaseUrl = getOfficialBaseUrl(
     selectedEndpoint,

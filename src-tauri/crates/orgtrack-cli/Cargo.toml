@@ -1,0 +1,36 @@
+[package]
+name = "orgtrack_cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85.0"
+description = "Standalone command-line interface for loading and analyzing AI coding-assistant sessions across tools (Claude Code, Codex, Cursor, Cline, OpenCode, Warp, and more) via orgtrack-core."
+license = "AGPL-3.0-or-later"
+# Not yet on crates.io: depends on the (currently unpublished) orgtrack_core.
+# See README "Publishing" for the extraction path.
+publish = false
+
+# The published surface is the binary. The crate is intentionally dependency-
+# light (orgtrack_core + rusqlite + serde_json) so it can be lifted out of the
+# workspace with minimal churn.
+[[bin]]
+name = "orgtrack"
+path = "src/main.rs"
+
+[dependencies]
+orgtrack_core = { path = "../orgtrack-core" }
+# Canonical activity-chunk type returned by the session loaders (re-exported
+# through orgtrack_core's public API surface).
+core_types = { path = "../types" }
+# Bundled SQLite so the binary is self-contained — no system libsqlite needed.
+rusqlite = { workspace = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# Declarative plugin manifests (plugin.toml).
+toml = "0.8"
+# Content hashing for the exec-plugin trust store.
+sha2 = "0.10"
+# Sandboxed template engine for `format = "template"` formatter plugins.
+minijinja = "2"
+
+[dev-dependencies]
+tempfile = "3"

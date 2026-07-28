@@ -247,46 +247,58 @@ impl AgentAppState {
             loop {
                 ticker.tick().await;
 
-                let mut expired_ids = Vec::new();
-                {
+                let candidates: Vec<(String, Arc<AgentSession>)> = {
                     let guard = sessions.lock().await;
-                    for (id, session) in guard.iter() {
-                        if session.is_singleton() {
-                            continue;
-                        }
-                        // A session with an executing or queued turn is NOT idle,
-                        // even if the user hasn't sent a message in over an hour
-                        // (refresh_last_active only fires on send_message). Evicting
-                        // it mid-turn broadcasts session_evicted, which makes the
-                        // frontend downgrade a genuinely-working session to idle.
-                        if session.scheduler.is_processing()
-                            || session.scheduler.pending_count() > 0
-                        {
-                            continue;
-                        }
-                        let idle = session.idle_duration().await;
-                        if idle >= SESSION_IDLE_EVICTION_TIMEOUT {
-                            expired_ids.push(id.clone());
-                        }
+                    guard
+                        .iter()
+                        .filter(|(_, session)| {
+                            !session.is_singleton()
+                                && !session.scheduler.is_processing()
+                                && session.scheduler.pending_count() == 0
+                        })
+                        .map(|(id, session)| (id.clone(), Arc::clone(session)))
+                        .collect()
+                };
+
+                // Never await a per-session mutex while holding the global
+                // sessions registry. A slow/contended idle timestamp must not
+                // block session lookup, creation, or message dispatch.
+                let mut expired_ids = Vec::new();
+                for (id, session) in candidates {
+                    if session.idle_duration().await >= SESSION_IDLE_EVICTION_TIMEOUT {
+                        expired_ids.push((id, session));
                     }
                 }
 
                 if !expired_ids.is_empty() {
                     let mut guard = sessions.lock().await;
-                    for id in &expired_ids {
-                        guard.remove(id);
+                    let mut evicted_ids = Vec::new();
+                    for (id, candidate) in expired_ids {
+                        let still_idle = guard.get(&id).is_some_and(|current| {
+                            Arc::ptr_eq(current, &candidate)
+                                && !current.scheduler.is_processing()
+                                && current.scheduler.pending_count() == 0
+                        });
+                        if !still_idle {
+                            continue;
+                        }
+
+                        guard.remove(&id);
                         debug!("[agent-state] Evicted idle session: {}", id);
                         // Notify the frontend so it can clear any stale
                         // "running" status for this session.
                         crate::bus::broadcast_event(
                             "agent:session_evicted",
-                            serde_json::json!({ "sessionId": id }),
+                            serde_json::json!({ "sessionId": &id }),
+                        );
+                        evicted_ids.push(id);
+                    }
+                    if !evicted_ids.is_empty() {
+                        info!(
+                            "[agent-state] Cleanup task evicted {} idle session(s)",
+                            evicted_ids.len()
                         );
                     }
-                    info!(
-                        "[agent-state] Cleanup task evicted {} idle session(s)",
-                        expired_ids.len()
-                    );
                 }
             }
         });

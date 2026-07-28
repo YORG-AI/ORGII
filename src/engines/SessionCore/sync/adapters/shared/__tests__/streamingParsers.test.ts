@@ -88,6 +88,40 @@ describe("parsePartialToolArgs", () => {
       streamContent: "*** Begin Patch\n*** Add File: src/a.ts\n+export",
     });
   });
+
+  it("extracts only the present field from sparse streaming payloads", () => {
+    const parsed = parsePartialToolArgs('{"command":"ls"');
+
+    expect(parsed).toEqual({
+      filePath: undefined,
+      streamContent: undefined,
+      streamTitle: undefined,
+      action: undefined,
+      command: "ls",
+      query: undefined,
+      pattern: undefined,
+      url: undefined,
+      description: undefined,
+      targetDirectory: undefined,
+      targetMode: undefined,
+      reason: undefined,
+    });
+  });
+
+  it("preserves aliases when field scans are gated", () => {
+    expect(parsePartialToolArgs('{"targetFile":"src/a.ts"}').filePath).toBe(
+      "src/a.ts"
+    );
+    expect(parsePartialToolArgs('{"search_query":"needle"}').query).toBe(
+      "needle"
+    );
+    expect(parsePartialToolArgs('{"glob_pattern":"*.ts"}').pattern).toBe(
+      "*.ts"
+    );
+    expect(parsePartialToolArgs('{"directory":"src"}').targetDirectory).toBe(
+      "src"
+    );
+  });
 });
 
 describe("extractThinkContent", () => {

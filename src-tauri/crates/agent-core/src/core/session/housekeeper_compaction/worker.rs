@@ -240,6 +240,7 @@ async fn enqueue_explicit(
             generation: 0,
             client_message_id: None,
             turn_intent_id: String::new(),
+            org_run_id: None,
             content: "[MiniCPM context maintenance]".to_string(),
             execute: Box::new(move || {
                 Box::pin(async move {

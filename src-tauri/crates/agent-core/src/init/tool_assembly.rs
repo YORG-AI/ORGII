@@ -29,8 +29,8 @@ use crate::state::{AgentAppState, AgentSession};
 use crate::tools::impls::meta::tool_search::ToolSearchTool;
 use crate::tools::impls::orchestration::agent::{AgentTool, AgentToolConfig};
 use crate::tools::impls::orchestration::agent_tasks::{
-    TaskCreateTool, TaskGetTool, TaskGraphCreateTool, TaskListTool, TaskToolsContext,
-    TaskUpdateTool,
+    OrgInboxRepairTool, OrgRunCompleteTool, TaskCreateTool, TaskGetTool, TaskGraphCreateTool,
+    TaskListTool, TaskToolsContext, TaskUpdateTool,
 };
 use crate::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
 use crate::tools::impls::orchestration::member_shutdown::AppHandleSelfAbortHook;
@@ -237,6 +237,20 @@ pub(super) fn assemble_overlay(
             }
             if !ctx.disabled_set.contains(names::TASK_GET) {
                 overlay.register(Box::new(TaskGetTool::new(Arc::clone(&task_tools_ctx))));
+            }
+            if task_tools_ctx.is_coordinator()
+                && !ctx.disabled_set.contains(names::ORG_RUN_COMPLETE)
+            {
+                overlay.register(Box::new(OrgRunCompleteTool::new(Arc::clone(
+                    &task_tools_ctx,
+                ))));
+            }
+            if task_tools_ctx.is_coordinator()
+                && !ctx.disabled_set.contains(names::ORG_INBOX_REPAIR)
+            {
+                overlay.register(Box::new(OrgInboxRepairTool::new(Arc::clone(
+                    &task_tools_ctx,
+                ))));
             }
         } else {
             tracing::warn!(

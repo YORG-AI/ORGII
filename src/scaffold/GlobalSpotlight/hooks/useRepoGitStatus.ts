@@ -52,12 +52,21 @@ export function useRepoGitStatus(
   const { gitStatusMap: contextMap, requestRefresh } =
     useMultiRepoGitStatusContext();
 
-  // Request refresh when enabled and repoIds change
+  // Key on repo id CONTENT, not array identity. Callers build `repoIds` inline,
+  // so depending on the array itself re-ran this effect on every render of the
+  // repo list — each run re-entering the provider's 800ms debounce.
+  const repoIdsKey = repoIds.join("\n");
+  const stableRepoIds = useMemo(
+    () => (repoIdsKey ? repoIdsKey.split("\n") : []),
+    [repoIdsKey]
+  );
+
+  // Request refresh when enabled and the repo id set actually changes.
   useEffect(() => {
-    if (enabled && repoIds.length > 0) {
-      requestRefresh(repoIds, selectedRepoId);
+    if (enabled && stableRepoIds.length > 0) {
+      requestRefresh(stableRepoIds, selectedRepoId);
     }
-  }, [enabled, repoIds, selectedRepoId, requestRefresh]);
+  }, [enabled, stableRepoIds, selectedRepoId, requestRefresh]);
 
   // Convert Map to Record for compatibility
   const gitStatusMap = useMemo(() => {

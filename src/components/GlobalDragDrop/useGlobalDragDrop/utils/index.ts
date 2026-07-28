@@ -1,7 +1,7 @@
 /**
  * Utils barrel export for useGlobalDragDrop
  */
-export { hasVisibleChatDropTarget, isRepositoryDropPage } from "./routeUtils";
+export { hasVisibleChatDropTarget } from "./routeUtils";
 export {
   isInternalDrag,
   isDropInsideChatDropTarget,

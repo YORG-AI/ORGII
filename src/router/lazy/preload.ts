@@ -27,9 +27,7 @@ const loadMarketPlaceholder: RouteLoader = () =>
  * so any settings landing is ready.
  */
 const APP_ROUTE_LOADERS: Record<string, RouteLoader | RouteLoader[]> = {
-  "start-page": () => import("@src/modules/MainApp/StartPage"),
   settings: [loadSettingsSlot, loadAgentOrgs, loadMyRole],
-  changelog: () => import("@src/modules/MainApp/Changelog"),
   "market/tokens": loadMarketPlaceholder,
   "market/services": loadMarketPlaceholder,
   "market/profile": loadMarketPlaceholder,
@@ -48,7 +46,7 @@ function runLoaders(loader: RouteLoader | RouteLoader[]): void {
 
 const _preloadedRoutes = new Set<string>();
 /**
- * Preload a single route's chunk based on its full path (e.g. "/orgii/app/changelog").
+ * Preload a single route's chunk based on its full path (e.g. "/orgii/app/settings").
  * Deduplicates so each chunk is only fetched once.
  */
 function preloadRouteSegment(

@@ -139,7 +139,6 @@ pub(crate) fn index_collaboration_replay(
             &fingerprint,
             COLLABORATION_REPLAY_PARSER_VERSION,
         )? {
-            drop(store);
             tx.commit().map_err(|err| err.to_string())?;
             return Ok(0);
         }
@@ -197,7 +196,6 @@ pub(crate) fn index_collaboration_replay(
             COLLABORATION_REPLAY_PARSER_VERSION,
             &Utc::now().to_rfc3339(),
         )?;
-        drop(store);
         tx.commit().map_err(|err| err.to_string())?;
         Ok(persisted)
     })

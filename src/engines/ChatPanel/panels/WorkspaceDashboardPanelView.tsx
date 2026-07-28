@@ -8,8 +8,6 @@ import type { Repo } from "@src/store/repo";
 import { repoLoadingAtom, reposAtom } from "@src/store/repo";
 import { WORKSPACE_OVERVIEW_TAB } from "@src/store/ui/chatPanelAtom";
 
-import { StartPageQuotaGrid } from "../StartPageQuotaGrid";
-
 function repoDisplayName(repo: Repo): string {
   return repo.name || repo.path?.split("/").pop() || "Repo";
 }
@@ -43,7 +41,6 @@ export default function WorkspaceDashboardPanelView(): React.ReactElement {
 
   return (
     <LaunchpadDashboard
-      headerContent={<StartPageQuotaGrid />}
       repos={repos}
       loading={loading}
       selectedDashboardRepoId={selectedDashboardRepoId}

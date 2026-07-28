@@ -1,8 +1,6 @@
 /** "Address comments": briefing + reply-parsing helpers for the batch in-place agent round over unresolved threads. */
 import type { CloudSessionComment } from "./org2CloudCommentsClient";
 
-/** Server-side comment body cap. */
-const REPLY_MAX_CHARS = 4000;
 const BRIEFING_ITEM_MAX_CHARS = 1200;
 export const ADDRESS_MAX_THREADS = 30;
 
@@ -126,28 +124,4 @@ export function buildAddressCommentsBriefing(
     "## How to finish",
     "Reply to each comment by calling reply_session_comment(commentId, body) with the comment's id exactly as listed above. Each reply must be self-contained: what you changed (files/commands) or why you pushed back. After replying to all of them, end your turn with a brief summary.",
   ].join("\n");
-}
-
-/** Extract `### REPLY <id>` sections from the final assistant message. */
-export function parseAddressReplies(
-  text: string,
-  validHeadIds: ReadonlySet<string>
-): Array<{ commentId: string; body: string }> {
-  const out: Array<{ commentId: string; body: string }> = [];
-  const pattern = /^###\s+REPLY\s+(\S+)\s*$/gm;
-  const matches = [...text.matchAll(pattern)];
-  for (let index = 0; index < matches.length; index += 1) {
-    const match = matches[index];
-    const commentId = match[1];
-    if (!validHeadIds.has(commentId)) continue;
-    const start = (match.index ?? 0) + match[0].length;
-    const end =
-      index + 1 < matches.length
-        ? (matches[index + 1].index ?? text.length)
-        : text.length;
-    const body = text.slice(start, end).trim();
-    if (body.length === 0) continue;
-    out.push({ commentId, body: clip(body, REPLY_MAX_CHARS) });
-  }
-  return out;
 }

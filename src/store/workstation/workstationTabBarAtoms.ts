@@ -129,6 +129,8 @@ export interface WorkstationTabHeaderSlots {
   content?: ReactNode;
   trailing?: ReactNode;
   sidebarToggleDisabled?: boolean;
+  /** Visually joins this 40px header to a following pane-owned row. */
+  joinWithFollowingRow?: boolean;
 }
 
 export type WorkstationTabHeaderContribution =
@@ -146,7 +148,8 @@ function isWorkstationTabHeaderSlots(
     ("leading" in contribution ||
       "content" in contribution ||
       "trailing" in contribution ||
-      "sidebarToggleDisabled" in contribution)
+      "sidebarToggleDisabled" in contribution ||
+      "joinWithFollowingRow" in contribution)
   );
 }
 

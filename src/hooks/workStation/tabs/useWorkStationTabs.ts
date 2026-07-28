@@ -6,18 +6,20 @@
  * `workstationLayoutAtom.mainPane` and is mutated through this hook.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import {
   type PanelState,
   type WorkStationLayoutState,
   type WorkStationTab,
+  claimLegacyWorkstationSeedAtom,
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
   closeTab as closeTabMutation,
   mainPaneActiveTabIdAtom,
   mainPaneTabsAtom,
   openTab as openTabMutation,
+  presentedWorkstationWorkspaceKeyAtom,
   reorderTabs as reorderTabsMutation,
   switchTab as switchTabMutation,
   updateTabData as updateTabDataMutation,
@@ -72,7 +74,15 @@ const EMPTY_PANE_STATE: PanelState = { tabs: [], activeTabId: null };
 export function useWorkStationTabs(): UseWorkStationTabsReturn {
   const tabs = useAtomValue(mainPaneTabsAtom);
   const activeTabId = useAtomValue(mainPaneActiveTabIdAtom);
+  const workspaceKey = useAtomValue(presentedWorkstationWorkspaceKeyAtom);
   const setLayout = useSetAtom(workstationLayoutAtom);
+  const claimLegacySeed = useSetAtom(claimLegacyWorkstationSeedAtom);
+
+  // A legacy v2 task workspace is claimed only after a user has explicitly
+  // entered a WorkStation session. Cold-start Global Workspace never claims it.
+  useEffect(() => {
+    claimLegacySeed();
+  }, [claimLegacySeed, workspaceKey]);
 
   const activeTab = useMemo(
     () => tabs.find((tab) => tab.id === activeTabId) ?? null,

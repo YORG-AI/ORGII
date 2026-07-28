@@ -525,11 +525,34 @@ pub(super) fn build_task_routing_section() -> String {
 const AGENT_ORG_TASK_CONTEXT_LIMIT: usize = 12;
 
 fn format_agent_org_task_for_prompt(task: &Task) -> String {
-    let owner = task.owner.as_deref().unwrap_or("unclaimed");
+    const OWNER_PREVIEW_CHARS: usize = 120;
+    const BLOCKER_PREVIEW_CHARS: usize = 120;
+    const BLOCKER_PREVIEW_COUNT: usize = 3;
+    let owner = task
+        .owner
+        .as_deref()
+        .map(|owner| crate::utils::safe_truncate_chars_to_string(owner, OWNER_PREVIEW_CHARS))
+        .unwrap_or_else(|| "unclaimed".to_string());
     let blocked = if task.blocked_by.is_empty() {
         "unblocked".to_string()
     } else {
-        format!("blocked_by=[{}]", task.blocked_by.join(","))
+        let preview = task
+            .blocked_by
+            .iter()
+            .take(BLOCKER_PREVIEW_COUNT)
+            .map(|id| crate::utils::safe_truncate_chars_to_string(id, BLOCKER_PREVIEW_CHARS))
+            .collect::<Vec<_>>()
+            .join(",");
+        let omitted = task.blocked_by.len().saturating_sub(BLOCKER_PREVIEW_COUNT);
+        format!(
+            "blocked_by=[{}{}]",
+            preview,
+            if omitted > 0 {
+                format!(",+{omitted} more")
+            } else {
+                String::new()
+            }
+        )
     };
     format!(
         "- `{}` [{}] owner={} {} — {}",
@@ -541,10 +564,8 @@ fn format_agent_org_task_for_prompt(task: &Task) -> String {
     )
 }
 
-fn build_agent_org_task_snapshot(
-    context: &crate::coordination::agent_org_runs::AgentOrgRunContext,
-) -> Vec<String> {
-    let tasks = match AgentOrgTaskStore::list(&context.run_id) {
+fn build_agent_org_task_snapshot(tasks: Result<Vec<Task>, String>) -> Vec<String> {
+    let tasks = match tasks {
         Ok(tasks) => tasks,
         Err(err) => {
             return vec![format!(
@@ -586,8 +607,23 @@ fn build_agent_org_task_snapshot(
 
 pub fn build_agent_org_context_section(
     context: &crate::coordination::agent_org_runs::AgentOrgRunContext,
+    current_agent_id: &str,
+    current_member_id: Option<&str>,
+) -> String {
+    let tasks = AgentOrgTaskStore::list_operational(&context.run_id);
+    build_agent_org_context_section_with_task_snapshot(
+        context,
+        current_agent_id,
+        current_member_id,
+        tasks,
+    )
+}
+
+pub(crate) fn build_agent_org_context_section_with_task_snapshot(
+    context: &crate::coordination::agent_org_runs::AgentOrgRunContext,
     _current_agent_id: &str,
     current_member_id: Option<&str>,
+    task_snapshot: Result<Vec<Task>, String>,
 ) -> String {
     use crate::definitions::orgs::{HierarchyMode, PlanApprovalPolicy};
     let identity_line = match current_member_id {
@@ -722,7 +758,7 @@ pub fn build_agent_org_context_section(
     );
     lines.push(String::new());
     lines.push("### Current task board snapshot".to_string());
-    lines.extend(build_agent_org_task_snapshot(context));
+    lines.extend(build_agent_org_task_snapshot(task_snapshot));
     lines.push(String::new());
     lines.push("## Org messaging".to_string());
     lines.push(String::new());
@@ -1091,7 +1127,10 @@ mod mcp_instructions_tests {
 
     fn entries() -> Vec<(String, String)> {
         vec![
-            ("brick".to_string(), "Call explain first.".to_string()),
+            (
+                "code graph".to_string(),
+                "Inspect relationships first.".to_string(),
+            ),
             ("chrome dev".to_string(), "Batch tool loads.".to_string()),
         ]
     }
@@ -1099,10 +1138,10 @@ mod mcp_instructions_tests {
     #[test]
     fn renders_only_servers_with_registered_tools() {
         let body =
-            build_mcp_instructions_section(&entries(), &["read_file", "mcp__brick__explain"])
-                .expect("brick has a registered tool");
+            build_mcp_instructions_section(&entries(), &["read_file", "mcp__code_graph__explore"])
+                .expect("code graph has a registered tool");
         assert!(body.starts_with("# MCP Server Instructions"));
-        assert!(body.contains("## brick\nCall explain first."));
+        assert!(body.contains("## code graph\nInspect relationships first."));
         assert!(
             !body.contains("chrome dev"),
             "server without registered tools must not leak instructions"
@@ -1120,6 +1159,6 @@ mod mcp_instructions_tests {
     #[test]
     fn returns_none_without_matching_tools() {
         assert!(build_mcp_instructions_section(&entries(), &["read_file"]).is_none());
-        assert!(build_mcp_instructions_section(&[], &["mcp__brick__explain"]).is_none());
+        assert!(build_mcp_instructions_section(&[], &["mcp__code_graph__explore"]).is_none());
     }
 }

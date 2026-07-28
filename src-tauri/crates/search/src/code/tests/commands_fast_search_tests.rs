@@ -64,7 +64,7 @@ fn fast_search_inner_finds_literal_case_insensitive_matches() {
     temp_dir.write_file("src/lib.rs", "AlphaNeedle\nbeta needle\n");
     temp_dir.write_file("src/ignored.txt", "needle\n");
 
-    let outcome = search_code_fast_inner(&"needle", &temp_dir.path_str(), test_filters(10), None)
+    let outcome = search_code_fast_inner("needle", &temp_dir.path_str(), test_filters(10), None)
         .expect("fast search should succeed");
 
     assert_eq!(outcome.total_matches, 2);
@@ -89,7 +89,7 @@ fn fast_search_inner_respects_max_results() {
     let temp_dir = TempSearchDir::new("limit");
     temp_dir.write_file("src/lib.rs", "needle one\nneedle two\nneedle three\n");
 
-    let outcome = search_code_fast_inner(&"needle", &temp_dir.path_str(), test_filters(2), None)
+    let outcome = search_code_fast_inner("needle", &temp_dir.path_str(), test_filters(2), None)
         .expect("fast search should succeed");
 
     assert_eq!(outcome.total_matches, 2);
@@ -109,7 +109,7 @@ fn fast_search_inner_handlers_receive_file_count_and_progress() {
     let file_count_for_callback = Arc::clone(&file_count_seen);
     let progress_for_callback = Arc::clone(&progress_seen);
     let outcome = search_code_fast_inner_with_handlers(
-        &"needle",
+        "needle",
         &temp_dir.path_str(),
         test_filters(10),
         None,

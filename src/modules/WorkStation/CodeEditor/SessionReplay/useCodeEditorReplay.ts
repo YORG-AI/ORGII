@@ -23,6 +23,7 @@ import {
 } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorEvents";
+import { isShellSearchCommand } from "@src/util/terminal/searchCommandParser";
 
 import { deriveIDEState, matchesIDEEventRecord } from "./config";
 import { applyLiveOperationOverlay } from "./liveOperationOverlay";
@@ -32,6 +33,7 @@ import {
   resolveSelectedShellOperation,
   resolveSelectedToolOperation,
 } from "./resolveSelectedOperations";
+import { bindShellOperationToCursor } from "./shellReplayState";
 import type {
   ExploreOperationEntry,
   FileOperationEntry,
@@ -329,6 +331,9 @@ export function useCodeEditorReplay(
   // Create current shell operation from pre-extracted data
   const currentShellOperation = useMemo<ShellOperationEntry | null>(() => {
     if (!currentShellData?.command) return null;
+    // Grep/rg pipelines are routed to the explore panel (see deriveIDEState);
+    // don't re-inject them as the selected terminal command.
+    if (isShellSearchCommand(currentShellData.command)) return null;
 
     return {
       command: currentShellData.command,
@@ -338,16 +343,17 @@ export function useCodeEditorReplay(
       cwd: currentShellData.cwd,
       description: currentShellData.description,
       output: currentShellData.output,
+      replayRef: currentEvent?.shellReplay?.ref,
       exitCode: currentShellData.exitCode,
       executionTime: currentShellData.executionTime,
       isLoading: currentShellData.isLoading,
       isError: currentShellData.isError,
       customOutputComponent: currentShellData.customOutputComponent,
-      event: {} as SessionEvent,
+      event: currentEvent ?? ({} as SessionEvent),
       eventId: currentEventId,
       isCurrent: true,
     };
-  }, [currentShellData, currentEventId]);
+  }, [currentShellData, currentEventId, currentEvent]);
 
   // ============================================
   // Merge Operations with Live Current Event
@@ -410,7 +416,7 @@ export function useCodeEditorReplay(
     ]
   );
 
-  const selectedShellOperation = useMemo(
+  const selectedShellOperationBase = useMemo(
     () =>
       resolveSelectedShellOperation(
         allShellOperations,
@@ -418,6 +424,20 @@ export function useCodeEditorReplay(
         userSelectedShellEventId
       ),
     [allShellOperations, currentShellOperation, userSelectedShellEventId]
+  );
+
+  const atTimelineLiveEdge =
+    currentIndex === allSimulatorEvents.length - 1 &&
+    barValue === REPLAY_CONFIG.MAX_VALUE;
+
+  const selectedShellOperation = useMemo(
+    () =>
+      bindShellOperationToCursor(
+        selectedShellOperationBase,
+        currentEvent,
+        atTimelineLiveEdge
+      ),
+    [selectedShellOperationBase, currentEvent, atTimelineLiveEdge]
   );
 
   const selectedExploreOperation = useMemo(

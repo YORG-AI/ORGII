@@ -19,6 +19,8 @@ import {
 } from "./tokens";
 
 export interface SectionRowProps {
+  /** Stable selector for rendered tests and external UI drivers. */
+  dataTestId?: string;
   /** Row label (left side). Omit to render content-only (no header). */
   label?: React.ReactNode;
   /** Optional description under label */
@@ -39,6 +41,8 @@ export interface SectionRowProps {
   compact?: boolean;
   /** Horizontal layout alignment once the row switches from stacked to side-by-side. */
   align?: "center" | "start";
+  /** Give the label and control cells equal width in horizontal layout. */
+  equalColumns?: boolean;
   /** Left label vertical alignment inside the label cell. Defaults to matching `align`. */
   labelAlign?: "center" | "start";
   headerClassName?: string;
@@ -54,6 +58,7 @@ const RequiredMark: React.FC = () => (
 
 const SectionRow: React.FC<SectionRowProps> = memo(
   ({
+    dataTestId,
     label,
     description,
     children,
@@ -64,6 +69,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     required = false,
     compact = false,
     align = "center",
+    equalColumns = false,
     labelAlign,
     headerClassName = "",
     truncateLabel = false,
@@ -95,6 +101,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (!showHeader || label == null) {
       return (
         <div
+          data-testid={dataTestId}
           className={`section-layout-row relative ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {children}
@@ -105,6 +112,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (layout === "vertical") {
       return (
         <div
+          data-testid={dataTestId}
           className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {/* Header: Label */}
@@ -126,9 +134,13 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     const resolvedLabelAlign = labelAlign ?? align;
     const labelAlignClass =
       resolvedLabelAlign === "start" ? "items-start" : "items-center";
+    const controlWidthClass = equalColumns
+      ? "w-full @[480px]:flex-1"
+      : "max-w-full";
 
     return (
       <div
+        data-testid={dataTestId}
         className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
       >
         {/* Label + Description */}
@@ -144,7 +156,9 @@ const SectionRow: React.FC<SectionRowProps> = memo(
         </div>
 
         {/* Controls — below label when narrow, beside when wide. min-w-0 allows path truncation. */}
-        <div className="flex min-w-0 max-w-full items-center">{children}</div>
+        <div className={`flex min-w-0 items-center ${controlWidthClass}`}>
+          {children}
+        </div>
       </div>
     );
   }

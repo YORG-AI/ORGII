@@ -5,13 +5,11 @@ import {
   parseUnifiedDiffToOldNew,
 } from "@src/engines/SessionCore/rendering/props/propsDataExtractors";
 import { normalizeEventProps } from "@src/engines/SessionCore/rendering/props/propsNormalizer";
+import { shouldTrustDiffStartLines } from "@src/util/diff/startLines";
 import { normalizeDiffFilePath } from "@src/util/file/pathUtils";
 
 import type { DiffFileSectionData } from "../DiffFileSection";
 import type { DiffSectionListItem } from "./index";
-
-const PATCH_HUNK_HEADER_REGEX =
-  /^@@\s+-(\d+)(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/m;
 
 export interface SessionReplayDiffEntryLike {
   entryId: string;
@@ -24,38 +22,6 @@ export interface SessionReplayDiffSectionItem extends DiffSectionListItem<DiffFi
   entryIds: string[];
   /** Raw compact diff strings from each edit, used for multi-hunk merge during consolidation. */
   rawDiffs: string[];
-}
-
-function patchTextFromArgs(args: SessionEvent["args"]): string | undefined {
-  if (typeof args?.patch_text === "string") return args.patch_text;
-  if (typeof args?.patch === "string") return args.patch;
-  if (typeof args?.input === "string") return args.input;
-  return undefined;
-}
-
-function resultHasRealDiff(result: SessionEvent["result"]): boolean {
-  if (!result) return false;
-  if (
-    typeof result.diffString === "string" ||
-    typeof result.diff === "string"
-  ) {
-    return true;
-  }
-  if (Array.isArray(result.segments) && result.segments.length > 0) {
-    return true;
-  }
-  const output = result.output as Record<string, unknown> | undefined;
-  const success = output?.success as Record<string, unknown> | undefined;
-  return Boolean(
-    typeof success?.diffString === "string" || typeof success?.diff === "string"
-  );
-}
-
-function shouldTrustDiffStartLines(event: SessionEvent): boolean {
-  const patchText = patchTextFromArgs(event.args);
-  if (!patchText) return true;
-  if (PATCH_HUNK_HEADER_REGEX.test(patchText)) return true;
-  return resultHasRealDiff(event.result);
 }
 
 function getDiffStatus(

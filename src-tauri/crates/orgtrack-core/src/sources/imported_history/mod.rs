@@ -3,6 +3,10 @@ pub mod managed_mirror;
 pub mod managed_roots;
 pub mod metadata;
 pub mod paths;
+#[cfg(feature = "git")]
+pub mod repo_identity;
+pub mod scan_snapshot;
+pub mod watermark;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -20,6 +24,9 @@ pub const ACTION_TYPE_RAW: &str = "raw";
 pub const ACTION_TYPE_ASSISTANT: &str = "assistant";
 pub const ACTION_TYPE_THINKING: &str = "thinking";
 pub const ACTION_TYPE_TOOL_CALL: &str = "tool_call";
+pub const ACTION_TYPE_TASK_START: &str = "task_start";
+pub const ACTION_TYPE_TASK_COMPLETED: &str = "task_completed";
+pub const ACTION_TYPE_TASK_FAILED: &str = "task_failed";
 pub const FUNCTION_USER_MESSAGE: &str = "user_message";
 pub const FUNCTION_ASSISTANT: &str = "assistant";
 pub const FUNCTION_THINKING: &str = "thinking";
@@ -45,6 +52,9 @@ enum ImportedHistoryLoader {
     Warp,
     ZCode,
     Qoder,
+    MimoCode,
+    Omp,
+    QoderCli,
 }
 
 fn imported_history_loader(session_id: &str) -> Option<ImportedHistoryLoader> {
@@ -72,6 +82,12 @@ fn imported_history_loader(session_id: &str) -> Option<ImportedHistoryLoader> {
         Some(ImportedHistoryLoader::ZCode)
     } else if session_id.starts_with(super::qoder::history::QODER_SESSION_PREFIX) {
         Some(ImportedHistoryLoader::Qoder)
+    } else if session_id.starts_with(super::mimo_code::history::MIMO_CODE_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::MimoCode)
+    } else if session_id.starts_with(super::omp::history::OMP_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::Omp)
+    } else if session_id.starts_with(super::qoder_cli::history::QODER_CLI_SESSION_PREFIX) {
+        Some(ImportedHistoryLoader::QoderCli)
     } else {
         None
     }
@@ -127,6 +143,15 @@ pub fn load_activity_chunks_for_session(
         Some(ImportedHistoryLoader::Qoder) => {
             super::qoder::history::load_qoder_history_for_session(conn, session_id)?
         }
+        Some(ImportedHistoryLoader::MimoCode) => {
+            super::mimo_code::history::load_mimo_code_history_for_session(conn, session_id)?
+        }
+        Some(ImportedHistoryLoader::Omp) => {
+            super::omp::history::load_omp_history_for_session(conn, session_id)?
+        }
+        Some(ImportedHistoryLoader::QoderCli) => {
+            super::qoder_cli::history::load_qoder_cli_history_for_session(conn, session_id)?
+        }
         None => return Ok(None),
     };
     Ok(Some(chunks))
@@ -147,6 +172,8 @@ pub struct ImportedHistorySessionRow {
     pub background: bool,
     pub is_active: bool,
     pub repo_path: Option<String>,
+    pub repo_root_path: Option<String>,
+    pub repo_remote_urls: Vec<String>,
     pub storage_path: Option<String>,
     pub repo_name: Option<String>,
     pub branch: Option<String>,
@@ -184,6 +211,10 @@ pub struct ImportedHistorySidebarRow {
     pub is_active: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo_root_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repo_remote_urls: Vec<String>,
     /// The source app's own transcript file — the store of record for an
     /// imported session, which never has a `sessions.db` copy. Absent for
     /// rows cached before the path was recorded.
@@ -223,6 +254,8 @@ pub struct ImportedHistoryRowInput {
     pub input_tokens: i64,
     pub output_tokens: i64,
     pub repo_path: Option<String>,
+    pub repo_root_path: Option<String>,
+    pub repo_remote_urls: Vec<String>,
     pub storage_path: Option<String>,
     pub branch: Option<String>,
     pub files_changed: i64,
@@ -276,6 +309,8 @@ pub fn row_from_input(input: ImportedHistoryRowInput) -> ImportedHistorySessionR
         background: false,
         is_active: false,
         repo_path: input.repo_path,
+        repo_root_path: input.repo_root_path,
+        repo_remote_urls: input.repo_remote_urls,
         storage_path: input.storage_path,
         repo_name,
         branch: input.branch,
@@ -356,7 +391,10 @@ pub fn recent_paths_from_paths(
 /// the full prompt verbatim, so replay readers must strip these to recover
 /// what the user actually typed.
 const INTERNAL_CONTEXT_BLOCKS: &[(&str, &str)] = &[
-    ("<orgii_cli_exec_mode_bridge>", "</orgii_cli_exec_mode_bridge>"),
+    (
+        "<orgii_cli_exec_mode_bridge>",
+        "</orgii_cli_exec_mode_bridge>",
+    ),
     ("<ide_context>", "</ide_context>"),
 ];
 
@@ -458,6 +496,24 @@ pub fn thinking_chunk(
         "observation": thought,
         "is_delta": false,
     });
+    chunk
+}
+
+/// Hidden lifecycle marker used by imported providers that expose explicit
+/// turn boundaries. The chat filters these action types, while metadata
+/// projection uses them to distinguish an active tail from a finished turn.
+pub fn task_lifecycle_chunk(
+    session_id: &str,
+    provider_slug: &str,
+    sequence: usize,
+    created_at: &str,
+    action_type: &str,
+    provider_turn_id: &str,
+) -> ActivityChunk {
+    let mut chunk = ActivityChunk::new(session_id, action_type, action_type);
+    chunk.chunk_id = format!("{provider_slug}-lifecycle-{sequence}-{action_type}");
+    chunk.created_at = created_at.to_string();
+    chunk.args = json!({ "providerTurnId": provider_turn_id });
     chunk
 }
 
@@ -738,6 +794,9 @@ mod impact_tests {
             ("warpapp-id", ImportedHistoryLoader::Warp),
             ("zcodeapp-id", ImportedHistoryLoader::ZCode),
             ("qoderapp-id", ImportedHistoryLoader::Qoder),
+            ("mimocodeapp-id", ImportedHistoryLoader::MimoCode),
+            ("ompapp-id", ImportedHistoryLoader::Omp),
+            ("qodercliapp-id", ImportedHistoryLoader::QoderCli),
         ];
 
         for (session_id, expected) in cases {

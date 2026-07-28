@@ -10,8 +10,7 @@
  * without adopting `Select`'s built-in option panel.
  *
  * Renders via design-system `Button` (not a raw `<button>`). Select SCSS
- * classes drive the pill look because Button's ghost appearance does not
- * match `Select` ghost (height, padding, hover/open fill tokens).
+ * classes provide the compact trigger dimensions and text-state styling.
  */
 import { ChevronDown } from "lucide-react";
 import React, { forwardRef } from "react";
@@ -25,7 +24,7 @@ import "./index.scss";
 export interface SelectGhostTriggerProps {
   /** Trigger body (label, breadcrumb segments, count text, etc.). */
   value: React.ReactNode;
-  /** Whether the associated panel is open (drives background + chevron). */
+  /** Whether the associated panel is open (drives text color + chevron). */
   open?: boolean;
   /** @default 'small' */
   size?: "mini" | "small" | "default" | "large";

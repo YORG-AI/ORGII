@@ -20,6 +20,7 @@ import React, { memo, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -142,9 +143,11 @@ export const SourceControlMoreMenu: React.FC<SourceControlMoreMenuProps> = memo(
         {isOpen &&
           isPositioned &&
           createPortal(
-            <div
+            <DropdownPanel
               ref={panelRef}
-              className={`${DROPDOWN_CLASSES.panel} ${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+              className={`${DROPDOWN_WIDTHS.sidebarMenuClass} ${DROPDOWN_PANEL.paddingClass}`}
+              animated={false}
+              maxHeight="none"
               style={{
                 position: "fixed",
                 top: panelPosition.top,
@@ -210,7 +213,7 @@ export const SourceControlMoreMenu: React.FC<SourceControlMoreMenuProps> = memo(
                   </div>
                 )}
               </div>
-            </div>,
+            </DropdownPanel>,
             document.body
           )}
       </>

@@ -10,9 +10,11 @@ export { externalCliSourceProbe, externalCliSourcesDetect } from "./detection";
 export {
   externalHistoryRescanSource,
   externalHistoryRescanSources,
+  type ExternalHistoryScanResult,
 } from "./rescan";
 export {
   fetchExternalSourceStats,
+  fetchExternalSourceStatsBatch,
   type ExternalSourceStats,
 } from "./sourceStats";
 export * from "./cursorIde";
@@ -27,6 +29,9 @@ export * from "./sources/workbuddy";
 export * from "./sources/warp";
 export * from "./sources/zcode";
 export * from "./sources/qoder";
+export * from "./sources/mimoCode";
+export * from "./sources/omp";
+export * from "./sources/qoderCli";
 
 export interface ExternalHistoryImportedRepo {
   repoId: string;

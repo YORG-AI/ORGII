@@ -2,6 +2,7 @@
  * MarkerTimelineRow — a special timeline row that renders event markers
  * (dots or segments) rather than task bars.
  */
+import type { VirtualItem } from "@tanstack/react-virtual";
 import React from "react";
 
 import { type ViewScopePeriod, getMsPerColumn } from "../../config";
@@ -65,6 +66,10 @@ export interface MarkerTimelineRowProps {
     date: Date,
     viewScope: GanttViewScope
   ) => boolean;
+  virtualStart: number;
+  virtualPeriods: VirtualItem[];
+  visiblePeriodStart: number;
+  visiblePeriodEnd: number;
 }
 
 // ============================================================================
@@ -81,13 +86,26 @@ export const MarkerTimelineRow: React.FC<MarkerTimelineRowProps> = ({
   config,
   renderMarkerTooltipWrapper,
   isPrimaryHeaderLabelEmphasized,
+  virtualStart,
+  virtualPeriods,
+  visiblePeriodStart,
+  visiblePeriodEnd,
 }) => {
   return (
     <div
       className="gantt-timeline__grid-row gantt-timeline__marker-row"
-      style={{ height: config.rowHeight }}
+      style={{
+        height: config.rowHeight,
+        width: totalWidth,
+        position: "absolute",
+        top: 0,
+        left: 0,
+        transform: `translateY(${virtualStart}px)`,
+      }}
     >
-      {periods.map((period, cellIndex) => {
+      {virtualPeriods.map((virtualPeriod) => {
+        const period = periods[virtualPeriod.index];
+        if (!period) return null;
         const emphasized = isPeriodEmphasized(
           period.date,
           viewScope,
@@ -96,15 +114,17 @@ export const MarkerTimelineRow: React.FC<MarkerTimelineRowProps> = ({
 
         return (
           <div
-            key={cellIndex}
+            key={virtualPeriod.key}
             className={`gantt-timeline__grid-cell ${
               period.isToday ? "gantt-timeline__grid-cell--today" : ""
             } ${period.isWeekend ? "gantt-timeline__grid-cell--weekend" : ""} ${
               emphasized ? "gantt-timeline__grid-cell--emphasized" : ""
             }`}
             style={{
-              width: columnWidth,
+              width: virtualPeriod.size,
               height: config.rowHeight,
+              position: "absolute",
+              left: virtualPeriod.start,
             }}
           />
         );
@@ -118,7 +138,13 @@ export const MarkerTimelineRow: React.FC<MarkerTimelineRowProps> = ({
           columnWidth
         );
         const width = position.width;
-        if (position.left < 0 || position.left > totalWidth) return null;
+        const markerEnd = position.left + (width ?? 0);
+        if (
+          markerEnd < visiblePeriodStart ||
+          position.left > visiblePeriodEnd
+        ) {
+          return null;
+        }
 
         const markerElement = width ? (
           <button

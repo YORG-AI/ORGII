@@ -139,10 +139,13 @@
       "helveticaNeue": "Helvetica Neue 风格"
     },
     "uiScale": "界面缩放",
+    "preferences": "偏好设置",
+    "usePointerCursors": "使用指针光标",
+    "usePointerCursorsDesc": "悬停在交互元素上时将光标更改为指针",
     "timezoneAuto": "自动（浏览器）",
     "timezoneSearchPlaceholder": "搜索附近城市",
     "sendOnEnter": "Enter 发送消息",
-    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送",
+    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 与 Ctrl/Cmd+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送",
     "language": "语言",
     "languageSearchPlaceholder": "搜索语言...",
     "languageNames": {
@@ -799,8 +802,6 @@
   },
   "update": {
     "title": "App 更新",
-    "autoUpdate": "自动更新",
-    "autoUpdateDesc": "自动下载更新，并在安装和重新启动 ORGII 前询问",
     "channel": "更新通道",
     "channelDesc": "Beta 通道会先于正式版收到预发布版本。切换回正式版不会降级，将在下一个正式版本发布时生效",
     "channelStable": "正式版",
@@ -810,11 +811,27 @@
     "installConfirmTitle": "更新已准备好安装",
     "installConfirmDesc": "版本 {{version}} 已下载。安装并重新启动 ORGII 前，请保存正在进行的工作。",
     "installAndRestart": "安装并重新启动",
-    "autoDownloadUpdates": "以后自动下载更新",
     "skipVersion": "跳过此版本"
   },
   "monitor": {
-    "categoryTerminal": "终端/工具进程",
+    "appMemory": "应用内存",
+    "appBackend": "ORG2 后端",
+    "appWebviewHelpers": "已确认归属的 WebView 辅助进程",
+    "rssMappedDiagnostic": "RSS / 映射内存（诊断）",
+    "measurement": "统计口径",
+    "measurementKinds": {
+      "native": "系统原生有效内存",
+      "compatibility": "兼容口径",
+      "mixed": "原生与回退口径混合",
+      "rss_fallback": "RSS 回退口径",
+      "unavailable": "暂不可用"
+    },
+    "toolProcessDiagnostics": "终端、CLI 与工具进程（RSS 诊断）",
+    "excludedFromAppMemory": "不计入应用内存",
+    "noToolProcesses": "未检测到终端、CLI、MCP 或工具进程",
+    "categoryAgentCli": "CLI Agent",
+    "categoryMcpOrTool": "MCP / 工具进程",
+    "categoryTerminal": "终端进程",
     "categoryWebview": "WebView 渲染器",
     "categoryGpu": "WebKit GPU",
     "categoryNetwork": "WebKit 网络",
@@ -935,7 +952,6 @@
     "diskCategory_toolResults": "大型工具结果",
     "diskCategory_diagnostics": "诊断队列",
     "diskCategory_models": "下载的模型",
-    "diskCategory_codeMap": "Code Map 索引",
     "diskCategory_semanticIndex": "语义搜索索引",
     "diskCategory_cursorCliProfiles": "Cursor CLI 配置",
     "diskCategory_kiroCliProfiles": "Kiro CLI 配置",
@@ -1011,7 +1027,7 @@
     "decryptEffect": "打字机效果",
     "decryptEffectDesc": "Agent 消息逐字显示",
     "sendOnEnter": "Enter 发送消息",
-    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送"
+    "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 与 Ctrl/Cmd+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送"
   },
   "languageServers": {
     "languageServersDesc": "管理用于自动补全、诊断和代码智能的 LSP 服务器",

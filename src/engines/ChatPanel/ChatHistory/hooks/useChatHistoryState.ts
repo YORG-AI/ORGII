@@ -25,7 +25,6 @@ import {
   useChatHistory,
   useChatHistoryActions,
 } from "@src/contexts/workspace/ChatContext";
-import { useChatHistoryOverride } from "@src/engines/ChatPanel/ChatHistoryOverrideContext";
 import useReplyQuestion from "@src/engines/ChatPanel/hooks/useReplyQuestion";
 import {
   isExploringAtom,
@@ -69,6 +68,9 @@ export type UseChatHistoryStateProps = Record<string, never>;
 export interface UseChatHistoryStateReturn {
   // Chat data (raw events from chatEventsAtom — pipeline creates OptimizedChatItem[])
   chatHistory: SessionEvent[];
+  chatHistorySourceIsOverride: boolean;
+  chatHistorySourceSessionId: string | null;
+  chatHistorySourceVersion: number;
 
   // Refs
   chatContainerRef: RefObject<HTMLDivElement | null>;
@@ -113,9 +115,12 @@ export function useChatHistoryState(
   // Context & Atoms
   // ============================================
 
-  const { chatHistory: contextChatHistory } = useChatHistory();
-  const overrideChatHistory = useChatHistoryOverride();
-  const chatHistory = overrideChatHistory ?? contextChatHistory;
+  const {
+    chatHistory,
+    sourceIsOverride: chatHistorySourceIsOverride,
+    sourceSessionId: chatHistorySourceSessionId,
+    sourceVersion: chatHistorySourceVersion,
+  } = useChatHistory();
   const { setIsChatScrolledToBottom, chatContainerRef } =
     useChatHistoryActions();
 
@@ -173,6 +178,9 @@ export function useChatHistoryState(
 
   return {
     chatHistory,
+    chatHistorySourceIsOverride,
+    chatHistorySourceSessionId,
+    chatHistorySourceVersion,
 
     // Refs
     chatContainerRef,

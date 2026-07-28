@@ -65,7 +65,7 @@ const APICallPanel: React.FC<APICallPanelProps> = ({
         />
 
         {/* Content */}
-        <div className="min-h-0 flex-1 overflow-auto" ref={listRef}>
+        <div className="min-h-0 flex-1 overflow-hidden" ref={listRef}>
           <PanelContent
             apiCalls={apiCalls}
             hotspots={hotspots}
@@ -103,7 +103,7 @@ export const APICallPanelProvider: React.FC = () => {
     handleClear,
   } = useAPICallPanelProvider();
 
-  return (
+  return visible ? (
     <APICallPanel
       visible={visible}
       apiCalls={apiCalls}
@@ -113,7 +113,7 @@ export const APICallPanelProvider: React.FC = () => {
       onClose={handleClose}
       onClear={handleClear}
     />
-  );
+  ) : null;
 };
 
 export default APICallPanel;

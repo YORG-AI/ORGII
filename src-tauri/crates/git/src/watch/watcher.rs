@@ -244,7 +244,6 @@ impl RepoWatcher {
                     loop {
                         // Calculate adaptive polling interval with health awareness
                         let is_focused = *window_focused.read();
-                        let states = state_store.get_all_states();
                         let active_repo_id = active_poll_repo_id.read().clone();
 
                         if active_repo_id.is_none() {
@@ -270,10 +269,9 @@ impl RepoWatcher {
                         }
 
                         let active_repo_id = active_repo_id.expect("checked active repo id above");
-                        let active_state = states.get(&active_repo_id);
-                        let active_watch_enabled = active_state
-                            .map(|state| state.watch_enabled)
-                            .unwrap_or(false);
+                        let (active_watch_enabled, active_consecutive_failures) = state_store
+                            .get_poll_health(&active_repo_id)
+                            .unwrap_or((false, 0));
                         if !active_watch_enabled {
                             let poll_wake_clone = poll_wake.clone();
                             let wake_generation_at_park = seen_wake_generation;
@@ -294,9 +292,6 @@ impl RepoWatcher {
                             continue;
                         }
 
-                        let active_consecutive_failures = active_state
-                            .map(|state| state.consecutive_failures)
-                            .unwrap_or(0);
                         let any_unhealthy = active_consecutive_failures > 0;
 
                         let poll_interval_ms = Self::calculate_poll_interval_with_health(
@@ -311,20 +306,21 @@ impl RepoWatcher {
                         let Some(active_repo_id) = active_poll_repo_id.read().clone() else {
                             continue;
                         };
-                        let states = state_store.get_all_states();
-                        let Some(state) = states.get(&active_repo_id) else {
+                        let Some((watch_enabled, consecutive_failures)) =
+                            state_store.get_poll_health(&active_repo_id)
+                        else {
                             continue;
                         };
 
-                        if !state.watch_enabled {
+                        if !watch_enabled {
                             continue;
                         }
 
-                        if state.consecutive_failures >= 3 {
+                        if consecutive_failures >= 3 {
                             log::debug!(
                                 "[RepoWatch] Skipping poll for degraded repo {} ({} failures)",
                                 active_repo_id,
-                                state.consecutive_failures
+                                consecutive_failures
                             );
                             continue;
                         }
@@ -542,6 +538,13 @@ impl RepoWatcher {
 
         // Cancel any pending debounce
         self.debounce_manager.cancel_debounce(repo_id);
+        self.last_git_change.write().remove(repo_id);
+        self.last_poll_attempt.write().remove(repo_id);
+        let mut active_repo_id = self.active_poll_repo_id.write();
+        if active_repo_id.as_deref() == Some(repo_id) {
+            *active_repo_id = None;
+        }
+        drop(active_repo_id);
 
         log::info!("Stopped watching repository: {}", repo_id);
 
@@ -550,7 +553,10 @@ impl RepoWatcher {
 
     /// Stop all watchers
     pub fn unwatch_all(&self) {
-        let repo_ids: Vec<String> = self.watchers.read().keys().cloned().collect();
+        // Include polling-only/degraded repositories that never acquired a
+        // native watcher, otherwise their state and adaptive-poll metadata
+        // survive an "unwatch all" lifecycle.
+        let repo_ids = self.state_store.get_all_repo_ids();
         for repo_id in repo_ids {
             let _ = self.unwatch_repo(&repo_id);
         }
@@ -744,13 +750,10 @@ impl RepoWatcher {
     /// Test watcher responsiveness by creating a temp file
     pub async fn test_watcher_health(&self, repo_id: &str) -> Result<(), String> {
         // Get repo path
-        let repo_path = {
-            let states = self.state_store.get_all_states();
-            states
-                .get(repo_id)
-                .map(|s| s.repo_path.clone())
-                .ok_or_else(|| "Repository not found".to_string())?
-        };
+        let repo_path = self
+            .state_store
+            .get_repo_path(repo_id)
+            .ok_or_else(|| "Repository not found".to_string())?;
 
         // Create a temp file in .git directory
         let test_file = repo_path.join(".git").join(".orgii_health_test");
@@ -775,18 +778,10 @@ impl RepoWatcher {
     /// Restart watcher for a repository
     pub fn restart_watcher(&self, repo_id: &str) -> Result<(), String> {
         // Get repo info
-        let repo_info = {
-            let states = self.state_store.get_all_states();
-            let state = states
-                .get(repo_id)
-                .ok_or_else(|| "Repository not found".to_string())?;
-
-            RepoInfo {
-                repo_id: state.repo_id.clone(),
-                repo_path: state.repo_path.clone(),
-                repo_name: state.repo_name.clone(),
-            }
-        };
+        let repo_info = self
+            .state_store
+            .get_repo_info(repo_id)
+            .ok_or_else(|| "Repository not found".to_string())?;
 
         // Unwatch and rewatch
         let _ = self.unwatch_repo(repo_id);

@@ -128,7 +128,7 @@ pub(super) async fn materialize_org_member_sessions(
         let rust_org_name = org_name.clone();
         let rust_model = model.clone();
         let rust_account_id = account_id.clone();
-        let rust_key_source = key_source.clone();
+        let rust_key_source = key_source;
         let rust_agent_exec_mode = agent_exec_mode.clone();
         let rust_native_harness_type = native_harness_type.clone();
         let rust_work_item_id = work_item_id.clone();
@@ -225,9 +225,10 @@ pub(super) async fn materialize_org_member_sessions(
                 account_id: member_runtime_account_id(member_config, &account_id),
                 repo_path: Some(workspace_path.clone()).filter(|path| !path.is_empty()),
                 branch: None,
+                worktree_path: None,
+                worktree_base_ref: None,
                 hosted_token: None,
                 isolate: false,
-                worktree_path: None,
                 background: true,
                 key_source: Some(member_key_source.as_ref().to_string()),
                 additional_directories: None,
@@ -303,6 +304,7 @@ pub(super) async fn send_initial_turn(
     ide_context: Option<IdeContext>,
     agent_definition_id: Option<String>,
     sub_agent_ids: Vec<String>,
+    intent_org_run_id: Option<String>,
     source: crate::foundation::session_bridge::TurnIntentBridgeSource,
 ) -> Result<(), String> {
     if sub_agent_ids.is_empty() {
@@ -325,6 +327,7 @@ pub(super) async fn send_initial_turn(
             None,
             None,
             None,
+            intent_org_run_id,
             source,
         )
         .await?;
@@ -363,6 +366,7 @@ pub(super) async fn send_initial_turn(
         None,
         None,
         None,
+        intent_org_run_id,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
     )
     .await?;

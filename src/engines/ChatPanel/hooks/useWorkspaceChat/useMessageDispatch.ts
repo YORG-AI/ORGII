@@ -129,6 +129,7 @@ export function useMessageDispatch(options: UseMessageDispatchOptions) {
           imageDataUrls,
           clientMessageId,
           turnIntentId,
+          turnIntentSource: "user_submit",
         });
         // Backend accepted the message — the turn is running even if the
         // provider's running ack has not been observed yet.

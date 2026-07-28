@@ -42,6 +42,8 @@ pub(super) fn build_assistant_message_event(session_id: &str, content: &str) -> 
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     };
     event.recompute_extracted();
@@ -94,6 +96,8 @@ pub(super) fn build_tool_call_event(
         repo_path,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     };
     event.recompute_extracted();
@@ -138,12 +142,22 @@ pub(super) fn build_tool_result_event(
     result: &str,
     ui_metadata: Option<&crate::tools::traits::ToolUIMetadata>,
 ) -> SessionEvent {
-    let mut result_value = match serde_json::from_str::<Value>(result) {
-        Ok(Value::Object(object)) => Value::Object(object),
-        _ => serde_json::json!({
-            "content": result,
-            "observation": result,
-        }),
+    // The bounded text returned by run_shell belongs in the LLM transcript,
+    // which is persisted before this UI event is built. Copying it into both
+    // `content` and `observation` (and then again into `extracted`) would keep
+    // three 30 KiB strings per shell card in EventStore. Shell rendering uses
+    // the durable replay ref/bookmark/preview instead, so its generic result is
+    // intentionally metadata-only.
+    let mut result_value = if tool_name == crate::tools::names::RUN_SHELL {
+        serde_json::json!({ "shellReplayBacked": true })
+    } else {
+        match serde_json::from_str::<Value>(result) {
+            Ok(Value::Object(object)) => Value::Object(object),
+            _ => serde_json::json!({
+                "content": result,
+                "observation": result,
+            }),
+        }
     };
 
     if let Some(meta) = ui_metadata {
@@ -188,6 +202,8 @@ pub(super) fn build_tool_result_event(
         repo_path: None,
         extracted: None,
         payload_refs: Vec::new(),
+        shell_replay: None,
+        shell_replay_bookmarks: None,
         last_extract_at: None,
     }
 }

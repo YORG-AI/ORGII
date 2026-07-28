@@ -17,12 +17,12 @@ use rusqlite::{params, OptionalExtension};
 
 use super::super::helpers::{conn, map_db};
 use super::super::projects::read_project_scoped;
-use super::crud::{read_all_work_items_scoped, read_work_item_scoped};
+use super::crud::{read_all_work_items_scoped_filtered, read_work_item_scoped};
 use crate::projects::io::labels::read_labels;
 use crate::projects::io::members::read_members;
 use crate::projects::types::{
     EnrichedWorkItem, LabelEntry, MemberEntry, ResolvedLabel, ResolvedMilestone, ResolvedPerson,
-    ResolvedProject, WorkItemData, WorkItemPartialUpdate,
+    ResolvedProject, WorkItemData, WorkItemPartialUpdate, WorkItemReadBucket,
 };
 
 /// Default avatar/badge color when a member has no override. Mirrors
@@ -42,6 +42,14 @@ pub fn read_all_work_items_enriched_scoped(
     project_slug: &str,
     org_id: Option<&str>,
 ) -> Result<Vec<EnrichedWorkItem>, String> {
+    read_all_work_items_enriched_scoped_filtered(project_slug, org_id, None)
+}
+
+pub fn read_all_work_items_enriched_scoped_filtered(
+    project_slug: &str,
+    org_id: Option<&str>,
+    read_bucket: Option<WorkItemReadBucket>,
+) -> Result<Vec<EnrichedWorkItem>, String> {
     let project = read_project_scoped(project_slug, org_id)?;
     let project_id = project.meta.id.clone();
     let project_name = Some(project.meta.name);
@@ -52,7 +60,7 @@ pub fn read_all_work_items_enriched_scoped(
     let label_map = build_label_map(&labels);
     let member_map = build_member_map(&members);
 
-    let raw_items = read_all_work_items_scoped(project_slug, org_id)?;
+    let raw_items = read_all_work_items_scoped_filtered(project_slug, org_id, read_bucket)?;
     let enriched = raw_items
         .into_iter()
         .map(|item| enrich_work_item(item, &label_map, &member_map, project_slug, &project_name))

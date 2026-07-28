@@ -4,7 +4,7 @@
 }
 
 .chat-markdown-body details summary {
-  cursor: pointer;
+  cursor: var(--interactive-cursor, default);
 }
 
 .chat-markdown-body details:not([open]) > *:not(summary) {

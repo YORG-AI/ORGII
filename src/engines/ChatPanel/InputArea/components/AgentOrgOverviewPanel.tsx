@@ -15,7 +15,6 @@ import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_RUN_PHASE,
-  AGENT_ORG_TASK_STATUS,
   type AgentOrgRunView,
   pauseAgentOrgRun,
   resumeAgentOrgRun,
@@ -106,11 +105,8 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
 
     if (!view && !error) return null;
 
-    const completedTasks =
-      view?.tasks.filter(
-        (task) => task.status === AGENT_ORG_TASK_STATUS.COMPLETED
-      ).length ?? 0;
-    const totalTasks = view?.tasks.length ?? 0;
+    const completedTasks = view?.taskOverview.completed ?? 0;
+    const totalTasks = view?.taskOverview.total ?? 0;
     const activeMembers =
       view?.members.filter(
         (member) =>
@@ -120,10 +116,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           member.sessionRuntime?.status ===
             AGENT_SESSION_STATUS.WAITING_FOR_FUNDS
       ).length ?? 0;
-    const unreadMessages =
-      view?.inbox.filter(
-        (row) => row.readAt === null || row.readAt === undefined
-      ).length ?? 0;
+    const unreadMessages = view?.unreadInboxCount ?? 0;
     const userPlanApprovals =
       view?.pendingPlanApprovals.filter(
         (approval) =>
@@ -337,6 +330,17 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   className="px-0 pb-0"
                   currentSessionId={currentSessionId}
                 />
+                {view.taskOverview.truncated && (
+                  <div
+                    className="px-1 text-[10px] text-text-3"
+                    data-testid="agent-org-overview-task-window-note"
+                  >
+                    {t("planner.agentOrgOverview.taskWindowTruncated", {
+                      visible: view.taskOverview.visible,
+                      total: view.taskOverview.total,
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>

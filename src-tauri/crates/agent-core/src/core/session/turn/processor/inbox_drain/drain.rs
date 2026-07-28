@@ -91,23 +91,34 @@ pub fn drain_and_render_deferred(
         return DrainGuard::empty(&org_context.run_id, "unknown");
     };
 
-    let unread_result =
-        AgentInboxStore::list_unread_for_member(recipient_member_id_value, &org_context.run_id);
+    let unread_result = AgentInboxStore::list_unread_batch_for_member(
+        recipient_member_id_value,
+        &org_context.run_id,
+    );
 
-    let unread = match unread_result {
-        Ok(rows) => rows,
+    let batch = match unread_result {
+        Ok(batch) => batch,
         Err(err) => {
             warn!(
                 run_id = %org_context.run_id,
                 member_id = %recipient_member_id_value,
                 error = %err,
-                "[inbox_drain] list_unread_for_member failed; skipping injection for this turn"
+                "[inbox_drain] bounded unread batch failed; skipping injection for this turn"
             );
             return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
         }
     };
+    let unread = batch.rows;
     if unread.is_empty() {
         return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+    }
+    if batch.has_more {
+        info!(
+            run_id = %org_context.run_id,
+            member_id = %recipient_member_id_value,
+            delivered = unread.len(),
+            "[inbox_drain] bounded inbox batch left additional unread rows for the post-turn re-wake"
+        );
     }
 
     let mut unread = unread;
@@ -116,29 +127,97 @@ pub fn drain_and_render_deferred(
         (!is_user_group_message, row.id)
     });
 
-    let rendered = render_inbox_attachment(&unread, org_context);
-    let transcript = render_inbox_transcript(&unread);
+    let pending_ids = unread.iter().map(|row| row.id).collect::<Vec<_>>();
+    let (materialized_ids, materializations) = if let Some(session) = session {
+        match crate::session::persistence::load_agent_org_inbox_transcript_materializations(
+            &session.id,
+            &pending_ids,
+        ) {
+            Ok(existing) => existing,
+            Err(err) => {
+                warn!(
+                    run_id = %org_context.run_id,
+                    member_id = %recipient_member_id_value,
+                    session_id = %session.id,
+                    error = %err,
+                    "[inbox_drain] materialization lookup failed; leaving source rows unread"
+                );
+                return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+            }
+        }
+    } else {
+        (std::collections::HashSet::new(), Vec::new())
+    };
+    let newly_materialized_rows = unread
+        .iter()
+        .filter(|row| !materialized_ids.contains(&row.id))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    // Apply durable/control side effects before exposing this batch to the
+    // provider. If a required shutdown disposition or causation notice cannot
+    // commit, leave every source row unread and retry the idempotent side
+    // effect on a later Wake. This prevents a successful provider turn from
+    // acknowledging the ShutdownResponse while permanently losing its
+    // MemberTerminated notification.
+    if let Some(session) = session {
+        if let Err(err) =
+            apply_payload_side_effects(&unread, session, org_context, shutdown_hook.as_ref())
+        {
+            warn!(
+                run_id = %org_context.run_id,
+                member_id = %recipient_member_id_value,
+                error = %err,
+                "[inbox_drain] required inbox side effect failed; leaving batch unread"
+            );
+            return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+        }
+    }
+
+    if newly_materialized_rows.is_empty() {
+        info!(
+            run_id = %org_context.run_id,
+            member_id = %recipient_member_id_value,
+            replayed = pending_ids.len(),
+            "[inbox_drain] source rows already have durable transcript receipts; retrying from session history"
+        );
+        return DrainGuard::drained(
+            &org_context.run_id,
+            recipient_member_id_value,
+            session.map(|session| session.id.as_str()),
+            pending_ids,
+            Vec::new(),
+            None,
+            materializations,
+        );
+    }
+
+    let rendered = render_inbox_attachment(&newly_materialized_rows, org_context);
+    let transcript = render_inbox_transcript(&newly_materialized_rows);
     messages.push(serde_json::json!({
         "role": "user",
         "content": rendered.clone(),
     }));
 
-    if let Some(session) = session {
-        apply_payload_side_effects(&unread, session, org_context, shutdown_hook.as_ref());
-    }
-
-    let pending_ids: Vec<i64> = unread.iter().map(|row| row.id).collect();
+    let new_materialization_ids = newly_materialized_rows
+        .iter()
+        .map(|row| row.id)
+        .collect::<Vec<_>>();
     info!(
         run_id = %org_context.run_id,
         member_id = %recipient_member_id_value,
-        injected = unread.len(),
+        injected = newly_materialized_rows.len(),
+        replayed = materialized_ids.len(),
         "[inbox_drain] injected inbox attachments at turn boundary (mark-read deferred to commit)"
     );
     DrainGuard::drained(
         &org_context.run_id,
         recipient_member_id_value,
+        session.map(|session| session.id.as_str()),
         pending_ids,
-        transcript,
+        new_materialization_ids,
+        Some(transcript),
+        materializations,
     )
 }
 
@@ -161,7 +240,7 @@ pub fn drain_and_render(
         session,
     );
     let count = guard.drained_count();
-    guard.commit();
+    guard.commit_without_materialization_for_test();
     count
 }
 
@@ -185,14 +264,15 @@ pub fn drain_and_render(
 ///    exists in `org_context.members`); a self-issued or
 ///    stranger-sourced row is dropped.
 ///
-/// Errors here are logged and swallowed — partial side effects are
-/// strictly better than failing the turn over a bookkeeping miss.
+/// Invalid/unauthorized historical messages are logged and ignored. Failures
+/// in required shutdown persistence are returned so the caller can leave the
+/// source batch unread and retry these idempotent side effects.
 fn apply_payload_side_effects(
     rows: &[AgentInboxRecord],
     session: &AgentSession,
     org_context: &AgentOrgRunContext,
     shutdown_hook: &dyn MemberShutdownHook,
-) {
+) -> Result<(), String> {
     for row in rows {
         let msg = match row.decode_payload() {
             Ok(msg) => msg,
@@ -238,9 +318,6 @@ fn apply_payload_side_effects(
                 } else {
                     crate::session::AgentExecMode::Plan
                 });
-                session
-                    .requested_exec_mode_cache
-                    .set(&session.id, target_mode);
                 if accepted {
                     session.plan_slot_cache.clear(&session.id);
                     let _ = session.pre_plan_mode_cache.take(&session.id);
@@ -258,7 +335,7 @@ fn apply_payload_side_effects(
                     inbox_id = row.id,
                     accepted = accepted,
                     next_mode = %target_mode.as_str(),
-                    "[inbox_drain] coordinator plan approval response staged next member mode"
+                    "[inbox_drain] coordinator plan approval response applied to this wake before drain"
                 );
             }
             AgentMessage::ShutdownResponse { accepted: true, .. } => {
@@ -320,22 +397,29 @@ fn apply_payload_side_effects(
                             error = %err,
                             "[inbox_drain] failed to release tasks for terminated member; tasks may be stranded"
                         );
+                        return Err(format!(
+                            "shutdown task disposition failed for member {}: {err}",
+                            member.member_id
+                        ));
                     }
                 }
 
-                match AgentInboxStore::insert(InsertInboxParams {
-                    recipient_agent_id: org_context.coordinator_agent_id.clone(),
-                    recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
-                    sender_agent_id: SYSTEM_SENDER_ID.to_string(),
-                    sender_member_id: None,
-                    org_run_id: Some(org_context.run_id.clone()),
-                    message: AgentMessage::MemberTerminated {
-                        member_id: member.member_id.clone(),
-                        member_name: member.name.clone(),
-                        reason: MemberTerminationReason::Shutdown,
+                match AgentInboxStore::insert_once_for_causation(
+                    InsertInboxParams {
+                        recipient_agent_id: org_context.coordinator_agent_id.clone(),
+                        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+                        sender_agent_id: SYSTEM_SENDER_ID.to_string(),
+                        sender_member_id: None,
+                        org_run_id: Some(org_context.run_id.clone()),
+                        message: AgentMessage::MemberTerminated {
+                            member_id: member.member_id.clone(),
+                            member_name: member.name.clone(),
+                            reason: MemberTerminationReason::Shutdown,
+                        },
                     },
-                }) {
-                    Ok(record) => {
+                    row.id,
+                ) {
+                    Ok((record, true)) => {
                         shutdown_hook.wake_coordinator(&org_context.run_id);
                         info!(
                             session_id = %session.id,
@@ -346,6 +430,15 @@ fn apply_payload_side_effects(
                             "[inbox_drain] member acknowledged shutdown; cancelled session and notified coordinator"
                         );
                     }
+                    Ok((record, false)) => {
+                        info!(
+                            session_id = %session.id,
+                            inbox_id = row.id,
+                            terminated_member = %member.member_id,
+                            existing_inbox_id = record.id,
+                            "[inbox_drain] shutdown notification already persisted for this source row; coalesced replay"
+                        );
+                    }
                     Err(err) => {
                         warn!(
                             session_id = %session.id,
@@ -354,6 +447,10 @@ fn apply_payload_side_effects(
                             error = %err,
                             "[inbox_drain] failed to persist MemberTerminated row; coordinator will not be notified this turn"
                         );
+                        return Err(format!(
+                            "persist MemberTerminated for member {} failed: {err}",
+                            member.member_id
+                        ));
                     }
                 }
             }
@@ -374,18 +471,15 @@ fn apply_payload_side_effects(
                     );
                     continue;
                 }
-                // The override is consumed at the start of the *next*
-                // member turn via `requested_exec_mode_cache.take(...)`
-                // in `send_message_impl`. We just stage it here.
-                session.requested_exec_mode_cache.set(&session.id, mode);
                 info!(
                     session_id = %session.id,
                     inbox_id = row.id,
                     new_mode = %mode.as_str(),
-                    "[inbox_drain] coordinator requested exec mode override; staged for next turn"
+                    "[inbox_drain] coordinator exec mode override was applied to this wake before drain"
                 );
             }
             _ => {}
         }
     }
+    Ok(())
 }

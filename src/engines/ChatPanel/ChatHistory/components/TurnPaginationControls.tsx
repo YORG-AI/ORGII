@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import { DropdownPanel } from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -30,9 +31,9 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
-import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
+import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
 
 interface TurnPaginationControlsProps {
   agentName?: string | null;
@@ -84,6 +85,16 @@ interface TurnPaginationControlsProps {
    * session is not an Agent Team run or has no eligible members).
    */
   groupChatViewAvailable?: boolean;
+}
+
+export function shouldShowTurnPaginationSpinner(params: {
+  turnPaginationReady: boolean;
+  pageCount: number;
+}): boolean {
+  // A loaded session with no rounds is a stable empty state, not an
+  // indefinitely loading page. ChatHistory owns the initial-load indicator;
+  // this selector only spins while an existing round is still hydrating.
+  return !params.turnPaginationReady && params.pageCount > 0;
 }
 
 const SELECT_TRIGGER_BASE =
@@ -142,6 +153,10 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
     groupChatViewAvailable = false,
   }) => {
     const { t } = useTranslation();
+    const showTurnPaginationSpinner = shouldShowTurnPaginationSpinner({
+      turnPaginationReady,
+      pageCount,
+    });
     const switchableMembers = agentOrgMembers.filter(
       (member) => member.sessionRuntime
     );
@@ -251,9 +266,11 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
               {isMemberSwitcherOpen &&
                 isMemberSwitcherPositioned &&
                 createPortal(
-                  <div
+                  <DropdownPanel
                     ref={memberSwitcherPanelRef}
-                    className={`${DROPDOWN_CLASSES.panel} min-w-[180px]`}
+                    className="min-w-[180px]"
+                    animated={false}
+                    maxHeight="none"
                     style={{
                       position: "fixed",
                       top: memberSwitcherPanelPosition.top,
@@ -300,11 +317,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                           : member.name;
                         const hasNoTasksAndNoInbox =
                           !member.isCoordinator &&
-                          member.activeTaskCount === 0 &&
-                          member.pendingTaskCount === 0 &&
-                          member.inProgressTaskCount === 0 &&
-                          member.completedTaskCount === 0 &&
-                          member.inboxActivityCount === 0;
+                          isAgentOrgMemberEmpty(member);
                         const runtimeStatusLabelKey =
                           MEMBER_RUNTIME_STATUS_LABEL_KEYS[runtimeStatus];
                         const runtimeStatusLabel = hasNoTasksAndNoInbox
@@ -316,8 +329,9 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                               ? t(`sessions:${runtimeStatusLabelKey}`)
                               : formatFallbackStatusLabel(runtimeStatus)
                             : "";
-                        // Members with no tasks or inbox activity cannot be
-                        // switched to — opening their session would render a
+                        // Members with no tasks, recent activity, or durable
+                        // unread Inbox cannot be switched to — opening their
+                        // session would render a
                         // chat panel with no events and a "session may not
                         // have loaded" reload prompt. Coordinator is always
                         // selectable (the parent session, never empty).
@@ -354,7 +368,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                         );
                       })}
                     </div>
-                  </div>,
+                  </DropdownPanel>,
                   document.body
                 )}
             </>
@@ -378,7 +392,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                   }}
                 >
                   <span className="truncate">{currentTurnPageLabel}</span>
-                  {!turnPaginationReady ? (
+                  {showTurnPaginationSpinner ? (
                     <Loader2
                       size={DROPDOWN_ITEM.iconSize}
                       className="shrink-0 animate-spin text-text-3"
@@ -401,7 +415,6 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
               )}
             </>
           )}
-          <SessionViewersIndicator />
         </div>
         {turnPaginationEnabled && (
           <div className="flex shrink-0 items-center gap-1.5">

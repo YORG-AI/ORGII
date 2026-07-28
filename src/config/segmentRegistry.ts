@@ -12,7 +12,6 @@ import {
   BadgeCent,
   Braces,
   CalendarArrowUp,
-  ChartNoAxesGantt,
   ClipboardList,
   Cloud,
   Code,
@@ -23,7 +22,6 @@ import {
   FolderOpen,
   Globe,
   Hammer,
-  Home,
   Inbox,
   Key,
   Network,
@@ -160,17 +158,11 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   workstation: { labelKey: "navigation:labels.workspace", icon: FolderOpen },
   code: { labelKey: "navigation:labels.codeEditor", icon: Code },
   browser: { labelKey: "navigation:labels.browser", icon: Globe },
-  database: { labelKey: "navigation:labels.databaseManager", icon: Database },
   project: {
     labelKey: "navigation:labels.projectManager",
     icon: ClipboardList,
   },
   inbox: { labelKey: "navigation:labels.inbox", icon: Inbox },
-  changelog: {
-    labelKey: "navigation:routes.changelog",
-    icon: ChartNoAxesGantt,
-  },
-  "start-page": { labelKey: "navigation:routes.startPage", icon: Home },
   "select-repo": {
     labelKey: "navigation:routes.selectProject",
     icon: FolderOpen,
@@ -200,7 +192,6 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
 const BREADCRUMB_HIDDEN_SEGMENTS = new Set<string>([
   "orgii",
   "app",
-  "home",
   "subpage",
   "integrations",
   "agent-orgs",

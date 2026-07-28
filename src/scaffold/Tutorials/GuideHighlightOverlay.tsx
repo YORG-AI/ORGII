@@ -17,6 +17,8 @@ import {
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
+import { createAnimationFrameScheduler } from "./animationFrameScheduler";
+
 interface TargetRect {
   top: number;
   left: number;
@@ -131,7 +133,6 @@ const GuideHighlightOverlay: React.FC = () => {
   useEffect(() => {
     if (!highlight) return;
 
-    let frame = 0;
     const updateRect = () => {
       const nextRect = getTargetRect(highlight.targetId);
       setTargetRect({ targetId: highlight.targetId, rect: nextRect });
@@ -146,16 +147,20 @@ const GuideHighlightOverlay: React.FC = () => {
         });
       }
     };
+    const scheduler = createAnimationFrameScheduler(updateRect, {
+      requestFrame: window.requestAnimationFrame.bind(window),
+      cancelFrame: window.cancelAnimationFrame.bind(window),
+    });
 
-    frame = window.requestAnimationFrame(updateRect);
-    window.addEventListener("resize", updateRect);
-    window.addEventListener("scroll", updateRect, true);
+    scheduler.schedule();
+    window.addEventListener("resize", scheduler.schedule);
+    window.addEventListener("scroll", scheduler.schedule, true);
     const timeout = window.setTimeout(clearHighlight, AUTO_DISMISS_MS);
 
     return () => {
-      window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", updateRect);
-      window.removeEventListener("scroll", updateRect, true);
+      scheduler.cancel();
+      window.removeEventListener("resize", scheduler.schedule);
+      window.removeEventListener("scroll", scheduler.schedule, true);
       window.clearTimeout(timeout);
     };
   }, [clearHighlight, highlight]);

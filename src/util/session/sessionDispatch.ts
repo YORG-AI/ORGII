@@ -19,6 +19,7 @@ import type { DispatchCategory } from "@src/api/tauri/session";
  * 1. Dispatch category (transport/routing):
  *    - "cli_agent": CLI Agent session (external CLI process via Tauri)
  *    - "rust_agent": Rust-native agent session (OS Agent, SDE Agent, Custom)
+ *    - "human_session": User-authored proof-of-work session
  *
  * 2. Key source (billing / own key vs hosted key):
  *    - "own_key": User's own API keys (BYOK)
@@ -71,6 +72,11 @@ export interface SessionPrefixConfig {
  * Order matters: first match wins for prefix detection.
  */
 export const SESSION_PREFIX_REGISTRY: readonly SessionPrefixConfig[] = [
+  {
+    prefix: "humansession-",
+    category: "human_session",
+    iconId: "clipboard-list",
+  },
   {
     prefix: "osagent-",
     category: "rust_agent",
@@ -129,6 +135,9 @@ export const SDE_AGENT_SESSION_PREFIX = "sdeagent-";
 /** Prefix for CLI Agent session IDs */
 export const CLI_SESSION_PREFIX = "cliagent-";
 
+/** Prefix for user-authored Human sessions. */
+export const HUMAN_SESSION_PREFIX = "humansession-";
+
 /**
  * Prefix for Cursor IDE history session IDs. The bare composer UUID from
  * Cursor's `state.vscdb` is wrapped as `${CURSOR_IDE_SESSION_PREFIX}${uuid}`
@@ -154,6 +163,9 @@ export const WORKBUDDY_HISTORY_SESSION_PREFIX = "workbuddyapp-";
 
 /** Prefix for imported Warp event session IDs. */
 export const WARP_HISTORY_SESSION_PREFIX = "warpapp-";
+
+/** Deterministic local cache ID for a teammate collaboration replay. */
+export const COLLAB_IMPORTED_SESSION_PREFIX = "imported-session-";
 
 /** Prefix for Wingman Agent session IDs */
 export const WINGMAN_SESSION_PREFIX = "wingman-";
@@ -198,6 +210,11 @@ export function isCliSession(sessionId: string | null | undefined): boolean {
   return config?.category === "cli_agent";
 }
 
+/** Check if a session is a user-authored proof-of-work log. */
+export function isHumanSession(sessionId: string | null | undefined): boolean {
+  return findPrefixConfig(sessionId)?.category === "human_session";
+}
+
 /**
  * Check if a session ID belongs to a Cursor IDE history session (read-only).
  */
@@ -222,6 +239,18 @@ export function isImportedHistorySession(
   sessionId: string | null | undefined
 ): boolean {
   return isCursorIdeSession(sessionId) || isExternalHistorySession(sessionId);
+}
+
+/**
+ * A durable, read-only collaboration replay imported from another member or
+ * share link. It uses the local Rust/SQLite replay adapter, so it must remain
+ * distinct from `isImportedHistorySession` (which routes to provider-specific
+ * Codex/Claude/Cursor source adapters).
+ */
+export function isCollaborationImportedSession(
+  sessionId: string | null | undefined
+): boolean {
+  return Boolean(sessionId?.startsWith(COLLAB_IMPORTED_SESSION_PREFIX));
 }
 
 export function getExternalHistorySourceId(
@@ -362,6 +391,10 @@ export function resolveSessionIconId(
   sessionId: string | null | undefined
 ): string {
   if (!sessionId) return "bot";
+  // Collaboration replays can open their Chat Pane tab before the local
+  // Session row has finished hydrating. Keep that pending tab on the same
+  // ORGII mark used by its Team Sessions sidebar row instead of flashing Bot.
+  if (sessionId.startsWith(COLLAB_IMPORTED_SESSION_PREFIX)) return "orgii";
   const config = findPrefixConfig(sessionId);
   return config?.iconId ?? "bot";
 }

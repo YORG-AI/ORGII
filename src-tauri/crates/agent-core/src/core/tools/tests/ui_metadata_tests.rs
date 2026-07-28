@@ -14,8 +14,6 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::RUN_SHELL,
         names::AWAIT_OUTPUT,
         names::CODE_SEARCH,
-        names::USE_CODE_MAP,
-        names::MANAGE_CODE_MAP,
         names::MANAGE_WORKSPACE,
         names::EDIT_FILE,
         names::DELETE_FILE,
@@ -55,6 +53,8 @@ fn invokable_canonical_tool_names() -> BTreeSet<&'static str> {
         names::TASK_UPDATE,
         names::TASK_LIST,
         names::TASK_GET,
+        names::ORG_RUN_COMPLETE,
+        names::ORG_INBOX_REPAIR,
     ])
 }
 
@@ -158,7 +158,6 @@ fn every_visible_or_invokable_builtin_tool_has_status_labels() {
 fn every_renderable_tool_has_non_default_chat_block() {
     let exempt_fallback_tools = HashSet::from([
         names::MANAGE_WORKSPACE,
-        names::MANAGE_CODE_MAP,
         names::MANAGE_LSP,
         names::MANAGE_FILE_HISTORY,
         names::SETUP_REPO,

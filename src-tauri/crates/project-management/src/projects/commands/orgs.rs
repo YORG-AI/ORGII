@@ -22,6 +22,15 @@ pub async fn project_create_org(request: CreateProjectOrgRequest) -> Result<Proj
 }
 
 #[tauri::command]
+pub async fn project_delete_org(org_id: String) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || io::delete_project_org(&org_id))
+        .await
+        .map_err(|err| format!("Task join error: {}", err))??;
+    super::super::events::notify_data_changed();
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn project_configure_org_git_folder_sync(
     request: ConfigureProjectOrgGitFolderSyncRequest,
 ) -> Result<ProjectOrg, String> {

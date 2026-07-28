@@ -32,22 +32,12 @@ impl OrgtrackTier {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub struct RedactionPolicy {
     pub include_raw_prompts: bool,
     pub include_tool_args: bool,
     pub include_tool_results: bool,
     pub include_file_contents: bool,
-}
-
-impl Default for RedactionPolicy {
-    fn default() -> Self {
-        Self {
-            include_raw_prompts: false,
-            include_tool_args: false,
-            include_tool_results: false,
-            include_file_contents: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

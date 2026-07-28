@@ -72,6 +72,8 @@ fn cli_agent_type_parse_roundtrip() {
         CliAgentType::Codex,
         CliAgentType::Kiro,
         CliAgentType::Copilot,
+        CliAgentType::QoderCli,
+        CliAgentType::TraeCli,
     ] {
         assert_eq!(
             CliAgentType::parse(platform.as_str()),

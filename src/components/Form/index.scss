@@ -57,7 +57,7 @@
       flex-shrink: 0;
 
       label {
-        cursor: pointer;
+        cursor: var(--interactive-cursor, default);
       }
 
       &.form-item-label-left {

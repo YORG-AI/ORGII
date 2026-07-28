@@ -17,6 +17,8 @@ fn cli_agents_are_cli_agents() {
         ModelType::Kiro,
         ModelType::KimiCli,
         ModelType::OpenCode,
+        ModelType::QoderCli,
+        ModelType::TraeCli,
     ];
     for t in &cli_types {
         assert!(t.is_cli_agent(), "{:?} should be a CLI agent", t);
@@ -122,6 +124,8 @@ fn as_str_round_trips_through_from_str() {
         ModelType::Kiro,
         ModelType::KimiCli,
         ModelType::OpenCode,
+        ModelType::QoderCli,
+        ModelType::TraeCli,
         ModelType::AnthropicApi,
         ModelType::OpenaiApi,
         ModelType::DeepseekApi,

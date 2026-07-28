@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-pointer-cursors="false">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -17,25 +17,6 @@
           return element;
         };
       })();
-    </script>
-    <script nonce="orgii-codemirror-style">
-      // Hide splash immediately for secondary windows (/windows/*).
-      // These are lightweight Tauri panels — no loading screen needed.
-      if (window.location.pathname.indexOf("/windows/") === 0) {
-        document.addEventListener("DOMContentLoaded", function () {
-          var s = document.getElementById("splash");
-          if (s) s.style.display = "none";
-        });
-        // Also hide before DOMContentLoaded in case it fires too late
-        document.documentElement.dataset.noSplash = "1";
-        var storedTheme = localStorage.getItem("theme") || "github-light";
-        var isDarkTheme = /dark|abyss|tomorrowNightBlue|orgii_dark/.test(
-          storedTheme
-        );
-        document.documentElement.dataset.preflightTheme = isDarkTheme
-          ? "dark"
-          : "light";
-      }
     </script>
     <script nonce="orgii-codemirror-style">
       (function () {
@@ -152,12 +133,6 @@
                 });
               });
           }, 5000);
-        }
-
-        // Secondary windows (/windows/*) never show the splash.
-        if (window.location.pathname.indexOf("/windows/") === 0) {
-          window.__ORGII_SPLASH_DONE__ = function () {};
-          return;
         }
 
         // Default 20s for packaged/static startup. Local dev server startup can
@@ -299,16 +274,6 @@
         border-radius: var(--border-radius-window);
         overflow: hidden;
       }
-      [data-no-splash="1"][data-preflight-theme="light"],
-      [data-no-splash="1"][data-preflight-theme="light"] body,
-      [data-no-splash="1"][data-preflight-theme="light"] #root {
-        background: #ffffff;
-      }
-      [data-no-splash="1"][data-preflight-theme="dark"],
-      [data-no-splash="1"][data-preflight-theme="dark"] body,
-      [data-no-splash="1"][data-preflight-theme="dark"] #root {
-        background: #0d0d0d;
-      }
       /* Remove border radius in fullscreen mode */
       html.fullscreen,
       html.fullscreen body,
@@ -326,10 +291,6 @@
         border-radius: var(--border-radius-window);
         z-index: 99999;
         transition: opacity 0.2s ease-out;
-      }
-      /* Secondary windows (/windows/*) never show the splash */
-      [data-no-splash="1"] #splash {
-        display: none !important;
       }
       #splash.fade-out {
         opacity: 0;
@@ -517,8 +478,7 @@
               settled = true;
               clearTimeout(scriptTimeoutId);
               scheduleRetry("main.js fetch failed", {
-                message:
-                  error && error.message ? error.message : String(error),
+                message: error && error.message ? error.message : String(error),
               });
             });
         }

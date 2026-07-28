@@ -1,5 +1,6 @@
 //! Persistence commands for session data (no Tauri state needed).
 
+use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::interaction::plan_approval::persistence::PlanApprovalStore;
 use crate::persistence::db_helpers as shared;
 use crate::persistence::session_snapshots;
@@ -9,6 +10,8 @@ use crate::state::control_flow::CancelReason;
 use crate::state::AgentAppState;
 use crate::tools::file_history;
 use core_types::workflow::{AgentRole, LinkedSession, LinkedSessionStatus, LinkedSessionType};
+use database::db::get_connection;
+use rusqlite::OptionalExtension;
 
 use super::common::review_session_ids;
 
@@ -47,7 +50,32 @@ pub async fn agent_list_all_sessions() -> Result<Vec<serde_json::Value>, String>
 /// Delete a session and all related data.
 #[tauri::command]
 pub async fn agent_delete_session(session_id: String) -> Result<(), String> {
-    shared::spawn_blocking_cmd(move || session_persistence::delete_session(&session_id)).await
+    tokio::task::spawn_blocking(move || delete_session_with_agent_org_history(&session_id))
+        .await
+        .map_err(|err| format!("session deletion worker failed: {err}"))?
+}
+
+fn delete_session_with_agent_org_history(session_id: &str) -> Result<(), String> {
+    // Only the coordinator/root session owns a Run. Deleting a worker session
+    // must not erase the rest of the team execution. Capture and remove the
+    // owned Run first so a subsequent session-row failure remains retryable
+    // and can never silently leave permanent Inbox/Plan history behind.
+    if let Some(run_id) = owned_agent_org_run_id(session_id)? {
+        AgentOrgRunStore::delete_by_id(&run_id)?;
+    }
+    session_persistence::delete_session(session_id).map_err(|err| err.to_string())
+}
+
+fn owned_agent_org_run_id(session_id: &str) -> Result<Option<String>, String> {
+    get_connection()
+        .map_err(|err| err.to_string())?
+        .query_row(
+            "SELECT id FROM agent_org_runs WHERE root_session_id=?1 LIMIT 1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())
 }
 
 /// Clear all messages for a session.
@@ -414,5 +442,124 @@ fn parse_agent_role(raw: Option<&str>) -> AgentRole {
         "custom" => AgentRole::Custom,
         "sub_agent" => AgentRole::SubAgent,
         _ => AgentRole::Coding,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ensure_test_schemas() {
+        let conn = get_connection().expect("sandbox DB");
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+            .expect("agent session tables");
+        crate::session::persistence::init(&conn).expect("unified session schema");
+        crate::interaction::plan_approval::persistence::init_schema(&conn)
+            .expect("plan approval schema");
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        database::init_shell_replay_tables(&conn).expect("shell replay schema");
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS events (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS code_sessions (
+                session_id TEXT PRIMARY KEY,
+                cli_agent_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                parent_session_id TEXT,
+                org_member_id TEXT,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (session_id, turn_intent_id)
+            );",
+        )
+        .expect("session runtime schemas");
+    }
+
+    fn seed_session(session_id: &str, parent_session_id: Option<&str>) {
+        let conn = get_connection().expect("sandbox DB");
+        conn.execute(
+            "INSERT INTO agent_sessions (
+                 session_id, name, status, user_input, created_at, updated_at,
+                 session_type, parent_session_id, workspace_additional_json,
+                 key_source
+             ) VALUES (?1, ?2, 'idle', NULL, ?3, ?3, 'agent', ?4, '{}', 'own_key')",
+            rusqlite::params![
+                session_id,
+                format!("session-{session_id}"),
+                "2026-07-16T00:00:00Z",
+                parent_session_id,
+            ],
+        )
+        .expect("seed session");
+    }
+
+    fn seed_run(run_id: &str, root_session_id: &str) {
+        let conn = get_connection().expect("sandbox DB");
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id,
+                 entry_mode, status, created_at, updated_at
+             ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
+                       'standalone_session', 'running', ?3, ?3)",
+            rusqlite::params![run_id, root_session_id, "2026-07-16T00:00:00Z"],
+        )
+        .expect("seed run");
+    }
+
+    fn row_exists(table: &str, column: &str, value: &str) -> bool {
+        get_connection()
+            .expect("sandbox DB")
+            .query_row(
+                &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {column}=?1)"),
+                [value],
+                |row| row.get(0),
+            )
+            .expect("inspect durable row")
+    }
+
+    #[test]
+    fn deleting_worker_keeps_run_but_deleting_root_cascades_run_history() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        ensure_test_schemas();
+        seed_session("root-delete-test", None);
+        seed_session("worker-delete-test", Some("root-delete-test"));
+        seed_run("run-delete-test", "root-delete-test");
+        get_connection()
+            .expect("sandbox DB")
+            .execute(
+                "INSERT INTO agent_inbox (
+                     recipient_agent_id, recipient_member_id, sender_agent_id,
+                     org_run_id, payload_kind, payload_json, created_at
+                 ) VALUES ('worker-agent', 'worker', 'system', ?1,
+                           'plain', '{\"summary\":\"kept until root delete\",\"text\":\"body\"}', ?2)",
+                rusqlite::params!["run-delete-test", "2026-07-16T00:00:00Z"],
+            )
+            .expect("seed run inbox history");
+
+        delete_session_with_agent_org_history("worker-delete-test").expect("delete worker session");
+        assert!(row_exists("agent_org_runs", "id", "run-delete-test"));
+        assert!(row_exists("agent_inbox", "org_run_id", "run-delete-test"));
+
+        delete_session_with_agent_org_history("root-delete-test")
+            .expect("delete root session and owned run");
+        assert!(!row_exists("agent_org_runs", "id", "run-delete-test"));
+        assert!(!row_exists("agent_inbox", "org_run_id", "run-delete-test"));
+        assert!(!row_exists(
+            "agent_sessions",
+            "session_id",
+            "root-delete-test"
+        ));
     }
 }
