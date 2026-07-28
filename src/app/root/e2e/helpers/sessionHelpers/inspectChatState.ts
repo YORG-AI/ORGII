@@ -13,6 +13,11 @@ import {
 } from "@src/engines/SessionCore/core/atoms/events";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { chatEventsAtom } from "@src/engines/SessionCore/derived/chatEvents";
+import { getExternalReplayDebugStateForTest } from "@src/engines/SessionCore/sync/externalReplayTransport";
+import {
+  getAnchoredExternalReplayTurnIndices,
+  getExternalReplayTurnDebugStateForTest,
+} from "@src/engines/SessionCore/sync/externalReplayTurnState";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
@@ -67,6 +72,11 @@ export function createInspectChatStateHelper(store: E2EStore) {
         renderedUserEventId: string | null;
         userPreview: string;
       }>;
+      externalReplayCompactTurnIndices: number[];
+      externalReplayResidentTurnIndices: number[];
+      externalReplayAnchoredTurnIndices: number[];
+      externalReplayTransport: Json | null;
+      externalReplayTurnState: Json | null;
       chatEventCount: number;
       chatEventIds: string[];
       runtimeStatus: string;
@@ -173,6 +183,20 @@ export function createInspectChatStateHelper(store: E2EStore) {
       const externalReplayTurnSummaries = activeSessionId
         ? store.get(externalReplayTurnSummariesAtomFamily(activeSessionId))
         : [];
+      const externalReplayCompactTurnIndices = Object.keys(
+        externalReplayTurnSummaries
+      )
+        .map(Number)
+        .filter(Number.isSafeInteger)
+        .sort((left, right) => left - right);
+      const externalReplayResidentTurnIndices =
+        externalReplayCompactTurnIndices.filter(
+          (turnIndex) =>
+            externalReplayTurnSummaries[turnIndex]?.renderedUserEventId !== null
+        );
+      const externalReplayAnchoredTurnIndices = [
+        ...getAnchoredExternalReplayTurnIndices(externalReplayTurnSummaries),
+      ].sort((left, right) => left - right);
       const summarySampleIndices = Array.from(
         new Set(
           [
@@ -256,6 +280,17 @@ export function createInspectChatStateHelper(store: E2EStore) {
             };
           }
         ),
+        externalReplayCompactTurnIndices,
+        externalReplayResidentTurnIndices,
+        externalReplayAnchoredTurnIndices,
+        externalReplayTransport:
+          (getExternalReplayDebugStateForTest() as unknown as Json | null) ??
+          null,
+        externalReplayTurnState: activeSessionId
+          ? (getExternalReplayTurnDebugStateForTest(
+              activeSessionId
+            ) as unknown as Json)
+          : null,
         chatEventCount: chatEvents.length,
         chatEventIds: chatEvents.map((event) => event.id),
         runtimeStatus: store.get(sessionRuntimeStatusAtom),

@@ -3,13 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   findNearestConversationMarker,
   getAdjacentConversationGroupIndex,
+  getAdjacentConversationReplayTurnIndex,
   getConversationMarkerWidthClass,
   getConversationPreviewPositionClass,
   getConversationTurnPosition,
   getNavigableConversationGroupIndices,
   resolveActiveConversationMarker,
+  resolveActiveConversationReplayTurnIndex,
   resolveHighlightedConversationMarkers,
   sampleConversationGroupIndices,
+  sampleConversationReplayTurnIndices,
+  shouldShowFloatingConversationMinimap,
 } from "../ConversationMinimap";
 
 describe("getConversationTurnPosition", () => {
@@ -60,6 +64,38 @@ describe("getConversationPreviewPositionClass", () => {
     expect(getConversationPreviewPositionClass("right")).toContain(
       "right-full"
     );
+  });
+});
+
+describe("shouldShowFloatingConversationMinimap", () => {
+  it("stays available while the user is reading historical content", () => {
+    expect(
+      shouldShowFloatingConversationMinimap({
+        isAtBottom: false,
+        isPointerOver: false,
+        isScrolling: false,
+        previewMarkerIndex: null,
+      })
+    ).toBe(true);
+  });
+
+  it("may rest at the newest content until the user scrolls or interacts", () => {
+    expect(
+      shouldShowFloatingConversationMinimap({
+        isAtBottom: true,
+        isPointerOver: false,
+        isScrolling: false,
+        previewMarkerIndex: null,
+      })
+    ).toBe(false);
+    expect(
+      shouldShowFloatingConversationMinimap({
+        isAtBottom: true,
+        isPointerOver: false,
+        isScrolling: true,
+        previewMarkerIndex: null,
+      })
+    ).toBe(true);
   });
 });
 
@@ -149,6 +185,35 @@ describe("sampleConversationGroupIndices", () => {
 
   it("returns the final turn when only one marker is requested", () => {
     expect(sampleConversationGroupIndices([2, 8, 13], 1)).toEqual([13]);
+  });
+});
+
+describe("external replay conversation markers", () => {
+  it("samples the complete provider catalog even when only a small body window is resident", () => {
+    const sampled = sampleConversationReplayTurnIndices(200, 20);
+
+    expect(sampled).toHaveLength(20);
+    expect(sampled[0]).toBe(0);
+    expect(sampled.at(-1)).toBe(199);
+    expect(new Set(sampled).size).toBe(20);
+    expect(sampled[10]).toBeGreaterThanOrEqual(100);
+    expect(sampled[10]).toBeLessThanOrEqual(110);
+  });
+
+  it("keeps previous/next navigation on provider turn indices", () => {
+    expect(getAdjacentConversationReplayTurnIndex(42, 200, -1, false)).toBe(41);
+    expect(getAdjacentConversationReplayTurnIndex(42, 200, 1, false)).toBe(43);
+    expect(
+      getAdjacentConversationReplayTurnIndex(0, 200, -1, false)
+    ).toBeNull();
+    expect(
+      getAdjacentConversationReplayTurnIndex(198, 200, 1, true)
+    ).toBeNull();
+  });
+
+  it("uses the latest provider turn at the content bottom", () => {
+    expect(resolveActiveConversationReplayTurnIndex(42, 200, true)).toBe(199);
+    expect(resolveActiveConversationReplayTurnIndex(42, 200, false)).toBe(42);
   });
 });
 

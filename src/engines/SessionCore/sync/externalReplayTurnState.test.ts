@@ -9,6 +9,7 @@ import {
   MAX_LOADED_EXTERNAL_REPLAY_TURN_SUMMARIES,
   buildExternalReplayTurnIndexByEventId,
   deactivateExternalReplayTurnState,
+  getAnchoredExternalReplayTurnIndices,
   mergeExternalReplayTurnWindow,
   previousExternalReplayTurnSliceStart,
   previousExternalReplayWindowStart,
@@ -41,6 +42,7 @@ function replayWindow(
   turnIndex: number,
   options: {
     headerTurnId?: string;
+    includeRenderedUserEvent?: boolean;
     renderedUserEventId?: string;
     turnEndSequence?: number;
     turnStartSequence?: number;
@@ -57,16 +59,19 @@ function replayWindow(
       revision: 1,
       throughSequence: turnIndex,
     },
-    events: [
-      {
-        id: renderedUserEventId,
-        sessionId: "codexapp-turn-state",
-        source: "user",
-        displayText: renderedUserEventId,
-        createdAt: "2026-07-23T00:00:00Z",
-        result: {},
-      } as ExternalReplayWindow["events"][number],
-    ],
+    events:
+      options.includeRenderedUserEvent === false
+        ? []
+        : [
+            {
+              id: renderedUserEventId,
+              sessionId: "codexapp-turn-state",
+              source: "user",
+              displayText: renderedUserEventId,
+              createdAt: "2026-07-23T00:00:00Z",
+              result: {},
+            } as ExternalReplayWindow["events"][number],
+          ],
     windowStartSequence: options.windowStartSequence ?? turnIndex,
     turnHeaders: [
       {
@@ -184,6 +189,51 @@ describe("external replay virtual turn state", () => {
     expect(mocks.summaries[163]?.userPreview).toBe("codex-user-19216");
   });
 
+  it("distinguishes an exact turn anchor from a bounded middle slice", () => {
+    mergeExternalReplayTurnWindow(
+      "codexapp-turn-state",
+      replayWindow("g1", 165, 163, {
+        includeRenderedUserEvent: false,
+        turnStartSequence: 19_216,
+        turnEndSequence: 19_371,
+        windowStartSequence: 19_244,
+      })
+    );
+    expect(getAnchoredExternalReplayTurnIndices(mocks.summaries).has(163)).toBe(
+      false
+    );
+
+    mergeExternalReplayTurnWindow(
+      "codexapp-turn-state",
+      replayWindow("g1", 165, 163, {
+        turnStartSequence: 19_216,
+        turnEndSequence: 19_371,
+        windowStartSequence: 19_216,
+      })
+    );
+    expect(getAnchoredExternalReplayTurnIndices(mocks.summaries).has(163)).toBe(
+      true
+    );
+  });
+
+  it("keeps a provider user anchor when the same bounded window also carries a disjoint tail", () => {
+    mergeExternalReplayTurnWindow(
+      "codexapp-turn-state",
+      replayWindow("g1", 165, 155, {
+        renderedUserEventId: "codex-user-16113",
+        turnStartSequence: 16_113,
+        turnEndSequence: 18_105,
+        // The backend reports the start of the contiguous tail here. The
+        // exact provider user anchor is still present as the first event.
+        windowStartSequence: 17_906,
+      })
+    );
+
+    expect(getAnchoredExternalReplayTurnIndices(mocks.summaries).has(155)).toBe(
+      true
+    );
+  });
+
   it("resumes older history from the earliest resident event sequence", () => {
     mergeExternalReplayTurnWindow(
       "codexapp-turn-state",
@@ -273,6 +323,47 @@ describe("external replay virtual turn state", () => {
     expect(mocks.summaries[0]?.turnId).toContain(
       "__external_replay_turn_index__"
     );
+  });
+
+  it("keeps the latest header stable while continuous replay walks backward", () => {
+    mergeExternalReplayTurnWindow(
+      "codexapp-turn-state",
+      replayWindow("g1", 100, 99)
+    );
+    for (let turnIndex = 98; turnIndex >= 70; turnIndex -= 1) {
+      mergeExternalReplayTurnWindow(
+        "codexapp-turn-state",
+        replayWindow("g1", 100, turnIndex)
+      );
+    }
+
+    expect(Object.keys(mocks.summaries)).toHaveLength(
+      MAX_LOADED_EXTERNAL_REPLAY_TURN_SUMMARIES
+    );
+    expect(mocks.summaries[99]?.turnId).toBe("g1-turn-99");
+    expect(mocks.summaries[70]?.turnId).toBe("g1-turn-70");
+  });
+
+  it("keeps provider ownership for resident events after their header leaves the LRU", () => {
+    mergeExternalReplayTurnWindow(
+      "codexapp-turn-state",
+      replayWindow("g1", 100, 99)
+    );
+    const residentWindow = replayWindow("g1", 100, 90);
+    for (let turnIndex = 98; turnIndex >= 70; turnIndex -= 1) {
+      mergeExternalReplayTurnWindow(
+        "codexapp-turn-state",
+        turnIndex === 90 ? residentWindow : replayWindow("g1", 100, turnIndex)
+      );
+    }
+
+    expect(Object.keys(mocks.summaries)).not.toContain("90");
+    expect(
+      buildExternalReplayTurnIndexByEventId(
+        residentWindow.events,
+        mocks.summaries
+      )
+    ).toEqual(new Map([["g1-turn-90", 90]]));
   });
 
   it("releases the compact summary window when the foreground session leaves", () => {

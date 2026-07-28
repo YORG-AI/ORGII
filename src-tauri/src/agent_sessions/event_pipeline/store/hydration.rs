@@ -131,6 +131,25 @@ impl EventStore {
         self.sort_round_window_events_by_timeline();
     }
 
+    /// Merge an imported/managed replay page without invalidating the existing
+    /// renderer baseline.
+    ///
+    /// External replay already publishes the page through the ordinary
+    /// non-streaming snapshot delta, which contains the complete replacement
+    /// order plus only the changed event bodies. Forcing a full derived
+    /// snapshot here would deep-clone the entire resident transcript on every
+    /// continuous-scroll window. Native SDE pagination keeps using
+    /// `merge_round_window_events` and its established full-baseline behavior.
+    pub fn merge_external_replay_window_events(
+        &mut self,
+        incoming: Vec<crate::agent_sessions::event_pipeline::types::SessionEvent>,
+    ) {
+        let loaded_turn_ids = loaded_turn_ids_from_events(&incoming);
+        self.remove_turn_placeholders_for_turns(&loaded_turn_ids);
+        self.merge_events_with_hydration(incoming, false);
+        self.sort_external_replay_events_by_timeline();
+    }
+
     pub(super) fn merge_events_with_hydration(
         &mut self,
         incoming: Vec<crate::agent_sessions::event_pipeline::types::SessionEvent>,
@@ -307,6 +326,14 @@ impl EventStore {
     }
 
     pub(super) fn sort_round_window_events_by_timeline(&mut self) {
+        self.sort_external_replay_events_by_timeline();
+        // Incremental streaming order patches describe only changed ids.
+        // Native round-window hydration historically publishes a full
+        // baseline after reordering; preserve that native SDE contract.
+        self.last_full_snapshot_version = 0;
+    }
+
+    fn sort_external_replay_events_by_timeline(&mut self) {
         self.events.sort_by(|left, right| {
             left.created_at
                 .cmp(&right.created_at)
@@ -316,9 +343,5 @@ impl EventStore {
                 .then_with(|| left.id.cmp(&right.id))
         });
         self.rebuild_indexes();
-        // Incremental streaming order patches describe only changed ids.
-        // A round-window merge may move untouched historical ids as well, so
-        // the next notification must replace the normalized baseline once.
-        self.last_full_snapshot_version = 0;
     }
 }

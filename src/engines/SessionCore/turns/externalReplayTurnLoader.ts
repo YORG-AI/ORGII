@@ -35,10 +35,19 @@ const EXTERNAL_REPLAY_TURN_SLICE_LIMITS = {
 } as const;
 const EXTERNAL_REPLAY_SCROLL_WINDOW_LIMITS = {
   maxTurns: 10,
-  maxEvents: 200,
+  // Prepending a near-4 MiB, 200-event window can monopolize React and
+  // Virtuoso even though the wire payload itself is valid. A user gesture may
+  // still advance through several windows; keeping each commit smaller lets
+  // the viewport paint and preserve its anchor between them.
+  maxEvents: 64,
   maxIpcBytes: 4 * 1024 * 1024,
 } as const;
 const REPLAY_SNAPSHOT_VISIBLE_TIMEOUT_MS = 5_000;
+
+export interface ExternalReplayBackfillProgress {
+  ipcBytes: number;
+  progressed: boolean;
+}
 
 function snapshotContainsEventIds(
   snapshot: Snapshot | null,
@@ -242,21 +251,27 @@ async function loadExternalReplaySelection(
  */
 export async function loadPreviousExternalReplayWindow(
   sessionId: string
-): Promise<boolean> {
-  if (!resolveExternalReplayTarget(sessionId)) return false;
+): Promise<ExternalReplayBackfillProgress> {
+  if (!resolveExternalReplayTarget(sessionId)) {
+    return { ipcBytes: 0, progressed: false };
+  }
   const beforeSequence = previousExternalReplayWindowStart(sessionId);
-  if (beforeSequence === null) return false;
+  if (beforeSequence === null) {
+    return { ipcBytes: 0, progressed: false };
+  }
   const window = await loadExternalReplaySelection(
     sessionId,
     { beforeSequence },
     `${sessionId}:before:${beforeSequence}`,
     EXTERNAL_REPLAY_SCROLL_WINDOW_LIMITS
   );
-  return (
-    window?.windowStartSequence !== null &&
-    window?.windowStartSequence !== undefined &&
-    window.windowStartSequence < beforeSequence
-  );
+  return {
+    ipcBytes: window?.stats.ipcBytes ?? 0,
+    progressed:
+      window?.windowStartSequence !== null &&
+      window?.windowStartSequence !== undefined &&
+      window.windowStartSequence < beforeSequence,
+  };
 }
 
 /** Continue the unread prefix of one selected paginated replay turn. */

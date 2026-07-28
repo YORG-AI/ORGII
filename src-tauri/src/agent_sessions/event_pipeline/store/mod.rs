@@ -16,6 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::agent_sessions::event_pipeline::json_size::serialized_json_bytes;
 use crate::agent_sessions::event_pipeline::types::{
     SessionEvent, ShellReplayState, ShellReplayStatus,
 };
@@ -567,9 +568,8 @@ impl EventStore {
         let mut retained_bytes = 2_usize; // `[]`
         let mut keep_from = self.events.len();
         for (index, event) in self.events.iter().enumerate().rev() {
-            let event_bytes = serde_json::to_vec(event)
-                .map_err(|error| format!("serialize external replay store event: {error}"))?
-                .len();
+            let event_bytes = serialized_json_bytes(event)
+                .map_err(|error| format!("serialize external replay store event: {error}"))?;
             let separator = usize::from(keep_from < self.events.len());
             if retained_bytes
                 .saturating_add(separator)
@@ -604,8 +604,7 @@ impl EventStore {
             self.rebuild_indexes();
         }
 
-        serde_json::to_vec(&self.events)
-            .map(|bytes| bytes.len())
+        serialized_json_bytes(&self.events)
             .map_err(|error| format!("serialize capped external replay store: {error}"))
     }
 
@@ -630,8 +629,7 @@ impl EventStore {
             .events
             .iter()
             .map(|event| {
-                serde_json::to_vec(event)
-                    .map(|bytes| bytes.len())
+                serialized_json_bytes(event)
                     .map_err(|error| format!("serialize external replay store event: {error}"))
             })
             .collect::<Result<Vec<_>, _>>()?;
@@ -719,9 +717,32 @@ impl EventStore {
         }
         self.rebuild_indexes();
 
-        serde_json::to_vec(&self.events)
-            .map(|bytes| bytes.len())
+        serialized_json_bytes(&self.events)
             .map_err(|error| format!("serialize capped external replay store: {error}"))
+    }
+
+    /// Keep the provider user row that owns the current visible replay body.
+    ///
+    /// Live polling follows the newest provider cursor even while the user is
+    /// reading an older random-access Round. Preserving the first resident
+    /// user row prevents the subsequent newest-suffix cap from detaching that
+    /// body. The remaining policy is identical to the ordinary preserving
+    /// cap, including the hard byte ceiling and newest-tail preference.
+    pub fn cap_external_replay_bytes_preserving_current_user_anchor(
+        &mut self,
+        max_bytes: usize,
+    ) -> Result<usize, String> {
+        let Some(anchor_id) = self
+            .events
+            .iter()
+            .find(|event| {
+                event.source == crate::agent_sessions::event_pipeline::types::EventSource::User
+            })
+            .map(|event| event.id.clone())
+        else {
+            return self.cap_external_replay_bytes(max_bytes);
+        };
+        self.cap_external_replay_bytes_preserving(max_bytes, &HashSet::from([anchor_id]))
     }
 
     pub(super) fn stamp_repo(&self, event: &mut SessionEvent) {

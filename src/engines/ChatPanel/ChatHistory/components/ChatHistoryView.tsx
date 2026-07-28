@@ -209,6 +209,10 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     () => isExploringRef.current ?? false,
     [isExploringRef]
   );
+  const displayReplayTurnIndices = useMemo(
+    () => displayGroupMeta.map((meta) => meta.replayTurnIndex),
+    [displayGroupMeta]
+  );
   const renderGroupHeader = useGroupHeaderRenderer({
     displaySourceGroupIndices,
     sourceGroupCount: groupCounts.length,
@@ -363,6 +367,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
               !turnPageListOpen &&
               !agentOrgOverviewOpen && (
                 <ConversationMinimap
+                  sessionId={activeId}
+                  pages={pages}
                   groupHeaders={displayGroupHeaders}
                   groupMeta={displayGroupMeta}
                   groupCounts={displayGroupCounts}
@@ -374,6 +380,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                   isScrolling={conversationMinimapScrolling}
                   labelVariant={groupChatEnabled ? "agents" : "agent"}
                   onNavigate={handleConversationMinimapNavigate}
+                  onReplayNavigate={handleConversationHistorySelect}
                   onHistoryToggle={handleConversationHistoryToggle}
                 />
               )}
@@ -449,6 +456,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       flatItems={displayFlatItems}
                       groupKeys={displayGroupKeys}
                       groupCounts={displayGroupCounts}
+                      replayTurnIndices={displayReplayTurnIndices}
                       turnIds={displayTurnIds}
                       totalFlatItems={displayTotalFlatItems}
                       lastAssistantFlatIndexPerItem={

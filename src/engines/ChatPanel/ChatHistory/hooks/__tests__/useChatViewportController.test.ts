@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createHistoryStartBackfillGate } from "../useChatViewportController";
+import {
+  HISTORY_START_MAX_USER_IPC_BYTES,
+  createHistoryStartBackfillGate,
+  shouldForwardHistoryStartSignal,
+} from "../useChatViewportController";
 
 function deferred<T = void>(): {
   promise: Promise<T>;
@@ -22,6 +26,12 @@ async function flushPromises(): Promise<void> {
 }
 
 describe("createHistoryStartBackfillGate", () => {
+  it("requires explicit upward-wheel demand after a paginated Round switch", () => {
+    expect(shouldForwardHistoryStartSignal(true, "scroll")).toBe(false);
+    expect(shouldForwardHistoryStartSignal(true, "wheel")).toBe(true);
+    expect(shouldForwardHistoryStartSignal(false, "scroll")).toBe(true);
+  });
+
   it("shares one coordinator between bootstrap and rapid user scroll-back", async () => {
     const bootstrap = deferred();
     const userContinuation = deferred<boolean>();
@@ -44,6 +54,38 @@ describe("createHistoryStartBackfillGate", () => {
     userContinuation.resolve(false);
     await flushPromises();
     expect(loadPrevious).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains capped trackpad momentum that arrives during bootstrap", async () => {
+    const bootstrap = deferred<boolean>();
+    const userWindows = Array.from({ length: 12 }, () => deferred<boolean>());
+    const loadPrevious = vi
+      .fn<() => Promise<boolean | void>>()
+      .mockReturnValueOnce(bootstrap.promise);
+    userWindows.forEach((window) => {
+      loadPrevious.mockReturnValueOnce(window.promise);
+    });
+    const gate = createHistoryStartBackfillGate(loadPrevious);
+
+    const bootstrapLoad = gate.bootstrap();
+    for (let index = 0; index < 20; index += 1) {
+      gate.signal({ atStart: true, source: "wheel" });
+    }
+    expect(loadPrevious).toHaveBeenCalledTimes(1);
+
+    bootstrap.resolve(true);
+    await bootstrapLoad;
+    await flushPromises();
+    expect(loadPrevious).toHaveBeenCalledTimes(2);
+
+    for (let index = 0; index < userWindows.length; index += 1) {
+      userWindows[index].resolve(true);
+      await flushPromises();
+      expect(loadPrevious).toHaveBeenCalledTimes(
+        Math.min(index + 3, userWindows.length + 1)
+      );
+    }
+    expect(loadPrevious).toHaveBeenCalledTimes(13);
   });
 
   it("runs at most one bootstrap per replay episode", async () => {
@@ -108,45 +150,77 @@ describe("createHistoryStartBackfillGate", () => {
     expect(loadPrevious).not.toHaveBeenCalled();
   });
 
-  it("coalesces one rapid wheel gesture into four sequential bounded reads", async () => {
-    const first = deferred<boolean>();
-    const second = deferred<boolean>();
-    const third = deferred<boolean>();
-    const fourth = deferred<boolean>();
-    const loadPrevious = vi
-      .fn<() => Promise<boolean | void>>()
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise)
-      .mockReturnValueOnce(third.promise)
-      .mockReturnValueOnce(fourth.promise);
+  it("retains rapid wheel demand up to the bounded burst cap", async () => {
+    const windows = Array.from({ length: 12 }, () => deferred<boolean>());
+    const loadPrevious = vi.fn<() => Promise<boolean | void>>();
+    windows.forEach((window) => {
+      loadPrevious.mockReturnValueOnce(window.promise);
+    });
     const gate = createHistoryStartBackfillGate(loadPrevious);
 
-    // Reaching the physical top starts one bounded read. Further wheel ticks
-    // from the same trackpad gesture cannot start concurrent work or multiply
-    // the fixed user-burst budget.
+    // Reaching the near-start runway starts the baseline bounded burst.
+    // Trackpad momentum arriving while reads are in flight extends the same
+    // serialized burst instead of disappearing.
     gate.signal({ atStart: true, source: "scroll" });
-    gate.signal({ atStart: true, source: "wheel" });
-    gate.signal({ atStart: true, source: "wheel" });
+    for (let index = 0; index < 20; index += 1) {
+      gate.signal({ atStart: true, source: "wheel" });
+    }
     // Prepending preserves the visible anchor and therefore emits a non-top
     // scroll measurement. Geometry alone must not cancel the active burst.
     gate.signal({ atStart: false, source: "scroll" });
     expect(loadPrevious).toHaveBeenCalledTimes(1);
 
-    first.resolve(true);
+    for (let index = 0; index < windows.length; index += 1) {
+      windows[index].resolve(true);
+      await flushPromises();
+      expect(loadPrevious).toHaveBeenCalledTimes(
+        Math.min(index + 2, windows.length)
+      );
+    }
+    expect(loadPrevious).toHaveBeenCalledTimes(12);
+  });
+
+  it("stops a momentum burst when its cumulative IPC budget is exhausted", async () => {
+    const perWindowBytes = HISTORY_START_MAX_USER_IPC_BYTES / 4;
+    const loadPrevious = vi.fn().mockResolvedValue({
+      ipcBytes: perWindowBytes,
+      progressed: true,
+    });
+    const gate = createHistoryStartBackfillGate(loadPrevious);
+
+    gate.signal({ atStart: true, source: "scroll" });
+    for (let index = 0; index < 20; index += 1) {
+      gate.signal({ atStart: true, source: "wheel" });
+    }
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+    await flushPromises();
+
+    expect(loadPrevious).toHaveBeenCalledTimes(4);
+  });
+
+  it("waits for each window lifecycle before requesting the next one", async () => {
+    const firstLayout = deferred();
+    const secondLayout = deferred();
+    const loadPrevious = vi.fn().mockResolvedValue(true);
+    const gate = createHistoryStartBackfillGate(loadPrevious, {
+      onWindowLoaded: vi
+        .fn()
+        .mockReturnValueOnce(firstLayout.promise)
+        .mockReturnValueOnce(secondLayout.promise)
+        .mockResolvedValue(undefined),
+    });
+
+    gate.signal({ atStart: true, source: "scroll" });
+    await flushPromises();
+    expect(loadPrevious).toHaveBeenCalledTimes(1);
+
+    firstLayout.resolve();
     await flushPromises();
     expect(loadPrevious).toHaveBeenCalledTimes(2);
 
-    second.resolve(true);
-    await flushPromises();
-    expect(loadPrevious).toHaveBeenCalledTimes(3);
-
-    third.resolve(true);
-    await flushPromises();
-    expect(loadPrevious).toHaveBeenCalledTimes(4);
-
-    fourth.resolve(true);
-    await flushPromises();
-    expect(loadPrevious).toHaveBeenCalledTimes(4);
+    secondLayout.resolve();
   });
 
   it("cancels queued intent when a positive wheel reverses direction", async () => {

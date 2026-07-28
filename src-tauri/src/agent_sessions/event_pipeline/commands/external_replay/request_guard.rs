@@ -192,7 +192,9 @@ fn apply_prewarm_replay_window_if_current(
     apply_prewarm_store_if_current(state, session_id, episode_id, request_token, |store| {
         match publish {
             ReplayWindowPublish::Replace => store.set_external_replay_window(events.to_vec()),
-            ReplayWindowPublish::Merge => store.merge_round_window_events(events.to_vec()),
+            ReplayWindowPublish::Merge => {
+                store.merge_external_replay_window_events(events.to_vec())
+            }
         }
     })
     .is_some()
@@ -254,7 +256,7 @@ pub(super) fn apply_foreground_window_if_current(
             store.set_external_replay_window(events.to_vec());
             current.published_generation = Some(generation.to_string());
         }
-        ReplayWindowPublish::Merge => store.merge_round_window_events(events.to_vec()),
+        ReplayWindowPublish::Merge => store.merge_external_replay_window_events(events.to_vec()),
     }
     true
 }

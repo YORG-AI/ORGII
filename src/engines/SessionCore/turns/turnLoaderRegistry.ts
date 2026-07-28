@@ -5,7 +5,6 @@ import {
   captureLoadedTurnRegistryGeneration,
   getPendingTurnLoad,
   markTurnBodyLoaded,
-  replaceTurnBodyLoaded,
   trackPendingTurnLoad,
 } from "./loadedTurnRegistry";
 import { ownDbTurnLoader } from "./ownDbTurnLoader";
@@ -28,16 +27,9 @@ export async function loadSessionTurnBodyIntoStore(
   }
 
   const loader = getSessionTurnLoader(args.sessionId);
-  const replacesResidentBody = Boolean(
-    resolveExternalReplayTarget(args.sessionId)
-  );
   const generation = captureLoadedTurnRegistryGeneration(args.sessionId);
   const load = loader.loadTurnBodyIntoStore(args).then(() => {
-    if (replacesResidentBody) {
-      replaceTurnBodyLoaded(args.sessionId, args.turnId, generation);
-    } else {
-      markTurnBodyLoaded(args.sessionId, args.turnId, generation);
-    }
+    markTurnBodyLoaded(args.sessionId, args.turnId, generation);
   });
   await trackPendingTurnLoad(args.sessionId, args.turnId, load);
 }

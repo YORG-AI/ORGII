@@ -5,7 +5,6 @@ import {
   clearLoadedTurnRegistry,
   getLoadedTurnRegistryStats,
   markTurnBodyLoaded,
-  replaceTurnBodyLoaded,
 } from "./loadedTurnRegistry";
 
 describe("loadedTurnRegistry lifecycle", () => {
@@ -42,16 +41,15 @@ describe("loadedTurnRegistry lifecycle", () => {
     });
   });
 
-  it("replaces bounded random-access bookkeeping with the current turn", () => {
+  it("keeps random-access bookkeeping until the bounded LRU prunes it", () => {
     const generation = captureLoadedTurnRegistryGeneration("session-a");
     markTurnBodyLoaded("session-a", "turn-1", generation);
     markTurnBodyLoaded("session-a", "turn-2", generation);
-
-    replaceTurnBodyLoaded("session-a", "turn-3", generation);
+    markTurnBodyLoaded("session-a", "turn-3", generation);
 
     expect(getLoadedTurnRegistryStats()).toMatchObject({
       sessions: 1,
-      loadedTurns: 1,
+      loadedTurns: 3,
     });
   });
 });

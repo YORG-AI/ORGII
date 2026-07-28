@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::agent_sessions::event_pipeline::json_size::serialized_json_bytes;
+
 const NORMALIZED_REPLAY_STORAGE_BUDGET_DIVISOR: usize = 2;
 
 /// Reserve room for the `ActivityChunk -> SessionEvent` projection.
@@ -75,18 +77,18 @@ pub(super) fn refresh_window_wire_bytes(
     let mut candidate = 0_u64;
     for _ in 0..8 {
         response.stats.ipc_bytes = candidate;
-        let measured = serde_json::to_vec(response)
+        let measured = serialized_json_bytes(response)
             .map_err(|error| format!("serialize bounded replay window: {error}"))?
-            .len() as u64;
+            as u64;
         if measured == candidate {
             return Ok(measured as usize);
         }
         candidate = measured;
     }
     response.stats.ipc_bytes = candidate;
-    let measured = serde_json::to_vec(response)
+    let measured = serialized_json_bytes(response)
         .map_err(|error| format!("serialize bounded replay window: {error}"))?
-        .len() as u64;
+        as u64;
     response.stats.ipc_bytes = measured;
     Ok(measured as usize)
 }
@@ -97,18 +99,18 @@ pub(super) fn refresh_delta_wire_bytes(
     let mut candidate = 0_u64;
     for _ in 0..8 {
         response.stats.ipc_bytes = candidate;
-        let measured = serde_json::to_vec(response)
+        let measured = serialized_json_bytes(response)
             .map_err(|error| format!("serialize bounded replay delta: {error}"))?
-            .len() as u64;
+            as u64;
         if measured == candidate {
             return Ok(measured as usize);
         }
         candidate = measured;
     }
     response.stats.ipc_bytes = candidate;
-    let measured = serde_json::to_vec(response)
+    let measured = serialized_json_bytes(response)
         .map_err(|error| format!("serialize bounded replay delta: {error}"))?
-        .len() as u64;
+        as u64;
     response.stats.ipc_bytes = measured;
     Ok(measured as usize)
 }
@@ -145,19 +147,13 @@ pub(super) fn normalize_indexed_chunks(
     replay_source_id: &str,
     replay_generation: &str,
 ) -> (Vec<SessionEvent>, u64) {
-    let payloads = indexed
-        .iter()
-        .map(|indexed| {
-            (
-                indexed.chunk.chunk_id.clone(),
-                (indexed.chunk.chunk_id.clone(), indexed.payloads.clone()),
-            )
-        })
-        .collect::<HashMap<_, _>>();
-    let raw = indexed
-        .into_iter()
-        .map(|indexed| activity_to_raw(indexed.chunk))
-        .collect::<Vec<_>>();
+    let mut payloads = HashMap::with_capacity(indexed.len());
+    let mut raw = Vec::with_capacity(indexed.len());
+    for indexed in indexed {
+        let source_event_id = indexed.chunk.chunk_id.clone();
+        payloads.insert(source_event_id.clone(), (source_event_id, indexed.payloads));
+        raw.push(activity_to_raw(indexed.chunk));
+    }
     let mut events = ingestion::ingest_raw_chunks(&raw, session_id).events;
     for event in &mut events {
         let source_payloads = event
@@ -188,7 +184,7 @@ pub(super) fn normalize_indexed_chunks(
             });
         }
     }
-    let ipc_bytes = serde_json::to_vec(&events).map_or(0, |bytes| bytes.len()) as u64;
+    let ipc_bytes = serialized_json_bytes(&events).unwrap_or(0) as u64;
     (events, ipc_bytes)
 }
 

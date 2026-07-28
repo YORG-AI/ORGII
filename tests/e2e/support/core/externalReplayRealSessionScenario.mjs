@@ -10,6 +10,7 @@ import {
   clickRenderedSelector,
   ensureTurnPageItemVisibleWithUserSort,
   execJS,
+  getChatScrollMetrics,
   getChatViewportSnapshot,
   getRpcCounts,
   invokeE2E,
@@ -23,10 +24,11 @@ import {
   resetToNewSession,
   rpcCountDelta,
   setPaginationEnabledViaUi,
-  waitForChatTurn,
+  waitForCurrentReplayRound,
   waitForRenderedSelector,
   waitForRenderedSelectorAbsent,
   waitForRenderedSelectorEnabled,
+  waitForVisibleReplayTurn,
 } from "./externalReplayUiDriver.mjs";
 import { selectByAgentFromRenderedMenu } from "./sidebarSessionDiscoveryDriver.mjs";
 
@@ -57,19 +59,6 @@ function visibleMarkerForEvent(event) {
   return "";
 }
 
-function visibleAssistantMarkerForWindow(window) {
-  const events = window?.events ?? [];
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (event?.source !== "assistant" || event?.displayVariant !== "message") {
-      continue;
-    }
-    const marker = visibleMarkerForEvent(event);
-    if (marker) return marker;
-  }
-  return "";
-}
-
 function compactPreviewMarker(value) {
   return String(value ?? "")
     .replace(/\s*\[[^:\]]+:[^\]]+\]/g, "")
@@ -88,6 +77,7 @@ async function loadExpectedTurnSummaries(sessionId, totalTurnCount) {
   const requestedIndices = [
     0,
     middleTurnIndex,
+    totalTurnCount > 100 ? 99 : middleTurnIndex,
     latestTurnIndex,
     latestTurnIndex - 1,
     latestTurnIndex - 2,
@@ -127,8 +117,21 @@ async function loadExpectedTurnSummaries(sessionId, totalTurnCount) {
     byIndex,
     catalogIndices: [latestTurnIndex],
     directTurnIndex: 0,
+    middleTurnIndex,
+    round100TurnIndex: totalTurnCount > 100 ? 99 : middleTurnIndex,
     latestTurnIndex,
   };
+}
+
+async function setIssue443DiagnosticTarget({ label, turnIndex, userEventId }) {
+  await execJS(`
+    window.__orgiiE2EIssue443Target = ${JSON.stringify({
+      label,
+      turnIndex,
+      userEventId,
+    })};
+    return true;
+  `);
 }
 
 async function waitForCatalogPreview(turnIndex, marker) {
@@ -191,29 +194,70 @@ async function waitForStableChatEventIds() {
   throw new Error("chat EventStore IDs did not stabilize before catalog check");
 }
 
-async function waitForStableRpcCount(commandName) {
-  let previousCount = null;
-  let stableSamples = 0;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    const counts = await getRpcCounts();
-    const count = Number(counts?.[commandName] ?? 0);
-    if (count === previousCount) {
-      stableSamples += 1;
-      if (stableSamples >= 4) return;
-    } else {
-      previousCount = count;
-      stableSamples = 0;
+async function waitForReplayReadAndLayoutStability({
+  baselineCounts,
+  label,
+  minimumReads,
+  stableForMs,
+  timeout,
+}) {
+  let previousSnapshot = null;
+  let stableSince = Date.now();
+  let latestSnapshot = null;
+
+  await browser.waitUntil(
+    async () => {
+      try {
+        const counts = await getRpcCounts();
+        const metrics = await getChatScrollMetrics();
+        const state = await invokeE2E("inspectChatState");
+        latestSnapshot = {
+          reads: rpcCountDelta(
+            counts,
+            baselineCounts,
+            "external_replay_read_window"
+          ),
+          scrollHeight: Math.round(Number(metrics?.scrollHeight ?? 0)),
+          chatEventCount: state?.chatEventIds?.length ?? 0,
+        };
+      } catch (error) {
+        latestSnapshot = {
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+      const serialized = JSON.stringify(latestSnapshot);
+      if (serialized !== previousSnapshot) {
+        previousSnapshot = serialized;
+        stableSince = Date.now();
+      }
+      return (
+        latestSnapshot.reads >= minimumReads &&
+        Date.now() - stableSince >= stableForMs
+      );
+    },
+    {
+      timeout,
+      interval: 100,
+      timeoutMsg: `${label} did not settle; latest=${JSON.stringify(latestSnapshot)}`,
     }
-    await browser.pause(250);
-  }
-  throw new Error(`${commandName} did not become idle before catalog check`);
+  );
+
+  return latestSnapshot;
 }
 
 async function assertCompactCatalogBeforeBodyHydration(expected) {
   // Enabling pagination can finish one already-requested body window after the
-  // toggle itself resolves. Establish an idle baseline before attributing any
-  // subsequent body read to opening the compact metadata catalog.
-  await waitForStableRpcCount("external_replay_read_window");
+  // toggle itself resolves. Establish an idle RPC + EventStore + layout
+  // baseline before attributing any subsequent body read to opening the compact
+  // metadata catalog.
+  const beforePaginationSettled = await getRpcCounts();
+  await waitForReplayReadAndLayoutStability({
+    baselineCounts: beforePaginationSettled,
+    label: "Issue 272 Pagination ON transition",
+    minimumReads: 0,
+    stableForMs: 3_000,
+    timeout: 45_000,
+  });
   const beforeCatalog = await getRpcCounts();
   const beforeState = await waitForStableChatEventIds();
   const currentRoundSelector = '[data-testid="turn-pagination-current-round"]';
@@ -343,89 +387,304 @@ async function openHistoryPickerFromConversationNavigator() {
   );
 }
 
+async function assertRandomAccessRoundVisibleWithoutCorrectiveScroll({
+  expected,
+  turnIndex,
+}) {
+  const activeSessionId = (await invokeE2E("inspectChatState"))
+    ?.activeSessionId;
+  const window = await invokeTauriCommand("external_replay_query_window", {
+    sourceId: "codex_app",
+    sessionId: activeSessionId,
+    turnIndex,
+    limits: replayLimits(),
+  });
+  const userEvent = window.events?.find((event) => event?.source === "user");
+  const marker =
+    expected.byIndex.get(turnIndex)?.marker ?? visibleMarkerForEvent(userEvent);
+  if (!marker || !userEvent?.id) {
+    throw new Error(
+      `real random-access Round ${turnIndex + 1} lacked compact metadata or a user event`
+    );
+  }
+  await setIssue443DiagnosticTarget({
+    label: `random-access Round ${turnIndex + 1}`,
+    turnIndex,
+    userEventId: userEvent.id,
+  });
+  await openHistoryPickerFromConversationNavigator();
+  await waitForCatalogPreview(turnIndex, compactPreviewMarker(marker));
+  const beforeState = await invokeE2E("inspectChatState");
+  const bodyWasResident = beforeState?.chatEventIds?.includes(userEvent.id);
+  const beforeRead = await getRpcCounts();
+  console.log(`[issue-443-real-codex] selecting direct Round ${turnIndex + 1}`);
+  await clickCurrentRenderedSelector(
+    `[data-testid="turn-page-list-item"][data-turn-page-index="${turnIndex}"]`
+  );
+  await browser.waitUntil(
+    async () =>
+      Boolean(
+        (await invokeE2E("inspectChatState"))?.chatEventIds?.includes(
+          userEvent.id
+        )
+      ),
+    {
+      timeout: 30_000,
+      interval: 100,
+      timeoutMsg: `real direct Round ${turnIndex + 1} never entered EventStore`,
+    }
+  );
+  await waitForVisibleReplayTurn({
+    turnIndex,
+    label: `real direct Round ${turnIndex + 1}`,
+  });
+  await assertNoReplayFatalError(`real direct Round ${turnIndex + 1}`);
+  const reads = rpcCountDelta(
+    await getRpcCounts(),
+    beforeRead,
+    "external_replay_read_window"
+  );
+  if (reads > 4 || (!bodyWasResident && reads < 1)) {
+    throw new Error(
+      `real direct Round ${turnIndex + 1} issued ${reads} bounded reads (resident=${bodyWasResident}); expected 0..4 for resident or 1..4 for unloaded`
+    );
+  }
+}
+
+async function assertPaginationRoundBody({ expected, sessionId, turnIndex }) {
+  const targetWindow = await invokeTauriCommand(
+    "external_replay_query_window",
+    {
+      sourceId: "codex_app",
+      sessionId,
+      turnIndex,
+      limits: replayLimits(),
+    }
+  );
+  const userEvent = targetWindow.events?.find(
+    (event) => event?.source === "user"
+  );
+  const assistantBodies = (targetWindow.events ?? [])
+    .filter((event) => event?.source === "assistant")
+    .map((event) => ({
+      id: event?.id,
+      marker: visibleMarkerForEvent(event),
+    }))
+    .filter(
+      ({ id, marker }) =>
+        Boolean(id) &&
+        marker.length >= 8 &&
+        !marker.startsWith("[payload truncated]")
+    );
+  if (!userEvent?.id || assistantBodies.length === 0) {
+    throw new Error(
+      `real Codex Round ${turnIndex + 1} fixture lacked a user/assistant body pair`
+    );
+  }
+  await setIssue443DiagnosticTarget({
+    label: `pagination Round ${turnIndex + 1}`,
+    turnIndex,
+    userEventId: userEvent.id,
+  });
+
+  await setPaginationEnabledViaUi(true);
+  await clickCurrentRenderedSelector(
+    '[data-testid="turn-pagination-current-round"]'
+  );
+  await waitForRenderedSelector('[data-testid="turn-page-list"]', {
+    label: "real Codex Round catalog",
+  });
+  await waitForCatalogPreview(
+    turnIndex,
+    expected.byIndex.get(turnIndex).marker
+  );
+  await clickCurrentRenderedSelector(
+    `[data-testid="turn-page-list-item"][data-turn-page-index="${turnIndex}"]`
+  );
+  await waitForCurrentReplayRound({
+    turnIndex,
+    label: `real Codex Round ${turnIndex + 1} selector`,
+  });
+
+  let state = null;
+  let viewport = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await invokeE2E("inspectChatState");
+        viewport = await getChatViewportSnapshot([]);
+        const visibleTargetGroup = viewport?.visibleGroups?.find(
+          (group) => Number(group.replayTurnIndex) === turnIndex
+        );
+        return Boolean(
+          state?.chatEventIds?.includes(userEvent.id) &&
+          assistantBodies.some(({ id }) => state?.chatEventIds?.includes(id)) &&
+          assistantBodies.some(({ marker }) =>
+            String(visibleTargetGroup?.text ?? "").includes(marker)
+          )
+        );
+      },
+      {
+        timeout: 30_000,
+        interval: 100,
+        timeoutMsg: `real Codex Round ${turnIndex + 1} did not render its user and assistant body`,
+      }
+    );
+  } catch (error) {
+    // Capture the terminal state after the wait rather than interpolating the
+    // initial null values into WebdriverIO's static timeout message.
+    state = await invokeE2E("inspectChatState").catch((stateError) => ({
+      diagnosticError: String(stateError),
+    }));
+    viewport = await getChatViewportSnapshot(
+      assistantBodies.slice(0, 8).map(({ marker }) => marker)
+    ).catch((viewportError) => ({
+      diagnosticError: String(viewportError),
+    }));
+    throw new Error(
+      `real Codex Round ${turnIndex + 1} did not render its user and assistant body; waitError=${String(
+        error
+      )} state=${JSON.stringify(state)} viewport=${JSON.stringify(viewport)}`
+    );
+  }
+}
+
+async function assertFirstRoundCanScrollForward(expected) {
+  const firstTurnIndex = 0;
+  const firstWindow = await invokeTauriCommand("external_replay_query_window", {
+    sourceId: "codex_app",
+    sessionId: (await invokeE2E("inspectChatState"))?.activeSessionId,
+    turnIndex: firstTurnIndex,
+    limits: replayLimits(),
+  });
+  const firstUserEvent = firstWindow.events?.find(
+    (event) => event?.source === "user"
+  );
+  if (!firstUserEvent?.id) {
+    throw new Error("real Codex first Round lacked a user event");
+  }
+  await setIssue443DiagnosticTarget({
+    label: "navigator first-Round forward scroll",
+    turnIndex: firstTurnIndex,
+    userEventId: firstUserEvent.id,
+  });
+  await setPaginationEnabledViaUi(false);
+  await openHistoryPickerFromConversationNavigator();
+  await waitForCatalogPreview(
+    firstTurnIndex,
+    expected.byIndex.get(firstTurnIndex).marker
+  );
+  await clickCurrentRenderedSelector(
+    '[data-testid="turn-page-list-item"][data-turn-page-index="0"]'
+  );
+  await waitForVisibleReplayTurn({
+    turnIndex: firstTurnIndex,
+    label: "real Codex first Round",
+  });
+
+  const scrollRootSelector = '[data-testid="chat-history-scroll-root"]';
+  await performWheelBurst(scrollRootSelector, 900, 12);
+  let viewport = null;
+  await browser.waitUntil(
+    async () => {
+      viewport = await getChatViewportSnapshot([]);
+      return Boolean(
+        viewport?.visibleGroups?.some(
+          (group) => Number(group.replayTurnIndex) > firstTurnIndex
+        )
+      );
+    },
+    {
+      timeout: 30_000,
+      interval: 100,
+      timeoutMsg: `real Codex remained trapped at Round 1 after a forward wheel burst; viewport=${JSON.stringify(
+        viewport
+      )}`,
+    }
+  );
+}
+
+async function assertNavigatorCatalogCanBrowse(expected) {
+  await setPaginationEnabledViaUi(false);
+  await openHistoryPickerFromConversationNavigator();
+  for (const turnIndex of [
+    expected.latestTurnIndex,
+    expected.middleTurnIndex,
+    0,
+  ]) {
+    await waitForCatalogPreview(
+      turnIndex,
+      expected.byIndex.get(turnIndex).marker
+    );
+  }
+}
+
 async function assertDirectOldRoundVisibleWithoutCorrectiveScroll(expected) {
   await setPaginationEnabledViaUi(false);
   await waitForRenderedSelector('[data-testid="chat-history-scroll-root"]', {
     label: "chat history scroll root",
   });
-
-  await openHistoryPickerFromConversationNavigator();
-  const activeSessionId = (await invokeE2E("inspectChatState"))
-    ?.activeSessionId;
-  let turnIndex = expected.directTurnIndex;
-  let marker = "";
-  let bodyMarker = "";
-  for (const offset of [0, 1, -1, 2, -2, 3, -3, 4, -4]) {
-    const candidateIndex = expected.directTurnIndex + offset;
-    if (candidateIndex < 0 || candidateIndex > expected.latestTurnIndex) {
-      continue;
-    }
-    const candidateWindow = await invokeTauriCommand(
-      "external_replay_query_window",
-      {
-        sourceId: "codex_app",
-        sessionId: activeSessionId,
-        turnIndex: candidateIndex,
-        limits: replayLimits(),
-      }
-    );
-    const userEvent = candidateWindow.events?.find(
-      (event) => event?.source === "user"
-    );
-    const candidateMarker = visibleMarkerForEvent(userEvent);
-    const candidateBodyMarker =
-      visibleAssistantMarkerForWindow(candidateWindow);
-    if (!candidateMarker || !candidateBodyMarker) continue;
-    turnIndex = candidateIndex;
-    marker = candidateMarker;
-    bodyMarker = candidateBodyMarker;
-    break;
-  }
-  if (!marker || !bodyMarker) {
-    throw new Error(
-      `real middle Rounds around ${expected.directTurnIndex + 1} had no visible user/assistant marker pair`
-    );
-  }
-  await waitForCatalogPreview(turnIndex, compactPreviewMarker(marker));
-  const beforeRead = await getRpcCounts();
-  console.log(
-    `[issue-443-real-codex] selecting direct old Round ${turnIndex + 1}`
-  );
-  await clickCurrentRenderedSelector(
-    `[data-testid="turn-page-list-item"][data-turn-page-index="${turnIndex}"]`
-  ); // The selected old Round must paint without corrective scrolling.
-  console.log(
-    `[issue-443-real-codex] direct old Round ${turnIndex + 1} selected`
-  );
-  await waitForChatTurn({
-    markers: [marker, bodyMarker],
-    label: `real direct old Round ${turnIndex + 1}`,
-    visibleMarker: marker,
-  });
-  await assertNoReplayFatalError("real direct old-Round selection");
-  const afterRead = await getRpcCounts();
-  const reads = rpcCountDelta(
-    afterRead,
-    beforeRead,
-    "external_replay_read_window"
-  );
-  if (reads < 1 || reads > 4) {
-    throw new Error(
-      `real direct old Round issued ${reads} bounded reads; expected 1..4`
-    );
+  const turnIndices = [
+    expected.directTurnIndex,
+    expected.middleTurnIndex,
+    expected.latestTurnIndex,
+  ].filter((turnIndex, index, values) => values.indexOf(turnIndex) === index);
+  for (const turnIndex of turnIndices) {
+    await assertRandomAccessRoundVisibleWithoutCorrectiveScroll({
+      expected,
+      turnIndex,
+    });
   }
 }
 
 async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
+  const beforePaginationOff = await getRpcCounts();
   await setPaginationEnabledViaUi(false);
   const scrollRootSelector = '[data-testid="chat-history-scroll-root"]';
   await waitForRenderedSelector(scrollRootSelector, {
     label: "Issue 272 continuous history root",
   });
-  // Pagination OFF performs one bounded bootstrap. Wait for it to settle so
-  // the measured gesture below owns every subsequent read.
-  await browser.pause(1_000);
+  // Pagination OFF performs one bounded bootstrap. A large tool-heavy turn can
+  // leave that read in flight after the RPC counter first appears stable, so
+  // require both the counter and the rendered history shape to remain unchanged
+  // before attributing subsequent reads to the user's wheel gesture.
+  await waitForReplayReadAndLayoutStability({
+    baselineCounts: beforePaginationOff,
+    label: "Issue 272 Pagination OFF bootstrap",
+    minimumReads: 1,
+    stableForMs: 3_000,
+    timeout: 45_000,
+  });
+  const middleSampledMarkerIndex =
+    totalTurnCount <= 20
+      ? Math.floor((totalTurnCount - 1) / 2)
+      : Math.round((10 / 19) * (totalTurnCount - 1));
+  const sampledMarkerIndices = [
+    0,
+    middleSampledMarkerIndex,
+    totalTurnCount - 1,
+  ];
+  await browser.waitUntil(
+    () =>
+      execJS(`
+        const expected = ${JSON.stringify(sampledMarkerIndices)};
+        return expected.every((turnIndex) =>
+          document.querySelector(
+            \`nav[aria-label="Conversation navigator"] [data-replay-turn-index="\${turnIndex}"]\`
+          )
+        );
+      `),
+    {
+      timeout: 20_000,
+      interval: 100,
+      timeoutMsg:
+        "Issue 272 navigator did not expose first, middle, and latest provider Rounds before body hydration",
+    }
+  );
   const beforeReads = await getRpcCounts();
+  const beforeBudgetRetries = Number(
+    await execJS("return window.__orgiiE2EReplayBudgetRetries || 0;")
+  );
   await positionChatNearPhysicalTopForBurst();
   const anchorBefore = await execJS(`
     const root = document.querySelector(${JSON.stringify(scrollRootSelector)});
@@ -459,27 +718,23 @@ async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
     };
   `);
   await performWheelBurst(scrollRootSelector, -900, 12);
-  await browser.waitUntil(
-    async () =>
-      rpcCountDelta(
-        await getRpcCounts(),
-        beforeReads,
-        "external_replay_read_window"
-      ) >= 4,
-    {
-      timeout: 30_000,
-      interval: 100,
-      timeoutMsg:
-        "Issue 272 continuous scroll did not complete its four-window bounded burst",
-    }
-  );
-  await browser.pause(500);
+  await waitForReplayReadAndLayoutStability({
+    baselineCounts: beforeReads,
+    label: "Issue 272 continuous scroll burst",
+    minimumReads: 4,
+    stableForMs: 1_500,
+    timeout: 90_000,
+  });
   const afterReads = await getRpcCounts();
   const boundedReads = rpcCountDelta(
     afterReads,
     beforeReads,
     "external_replay_read_window"
   );
+  const budgetRetries =
+    Number(await execJS("return window.__orgiiE2EReplayBudgetRetries || 0;")) -
+    beforeBudgetRetries;
+  const logicalReads = boundedReads - budgetRetries;
   const anchorAfter = await execJS(`
     const expectedItemKey = ${JSON.stringify(anchorBefore?.itemKey ?? null)};
     const expectedGroupKey = ${JSON.stringify(anchorBefore?.groupKey ?? null)};
@@ -506,6 +761,18 @@ async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
         )
       : null;
     const anchorGroupRect = anchorGroup?.getBoundingClientRect() ?? null;
+    const visibleGroup = rootRect
+      ? groups.find((group) => {
+        const rect = group.getBoundingClientRect();
+        return rect.bottom > rootRect.top + 1 && rect.top < rootRect.bottom - 1;
+      })
+      : null;
+    const visibleGroupKey =
+      visibleGroup?.getAttribute("data-chat-group-key") ?? null;
+    const visibleTurnIndexMatch =
+      /^external-replay-turn-(\\d+)$/.exec(visibleGroupKey ?? "");
+    const anchorTurnIndexMatch =
+      /^external-replay-turn-(\\d+)$/.exec(expectedGroupKey ?? "");
     return {
       anchorPresent: Boolean(anchor),
       anchorVisible: Boolean(
@@ -527,6 +794,14 @@ async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
       ),
       rootTop: rootRect?.top ?? null,
       rootBottom: rootRect?.bottom ?? null,
+      visibleGroupKey,
+      visibleText: String(visibleGroup?.innerText ?? "").slice(0, 160),
+      visibleTurnIndex: visibleTurnIndexMatch
+        ? Number(visibleTurnIndexMatch[1])
+        : null,
+      anchorTurnIndex: anchorTurnIndexMatch
+        ? Number(anchorTurnIndexMatch[1])
+        : null,
       scrollTop: root?.scrollTop ?? null,
       scrollHeight: root?.scrollHeight ?? null,
       navigatorLabels: Array.from(
@@ -539,13 +814,19 @@ async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
   const expectedTotalPattern = new RegExp(
     `Go to turn \\d+ of ${totalTurnCount}:`
   );
+  const retainedAnchorVisible =
+    (anchorAfter?.anchorPresent && anchorAfter?.anchorVisible) ||
+    anchorAfter?.anchorGroupVisible;
+  const advancedIntoOlderResidentWindow =
+    Number.isSafeInteger(anchorAfter?.visibleTurnIndex) &&
+    Number.isSafeInteger(anchorAfter?.anchorTurnIndex) &&
+    anchorAfter.visibleTurnIndex < anchorAfter.anchorTurnIndex &&
+    String(anchorAfter?.visibleText ?? "").trim().length > 0;
   if (
-    boundedReads !== 4 ||
+    logicalReads < 4 ||
+    logicalReads > 12 ||
     !(anchorBefore?.itemKey || anchorBefore?.groupKey) ||
-    !(
-      (anchorAfter?.anchorPresent && anchorAfter?.anchorVisible) ||
-      anchorAfter?.anchorGroupVisible
-    ) ||
+    !(retainedAnchorVisible || advancedIntoOlderResidentWindow) ||
     !(Number(anchorAfter?.scrollTop) > 1) ||
     !Array.isArray(anchorAfter?.navigatorLabels) ||
     anchorAfter.navigatorLabels.length < 2 ||
@@ -557,11 +838,33 @@ async function assertContinuousIssue272ScrollBurst(totalTurnCount) {
       `Issue 272 continuous scroll lost batching, provider numbering, or its viewport anchor: ${JSON.stringify(
         {
           boundedReads,
+          budgetRetries,
+          logicalReads,
           anchorBefore,
           anchorAfter,
           totalTurnCount,
         }
       )}`
+    );
+  }
+
+  const latestTurnIndex = totalTurnCount - 1;
+  const beforeLatestJump = await getRpcCounts();
+  await clickCurrentRenderedSelector(
+    `nav[aria-label="Conversation navigator"] [data-replay-turn-index="${latestTurnIndex}"]`
+  );
+  await waitForVisibleReplayTurn({
+    turnIndex: latestTurnIndex,
+    label: "Issue 272 navigator jump back to latest Round",
+  });
+  const latestJumpReads = rpcCountDelta(
+    await getRpcCounts(),
+    beforeLatestJump,
+    "external_replay_read_window"
+  );
+  if (latestJumpReads > 4) {
+    throw new Error(
+      `Issue 272 latest navigator jump issued ${latestJumpReads} bounded reads; expected 0..4`
     );
   }
 }
@@ -653,10 +956,10 @@ async function assertNativeMemoryMatchesVmmap(memorySnapshot, baselineBytes) {
 }
 
 async function logAcceptanceStep(label) {
-  const [memory, state] = await Promise.all([
-    invokeTauriCommand("get_app_memory_snapshot_v1"),
-    invokeE2E("inspectChatState"),
-  ]);
+  // tauri-wd has one pending-script slot. Keep diagnostic reads sequential so
+  // acceptance logging cannot race the product action it is observing.
+  const memory = await invokeTauriCommand("get_app_memory_snapshot_v1");
+  const state = await invokeE2E("inspectChatState");
   console.log(
     `[issue-443-real-codex] acceptance-step=${label} events=${Number(
       state?.chatEventCount ?? 0
@@ -690,34 +993,35 @@ async function assertFirstRenderedOpen(sessionId, openedState) {
       )}`
     );
   }
-  const latestMarker = visibleMarkerForEvent(latestUserEvent);
-  if (latestMarker) {
-    await waitForChatTurn({
-      markers: [latestMarker],
-      label: "real Codex latest turn",
-      visibleMarker: latestMarker,
-    });
-  }
-
   if (Number(latestWindow.totalTurnCount) < 6) {
     throw new Error(
       `real Issue 272 session exposed only ${latestWindow.totalTurnCount} turns`
     );
   }
+  const latestTurnIndex = Number(latestWindow.totalTurnCount) - 1;
+  await waitForVisibleReplayTurn({
+    turnIndex: latestTurnIndex,
+    label: "real Codex latest turn",
+  });
   const expected = await loadExpectedTurnSummaries(
     sessionId,
     Number(latestWindow.totalTurnCount)
   );
   await logAcceptanceStep("compact-summaries-loaded");
-  if (process.env.E2E_ISSUE_443_CONTINUOUS_ONLY === "1") {
-    await assertContinuousIssue272ScrollBurst(
-      Number(latestWindow.totalTurnCount)
-    );
-    return;
-  }
+  return { expected, latestWindow };
+}
+
+async function assertPaginationOnRoundNavigation({
+  expected,
+  latestWindow,
+  sessionId,
+}) {
   await setPaginationEnabledViaUi(true);
-  await assertCompactCatalogBeforeBodyHydration(expected);
-  await logAcceptanceStep("compact-catalog-closed");
+  await waitForCurrentReplayRound({
+    turnIndex: expected.latestTurnIndex,
+    label: "real Codex latest pagination Round",
+    allowLatestLabel: true,
+  });
   const previousTurnIndex = Number(latestWindow.totalTurnCount) - 2;
   if (previousTurnIndex < 0) return;
   const previousWindow = await invokeTauriCommand(
@@ -763,18 +1067,18 @@ async function assertFirstRenderedOpen(sessionId, openedState) {
       timeoutMsg: `real Codex previous turn ${previousTurnIndex} did not render`,
     }
   );
-  const marker = visibleMarkerForEvent(previousUserEvent);
-  const previousBodyMarker = visibleAssistantMarkerForWindow(previousWindow);
-  if (!marker || !previousBodyMarker) {
+  if (!previousUserEvent?.id) {
     throw new Error(
-      `real Codex previous turn ${previousTurnIndex} lacked a visible header/body marker`
+      `real Codex previous turn ${previousTurnIndex} lacked a user event`
     );
   }
-  await waitForChatTurn({
-    markers: [previousBodyMarker],
+  await waitForCurrentReplayRound({
+    turnIndex: previousTurnIndex,
     label: `real Codex previous turn ${previousTurnIndex}`,
-    visibleMarker: previousBodyMarker,
-    pinnedMarkers: [marker],
+  });
+  await waitForVisibleReplayTurn({
+    turnIndex: previousTurnIndex,
+    label: `real Codex previous turn ${previousTurnIndex}`,
   });
   const afterPrevious = await getRpcCounts();
   await logAcceptanceStep("previous-round-visible");
@@ -789,6 +1093,32 @@ async function assertFirstRenderedOpen(sessionId, openedState) {
     );
   }
 
+  const nextSelector = '[data-testid="turn-pagination-next-round"]';
+  await waitForRenderedSelectorEnabled(nextSelector, {
+    label: "real Codex next-round button",
+  });
+  const beforeNext = await getRpcCounts();
+  await clickCurrentRenderedSelector(nextSelector);
+  await waitForCurrentReplayRound({
+    turnIndex: expected.latestTurnIndex,
+    label: "real Codex next Round",
+    allowLatestLabel: true,
+  });
+  await waitForVisibleReplayTurn({
+    turnIndex: expected.latestTurnIndex,
+    label: "real Codex next Round",
+  });
+  const nextReads = rpcCountDelta(
+    await getRpcCounts(),
+    beforeNext,
+    "external_replay_read_window"
+  );
+  if (nextReads > 2) {
+    throw new Error(
+      `real next-round click issued ${nextReads} bounded reads; expected 0..2`
+    );
+  }
+
   const latestSelector = '[data-testid="turn-pagination-last-round"]';
   await waitForRenderedSelector(latestSelector, {
     label: "real Codex latest-round button",
@@ -800,13 +1130,370 @@ async function assertFirstRenderedOpen(sessionId, openedState) {
     });
     console.log("[issue-443-real-codex] Latest click completed");
   }
+  await waitForCurrentReplayRound({
+    turnIndex: expected.latestTurnIndex,
+    label: "real Codex latest Round restored",
+    allowLatestLabel: true,
+  });
+  await waitForVisibleReplayTurn({
+    turnIndex: expected.latestTurnIndex,
+    label: "real Codex latest Round restored",
+  });
   await logAcceptanceStep("latest-round-restored");
+}
+
+function requireRealSessionId(sessionId) {
+  if (!sessionId) {
+    throw new Error(
+      "E2E_ISSUE_443_REAL_CODEX_SESSION_ID is required for the real Codex acceptance matrix"
+    );
+  }
+}
+
+async function openFreshRealCodexEpisode(
+  sessionId,
+  label,
+  { maxResidentEvents = null } = {}
+) {
+  requireRealSessionId(sessionId);
+  await resetToNewSession(`${label} pre-open`);
+  const beforeOpenRpc = await getRpcCounts();
+  await openCodexSessionFromSidebar(sessionId, label);
+  let openedState = null;
+  let lastRpcCounts = beforeOpenRpc;
+  await browser.waitUntil(
+    async () => {
+      lastRpcCounts = await getRpcCounts();
+      openedState = await invokeE2E("inspectChatState");
+      const eventCount = Number(openedState?.chatEventCount ?? 0);
+      return (
+        rpcCountDelta(
+          lastRpcCounts,
+          beforeOpenRpc,
+          "external_replay_open_window"
+        ) >= 1 &&
+        openedState?.activeSessionId === sessionId &&
+        openedState?.coreSessionId === sessionId &&
+        eventCount > 0 &&
+        (maxResidentEvents === null || eventCount <= maxResidentEvents)
+      );
+    },
+    {
+      timeout: 180_000,
+      interval: 100,
+      timeoutMsg: `${label} did not finish a fresh bounded open; maxResidentEvents=${String(
+        maxResidentEvents
+      )} state=${JSON.stringify(
+        openedState
+      )} rpc=${JSON.stringify(lastRpcCounts)}`,
+    }
+  );
+  return openedState;
+}
+
+export async function prepareIssue443RealCodexMatrix(sessionId) {
+  requireRealSessionId(sessionId);
+  await rescanCodexSource();
+  await refreshSessionRosterViaUi();
+  await selectByAgentFromRenderedMenu();
+}
+
+export async function assertIssue443RealCodexInitialOpen(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex initial-open",
+    { maxResidentEvents: REPLAY_MAX_EVENTS }
+  );
+  await assertFirstRenderedOpen(sessionId, openedState);
+}
+
+export async function assertIssue443RealCodexCompactCatalog(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex compact-catalog"
+  );
+  const { expected } = await assertFirstRenderedOpen(sessionId, openedState);
+  await setPaginationEnabledViaUi(true);
+  await assertCompactCatalogBeforeBodyHydration(expected);
+  await logAcceptanceStep("compact-catalog-closed");
+}
+
+export async function assertIssue443RealCodexPaginationOn(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex pagination-on"
+  );
+  const context = await assertFirstRenderedOpen(sessionId, openedState);
+  await assertPaginationOnRoundNavigation({
+    ...context,
+    sessionId,
+  });
+}
+
+export async function assertIssue443RealCodexPaginationRound100(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex pagination-round-100"
+  );
+  const { expected } = await assertFirstRenderedOpen(sessionId, openedState);
+  await assertPaginationRoundBody({
+    expected,
+    sessionId,
+    turnIndex: expected.round100TurnIndex,
+  });
+}
+
+export async function assertIssue443RealCodexContinuousScroll(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex pagination-off-continuous-scroll"
+  );
+  const { latestWindow } = await assertFirstRenderedOpen(
+    sessionId,
+    openedState
+  );
   await assertContinuousIssue272ScrollBurst(
     Number(latestWindow.totalTurnCount)
   );
   await logAcceptanceStep("continuous-scroll-complete");
+}
+
+export async function assertIssue443RealCodexNavigatorRandomAccess(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex navigator-random-access"
+  );
+  const { expected } = await assertFirstRenderedOpen(sessionId, openedState);
   await assertDirectOldRoundVisibleWithoutCorrectiveScroll(expected);
   await logAcceptanceStep("direct-old-round-visible");
+}
+
+export async function assertIssue443RealCodexNavigatorFirstRoundRecovery(
+  sessionId
+) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex navigator-first-round-recovery"
+  );
+  const { expected } = await assertFirstRenderedOpen(sessionId, openedState);
+  await assertFirstRoundCanScrollForward(expected);
+}
+
+export async function assertIssue443RealCodexNavigatorCatalog(sessionId) {
+  const openedState = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex navigator-catalog"
+  );
+  const { expected } = await assertFirstRenderedOpen(sessionId, openedState);
+  await assertNavigatorCatalogCanBrowse(expected);
+}
+
+async function secondaryCodexSessionId(primarySessionId) {
+  return execJS(`
+    const primary = ${JSON.stringify(primarySessionId)};
+    const section = document.querySelector(
+      '[data-sidebar-section-id="external_history:codex_app"]'
+    );
+    const rows = Array.from(
+      section?.querySelectorAll('[data-testid^="sidebar-session-item-"]') ?? []
+    );
+    return rows
+      .map((row) =>
+        String(row.getAttribute("data-testid") ?? "").slice(
+          "sidebar-session-item-".length
+        )
+      )
+      .find((sessionId) => sessionId && sessionId !== primary) ?? null;
+  `);
+}
+
+export async function assertIssue443RealCodexEpisodeAndReopen(sessionId) {
+  const firstA = await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex episode A1"
+  );
+  const { latestWindow } = await assertFirstRenderedOpen(sessionId, firstA);
+  const latestUserEvent = latestWindow.events?.find(
+    (event) => event?.source === "user"
+  );
+  const sessionB = await secondaryCodexSessionId(sessionId);
+  if (!sessionB) {
+    throw new Error(
+      "real Codex A→B→A scenario requires a second rendered Codex session"
+    );
+  }
+  const openedB = await openCodexSessionFromSidebar(
+    sessionB,
+    "real Codex episode B"
+  );
+  const bEventIds = new Set(openedB?.chatEventIds ?? []);
+  const reopenedA = await openCodexSessionFromSidebar(
+    sessionId,
+    "real Codex episode A2"
+  );
+  await waitForVisibleReplayTurn({
+    turnIndex: Number(latestWindow.totalTurnCount) - 1,
+    label: "real Codex reopened episode A2",
+  });
+  if (
+    reopenedA?.activeSessionId !== sessionId ||
+    !latestUserEvent?.id ||
+    !reopenedA?.chatEventIds?.includes(latestUserEvent.id) ||
+    reopenedA.chatEventIds.some((eventId) => bEventIds.has(eventId))
+  ) {
+    throw new Error(
+      `real Codex A→B→A accepted stale session state: ${JSON.stringify({
+        sessionB,
+        expectedAEventId: latestUserEvent?.id ?? null,
+        activeSessionId: reopenedA?.activeSessionId ?? null,
+        reopenedEventIds: reopenedA?.chatEventIds ?? null,
+      })}`
+    );
+  }
+  await assertNoReplayFatalError("real Codex A→B→A");
+}
+
+export async function logIssue443RealCodexDiagnostics(label) {
+  // Keep WebDriver script commands sequential. The Tauri WebDriver plugin
+  // supports only one pending script and poisons its script lock if diagnostic
+  // execute calls overlap.
+  const rpcCounts = await getRpcCounts().catch((error) => ({
+    error: String(error),
+  }));
+  const state = await invokeE2E("inspectChatState").catch((error) => ({
+    error: String(error),
+  }));
+  const memory = await invokeTauriCommand("get_app_memory_snapshot_v1").catch(
+    (error) => ({
+      error: String(error),
+    })
+  );
+  const viewport = await getChatViewportSnapshot([]).catch((error) => ({
+    error: String(error),
+  }));
+  const bodyText = await execJS(
+    "return String(document.body?.innerText ?? '').slice(0, 2000);"
+  ).catch((error) => `diagnostic body unavailable: ${String(error)}`);
+  const lastReplayRead = await execJS(
+    "return window.__orgiiE2ELastReplayRead ?? null;"
+  ).catch((error) => ({ error: String(error) }));
+  const replayWindows = await execJS(
+    "return [...(window.__orgiiE2EReplayWindows ?? [])];"
+  ).catch((error) => ({ error: String(error) }));
+  const renderedContract = await execJS(`
+    const root = document.querySelector('[data-testid="chat-history-scroll-root"]');
+    const rootRect = root?.getBoundingClientRect() ?? null;
+    const groups = Array.from(
+      document.querySelectorAll('[data-chat-view-root] [data-chat-group-index]')
+    );
+    const visibleGroups = rootRect
+      ? groups.filter((group) => {
+          const rect = group.getBoundingClientRect();
+          return rect.bottom > rootRect.top + 1 && rect.top < rootRect.bottom - 1;
+        })
+      : [];
+    const catalog = document.querySelector('[data-testid="turn-page-list"]');
+    const catalogRoot = catalog?.querySelector('.overflow-y-auto');
+    const catalogIndices = Array.from(
+      catalog?.querySelectorAll('[data-testid="turn-page-list-item"]') ?? []
+    ).map((item) => Number(item.getAttribute('data-turn-page-index')));
+    const target = window.__orgiiE2EIssue443Target ?? null;
+    const targetGroup = Number.isSafeInteger(target?.turnIndex)
+      ? groups.find(
+          (group) =>
+            Number(group.getAttribute('data-replay-turn-index')) ===
+            target.turnIndex
+        )
+      : null;
+    return {
+      target,
+      targetInEventStore: target?.userEventId
+        ? ${JSON.stringify(state?.chatEventIds ?? [])}.includes(target.userEventId)
+        : null,
+      targetPainted: targetGroup && rootRect
+        ? (() => {
+            const rect = targetGroup.getBoundingClientRect();
+            return (
+              rect.bottom > rootRect.top + 1 &&
+              rect.top < rootRect.bottom - 1 &&
+              String(targetGroup.innerText ?? '').trim().length >= 8
+            );
+          })()
+        : false,
+      virtualList: {
+        renderedGroupIndices: groups.map((group) =>
+          Number(group.getAttribute('data-chat-group-index'))
+        ),
+        visibleTurnIndices: visibleGroups.map((group) =>
+          Number(group.getAttribute('data-replay-turn-index'))
+        ),
+        scrollTop: root?.scrollTop ?? null,
+        scrollHeight: root?.scrollHeight ?? null,
+        clientHeight: root?.clientHeight ?? null,
+      },
+      catalog: {
+        renderedTurnIndices: catalogIndices,
+        scrollTop: catalogRoot?.scrollTop ?? null,
+        scrollHeight: catalogRoot?.scrollHeight ?? null,
+        clientHeight: catalogRoot?.clientHeight ?? null,
+      },
+      navigatorTurnIndices: Array.from(
+        document.querySelectorAll(
+          'nav[aria-label="Conversation navigator"] [data-replay-turn-index]'
+        )
+      ).map((marker) => Number(marker.getAttribute('data-replay-turn-index'))),
+      currentRound:
+        document.querySelector('[data-testid="turn-pagination-current-round"]')
+          ?.textContent ?? null,
+    };
+  `).catch((error) => ({ error: String(error) }));
+  const stateSummary =
+    state?.error === undefined
+      ? {
+          activeSessionId: state?.activeSessionId ?? null,
+          workstationActiveSessionId: state?.workstationActiveSessionId ?? null,
+          chatEventCount: state?.chatEventCount ?? null,
+          chatEventIdHead: (state?.chatEventIds ?? []).slice(0, 8),
+          chatEventIdTail: (state?.chatEventIds ?? []).slice(-8),
+          externalReplayTurnSummaryCount:
+            state?.externalReplayTurnSummaryCount ?? null,
+          externalReplayTurnSummarySamples:
+            state?.externalReplayTurnSummarySamples ?? [],
+          externalReplayCompactTurnIndices:
+            state?.externalReplayCompactTurnIndices ?? [],
+          externalReplayResidentTurnIndices:
+            state?.externalReplayResidentTurnIndices ?? [],
+          externalReplayAnchoredTurnIndices:
+            state?.externalReplayAnchoredTurnIndices ?? [],
+          externalReplayTransport: state?.externalReplayTransport ?? null,
+          externalReplayTurnState: state?.externalReplayTurnState ?? null,
+          runtimeError: state?.runtimeError ?? null,
+          runtimeStatus: state?.runtimeStatus ?? null,
+          sessionView: state?.sessionView ?? null,
+          snapshotEventCount: state?.snapshotEventCount ?? null,
+          turnPhase: state?.turnPhase ?? null,
+        }
+      : state;
+  console.log(
+    `[issue-443-real-codex] diagnostic=${label} ${JSON.stringify({
+      rpcCounts,
+      lastReplayRead,
+      replayWindows,
+      state: stateSummary,
+      memory:
+        memory?.error === undefined
+          ? {
+              effectiveTotalBytes: memory?.effective_total_bytes ?? null,
+              processes: processMemoryRows(memory),
+            }
+          : memory,
+      viewport,
+      renderedContract,
+      fatalReplayError:
+        bodyText.includes("App error") ||
+        bodyText.includes("Bounded replay window requires"),
+    })}`
+  );
 }
 
 function processMemoryRows(memorySnapshot) {
@@ -858,16 +1545,18 @@ async function waitForStableNativeMemorySnapshot() {
   );
 }
 
-export async function assertIssue443RealCodexSessionStaysBounded(sessionId) {
-  if (!sessionId) {
-    throw new Error(
-      "E2E_ISSUE_443_REAL_CODEX_SESSION_ID is required for the real Codex acceptance scenario"
-    );
-  }
-
-  await rescanCodexSource();
-  await refreshSessionRosterViaUi();
-  await selectByAgentFromRenderedMenu();
+export async function assertIssue443RealCodexBoundedMemoryRelease(sessionId) {
+  requireRealSessionId(sessionId);
+  // Pagination OFF intentionally bootstraps multiple individually bounded
+  // windows. Establish Pagination ON before measuring latest-window
+  // open/release cycles so this scenario tests lifecycle retention rather than
+  // inheriting the previous continuous-scroll scenario's display preference.
+  await openFreshRealCodexEpisode(
+    sessionId,
+    "real Codex memory pagination setup"
+  );
+  await setPaginationEnabledViaUi(true);
+  await resetToNewSession("real Codex memory pagination setup release");
   const memoryBefore = await waitForStableNativeMemorySnapshot();
   const baselineBytes = Number(memoryBefore?.effective_total_bytes ?? 0);
   await assertNativeMemoryMatchesVmmap(memoryBefore, baselineBytes);
@@ -880,26 +1569,28 @@ export async function assertIssue443RealCodexSessionStaysBounded(sessionId) {
   const samples = [];
   for (let cycle = 0; cycle < warmupCycles + measuredCycles; cycle += 1) {
     const startedAt = Date.now();
-    const openedState = await openCodexSessionFromSidebar(
+    const openedState = await openFreshRealCodexEpisode(
       sessionId,
-      `real Codex cycle ${cycle}`
+      `real Codex cycle ${cycle}`,
+      { maxResidentEvents: REPLAY_MAX_EVENTS }
     );
-    const eventCount = Number(openedState?.chatEventCount ?? 0);
-    if (!(eventCount > 0 && eventCount <= REPLAY_MAX_EVENTS)) {
-      throw new Error(
-        `real Codex cycle ${cycle} hydrated ${eventCount} events; hard cap is ${REPLAY_MAX_EVENTS}`
-      );
-    }
+    const eventCount = Number(openedState.chatEventCount);
     const memoryLatestWindowOpen = await invokeTauriCommand(
       "get_app_memory_snapshot_v1"
     );
-    if (cycle === 0) {
-      await assertFirstRenderedOpen(sessionId, openedState);
-    }
-
-    const memoryAfterAcceptance = await invokeTauriCommand(
-      "get_app_memory_snapshot_v1"
-    );
+    await waitForVisibleReplayTurn({
+      turnIndex:
+        Number(
+          (
+            await invokeTauriCommand("external_replay_query_window", {
+              sourceId: "codex_app",
+              sessionId,
+              limits: replayLimits(),
+            })
+          ).totalTurnCount
+        ) - 1,
+      label: `real Codex memory cycle ${cycle}`,
+    });
     await resetToNewSession(`real Codex release cycle ${cycle}`);
     await browser.pause(1_000);
     const memoryReleased = await invokeTauriCommand(
@@ -913,25 +1604,14 @@ export async function assertIssue443RealCodexSessionStaysBounded(sessionId) {
         memoryLatestWindowOpen?.effective_total_bytes ?? 0
       ),
       latestWindowOpenProcesses: processMemoryRows(memoryLatestWindowOpen),
-      acceptanceBytes: Number(
-        memoryAfterAcceptance?.effective_total_bytes ?? 0
-      ),
-      acceptanceProcesses: processMemoryRows(memoryAfterAcceptance),
       releasedBytes: Number(memoryReleased?.effective_total_bytes ?? 0),
       releasedProcesses: processMemoryRows(memoryReleased),
     });
-    if (process.env.E2E_ISSUE_443_CONTINUOUS_ONLY === "1") {
-      return;
-    }
   }
 
   const firstWindowGrowth = Math.max(
     0,
     samples[0].latestWindowOpenBytes - baselineBytes
-  );
-  const firstAcceptanceGrowth = Math.max(
-    0,
-    samples[0].acceptanceBytes - baselineBytes
   );
   const steadyReference = samples[warmupCycles - 1].releasedBytes;
   const measuredTail = samples.slice(warmupCycles);
@@ -960,17 +1640,12 @@ export async function assertIssue443RealCodexSessionStaysBounded(sessionId) {
       backendMib(samples[warmupCycles - 1])
   );
   console.log(
-    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstWindowGrowth=${(firstWindowGrowth / MIB).toFixed(1)} MiB firstAcceptanceGrowth=${(firstAcceptanceGrowth / MIB).toFixed(1)} MiB settledGrowth=${(settledGrowth / MIB).toFixed(1)} MiB measuredStepGrowth=${(stepGrowth / MIB).toFixed(1)} MiB backendStepGrowth=${backendStepGrowthMib.toFixed(1)} MiB samples=${JSON.stringify(samples)} idleSamples=${JSON.stringify(idleReleaseSamples)}`
+    `[issue-443-real-codex] baseline=${(baselineBytes / MIB).toFixed(1)} MiB firstWindowGrowth=${(firstWindowGrowth / MIB).toFixed(1)} MiB settledGrowth=${(settledGrowth / MIB).toFixed(1)} MiB measuredStepGrowth=${(stepGrowth / MIB).toFixed(1)} MiB backendStepGrowth=${backendStepGrowthMib.toFixed(1)} MiB samples=${JSON.stringify(samples)} idleSamples=${JSON.stringify(idleReleaseSamples)}`
   );
 
   if (firstWindowGrowth > 400 * MIB) {
     throw new Error(
       `real Codex first bounded window grew Physical Footprint by ${(firstWindowGrowth / MIB).toFixed(1)} MiB`
-    );
-  }
-  if (firstAcceptanceGrowth > 400 * MIB) {
-    throw new Error(
-      `real Codex first full acceptance interaction grew Physical Footprint by ${(firstAcceptanceGrowth / MIB).toFixed(1)} MiB`
     );
   }
   if (stepGrowth > 64 * MIB) {

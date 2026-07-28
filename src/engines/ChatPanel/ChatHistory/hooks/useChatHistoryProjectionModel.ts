@@ -4,7 +4,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ExternalReplayTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { buildExternalReplayTurnIndexByEventId } from "@src/engines/SessionCore/sync/externalReplayTurnState";
+import {
+  buildExternalReplayTurnIndexByEventId,
+  getAnchoredExternalReplayTurnIndices,
+} from "@src/engines/SessionCore/sync/externalReplayTurnState";
 import {
   loadPreviousExternalReplayTurnSlice,
   loadPreviousExternalReplayWindow,
@@ -109,6 +112,10 @@ export function useChatHistoryProjectionModel({
           )
         : undefined,
     [chatHistory, externalReplayTurnSummaries]
+  );
+  const externalReplayAnchoredTurnIndices = useMemo(
+    () => getAnchoredExternalReplayTurnIndices(externalReplayTurnSummaries),
+    [externalReplayTurnSummaries]
   );
 
   const groupOptions = useMemo<ChatGroupsProjectionOptions>(
@@ -221,6 +228,7 @@ export function useChatHistoryProjectionModel({
     flatItems,
     lastAssistantFlatIndexPerItem,
     externalReplayTurnSummaries,
+    externalReplayAnchoredTurnIndices,
     mergeUserOnlyPages: hideGroupUserMessage,
   });
   const { pageCount, currentPageIndex, pages } = turnPages;

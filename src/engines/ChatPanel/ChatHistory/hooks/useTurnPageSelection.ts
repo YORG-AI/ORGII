@@ -17,7 +17,6 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { resolveExternalReplayTarget } from "@src/api/tauri/externalHistory/replay";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import { externalReplayPlaceholderId } from "@src/engines/SessionCore/sync/externalReplayTurnState";
 import {
@@ -233,21 +232,8 @@ export function useTurnPageNavigation({
           turnId,
         })
           .then(async () => {
-            const replacedBoundedReplayBody = Boolean(
-              resolveExternalReplayTarget(startedForSession)
-            );
-            if (replacedBoundedReplayBody) {
-              autoLoadedTurnKeysRef.current.clear();
-              autoLoadedTurnKeysRef.current.add(loadKey);
-            }
             setLoadedTurnIds((prev) => {
               if (startedForSession !== activeId) return prev;
-              if (replacedBoundedReplayBody) {
-                return {
-                  sessionId: startedForSession,
-                  turnIds: new Set([turnId]),
-                };
-              }
               if (prev.sessionId !== startedForSession) {
                 return {
                   sessionId: startedForSession,

@@ -1517,6 +1517,43 @@ fn repeated_external_older_turn_merges_remain_byte_bounded() {
 }
 
 #[test]
+fn external_replay_merge_preserves_delta_baseline_while_native_round_merge_resets_it() {
+    let mut external_store = EventStore::new();
+    external_store.set_external_replay_window(vec![make_event("latest", "assistant")]);
+    external_store.mark_full_snapshot_emitted();
+    assert!(!external_store.should_emit_full_snapshot());
+
+    let mut older = make_event("older", "assistant");
+    older.created_at = "2025-12-31T23:59:00Z".to_string();
+    external_store.merge_external_replay_window_events(vec![older]);
+
+    assert!(
+        !external_store.should_emit_full_snapshot(),
+        "external prepend must use the existing order-replacement delta"
+    );
+    let (base_version, changed_ids, _) = external_store.take_delta_tracking();
+    assert!(base_version > 0);
+    assert_eq!(changed_ids, vec!["older".to_string()]);
+    assert_eq!(
+        external_store
+            .events()
+            .iter()
+            .map(|event| event.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["older", "latest"]
+    );
+
+    let mut native_store = EventStore::new();
+    native_store.set_round_window(vec![make_event("latest", "assistant")]);
+    native_store.mark_full_snapshot_emitted();
+    native_store.merge_round_window_events(vec![make_event("older", "assistant")]);
+    assert!(
+        native_store.should_emit_full_snapshot(),
+        "native SDE round hydration must keep its established baseline reset"
+    );
+}
+
+#[test]
 fn external_replay_resident_budget_keeps_selected_older_turn_and_prefetch_neighbours() {
     const STORE_BUDGET: usize = 16 * 1024 * 1024;
     const LARGE_BODY_BYTES: usize = 3 * 1024 * 1024 + 512 * 1024;

@@ -22,7 +22,10 @@ import { useChatScrollPin } from "./useChatScrollPin";
 
 const SCROLL_NAV_SHOW_THRESHOLD_PX = 48;
 const FLOATING_MINIMAP_IDLE_DELAY_MS = 1_200;
-export const HISTORY_START_USER_BACKFILL_WINDOW_BUDGET = 4;
+export const HISTORY_START_INITIAL_USER_WINDOW_BUDGET = 4;
+export const HISTORY_START_MAX_USER_WINDOW_BUDGET = 12;
+export const HISTORY_START_MAX_USER_IPC_BYTES = 16 * 1024 * 1024;
+const HISTORY_START_FINAL_ANCHOR_SETTLE_PASSES = 4;
 
 interface HistoryStartBackfillSignal {
   atStart: boolean;
@@ -30,11 +33,28 @@ interface HistoryStartBackfillSignal {
 }
 
 type HistoryStartBackfillReason = "bootstrap" | "user";
-type HistoryStartBackfillResult = boolean | void;
+export interface HistoryStartBackfillProgress {
+  ipcBytes: number;
+  progressed: boolean;
+}
+type HistoryStartBackfillResult = HistoryStartBackfillProgress | boolean | void;
 type HistoryStartBackfillLoader = (
   reason: HistoryStartBackfillReason,
   windowIndex: number
 ) => Promise<HistoryStartBackfillResult> | HistoryStartBackfillResult;
+
+interface HistoryStartBackfillLifecycle {
+  onBurstEnd?: (
+    reason: HistoryStartBackfillReason,
+    loadedWindows: number,
+    cancelled: boolean
+  ) => Promise<void> | void;
+  onBurstStart?: (reason: HistoryStartBackfillReason) => void;
+  onWindowLoaded?: (
+    reason: HistoryStartBackfillReason,
+    windowIndex: number
+  ) => Promise<void> | void;
+}
 
 interface HistoryViewportAnchor {
   kind: "item" | "group";
@@ -130,11 +150,33 @@ async function waitForHistoryLayout(): Promise<void> {
   });
 }
 
+function resolveConnectedHistoryScrollRoot(
+  staticScrollRoot: HTMLElement | null,
+  virtualScrollRoot: HTMLElement | null
+): HTMLElement | null {
+  if (staticScrollRoot?.isConnected) return staticScrollRoot;
+  if (virtualScrollRoot?.isConnected) return virtualScrollRoot;
+  return null;
+}
+
 export interface HistoryStartBackfillGate {
   bootstrap: () => Promise<void>;
   reset: () => void;
+  setLifecycle: (lifecycle: HistoryStartBackfillLifecycle) => void;
   setLoadPrevious: (loadPrevious: HistoryStartBackfillLoader) => void;
   signal: (signal: HistoryStartBackfillSignal) => void;
+}
+
+export function shouldForwardHistoryStartSignal(
+  turnPaginationEnabled: boolean,
+  source: ChatHistoryStartSignalSource
+): boolean {
+  // Selecting a bounded Round replaces the rendered list and can emit a
+  // browser `scroll` at physical top even though the user did not request the
+  // unread prefix. In pagination mode, wait for the explicit upward wheel
+  // signal; otherwise that layout reset can immediately overwrite the exact
+  // anchored turn window with a continuation slice.
+  return !(turnPaginationEnabled && source === "scroll");
 }
 
 /**
@@ -146,32 +188,91 @@ export interface HistoryStartBackfillGate {
  * bounded bootstrap is lost and the history remains stuck at two turns.
  */
 export function createHistoryStartBackfillGate(
-  loadPrevious: HistoryStartBackfillLoader
+  loadPrevious: HistoryStartBackfillLoader,
+  lifecycle: HistoryStartBackfillLifecycle = {}
 ): HistoryStartBackfillGate {
   let currentLoadPrevious = loadPrevious;
+  let currentLifecycle = lifecycle;
   let generation = 0;
   let inFlight: Promise<void> | null = null;
   let activeReason: HistoryStartBackfillReason | null = null;
   let bootstrapComplete = false;
-  let queuedUserBurst = false;
+  let queuedUserWindows = 0;
   let cancelActiveUserBurst = false;
+  let requestedUserWindows = HISTORY_START_INITIAL_USER_WINDOW_BUDGET;
 
-  const start = (reason: HistoryStartBackfillReason): Promise<void> => {
+  const normalizeLoadResult = (
+    result: HistoryStartBackfillResult
+  ): HistoryStartBackfillProgress => {
+    if (typeof result !== "object" || result === null) {
+      return {
+        ipcBytes: 0,
+        progressed: result !== false,
+      };
+    }
+    return {
+      ipcBytes:
+        Number.isFinite(result.ipcBytes) && result.ipcBytes > 0
+          ? result.ipcBytes
+          : 0,
+      progressed: result.progressed,
+    };
+  };
+
+  const start = (
+    reason: HistoryStartBackfillReason,
+    initialUserWindowBudget = HISTORY_START_INITIAL_USER_WINDOW_BUDGET
+  ): Promise<void> => {
     if (inFlight) return inFlight;
     const requestGeneration = generation;
     cancelActiveUserBurst = false;
-    const windowBudget =
-      reason === "user" ? HISTORY_START_USER_BACKFILL_WINDOW_BUDGET : 1;
+    requestedUserWindows =
+      reason === "user"
+        ? Math.min(
+            HISTORY_START_MAX_USER_WINDOW_BUDGET,
+            Math.max(
+              HISTORY_START_INITIAL_USER_WINDOW_BUDGET,
+              initialUserWindowBudget
+            )
+          )
+        : HISTORY_START_INITIAL_USER_WINDOW_BUDGET;
     const load = (async () => {
-      for (let windowIndex = 0; windowIndex < windowBudget; windowIndex += 1) {
-        if (
-          requestGeneration !== generation ||
-          (reason === "user" && cancelActiveUserBurst)
+      let accumulatedIpcBytes = 0;
+      let loadedWindows = 0;
+      currentLifecycle.onBurstStart?.(reason);
+      try {
+        for (
+          let windowIndex = 0;
+          windowIndex < (reason === "user" ? requestedUserWindows : 1);
+          windowIndex += 1
         ) {
-          break;
+          if (
+            requestGeneration !== generation ||
+            (reason === "user" && cancelActiveUserBurst)
+          ) {
+            break;
+          }
+          const result = normalizeLoadResult(
+            await currentLoadPrevious(reason, windowIndex)
+          );
+          if (!result.progressed) break;
+          loadedWindows += 1;
+          accumulatedIpcBytes += result.ipcBytes;
+          await currentLifecycle.onWindowLoaded?.(reason, windowIndex);
+          if (
+            reason === "user" &&
+            accumulatedIpcBytes >= HISTORY_START_MAX_USER_IPC_BYTES
+          ) {
+            break;
+          }
         }
-        const progressed = await currentLoadPrevious(reason, windowIndex);
-        if (progressed === false) break;
+      } finally {
+        await currentLifecycle.onBurstEnd?.(
+          reason,
+          loadedWindows,
+          requestGeneration !== generation ||
+            (reason === "user" && cancelActiveUserBurst)
+        );
       }
     })();
     inFlight = load;
@@ -181,12 +282,13 @@ export function createHistoryStartBackfillGate(
       inFlight = null;
       activeReason = null;
       cancelActiveUserBurst = false;
-      if (!queuedUserBurst) return;
-      queuedUserBurst = false;
-      // A top-edge wheel that overlaps bootstrap still represents one real
-      // scroll-back gesture. Run its bounded burst only after bootstrap has
-      // advanced the cursor; repeated wheel ticks coalesce into this one job.
-      void start("user").catch(() => {
+      if (queuedUserWindows === 0) return;
+      const queuedWindowBudget = queuedUserWindows;
+      queuedUserWindows = 0;
+      // A top-edge gesture can overlap the initial bounded bootstrap on a
+      // large session. Preserve its capped momentum and run it only after the
+      // bootstrap advances the cursor.
+      void start("user", queuedWindowBudget).catch(() => {
         // The caller owns diagnostics. A failed queued page must still leave
         // the gate re-armed for the next explicit user gesture.
       });
@@ -209,11 +311,14 @@ export function createHistoryStartBackfillGate(
       inFlight = null;
       activeReason = null;
       bootstrapComplete = false;
-      queuedUserBurst = false;
+      queuedUserWindows = 0;
       cancelActiveUserBurst = true;
     },
     setLoadPrevious(nextLoadPrevious) {
       currentLoadPrevious = nextLoadPrevious;
+    },
+    setLifecycle(nextLifecycle) {
+      currentLifecycle = nextLifecycle;
     },
     signal(signal) {
       if (!signal.atStart) {
@@ -222,7 +327,7 @@ export function createHistoryStartBackfillGate(
         // the viewport anchor, so it must not erase an already queued
         // top-edge wheel.
         if (signal.source === "wheel") {
-          queuedUserBurst = false;
+          queuedUserWindows = 0;
           cancelActiveUserBurst = true;
         }
         return;
@@ -235,11 +340,23 @@ export function createHistoryStartBackfillGate(
         return;
       }
       if (inFlight) {
-        // A burst already contains several sequential bounded windows, so
-        // wheel ticks emitted by that same trackpad gesture must not multiply
-        // it. Only bootstrap needs to retain one user burst for afterwards.
         if (signal.source === "wheel" && activeReason === "bootstrap") {
-          queuedUserBurst = true;
+          queuedUserWindows =
+            queuedUserWindows === 0
+              ? HISTORY_START_INITIAL_USER_WINDOW_BUDGET
+              : Math.min(
+                  HISTORY_START_MAX_USER_WINDOW_BUDGET,
+                  queuedUserWindows + 1
+                );
+        } else if (
+          signal.source === "wheel" &&
+          activeReason === "user" &&
+          requestedUserWindows < HISTORY_START_MAX_USER_WINDOW_BUDGET
+        ) {
+          // Trackpad momentum is real continued demand. Grow the current
+          // serialized burst instead of discarding every tick that arrives
+          // while one bounded page is in flight.
+          requestedUserWindows += 1;
         }
         return;
       }
@@ -314,7 +431,12 @@ export function useChatViewportController({
   const manualScrollAtRef =
     suppliedManualScrollAtRef ?? fallbackManualScrollAtRef;
   const programmaticScrollAtRef = useRef(0);
-  const userBackfillAnchorRef = useRef<HistoryViewportAnchor | null>(null);
+  const userBackfillViewportRef = useRef<{
+    anchor: HistoryViewportAnchor | null;
+    previousScrollHeight: number;
+    previousScrollTop: number;
+  } | null>(null);
+  const anchorRestoreFrameRef = useRef<number | null>(null);
   const turnCollapseInteractionAtRef = useRef(0);
   const [reservePinToTop, setReservePinToTop] = useState(false);
   const handlePinToTopChange = useCallback((active: boolean) => {
@@ -338,68 +460,112 @@ export function useChatViewportController({
       setVisibleRange,
       visibleRangeEndRef,
     });
-  const loadPreviousPreservingViewport = useCallback(
-    async (
-      reason: HistoryStartBackfillReason,
-      windowIndex: number
-    ): Promise<HistoryStartBackfillResult> => {
-      if (!onHistoryStartReached) return false;
-      if (reason === "bootstrap") return onHistoryStartReached();
-
-      const scrollRoot =
-        staticScrollerRef.current ?? virtuosoScrollerRef.current;
-      const previousScrollTop = scrollRoot?.scrollTop ?? 0;
-      const previousScrollHeight = scrollRoot?.scrollHeight ?? 0;
-      if (windowIndex === 0) {
-        userBackfillAnchorRef.current =
-          captureHistoryViewportAnchor(scrollRoot);
-      }
-      const viewportAnchor = userBackfillAnchorRef.current;
-      const progressed = await onHistoryStartReached();
-      if (!progressed || !scrollRoot?.isConnected) return progressed;
-
-      // EventStore publication precedes React layout. Two frames let the
-      // virtual list publish its new total height before restoring the visual
-      // anchor that was at the top when this bounded page was requested.
-      await waitForHistoryLayout();
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const currentScrollRoot =
-          staticScrollerRef.current ?? virtuosoScrollerRef.current;
-        if (!currentScrollRoot) return progressed;
-        programmaticScrollAtRef.current = performance.now();
-        if (
-          viewportAnchor &&
-          restoreHistoryViewportAnchor(currentScrollRoot, viewportAnchor)
-        ) {
-          // ResizeObserver can publish one later virtual-row measurement after
-          // the first correction. Recheck the stable provider/native group key
-          // on the next layout frame instead of accumulating that error.
-          await waitForHistoryLayout();
-          continue;
-        }
-        const heightGrowth =
-          currentScrollRoot.scrollHeight - previousScrollHeight;
-        currentScrollRoot.scrollTop = Math.max(
-          0,
-          previousScrollTop + heightGrowth
-        );
-        await waitForHistoryLayout();
-      }
-      return progressed;
-    },
-    [onHistoryStartReached, virtuosoScrollerRef]
+  const loadPreviousWindow = useCallback(
+    async (): Promise<HistoryStartBackfillResult> =>
+      onHistoryStartReached ? onHistoryStartReached() : false,
+    [onHistoryStartReached]
   );
+  const restoreUserBackfillViewport = useCallback(() => {
+    const viewport = userBackfillViewportRef.current;
+    const scrollRoot = resolveConnectedHistoryScrollRoot(
+      staticScrollerRef.current,
+      virtuosoScrollerRef.current
+    );
+    if (!viewport || !scrollRoot) return;
+    programmaticScrollAtRef.current = performance.now();
+    if (
+      viewport.anchor &&
+      restoreHistoryViewportAnchor(scrollRoot, viewport.anchor)
+    ) {
+      return;
+    }
+    const heightGrowth =
+      scrollRoot.scrollHeight - viewport.previousScrollHeight;
+    scrollRoot.scrollTop = Math.max(
+      0,
+      viewport.previousScrollTop + heightGrowth
+    );
+  }, [virtuosoScrollerRef]);
+  const scheduleUserBackfillViewportRestore = useCallback(() => {
+    if (anchorRestoreFrameRef.current !== null) return;
+    anchorRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      anchorRestoreFrameRef.current = window.requestAnimationFrame(() => {
+        anchorRestoreFrameRef.current = null;
+        restoreUserBackfillViewport();
+      });
+    });
+  }, [restoreUserBackfillViewport]);
   const [historyStartBackfillGate] = useState(() =>
     createHistoryStartBackfillGate(() => false)
   );
+  useEffect(() => {
+    historyStartBackfillGate.setLifecycle({
+      onBurstStart(reason) {
+        if (reason !== "user") return;
+        const scrollRoot = resolveConnectedHistoryScrollRoot(
+          staticScrollerRef.current,
+          virtuosoScrollerRef.current
+        );
+        userBackfillViewportRef.current = {
+          anchor: captureHistoryViewportAnchor(scrollRoot),
+          previousScrollHeight: scrollRoot?.scrollHeight ?? 0,
+          previousScrollTop: scrollRoot?.scrollTop ?? 0,
+        };
+      },
+      async onWindowLoaded(reason) {
+        if (reason !== "user") return;
+        scheduleUserBackfillViewportRestore();
+        // EventStore publication and the replay read are sequential, but
+        // React layout is not. Yield one two-frame layout generation between
+        // windows so a fast gesture does not queue the entire burst ahead of
+        // Virtuoso and freeze the renderer in one oversized commit.
+        await waitForHistoryLayout();
+      },
+      async onBurstEnd(reason, loadedWindows, cancelled) {
+        if (reason !== "user") return;
+        if (!cancelled && loadedWindows > 0) {
+          if (anchorRestoreFrameRef.current !== null) {
+            window.cancelAnimationFrame(anchorRestoreFrameRef.current);
+            anchorRestoreFrameRef.current = null;
+          }
+          // React publishes each bounded window before Virtuoso finishes
+          // measuring the inserted rows. Keep per-window work coalesced, then
+          // converge only once at the end of the gesture across a few layout
+          // generations. This avoids the old stop/start correction after
+          // every page without letting a late ResizeObserver update displace
+          // the user's original visible item.
+          for (
+            let pass = 0;
+            pass < HISTORY_START_FINAL_ANCHOR_SETTLE_PASSES;
+            pass += 1
+          ) {
+            await waitForHistoryLayout();
+            restoreUserBackfillViewport();
+          }
+        }
+        userBackfillViewportRef.current = null;
+      },
+    });
+    return () => historyStartBackfillGate.setLifecycle({});
+  }, [
+    historyStartBackfillGate,
+    restoreUserBackfillViewport,
+    scheduleUserBackfillViewportRestore,
+    virtuosoScrollerRef,
+  ]);
   const bootstrapRetryCountRef = useRef(0);
   const bootstrapRetryTimerRef = useRef<number | null>(null);
   const [bootstrapRetryRevision, setBootstrapRetryRevision] = useState(0);
   useEffect(() => {
-    historyStartBackfillGate.setLoadPrevious(loadPreviousPreservingViewport);
-  }, [historyStartBackfillGate, loadPreviousPreservingViewport]);
+    historyStartBackfillGate.setLoadPrevious(loadPreviousWindow);
+  }, [historyStartBackfillGate, loadPreviousWindow]);
   useEffect(
     () => () => {
+      if (anchorRestoreFrameRef.current !== null) {
+        window.cancelAnimationFrame(anchorRestoreFrameRef.current);
+        anchorRestoreFrameRef.current = null;
+      }
+      userBackfillViewportRef.current = null;
       historyStartBackfillGate.reset();
     },
     [
@@ -460,9 +626,12 @@ export function useChatViewportController({
       source: ChatHistoryStartSignalSource
     ) => {
       if (!onHistoryStartReached) return;
+      if (!shouldForwardHistoryStartSignal(turnPaginationEnabled, source)) {
+        return;
+      }
       historyStartBackfillGate.signal({ atStart, source });
     },
-    [historyStartBackfillGate, onHistoryStartReached]
+    [historyStartBackfillGate, onHistoryStartReached, turnPaginationEnabled]
   );
   const [isBottomSentinelVisible, setIsBottomSentinelVisible] = useState(true);
 

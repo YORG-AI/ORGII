@@ -9,11 +9,12 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { seedSidebarCursorFixtures } from "./support/core/sidebarCursorFixtures.mjs";
@@ -480,6 +481,76 @@ function seedBoundedExternalReplayFixture(targetHome) {
   process.env.E2E_SIDEBAR_CODEX_FIXTURES = JSON.stringify(fixtures);
 }
 
+function seedRealIssue443CodexFixture(targetHome, transcriptSourcePath) {
+  assertSidebarFixtureRoot(targetHome);
+  const sourcePath = resolve(transcriptSourcePath);
+  if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) {
+    throw new Error(
+      `E2E_ISSUE_443_REAL_CODEX_TRANSCRIPT is not a file: ${sourcePath}`
+    );
+  }
+  const transcriptName = basename(sourcePath);
+  if (!transcriptName.endsWith(".jsonl")) {
+    throw new Error(
+      `E2E_ISSUE_443_REAL_CODEX_TRANSCRIPT must be JSONL: ${sourcePath}`
+    );
+  }
+  const sourceSessionId = transcriptName.slice(0, -".jsonl".length);
+  const primarySessionId = process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID;
+  if (primarySessionId !== `codexapp-${sourceSessionId}`) {
+    throw new Error(
+      `Issue 272 transcript/session mismatch: transcript=${sourceSessionId} session=${primarySessionId}`
+    );
+  }
+
+  const primaryDir = join(targetHome, ".codex", "sessions", "2026", "07", "12");
+  mkdirSync(primaryDir, { recursive: true });
+  symlinkSync(sourcePath, join(primaryDir, transcriptName));
+
+  const secondarySourceSessionId =
+    "rollout-2026-07-11T00-00-00-00000000-0000-4000-8000-000000000443";
+  const secondaryDir = join(
+    targetHome,
+    ".codex",
+    "sessions",
+    "2026",
+    "07",
+    "11"
+  );
+  const secondaryPath = join(secondaryDir, `${secondarySourceSessionId}.jsonl`);
+  const secondaryTimestamp = Date.parse("2026-07-11T00:00:00Z");
+  const secondaryRows = [
+    {
+      timestamp: new Date(secondaryTimestamp).toISOString(),
+      type: "event_msg",
+      payload: {
+        type: "user_message",
+        message: "E2E Issue 443 secondary Codex episode",
+      },
+    },
+    {
+      timestamp: new Date(secondaryTimestamp + 1_000).toISOString(),
+      type: "event_msg",
+      payload: {
+        type: "agent_message",
+        message: "E2E Issue 443 secondary episode response",
+      },
+    },
+  ];
+  mkdirSync(secondaryDir, { recursive: true });
+  writeFileSync(
+    secondaryPath,
+    `${secondaryRows.map((row) => JSON.stringify(row)).join("\n")}\n`,
+    "utf8"
+  );
+  utimesSync(
+    secondaryPath,
+    new Date(secondaryTimestamp + 1_000),
+    new Date(secondaryTimestamp + 1_000)
+  );
+  process.env.E2E_ISSUE_443_SECONDARY_CODEX_SESSION_ID = `codexapp-${secondarySourceSessionId}`;
+}
+
 function sqlLiteral(value) {
   return `'${String(value).replaceAll("'", "''")}'`;
 }
@@ -612,6 +683,28 @@ const realIssue443SessionConfigured = Boolean(
   process.env.E2E_ISSUE_443_REAL_CODEX_SESSION_ID
 );
 let externalProviderHome = null;
+const realIssue443Transcript =
+  process.env.E2E_ISSUE_443_REAL_CODEX_TRANSCRIPT?.trim();
+if (
+  orgiiHome &&
+  !reuseServices &&
+  !useRealHome &&
+  realIssue443SessionConfigured &&
+  realIssue443Transcript
+) {
+  externalProviderHome = prepareSidebarFixtureRoot({
+    orgiiHome,
+    candidateHome:
+      process.env.E2E_EXTERNAL_PROVIDER_HOME ??
+      join(
+        orgiiHome,
+        `issue-443-provider-home-${process.pid}-${Date.now().toString(36)}`
+      ),
+    realUserHome: homedir(),
+  });
+  seedRealIssue443CodexFixture(externalProviderHome, realIssue443Transcript);
+  process.env.ORGII_EXTERNAL_HISTORY_HOME = externalProviderHome;
+}
 if (
   orgiiHome &&
   !reuseServices &&
@@ -981,19 +1074,41 @@ function waitForPort(port, timeoutMs) {
   throw new Error(`Port ${port} did not open within ${timeoutMs}ms`);
 }
 
+function waitForFrontendCompile(port, timeoutMs) {
+  const readinessUrl = `http://127.0.0.1:${port}/__orgii_webpack_ready__`;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const response = runBestEffort("/usr/bin/curl", [
+      "--fail",
+      "--silent",
+      "--show-error",
+      "--max-time",
+      "1",
+      readinessUrl,
+    ]);
+    if (response.includes('"ready":true')) return;
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250);
+  }
+  throw new Error(
+    `Frontend webpack did not finish a successful compile within ${timeoutMs}ms (${readinessUrl})`
+  );
+}
+
 function startFrontendServer() {
-  if (processIdsForPort(frontendPort).length > 0) return;
-  frontendServerProcess = spawn("pnpm", ["run", "dev:frontend:light"], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      ORGII_E2E: "1",
-      PORT: String(frontendPort),
-      WEBPACK_DEV_SERVER_PORT: String(frontendPort),
-    },
-    stdio: "inherit",
-  });
-  waitForPort(frontendPort, 60_000);
+  if (processIdsForPort(frontendPort).length === 0) {
+    frontendServerProcess = spawn("pnpm", ["run", "dev:frontend:light"], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        ORGII_E2E: "1",
+        PORT: String(frontendPort),
+        WEBPACK_DEV_SERVER_PORT: String(frontendPort),
+      },
+      stdio: "inherit",
+    });
+    waitForPort(frontendPort, 60_000);
+  }
+  waitForFrontendCompile(frontendPort, 120_000);
 }
 
 function withTauriDevUrlForFrontendPort(callback) {

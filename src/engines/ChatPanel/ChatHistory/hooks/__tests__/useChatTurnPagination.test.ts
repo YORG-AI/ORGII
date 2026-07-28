@@ -242,6 +242,81 @@ describe("useChatTurnPagination — bounded external replay", () => {
     expect(result.displayFlatItems).toHaveLength(2);
   });
 
+  it("does not treat a huge turn's middle slice as an exact paginated body", () => {
+    const summary: ExternalReplayTurnSummary = {
+      turnId: "codex-turn-155",
+      renderedUserEventId: "codex-user-anchor-trimmed-from-rendered-group",
+      nextTurnId: "codex-turn-156",
+      turnIndex: 155,
+      startedAt: "2026-07-17T18:28:00Z",
+      endedAt: "2026-07-18T02:30:36Z",
+      durationMs: 28_956_000,
+      userPreview: "large provider turn",
+      eventCount: 1_993,
+      bodyEventCount: 1_992,
+    };
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- useMemo is mocked as a pass-through; this is not a real hook call
+    const result = useChatTurnPagination({
+      enabled: true,
+      activePageIndex: 0,
+      groupCounts: [2],
+      groupHeaders: [null],
+      groupMeta: [
+        {
+          turnId: null,
+          replayTurnIndex: 155,
+        } as ChatGroupMeta,
+      ],
+      flatItems: [fakeItem(), fakeItem()],
+      lastAssistantFlatIndexPerItem: [1, 1],
+      externalReplayTurnSummaries: [summary],
+      externalReplayAnchoredTurnIndices: new Set(),
+    });
+
+    expect(result.pages[0]?.startGroupIndex).toBe(0);
+    expect(result.pages[0]?.endGroupIndex).toBe(-1);
+    expect(result.pages[0]?.replayBodyLoaded).toBe(false);
+    expect(result.displayFlatItems).toEqual([]);
+  });
+
+  it("accepts an exact anchored turn that has no provider user row", () => {
+    const summary: ExternalReplayTurnSummary = {
+      turnId: "managed-assistant-anchor",
+      renderedUserEventId: null,
+      nextTurnId: null,
+      turnIndex: 0,
+      startedAt: "2026-07-17T18:28:00Z",
+      endedAt: "2026-07-17T18:29:00Z",
+      durationMs: 60_000,
+      userPreview: "",
+      eventCount: 2,
+      bodyEventCount: 1,
+    };
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- useMemo is mocked as a pass-through; this is not a real hook call
+    const result = useChatTurnPagination({
+      enabled: true,
+      activePageIndex: 0,
+      groupCounts: [2],
+      groupHeaders: [null],
+      groupMeta: [
+        {
+          turnId: null,
+          replayTurnIndex: 0,
+        } as ChatGroupMeta,
+      ],
+      flatItems: [fakeItem(), fakeItem()],
+      lastAssistantFlatIndexPerItem: [1, 1],
+      externalReplayTurnSummaries: [summary],
+      externalReplayAnchoredTurnIndices: new Set([0]),
+    });
+
+    expect(result.pages[0]?.startGroupIndex).toBe(0);
+    expect(result.pages[0]?.replayBodyLoaded).toBe(true);
+    expect(result.displayFlatItems).toHaveLength(2);
+  });
+
   it("renders no unrelated body while an external turn is still unloaded", () => {
     const latestHeader = {
       ...fakeHeader(),

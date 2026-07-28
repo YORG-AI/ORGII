@@ -40,6 +40,8 @@ export interface ChatHistoryListProps {
   /** Stable provider/native group identity used across history prepends. */
   groupKeys: (string | null)[];
   groupCounts: number[];
+  /** Provider turn index, exposed read-only for rendered replay assertions. */
+  replayTurnIndices: (number | null)[];
   turnIds: (string | null)[];
   totalFlatItems: number;
   lastAssistantFlatIndexPerItem: (number | null)[];

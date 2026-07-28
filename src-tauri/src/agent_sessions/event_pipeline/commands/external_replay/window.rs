@@ -154,10 +154,7 @@ pub async fn external_replay_open_window(
                 release_replay_watch_if_stale_episode(&display_session_id, episode_id);
                 return Ok(response);
             }
-            state.cap_external_replay_store(
-                &display_session_id,
-                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-            )?;
+            cap_replaced_replay_store(&state, &display_session_id, &response.events)?;
             schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
@@ -209,10 +206,7 @@ pub async fn external_replay_open_window(
                 release_replay_watch_if_stale_episode(&display_session_id, episode_id);
                 return Ok(response);
             }
-            state.cap_external_replay_store(
-                &display_session_id,
-                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-            )?;
+            cap_replaced_replay_store(&state, &display_session_id, &response.events)?;
             schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
@@ -268,10 +262,7 @@ pub async fn external_replay_open_window(
                 release_replay_watch_if_stale_episode(&display_session_id, episode_id);
                 return Ok(response);
             }
-            state.cap_external_replay_store(
-                &display_session_id,
-                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-            )?;
+            cap_replaced_replay_store(&state, &display_session_id, &response.events)?;
             schedule_replay_cache_prune();
             schedule_notify(&app, &state, &display_session_id);
             Ok(response)
@@ -402,10 +393,7 @@ pub async fn external_replay_poll_delta(
     };
     response.stats.upserted_events = applied.upserted;
     response.stats.removed_events = applied.removed;
-    state.cap_external_replay_store(
-        &display_session_id,
-        super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-    )?;
+    cap_polled_replay_store(&state, &display_session_id, &response, applied.changed)?;
     if applied.changed {
         schedule_notify(&app, &state, &display_session_id);
     }
@@ -425,15 +413,73 @@ pub async fn external_replay_poll_delta(
 
 pub(super) fn replay_window_publish_for_locator(
     before_sequence: Option<i64>,
+    turn_id: Option<&str>,
+    turn_index: Option<i64>,
 ) -> ReplayWindowPublish {
-    if before_sequence.is_some() {
+    if before_sequence.is_some() || turn_id.is_some() || turn_index.is_some() {
+        // Older continuation and exact-turn reads join the existing bounded
+        // foreground window. The byte cap pins the requested rows and keeps
+        // the newest suffix, so random access remains bounded while a user
+        // can still scroll back toward the latest resident Round.
         ReplayWindowPublish::Merge
     } else {
-        // A turn id/index is random-access pagination, not a continuation of
-        // the currently resident continuous history. Replacing here prevents
-        // page navigation from accumulating every previously visited body.
+        // A locator-free read is an authoritative canonical window.
         ReplayWindowPublish::Replace
     }
+}
+
+/// Cap an authoritative replacement without discarding its rendering anchor.
+///
+/// Exact-turn reads deliberately return the first provider user event plus a
+/// bounded newest tail. EventStore hydration may make that compact response
+/// larger than its resident byte budget. A newest-suffix-only cap would then
+/// remove the user event and leave a visibly populated but structurally
+/// detached Round. Retain that one lightweight anchor while the existing cap
+/// fills the remaining budget from its neighbour and newest suffix.
+pub(super) fn cap_replaced_replay_store(
+    state: &EventStoreState,
+    session_id: &str,
+    events: &[SessionEvent],
+) -> Result<usize, String> {
+    let anchor = events
+        .iter()
+        .find(|event| event.source == EventSource::User)
+        .or_else(|| events.first());
+    match anchor {
+        Some(anchor) => state.cap_external_replay_store_preserving_window(
+            session_id,
+            super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+            std::slice::from_ref(anchor),
+        ),
+        None => state
+            .cap_external_replay_store(session_id, super::super::BOUNDED_REPLAY_STORE_MAX_BYTES),
+    }
+}
+
+/// Apply resident-memory policy only when a poll actually changed the store.
+///
+/// A no-change poll must be a true EventStore no-op. When a live delta does
+/// arrive, its cursor still follows the newest provider tail while the user
+/// may be reading an older random-access Round, so retain the current user
+/// anchor instead of silently replacing the visible ownership boundary.
+pub(super) fn cap_polled_replay_store(
+    state: &EventStoreState,
+    session_id: &str,
+    delta: &ExternalReplayDelta,
+    changed: bool,
+) -> Result<(), String> {
+    if !changed {
+        return Ok(());
+    }
+    if delta.reset_required {
+        cap_replaced_replay_store(state, session_id, &delta.events)?;
+    } else {
+        state.cap_external_replay_store_preserving_current_user_anchor(
+            session_id,
+            super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+        )?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -460,7 +506,8 @@ pub async fn external_replay_read_window(
     }
     let request_token =
         begin_validated_foreground_request(&source_id, &session_id, episode_id, false)?;
-    let publish = replay_window_publish_for_locator(before_sequence);
+    let publish =
+        replay_window_publish_for_locator(before_sequence, turn_id.as_deref(), turn_index);
     let requested_limits = limits.unwrap_or_default().bounded();
     let display_session_id = session_id.clone();
     let requested_source_id = source_id.clone();
@@ -554,10 +601,7 @@ pub async fn external_replay_read_window(
     }
     match publish {
         ReplayWindowPublish::Replace => {
-            state.cap_external_replay_store(
-                &display_session_id,
-                super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-            )?;
+            cap_replaced_replay_store(&state, &display_session_id, &response.events)?;
         }
         ReplayWindowPublish::Merge => {
             state.cap_external_replay_store_preserving_window(
@@ -710,10 +754,7 @@ pub async fn external_replay_prewarm_window(
     ) {
         return Ok(response);
     }
-    state.cap_external_replay_store(
-        &display_session_id,
-        super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
-    )?;
+    cap_replaced_replay_store(&state, &display_session_id, &response.events)?;
     if is_current_prewarm_request(&display_session_id, episode_id, request_token) {
         schedule_notify(&app, &state, &display_session_id);
     }

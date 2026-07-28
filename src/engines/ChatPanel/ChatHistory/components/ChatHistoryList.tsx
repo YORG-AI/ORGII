@@ -55,6 +55,14 @@ export { resolveActiveGroupPinState, resolveVisibleGroupIndices };
 
 const STATIC_RENDER_ITEM_LIMIT = 24;
 const PROGRAMMATIC_NAVIGATION_SIGNAL_MS = 500;
+const HISTORY_BACKFILL_MIN_RUNWAY_PX = 32;
+
+export function isWithinHistoryBackfillRunway(
+  scrollTop: number,
+  clientHeight: number
+): boolean {
+  return scrollTop <= Math.max(HISTORY_BACKFILL_MIN_RUNWAY_PX, clientHeight);
+}
 
 // memo: parent (`ChatHistory/index.tsx`) re-renders on every chat event
 // (atom subscriptions, useDeferredValue ticks). All props are either
@@ -67,6 +75,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     flatItems,
     groupKeys,
     groupCounts,
+    replayTurnIndices,
     turnIds,
     totalFlatItems,
     lastAssistantFlatIndexPerItem,
@@ -404,7 +413,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
           : virtualScrollerRef.current;
         if (scrollRoot) {
           onAtStartStateChange(
-            scrollRoot.scrollTop <= 32,
+            isWithinHistoryBackfillRunway(
+              scrollRoot.scrollTop,
+              scrollRoot.clientHeight
+            ),
             scrollRoot.scrollHeight > scrollRoot.clientHeight + 1,
             "layout"
           );
@@ -433,7 +445,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 ? "programmatic"
                 : "scroll";
             onAtStartStateChange(
-              element.scrollTop <= 32,
+              isWithinHistoryBackfillRunway(
+                element.scrollTop,
+                element.clientHeight
+              ),
               element.scrollHeight > element.clientHeight + 1,
               startSignalSource
             );
@@ -458,7 +473,14 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
               }
               return;
             }
-            if (element.scrollTop > 32) return;
+            if (
+              !isWithinHistoryBackfillRunway(
+                element.scrollTop,
+                element.clientHeight
+              )
+            ) {
+              return;
+            }
             // A wheel gesture at the physical top does not produce another
             // `scroll` event. Surface the user's continued scroll-back intent
             // so a request that overlapped the previous bounded page can queue
@@ -479,6 +501,9 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 className="relative"
                 data-chat-group-index={groupIndex}
                 data-chat-group-key={groupKeys[groupIndex] ?? undefined}
+                data-replay-turn-index={
+                  replayTurnIndices[groupIndex] ?? undefined
+                }
                 data-chat-turn-id={turnIds[groupIndex] ?? undefined}
               >
                 <div data-chat-group-header>
@@ -548,7 +573,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
               ? "programmatic"
               : "scroll";
           onAtStartStateChange(
-            element.scrollTop <= 32,
+            isWithinHistoryBackfillRunway(
+              element.scrollTop,
+              element.clientHeight
+            ),
             element.scrollHeight > element.clientHeight + 1,
             startSignalSource
           );
@@ -573,7 +601,14 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
             }
             return;
           }
-          if (element.scrollTop > 32) return;
+          if (
+            !isWithinHistoryBackfillRunway(
+              element.scrollTop,
+              element.clientHeight
+            )
+          ) {
+            return;
+          }
           onAtStartStateChange(
             true,
             element.scrollHeight > element.clientHeight + 1,
@@ -595,6 +630,9 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                 data-index={virtualItem.index}
                 data-chat-group-index={group.groupIndex}
                 data-chat-group-key={groupKeys[group.groupIndex] ?? undefined}
+                data-replay-turn-index={
+                  replayTurnIndices[group.groupIndex] ?? undefined
+                }
                 data-chat-turn-id={turnIds[group.groupIndex] ?? undefined}
                 className="absolute left-0 top-0 w-full"
                 style={{

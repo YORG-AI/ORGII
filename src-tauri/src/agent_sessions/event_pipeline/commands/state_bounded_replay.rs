@@ -12,6 +12,12 @@ use crate::agent_sessions::event_pipeline::types::{SessionEvent, SessionEventPat
 
 use super::{external_replay, EventStoreState};
 
+enum ExternalReplayCapPolicy<'a> {
+    NewestSuffix,
+    PreservedEventIds(&'a HashSet<String>),
+    CurrentUserAnchor,
+}
+
 /// Generic writes used by managed/imported CLI sessions must obey the same
 /// resident-memory budget as explicit external replay windows.
 pub(super) const BOUNDED_REPLAY_STORE_MAX_BYTES: usize = 16 * 1024 * 1024;
@@ -31,7 +37,11 @@ impl EventStoreState {
         session_id: &str,
         max_bytes: usize,
     ) -> Result<usize, String> {
-        self.cap_external_replay_store_inner(session_id, max_bytes, None)
+        self.cap_external_replay_store_inner(
+            session_id,
+            max_bytes,
+            ExternalReplayCapPolicy::NewestSuffix,
+        )
     }
 
     /// Apply the external replay byte cap while pinning one foreground window.
@@ -47,14 +57,34 @@ impl EventStoreState {
             .iter()
             .map(|event| event.id.clone())
             .collect::<HashSet<_>>();
-        self.cap_external_replay_store_inner(session_id, max_bytes, Some(&preserved_event_ids))
+        self.cap_external_replay_store_inner(
+            session_id,
+            max_bytes,
+            ExternalReplayCapPolicy::PreservedEventIds(&preserved_event_ids),
+        )
+    }
+
+    /// Keep the provider user row that owns the currently visible replay
+    /// body while incorporating a live delta. This is distinct from retaining
+    /// the delta rows themselves: the poll cursor follows the newest source
+    /// tail even when the user is reading an older random-access Round.
+    pub fn cap_external_replay_store_preserving_current_user_anchor(
+        &self,
+        session_id: &str,
+        max_bytes: usize,
+    ) -> Result<usize, String> {
+        self.cap_external_replay_store_inner(
+            session_id,
+            max_bytes,
+            ExternalReplayCapPolicy::CurrentUserAnchor,
+        )
     }
 
     fn cap_external_replay_store_inner(
         &self,
         session_id: &str,
         max_bytes: usize,
-        preserved_event_ids: Option<&HashSet<String>>,
+        policy: ExternalReplayCapPolicy<'_>,
     ) -> Result<usize, String> {
         // Match the EventStore write/switch lock order: manager -> stores.
         let (bytes, evicted) = {
@@ -72,11 +102,16 @@ impl EventStoreState {
             #[cfg(test)]
             self.bounded_replay_exact_cap_count
                 .fetch_add(1, Ordering::Relaxed);
-            let bytes = match preserved_event_ids {
-                Some(preserved_event_ids) => {
+            let bytes = match policy {
+                ExternalReplayCapPolicy::NewestSuffix => {
+                    store.cap_external_replay_bytes(max_bytes)?
+                }
+                ExternalReplayCapPolicy::PreservedEventIds(preserved_event_ids) => {
                     store.cap_external_replay_bytes_preserving(max_bytes, preserved_event_ids)?
                 }
-                None => store.cap_external_replay_bytes(max_bytes)?,
+                ExternalReplayCapPolicy::CurrentUserAnchor => {
+                    store.cap_external_replay_bytes_preserving_current_user_anchor(max_bytes)?
+                }
             };
             let evicted = manager.update_estimated_bytes(session_id, bytes);
             (bytes, evicted)

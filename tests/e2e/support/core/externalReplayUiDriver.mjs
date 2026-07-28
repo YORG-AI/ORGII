@@ -12,8 +12,19 @@ export const REPLAY_MAX_EVENTS = 200;
 
 const MOUNT_TIMEOUT_MS = 60_000;
 
+// tauri-plugin-webdriver-automation 0.1.3 has a single pending-script slot.
+// Serialize sync and async bridge calls through one queue so WebdriverIO
+// retries or diagnostics cannot overwrite that slot and poison its mutex.
+let webDriverBridgeTail = Promise.resolve();
+
+function runWebDriverBridge(operation) {
+  const current = webDriverBridgeTail.then(operation, operation);
+  webDriverBridgeTail = current.catch(() => undefined);
+  return current;
+}
+
 export async function execJS(script) {
-  return browser.executeScript(script, []);
+  return runWebDriverBridge(() => browser.executeScript(script, []));
 }
 
 export async function waitForRenderedSelector(
@@ -153,21 +164,23 @@ export async function setRenderedInputValue(
 }
 
 export async function invokeTauriCommand(command, args = {}) {
-  const envelope = await browser.executeAsyncScript(
-    `
-      const cb = arguments[arguments.length - 1];
-      const command = arguments[0];
-      const args = arguments[1];
-      const invoke = window.__TAURI_INTERNALS__?.invoke;
-      if (typeof invoke !== "function") {
-        cb({ ok: false, error: "Tauri invoke is unavailable" });
-        return;
-      }
-      Promise.resolve(invoke(command, args))
-        .then((result) => cb({ ok: true, result }))
-        .catch((error) => cb({ ok: false, error: String(error?.message || error) }));
-    `,
-    [command, args]
+  const envelope = await runWebDriverBridge(() =>
+    browser.executeAsyncScript(
+      `
+        const cb = arguments[arguments.length - 1];
+        const command = arguments[0];
+        const args = arguments[1];
+        const invoke = window.__TAURI_INTERNALS__?.invoke;
+        if (typeof invoke !== "function") {
+          cb({ ok: false, error: "Tauri invoke is unavailable" });
+          return;
+        }
+        Promise.resolve(invoke(command, args))
+          .then((result) => cb({ ok: true, result }))
+          .catch((error) => cb({ ok: false, error: String(error?.message || error) }));
+      `,
+      [command, args]
+    )
   );
   if (envelope?.ok !== true) {
     throw new Error(
@@ -178,33 +191,37 @@ export async function invokeTauriCommand(command, args = {}) {
 }
 
 export async function invokeE2E(method, ...args) {
-  return browser.executeAsyncScript(
-    `
-      const cb = arguments[arguments.length - 1];
-      const method = arguments[0];
-      const rest = Array.prototype.slice.call(arguments, 1, arguments.length - 1);
-      if (!window.__e2e || typeof window.__e2e[method] !== "function") {
-        cb({ ok: false, error: "window.__e2e." + method + " not available" });
-        return;
-      }
-      Promise.resolve(window.__e2e[method].apply(null, rest))
-        .then(cb)
-        .catch((error) =>
-          cb({ ok: false, error: String(error && error.message || error) })
-        );
-    `,
-    [method, ...args]
+  return runWebDriverBridge(() =>
+    browser.executeAsyncScript(
+      `
+        const cb = arguments[arguments.length - 1];
+        const method = arguments[0];
+        const rest = Array.prototype.slice.call(arguments, 1, arguments.length - 1);
+        if (!window.__e2e || typeof window.__e2e[method] !== "function") {
+          cb({ ok: false, error: "window.__e2e." + method + " not available" });
+          return;
+        }
+        Promise.resolve(window.__e2e[method].apply(null, rest))
+          .then(cb)
+          .catch((error) =>
+            cb({ ok: false, error: String(error && error.message || error) })
+          );
+      `,
+      [method, ...args]
+    )
   );
 }
 
 async function waitForFrontendReady() {
   const port = process.env.E2E_FRONTEND_PORT ?? "1998";
-  const url = `http://127.0.0.1:${port}`;
+  const url = `http://127.0.0.1:${port}/__orgii_webpack_ready__`;
   await browser.waitUntil(
     async () => {
       try {
         const response = await fetch(url, { method: "GET" });
-        return response.ok;
+        if (!response.ok) return false;
+        const status = await response.json();
+        return status?.ready === true;
       } catch {
         return false;
       }
@@ -606,6 +623,7 @@ export async function clickCurrentRenderedSelector(selector) {
 
 export async function ensureTurnPageItemVisibleWithUserSort(pageIndex) {
   const selector = `[data-testid="turn-page-list-item"][data-turn-page-index="${pageIndex}"]`;
+  const scrollRootSelector = '[data-testid="turn-page-list"] .overflow-y-auto';
   await browser.waitUntil(
     () =>
       execJS(`
@@ -623,79 +641,78 @@ export async function ensureTurnPageItemVisibleWithUserSort(pageIndex) {
   `);
   if (itemIsVisible) return;
 
-  let hasSortButton = false;
-  try {
-    await browser.waitUntil(
-      async () => {
-        hasSortButton = Boolean(
-          await execJS(`
-            return Boolean(document.querySelector(
-              '[data-testid="turn-page-list"] button[aria-label="Sort"]'
-            ))
-          `)
-        );
-        return hasSortButton;
-      },
-      { timeout: 5_000, interval: 50 }
-    );
-  } catch {
-    // Pagination mode intentionally has no sort toolbar. The diagnostics below
-    // distinguish that expected shape from a missing edge row.
-  }
-  if (hasSortButton) {
-    console.log(
-      `[issue-443-real-codex] clicking catalog sort for Round ${pageIndex + 1}`
-    );
-    const clicked = await execJS(`
-      const button = document.querySelector(
-        '[data-testid="turn-page-list"] button[aria-label="Sort"]'
-      );
-      if (!button) return false;
-      button.focus();
-      button.click();
-      return true;
-    `);
-    if (!clicked) {
-      throw new Error("turn-page-list sort button disappeared before click");
-    }
-    console.log(
-      `[issue-443-real-codex] catalog sort completed for Round ${pageIndex + 1}`
-    );
-    await browser.waitUntil(
-      () =>
-        execJS(`
-          return Boolean(document.querySelector(${JSON.stringify(selector)}));
-        `),
-      {
-        timeout: 5_000,
-        interval: 50,
-        timeoutMsg: `turn-page-list item ${pageIndex} did not become visible after user sort`,
-      }
-    );
-    return;
-  }
-  const snapshot = await execJS(`
-    const root = document.querySelector(
-      '[data-testid="turn-page-list"] .overflow-y-auto'
-    );
+  const readListSnapshot = () =>
+    execJS(`
+    const root = document.querySelector(${JSON.stringify(scrollRootSelector)});
     return {
       scrollTop: root?.scrollTop ?? null,
       scrollHeight: root?.scrollHeight ?? null,
       clientHeight: root?.clientHeight ?? null,
+      hasSortButton: Boolean(document.querySelector(
+        '[data-testid="turn-page-list"] button[aria-label="Sort"]'
+      )),
       renderedPageIndices: Array.from(
         document.querySelectorAll('[data-testid="turn-page-list-item"]')
-      ).map((item) => item.getAttribute('data-turn-page-index')),
-      buttons: Array.from(
-        document.querySelectorAll('[data-testid="turn-page-list"] button')
-      ).slice(0, 4).map((button) => ({
-        ariaLabel: button.getAttribute('aria-label'),
-        title: button.getAttribute('title'),
-        testId: button.getAttribute('data-testid'),
-      })),
+      ).map((item) => Number(item.getAttribute('data-turn-page-index')))
+        .filter(Number.isFinite),
     };
   `);
+
+  let snapshot = await readListSnapshot();
+  let sortAttempted = false;
+  for (let attempt = 0; attempt < 48; attempt += 1) {
+    if (
+      await execJS(`
+        return Boolean(document.querySelector(${JSON.stringify(selector)}));
+      `)
+    ) {
+      return;
+    }
+
+    const rendered = snapshot.renderedPageIndices ?? [];
+    const minimum = rendered.length > 0 ? Math.min(...rendered) : null;
+    const maximum = rendered.length > 0 ? Math.max(...rendered) : null;
+    if (
+      !sortAttempted &&
+      snapshot.hasSortButton &&
+      minimum !== null &&
+      maximum !== null &&
+      ((pageIndex < minimum && snapshot.scrollTop <= 1) ||
+        (pageIndex > maximum &&
+          snapshot.scrollTop + snapshot.clientHeight >=
+            snapshot.scrollHeight - 1))
+    ) {
+      console.log(
+        `[issue-443-real-codex] clicking catalog sort for Round ${pageIndex + 1}`
+      );
+      await clickCurrentRenderedSelector(
+        '[data-testid="turn-page-list"] button[aria-label="Sort"]'
+      );
+      sortAttempted = true;
+      await browser.pause(50);
+      snapshot = await readListSnapshot();
+      continue;
+    }
+
+    const firstRendered = rendered[0] ?? null;
+    const lastRendered = rendered[rendered.length - 1] ?? null;
+    const renderedDescending =
+      firstRendered !== null &&
+      lastRendered !== null &&
+      firstRendered > lastRendered;
+    const targetIsAfterViewport =
+      firstRendered !== null &&
+      lastRendered !== null &&
+      (renderedDescending
+        ? pageIndex < lastRendered
+        : pageIndex > lastRendered);
+    const deltaY = targetIsAfterViewport ? 900 : -900;
+    await performWheelGesture(scrollRootSelector, deltaY, 30);
+    await browser.pause(30);
+    snapshot = await readListSnapshot();
+  }
   throw new Error(
-    `turn-page-list item ${pageIndex} is not an edge row reachable by user sort: ${JSON.stringify(snapshot)}`
+    `turn-page-list item ${pageIndex} did not become visible through rendered sort/scroll: ${JSON.stringify(snapshot)}`
   );
 }
 
@@ -723,12 +740,28 @@ export async function getChatViewportSnapshot(markers, pinnedMarkers = []) {
     const pinnedHeaderRect = pinnedHeader?.getBoundingClientRect() ?? null;
     const pinnedHeaderText = pinnedHeader?.innerText || "";
     const groups = Array.from(list.querySelectorAll('[data-chat-group-index]'));
+    const visibleGroups = groups
+      .map((group) => {
+        const rect = group.getBoundingClientRect();
+        return {
+          groupIndex: group.getAttribute("data-chat-group-index"),
+          groupKey: group.getAttribute("data-chat-group-key"),
+          replayTurnIndex: group.getAttribute("data-replay-turn-index"),
+          text: String(group.innerText ?? "").trim().slice(0, 320),
+          rect: { top: rect.top, bottom: rect.bottom },
+          visible:
+            rect.bottom > rootRect.top + 1 &&
+            rect.top < rootRect.bottom - 1,
+        };
+      })
+      .filter((group) => group.visible);
     return {
       scrollTop: root.scrollTop,
       scrollHeight: root.scrollHeight,
       clientHeight: root.clientHeight,
       rootRect: { top: rootRect.top, bottom: rootRect.bottom },
       chatText: (list.innerText || "").slice(0, 16000),
+      visibleGroups,
       markers: markers.map((marker) => {
         const group = groups.find((candidate) =>
           (candidate.innerText || "").includes(marker)
@@ -802,6 +835,66 @@ export async function waitForChatTurn({
   return snapshot;
 }
 
+export async function waitForVisibleReplayTurn({ turnIndex, label }) {
+  let snapshot = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        snapshot = await getChatViewportSnapshot([]);
+        return Boolean(
+          snapshot?.visibleGroups?.some(
+            (group) =>
+              Number(group.replayTurnIndex) === turnIndex &&
+              String(group.text ?? "").trim().length >= 8
+          )
+        );
+      },
+      {
+        timeout: 30_000,
+        interval: 100,
+        timeoutMsg: `${label} did not paint a non-empty group for provider Round ${turnIndex + 1}`,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; final viewport=${JSON.stringify(snapshot)}`
+    );
+  }
+  return snapshot;
+}
+
+export async function waitForCurrentReplayRound({
+  turnIndex,
+  label,
+  allowLatestLabel = false,
+}) {
+  const selector = '[data-testid="turn-pagination-current-round"]';
+  await waitForRenderedSelector(selector, { label });
+  let snapshot = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        snapshot = await renderedSelectorSnapshot(selector);
+        const text = String(snapshot?.text ?? "");
+        return (
+          text.includes(`Round ${turnIndex + 1}`) ||
+          (allowLatestLabel && text.includes("Latest round"))
+        );
+      },
+      {
+        timeout: 20_000,
+        interval: 100,
+        timeoutMsg: `${label} did not identify provider Round ${turnIndex + 1}`,
+      }
+    );
+  } catch (error) {
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; current-round=${JSON.stringify(snapshot)}`
+    );
+  }
+  return snapshot;
+}
+
 export async function getChatScrollMetrics() {
   return execJS(`
     const root = document.querySelector('[data-testid="chat-history-scroll-root"]');
@@ -817,19 +910,40 @@ export async function getChatScrollMetrics() {
 export async function positionChatNearPhysicalTopForBurst(topOffset = 1) {
   // Deterministic setup only. The edge crossing and repeated pressure are real
   // W3C wheel actions in `performWheelBurst`.
-  return execJS(`
-    const root = document.querySelector('[data-testid="chat-history-scroll-root"]');
-    if (!root) throw new Error("chat history scroll root is missing");
-    root.scrollTop = Math.min(
-      ${topOffset},
-      Math.max(0, root.scrollHeight - root.clientHeight)
-    );
-    return {
-      scrollTop: root.scrollTop,
-      scrollHeight: root.scrollHeight,
-      clientHeight: root.clientHeight,
-    };
-  `);
+  let stableSamples = 0;
+  let snapshot = null;
+  await browser.waitUntil(
+    async () => {
+      snapshot = await execJS(`
+        const root = document.querySelector('[data-testid="chat-history-scroll-root"]');
+        if (!root) throw new Error("chat history scroll root is missing");
+        const target = Math.min(
+          ${topOffset},
+          Math.max(0, root.scrollHeight - root.clientHeight)
+        );
+        if (Math.abs(root.scrollTop - target) > 1) {
+          root.scrollTop = target;
+        }
+        return {
+          scrollTop: root.scrollTop,
+          scrollHeight: root.scrollHeight,
+          clientHeight: root.clientHeight,
+        };
+      `);
+      if (Number(snapshot?.scrollTop) <= topOffset + 1) {
+        stableSamples += 1;
+      } else {
+        stableSamples = 0;
+      }
+      return stableSamples >= 3;
+    },
+    {
+      timeout: 5_000,
+      interval: 50,
+      timeoutMsg: "chat history did not settle at its physical top edge",
+    }
+  );
+  return snapshot;
 }
 
 export async function assertNoReplayFatalError(label) {

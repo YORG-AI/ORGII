@@ -334,7 +334,7 @@ describe("session turn loader routing", () => {
       beforeSequence: 120,
       limits: {
         maxTurns: 10,
-        maxEvents: 200,
+        maxEvents: 64,
         maxIpcBytes: 4 * 1024 * 1024,
       },
     });
@@ -342,6 +342,20 @@ describe("session turn loader routing", () => {
     resolve(replayWindow("codexapp-session"));
     await Promise.all([first, second]);
     expect(mocks.mergeWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports progress and serialized bytes to the continuous-scroll budget", async () => {
+    const window = replayWindow("codexapp-session");
+    window.windowStartSequence = 80;
+    window.stats.ipcBytes = 3 * 1024 * 1024;
+    mocks.readWindow.mockResolvedValue(window);
+
+    await expect(
+      loadPreviousExternalReplayWindow("codexapp-session")
+    ).resolves.toEqual({
+      ipcBytes: 3 * 1024 * 1024,
+      progressed: true,
+    });
   });
 
   it("advances older-window cursors only after each newly retained page becomes visible", async () => {
@@ -438,7 +452,7 @@ describe("session turn loader routing", () => {
       beforeSequence: 120,
       limits: {
         maxTurns: 10,
-        maxEvents: 200,
+        maxEvents: 64,
         maxIpcBytes: 4 * 1024 * 1024,
       },
     });

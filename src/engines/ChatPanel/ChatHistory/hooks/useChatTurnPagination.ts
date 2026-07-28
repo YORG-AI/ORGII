@@ -24,6 +24,12 @@ export interface ChatTurnPaginationOptions {
   lastAssistantFlatIndexPerItem: (number | null)[];
   externalReplayTurnSummaries?: ExternalReplayTurnSummary[];
   /**
+   * Provider turn indices whose resident window includes the physical turn
+   * anchor. A middle/tail slice can own visible rows without being a complete
+   * random-access body.
+   */
+  externalReplayAnchoredTurnIndices?: ReadonlySet<number>;
+  /**
    * Treat groups that contain a user header but ZERO agent items as part
    * of an adjacent contentful page instead of giving them their own page.
    *
@@ -61,12 +67,15 @@ export function projectChatTurnPagination({
   flatItems,
   lastAssistantFlatIndexPerItem,
   externalReplayTurnSummaries = [],
+  externalReplayAnchoredTurnIndices,
   mergeUserOnlyPages = false,
 }: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
   const pages = buildTurnPages(
     groupCounts,
     groupHeaders,
+    groupMeta,
     externalReplayTurnSummaries,
+    externalReplayAnchoredTurnIndices,
     mergeUserOnlyPages
   );
   const pageIndexByGroupIndex = buildPageIndexByGroupIndex(
@@ -168,6 +177,7 @@ export function useChatTurnPagination({
   flatItems,
   lastAssistantFlatIndexPerItem,
   externalReplayTurnSummaries,
+  externalReplayAnchoredTurnIndices,
   mergeUserOnlyPages,
 }: ChatTurnPaginationOptions): UseChatTurnPaginationReturn {
   return useMemo(
@@ -181,6 +191,7 @@ export function useChatTurnPagination({
         flatItems,
         lastAssistantFlatIndexPerItem,
         externalReplayTurnSummaries,
+        externalReplayAnchoredTurnIndices,
         mergeUserOnlyPages,
       }),
     [
@@ -192,6 +203,7 @@ export function useChatTurnPagination({
       flatItems,
       lastAssistantFlatIndexPerItem,
       externalReplayTurnSummaries,
+      externalReplayAnchoredTurnIndices,
       mergeUserOnlyPages,
     ]
   );
@@ -228,14 +240,18 @@ function buildPageIndexByGroupIndex(
 function buildTurnPages(
   groupCounts: number[],
   groupHeaders: (OptimizedChatItem | null)[],
+  groupMeta: ChatGroupMeta[],
   externalReplayTurnSummaries: ExternalReplayTurnSummary[],
+  externalReplayAnchoredTurnIndices: ReadonlySet<number> | undefined,
   mergeUserOnlyPages = false
 ): ChatTurnPage[] {
   if (externalReplayTurnSummaries.length > 0) {
     return buildExternalReplayTurnPages(
       groupCounts,
       groupHeaders,
-      externalReplayTurnSummaries
+      groupMeta,
+      externalReplayTurnSummaries,
+      externalReplayAnchoredTurnIndices
     );
   }
 
@@ -303,10 +319,17 @@ function buildTurnPages(
 function buildExternalReplayTurnPages(
   groupCounts: number[],
   groupHeaders: (OptimizedChatItem | null)[],
-  externalReplayTurnSummaries: ExternalReplayTurnSummary[]
+  groupMeta: ChatGroupMeta[],
+  externalReplayTurnSummaries: ExternalReplayTurnSummary[],
+  externalReplayAnchoredTurnIndices: ReadonlySet<number> | undefined
 ): ChatTurnPage[] {
   const groupByTurnId = new Map<string, number>();
+  const groupByReplayTurnIndex = new Map<number, number>();
   for (let groupIndex = 0; groupIndex < groupHeaders.length; groupIndex++) {
+    const replayTurnIndex = groupMeta[groupIndex]?.replayTurnIndex;
+    if (replayTurnIndex !== null && replayTurnIndex !== undefined) {
+      groupByReplayTurnIndex.set(replayTurnIndex, groupIndex);
+    }
     const eventId = groupHeaders[groupIndex]?.event?.id;
     if (!eventId) continue;
     // New bounded replay headers use the complete provider-stable event id.
@@ -340,8 +363,17 @@ function buildExternalReplayTurnPages(
       const summary = externalReplayTurnSummaries[pageIndex];
       if (!summary) return undefined;
       const renderedUserEventId = summary.renderedUserEventId ?? summary.turnId;
-      const loadedGroupIndex = groupByTurnId.get(renderedUserEventId);
-      if (loadedGroupIndex === undefined) {
+      // Provider ownership alone is not enough: a bounded middle/tail slice
+      // can legitimately contain only tool/assistant rows from this turn.
+      // Pagination treats the body as loaded only after a window containing
+      // the physical turn anchor has been published.
+      const loadedGroupIndex =
+        groupByReplayTurnIndex.get(summary.turnIndex) ??
+        groupByTurnId.get(renderedUserEventId);
+      const anchorLoaded =
+        externalReplayAnchoredTurnIndices?.has(summary.turnIndex) ??
+        groupByTurnId.has(renderedUserEventId);
+      if (loadedGroupIndex === undefined || !anchorLoaded) {
         return {
           startGroupIndex: 0,
           endGroupIndex: -1,

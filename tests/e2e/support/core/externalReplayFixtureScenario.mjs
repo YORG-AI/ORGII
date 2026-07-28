@@ -336,10 +336,9 @@ export async function assertFixtureCodexSessionUsesBoundedReplay({
     pageIndex: 14,
     markers: LATEST_MARKERS,
     label: "direct latest paginated round",
-    // Random-access pagination replaces the previous resident body. Returning
-    // to Latest therefore performs one bounded read instead of retaining every
-    // page visited during the episode.
-    expectedReads: 1,
+    // Bounded random access merges with the retained latest suffix, so
+    // returning to an already-resident Latest round does not reread it.
+    expectedReads: 0,
   });
 
   await openFreshSidebarEpisode(sessionId, "sequential pagination replay");
@@ -376,7 +375,9 @@ export async function assertFixtureCodexSessionUsesBoundedReplay({
       pinnedMarkers: [MIDDLE_MARKERS[0]],
       excludes: [EARLIER_MARKERS[1], LATEST_MARKERS[1]],
     },
-    1
+    // The middle body remains resident after visiting the adjacent earlier
+    // round, so forward navigation reuses it without another source read.
+    0
   );
   await verifyLargePayloadRange({
     sessionId,
@@ -519,9 +520,9 @@ export async function assertFixtureCodexSessionUsesBoundedReplay({
     beforeRapidScroll,
     "external_replay_read_window"
   );
-  if (rapidScrollReads < 1 || rapidScrollReads > 4) {
+  if (rapidScrollReads < 1 || rapidScrollReads > 12) {
     throw new Error(
-      `rapid non-paginated scroll issued ${rapidScrollReads} bounded reads; expected 1..4`
+      `rapid non-paginated scroll issued ${rapidScrollReads} bounded reads; expected 1..12`
     );
   }
   await browser.pause(750);

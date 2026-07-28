@@ -27,6 +27,7 @@ pub mod derived;
 pub mod extractors;
 pub mod history;
 pub mod ingestion;
+pub(crate) mod json_size;
 pub mod pagination;
 pub mod payload_compaction;
 pub mod search;

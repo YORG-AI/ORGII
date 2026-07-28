@@ -797,7 +797,7 @@ fn foreground_same_generation_merge_and_reset_delta_advance_the_guard() {
 }
 
 #[test]
-fn direct_turn_selection_replaces_while_continuous_history_merges() {
+fn direct_turn_selection_merges_with_the_bounded_latest_window() {
     let session_id = "codexapp-foreground-navigation-mode";
     let state = EventStoreState::new();
     let open_request = begin_replay_request(session_id, 83, true).expect("open request");
@@ -812,7 +812,7 @@ fn direct_turn_selection_replaces_while_continuous_history_merges() {
     ));
 
     let older_request = begin_replay_request(session_id, 83, false).expect("older request");
-    let older_publish = replay_window_publish_for_locator(Some(200));
+    let older_publish = replay_window_publish_for_locator(Some(200), None, None);
     assert_eq!(older_publish, ReplayWindowPublish::Merge);
     assert!(apply_foreground_window_if_current(
         &state,
@@ -825,17 +825,137 @@ fn direct_turn_selection_replaces_while_continuous_history_merges() {
     ));
 
     let direct_request = begin_replay_request(session_id, 83, false).expect("direct request");
-    let direct_publish = replay_window_publish_for_locator(None);
-    assert_eq!(direct_publish, ReplayWindowPublish::Replace);
+    let direct_publish = replay_window_publish_for_locator(None, None, Some(0));
+    assert_eq!(direct_publish, ReplayWindowPublish::Merge);
+    let direct_events = [event("direct", session_id, "random access page")];
     assert!(apply_foreground_window_if_current(
         &state,
         session_id,
         83,
         direct_request,
         "generation-a",
-        &[event("direct", session_id, "random access page")],
+        &direct_events,
         direct_publish,
     ));
+    state
+        .cap_external_replay_store_preserving_window(
+            session_id,
+            super::super::super::BOUNDED_REPLAY_STORE_MAX_BYTES,
+            &direct_events,
+        )
+        .expect("cap random-access merge");
+    assert_eq!(
+        state.with_store_opt(session_id, |store| {
+            let mut ids = store
+                .events()
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>();
+            ids.sort();
+            ids
+        }),
+        Some(vec![
+            "direct".to_string(),
+            "latest".to_string(),
+            "older".to_string(),
+        ])
+    );
+    assert_eq!(
+        replay_window_publish_for_locator(None, None, None),
+        ReplayWindowPublish::Replace,
+        "locator-free canonical reads remain authoritative replacements"
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn authoritative_replacement_cap_preserves_the_provider_user_anchor() {
+    let session_id = "codexapp-replacement-anchor-cap";
+    let state = EventStoreState::new();
+    let request_token = begin_replay_request(session_id, 84, true).expect("open request");
+    let mut anchor = event("turn-anchor", session_id, "selected provider prompt");
+    anchor.source = EventSource::User;
+    let mut events = vec![anchor];
+    for index in 0..4 {
+        events.push(event(
+            &format!("turn-body-{index}"),
+            session_id,
+            &"x".repeat(3 * 1024 * 1024),
+        ));
+    }
+
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        84,
+        request_token,
+        "generation-a",
+        &events,
+        ReplayWindowPublish::Replace,
+    ));
+    let bytes =
+        cap_replaced_replay_store(&state, session_id, &events).expect("cap replacement window");
+
+    assert!(bytes <= super::super::super::BOUNDED_REPLAY_STORE_MAX_BYTES);
+    assert_eq!(
+        state.with_store_opt(session_id, |store| store.get_by_id("turn-anchor").is_some()),
+        Some(true),
+        "a selected large Round must retain its provider user anchor"
+    );
+    assert_eq!(
+        state.with_store_opt(session_id, |store| store.get_by_id("turn-body-3").is_some()),
+        Some(true),
+        "the ordinary newest suffix must remain available beside the anchor"
+    );
+    release_session_runtime(session_id);
+}
+
+#[test]
+fn poll_cap_is_a_true_no_op_without_changes_and_preserves_the_visible_anchor_on_delta() {
+    let session_id = "codexapp-poll-anchor-cap";
+    let state = EventStoreState::new();
+    let request_token = begin_replay_request(session_id, 85, true).expect("open request");
+    let mut anchor = event(
+        "visible-turn-anchor",
+        session_id,
+        "selected provider prompt",
+    );
+    anchor.source = EventSource::User;
+    let mut events = vec![anchor];
+    for index in 0..4 {
+        events.push(event(
+            &format!("visible-turn-body-{index}"),
+            session_id,
+            &"y".repeat(3 * 1024 * 1024),
+        ));
+    }
+    assert!(apply_foreground_window_if_current(
+        &state,
+        session_id,
+        85,
+        request_token,
+        "generation-a",
+        &events,
+        ReplayWindowPublish::Replace,
+    ));
+    cap_replaced_replay_store(&state, session_id, &events).expect("cap selected Round");
+
+    let before_no_change = state
+        .with_store_opt(session_id, |store| {
+            store
+                .events()
+                .iter()
+                .map(|event| event.id.clone())
+                .collect::<Vec<_>>()
+        })
+        .expect("resident store");
+    cap_polled_replay_store(
+        &state,
+        session_id,
+        &delta(Vec::new(), Vec::new(), false),
+        false,
+    )
+    .expect("no-change poll");
     assert_eq!(
         state.with_store_opt(session_id, |store| {
             store
@@ -844,7 +964,36 @@ fn direct_turn_selection_replaces_while_continuous_history_merges() {
                 .map(|event| event.id.clone())
                 .collect::<Vec<_>>()
         }),
-        Some(vec!["direct".to_string()])
+        Some(before_no_change),
+        "an unchanged poll must not recut or otherwise mutate EventStore"
+    );
+
+    let mut newest = event(
+        "newest-provider-delta",
+        session_id,
+        &"z".repeat(3 * 1024 * 1024),
+    );
+    newest.created_at = "2026-07-22T00:01:00Z".to_string();
+    state.with_store_mut(session_id, |store| {
+        store.merge_round_window_events(vec![newest.clone()]);
+    });
+    cap_polled_replay_store(
+        &state,
+        session_id,
+        &delta(vec![newest], Vec::new(), false),
+        true,
+    )
+    .expect("changed poll cap");
+
+    assert_eq!(
+        state.with_store_opt(session_id, |store| {
+            (
+                store.get_by_id("visible-turn-anchor").is_some(),
+                store.get_by_id("newest-provider-delta").is_some(),
+            )
+        }),
+        Some((true, true)),
+        "a live delta must keep both the selected Round anchor and newest provider tail"
     );
     release_session_runtime(session_id);
 }
@@ -855,148 +1004,6 @@ fn stale_query_generation_or_revision_cannot_be_applied() {
         .expect("current query is accepted");
     assert!(validate_query_apply_version("generation-a", 7, "generation-b", 8).is_err());
     assert!(validate_query_apply_version("generation-b", 7, "generation-b", 8).is_err());
-}
-
-#[test]
-fn final_wire_budget_counts_normalized_payload_refs_and_fails_closed() {
-    let mut replay_event = event("payload", "codexapp-test", "preview");
-    replay_event.payload_refs.push(PayloadRef {
-        event_id: replay_event.id.clone(),
-        field_path: "result.content".to_string(),
-        preview: "x".repeat(70 * 1024),
-        full_size_bytes: 10 * 1024 * 1024,
-        truncated: true,
-        replay_encoding: Some(PayloadRefEncoding::Utf8Text),
-        replay_source_id: Some("codex_app".to_string()),
-        replay_generation: Some("g1".to_string()),
-        replay_source_event_id: Some("payload".to_string()),
-    });
-    let cursor = ReplayCursor {
-        source_id: "codex_app".to_string(),
-        session_id: "codexapp-test".to_string(),
-        generation: "g1".to_string(),
-        revision: 7,
-        through_sequence: 7,
-    };
-    let mut window = ExternalReplayWindow {
-        cursor: cursor.clone(),
-        events: vec![replay_event],
-        window_start_sequence: Some(7),
-        turn_headers: Vec::new(),
-        total_turn_count: 1,
-        total_event_count: 1,
-        has_older: false,
-        stats: ReplayStats::default(),
-        watcher_available: false,
-    };
-    let error = finalize_window_wire_budget(&mut window, 64 * 1024)
-        .expect_err("payload ref must count toward wire bytes");
-    assert!(error.contains("serialized bytes"));
-    assert_eq!(
-        window.cursor, cursor,
-        "failed wire check never advances cursor"
-    );
-}
-
-#[test]
-fn compact_storage_reads_reserve_normalization_wire_headroom() {
-    let requested = ReplayLimits {
-        max_turns: replay::HARD_MAX_TURNS,
-        max_events: replay::HARD_MAX_EVENTS,
-        max_ipc_bytes: replay::HARD_MAX_IPC_BYTES,
-    };
-    let storage = replay_storage_limits_with_normalization_headroom(requested);
-
-    assert_eq!(storage.max_turns, requested.max_turns);
-    assert_eq!(storage.max_events, requested.max_events);
-    assert_eq!(
-        storage.max_ipc_bytes,
-        replay::HARD_MAX_IPC_BYTES / 2,
-        "raw compact rows must stop before renderer-only fields and payload refs can overflow IPC"
-    );
-}
-
-fn max_preview_replay_events(count: usize) -> Vec<SessionEvent> {
-    (0..count)
-        .map(|index| {
-            let mut row = event(
-                &format!("event-{index}"),
-                "codexapp-test",
-                &"x".repeat(replay::NORMAL_PAYLOAD_PREVIEW_BYTES),
-            );
-            row.payload_refs.push(PayloadRef {
-                event_id: row.id.clone(),
-                field_path: "result.content".to_string(),
-                preview: String::new(),
-                full_size_bytes: 10 * 1024 * 1024,
-                truncated: true,
-                replay_encoding: Some(PayloadRefEncoding::Utf8Text),
-                replay_source_id: Some("codex_app".to_string()),
-                replay_generation: Some("g1".to_string()),
-                replay_source_event_id: Some(row.id.clone()),
-            });
-            row
-        })
-        .collect()
-}
-
-#[test]
-fn two_hundred_max_preview_events_stay_under_the_hard_wire_cap() {
-    let mut window = ExternalReplayWindow {
-        cursor: ReplayCursor {
-            source_id: "codex_app".to_string(),
-            session_id: "codexapp-test".to_string(),
-            generation: "g1".to_string(),
-            revision: 200,
-            through_sequence: 199,
-        },
-        events: max_preview_replay_events(200),
-        window_start_sequence: Some(0),
-        turn_headers: Vec::new(),
-        total_turn_count: 1,
-        total_event_count: 200,
-        has_older: false,
-        stats: ReplayStats::default(),
-        watcher_available: false,
-    };
-    finalize_window_wire_budget(&mut window, replay::HARD_MAX_IPC_BYTES)
-        .expect("200 normal previews fit hard cap");
-    assert!(window.stats.ipc_bytes <= replay::HARD_MAX_IPC_BYTES as u64);
-}
-
-#[test]
-fn final_delta_wire_budget_counts_payload_refs_and_preserves_the_cursor_on_failure() {
-    let mut replay_event = event("payload", "codexapp-test", "preview");
-    replay_event.payload_refs.push(PayloadRef {
-        event_id: replay_event.id.clone(),
-        field_path: "result.content".to_string(),
-        preview: "x".repeat(70 * 1024),
-        full_size_bytes: 10 * 1024 * 1024,
-        truncated: true,
-        replay_encoding: Some(PayloadRefEncoding::Utf8Text),
-        replay_source_id: Some("codex_app".to_string()),
-        replay_generation: Some("g1".to_string()),
-        replay_source_event_id: Some("payload".to_string()),
-    });
-    let mut response = delta(vec![replay_event], Vec::new(), false);
-    let cursor = response.cursor.clone();
-    let error = finalize_delta_wire_budget(&mut response, 64 * 1024)
-        .expect_err("delta payload ref must count toward wire bytes");
-    assert!(error.contains("serialized bytes"));
-    assert_eq!(
-        response.cursor, cursor,
-        "failed delta wire check never advances the caller-visible cursor"
-    );
-}
-
-#[test]
-fn two_hundred_max_preview_delta_events_stay_under_the_hard_wire_cap() {
-    let mut response = delta(max_preview_replay_events(200), Vec::new(), false);
-    response.cursor.revision = 200;
-    response.cursor.through_sequence = 199;
-    finalize_delta_wire_budget(&mut response, replay::HARD_MAX_IPC_BYTES)
-        .expect("200 normal delta previews fit hard cap");
-    assert!(response.stats.ipc_bytes <= replay::HARD_MAX_IPC_BYTES as u64);
 }
 
 #[test]

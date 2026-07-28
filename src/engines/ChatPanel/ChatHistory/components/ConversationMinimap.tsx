@@ -10,6 +10,8 @@ import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared";
 import { isAssistantMessageEvent } from "../chatItemPipeline/dedup";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { ChatGroupMeta } from "../hooks/useChatGroups";
+import type { UseChatTurnPaginationReturn } from "../hooks/useChatTurnPagination";
+import { useVisibleExternalReplayTurnMetadata } from "../hooks/useVisibleExternalReplayTurnMetadata";
 import { getRoundPreviewText } from "../utils/turnPageFormatting";
 import { getTurnTimingLabels } from "../utils/turnTimingFormatting";
 
@@ -25,6 +27,26 @@ export function getConversationPreviewPositionClass(
   return "right-full mr-3 @[640px]/chatbody:mr-1";
 }
 
+export function shouldShowFloatingConversationMinimap({
+  isAtBottom,
+  isPointerOver,
+  isScrolling,
+  previewMarkerIndex,
+}: {
+  isAtBottom: boolean;
+  isPointerOver: boolean;
+  isScrolling: boolean;
+  previewMarkerIndex: number | null;
+}): boolean {
+  // On narrow panes the navigator may rest while the user is at the newest
+  // content, but it must remain available anywhere in historical content.
+  // Otherwise the 1.2 s scroll-idle timer removes the only bounded jump path
+  // back to newer provider Rounds.
+  return (
+    !isAtBottom || isScrolling || isPointerOver || previewMarkerIndex !== null
+  );
+}
+
 export function sampleConversationGroupIndices(
   groupIndices: readonly number[],
   maxMarkers = MAX_CONVERSATION_MINIMAP_MARKERS
@@ -38,6 +60,48 @@ export function sampleConversationGroupIndices(
     const percentage = markerIndex / (maxMarkers - 1);
     return groupIndices[Math.round(percentage * lastIndex)];
   });
+}
+
+export function sampleConversationReplayTurnIndices(
+  totalTurnCount: number,
+  maxMarkers = MAX_CONVERSATION_MINIMAP_MARKERS
+): number[] {
+  if (totalTurnCount <= 0 || maxMarkers <= 0) return [];
+  if (totalTurnCount <= maxMarkers) {
+    return Array.from({ length: totalTurnCount }, (_, turnIndex) => turnIndex);
+  }
+  if (maxMarkers === 1) return [totalTurnCount - 1];
+
+  const lastTurnIndex = totalTurnCount - 1;
+  return Array.from({ length: maxMarkers }, (_, markerIndex) =>
+    Math.round((markerIndex / (maxMarkers - 1)) * lastTurnIndex)
+  );
+}
+
+export function resolveActiveConversationReplayTurnIndex(
+  activeTurnIndex: number,
+  totalTurnCount: number,
+  isAtBottom: boolean
+): number | null {
+  if (totalTurnCount <= 0) return null;
+  if (isAtBottom) return totalTurnCount - 1;
+  return Math.min(Math.max(0, activeTurnIndex), totalTurnCount - 1);
+}
+
+export function getAdjacentConversationReplayTurnIndex(
+  activeTurnIndex: number,
+  totalTurnCount: number,
+  direction: -1 | 1,
+  isAtBottom: boolean
+): number | null {
+  const current = resolveActiveConversationReplayTurnIndex(
+    activeTurnIndex,
+    totalTurnCount,
+    isAtBottom
+  );
+  if (current === null) return null;
+  const adjacent = current + direction;
+  return adjacent >= 0 && adjacent < totalTurnCount ? adjacent : null;
 }
 
 export function findNearestConversationMarker(
@@ -179,6 +243,8 @@ function buildAssistantPreviews(
 }
 
 interface ConversationMinimapProps {
+  sessionId: string | null;
+  pages: UseChatTurnPaginationReturn["pages"];
   groupHeaders: readonly (OptimizedChatItem | null)[];
   groupMeta: readonly ChatGroupMeta[];
   groupCounts: readonly number[];
@@ -190,11 +256,14 @@ interface ConversationMinimapProps {
   isScrolling: boolean;
   labelVariant?: "agent" | "agents";
   onNavigate: (groupIndex: number) => void;
+  onReplayNavigate: (turnIndex: number) => void;
   onHistoryToggle: () => void;
 }
 
 const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
   ({
+    sessionId,
+    pages,
     groupHeaders,
     groupMeta,
     groupCounts,
@@ -206,11 +275,12 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
     isScrolling,
     labelVariant = "agent",
     onNavigate,
+    onReplayNavigate,
     onHistoryToggle,
   }) => {
     const { t } = useTranslation();
     const tooltipId = useId();
-    const [previewGroupIndex, setPreviewGroupIndex] = useState<number | null>(
+    const [previewMarkerIndex, setPreviewMarkerIndex] = useState<number | null>(
       null
     );
     const [isPointerOver, setIsPointerOver] = useState(false);
@@ -222,34 +292,106 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
       () => sampleConversationGroupIndices(navigableGroupIndices),
       [navigableGroupIndices]
     );
+    const replayTurnCount =
+      pages.length > 0 && pages[0]?.replayTurnSummary ? pages.length : 0;
+    const replayMarkerTurnIndices = useMemo(
+      () => sampleConversationReplayTurnIndices(replayTurnCount),
+      [replayTurnCount]
+    );
+    const compactReplaySummaries = useVisibleExternalReplayTurnMetadata({
+      sessionId: replayTurnCount > 0 ? sessionId : null,
+      pages,
+      visiblePageIndices: replayMarkerTurnIndices,
+    });
+    const useReplayCatalog = replayTurnCount > 0;
+    const markerIndices = useReplayCatalog
+      ? replayMarkerTurnIndices
+      : markerGroupIndices;
     const assistantPreviews = useMemo(
       () => buildAssistantPreviews(flatItems, groupCounts),
       [flatItems, groupCounts]
     );
-    const activeMarkerGroupIndex = resolveActiveConversationMarker(
-      markerGroupIndices,
-      activeGroupIndex,
-      isAtBottom
-    );
-    const highlightedMarkerGroupIndices = useMemo(
-      () =>
-        new Set(
+    const activeReplayTurnIndex =
+      groupMeta[activeGroupIndex]?.replayTurnIndex ?? replayTurnCount - 1;
+    const activeMarkerIndex = useReplayCatalog
+      ? findNearestConversationMarker(
+          replayMarkerTurnIndices,
+          resolveActiveConversationReplayTurnIndex(
+            activeReplayTurnIndex,
+            replayTurnCount,
+            isAtBottom
+          ) ?? 0
+        )
+      : resolveActiveConversationMarker(
+          markerGroupIndices,
+          activeGroupIndex,
+          isAtBottom
+        );
+    const highlightedMarkerIndices = useMemo(() => {
+      if (!useReplayCatalog) {
+        return new Set(
           resolveHighlightedConversationMarkers(
             markerGroupIndices,
             visibleGroupIndices,
             activeGroupIndex,
             isAtBottom
           )
-        ),
-      [activeGroupIndex, isAtBottom, markerGroupIndices, visibleGroupIndices]
-    );
+        );
+      }
+      const visibleReplayTurnIndices = visibleGroupIndices.flatMap(
+        (groupIndex) => {
+          const turnIndex = groupMeta[groupIndex]?.replayTurnIndex;
+          return turnIndex === null || turnIndex === undefined
+            ? []
+            : [turnIndex];
+        }
+      );
+      return new Set(
+        resolveHighlightedConversationMarkers(
+          replayMarkerTurnIndices,
+          visibleReplayTurnIndices,
+          activeReplayTurnIndex,
+          isAtBottom
+        )
+      );
+    }, [
+      activeGroupIndex,
+      activeReplayTurnIndex,
+      groupMeta,
+      isAtBottom,
+      markerGroupIndices,
+      replayMarkerTurnIndices,
+      useReplayCatalog,
+      visibleGroupIndices,
+    ]);
     const previewSampledMarkerIndex =
-      previewGroupIndex === null
+      previewMarkerIndex === null
         ? -1
-        : markerGroupIndices.indexOf(previewGroupIndex);
+        : markerIndices.indexOf(previewMarkerIndex);
+    const previewReplayPage =
+      useReplayCatalog && previewMarkerIndex !== null
+        ? pages[previewMarkerIndex]
+        : undefined;
+    const previewReplaySummary = previewReplayPage?.replayTurnSummary
+      ?.userPreview
+      ? previewReplayPage.replayTurnSummary
+      : previewMarkerIndex === null
+        ? undefined
+        : (compactReplaySummaries.get(previewMarkerIndex) ??
+          previewReplayPage?.replayTurnSummary);
+    const previewGroupIndex =
+      previewMarkerIndex === null
+        ? null
+        : useReplayCatalog
+          ? previewReplayPage?.replayBodyLoaded
+            ? previewReplayPage.startGroupIndex
+            : null
+          : previewMarkerIndex;
     const previewHeader =
       previewGroupIndex === null ? null : groupHeaders[previewGroupIndex];
-    const previewTitle = getUserPreview(previewHeader);
+    const previewTitle = useReplayCatalog
+      ? getRoundPreviewText(previewReplaySummary?.userPreview)
+      : getUserPreview(previewHeader);
     const previewResponse =
       previewGroupIndex === null
         ? ""
@@ -257,21 +399,33 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
     const previewMeta =
       previewGroupIndex === null ? undefined : groupMeta[previewGroupIndex];
     const previewTurnPosition =
-      previewGroupIndex === null
+      previewMarkerIndex === null
         ? null
-        : getConversationTurnPosition(
-            previewGroupIndex,
-            navigableGroupIndices,
-            previewMeta
-          );
+        : useReplayCatalog
+          ? {
+              current: previewMarkerIndex + 1,
+              total: replayTurnCount,
+            }
+          : getConversationTurnPosition(
+              previewMarkerIndex,
+              navigableGroupIndices,
+              previewMeta
+            );
+    const previewStartedAtMs = previewReplaySummary?.startedAt
+      ? Date.parse(previewReplaySummary.startedAt)
+      : (previewMeta?.startMs ?? null);
+    const previewEndedAtMs = previewReplaySummary?.endedAt
+      ? Date.parse(previewReplaySummary.endedAt)
+      : (previewMeta?.endMs ?? null);
     const previewTiming = getTurnTimingLabels(
-      previewMeta?.durationMs ?? 0,
-      previewMeta?.startMs ?? null,
-      previewMeta?.endMs ?? null
+      previewReplaySummary?.durationMs ?? previewMeta?.durationMs ?? 0,
+      Number.isFinite(previewStartedAtMs) ? previewStartedAtMs : null,
+      Number.isFinite(previewEndedAtMs) ? previewEndedAtMs : null
     );
     const showTiming =
-      previewMeta !== undefined &&
-      (previewMeta.durationMs > 0 || previewTiming.showRange);
+      (previewMeta !== undefined || previewReplaySummary !== undefined) &&
+      ((previewReplaySummary?.durationMs ?? previewMeta?.durationMs ?? 0) > 0 ||
+        previewTiming.showRange);
     const durationLabel = t(
       labelVariant === "agents"
         ? "sessions:tools.turnCollapse.agentsWorkedFor"
@@ -289,25 +443,47 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           current: previewTurnPosition.current,
         })
       : "";
-    const showFloatingMinimap =
-      isScrolling || isPointerOver || previewGroupIndex !== null;
+    const showFloatingMinimap = shouldShowFloatingConversationMinimap({
+      isAtBottom,
+      isPointerOver,
+      isScrolling,
+      previewMarkerIndex,
+    });
     const previewPositionClass =
       getConversationPreviewPositionClass(chatPanelPosition);
-    const showHoverControls = isPointerOver || previewGroupIndex !== null;
-    const previousGroupIndex = getAdjacentConversationGroupIndex(
-      navigableGroupIndices,
-      activeGroupIndex,
-      -1,
-      isAtBottom
-    );
-    const nextGroupIndex = getAdjacentConversationGroupIndex(
-      navigableGroupIndices,
-      activeGroupIndex,
-      1,
-      isAtBottom
-    );
+    const showHoverControls = isPointerOver || previewMarkerIndex !== null;
+    const previousMarkerIndex = useReplayCatalog
+      ? getAdjacentConversationReplayTurnIndex(
+          activeReplayTurnIndex,
+          replayTurnCount,
+          -1,
+          isAtBottom
+        )
+      : getAdjacentConversationGroupIndex(
+          navigableGroupIndices,
+          activeGroupIndex,
+          -1,
+          isAtBottom
+        );
+    const nextMarkerIndex = useReplayCatalog
+      ? getAdjacentConversationReplayTurnIndex(
+          activeReplayTurnIndex,
+          replayTurnCount,
+          1,
+          isAtBottom
+        )
+      : getAdjacentConversationGroupIndex(
+          navigableGroupIndices,
+          activeGroupIndex,
+          1,
+          isAtBottom
+        );
+    const navigateToMarker = (markerIndex: number): void => {
+      if (useReplayCatalog) onReplayNavigate(markerIndex);
+      else onNavigate(markerIndex);
+    };
 
-    if (markerGroupIndices.length < 2) return null;
+    if (markerIndices.length < 2) return null;
 
     return (
       <nav
@@ -319,13 +495,13 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
         onMouseEnter={() => setIsPointerOver(true)}
         onMouseLeave={() => {
           setIsPointerOver(false);
-          setPreviewGroupIndex(null);
+          setPreviewMarkerIndex(null);
         }}
         onBlur={(event) => {
           if (
             !event.currentTarget.contains(event.relatedTarget as Node | null)
           ) {
-            setPreviewGroupIndex(null);
+            setPreviewMarkerIndex(null);
           }
         }}
       >
@@ -345,10 +521,10 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
               <TabBarTrailingIconButton
                 title={t("common:pagination.previousRound")}
                 tooltipPosition="bottom-end"
-                disabled={previousGroupIndex === null}
+                disabled={previousMarkerIndex === null}
                 onClick={() => {
-                  if (previousGroupIndex !== null) {
-                    onNavigate(previousGroupIndex);
+                  if (previousMarkerIndex !== null) {
+                    navigateToMarker(previousMarkerIndex);
                   }
                 }}
               >
@@ -357,9 +533,11 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
               <TabBarTrailingIconButton
                 title={t("common:pagination.nextRound")}
                 tooltipPosition="bottom-end"
-                disabled={nextGroupIndex === null}
+                disabled={nextMarkerIndex === null}
                 onClick={() => {
-                  if (nextGroupIndex !== null) onNavigate(nextGroupIndex);
+                  if (nextMarkerIndex !== null) {
+                    navigateToMarker(nextMarkerIndex);
+                  }
                 }}
               >
                 <ChevronDown size={14} strokeWidth={1.75} />
@@ -367,29 +545,41 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
             </div>
           </>
         )}
-        {markerGroupIndices.map((groupIndex, markerIndex) => {
-          const turnPosition = getConversationTurnPosition(
-            groupIndex,
-            navigableGroupIndices,
-            groupMeta[groupIndex]
-          );
-          const prompt = getUserPreview(groupHeaders[groupIndex]);
-          const isActive = groupIndex === activeMarkerGroupIndex;
-          const isHighlighted = highlightedMarkerGroupIndices.has(groupIndex);
+        {markerIndices.map((markerValue, markerIndex) => {
+          const replayPage = useReplayCatalog ? pages[markerValue] : undefined;
+          const replaySummary = replayPage?.replayTurnSummary?.userPreview
+            ? replayPage.replayTurnSummary
+            : (compactReplaySummaries.get(markerValue) ??
+              replayPage?.replayTurnSummary);
+          const turnPosition = useReplayCatalog
+            ? { current: markerValue + 1, total: replayTurnCount }
+            : getConversationTurnPosition(
+                markerValue,
+                navigableGroupIndices,
+                groupMeta[markerValue]
+              );
+          const prompt = useReplayCatalog
+            ? getRoundPreviewText(replaySummary?.userPreview)
+            : getUserPreview(groupHeaders[markerValue]);
+          const isActive = markerValue === activeMarkerIndex;
+          const isHighlighted = highlightedMarkerIndices.has(markerValue);
           const widthClass = getConversationMarkerWidthClass(
             markerIndex,
             previewSampledMarkerIndex
           );
           return (
             <div
-              key={groupIndex}
+              key={`${useReplayCatalog ? "replay" : "group"}-${markerValue}`}
               className="relative flex h-3 w-2 shrink-0 items-center justify-end @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center"
             >
               <button
                 type="button"
+                data-replay-turn-index={
+                  useReplayCatalog ? markerValue : undefined
+                }
                 aria-current={isActive ? "step" : undefined}
                 aria-describedby={
-                  previewGroupIndex === groupIndex ? tooltipId : undefined
+                  previewMarkerIndex === markerValue ? tooltipId : undefined
                 }
                 aria-label={t("sessions:chat.goToConversationTurn", {
                   defaultValue:
@@ -403,9 +593,9 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
                     }),
                 })}
                 className="group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center"
-                onClick={() => onNavigate(groupIndex)}
-                onMouseEnter={() => setPreviewGroupIndex(groupIndex)}
-                onFocus={() => setPreviewGroupIndex(groupIndex)}
+                onClick={() => navigateToMarker(markerValue)}
+                onMouseEnter={() => setPreviewMarkerIndex(markerValue)}
+                onFocus={() => setPreviewMarkerIndex(markerValue)}
               >
                 <span
                   className={`h-[3px] shrink-0 ${widthClass} transition-[width,background-color] duration-150 motion-reduce:transition-none ${
@@ -416,7 +606,7 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
                 />
               </button>
 
-              {previewGroupIndex === groupIndex && (
+              {previewMarkerIndex === markerValue && (
                 <div
                   id={tooltipId}
                   role="tooltip"

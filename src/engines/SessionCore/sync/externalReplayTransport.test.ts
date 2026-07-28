@@ -288,6 +288,45 @@ describe("external replay transport coordinator", () => {
     });
   });
 
+  it("reuses the largest successful event slice for later continuous reads", async () => {
+    currentLease = activateExternalReplaySession("codexapp-session-1");
+    mocks.openWindow.mockResolvedValue(windowResult(currentLease.sessionId, 1));
+    await openExternalReplaySession(currentLease);
+    mocks.readWindow
+      .mockRejectedValueOnce(
+        new Error(
+          "Bounded replay window requires 4807401 serialized bytes after normalization; limit is 4194304. Reduce maxEvents/maxTurns or read payloads by range"
+        )
+      )
+      .mockResolvedValue(windowResult(currentLease.sessionId, 1));
+
+    const limits = {
+      maxTurns: 10,
+      maxEvents: 200,
+      maxIpcBytes: 4 * 1024 * 1024,
+    };
+    await readExternalReplaySession(currentLease, {
+      beforeSequence: 4_000,
+      limits,
+    });
+    await readExternalReplaySession(currentLease, {
+      beforeSequence: 3_900,
+      limits,
+    });
+
+    expect(mocks.readWindow).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        beforeSequence: 3_900,
+        limits: {
+          maxTurns: 10,
+          maxEvents: 100,
+          maxIpcBytes: 4 * 1024 * 1024,
+        },
+      })
+    );
+  });
+
   it("queues different older pages and suppresses polls until both finish", async () => {
     currentLease = activateExternalReplaySession("codexapp-session-1");
     mocks.openWindow.mockResolvedValue(windowResult(currentLease.sessionId, 3));

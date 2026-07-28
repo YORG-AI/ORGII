@@ -24,3 +24,4 @@ mod collaboration;
 mod managed_chunks;
 mod shell;
 mod window_export;
+mod wire_budget;

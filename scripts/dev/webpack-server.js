@@ -113,9 +113,12 @@ try {
   // Add compiler hooks for better feedback
   let isFirstCompile = true;
   let compileStartTime = Date.now();
+  let compileReady = false;
+  let completedCompile = false;
 
   compiler.hooks.compile.tap("ORGIIDevServer", () => {
     compileStartTime = Date.now();
+    compileReady = false;
     if (!isFirstCompile) {
       process.stdout.write("WEBPACK_STATUS:recompiling\n");
     }
@@ -125,6 +128,8 @@ try {
     const hasErrors = stats.hasErrors();
     const hasWarnings = stats.hasWarnings();
     const ms = Date.now() - compileStartTime;
+    completedCompile = true;
+    compileReady = !hasErrors;
 
     if (hasErrors) {
       // Print the full error details so they appear in the terminal scroll
@@ -153,6 +158,11 @@ try {
         process.stdout.write(`WEBPACK_STATUS:done ${ms}ms\n`);
       }
     }
+  });
+
+  compiler.orgiiCompileStatus = () => ({
+    completed: completedCompile,
+    ready: compileReady,
   });
 
   // Suppress progress messages for cleaner output
@@ -190,6 +200,19 @@ const devServerOptions = {
   ...config.devServer,
   open: false, // Don't auto-open browser
   setupMiddlewares: (middlewares, devServer) => {
+    middlewares.unshift({
+      name: "orgii-webpack-readiness",
+      middleware: (req, res, next) => {
+        if (req.url !== "/__orgii_webpack_ready__") {
+          next();
+          return;
+        }
+        const status = compiler.orgiiCompileStatus();
+        res.statusCode = status.ready ? 200 : 503;
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.end(JSON.stringify(status));
+      },
+    });
     middlewares.unshift({
       name: "orgii-dev-request-diagnostics",
       middleware: (req, res, next) => {

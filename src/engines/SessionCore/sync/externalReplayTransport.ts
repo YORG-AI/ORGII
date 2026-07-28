@@ -27,6 +27,98 @@ const DEFAULT_OPEN_WINDOW_LIMITS: Required<ExternalReplayLimits> = {
   maxTurns: 1,
 };
 
+declare global {
+  interface Window {
+    __orgiiE2EReplayBudgetRetries?: number;
+    __orgiiE2EReplayWindows?: Array<{
+      operation: "open" | "read";
+      episodeId: number;
+      generation: string;
+      revision: number;
+      throughSequence: number;
+      eventCount: number;
+      userEventCount: number;
+      turnCount: number;
+      turnIndices: number[];
+      ipcBytes: number;
+      windowStartSequence: number | null;
+      hasOlder: boolean;
+      maxEvents: number | null;
+      selection: ExternalReplayReadSelection | null;
+    }>;
+    __orgiiE2ELastReplayRead?: {
+      eventIds: string[];
+      userEventIds: string[];
+      maxEvents: number | null;
+      selection: ExternalReplayReadSelection;
+    };
+  }
+}
+
+function recordE2EReplayWindow(
+  operation: "open" | "read",
+  lease: ExternalReplaySessionLease,
+  replayWindow: ExternalReplayWindow,
+  selection: ExternalReplayReadSelection | null,
+  maxEvents: number | null
+): void {
+  if (
+    process.env.NODE_ENV === "production" ||
+    typeof globalThis.window === "undefined"
+  ) {
+    return;
+  }
+  const records = globalThis.window.__orgiiE2EReplayWindows ?? [];
+  records.push({
+    operation,
+    episodeId: lease.episodeId,
+    generation: replayWindow.cursor.generation,
+    revision: replayWindow.cursor.revision,
+    throughSequence: replayWindow.cursor.throughSequence,
+    eventCount: replayWindow.events.length,
+    userEventCount: replayWindow.events.filter(
+      (event) => event.source === "user"
+    ).length,
+    turnCount: replayWindow.turnHeaders.length,
+    turnIndices: replayWindow.turnHeaders.map((header) => header.turnIndex),
+    ipcBytes: replayWindow.stats.ipcBytes,
+    windowStartSequence: replayWindow.windowStartSequence,
+    hasOlder: replayWindow.hasOlder,
+    maxEvents,
+    selection,
+  });
+  globalThis.window.__orgiiE2EReplayWindows = records.slice(-64);
+}
+
+function recordE2EReplayBudgetRetry(): void {
+  if (process.env.NODE_ENV === "production" || typeof window === "undefined") {
+    return;
+  }
+  window.__orgiiE2EReplayBudgetRetries =
+    (window.__orgiiE2EReplayBudgetRetries ?? 0) + 1;
+}
+
+function recordE2EReplayRead(
+  window: ExternalReplayWindow,
+  selection: ExternalReplayReadSelection,
+  maxEvents: number | null
+): void {
+  if (
+    process.env.NODE_ENV === "production" ||
+    typeof globalThis.window === "undefined"
+  ) {
+    return;
+  }
+  globalThis.window.__orgiiE2ELastReplayRead = {
+    eventIds: window.events.map((event) => event.id),
+    userEventIds: window.events
+      .filter((event) => event.source === "user")
+      .map((event) => event.id),
+    maxEvents,
+    selection,
+  };
+}
+
 export interface ExternalReplaySessionLease {
   readonly sessionId: string;
   readonly episodeId: number;
@@ -43,6 +135,8 @@ interface ActiveReplaySession {
   pollInFlight: Promise<ExternalReplayDelta> | null;
   /** Serialized foreground older-page reads; Rust request tokens are exclusive. */
   readTail: Promise<void> | null;
+  /** Largest event slice that fit this source's normalized 4 MiB wire budget. */
+  readMaxEvents: number;
 }
 
 // Monotonic across ordinary renderer reloads as well as A→B→A switches.
@@ -85,7 +179,8 @@ function isNormalizedWindowBudgetError(error: unknown): boolean {
 async function retryNormalizedWindowBudget(
   operation: (limits?: ExternalReplayLimits) => Promise<ExternalReplayWindow>,
   requestedLimits?: ExternalReplayLimits,
-  defaultLimits: Required<ExternalReplayLimits> = DEFAULT_WINDOW_LIMITS
+  defaultLimits: Required<ExternalReplayLimits> = DEFAULT_WINDOW_LIMITS,
+  onRetryLimit?: (maxEvents: number) => void
 ): Promise<ExternalReplayWindow> {
   let limits = requestedLimits;
   for (;;) {
@@ -93,20 +188,23 @@ async function retryNormalizedWindowBudget(
       return await operation(limits);
     } catch (error) {
       if (!isNormalizedWindowBudgetError(error)) throw error;
+      recordE2EReplayBudgetRetry();
       const current = {
         ...defaultLimits,
         ...limits,
       };
       if (current.maxEvents <= 1) throw error;
+      const nextMaxEvents = Math.max(1, Math.floor(current.maxEvents / 2));
       limits = {
         ...current,
-        maxEvents: Math.max(1, Math.floor(current.maxEvents / 2)),
+        maxEvents: nextMaxEvents,
       };
+      onRetryLimit?.(nextMaxEvents);
       log.warn(
         "Normalized replay window exceeded its wire budget; retrying a smaller event slice",
         {
           previousMaxEvents: current.maxEvents,
-          nextMaxEvents: limits.maxEvents,
+          nextMaxEvents,
         }
       );
     }
@@ -161,6 +259,7 @@ export function activateExternalReplaySession(
     openInFlight: null,
     pollInFlight: null,
     readTail: null,
+    readMaxEvents: DEFAULT_WINDOW_LIMITS.maxEvents,
   };
   return lease;
 }
@@ -209,6 +308,7 @@ export async function openExternalReplaySession(
     if (!isCurrentLease(lease) || signal?.aborted) return null;
     activeReplaySession!.cursor = window.cursor;
     activeReplaySession!.watcherAvailable = window.watcherAvailable;
+    recordE2EReplayWindow("open", lease, window, null, null);
     return window;
   } finally {
     if (
@@ -285,16 +385,38 @@ export async function readExternalReplaySession(
     if (priorRead) blockers.push(priorRead);
     await Promise.allSettled(blockers);
     if (!isCurrentLease(lease) || signal?.aborted) return null;
+    const currentReadMaxEvents =
+      activeReplaySession?.readMaxEvents ?? DEFAULT_WINDOW_LIMITS.maxEvents;
+    const effectiveSelection = selection.limits
+      ? {
+          ...selection,
+          limits: {
+            ...selection.limits,
+            maxEvents: Math.min(
+              selection.limits.maxEvents ?? DEFAULT_WINDOW_LIMITS.maxEvents,
+              currentReadMaxEvents
+            ),
+          },
+        }
+      : selection;
     return retryShellManifestSnapshotRace(lease, signal, () =>
       retryNormalizedWindowBudget(
         (limits) =>
           externalReplayReadWindow({
             sessionId: lease.sessionId,
             episodeId: lease.episodeId,
-            ...selection,
+            ...effectiveSelection,
             limits,
           }),
-        selection.limits
+        effectiveSelection.limits,
+        DEFAULT_WINDOW_LIMITS,
+        (maxEvents) => {
+          if (!isCurrentLease(lease) || !activeReplaySession) return;
+          activeReplaySession.readMaxEvents = Math.min(
+            activeReplaySession.readMaxEvents,
+            maxEvents
+          );
+        }
       )
     );
   })();
@@ -308,6 +430,18 @@ export async function readExternalReplaySession(
     const window = await request;
     if (!window || !isCurrentLease(lease) || signal?.aborted) return null;
     activeReplaySession!.watcherAvailable = window.watcherAvailable;
+    recordE2EReplayWindow(
+      "read",
+      lease,
+      window,
+      selection,
+      activeReplaySession?.readMaxEvents ?? null
+    );
+    recordE2EReplayRead(
+      window,
+      selection,
+      activeReplaySession?.readMaxEvents ?? null
+    );
     return window;
   } finally {
     if (isCurrentLease(lease) && activeReplaySession?.readTail === tail) {
@@ -329,4 +463,33 @@ export function getExternalReplayCursorForTest(
   lease: ExternalReplaySessionLease
 ): ExternalReplayCursor | null {
   return isCurrentLease(lease) ? (activeReplaySession?.cursor ?? null) : null;
+}
+
+/** Read-only E2E diagnostics for the active bounded-replay coordinator. */
+export function getExternalReplayDebugStateForTest(): {
+  sessionId: string;
+  episodeId: number;
+  generation: string | null;
+  revision: number | null;
+  throughSequence: number | null;
+  watcherAvailable: boolean;
+  openInFlight: boolean;
+  pollInFlight: boolean;
+  readInFlight: boolean;
+  readMaxEvents: number;
+} | null {
+  const state = activeReplaySession;
+  if (!state) return null;
+  return {
+    sessionId: state.lease.sessionId,
+    episodeId: state.lease.episodeId,
+    generation: state.cursor?.generation ?? null,
+    revision: state.cursor?.revision ?? null,
+    throughSequence: state.cursor?.throughSequence ?? null,
+    watcherAvailable: state.watcherAvailable,
+    openInFlight: state.openInFlight !== null,
+    pollInFlight: state.pollInFlight !== null,
+    readInFlight: state.readTail !== null,
+    readMaxEvents: state.readMaxEvents,
+  };
 }

@@ -1,6 +1,33 @@
 use super::source_identity::*;
 use super::sync::publish_change_log;
 use super::*;
+use std::io::{self, Write};
+
+use serde::Serialize;
+
+#[derive(Default)]
+struct CountingWriter {
+    bytes: usize,
+}
+
+impl Write for CountingWriter {
+    fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
+        self.bytes = self
+            .bytes
+            .checked_add(buffer.len())
+            .ok_or_else(|| io::Error::other("replay JSON byte count overflow"))?;
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn serialized_json_bytes<T: Serialize + ?Sized>(value: &T) -> usize {
+    let mut writer = CountingWriter::default();
+    serde_json::to_writer(&mut writer, value).map_or(0, |()| writer.bytes)
+}
 
 pub(in crate::sources::imported_history::replay) fn read_recent_window(
     conn: &Connection,
@@ -930,7 +957,5 @@ pub(super) fn read_turn_headers(
 pub(super) fn serialized_indexed_chunk_bytes(chunk: &ReplayIndexedChunk) -> usize {
     // Payload descriptors cross the Rust/JS boundary after normalization too;
     // omitting them here let descriptor-heavy events bypass maxIpcBytes.
-    serde_json::to_vec(&chunk.chunk)
-        .map_or(0, |bytes| bytes.len())
-        .saturating_add(serde_json::to_vec(&chunk.payloads).map_or(0, |bytes| bytes.len()))
+    serialized_json_bytes(&chunk.chunk).saturating_add(serialized_json_bytes(&chunk.payloads))
 }

@@ -23,10 +23,19 @@ const loadedSummariesByArray = new WeakMap<
   ExternalReplayTurnSummary[],
   ReadonlyMap<number, ExternalReplayTurnSummary>
 >();
+const residentTurnIndicesBySummaryArray = new WeakMap<
+  ExternalReplayTurnSummary[],
+  Map<string, number>
+>();
 const summaryGenerationsByArray = new WeakMap<
   ExternalReplayTurnSummary[],
   string
 >();
+const anchoredTurnIndicesBySummaryArray = new WeakMap<
+  ExternalReplayTurnSummary[],
+  ReadonlySet<number>
+>();
+const EMPTY_ANCHORED_TURN_INDICES: ReadonlySet<number> = new Set();
 interface ExternalReplayWindowBoundary {
   generation: string;
   earliestSequence: number | null;
@@ -79,6 +88,30 @@ export function getExternalReplayTurnGeneration(
   sessionId: string
 ): string | null {
   return replayEpisodes.get(sessionId)?.generation ?? null;
+}
+
+/** Read-only E2E diagnostics for one session's compact turn coordinator. */
+export function getExternalReplayTurnDebugStateForTest(sessionId: string): {
+  episodeId: number | null;
+  generation: string | null;
+  earliestSequence: number | null;
+  hasOlder: boolean | null;
+  partialTurnIndices: number[];
+} {
+  const episode = replayEpisodes.get(sessionId);
+  const boundary = replayWindowBoundaries.get(sessionId);
+  const slices = replayTurnSliceBoundaries.get(sessionId);
+  return {
+    episodeId: episode?.id ?? null,
+    generation: episode?.generation ?? null,
+    earliestSequence: boundary?.earliestSequence ?? null,
+    hasOlder: boundary?.hasOlder ?? null,
+    partialTurnIndices: slices
+      ? [...slices.earliestSequenceByTurn.keys()].sort(
+          (left, right) => left - right
+        )
+      : [],
+  };
 }
 
 export function isCurrentExternalReplayTurnEpisode(
@@ -309,6 +342,60 @@ function trimLoadedSummaries(
   }
 }
 
+function buildWindowTurnIndexByEventId(
+  window: ExternalReplayWindow
+): ReadonlyMap<string, number> {
+  const windowSummaries: ExternalReplayTurnSummary[] = [];
+  windowSummaries.length = window.totalTurnCount;
+  const renderedUserEvents = renderedUserEventsByTurnIndex(window);
+  for (const header of window.turnHeaders) {
+    windowSummaries[header.turnIndex] = summaryFromHeader(
+      header,
+      renderedUserEvents.get(header.turnIndex),
+      null
+    );
+  }
+  return inferExternalReplayTurnIndexByEventId(window.events, windowSummaries);
+}
+
+/**
+ * Provider turn bodies may be read as bounded middle/tail slices. Ownership
+ * metadata still assigns those rows to the right Round, but pagination must
+ * not mistake the slice for an exact random-access body. A turn is anchored
+ * only when the window includes its physical start sequence.
+ *
+ * This source-neutral rule also covers managed transcripts without user rows:
+ * their first assistant/tool row is the turn anchor, so they do not need a
+ * provider-specific exception.
+ */
+function anchoredTurnIndicesForWindow(
+  window: ExternalReplayWindow
+): ReadonlySet<number> {
+  const windowStart = window.windowStartSequence;
+  const renderedUserEvents = renderedUserEventsByTurnIndex(window);
+  if (windowStart === null && renderedUserEvents.size === 0) {
+    return EMPTY_ANCHORED_TURN_INDICES;
+  }
+  return new Set(
+    window.turnHeaders
+      .filter(
+        (header) =>
+          renderedUserEvents.has(header.turnIndex) ||
+          (windowStart !== null && windowStart <= header.startSequence)
+      )
+      .map((header) => header.turnIndex)
+  );
+}
+
+export function getAnchoredExternalReplayTurnIndices(
+  summaries: ExternalReplayTurnSummary[]
+): ReadonlySet<number> {
+  return (
+    anchoredTurnIndicesBySummaryArray.get(summaries) ??
+    EMPTY_ANCHORED_TURN_INDICES
+  );
+}
+
 export function buildExternalReplayTurnSummaries(
   window: ExternalReplayWindow
 ): ExternalReplayTurnSummary[] {
@@ -323,6 +410,14 @@ export function buildExternalReplayTurnSummaries(
   }
   trimLoadedSummaries(loaded, new Set(loaded.keys()));
   const summaries = createVirtualSummaryArray(window.totalTurnCount, loaded);
+  residentTurnIndicesBySummaryArray.set(
+    summaries,
+    new Map(buildWindowTurnIndexByEventId(window))
+  );
+  anchoredTurnIndicesBySummaryArray.set(
+    summaries,
+    anchoredTurnIndicesForWindow(window)
+  );
   summaryGenerationsByArray.set(summaries, window.cursor.generation);
   return summaries;
 }
@@ -337,7 +432,7 @@ export function buildExternalReplayTurnSummaries(
  * user ids first, then assign the remaining chronologically ordered events to
  * the latest header whose start time has been reached.
  */
-export function buildExternalReplayTurnIndexByEventId(
+function inferExternalReplayTurnIndexByEventId(
   events: readonly SessionEvent[],
   summaries: ExternalReplayTurnSummary[]
 ): ReadonlyMap<string, number> {
@@ -387,6 +482,43 @@ export function buildExternalReplayTurnIndexByEventId(
     }
     const owner = ranges[currentRangeIndex];
     if (owner) result.set(event.id, owner.turnIndex);
+  }
+  return result;
+}
+
+export function buildExternalReplayTurnIndexByEventId(
+  events: readonly SessionEvent[],
+  summaries: ExternalReplayTurnSummary[]
+): ReadonlyMap<string, number> {
+  const residentTurnIndices = residentTurnIndicesBySummaryArray.get(summaries);
+  if (!residentTurnIndices) {
+    return inferExternalReplayTurnIndexByEventId(events, summaries);
+  }
+
+  // EventStore is the resident-memory authority. Pruning here keeps this
+  // source-neutral ownership map proportional to the bounded Rust store,
+  // while preserving provider Round identity after the small header LRU
+  // evicts a still-rendered turn.
+  const residentEventIds = new Set(events.map((event) => event.id));
+  for (const eventId of residentTurnIndices.keys()) {
+    if (!residentEventIds.has(eventId)) residentTurnIndices.delete(eventId);
+  }
+
+  const missingEvents = events.filter(
+    (event) => !residentTurnIndices.has(event.id)
+  );
+  const inferred = inferExternalReplayTurnIndexByEventId(
+    missingEvents,
+    summaries
+  );
+  for (const [eventId, turnIndex] of inferred) {
+    residentTurnIndices.set(eventId, turnIndex);
+  }
+
+  const result = new Map<string, number>();
+  for (const event of events) {
+    const turnIndex = residentTurnIndices.get(event.id);
+    if (turnIndex !== undefined) result.set(event.id, turnIndex);
   }
   return result;
 }
@@ -496,9 +628,22 @@ export function mergeExternalReplayTurnWindow(
     if (generationChanged || current.length === 0) {
       return buildExternalReplayTurnSummaries(window);
     }
+    const residentTurnIndices = new Map(
+      residentTurnIndicesBySummaryArray.get(current) ?? []
+    );
+    const windowTurnIndices = buildWindowTurnIndexByEventId(window);
+    for (const [eventId, turnIndex] of windowTurnIndices) {
+      residentTurnIndices.set(eventId, turnIndex);
+    }
     const loaded = new Map<number, ExternalReplayTurnSummary>(
       loadedSummariesByArray.get(current) ?? []
     );
+    const anchoredTurnIndices = new Set(
+      anchoredTurnIndicesBySummaryArray.get(current) ?? []
+    );
+    for (const turnIndex of anchoredTurnIndicesForWindow(window)) {
+      anchoredTurnIndices.add(turnIndex);
+    }
     // Accept a dense array left in memory by an older renderer build. forEach
     // skips virtual holes, so this stays proportional to loaded headers.
     current.forEach((summary, turnIndex) => {
@@ -523,8 +668,25 @@ export function mergeExternalReplayTurnWindow(
       }
       pinned.add(header.turnIndex);
     }
+    // Continuous backfill walks away from the newest provider turn. Keep its
+    // compact header resident so the still-visible latest body retains the
+    // same group key while older windows are prepended. Without this pin the
+    // 12-header LRU can evict the latest header before EventStore evicts its
+    // body, which makes the viewport anchor unresolvable and jumps the user to
+    // scrollTop=0.
+    const latestTurnIndex = window.totalTurnCount - 1;
+    const latestSummary = loaded.get(latestTurnIndex);
+    if (latestSummary) {
+      touchLoadedSummary(loaded, latestTurnIndex, latestSummary);
+      pinned.add(latestTurnIndex);
+    }
     trimLoadedSummaries(loaded, pinned);
+    for (const turnIndex of anchoredTurnIndices) {
+      if (!loaded.has(turnIndex)) anchoredTurnIndices.delete(turnIndex);
+    }
     const summaries = createVirtualSummaryArray(window.totalTurnCount, loaded);
+    residentTurnIndicesBySummaryArray.set(summaries, residentTurnIndices);
+    anchoredTurnIndicesBySummaryArray.set(summaries, anchoredTurnIndices);
     summaryGenerationsByArray.set(summaries, window.cursor.generation);
     return summaries;
   });

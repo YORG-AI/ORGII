@@ -177,6 +177,13 @@ export function sameChatHistoryListProps(
     ["flatItems", sameFlatItems(previous.flatItems, next.flatItems)],
     ["groupKeys", sameNullableStringArray(previous.groupKeys, next.groupKeys)],
     ["groupCounts", sameNumberArray(previous.groupCounts, next.groupCounts)],
+    [
+      "replayTurnIndices",
+      sameNullableNumberArray(
+        previous.replayTurnIndices,
+        next.replayTurnIndices
+      ),
+    ],
     ["turnIds", sameNullableStringArray(previous.turnIds, next.turnIds)],
     ["totalFlatItems", previous.totalFlatItems === next.totalFlatItems],
     [
