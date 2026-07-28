@@ -150,7 +150,7 @@ export default function LinkSessionToProjectModal({
         <div className="space-y-3 overflow-y-auto p-4">
           <Input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={setQuery}
             placeholder="Search projects"
             data-testid="session-link-project-search"
           />
@@ -180,7 +180,7 @@ export default function LinkSessionToProjectModal({
             <div className="flex gap-2">
               <Input
                 value={newName}
-                onChange={(event) => setNewName(event.target.value)}
+                onChange={setNewName}
                 placeholder="Project name"
                 data-testid="session-create-project-name"
               />

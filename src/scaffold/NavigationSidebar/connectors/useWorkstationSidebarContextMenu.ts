@@ -28,6 +28,7 @@ interface UseWorkstationSidebarContextMenuParams {
   handleOpenInNewTab: (sessionId: string) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
   onLinkToWorkItem?: (sessionId: string) => void;
+  onLinkToProject?: (sessionId: string) => void;
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -40,6 +41,7 @@ export function useWorkstationSidebarContextMenu({
   handleOpenInNewTab,
   handleTogglePin,
   onLinkToWorkItem,
+  onLinkToProject,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -112,11 +114,12 @@ export function useWorkstationSidebarContextMenu({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
+        const linkProject = await MenuItem.new({
+          text: tCommon("sessions:chat.linkToProject", "Link to Project / Create Project"),
+          action: () => onLinkToProject?.(item.id),
+        });
         const linkWorkItem = await MenuItem.new({
-          text: tCommon(
-            "sessions:chat.linkToWorkItem",
-            "Link to project / Work Item"
-          ),
+          text: tCommon("sessions:chat.linkToWorkItem", "Link to Work Item"),
           action: () => onLinkToWorkItem?.(item.id),
         });
         const deleteItem = await MenuItem.new({
@@ -130,8 +133,9 @@ export function useWorkstationSidebarContextMenu({
           openInNewTabItem,
           renameItem,
           exportItem,
-          pinItem,
+          linkProject,
           linkWorkItem,
+          pinItem,
         ];
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
@@ -151,6 +155,7 @@ export function useWorkstationSidebarContextMenu({
       handleOpenInNewTab,
       handleTogglePin,
       onLinkToWorkItem,
+      onLinkToProject,
     ]
   );
 }

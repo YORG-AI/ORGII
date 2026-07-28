@@ -8,6 +8,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import { ROUTES } from "@src/config/routes";
+import LinkSessionToProjectModal from "@src/engines/ChatPanel/panels/LinkSessionToProjectModal";
 import LinkSessionToWorkItemModal from "@src/engines/ChatPanel/panels/LinkSessionToWorkItemModal";
 import { useCollaborationMetadataSync } from "@src/features/TeamCollaboration/useCollaborationMetadataSync";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
@@ -186,6 +187,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
   const [activeFolderMoreMenuId, setActiveFolderMoreMenuId] = useState("");
   const [linkWorkItemSessionId, setLinkWorkItemSessionId] = useState<
+    string | null
+  >(null);
+  const [linkProjectSessionId, setLinkProjectSessionId] = useState<
     string | null
   >(null);
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
@@ -655,6 +659,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleOpenInNewTab,
     handleTogglePin,
     onLinkToWorkItem: setLinkWorkItemSessionId,
+    onLinkToProject: setLinkProjectSessionId,
     tCommon,
   });
 
@@ -893,6 +898,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
         collapsibleSections
         collapsedSectionIds={resolvedCollapsedSectionIds}
         onCollapsedSectionsChange={resolvedSetCollapsedSectionIds}
+      />
+      <LinkSessionToProjectModal
+        open={Boolean(linkProjectSessionId)}
+        sessionId={linkProjectSessionId}
+        onClose={() => setLinkProjectSessionId(null)}
+        onLinked={() => void loadSidebarSessions({ forceRefresh: true })}
       />
       <LinkSessionToWorkItemModal
         open={Boolean(linkWorkItemSessionId)}
