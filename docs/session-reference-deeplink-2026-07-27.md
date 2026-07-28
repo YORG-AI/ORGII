@@ -262,3 +262,69 @@ line was logged, and no file added here touches the sync engine, so it
 cannot originate in this work; the likely trigger is an ingest amendment
 to an already-frozen event forcing a re-anchor. Recorded as the first
 thread to pull if epoch churn reappears.
+
+## Producing a reference, round two
+
+The first round shipped a producer half that passed its own test and was
+still unusable for the thing people actually do. Dragging a TEAMMATE's row
+did nothing at all, because `dragPayload` was only ever set by the My
+Sessions builder — and a teammate's session is exactly the one you want
+reviewed. The verification had exercised only the path that could pass.
+
+Four changes, and one defect they caused:
+
+- **Team Sessions rows are draggable**, carrying the whole reference as
+  their payload. Someone else's session has no local push marker, so
+  there is no org to resolve — the row has to know it.
+- **What gets inserted is a markdown link**, `[title](orgii://…)`, not a
+  bare url. That is one of the forms the renderer turns into a chip, so
+  the posted result is identical; only the draft is legible. A textarea
+  cannot hold a pill, so the draft is text either way.
+- **The drag ghost mirrors the row** — its icon, its title, the owner
+  underneath — instead of a bare text chip.
+- **The `@` menu lists the active org's team sessions** beside local
+  ones, inserting the same reference text.
+
+**The defect that only dragging could find.** Making teammate rows
+draggable also let them land in the CHAT composer, whose own drop helper
+turns a payload into a pill. That is the one path a reference must not
+take: the pill machinery special-cases a bare local session id in three
+places — icon lookup, serialization, and the agent context line — and a
+reference url degrades silently in all three. The `@` work had carefully
+avoided that path; opening the drag door put it back. Fixed by routing a
+recognized reference to text in the shared drop helper too, so drag and
+mention now insert identically.
+
+### Why the `@` work looks the way it does
+
+- **Not a pill.** For the reason above. The previously unused
+  `insertMentionText` is the right primitive: it consumes the typed `@`
+  query and inserts plain text.
+- **Both insertion switches and the keyboard path.** `useAtMention`
+  (ChatPanel) and `useComposerInput` (ProjectContentEditor,
+  SessionCreator) are independent switches, and the Enter-to-select path
+  hardcodes its type mapping while mouse-select derives it generically.
+  Missing any one silently mis-tags the selection.
+- **Never fetches.** The menu reads the already-cached listing atom, not
+  `useCloudOrgRemoteSessions`, which auto-fetches — opening a menu must
+  not put an RPC on the wire. The cost is real and accepted: an org whose
+  listing was never loaded contributes no team candidates.
+
+### Not reachable from the issue comment box
+
+There is no `@` menu there — it is a plain textarea. For issues the
+producer paths are Copy ID and drag. Giving a textarea a mention menu is a
+separate change.
+
+### On device, round two
+
+| Assertion                            | Result                                          |
+| ------------------------------------ | ----------------------------------------------- |
+| Drag a TEAMMATE row                  | pass — previously inert                         |
+| Drag ghost                           | pass — icon, title, owner                       |
+| Inserted form                        | pass — `[title](orgii://…)`                     |
+| `@` lists team sessions              | pass — with the reference as the row subtitle   |
+| `@` insert matches drag              | pass — byte-identical form                      |
+| Ledger                               | pass — zero tombstones, downgrades, count drops |
+| Destructive verbs / watchdog / ERROR | 0 / 0 / 0                                       |
+| Resources                            | CPU 0.3-0.5%, RSS ~305MB                        |
