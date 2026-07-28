@@ -188,13 +188,15 @@ describe("RuntimeDataSourcePanel", () => {
 
   it("preserves the Runtime navigation and scroll ownership", () => {
     const usage = container.innerHTML.indexOf("data-source-view-usage");
+    const profile = container.innerHTML.indexOf("data-source-view-profile");
     const quota = container.innerHTML.indexOf("data-source-view-quota");
     const scanning = container.innerHTML.indexOf("data-source-view-scanning");
     const hooks = container.innerHTML.indexOf("data-source-view-hooks");
     const assets = container.innerHTML.indexOf("data-source-view-assets");
 
     expect(usage).toBeGreaterThanOrEqual(0);
-    expect(quota).toBeGreaterThan(usage);
+    expect(profile).toBeGreaterThan(usage);
+    expect(quota).toBeGreaterThan(profile);
     expect(scanning).toBeGreaterThan(quota);
     expect(hooks).toBeGreaterThan(scanning);
     expect(assets).toBeGreaterThan(hooks);
@@ -202,5 +204,11 @@ describe("RuntimeDataSourcePanel", () => {
       container.querySelector('[data-testid="data-source-scroll-region"]')
         ?.className
     ).toContain("overflow-y-auto");
+  });
+
+  it("keeps type categories out of the Runtime tab bar", () => {
+    expect(
+      container.querySelector('[data-testid="data-source-view-types"]')
+    ).toBeNull();
   });
 });

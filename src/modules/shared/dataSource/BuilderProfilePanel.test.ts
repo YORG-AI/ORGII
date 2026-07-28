@@ -39,8 +39,20 @@ vi.mock("@src/hooks/ui", () => ({
 }));
 
 vi.mock("@src/components/Button", () => ({
-  default: ({ children }: { children?: unknown }) =>
-    createElement("button", null, children as never),
+  default: ({
+    children,
+    onClick,
+    "data-testid": dataTestId,
+  }: {
+    children?: unknown;
+    onClick?: () => void;
+    "data-testid"?: string;
+  }) =>
+    createElement(
+      "button",
+      { onClick, "data-testid": dataTestId },
+      children as never
+    ),
 }));
 
 vi.mock("@src/components/Tooltip", () => ({
@@ -215,6 +227,48 @@ describe("BuilderProfilePanel", () => {
     );
     expect(code?.textContent).toBe("EAWH");
     expect(container.textContent).toContain("Swarm Founder");
+    expect(
+      container.querySelector('[data-testid="builder-type-avatar-EAWH"]')
+    ).not.toBeNull();
+  });
+
+  it("opens the type gallery as a second layer beside Refresh", async () => {
+    api.overview.mockResolvedValue(overview());
+    await mount();
+
+    const refresh = container.querySelector(
+      '[data-testid="builder-profile-refresh"]'
+    );
+    const knowMore = container.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-profile-know-more"]'
+    );
+    const scrollRegion = container.querySelector(
+      '[data-testid="builder-profile-scroll-region"]'
+    );
+    expect(scrollRegion?.contains(refresh)).toBe(true);
+    expect(scrollRegion?.contains(knowMore)).toBe(true);
+    expect(refresh?.nextElementSibling).toBe(knowMore);
+
+    act(() => knowMore?.click());
+    expect(
+      container.querySelector('[data-testid="builder-types-gallery"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="builder-profile-refresh"]')
+    ).toBeNull();
+
+    const back = container.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-types-back"]'
+    );
+    act(() => back?.click());
+
+    expect(
+      container.querySelector('[data-testid="builder-profile-refresh"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector('[data-testid="builder-type-detail"]')
+        ?.textContent
+    ).toContain("EAWH");
   });
 
   it("always shows a letter, and says when it is only weakly held", async () => {
@@ -262,6 +316,10 @@ describe("BuilderProfilePanel", () => {
     );
     await mount();
     expect(container.textContent).toContain("tooFewSessions");
+    expect(
+      container.querySelector('[data-testid="builder-type-avatar-EAWH"]')
+        ?.className
+    ).toContain("grayscale");
   });
 
   it("shows no letters at all before any session has been read", async () => {

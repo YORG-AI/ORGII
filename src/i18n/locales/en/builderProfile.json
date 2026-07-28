@@ -1,7 +1,6 @@
 {
   "title": "Builder profile",
   "refresh": "Refresh",
-  "summaryLine": "{{sessions}} sessions analysed",
   "tooFewSessions": "Fewer than 25 sessions — the type is not settled yet.",
   "noSessionsYet": "No sessions analysed yet — the letters appear as your history is read.",
   "axisStats": "{{sessions}} sessions · {{consistency}}% agree",
@@ -46,6 +45,58 @@
     "moderate": "moderate preference",
     "clear": "clear preference",
     "veryClear": "very clear preference"
+  },
+  "types": {
+    "title": "Builder types",
+    "subtitle": "Explore the 16 ways people work with coding agents.",
+    "howTitle": "How to read the code",
+    "howBody": "Four observed preferences combine into a builder type. The letters describe a working pattern, not a fixed identity — each can shift as your habits and tools change.",
+    "galleryTitle": "All 16 types",
+    "galleryHint": "Choose a portrait to see how its four preferences shape the way it builds.",
+    "knowMore": "Know more",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Map",
+        "description": "Frames the target, constraints, and route before moving",
+        "agentTip": "Give the agent a written brief and explicit acceptance criteria"
+      },
+      "E": {
+        "name": "Explore",
+        "description": "Reduces ambiguity by making progress and learning from what moves",
+        "agentTip": "Start with a useful probe, then tighten the brief from what you learn"
+      },
+      "D": {
+        "name": "Direct",
+        "description": "Stays close to the process and shapes the path step by step",
+        "agentTip": "Ask for visible checkpoints and intervene when the path drifts"
+      },
+      "A": {
+        "name": "Delegate",
+        "description": "Defines the boundary, then lets the agent choose the path",
+        "agentTip": "State outcomes and constraints clearly, then leave room for autonomy"
+      },
+      "F": {
+        "name": "Focused",
+        "description": "Gives one active agent or thread full attention",
+        "agentTip": "Keep one goal in flight and make the next handoff unambiguous"
+      },
+      "W": {
+        "name": "Swarm",
+        "description": "Keeps several agents or threads moving in parallel",
+        "agentTip": "Split work by clear ownership and create deliberate convergence points"
+      },
+      "S": {
+        "name": "Systemize",
+        "description": "Invests in tools, rules, and infrastructure that improve future work",
+        "agentTip": "Let the agent capture reusable automation and durable operating knowledge"
+      },
+      "H": {
+        "name": "Ship",
+        "description": "Optimizes for completing and delivering the product in front of you",
+        "agentTip": "Keep the finish line visible and require a concrete delivered outcome"
+      }
+    }
   },
   "cards": {
     "total_time": {

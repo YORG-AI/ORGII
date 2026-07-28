@@ -1,4 +1,4 @@
-import { RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,7 +17,6 @@ import SettingsTable, {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
-import Tooltip from "@src/components/Tooltip";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
@@ -32,7 +31,10 @@ import {
 } from "@src/modules/shared/layouts/blocks";
 
 import AxisMeter from "./AxisMeter";
+import { BuilderTypeDetailContent } from "./BuilderTypeDetailPanel";
+import BuilderTypesPanel from "./BuilderTypesPanel";
 import HighlightCards from "./HighlightCards";
+import { getBuilderType } from "./builderTypes";
 
 /** Delay between background extraction batches while the panel is open. */
 const EXTRACT_TICK_MS = 1_200;
@@ -96,6 +98,7 @@ export default function BuilderProfilePanel() {
     null
   );
   const [openAxis, setOpenAxis] = useState<string | null>(null);
+  const [showTypesGallery, setShowTypesGallery] = useState(false);
 
   // Tauri invokes are not abortable; a monotonic counter keeps a stale response
   // from overwriting a newer one.
@@ -174,6 +177,7 @@ export default function BuilderProfilePanel() {
   );
 
   const profile = data?.profile;
+  const builderType = getBuilderType(profile?.code);
   const coverage = liveCoverage ?? data?.coverage;
   const percent = useMemo(() => {
     const known = coverage?.known ?? 0;
@@ -252,18 +256,12 @@ export default function BuilderProfilePanel() {
     ];
   }, [t]);
 
-  // The header stays put in every state — loading, error and empty included —
-  // so the panel never collapses to a bare spinner. Everything below it
-  // scrolls; the shell owns the pane height so placeholders can fill it.
-  const shell = (children: React.ReactNode) => (
+  const profileHeader = (
     <div
-      className="flex h-full min-h-0 flex-col"
-      data-testid="builder-profile-panel"
+      className={`${DETAIL_PANEL_TOKENS.headerWidth} flex shrink-0 items-center justify-between gap-2 px-4 pt-2`}
     >
-      <div
-        className={`${DETAIL_PANEL_TOKENS.headerWidth} flex shrink-0 items-center justify-between gap-2 px-4 pt-2`}
-      >
-        <h2 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h2>
+      <h2 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h2>
+      <div className="flex items-center gap-1">
         <Button
           variant="tertiary"
           size="small"
@@ -273,7 +271,28 @@ export default function BuilderProfilePanel() {
         >
           {t("refresh")}
         </Button>
+        {builderType && (
+          <Button
+            variant="tertiary"
+            size="small"
+            onClick={() => setShowTypesGallery(true)}
+            data-testid="builder-profile-know-more"
+            icon={<ArrowRight className="h-3.5 w-3.5" />}
+            iconPosition="right"
+          >
+            {t("types.knowMore")}
+          </Button>
+        )}
       </div>
+    </div>
+  );
+
+  const shell = (children: React.ReactNode, showHeader = true) => (
+    <div
+      className="flex h-full min-h-0 flex-col"
+      data-testid="builder-profile-panel"
+    >
+      {showHeader && profileHeader}
       {children}
     </div>
   );
@@ -306,71 +325,47 @@ export default function BuilderProfilePanel() {
       />
     );
 
-  const letters = profile.code.split("");
+  if (showTypesGallery) {
+    return (
+      <div className="h-full min-h-0" data-testid="builder-profile-panel">
+        <BuilderTypesPanel onBack={() => setShowTypesGallery(false)} />
+      </div>
+    );
+  }
 
   return shell(
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container">
+    <div
+      className="min-h-0 flex-1 overflow-y-auto scrollbar-hide @container"
+      data-testid="builder-profile-scroll-region"
+    >
+      {profileHeader}
       <div
         // Same 932px track as the tab header above, so nothing steps in or
         // out of alignment as you scroll.
-        className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} pb-[50vh] pt-2`}
+        className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} px-4 pb-[50vh] pt-2`}
       >
-        {/* The code. Soft letters render dimmed, with the reason in the tooltip.
-          Before any session has been read there is no evidence at all, so no
-          letters — a default code would present as a confident type. */}
-        <div className="flex flex-col items-center gap-2 rounded-lg bg-bg-2 px-4 py-6">
-          {profile.sessions === 0 ? (
-            <div
-              className="py-2 text-sm text-text-3"
-              data-testid="builder-profile-empty-code"
-            >
-              {t("noSessionsYet")}
-            </div>
-          ) : (
-            <>
-              <div
-                className="flex items-end gap-1"
-                data-testid="builder-profile-code"
-              >
-                {letters.map((letter, i) => {
-                  const axis = profile.axes[i];
-                  // Every letter is real; a soft one is dimmed, never replaced.
-                  const soft =
-                    axis?.clarity === "slight" || axis?.clarity === "moderate";
-                  return (
-                    <Tooltip
-                      key={axis?.key ?? i}
-                      content={[
-                        `${axis?.negativeName} · ${axis?.positiveName}`,
-                        axis ? t(`clarity.${axis.clarity}`) : "",
-                        axis?.caveat ?? "",
-                      ]
-                        .filter(Boolean)
-                        .join(" — ")}
-                    >
-                      <span
-                        className={`font-mono text-4xl leading-none ${
-                          soft ? "text-text-3" : "text-text-1"
-                        }`}
-                      >
-                        {letter}
-                      </span>
-                    </Tooltip>
-                  );
-                })}
+        {profile.sessions === 0 || !builderType ? (
+          <div
+            className="rounded-lg bg-bg-2 px-4 py-8 text-center text-sm text-text-3"
+            data-testid="builder-profile-empty-code"
+          >
+            {t("noSessionsYet")}
+          </div>
+        ) : (
+          <div>
+            <BuilderTypeDetailContent
+              type={builderType}
+              eager
+              muted={!profile.hasEnoughSessions}
+              codeTestId="builder-profile-code"
+            />
+            {!profile.hasEnoughSessions && (
+              <div className="mt-2 px-1 text-xs text-warning-5">
+                {t("tooFewSessions")}
               </div>
-              <div className="text-sm text-text-2">{profile.archetype}</div>
-              <div className="text-xs text-text-3">
-                {t("summaryLine", { sessions: profile.sessions })}
-              </div>
-              {!profile.hasEnoughSessions && (
-                <div className="text-xs text-warning-5">
-                  {t("tooFewSessions")}
-                </div>
-              )}
-            </>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         <Section id="highlights" title={t("highlights")}>
           <HighlightCards highlights={data.highlights} />
@@ -481,6 +476,7 @@ export default function BuilderProfilePanel() {
           </Section>
         )}
       </div>
-    </div>
+    </div>,
+    false
   );
 }

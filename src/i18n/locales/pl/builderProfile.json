@@ -1,7 +1,6 @@
 {
   "title": "Profil twórcy",
   "refresh": "Odśwież",
-  "summaryLine": "Przeanalizowano sesji: {{sessions}}",
   "tooFewSessions": "Mniej niż 25 sesji — typ jeszcze się nie ustalił.",
   "noSessionsYet": "Nie przeanalizowano jeszcze sesji — litery pojawią się w miarę czytania historii.",
   "axisStats": "{{sessions}} sesji · {{consistency}}% zgodnych",
@@ -46,6 +45,58 @@
     "moderate": "umiarkowana preferencja",
     "clear": "wyraźna preferencja",
     "veryClear": "bardzo wyraźna preferencja"
+  },
+  "types": {
+    "title": "Typy twórców",
+    "subtitle": "Poznaj 16 sposobów pracy z agentami programistycznymi.",
+    "howTitle": "Jak czytać kod",
+    "howBody": "Cztery obserwowane preferencje tworzą typ twórcy. Litery opisują wzorzec pracy, a nie stałą tożsamość — mogą się zmieniać wraz z nawykami i narzędziami.",
+    "galleryTitle": "Wszystkie 16 typów",
+    "galleryHint": "Wybierz portret, aby zobaczyć pełny profil i praktyczne wskazówki dotyczące współpracy z agentami.",
+    "knowMore": "Dowiedz się więcej",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Mapowanie",
+        "description": "Określa cel i ograniczenia przed rozpoczęciem implementacji",
+        "agentTip": "Przekaż agentowi pisemny brief z kryteriami sukcesu, granicami i punktami kontrolnymi"
+      },
+      "E": {
+        "name": "Eksploracja",
+        "description": "Zmniejsza niepewność przez próby, obserwację i korekty kierunku",
+        "agentTip": "Poproś o mały eksperyment lub wartościowe rozpoznanie przed przyjęciem planu"
+      },
+      "D": {
+        "name": "Kierowanie",
+        "description": "Pozostawia podział i kolejność pracy pod kontrolą człowieka",
+        "agentTip": "Przekazuj jasno ograniczone kroki i potwierdzaj kierunek między ważnymi etapami"
+      },
+      "A": {
+        "name": "Delegowanie",
+        "description": "Definiuje rezultat i pozwala agentowi wybrać drogę",
+        "agentTip": "Opisz rezultat, poziom jakości i ograniczenia, a planowanie i wykonanie zostaw agentowi"
+      },
+      "F": {
+        "name": "Skupienie",
+        "description": "Preferuje głębię i ukończenie jednego wątku pracy naraz",
+        "agentTip": "Utrzymuj aktywny jeden jasny następny krok i zakończ go przed otwarciem nowej pracy"
+      },
+      "W": {
+        "name": "Rój",
+        "description": "Wykorzystuje wiele równoległych wątków, aby zwiększyć zasięg i tempo",
+        "agentTip": "Rozdziel niezależne badania lub implementacje i połącz je w wyraźnych punktach przekazania"
+      },
+      "S": {
+        "name": "Systematyzacja",
+        "description": "Inwestuje w powtarzalne procesy, narzędzia i trwałe ulepszenia",
+        "agentTip": "Poproś agenta, aby utrwalił powtarzalną pracę jako testy, skrypty, reguły lub szablony"
+      },
+      "H": {
+        "name": "Dostarczanie",
+        "description": "Optymalizuje pracę pod kątem najszybszego zweryfikowanego rezultatu i natychmiastowego postępu",
+        "agentTip": "Poproś o najmniejszą kompletną poprawkę, uruchom odpowiednie kontrole i iteruj na podstawie wyniku"
+      }
+    }
   },
   "cards": {
     "total_time": {

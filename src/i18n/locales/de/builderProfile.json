@@ -1,7 +1,6 @@
 {
   "title": "Builder-Profil",
   "refresh": "Aktualisieren",
-  "summaryLine": "{{sessions}} Sitzungen ausgewertet",
   "tooFewSessions": "Weniger als 25 Sitzungen – der Typ steht noch nicht fest.",
   "noSessionsYet": "Noch keine Sitzungen ausgewertet – die Buchstaben erscheinen, während der Verlauf gelesen wird.",
   "axisStats": "{{sessions}} Sitzungen · {{consistency}} % stimmen überein",
@@ -46,6 +45,58 @@
     "moderate": "mäßige Präferenz",
     "clear": "klare Präferenz",
     "veryClear": "sehr klare Präferenz"
+  },
+  "types": {
+    "title": "Builder-Typen",
+    "subtitle": "Entdecke die 16 Arten, wie Menschen mit Coding-Agenten arbeiten.",
+    "howTitle": "So liest du den Code",
+    "howBody": "Vier beobachtete Präferenzen ergeben einen Builder-Typ. Die Buchstaben beschreiben ein Arbeitsmuster, keine feste Identität – sie können sich mit deinen Gewohnheiten und Werkzeugen verändern.",
+    "galleryTitle": "Alle 16 Typen",
+    "galleryHint": "Wähle ein Porträt, um das vollständige Profil und praktische Tipps für die Zusammenarbeit mit Agenten zu sehen.",
+    "knowMore": "Mehr erfahren",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Planen",
+        "description": "Steckt Ziel und Einschränkungen ab, bevor die Umsetzung beginnt",
+        "agentTip": "Gib dem Agenten ein schriftliches Briefing mit Erfolgskriterien, Grenzen und Prüfpunkten"
+      },
+      "E": {
+        "name": "Erkunden",
+        "description": "Baut Klarheit durch Versuche, Beobachtungen und Kurskorrekturen auf",
+        "agentTip": "Bitte um einen kleinen Versuch oder eine nützliche Untersuchung, bevor du dich auf einen Plan festlegst"
+      },
+      "D": {
+        "name": "Steuern",
+        "description": "Behält Zerlegung und Reihenfolge der Arbeit selbst in der Hand",
+        "agentTip": "Übergib klar abgegrenzte Schritte und bestätige die Richtung zwischen wichtigen Etappen"
+      },
+      "A": {
+        "name": "Delegieren",
+        "description": "Definiert das Ergebnis und überlässt dem Agenten die Wahl des Weges",
+        "agentTip": "Beschreibe Ergebnis, Qualitätsmaßstab und Grenzen; lass den Agenten Planung und Ausführung übernehmen"
+      },
+      "F": {
+        "name": "Fokussiert",
+        "description": "Bevorzugt Tiefe und Abschluss in einem Arbeitsstrang nach dem anderen",
+        "agentTip": "Halte einen klaren nächsten Schritt aktiv und schließe ihn ab, bevor du neue Arbeit öffnest"
+      },
+      "W": {
+        "name": "Schwarm",
+        "description": "Nutzt mehrere parallele Stränge, um mehr Fläche und Tempo zu gewinnen",
+        "agentTip": "Teile unabhängige Untersuchungen oder Umsetzungen auf und führe sie an klaren Übergabepunkten zusammen"
+      },
+      "S": {
+        "name": "Systematisieren",
+        "description": "Investiert in wiederholbare Abläufe, Werkzeuge und dauerhafte Verbesserungen",
+        "agentTip": "Bitte den Agenten, wiederkehrende Arbeit als Tests, Skripte, Regeln oder Vorlagen festzuhalten"
+      },
+      "H": {
+        "name": "Ausliefern",
+        "description": "Optimiert auf das schnellste validierte Ergebnis und unmittelbaren Fortschritt",
+        "agentTip": "Bitte um den kleinsten vollständigen Patch, führe die relevanten Prüfungen aus und iteriere anhand des Ergebnisses"
+      }
+    }
   },
   "cards": {
     "total_time": {
