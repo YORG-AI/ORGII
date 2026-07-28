@@ -2077,3 +2077,114 @@ fn resumes_codex_meta_parse_from_watermark() {
 
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }
+
+#[test]
+fn codex_inert_line_probe_classifies_lines() {
+    // Outer inert line types are skipped without parsing their payload.
+    assert!(codex_line_is_transcript_inert(
+        r#"{"timestamp":"2026-07-12T01:13:48.000Z","type":"compacted","payload":{"history":"enormous re-embedded context"}}"#
+    ));
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"session_meta","payload":{"id":"session-1","cwd":"/tmp"}}"#
+    ));
+    // Inert payload types with no dispatch arm.
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"token_count","info":{"total_tokens":42}}}"#
+    ));
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"image_generation_end","call_id":"c1","result":"aGVsbG8="}}"#
+    ));
+    // Live transcript content is never skipped.
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"user_message","message":"hello"}}"#
+    ));
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"agent_message","message":"hi"}}"#
+    ));
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"response_item","payload":{"type":"function_call","name":"exec","call_id":"c2","arguments":"{}"}}"#
+    ));
+    // Conservative on anything ambiguous: malformed JSON, missing types.
+    assert!(!codex_line_is_transcript_inert("not json at all"));
+    assert!(!codex_line_is_transcript_inert(r#"{"payload":{"foo":1}}"#));
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"world_state","payload":{}}"#
+    ));
+}
+
+#[test]
+fn codex_inert_lines_do_not_change_parsed_chunks() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-inert-line-skip-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+    let live_lines = [
+        r#"{"timestamp":"2026-07-12T01:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"first question"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}"#,
+        r#"{"timestamp":"2026-07-12T01:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"second question"}}"#,
+        r#"{"timestamp":"2026-07-12T01:01:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}"#,
+    ];
+    let inert_lines = [
+        r#"{"timestamp":"2026-07-12T01:00:01.000Z","type":"session_meta","payload":{"id":"session-1"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:02.000Z","type":"compacted","payload":{"history":"gigantic re-embedded prior context blob"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:03.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_tokens":9000}}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:04.000Z","type":"event_msg","payload":{"type":"image_generation_end","call_id":"img1","result":"QUFBQUFBQUE="}}"#,
+    ];
+
+    // File A: live lines only. File B: inert lines interleaved after each
+    // live line. Both must parse to identical chunks.
+    let plain_path = temp_dir.join("rollout-plain.jsonl");
+    std::fs::write(&plain_path, live_lines.join("\n") + "\n").expect("write plain fixture");
+    let interleaved = live_lines
+        .iter()
+        .flat_map(|live| std::iter::once(*live).chain(inert_lines.iter().copied()))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let interleaved_path = temp_dir.join("rollout-interleaved.jsonl");
+    std::fs::write(&interleaved_path, interleaved).expect("write interleaved fixture");
+
+    let plain = load_codex_app_from_path("codexapp-inert", &plain_path).expect("parse plain");
+    let mixed =
+        load_codex_app_from_path("codexapp-inert", &interleaved_path).expect("parse interleaved");
+
+    assert!(!plain.is_empty());
+    assert_eq!(plain.len(), mixed.len());
+    for (plain_chunk, mixed_chunk) in plain.iter().zip(mixed.iter()) {
+        assert_eq!(plain_chunk.chunk_id, mixed_chunk.chunk_id);
+        assert_eq!(plain_chunk.function, mixed_chunk.function);
+        assert_eq!(plain_chunk.result, mixed_chunk.result);
+    }
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+/// Opt-in perf harness for real rollout files (they are far too large to
+/// commit). Point `ORGII_CODEX_ROLLOUT_FIXTURE` at a local `rollout-*.jsonl`
+/// and run:
+///
+/// ```sh
+/// ORGII_CODEX_ROLLOUT_FIXTURE=/path/to/rollout.jsonl \
+///   cargo test -p orgtrack_core --release codex_parse_real_rollout_fixture_stats -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "needs ORGII_CODEX_ROLLOUT_FIXTURE pointing at a local rollout file"]
+fn codex_parse_real_rollout_fixture_stats() {
+    let Ok(path) = std::env::var("ORGII_CODEX_ROLLOUT_FIXTURE") else {
+        eprintln!("ORGII_CODEX_ROLLOUT_FIXTURE not set; skipping");
+        return;
+    };
+    let path = std::path::PathBuf::from(path);
+    let source_bytes = std::fs::metadata(&path).expect("stat fixture").len();
+    let started = std::time::Instant::now();
+    let chunks = load_codex_app_from_path("codexapp-perf", &path).expect("parse fixture");
+    let elapsed = started.elapsed();
+    let serialized_bytes = serde_json::to_string(&chunks).expect("serialize").len();
+    eprintln!(
+        "source_bytes={source_bytes} chunks={} serialized_bytes={serialized_bytes} elapsed_ms={}",
+        chunks.len(),
+        elapsed.as_millis()
+    );
+}
