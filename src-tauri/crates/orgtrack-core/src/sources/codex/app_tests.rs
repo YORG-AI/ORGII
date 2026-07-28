@@ -456,6 +456,32 @@ fn codex_initial_window_real_fixture_catalog_stats() {
         cold_elapsed.as_millis(),
         warm_elapsed.as_millis()
     );
+
+    if let Ok(raw_round) = std::env::var("ORGII_CODEX_SAMPLE_ROUND") {
+        let round = raw_round
+            .parse::<usize>()
+            .expect("ORGII_CODEX_SAMPLE_ROUND must be a positive integer");
+        let turn_id = window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .nth(round.saturating_sub(1))
+            .unwrap_or_else(|| panic!("sample round {round} is outside the transcript"))
+            .chunk_id
+            .clone();
+        let sample_started = std::time::Instant::now();
+        let sample = load_codex_app_turn_from_path("codexapp-real-catalog", path, &turn_id)
+            .expect("sample round");
+        let sample_elapsed = sample_started.elapsed();
+        let sample_serialized_bytes = serde_json::to_vec(&sample)
+            .expect("serialize sample round")
+            .len();
+        eprintln!(
+            "sample_round={round} sample_chunks={} sample_serialized_bytes={sample_serialized_bytes} sample_ms={}",
+            sample.chunks.len(),
+            sample_elapsed.as_millis()
+        );
+    }
 }
 
 #[test]

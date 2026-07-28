@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type ExternalHistoryRefreshSchedulerEnvironment,
   type TranscriptSettleState,
+  externalHistoryReloadCooldownMs,
   refreshImportedHistorySession,
   shouldWaitForStableTranscript,
   startExternalHistoryRefreshScheduler,
@@ -284,5 +285,19 @@ describe("shouldWaitForStableTranscript", () => {
     expect(shouldWaitForStableTranscript(state, null, 1_000, 5_000)).toBe(
       false
     );
+  });
+});
+
+describe("externalHistoryReloadCooldownMs", () => {
+  const mib = 1024 * 1024;
+
+  it("keeps the configured live behavior for ordinary transcripts", () => {
+    expect(externalHistoryReloadCooldownMs(64 * mib - 1)).toBe(0);
+  });
+
+  it("progressively rate-limits expensive large-transcript reloads", () => {
+    expect(externalHistoryReloadCooldownMs(64 * mib)).toBe(15_000);
+    expect(externalHistoryReloadCooldownMs(256 * mib)).toBe(30_000);
+    expect(externalHistoryReloadCooldownMs(1024 * mib)).toBe(60_000);
   });
 });

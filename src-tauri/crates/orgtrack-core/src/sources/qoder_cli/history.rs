@@ -48,7 +48,5 @@ pub fn load_qoder_cli_history_for_session(
 }
 
 pub fn qoder_cli_history_candidate_paths() -> Vec<PathBuf> {
-    dirs::home_dir()
-        .map(|home| vec![home.join(".qoder/projects")])
-        .unwrap_or_default()
+    vec![app_paths::external_history_home_dir().join(".qoder/projects")]
 }

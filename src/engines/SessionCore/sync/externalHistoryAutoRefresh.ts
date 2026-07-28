@@ -20,6 +20,24 @@ const logger = createLogger("ExternalHistoryAutoRefresh");
 // only applies to a chat someone is looking at.
 const UNFOCUSED_REFRESH_INTERVAL_MS = 60_000;
 const MIN_TRANSCRIPT_SETTLE_MS = 2_000;
+const MIB = 1024 * 1024;
+
+/**
+ * Keep cheap stat probes at the user's configured cadence, but rate-limit the
+ * expensive parse -> normalize -> replace pipeline for very large transcripts.
+ *
+ * A multi-hundred-MiB Codex rollout can contain thousands of embedded
+ * screenshots. Even though the parser strips those payloads before
+ * deserialization, repeatedly walking the growing tail keeps allocator pages
+ * hot and can immediately trigger another cloud replay projection. Small
+ * transcripts retain the exact configured behavior.
+ */
+export function externalHistoryReloadCooldownMs(sizeBytes: number): number {
+  if (sizeBytes >= 1024 * MIB) return 60_000;
+  if (sizeBytes >= 256 * MIB) return 30_000;
+  if (sizeBytes >= 64 * MIB) return 15_000;
+  return 0;
+}
 
 type RefreshTimer = ReturnType<typeof setTimeout>;
 
@@ -212,19 +230,28 @@ function supportsObservedSignatureLoad(
 async function transcriptChanged(
   sessionId: string,
   signal: AbortSignal
-): Promise<{ changed: boolean; signature: string | null }> {
+): Promise<{
+  changed: boolean;
+  signature: string | null;
+  sizeBytes: number | null;
+}> {
   const source = getImportedHistorySourceBySessionId(sessionId);
-  if (!source?.statTranscript) return { changed: true, signature: null };
+  if (!source?.statTranscript) {
+    return { changed: true, signature: null, sizeBytes: null };
+  }
   try {
     const stat = await source.statTranscript(sessionId);
-    if (signal.aborted || !stat) return { changed: true, signature: null };
+    if (signal.aborted || !stat) {
+      return { changed: true, signature: null, sizeBytes: null };
+    }
     const signature = `${stat.mtimeMs}:${stat.sizeBytes}`;
     return {
       changed: getTranscriptSignature(sessionId) !== signature,
       signature,
+      sizeBytes: stat.sizeBytes,
     };
   } catch {
-    return { changed: true, signature: null };
+    return { changed: true, signature: null, sizeBytes: null };
   }
 }
 
@@ -297,6 +324,7 @@ export function useExternalHistoryAutoRefresh(options: {
       firstObservedAt: 0,
     };
     const settleMs = Math.max(intervalMs, MIN_TRANSCRIPT_SETTLE_MS);
+    let lastReloadedAt = Date.now();
     const refresh = async () => {
       const controller = new AbortController();
       activeController = controller;
@@ -323,12 +351,23 @@ export function useExternalHistoryAutoRefresh(options: {
         ) {
           return;
         }
-        await refreshImportedHistorySession(
+        const nowMs = Date.now();
+        const cooldownMs =
+          probe.sizeBytes === null
+            ? 0
+            : externalHistoryReloadCooldownMs(probe.sizeBytes);
+        if (nowMs - lastReloadedAt < cooldownMs) {
+          return;
+        }
+        const reloaded = await refreshImportedHistorySession(
           sessionId,
           controller.signal,
           dispatchLoadSession,
           probe.signature
         );
+        if (reloaded) {
+          lastReloadedAt = Date.now();
+        }
         settleState.signature = null;
         settleState.firstObservedAt = 0;
       } catch (error) {

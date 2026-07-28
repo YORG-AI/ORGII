@@ -30,10 +30,81 @@ pub fn home_dir() -> PathBuf {
 /// does not discover and publish the primary profile's external histories
 /// under a different cloud identity.
 pub fn external_history_home_dir() -> PathBuf {
+    external_history_home_override().unwrap_or_else(home_dir)
+}
+
+fn external_history_home_override() -> Option<PathBuf> {
     std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(home_dir)
+}
+
+/// Roaming/application-data root used only for discovering external histories.
+///
+/// A secondary ORG2 identity redirects this beneath its isolated external
+/// history home instead of inheriting the primary user's `APPDATA`/XDG paths.
+pub fn external_history_data_dir() -> PathBuf {
+    if external_history_home_override().is_none() {
+        if let Some(path) = dirs::data_dir() {
+            return path;
+        }
+    }
+    let home = external_history_home_dir();
+    #[cfg(target_os = "windows")]
+    return home.join("AppData").join("Roaming");
+    #[cfg(target_os = "macos")]
+    return home.join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return home.join(".local").join("share");
+}
+
+/// Machine-local application-data root used for external-history discovery.
+pub fn external_history_data_local_dir() -> PathBuf {
+    if external_history_home_override().is_none() {
+        if let Some(path) = dirs::data_local_dir() {
+            return path;
+        }
+    }
+    let home = external_history_home_dir();
+    #[cfg(target_os = "windows")]
+    return home.join("AppData").join("Local");
+    #[cfg(target_os = "macos")]
+    return home.join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return home.join(".local").join("share");
+}
+
+/// Configuration root used for external-history discovery.
+pub fn external_history_config_dir() -> PathBuf {
+    if external_history_home_override().is_none() {
+        if let Some(path) = dirs::config_dir() {
+            return path;
+        }
+    }
+    let home = external_history_home_dir();
+    #[cfg(target_os = "windows")]
+    return home.join("AppData").join("Roaming");
+    #[cfg(target_os = "macos")]
+    return home.join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return home.join(".config");
+}
+
+/// State root (`XDG_STATE_HOME` equivalent) used for external-history
+/// discovery.
+pub fn external_history_state_dir() -> PathBuf {
+    if external_history_home_override().is_none() {
+        if let Some(path) = dirs::state_dir() {
+            return path;
+        }
+    }
+    let home = external_history_home_dir();
+    #[cfg(target_os = "windows")]
+    return home.join("AppData").join("Local");
+    #[cfg(target_os = "macos")]
+    return home.join("Library").join("Application Support");
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    return home.join(".local").join("state");
 }
 
 /// Application data root: `~/.orgii/`.
@@ -880,19 +951,16 @@ fn current_windows_account_for_acl() -> Option<String> {
     cmd.stdin(Stdio::null()).stderr(Stdio::null());
     // Suppress console window on Windows.
     app_platform::hide_console(&mut cmd);
-    let whoami = cmd
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                String::from_utf8(output.stdout)
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty())
-            } else {
-                None
-            }
-        });
+    let whoami = cmd.output().ok().and_then(|output| {
+        if output.status.success() {
+            String::from_utf8(output.stdout)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        } else {
+            None
+        }
+    });
     if whoami.is_some() {
         return whoami;
     }

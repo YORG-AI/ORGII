@@ -173,15 +173,13 @@ pub fn stat_cursor_cli_history_for_session(
 /// `chats` directly onto `getConfigDir()` — no `.cursor` component when the
 /// config dir is overridden).
 pub fn cursor_cli_history_candidate_paths() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(home_dir) = dirs::home_dir() {
-        roots.push(home_dir.join(".cursor").join("chats"));
-    }
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
-        if !xdg.trim().is_empty() {
-            roots.push(PathBuf::from(xdg).join("cursor").join("chats"));
-        }
-    }
+    let home_dir = app_paths::external_history_home_dir();
+    let mut roots = vec![
+        home_dir.join(".cursor").join("chats"),
+        app_paths::external_history_config_dir()
+            .join("cursor")
+            .join("chats"),
+    ];
     // ORGII-managed cursor-agent runs redirect CURSOR_CONFIG_DIR (not HOME):
     // own-key sessions into per-account profile dirs, hosted-key sessions
     // into per-session config dirs. Chats land directly under

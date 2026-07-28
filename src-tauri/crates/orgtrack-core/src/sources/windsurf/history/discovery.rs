@@ -29,9 +29,7 @@ fn windsurf_db_path() -> Option<PathBuf> {
 }
 
 pub(super) fn windsurf_db_candidate_paths() -> Vec<PathBuf> {
-    let Some(home) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home = app_paths::external_history_home_dir();
 
     let mut paths = Vec::new();
 

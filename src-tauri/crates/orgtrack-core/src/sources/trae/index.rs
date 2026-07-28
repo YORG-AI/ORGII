@@ -201,9 +201,7 @@ fn trae_state_vscdb_paths() -> Vec<PathBuf> {
 /// platform app-support root (macOS `~/Library/Application Support`, Windows
 /// `%APPDATA%\Roaming`, Linux `~/.local/share`).
 fn trae_user_dirs() -> Vec<PathBuf> {
-    let Some(data_dir) = dirs::data_dir() else {
-        return Vec::new();
-    };
+    let data_dir = app_paths::external_history_data_dir();
     ["Trae CN", "Trae"]
         .into_iter()
         .map(|name| data_dir.join(name).join("User"))

@@ -54,11 +54,10 @@ fn decode_project_path_anchors_on_home() {
     // '-' (e.g. `/Users/laptop-h`), which the naive `-`->`/` decode would split
     // into a non-existent `/Users/laptop/h`. Home-anchoring resolves it; without
     // the fix this returns None and the session's repo_path is dropped.
-    if let Some(home) = dirs::home_dir() {
-        let home_str = home.to_string_lossy().to_string();
-        let slug = home_str.replace('/', "-");
-        assert_eq!(decode_project_path(&slug), Some(home_str));
-    }
+    let home = app_paths::external_history_home_dir();
+    let home_str = home.to_string_lossy().to_string();
+    let slug = home_str.replace('/', "-");
+    assert_eq!(decode_project_path(&slug), Some(home_str));
 }
 
 #[test]

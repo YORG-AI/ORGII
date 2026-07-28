@@ -146,9 +146,7 @@ pub fn load_zcode_history_for_session(session_id: &str) -> Result<Vec<ActivityCh
 /// Candidate on-disk locations for ZCode's CLI history database. Exposed so the
 /// external-CLI detection layer can report the store path.
 pub fn zcode_history_candidate_paths() -> Vec<PathBuf> {
-    let Some(home_dir) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home_dir = app_paths::external_history_home_dir();
     zcode_history_candidate_paths_for_home(&home_dir)
 }
 

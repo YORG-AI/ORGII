@@ -730,13 +730,10 @@ fn edit_store_paths(
 
 /// `<data root>/Qoder/User/workspaceStorage` candidates.
 fn qoder_workspace_storage_dirs() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
-    }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
+    let mut roots = vec![
+        app_paths::external_history_data_dir(),
+        app_paths::external_history_config_dir(),
+    ];
     roots.sort();
     roots.dedup();
     roots
@@ -845,13 +842,10 @@ fn substring_after<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
 /// `<data>/Qoder/logs/<ts>/questWindow/agent.log` and
 /// `<data>/Qoder/logs/<ts>/questWindow/exthost/output_logging_*/1-Qoder.log`.
 fn qoder_launch_log_paths() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
-    }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
+    let mut roots = vec![
+        app_paths::external_history_data_dir(),
+        app_paths::external_history_config_dir(),
+    ];
     roots.sort();
     roots.dedup();
 

@@ -735,16 +735,14 @@ fn resolve_qoder_transcript_path(
 
 /// Existing-store probe locations for the Data Sources inventory.
 pub fn qoder_history_candidate_paths() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-    if let Some(home) = dirs::home_dir() {
-        paths.extend(qoder_projects_dir_candidates(&home));
-    }
+    let home = app_paths::external_history_home_dir();
+    let mut paths = qoder_projects_dir_candidates(&home);
     paths.extend(qoder_global_state_db_candidates());
     imported_paths::dedupe_paths(paths)
 }
 
 fn qoder_projects_dirs() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     Ok(qoder_projects_dir_candidates(&home))
 }
 
@@ -755,13 +753,10 @@ fn qoder_projects_dir_candidates(home: &Path) -> Vec<PathBuf> {
 
 /// VS Code-family per-user data root: `Qoder/User/globalStorage/state.vscdb`.
 fn qoder_global_state_db_candidates() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
-    }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
+    let mut roots = vec![
+        app_paths::external_history_data_dir(),
+        app_paths::external_history_config_dir(),
+    ];
     roots.sort();
     roots.dedup();
     roots
