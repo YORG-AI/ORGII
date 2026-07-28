@@ -31,6 +31,7 @@ import {
   org2CloudPushedMetadataAtom,
 } from "./org2CloudSyncAtoms";
 import { referenceInsertText } from "./referenceInsertText";
+import { REFUSAL_MESSAGE_DURATION_MS } from "./referenceRefusalMessage";
 import {
   SESSION_REFERENCE_ORG,
   publishedOrgIdsForSession,
@@ -125,7 +126,11 @@ export function useSessionReferenceDropTarget({
             resolution.kind === SESSION_REFERENCE_ORG.UNPUBLISHED
               ? "navigation:cloud.sessionRef.notPublished"
               : "navigation:cloud.sessionRef.chooseOrg"
-          )
+          ),
+          {
+            duration: REFUSAL_MESSAGE_DURATION_MS,
+            closable: true,
+          }
         );
         return null;
       }

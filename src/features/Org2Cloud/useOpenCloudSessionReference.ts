@@ -34,6 +34,7 @@ import {
 } from "./openCloudSessionReference";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { org2CloudOrgsAtom } from "./org2CloudOrgsAtom";
+import { REFUSAL_MESSAGE_DURATION_MS } from "./referenceRefusalMessage";
 
 /**
  * Returns whether the reference was admitted. The deep-link handler dedups
@@ -63,12 +64,16 @@ export function useOpenCloudSessionReference(): OpenCloudSessionReference {
         orgs: store.get(org2CloudOrgsAtom),
       });
       if (!admission.admitted) {
+        // A refusal is the ONLY thing that happens on this click, so it has
+        // to outlast the 1s default: a message nobody can read makes a
+        // working refusal indistinguishable from a broken chip.
         Message.error(
           i18n.t(
             admission.refusal === CLOUD_REFERENCE_REFUSAL.SIGNED_OUT
               ? "navigation:cloud.sessionRef.signInRequired"
               : "navigation:cloud.sessionRef.notMember"
-          )
+          ),
+          { duration: REFUSAL_MESSAGE_DURATION_MS, closable: true }
         );
         return false;
       }

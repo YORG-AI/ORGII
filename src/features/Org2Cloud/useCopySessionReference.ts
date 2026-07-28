@@ -26,6 +26,7 @@ import {
   org2CloudPushCursorsAtom,
   org2CloudPushedMetadataAtom,
 } from "./org2CloudSyncAtoms";
+import { REFUSAL_MESSAGE_DURATION_MS } from "./referenceRefusalMessage";
 import {
   SESSION_REFERENCE_ORG,
   publishedOrgIdsForSession,
@@ -68,13 +69,19 @@ export function useCopySessionReference(): CopySessionReferenceResult {
         activeCloudOrgId: store.get(sidebarActiveCloudOrgIdAtom),
       });
       if (resolution.kind === SESSION_REFERENCE_ORG.UNPUBLISHED) {
-        Message.error(i18n.t("navigation:cloud.sessionRef.notPublished"));
+        Message.error(i18n.t("navigation:cloud.sessionRef.notPublished"), {
+          duration: REFUSAL_MESSAGE_DURATION_MS,
+          closable: true,
+        });
         return;
       }
       if (resolution.kind === SESSION_REFERENCE_ORG.CHOOSE) {
         // Ambiguous only when the session spans orgs AND the current scope
         // picks none of them. Naming the orgs beats silently choosing one.
-        Message.warning(i18n.t("navigation:cloud.sessionRef.chooseOrg"));
+        Message.warning(i18n.t("navigation:cloud.sessionRef.chooseOrg"), {
+          duration: REFUSAL_MESSAGE_DURATION_MS,
+          closable: true,
+        });
         return;
       }
       void copyText(
@@ -85,7 +92,12 @@ export function useCopySessionReference(): CopySessionReferenceResult {
         })
       )
         .then(() => Message.success(i18n.t("common:actions.copied")))
-        .catch(() => Message.error(i18n.t("common:actions.copyFailed")));
+        .catch(() =>
+          Message.error(i18n.t("common:actions.copyFailed"), {
+            duration: REFUSAL_MESSAGE_DURATION_MS,
+            closable: true,
+          })
+        );
     },
     [store]
   );
