@@ -3,6 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import Modal from "@src/scaffold/ModalSystem";
 
@@ -120,6 +121,7 @@ export function CreateIssueModal({
           }`}
           placeholder={labels.issueBodyPlaceholder}
         />
+        <CloudSessionReferencePreview text={body} />
       </div>
     </Modal>
   );

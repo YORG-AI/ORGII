@@ -17,6 +17,7 @@ import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
+import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import {
@@ -388,6 +389,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
                 }
               }}
             />
+            <CloudSessionReferencePreview text={commentBody} />
             <div className="flex min-h-9 items-center justify-between gap-1 px-1">
               {isOpen ? (
                 <Button

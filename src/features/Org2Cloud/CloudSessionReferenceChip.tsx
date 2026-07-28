@@ -17,7 +17,7 @@ import { useTranslation } from "react-i18next";
 import BasePill from "@src/components/ComposerInput/BasePill";
 import { truncateVisiblePillLabel } from "@src/components/ComposerInput/utils";
 import { PILL_SIZE } from "@src/config/pillTokens";
-import { sessionsAtom } from "@src/store/session";
+import { sessionByIdAtom } from "@src/store/session";
 
 import type { CloudSessionReference } from "./cloudSessionReference";
 import { org2CloudRemoteSessionsAtom } from "./org2CloudRemoteSessionsAtom";
@@ -34,24 +34,34 @@ const SHORT_ID_LENGTH = 8;
 export const CloudSessionReferenceChip = memo(
   function CloudSessionReferenceChip({
     reference,
+    interactive = true,
   }: {
     reference: CloudSessionReference;
+    /**
+     * False renders the same pill as a passive label — no button role, no
+     * tab stop, no navigation. Composer previews use this: activating a
+     * navigation mid-draft would yank the user out of the text they are
+     * writing, and composer pills are non-navigating by convention.
+     */
+    interactive?: boolean;
   }) {
     const { t } = useTranslation("navigation");
     const openReference = useOpenCloudSessionReference();
     const remoteEntries = useAtomValue(org2CloudRemoteSessionsAtom);
-    const sessions = useAtomValue(sessionsAtom);
+    // Single-session subscription: a chip must not re-render on every
+    // sessionsAtom write (agent status churn) just to keep a label fresh.
+    const localSession = useAtomValue(
+      sessionByIdAtom(reference.sourceSessionId)
+    );
 
     const title = useMemo(
       () =>
         resolveSessionReferenceTitle({
           reference,
           orgRows: remoteEntries[reference.orgId]?.rows,
-          localTitle: sessions.find(
-            (session) => session.session_id === reference.sourceSessionId
-          )?.name,
+          localTitle: localSession?.name,
         }),
-      [reference, remoteEntries, sessions]
+      [reference, remoteEntries, localSession]
     );
 
     const handleClick = useCallback(
@@ -77,6 +87,18 @@ export const CloudSessionReferenceChip = memo(
       : `${t("cloud.sessionRef.chipLabel")} ${shortId}`;
     // The untruncated name belongs in the tooltip, not the inline label.
     const tooltip = title ?? label;
+
+    if (!interactive) {
+      return (
+        <BasePill
+          variant="display"
+          iconNode={<Users {...ICON_PROPS} />}
+          title={tooltip}
+        >
+          <span>{label}</span>
+        </BasePill>
+      );
+    }
 
     return (
       <BasePill
