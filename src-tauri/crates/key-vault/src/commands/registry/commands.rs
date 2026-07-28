@@ -5,10 +5,10 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use integrations::cli_binary_resolver::resolve_cli_binary_for_registry_name;
+use integrations::cli_binary_resolver::resolve_cli_binary_for_inventory;
 
 use crate::key_store::KEY_SERVICE;
 use crate::provider_config::{
@@ -79,45 +79,47 @@ fn native_subscription_labels_for_agent(agent_name: &str) -> Vec<String> {
     labels.iter().map(|label| label.to_string()).collect()
 }
 
-async fn detect_cli_installation(
+#[derive(Debug)]
+struct CliInstallationSnapshot {
+    installed: bool,
+    installed_via: Option<String>,
+    resolved_command: String,
+    binary_fingerprint: String,
+}
+
+fn detect_cli_installation(
     agent_name: &str,
     binary: &str,
-    current_path: &str,
-) -> (bool, Option<String>, String) {
-    let which_cmd = if cfg!(windows) { "where" } else { "which" };
-    let mut which_command = tokio::process::Command::new(which_cmd);
-    which_command.arg(binary).env("PATH", current_path);
-    #[cfg(windows)]
-    which_command.creation_flags(app_platform::CREATE_NO_WINDOW);
-
-    if let Ok(output) = which_command.output().await {
-        if output.status.success() {
-            let first_path = String::from_utf8_lossy(&output.stdout)
-                .lines()
-                .next()
-                .unwrap_or("")
-                .trim()
-                .to_string();
-            let installed_via = if first_path.is_empty() {
-                None
-            } else {
-                infer_install_method(&first_path)
-            };
-            return (true, installed_via, binary.to_string());
-        }
+    path_env: &std::ffi::OsString,
+    path_dirs: &[PathBuf],
+) -> CliInstallationSnapshot {
+    if let Some(path) = find_executable_on_path(path_dirs, binary) {
+        let path_string = path.to_string_lossy().to_string();
+        return CliInstallationSnapshot {
+            installed: true,
+            installed_via: infer_install_method(&path_string),
+            resolved_command: binary.to_string(),
+            binary_fingerprint: binary_cache_fingerprint(&path),
+        };
     }
 
-    if let Some(resolution) = resolve_cli_binary_for_registry_name(agent_name) {
+    if let Some(resolution) = resolve_cli_binary_for_inventory(agent_name, Some(path_env.clone())) {
         if resolution.installed() {
-            return (
-                true,
-                infer_install_method(&resolution.command),
-                resolution.metadata.command.to_string(),
-            );
+            return CliInstallationSnapshot {
+                installed: true,
+                installed_via: infer_install_method(&resolution.command),
+                resolved_command: resolution.metadata.command.to_string(),
+                binary_fingerprint: binary_cache_fingerprint(Path::new(&resolution.command)),
+            };
         }
     }
 
-    (false, None, binary.to_string())
+    CliInstallationSnapshot {
+        installed: false,
+        installed_via: None,
+        resolved_command: binary.to_string(),
+        binary_fingerprint: "-".to_string(),
+    }
 }
 
 fn resolve_cli_config_path(kind: CliConfigPathKind, relative_path: &str) -> String {
@@ -143,6 +145,100 @@ struct AvailableAgentsCacheEntry {
 }
 
 static AVAILABLE_AGENTS_CACHE: OnceLock<Mutex<Option<AvailableAgentsCacheEntry>>> = OnceLock::new();
+
+struct AvailableAgentsInFlight<T> {
+    result: Mutex<Option<Result<T, String>>>,
+    completed: tokio::sync::Notify,
+}
+
+impl<T> AvailableAgentsInFlight<T>
+where
+    T: Clone,
+{
+    fn finish(&self, result: Result<T, String>) {
+        let mut completed = self
+            .result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *completed = Some(result);
+    }
+
+    fn result(&self) -> Option<Result<T, String>> {
+        self.result
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+}
+
+struct AvailableAgentsRefreshCoordinator<T> {
+    in_flight: tokio::sync::Mutex<Option<Arc<AvailableAgentsInFlight<T>>>>,
+}
+
+impl<T> Default for AvailableAgentsRefreshCoordinator<T> {
+    fn default() -> Self {
+        Self {
+            in_flight: tokio::sync::Mutex::new(None),
+        }
+    }
+}
+
+impl<T> AvailableAgentsRefreshCoordinator<T>
+where
+    T: Clone + Send + 'static,
+{
+    async fn run<F>(&self, operation: F) -> Result<T, String>
+    where
+        F: FnOnce() -> T + Send + 'static,
+    {
+        let (refresh, is_leader) = {
+            let mut in_flight = self.in_flight.lock().await;
+            match in_flight.as_ref() {
+                Some(refresh) => (Arc::clone(refresh), false),
+                None => {
+                    let refresh = Arc::new(AvailableAgentsInFlight {
+                        result: Mutex::new(None),
+                        completed: tokio::sync::Notify::new(),
+                    });
+                    *in_flight = Some(Arc::clone(&refresh));
+                    (refresh, true)
+                }
+            }
+        };
+
+        if is_leader {
+            let result = tokio::task::spawn_blocking(operation)
+                .await
+                .map_err(|error| format!("CLI agent discovery worker failed: {error}"));
+            refresh.finish(result.clone());
+            let mut in_flight = self.in_flight.lock().await;
+            if in_flight
+                .as_ref()
+                .is_some_and(|active| Arc::ptr_eq(active, &refresh))
+            {
+                *in_flight = None;
+            }
+            drop(in_flight);
+            refresh.completed.notify_waiters();
+            return result;
+        }
+
+        loop {
+            let completed = refresh.completed.notified();
+            if let Some(result) = refresh.result() {
+                return result;
+            }
+            completed.await;
+        }
+    }
+}
+
+static AVAILABLE_AGENTS_REFRESH: OnceLock<AvailableAgentsRefreshCoordinator<Vec<AvailableAgent>>> =
+    OnceLock::new();
+
+fn available_agents_refresh() -> &'static AvailableAgentsRefreshCoordinator<Vec<AvailableAgent>> {
+    AVAILABLE_AGENTS_REFRESH.get_or_init(AvailableAgentsRefreshCoordinator::default)
+}
 
 fn cached_available_agents(
     path: &str,
@@ -247,27 +343,14 @@ fn binary_cache_fingerprint(path: &Path) -> String {
     format!("{}:{}:{}", path.to_string_lossy(), metadata.len(), modified)
 }
 
-fn path_binary_signature(registry_entries: &[(&str, &str)], path: &str) -> String {
-    let path_dirs: Vec<PathBuf> = std::env::split_paths(path).collect();
-    registry_entries
+fn find_executable_on_path(path_dirs: &[PathBuf], command: &str) -> Option<PathBuf> {
+    path_dirs
         .iter()
-        .map(|(name, binary)| {
-            let fingerprint = path_dirs
-                .iter()
-                .flat_map(|dir| command_path_candidates(dir, binary))
-                .find(|candidate| is_executable_file(candidate))
-                .map(|candidate| binary_cache_fingerprint(&candidate))
-                .unwrap_or_else(|| "-".to_string());
-            format!("{name}={fingerprint}")
-        })
-        .collect::<Vec<_>>()
-        .join("|")
+        .flat_map(|dir| command_path_candidates(dir, command))
+        .find(|candidate| is_executable_file(candidate))
 }
 
-/// Get available CLI agents with full metadata (install methods, env config, etc.).
-/// Single source of truth — frontend reads this instead of hardcoding.
-#[tauri::command]
-pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
+fn get_available_agents_blocking() -> Vec<AvailableAgent> {
     let registry = cli_agent_registry();
     let stored_keys = KEY_SERVICE.list_keys();
 
@@ -275,36 +358,43 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
     // (set by app_paths::augment_path_from_shell at startup) is visible even
     // if the async tokio runtime was initialised before the env was updated.
     let current_path = std::env::var("PATH").unwrap_or_default();
+    let path_env = std::ffi::OsString::from(&current_path);
+    let path_dirs: Vec<PathBuf> = std::env::split_paths(&path_env).collect();
     let mut key_signature_parts: Vec<String> = stored_keys
         .iter()
         .map(|key| format!("{}:{}", key.id, key.model_type.as_str()))
         .collect();
     key_signature_parts.sort();
     let current_key_signature = key_signature_parts.join("|");
-    let binary_signature_entries: Vec<(&str, &str)> = registry
+
+    let installation_snapshots: Vec<CliInstallationSnapshot> = registry
         .iter()
-        .map(|entry| (entry.name, entry.binary))
+        .map(|entry| detect_cli_installation(entry.name, entry.binary, &path_env, &path_dirs))
         .collect();
-    let current_binary_signature = path_binary_signature(&binary_signature_entries, &current_path);
+    let current_binary_signature = registry
+        .iter()
+        .zip(&installation_snapshots)
+        .map(|(entry, snapshot)| format!("{}={}", entry.name, snapshot.binary_fingerprint))
+        .collect::<Vec<_>>()
+        .join("|");
+
     if let Some(agents) = cached_available_agents(
         &current_path,
         &current_key_signature,
         &current_binary_signature,
     ) {
-        return Ok(agents);
+        return agents;
     }
     tracing::debug!("[get_available_agents] PATH={}", current_path);
 
     let mut results = Vec::new();
-    for entry in &registry {
-        let (installed, installed_via, resolved_command) =
-            detect_cli_installation(entry.name, entry.binary, &current_path).await;
+    for (entry, installation) in registry.iter().zip(installation_snapshots) {
         tracing::debug!(
             "[get_available_agents] {} ({}) → installed={} resolved_command={}",
             entry.display_name,
             entry.binary,
-            installed,
-            resolved_command
+            installation.installed,
+            installation.resolved_command
         );
 
         // A CLI agent is considered "configured" if the vault holds either:
@@ -321,9 +411,9 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
         results.push(AvailableAgent {
             name: entry.name.to_string(),
             display_name: entry.display_name.to_string(),
-            installed,
+            installed: installation.installed,
             has_keys: has_key,
-            installed_via,
+            installed_via: installation.installed_via,
             description: entry.description.to_string(),
             brand_color: entry.brand_color.to_string(),
             docs_url: Some(entry.docs_url.to_string()),
@@ -366,7 +456,7 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
             supports_rust_agents: entry.supports_rust_agents,
             acp_support: entry.acp_support,
             supports_orgii_pool: false,
-            command: resolved_command,
+            command: installation.resolved_command,
             supports_gui: entry.supports_gui,
         });
     }
@@ -377,7 +467,20 @@ pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
         current_binary_signature,
         results.clone(),
     );
-    Ok(results)
+    results
+}
+
+/// Get available CLI agents with full metadata (install methods, env config, etc.).
+/// Single source of truth — frontend reads this instead of hardcoding.
+///
+/// Concurrent callers share one in-flight refresh. The complete
+/// filesystem/process inventory runs on Tokio's blocking pool, so WebView IPC
+/// and Wry custom-protocol responses keep their async executor capacity.
+#[tauri::command]
+pub async fn get_available_agents() -> Result<Vec<AvailableAgent>, String> {
+    available_agents_refresh()
+        .run(get_available_agents_blocking)
+        .await
 }
 
 /// Get available API providers with full metadata.
@@ -447,6 +550,8 @@ pub fn get_all_provider_configs() -> std::collections::HashMap<String, ProviderC
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[cfg(unix)]
     fn make_executable(path: &Path) {
@@ -464,18 +569,69 @@ mod tests {
     }
 
     #[test]
-    fn path_binary_signature_changes_when_binary_appears_in_existing_path_dir() {
+    fn installation_fingerprint_changes_when_binary_appears_on_path() {
         let temp_dir = tempfile::tempdir().unwrap();
-        let path = temp_dir.path().to_string_lossy().to_string();
-        let entries = [("codex", "codex")];
+        let path_env = std::ffi::OsString::from(temp_dir.path().as_os_str());
+        let path_dirs = vec![temp_dir.path().to_path_buf()];
 
-        let before = path_binary_signature(&entries, &path);
-        make_executable(&temp_dir.path().join("codex"));
-        let after = path_binary_signature(&entries, &path);
+        let before =
+            detect_cli_installation("unknown-test-agent", "test-cli", &path_env, &path_dirs);
+        make_executable(&temp_dir.path().join("test-cli"));
+        let after =
+            detect_cli_installation("unknown-test-agent", "test-cli", &path_env, &path_dirs);
 
-        assert_ne!(before, after);
-        assert!(before.contains("codex=-"));
-        assert!(after.contains("codex="));
-        assert!(!after.contains("codex=-"));
+        assert_eq!(before.binary_fingerprint, "-");
+        assert_ne!(before.binary_fingerprint, after.binary_fingerprint);
+        assert!(after.installed);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn concurrent_refreshes_share_one_blocking_scan() {
+        let coordinator = Arc::new(AvailableAgentsRefreshCoordinator::default());
+        let cache = Arc::new(Mutex::new(None::<Vec<&'static str>>));
+        let scans = Arc::new(AtomicUsize::new(0));
+
+        let tasks = (0..4).map(|_| {
+            let coordinator = Arc::clone(&coordinator);
+            let cache = Arc::clone(&cache);
+            let scans = Arc::clone(&scans);
+            tokio::spawn(async move {
+                coordinator
+                    .run(move || {
+                        if let Some(value) = cache.lock().unwrap().clone() {
+                            return value;
+                        }
+                        scans.fetch_add(1, Ordering::SeqCst);
+                        std::thread::sleep(Duration::from_millis(25));
+                        let value = vec!["codex"];
+                        *cache.lock().unwrap() = Some(value.clone());
+                        value
+                    })
+                    .await
+                    .unwrap()
+            })
+        });
+
+        let mut results = Vec::new();
+        for task in tasks {
+            results.push(task.await.unwrap());
+        }
+        assert!(results.into_iter().all(|result| result == vec!["codex"]));
+        assert_eq!(scans.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn failed_refresh_releases_in_flight_state_for_retry() {
+        let coordinator = AvailableAgentsRefreshCoordinator::<Vec<&'static str>>::default();
+
+        let failed = coordinator
+            .run(|| panic!("simulated inventory worker failure"))
+            .await;
+        assert!(failed
+            .unwrap_err()
+            .contains("CLI agent discovery worker failed"));
+
+        let retried = coordinator.run(|| vec!["codex"]).await.unwrap();
+        assert_eq!(retried, vec!["codex"]);
     }
 }
