@@ -44,6 +44,63 @@
 14. Activating Retry after an initial load error calls the backing source's refresh boundary before reading a new snapshot; it never loops on the same failed cache entry.
 15. Partial-source degradation uses a warning treatment and preserves readable results; a total failure uses the blocking error state.
 
+## Session → Work Item drop
+
+| #   | Steps                                                                                                                        | Expected result                                                                                                                                |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Drag a Session tab over Team Inbox, then leave without dropping.                                                             | A localized dashed Drop Zone appears only during the eligible drag, highlights on entry, and disappears on leave/cancel without mutating data. |
+| 2   | Drop an unlinked Session on Team Inbox.                                                                                      | A review composer opens with the parsed title, request/impact preview, project roster, self selected by default, and an optional handoff note. |
+| 3   | Keep self selected and submit.                                                                                               | One normal assigned Work Item is created with the Session snapshot and no handoff state.                                                       |
+| 4   | Select an active teammate and submit.                                                                                        | The Work Item, teammate assignment, Session provenance, creator, and `pending` handoff record are persisted in one initial write.              |
+| 5   | Drop the same Session again.                                                                                                 | The existing linked Work Item is reused; no duplicate Work Item or second handoff is created.                                                  |
+| 6   | Remove the selected teammate before submission.                                                                              | Submission revalidates the project roster and fails visibly instead of assigning to a stale member.                                            |
+| 7   | Fail the reverse Session link after the Work Item write, then Retry.                                                         | The retry finds the Work Item by `linked_sessions`, repairs the reverse link, and reports success without creating a second Work Item.         |
+| 8   | Fail the Work Item write.                                                                                                    | The configured title, recipient and note remain in the composer so the same atomic submission can be retried or cancelled.                     |
+| 9   | Complete creation and activate Open.                                                                                         | The canonical Work Item navigation opens the created/reused item; Team Inbox refreshes through its coordinator invalidation.                   |
+| 10  | Switch scope or unmount Team Inbox while preparation/write is pending.                                                       | The request is aborted best-effort and late completion cannot overwrite the current UI.                                                        |
+| 11  | Open Team Inbox without an exactly resolved viewer member identity.                                                          | Session drop creation is unavailable; no unassigned Work Item is silently created.                                                             |
+| 12  | Select another member id that resolves to the current user.                                                                  | The operation remains a self-assignment and does not create a misleading human-to-human handoff.                                               |
+| 13  | Open a standalone Session that belongs to no project and has two eligible shared projects.                                   | The composer requires an explicit destination project, then limits sender/recipient identities to that project's roster.                       |
+| 14  | Right-click a Session tab and choose `Create team Work Item…`.                                                               | Team Inbox opens/focuses and displays the same review composer used by drag-and-drop; the Session tab remains in place.                        |
+| 15  | Remove the selected project or recipient after the composer opens.                                                           | Submit re-reads the current roster and fails visibly without writing into another project or retaining a stale recipient.                      |
+| 16  | Address the handoff to a second member id owned by the same signed-in person.                                                | That person can Accept/Return using the exact addressed member id; the UI does not reject a valid alias.                                       |
+| 17  | With a Cloud Org selected in the Sidebar, start a handoff from a standalone Session while also belonging to a local project. | The local project remains available as an explicit destination; Sidebar message scope does not incorrectly filter Work Item destinations.      |
+
+### Session-drop acceptance criteria
+
+- [ ] Dragging is copy semantics: the source Session tab is never moved or closed.
+- [ ] `pointermove` is subscribed only for an active eligible drag, hit-tests at most once per animation frame, and updates React state only when the over-boundary changes.
+- [ ] The Work Item and its `linked_sessions` provenance are written together before the Session reverse link is attempted.
+- [ ] The composer defaults to self, requires an available recipient, and never turns another current-user alias into a team handoff.
+- [ ] A standalone Session requires an explicit project when more than one eligible project exists; changing project resets the recipient to a valid project-local identity.
+- [ ] Eligible destination projects are derived from project membership, independently of the Sidebar's managed-cloud message scope.
+- [ ] Drag and the Session context-menu action converge on one request atom, one review composer, and one idempotent creation command.
+- [ ] A teammate handoff persists `pending / accepted / returned`, sender/recipient identities, timestamps, and bounded notes in canonical Work Item extras.
+- [ ] Creation is single-flight per viewer scope and Session, and retry after a partial link failure is idempotent.
+- [ ] Session parsing is deterministic and bounded: title 120 chars, request 4,000 chars, eight touched files, and twenty explicit Markdown checkbox to-dos.
+- [ ] The Drop Zone uses localized copy, design-system `Button`, semantic status/alert roles, and no raw color values.
+- [ ] A project-scoped Session whose project no longer exists fails visibly instead of silently creating a standalone Work Item.
+- [ ] Automated coverage exercises mapping, atomic provenance, teammate/self selection, alias handling, duplicate reuse, reverse-link repair, progress/success/open, and error/retry.
+
+## Human handoff state machine
+
+| State    | Owner / visible action                                                                     | Durable transition                                                                                        |
+| -------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| Pending  | Recipient sees `Accept` and `Return`; sender sees status when opening the linked Work Item | Accept or Return only; opening/marking read does not accept.                                              |
+| Accepted | Both Work Item entry points show the accepted status                                       | Assignment stays with the recipient; retrying Accept is idempotent; Return is no longer allowed.          |
+| Returned | Sender sees the item reassigned and unread; return reason remains visible                  | Handoff and reassignment commit in one SQLite transaction; the recipient's prior read receipt is cleared. |
+
+### Handoff acceptance criteria
+
+- [ ] Pending handoffs are distinguishable from ordinary assignments in the compact Inbox row.
+- [ ] Only the resolved recipient sees decision actions; other viewers can read the status but cannot act.
+- [ ] If the signed-in identity cannot be resolved, a targeted pending handoff explains why actions are unavailable instead of silently hiding them.
+- [ ] Return requires a non-blank reason of at most 500 characters.
+- [ ] The shared Work Item content renders the same handoff notice in Team Inbox and the formal Work Item destination.
+- [ ] Accept/Return uses one actor-attributed backend command; validation, history, extras persistence, receipt reset, and collab outbox emission share the atomic Work Item boundary.
+- [ ] After Accept, the left row updates from the refreshed Work Item; after Return, reassignment removes it from the recipient and makes it unread for the sender.
+- [ ] Collaboration apply updates `handoff` on an existing remote Work Item, so Accept/Return reaches another device and triggers the normal project/Inbox invalidation path.
+
 ## Coordinator state machine
 
 | State                | Entry                                                         | Visible behavior                                                                       | Allowed transition                                   | Ownership / persistence                                                   |
@@ -64,7 +121,7 @@
 | 1   | Select a project-scoped assigned Work Item.                                                                            | The full Work Item uses the shared content and property components; the reduced Markdown/metadata preview is not rendered.                                                        |
 | 2   | Inspect a Work Item with linked Sessions.                                                                              | Workflow and Session run cards appear inline in one continuous thread. The legacy `Session / Output / History` tab strip and linked-Session table are absent in Team Inbox.       |
 | 3   | Activate `View live chat` / `View conversation` on a Session card.                                                     | A separate Session Chat Panel tab opens or the existing tab for that Session is focused. Team Inbox remains open as its singleton tab.                                            |
-| 4   | Inspect a Work Item with proof of work and comments/history.                                                           | Output and activity render inline after the workflow; no second nested detail surface is introduced.                                                                              |
+| 4   | Inspect a Work Item with proof of work and comments/history.                                                           | The primary body contains task execution content; Discussion is a drill-in where comments lead and system history stays collapsed.                                                |
 | 5   | Switch assigned rows while the first full Work Item is still loading.                                                  | A late response from the first row never replaces the newly selected Work Item.                                                                                                   |
 | 6   | Make two property changes in quick succession.                                                                         | Same-item writes run in invocation order through a bounded queue, so the final response contains both atomic partial updates and an older response cannot overwrite newer intent. |
 | 7   | Open a standalone assigned Work Item.                                                                                  | The thread remains readable, but edit controls/property rail are not exposed because standalone persistence requires the owning frontmatter round-trip.                           |
@@ -73,7 +130,7 @@
 | 10  | Activate `Edit`, change the description, then cancel.                                                                  | A compact editor and Cancel/Save footer appear; Save is disabled until content changes, and Cancel restores the original Markdown.                                                |
 | 11  | Inspect a Work Item containing a persisted blank To-Do row.                                                            | The blank row is not rendered. The add input appears only after `Add` / `Add a to-do item` is activated.                                                                          |
 | 12  | Add a To-Do with Enter, then rapidly toggle and remove items.                                                          | Only committed, trimmed items persist; every change uses the canonical Work Item update boundary.                                                                                 |
-| 13  | Inspect activity and comments.                                                                                         | Activity has one heading with its subscription action; the current-user avatar is attached to the comment composer instead of occupying a separate subscription row.              |
+| 13  | Open Discussion and inspect comments.                                                                                  | Discussion replaces the Work Item body, prioritizes comments, keeps Activity history collapsed, and owns subscription plus the sticky current-user composer.                      |
 | 14  | Activate `Start Agent` on an idle Inbox Work Item.                                                                     | The canonical Work Item tab opens/focuses, claims the one-shot `start_agent` request, and starts through its existing orchestrator. The Inbox never mounts a second orchestrator. |
 | 15  | Resize the detail from narrow to wide.                                                                                 | The thread remains a centered single reading column; compact property pills scroll horizontally instead of creating a competing right rail.                                       |
 | 16  | Rapidly activate `Start Agent`, remount the Work Item panel, or request another Work Item before the first is claimed. | A claimed request starts exactly once and cannot replay; the newest unclaimed navigation intent supersedes the older one, which can never start later.                            |
@@ -90,6 +147,7 @@
 - [ ] Blank To-Do rows are removed from the thread projection; the To-Do composer is demand-mounted.
 - [ ] Properties use the shared pill fields in the thread header and no separate heavy property-card rail is rendered.
 - [ ] `Open work item`, read/unread, subscription, and comment actions are grouped with their owning header/composer instead of occupying disconnected footer rows.
+- [ ] Team Inbox and the formal Work Item both default to the Work Item body, place Discussion after primary content, and keep it outside the property metadata band.
 - [ ] Session-card navigation uses the explicit `open_session` intent and the canonical open-or-focus Session-tab atom.
 - [ ] Team Inbox does not mount a second Work Item orchestrator; `Start Agent` forwards a one-shot action to the canonical Work Item tab, where lock validation, start, failure recovery, and refresh remain owned.
 - [ ] The one-shot action is consumed only by its matching Work Item and is cleared before the async start begins, preventing remount/double-effect replay.

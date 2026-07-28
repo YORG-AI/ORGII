@@ -17,8 +17,12 @@ import type { AssignedWorkItem } from "../domain";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (_key: string, options?: { defaultValue?: string }) =>
-      options?.defaultValue ?? _key,
+    t: (key: string, options?: { defaultValue?: string; name?: string }) => {
+      if (key === "teamInbox.handoff.rowPending") {
+        return `From ${options?.name} · Awaiting response`;
+      }
+      return options?.defaultValue ?? key;
+    },
   }),
 }));
 
@@ -108,5 +112,37 @@ describe("TeamInboxRow", () => {
 
     expect(container.querySelector("[title]")).toBeNull();
     expect(container.textContent).toContain("Todo · Medium");
+  });
+
+  it("prioritizes pending handoff context over ordinary Work Item metadata", () => {
+    act(() => {
+      root.render(
+        createElement(TeamInboxRow, {
+          item: {
+            ...assignedItem,
+            payload: {
+              ...assignedItem.payload,
+              handoff: {
+                id: "handoff-1",
+                status: "pending",
+                senderMemberId: "member-2",
+                senderName: "Lin",
+                recipientMemberId: "member-1",
+                recipientName: "Yuki",
+                note: "Please verify the sync path.",
+                requestedAt: "2026-07-28T00:00:00.000Z",
+              },
+            },
+          },
+          itemKey: "assigned_work_item:assigned-1",
+          selected: false,
+          onSelect: vi.fn(),
+        })
+      );
+    });
+
+    expect(container.textContent).toContain("From Lin · Awaiting response");
+    expect(container.textContent).toContain("Please verify the sync path.");
+    expect(container.textContent).not.toContain("Todo · Medium");
   });
 });

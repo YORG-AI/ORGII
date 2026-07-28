@@ -9,17 +9,15 @@ describe("resolveWorkItemContentSectionPolicy", () => {
       showLinkedSessionsTable: true,
       showInlineWorkflow: false,
       showInlineOutput: false,
-      showInlineHistory: false,
     });
   });
 
-  it("turns Team Inbox into one inline thread without the legacy table", () => {
+  it("keeps workflow in Overview without the legacy linked-session table", () => {
     expect(resolveWorkItemContentSectionPolicy("thread", true)).toEqual({
       showTabbedLowerSection: false,
       showLinkedSessionsTable: false,
       showInlineWorkflow: true,
       showInlineOutput: true,
-      showInlineHistory: true,
     });
   });
 

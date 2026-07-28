@@ -1,5 +1,7 @@
 import { atom } from "jotai";
 
+import type { SessionReferenceOpen } from "@src/shared/dnd/sessionTabDrag";
+
 import type { TeamInboxItem } from "./domain";
 import type { TeamInboxIssue } from "./domain";
 import type { TeamInboxUnreadCounts } from "./domain";
@@ -40,3 +42,36 @@ export const invalidateTeamInboxAtom = atom(null, (get, set) => {
   set(teamInboxInvalidationAtom, get(teamInboxInvalidationAtom) + 1);
 });
 invalidateTeamInboxAtom.debugLabel = "invalidateTeamInboxAtom";
+
+export interface TeamInboxSessionHandoffRequest extends SessionReferenceOpen {
+  requestId: number;
+}
+
+const teamInboxSessionHandoffRequestSequenceAtom = atom(0);
+
+export const teamInboxSessionHandoffRequestAtom =
+  atom<TeamInboxSessionHandoffRequest | null>(null);
+teamInboxSessionHandoffRequestAtom.debugLabel =
+  "teamInboxSessionHandoffRequestAtom";
+
+export const requestTeamInboxSessionHandoffAtom = atom(
+  null,
+  (get, set, reference: SessionReferenceOpen) => {
+    const requestId = get(teamInboxSessionHandoffRequestSequenceAtom) + 1;
+    set(teamInboxSessionHandoffRequestSequenceAtom, requestId);
+    set(teamInboxSessionHandoffRequestAtom, { ...reference, requestId });
+  }
+);
+requestTeamInboxSessionHandoffAtom.debugLabel =
+  "requestTeamInboxSessionHandoffAtom";
+
+export const consumeTeamInboxSessionHandoffRequestAtom = atom(
+  null,
+  (get, set, requestId: number) => {
+    if (get(teamInboxSessionHandoffRequestAtom)?.requestId === requestId) {
+      set(teamInboxSessionHandoffRequestAtom, null);
+    }
+  }
+);
+consumeTeamInboxSessionHandoffRequestAtom.debugLabel =
+  "consumeTeamInboxSessionHandoffRequestAtom";

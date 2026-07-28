@@ -16,6 +16,7 @@ import {
   CommentMentionDetail,
   TeamInboxList,
 } from "./components";
+import TeamInboxSessionDropSurface from "./components/TeamInboxSessionDropSurface";
 import {
   type TeamInboxDataSource,
   type TeamInboxFilter,
@@ -279,6 +280,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
                 assigneeMemberId: assignee.id,
                 assigneeName: assignee.name,
                 summary: workItem.spec?.trim() || undefined,
+                handoff: workItem.handoff,
                 updatedAt,
               },
             }
@@ -362,74 +364,79 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   })();
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      {(loadState.status === "error" || loadState.status === "warning") &&
-      items.length > 0 ? (
-        <div
-          role="status"
-          className={`shrink-0 border-b px-3 py-2 text-xs ${
-            loadState.status === "warning"
-              ? "border-warning-3 bg-warning-6/10 text-warning-6"
-              : "border-danger-3 bg-danger-1 text-danger-6"
-          }`}
-        >
-          {loadState.message}
-        </div>
-      ) : null}
-      <SplitViewLayout
-        className="min-h-0 flex-1 rounded-page"
-        listWidth={280}
-        minListWidth={220}
-        maxListWidth={360}
-        resizable
-        collapsible
-        hideBreadcrumbWhenSidebarCollapsed
-        listPanelBackgroundClassName="bg-bg-2"
-        mainContentClassName="bg-bg-1"
-        listContent={
-          loadState.status === "loading" && items.length === 0 ? (
-            <Placeholder
-              variant="loading"
-              title={t("teamInbox.loading")}
-              fillParentHeight
-            />
-          ) : loadState.status === "error" && items.length === 0 ? (
-            <Placeholder
-              variant="error"
-              title={t("teamInbox.errors.loadTitle")}
-              subtitle={loadState.message ?? undefined}
-              action={{
-                label: t("common:actions.retry"),
-                onClick: handleRefresh,
-              }}
-              fillParentHeight
-            />
-          ) : (
-            <TeamInboxList
-              filter={filter}
-              items={visibleItems}
-              recencyAnchorMs={recencyAnchorMs}
-              selectedItemId={selectedItemId}
-              totalUnread={totalUnread}
-              unreadCounts={unreadCounts}
-              query={query}
-              loading={loadState.status === "loading"}
-              onQueryChange={setQuery}
-              onFilterChange={setFilter}
-              onSelectItem={handleSelect}
-              onRefresh={handleRefresh}
-              onMarkAllRead={
-                dataSource.markAllRead ? handleMarkAllRead : undefined
-              }
-              hasMore={hasMore}
-              loadingMore={loadingMore}
-              onLoadMore={dataSource.loadMore ? handleLoadMore : undefined}
-            />
-          )
-        }
-        mainContent={detail}
-      />
-    </div>
+    <TeamInboxSessionDropSurface
+      dataSource={dataSource}
+      onNavigate={onNavigate}
+    >
+      <div className="flex h-full min-h-0 flex-col">
+        {(loadState.status === "error" || loadState.status === "warning") &&
+        items.length > 0 ? (
+          <div
+            role="status"
+            className={`shrink-0 border-b px-3 py-2 text-xs ${
+              loadState.status === "warning"
+                ? "border-warning-3 bg-warning-6/10 text-warning-6"
+                : "border-danger-3 bg-danger-1 text-danger-6"
+            }`}
+          >
+            {loadState.message}
+          </div>
+        ) : null}
+        <SplitViewLayout
+          className="min-h-0 flex-1 rounded-page"
+          listWidth={280}
+          minListWidth={220}
+          maxListWidth={360}
+          resizable
+          collapsible
+          hideBreadcrumbWhenSidebarCollapsed
+          listPanelBackgroundClassName="bg-bg-2"
+          mainContentClassName="bg-bg-1"
+          listContent={
+            loadState.status === "loading" && items.length === 0 ? (
+              <Placeholder
+                variant="loading"
+                title={t("teamInbox.loading")}
+                fillParentHeight
+              />
+            ) : loadState.status === "error" && items.length === 0 ? (
+              <Placeholder
+                variant="error"
+                title={t("teamInbox.errors.loadTitle")}
+                subtitle={loadState.message ?? undefined}
+                action={{
+                  label: t("common:actions.retry"),
+                  onClick: handleRefresh,
+                }}
+                fillParentHeight
+              />
+            ) : (
+              <TeamInboxList
+                filter={filter}
+                items={visibleItems}
+                recencyAnchorMs={recencyAnchorMs}
+                selectedItemId={selectedItemId}
+                totalUnread={totalUnread}
+                unreadCounts={unreadCounts}
+                query={query}
+                loading={loadState.status === "loading"}
+                onQueryChange={setQuery}
+                onFilterChange={setFilter}
+                onSelectItem={handleSelect}
+                onRefresh={handleRefresh}
+                onMarkAllRead={
+                  dataSource.markAllRead ? handleMarkAllRead : undefined
+                }
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={dataSource.loadMore ? handleLoadMore : undefined}
+              />
+            )
+          }
+          mainContent={detail}
+        />
+      </div>
+    </TeamInboxSessionDropSurface>
   );
 };
 

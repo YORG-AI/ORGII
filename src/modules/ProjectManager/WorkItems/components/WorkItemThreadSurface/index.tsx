@@ -46,6 +46,7 @@ const WorkItemThreadSurface: React.FC<WorkItemThreadSurfaceProps> = ({
 
   return (
     <WorkItemContent
+      key={workItem.session_id}
       {...contentProps}
       workItem={workItem}
       presentation="thread"

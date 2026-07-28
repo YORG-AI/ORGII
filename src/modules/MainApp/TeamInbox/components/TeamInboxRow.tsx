@@ -54,11 +54,27 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
       const priority = t(workItemPriorityLabelKey(item.payload.priority), {
         defaultValue: humanizeToken(item.payload.priority),
       });
+      const handoff = item.payload.handoff;
+      const meta = handoff
+        ? t(
+            handoff.status === "pending"
+              ? "teamInbox.handoff.rowPending"
+              : handoff.status === "accepted"
+                ? "teamInbox.handoff.rowAccepted"
+                : "teamInbox.handoff.rowReturned",
+            {
+              name:
+                handoff.status === "returned"
+                  ? handoff.recipientName
+                  : handoff.senderName,
+              status,
+              priority,
+            }
+          )
+        : `${status} · ${priority}`;
       return {
-        meta: `${status} · ${priority}`,
-        summary: item.payload.summary
-          ? toCompactPreview(item.payload.summary)
-          : "",
+        meta,
+        summary: toCompactPreview(handoff?.note || item.payload.summary || ""),
       };
     }, [item, t]);
     const relativeTime = useMemo(

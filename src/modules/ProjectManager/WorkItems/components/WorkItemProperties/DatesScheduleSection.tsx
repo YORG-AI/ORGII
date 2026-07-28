@@ -29,11 +29,14 @@ interface DatesScheduleSectionProps {
 function renderRelativeTime(
   date: string | undefined,
   showTime: boolean,
-  getRelativeTime: (date: string | undefined) => string
+  getRelativeTime: (date: string | undefined) => string,
+  fieldVariant: FieldRowVariant
 ) {
   if (!date || !showTime) return undefined;
   return (
-    <span className="ml-auto shrink-0 text-[11px] text-text-3">
+    <span
+      className={`${fieldVariant === "pill" ? "ml-1" : "ml-auto"} shrink-0 text-[11px] text-text-3`}
+    >
       {getRelativeTime(date)}
     </span>
   );
@@ -71,7 +74,8 @@ export function DatesScheduleSection({
             suffix={renderRelativeTime(
               workItem.startDate,
               showTime,
-              handlers.getRelativeTime
+              handlers.getRelativeTime,
+              fieldVariant
             )}
             variant={fieldVariant}
             onClear={() => handlers.handleStartDateChange(null)}
@@ -104,7 +108,8 @@ export function DatesScheduleSection({
             suffix={renderRelativeTime(
               workItem.endDate,
               showTime,
-              handlers.getRelativeTime
+              handlers.getRelativeTime,
+              fieldVariant
             )}
             variant={fieldVariant}
             onClear={() => handlers.handleDateChange(null)}

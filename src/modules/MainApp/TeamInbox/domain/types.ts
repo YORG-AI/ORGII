@@ -1,3 +1,5 @@
+import type { WorkItemHandoff } from "@src/api/http/project";
+
 export type TeamInboxFilter = "all" | "mentions" | "assigned";
 
 export interface TeamInboxActor {
@@ -55,6 +57,7 @@ export interface AssignedWorkItem extends TeamInboxItemBase {
     assigneeName?: string;
     summary?: string;
     updatedAt: string;
+    handoff?: WorkItemHandoff;
   };
 }
 
@@ -97,6 +100,46 @@ export interface ListTeamInboxInput {
   signal?: AbortSignal;
 }
 
+export interface TeamInboxSessionDropInput {
+  sessionId: string;
+  title: string;
+  projectSlug: string;
+  assigneeMemberId: string;
+  handoffNote?: string;
+  signal?: AbortSignal;
+}
+
+export interface TeamInboxHandoffMember {
+  id: string;
+  name: string;
+  avatar?: string;
+  isCurrentUser: boolean;
+}
+
+export interface TeamInboxHandoffProject {
+  id: string;
+  slug: string;
+  name: string;
+  sender: TeamInboxHandoffMember;
+  recipients: TeamInboxHandoffMember[];
+}
+
+export interface TeamInboxSessionHandoffDraft {
+  sessionId: string;
+  title: string;
+  sourceProjectSlug?: string;
+  projects: TeamInboxHandoffProject[];
+  requestPreview?: string;
+  impactSummary?: string;
+  todoCount: number;
+}
+
+export interface TeamInboxCreatedWorkItem {
+  projectId: string;
+  workItemId: string;
+  reused: boolean;
+}
+
 /**
  * Transport-independent Team Inbox boundary.
  *
@@ -123,6 +166,16 @@ export interface TeamInboxDataSource {
    * `nextItem = null` removes an item that no longer belongs to this viewer.
    */
   reconcileItem?(itemKey: string, nextItem: TeamInboxItem | null): void;
+  /**
+   * Creates a Work Item from a one-time Session snapshot. The implementation
+   * owns persistence, idempotency, and source linkage.
+   */
+  createWorkItemFromSession?(
+    input: TeamInboxSessionDropInput
+  ): Promise<TeamInboxCreatedWorkItem>;
+  prepareSessionHandoff?(
+    input: Pick<TeamInboxSessionDropInput, "sessionId" | "title" | "signal">
+  ): Promise<TeamInboxSessionHandoffDraft>;
 }
 
 export type TeamInboxNavigationIntent =

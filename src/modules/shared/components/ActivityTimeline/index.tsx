@@ -54,13 +54,15 @@ export function TimelineCopyButton({
 /** Exact, timezone-aware activity timestamp. */
 export function ActivityTimestamp({
   timestamp,
+  label,
 }: {
   timestamp: string;
+  label?: string;
 }): React.ReactNode {
-  const label = formatDate(timestamp);
+  const fullLabel = formatDate(timestamp);
   return (
-    <time dateTime={timestamp} title={timestamp} className="whitespace-nowrap">
-      {label}
+    <time dateTime={timestamp} title={fullLabel} className="whitespace-nowrap">
+      {label ?? fullLabel}
     </time>
   );
 }
@@ -72,12 +74,14 @@ export function TimelineCardHeader({
   actor,
   action,
   timestamp,
+  timestampLabel,
 }: {
   avatar?: React.ReactNode;
   indicator?: React.ReactNode;
   actor: React.ReactNode;
   action: React.ReactNode;
   timestamp?: string | null;
+  timestampLabel?: string;
 }): React.ReactNode {
   return (
     <span className="flex min-w-0 items-center gap-2">
@@ -88,7 +92,7 @@ export function TimelineCardHeader({
         {timestamp ? (
           <>
             {" "}
-            <ActivityTimestamp timestamp={timestamp} />
+            <ActivityTimestamp timestamp={timestamp} label={timestampLabel} />
           </>
         ) : null}
       </span>

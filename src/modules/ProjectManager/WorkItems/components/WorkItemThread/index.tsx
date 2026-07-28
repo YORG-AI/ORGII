@@ -100,3 +100,7 @@ export const WorkItemThreadSection: React.FC<WorkItemThreadSectionProps> = ({
 };
 
 export { WORK_ITEM_THREAD_TOKENS } from "./tokens";
+export {
+  WorkItemThreadViewAction,
+  type WorkItemThreadView,
+} from "./WorkItemThreadViewAction";

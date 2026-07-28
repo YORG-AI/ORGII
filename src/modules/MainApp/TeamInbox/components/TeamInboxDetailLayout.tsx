@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Check, Undo2 } from "lucide-react";
+import { Check, Mail } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
@@ -68,7 +68,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
       variant="tertiary"
       appearance="ghost"
       size="mini"
-      icon={<Undo2 size={14} aria-hidden />}
+      icon={<Mail size={14} aria-hidden />}
       onClick={onMarkUnread}
     >
       {markUnreadLabel}

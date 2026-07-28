@@ -123,6 +123,7 @@ export function WorkItemDetailBody({
         <div className="flex h-full flex-col overflow-visible">
           <div className="min-h-0 flex-1 overflow-hidden">
             <WorkItemContent
+              key={displayWorkItem.session_id}
               workItem={displayWorkItem}
               onUpdateWorkItem={onUpdateWorkItem}
               onUpdateWorkItemImmediate={onUpdateWorkItemImmediate}

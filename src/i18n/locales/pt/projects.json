@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Atividade",
+      "discussionTitle": "Discussão",
+      "activityHistory": "Histórico de atividades",
+      "activityHistoryCount": "{{count}} eventos",
+      "noComments": "Ainda não há comentários",
       "subscribe": "Inscrever-se",
       "unsubscribe": "Cancelar inscrição",
       "commentPlaceholder": "Deixe um comentário...",
@@ -389,6 +393,16 @@
       "clearedField": "limpou {{field}}",
       "changedDescription": "atualizou a descrição",
       "editedFields": "editou {{count}} campos:",
+      "groupedChanges": "fez {{count}} alterações",
+      "groupedTodoChanges": "atualizou tarefas · {{count}} ações",
+      "todoAdded": "adicionou “{{todo}}”",
+      "todoRemoved": "removeu “{{todo}}”",
+      "todoCompleted": "concluiu “{{todo}}”",
+      "todoReopened": "reabriu “{{todo}}”",
+      "todoStarted": "iniciou “{{todo}}”",
+      "todoMarkedPending": "marcou “{{todo}}” como pendente",
+      "todoRenamed": "renomeou “{{from}}” para “{{to}}”",
+      "todoUpdated": "atualizou “{{todo}}”",
       "justNow": "agora mesmo",
       "daysAgo": "há {{count}}d",
       "hoursAgo": "há {{count}}h",
@@ -411,7 +425,8 @@
         "todos": "tarefas",
         "comments": "comentários",
         "schedule": "agenda",
-        "orchestratorConfig": "configuração do Orchestrator"
+        "orchestratorConfig": "configuração do Orchestrator",
+        "handoff": "transferência"
       }
     },
     "todos": {

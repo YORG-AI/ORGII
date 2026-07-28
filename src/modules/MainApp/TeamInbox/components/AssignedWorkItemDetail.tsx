@@ -66,53 +66,57 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
           {issueMessage}
         </div>
       ) : null}
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <WorkItemThreadSurface
-          workItem={workItem}
-          propertyProps={
-            canUpdate
-              ? {
-                  onUpdate: updateWorkItem,
-                  availableProjects: workItem.project ? [workItem.project] : [],
-                  availableMilestones: workItem.milestone
-                    ? [workItem.milestone]
-                    : [],
-                  availableLabels: workItem.labels ?? [],
-                  availableMembers: members,
-                  projectIconType: isGitHubIssue ? "github" : undefined,
-                  projectReadonly: true,
-                }
-              : undefined
-          }
-          onUpdateWorkItem={canUpdate ? updateWorkItem : undefined}
-          onUpdateWorkItemImmediate={canUpdate ? updateWorkItem : undefined}
-          teamMembers={members}
-          currentUser={currentUser ?? undefined}
-          repoPath={repoPath}
-          projectSlug={item.target.projectId || null}
-          shortId={item.target.workItemId}
-          onStartAgent={
-            onNavigate
-              ? () =>
-                  onNavigate({
-                    kind: "open_work_item",
-                    projectId: item.target.projectId,
-                    workItemId: item.target.workItemId,
-                    action: "start_agent",
-                  })
-              : undefined
-          }
-          onOpenSession={
-            onNavigate
-              ? (sessionId) =>
-                  onNavigate({
-                    kind: "open_session",
-                    sessionId,
-                  })
-              : undefined
-          }
-          onRefreshWorkflow={refreshWorkItem}
-        />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <WorkItemThreadSurface
+            workItem={workItem}
+            propertyProps={
+              canUpdate
+                ? {
+                    onUpdate: updateWorkItem,
+                    availableProjects: workItem.project
+                      ? [workItem.project]
+                      : [],
+                    availableMilestones: workItem.milestone
+                      ? [workItem.milestone]
+                      : [],
+                    availableLabels: workItem.labels ?? [],
+                    availableMembers: members,
+                    projectIconType: isGitHubIssue ? "github" : undefined,
+                    projectReadonly: true,
+                  }
+                : undefined
+            }
+            onUpdateWorkItem={canUpdate ? updateWorkItem : undefined}
+            onUpdateWorkItemImmediate={canUpdate ? updateWorkItem : undefined}
+            teamMembers={members}
+            currentUser={currentUser ?? undefined}
+            repoPath={repoPath}
+            projectSlug={item.target.projectId || null}
+            shortId={item.target.workItemId}
+            onStartAgent={
+              onNavigate
+                ? () =>
+                    onNavigate({
+                      kind: "open_work_item",
+                      projectId: item.target.projectId,
+                      workItemId: item.target.workItemId,
+                      action: "start_agent",
+                    })
+                : undefined
+            }
+            onOpenSession={
+              onNavigate
+                ? (sessionId) =>
+                    onNavigate({
+                      kind: "open_session",
+                      sessionId,
+                    })
+                : undefined
+            }
+            onRefreshWorkflow={refreshWorkItem}
+          />
+        </div>
       </div>
     </div>
   );

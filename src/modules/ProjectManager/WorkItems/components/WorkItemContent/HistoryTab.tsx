@@ -1,48 +1,16 @@
-import {
-  ArrowRightLeft,
-  ArrowUp,
-  Bell,
-  BellOff,
-  Bot,
-  MessageSquare,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
-import React from "react";
+import { ArrowUp, Bell, BellOff, ChevronRight } from "lucide-react";
+import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { WORK_ITEM_HISTORY_ACTION } from "@src/api/http/project/types";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  ActivityTimestamp,
-  ConnectedTimelineItem,
-  TimelineCard,
-  TimelineCardHeader,
-  TimelineEventCard,
-  TimelineStack,
-} from "@src/modules/shared/components/ActivityTimeline";
-import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
-import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
-import type { HistoryTabProps, TimelineEntry } from "./types";
-
-const OS_AGENT_USERNAME = "os-agent";
-const DELEGATION_PREFIX = "Delegation";
-
-const TIMELINE_ICONS: Record<TimelineEntry["type"], React.ReactNode> = {
-  [WORK_ITEM_HISTORY_ACTION.CREATED]: <Plus size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.UPDATED]: <Pencil size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.COMMENTED]: <MessageSquare size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.DELETED]: <Trash2 size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.RESTORED]: <RotateCcw size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.MOVED]: <ArrowRightLeft size={12} />,
-};
+import { WorkItemActivityTimeline } from "./WorkItemActivityTimeline";
+import { partitionDiscussionTimeline } from "./discussionTimelineModel";
+import type { HistoryTabProps } from "./types";
 
 const HistoryTab: React.FC<HistoryTabProps> = ({
   timelineEntries,
@@ -54,9 +22,15 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onCommentSubmit,
   isSubmittingComment,
   presentation = "default",
+  canComment = true,
+  threadNavigation,
 }) => {
   const { t } = useTranslation("projects");
   const isThread = presentation === "thread";
+  const { discussionEntries, activityEntries } = useMemo(
+    () => partitionDiscussionTimeline(timelineEntries),
+    [timelineEntries]
+  );
 
   const subscriptionControl = (
     <Button
@@ -79,114 +53,26 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
     </Button>
   );
 
-  const timeline = timelineEntries.length > 0 && (
-    <div className={isThread ? "" : DETAIL_PANEL_TOKENS.sectionGap}>
-      <TimelineStack>
-        {timelineEntries.map((entry, entryIndex) => {
-          const isDelegationComment =
-            entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
-            entry.userName === OS_AGENT_USERNAME &&
-            entry.descriptions[0]?.startsWith(DELEGATION_PREFIX);
-          const isLast = entryIndex === timelineEntries.length - 1;
-
-          if (
-            entry.type === WORK_ITEM_HISTORY_ACTION.COMMENTED &&
-            !isDelegationComment
-          ) {
-            const body = entry.descriptions[0] ?? "";
-            return (
-              <ConnectedTimelineItem key={entry.id} isLast={isLast}>
-                <TimelineCard
-                  copyBody={body}
-                  header={
-                    <TimelineCardHeader
-                      avatar={
-                        <Avatar
-                          size={18}
-                          src={
-                            entry.userAvatar ||
-                            (entry.userName === currentUser.name
-                              ? currentUser.avatar
-                              : undefined)
-                          }
-                          style={
-                            entry.userColor ||
-                            entry.userName === currentUser.name
-                              ? {
-                                  backgroundColor:
-                                    entry.userColor ||
-                                    currentUser.color ||
-                                    "var(--color-fill-3)",
-                                  color: "var(--color-text-white)",
-                                }
-                              : undefined
-                          }
-                        >
-                          {entry.userName.charAt(0).toUpperCase()}
-                        </Avatar>
-                      }
-                      actor={entry.userName}
-                      action="commented"
-                      timestamp={entry.timestamp}
-                    />
-                  }
-                >
-                  <MarkdownContent body={body} />
-                </TimelineCard>
-              </ConnectedTimelineItem>
-            );
-          }
-
-          return (
-            <ConnectedTimelineItem key={entry.id} isLast={isLast}>
-              <TimelineEventCard
-                icon={
-                  isDelegationComment ? (
-                    <Bot size={12} className="text-primary-6" />
-                  ) : (
-                    TIMELINE_ICONS[entry.type]
-                  )
-                }
-              >
-                <span
-                  className={
-                    isDelegationComment
-                      ? "font-medium text-primary-6"
-                      : "font-medium text-text-1"
-                  }
-                >
-                  {isDelegationComment
-                    ? t("workItems.activity.agent")
-                    : entry.userName}
-                </span>{" "}
-                {entry.descriptions.length === 1 ? (
-                  <span>{entry.descriptions[0]}</span>
-                ) : (
-                  <details className="mt-0.5">
-                    <summary className="inline cursor-pointer marker:text-text-4 hover:text-text-1">
-                      {t("workItems.activity.editedFields", {
-                        count: entry.descriptions.length,
-                      })}
-                    </summary>
-                    <ul className="m-0 mt-1 list-disc pl-4">
-                      {entry.descriptions.map(
-                        (description, descriptionIndex) => (
-                          <li key={`${entry.id}-${descriptionIndex}`}>
-                            {description}
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  </details>
-                )}
-                <span className="mx-1">·</span>
-                <ActivityTimestamp timestamp={entry.timestamp} />
-              </TimelineEventCard>
-            </ConnectedTimelineItem>
-          );
-        })}
-      </TimelineStack>
-    </div>
+  const timeline = (
+    <WorkItemActivityTimeline
+      entries={timelineEntries}
+      currentUser={currentUser}
+      compact={isThread}
+    />
+  );
+  const discussionTimeline = (
+    <WorkItemActivityTimeline
+      entries={discussionEntries}
+      currentUser={currentUser}
+      compact
+    />
+  );
+  const activityTimeline = (
+    <WorkItemActivityTimeline
+      entries={activityEntries}
+      currentUser={currentUser}
+      compact
+    />
   );
 
   const hasComment = commentText.trim().length > 0;
@@ -260,20 +146,58 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
 
   if (isThread) {
     return (
-      <section data-testid="work-item-thread-activity">
-        <CollapsibleSection
-          title={`${t("workItems.activity.title")} · ${timelineEntries.length}`}
-          defaultOpen={false}
-          actions={subscriptionControl}
-          compact
-          headerRowClassName="!mb-0 min-h-8"
-          titleButtonTestId="work-item-thread-activity-toggle"
-        >
-          <div className="flex flex-col gap-3 pt-3">
-            {timeline}
+      <section
+        className="flex min-w-0 flex-col gap-3"
+        data-testid="work-item-thread-discussion"
+        aria-label={t("workItems.activity.discussionTitle")}
+      >
+        <div className="flex min-h-8 items-center justify-between gap-3 border-b border-border-1 pb-2">
+          {threadNavigation}
+          {subscriptionControl}
+        </div>
+        {discussionEntries.length > 0 ? (
+          discussionTimeline
+        ) : (
+          <div
+            className="rounded-xl border border-dashed border-border-1 px-4 py-8 text-center text-[13px] text-text-3"
+            data-testid="work-item-thread-discussion-empty"
+          >
+            {t("workItems.activity.noComments")}
+          </div>
+        )}
+        {activityEntries.length > 0 ? (
+          <details
+            className="group overflow-hidden rounded-xl border border-border-1 bg-bg-2"
+            data-testid="work-item-thread-activity-history"
+          >
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 px-3 text-[12px] font-medium text-text-2 marker:hidden [&::-webkit-details-marker]:hidden">
+              <span className="min-w-0 flex-1">
+                {t("workItems.activity.activityHistory")}
+              </span>
+              <span className="shrink-0 font-normal tabular-nums text-text-4">
+                {t("workItems.activity.activityHistoryCount", {
+                  count: activityEntries.length,
+                })}
+              </span>
+              <ChevronRight
+                size={14}
+                aria-hidden
+                className="shrink-0 text-text-4 transition-transform group-open:rotate-90"
+              />
+            </summary>
+            <div className="border-t border-border-1 p-2">
+              {activityTimeline}
+            </div>
+          </details>
+        ) : null}
+        {canComment ? (
+          <div
+            className="sticky bottom-0 z-10 bg-transparent pt-2"
+            data-testid="work-item-thread-comment-dock"
+          >
             {composer}
           </div>
-        </CollapsibleSection>
+        ) : null}
       </section>
     );
   }
@@ -299,7 +223,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       </div>
 
       {timeline}
-      {composer}
+      {canComment ? composer : null}
     </div>
   );
 };

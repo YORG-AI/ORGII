@@ -17,8 +17,8 @@ export type SessionTab = (typeof SESSION_TAB_KEYS)[number];
 export interface WorkItemContentProps {
   workItem: WorkItemExtended;
   /**
-   * `thread` lays workflow/session cards and activity into one continuous
-   * surface. It omits the legacy lower tab strip and linked-session table.
+   * `thread` presents the task as the primary view and Discussion as a drill-in.
+   * It omits the legacy lower tab strip and linked-session table.
    */
   presentation?: WorkItemContentPresentation;
   onUpdateWorkItem?: (updates: Partial<WorkItemExtended>) => void;
@@ -85,14 +85,19 @@ export interface HistoryTabProps {
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
   presentation?: WorkItemContentPresentation;
+  canComment?: boolean;
+  threadNavigation?: ReactNode;
 }
 
 export interface TimelineEntry {
   id: string;
   timestamp: string;
   type: WorkItemHistoryAction;
+  actorId?: string;
   userName: string;
   userAvatar?: string;
   userColor?: string;
   descriptions: string[];
+  changeFields?: string[];
+  changeFieldKeys?: string[];
 }

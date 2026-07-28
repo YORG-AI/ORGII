@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
+import type { WorkItemHandoff } from "@src/api/http/project";
+
 import { toWireCursorItemId } from "./domain";
 import type {
   TeamInboxCursor,
@@ -49,6 +51,7 @@ type TeamInboxWirePayload =
       priority: string;
       assigneeMemberId: string;
       summary?: string;
+      handoff?: WorkItemHandoff;
     };
 
 interface TeamInboxWireItem {
@@ -127,6 +130,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
         assigneeMemberId: item.payload.assigneeMemberId,
         summary: item.payload.summary,
         updatedAt: occurredAt,
+        handoff: item.payload.handoff,
       },
     };
   }
