@@ -29,6 +29,8 @@ export type MenuItemId =
   | "terminal"
   | "sessions"
   | "session"
+  /** A teammate's cloud session; its value is a full `orgii://…` reference. */
+  | "cloudSession"
   | "projects"
   | "project"
   | "workitem"

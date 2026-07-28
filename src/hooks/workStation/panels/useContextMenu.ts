@@ -30,6 +30,10 @@ import {
   useState,
 } from "react";
 
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { teamSessionMentionResults } from "@src/features/Org2Cloud/teamSessionMentionResults";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
@@ -100,6 +104,16 @@ export function useContextMenu(
 
   // Get all sessions for @sessions search
   const allSessions = useAtomValue(sessionsAtom);
+  // Team sessions ride the ALREADY-CACHED listing: opening a menu must not
+  // put an RPC on the wire, so `useCloudOrgRemoteSessions` (which fetches)
+  // is deliberately not used here.
+  const cloudRemoteSessions = useAtomValue(org2CloudRemoteSessionsAtom);
+  const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const localSessionIdSet = useMemo(
+    () => new Set(allSessions.map((session) => session.session_id)),
+    [allSessions]
+  );
 
   const drilledProjectRef = useRef<DrilledProject | null>(null);
   const [drilledProjectName, setDrilledProjectName] = useState<string | null>(
@@ -199,7 +213,19 @@ export function useContextMenu(
           const fileResults = mergeSearchResultsByRoot(perRootResults, 20);
           results = [...rootResults, ...fileResults].slice(0, 20);
         } else if (type === "sessions") {
-          results = searchSessions(query, allSessions);
+          // Teammates' sessions sit after the viewer's own: the local list
+          // is what @ has always meant, and team rows extend it.
+          results = [
+            ...searchSessions(query, allSessions),
+            ...teamSessionMentionResults({
+              query,
+              rows: activeCloudOrgId
+                ? cloudRemoteSessions[activeCloudOrgId]?.rows
+                : undefined,
+              selfUserId: cloudAuth?.userId ?? null,
+              localSessionIds: localSessionIdSet,
+            }),
+          ];
         } else if (type === "projects") {
           results = await searchProjects(
             query,
@@ -223,7 +249,16 @@ export function useContextMenu(
         }
       }
     },
-    [effectiveRepoPath, searchRoots, allSessions, updateSearchResults]
+    [
+      effectiveRepoPath,
+      searchRoots,
+      allSessions,
+      updateSearchResults,
+      activeCloudOrgId,
+      cloudAuth?.userId,
+      cloudRemoteSessions,
+      localSessionIdSet,
+    ]
   );
 
   // Debounced context menu search — leading: true fires first call immediately
@@ -385,6 +420,10 @@ export function useContextMenu(
                 selectType = "workitem";
               } else if (selected.iconType === "browser") {
                 selectType = "browser";
+              } else if (selected.iconType === "cloudSession") {
+                // Without this the Enter path falls through to "sessions"
+                // and a cloud reference gets inserted as a local pill.
+                selectType = "cloudSession";
               } else if (
                 secondLayer === "files" &&
                 selected.type === "folder"

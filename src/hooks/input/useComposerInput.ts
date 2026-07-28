@@ -24,6 +24,7 @@ import { getTerminalBuffer } from "@src/components/TerminalInteractive/bufferCac
 import { storePillText } from "@src/config/pillTokens";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { useSlashCommand } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashCommand";
+import { referenceInsertText } from "@src/features/Org2Cloud/referenceInsertText";
 import type { SlashItem } from "@src/types/extensions";
 import {
   capPillText,
@@ -337,6 +338,17 @@ export function useComposerInput(
           return;
         }
         // No buffer available — fall through to default pill (navigation-only)
+      }
+
+      // A teammate's cloud session: plain reference text, not a pill. The
+      // pill path assumes a bare local session id, and the markdown
+      // renderer is what turns a reference into a chip.
+      if (type === "cloudSession") {
+        composerInputRef.current.insertMentionText(
+          referenceInsertText(value, displayName)
+        );
+        handleAtMentionClose();
+        return;
       }
 
       // Session pills: pass session ID only — no transcript loading

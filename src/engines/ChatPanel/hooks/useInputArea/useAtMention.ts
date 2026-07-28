@@ -9,6 +9,7 @@ import { type MutableRefObject, type RefObject, useCallback } from "react";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { getTerminalBuffer } from "@src/components/TerminalInteractive/bufferCache";
 import { storePillText } from "@src/config/pillTokens";
+import { referenceInsertText } from "@src/features/Org2Cloud/referenceInsertText";
 import { createLogger } from "@src/hooks/logger";
 import {
   capPillText,
@@ -142,6 +143,16 @@ export function useAtMention(options: UseAtMentionOptions): AtMentionHandlers {
               resolvedDisplayName
             );
           }
+          hasContentRef.current = true;
+          break;
+        }
+        case "cloudSession": {
+          // A teammate's session has no local id, so it goes in as the
+          // reference text the markdown renderer turns into a chip rather
+          // than through the pill path, which assumes a local session.
+          composerInputRef.current.insertMentionText(
+            referenceInsertText(value, resolvedDisplayName)
+          );
           hasContentRef.current = true;
           break;
         }

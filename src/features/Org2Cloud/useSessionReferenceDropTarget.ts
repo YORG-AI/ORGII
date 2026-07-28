@@ -20,13 +20,17 @@ import Message from "@src/components/Message";
 import i18n from "@src/i18n";
 import type { TabDragEventDetail } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 
-import { buildCloudSessionReference } from "./cloudSessionReference";
+import {
+  buildCloudSessionReference,
+  parseCloudSessionReference,
+} from "./cloudSessionReference";
 import { org2CloudAuthAtom } from "./org2CloudAuthAtom";
 import { sidebarActiveCloudOrgIdAtom } from "./org2CloudOrgsAtom";
 import {
   org2CloudPushCursorsAtom,
   org2CloudPushedMetadataAtom,
 } from "./org2CloudSyncAtoms";
+import { referenceInsertText } from "./referenceInsertText";
 import {
   SESSION_REFERENCE_ORG,
   publishedOrgIdsForSession,
@@ -35,14 +39,26 @@ import {
 
 const SESSION_PILL_PREFIX = "session://";
 
-/** Local session id from a dragged pill, or null when it is not a session. */
-export function draggedSessionId(detail: TabDragEventDetail): string | null {
+export type DraggedSession =
+  /** A teammate row: it already knows the full reference. */
+  | { kind: "reference"; reference: string; title?: string }
+  /** A local row: only an id, so the org still has to be resolved. */
+  | { kind: "local"; sessionId: string; title?: string };
+
+/** What a dragged pill names, or null when it is not a session at all. */
+export function draggedSession(
+  detail: TabDragEventDetail
+): DraggedSession | null {
   const pill = detail.pill;
   if (pill?.iconType !== "session") return null;
+  const title = pill.name?.trim() || undefined;
+  if (parseCloudSessionReference(pill.path)) {
+    return { kind: "reference", reference: pill.path, title };
+  }
   if (!pill.path.startsWith(SESSION_PILL_PREFIX)) return null;
-  return (
-    pill.path.slice(SESSION_PILL_PREFIX.length).split("/")[0].trim() || null
-  );
+  const sessionId =
+    pill.path.slice(SESSION_PILL_PREFIX.length).split("/")[0].trim() || null;
+  return sessionId ? { kind: "local", sessionId, title } : null;
 }
 
 function isPointInside(
@@ -128,24 +144,27 @@ export function useSessionReferenceDropTarget({
 
     const onDragStart = (event: Event) => {
       const detail = (event as CustomEvent<TabDragEventDetail>).detail;
-      if (draggedSessionId(detail)) setIsDragOver(false);
+      if (draggedSession(detail)) setIsDragOver(false);
     };
 
     const onDragEnd = (event: Event) => {
       const detail = (event as CustomEvent<TabDragEventDetail>).detail;
       setIsDragOver(false);
-      const sessionId = draggedSessionId(detail);
-      if (!sessionId) return;
+      const dragged = draggedSession(detail);
+      if (!dragged) return;
       const element = elementRef.current;
       if (!isPointInside(element, detail.pointerX, detail.pointerY)) return;
 
-      const reference = referenceFor(sessionId);
+      const reference =
+        dragged.kind === "reference"
+          ? dragged.reference
+          : referenceFor(dragged.sessionId);
       if (!reference || !element) return;
       const { value: next, caret } = insertAtCaret(
         value,
         element.selectionStart ?? value.length,
         element.selectionEnd ?? value.length,
-        reference
+        referenceInsertText(reference, dragged.title)
       );
       onChange(next);
       window.requestAnimationFrame(() => {

@@ -102,7 +102,19 @@ export const NavigationMenuParentRow = React.forwardRef<
           : undefined
       }
     >
-      {dragState && <ReferenceDragGhost dragState={dragState} />}
+      {dragState && (
+        <ReferenceDragGhost
+          dragState={{
+            ...dragState,
+            dragIcon: renderIcon(
+              item.icon,
+              item.iconName,
+              iconColor,
+              item.iconElement
+            ),
+          }}
+        />
+      )}
       <div
         data-testid={item.dataTestId}
         data-menu-item-id={item.id}
