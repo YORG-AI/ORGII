@@ -2,6 +2,7 @@ import { RenameModal } from "@/src/scaffold/ModalSystem/variants";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import LinkSessionToProjectModal from "@src/engines/ChatPanel/panels/LinkSessionToProjectModal";
 import CloudSessionShareDialog from "@src/features/Org2Cloud/CloudSessionShareDialog";
 import type { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSessionShareDialog/useCloudSessionShareDialog";
 import CloudShareImportDialog from "@src/features/Org2Cloud/CloudShareImportDialog";
@@ -26,6 +27,9 @@ interface SidebarDialogsProps {
   moveToOrg: ReturnType<typeof useMoveToOrgDialog>;
   rename: ReturnType<typeof useRenameSessionModal>;
   sessionMap: ReadonlyMap<string, Session>;
+  linkProjectSessionId: string | null;
+  onCloseLinkProject: () => void;
+  onProjectLinked: () => void;
 }
 
 export const SidebarDialogs: React.FC<SidebarDialogsProps> = ({
@@ -37,6 +41,9 @@ export const SidebarDialogs: React.FC<SidebarDialogsProps> = ({
   moveToOrg,
   rename,
   sessionMap,
+  linkProjectSessionId,
+  onCloseLinkProject,
+  onProjectLinked,
 }) => {
   const { t } = useTranslation("navigation");
   const { t: tCommon } = useTranslation();
@@ -51,6 +58,12 @@ export const SidebarDialogs: React.FC<SidebarDialogsProps> = ({
         loading={rename.loading}
         onCancel={rename.onCancel}
         onConfirm={(newName) => rename.onConfirm(newName, sessionMap)}
+      />
+      <LinkSessionToProjectModal
+        open={Boolean(linkProjectSessionId)}
+        sessionId={linkProjectSessionId}
+        onClose={onCloseLinkProject}
+        onLinked={onProjectLinked}
       />
       <MoveToOrgDialog
         session={moveToOrg.moveDialogSession}
