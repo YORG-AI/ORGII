@@ -470,6 +470,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Sesión de equipo",
+      "notMember": "No eres miembro de la organización propietaria de esta sesión.",
+      "signInRequired": "Inicia sesión en ORG2 Cloud para abrir esta sesión.",
+      "sessionNotFound": "Esa sesión no pertenece a esta organización.",
+      "notPublished": "Comparte esta sesión con una organización antes de copiar una referencia.",
+      "chooseOrg": "Esta sesión está en varias organizaciones. Cambia a la organización que quieras referenciar y vuelve a copiar."
+    },
     "sync": {
       "quotaExceededToast": "Sincronización de ORG2 Cloud en pausa: se superó la cuota del plan de esta organización",
       "syncDisabledToast": "Sincronización de ORG2 Cloud en pausa: la sincronización de sesiones está desactivada en el plan de esta organización",
@@ -700,6 +708,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "Editar nombre para mostrar",
+    "renameSaved": "Nombre para mostrar actualizado",
+    "renameFailed": "No se pudo actualizar el nombre para mostrar"
   }
 }

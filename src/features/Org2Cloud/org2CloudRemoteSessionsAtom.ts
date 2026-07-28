@@ -273,6 +273,13 @@ org2CloudRemoteSessionsVersionAtom.debugLabel =
 export interface UseCloudOrgRemoteSessionsResult {
   rows: RemoteTeammateSessionMetadata[];
   state: CloudRemoteSessionsFetchState;
+  /**
+   * Epoch ms of the last COMPLETED fetch (0 ⇒ never). The freshness signal
+   * `state` cannot give: a revalidation keeps `state` at "ready" with the
+   * previous rows on purpose, so "ready" means "a fetch once finished",
+   * not "this snapshot is current".
+   */
+  fetchedAt: number;
   /** Re-renders on visibility flips so demand-driven consumers can resume. */
   documentVisible: boolean;
   /** Replace the current snapshot now. */
@@ -531,5 +538,11 @@ export function useCloudOrgRemoteSessions(
   }, [orgId, signedIn, authIdentityKey, fetchOrgSessions, requestState]);
 
   const entry = entrySnapshot ?? EMPTY_ENTRY;
-  return { rows: entry.rows, state: entry.state, documentVisible, refresh };
+  return {
+    rows: entry.rows,
+    state: entry.state,
+    fetchedAt: entry.fetchedAt,
+    documentVisible,
+    refresh,
+  };
 }

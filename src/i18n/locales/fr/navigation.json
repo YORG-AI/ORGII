@@ -470,6 +470,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Session d'équipe",
+      "notMember": "Vous n'êtes pas membre de l'organisation propriétaire de cette session.",
+      "signInRequired": "Connectez-vous à ORG2 Cloud pour ouvrir cette session.",
+      "sessionNotFound": "Cette session n'appartient pas à cette organisation.",
+      "notPublished": "Partagez cette session avec une organisation avant de copier une référence.",
+      "chooseOrg": "Cette session appartient à plusieurs organisations. Passez à l'organisation que vous voulez référencer, puis copiez de nouveau."
+    },
     "sync": {
       "quotaExceededToast": "Synchro ORG2 Cloud en pause : le quota du forfait de cette organisation est dépassé",
       "syncDisabledToast": "Synchro ORG2 Cloud en pause : la synchro des sessions est désactivée pour le forfait de cette organisation",
@@ -700,6 +708,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "Modifier le nom d'affichage",
+    "renameSaved": "Nom d'affichage mis à jour",
+    "renameFailed": "Impossible de mettre à jour le nom d'affichage"
   }
 }

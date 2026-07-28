@@ -10,6 +10,7 @@ import { useMemo } from "react";
 
 import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSessionShareDialog/useCloudSessionShareDialog";
 import { useCloudSyncLevelDialog } from "@src/features/Org2Cloud/CloudSyncLevelDialog/useCloudSyncLevelDialog";
+import { useCopySessionReference } from "@src/features/Org2Cloud/useCopySessionReference";
 import { useMoveToOrgDialog } from "@src/features/TeamCollaboration/components/MoveToOrgDialog/useMoveToOrgDialog";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
@@ -137,6 +138,7 @@ export function useWorkstationSidebarMenuDecoration({
   const moveToOrg = useMoveToOrgDialog();
   const cloudSyncLevel = useCloudSyncLevelDialog();
   const cloudShare = useCloudSessionShareDialog();
+  const copyReference = useCopySessionReference();
   const handleMenuItemContextMenu = useWorkstationSidebarContextMenu({
     sessionMap,
     rename,
@@ -155,6 +157,9 @@ export function useWorkstationSidebarMenuDecoration({
     isCloudShareEligible: cloudShare.isCloudShareEligible,
     handleOpenCloudShare: cloudShare.openCloudShare,
     cloudShareLabel: t("cloud.share.menuItem"),
+    isCopyReferenceEligible: copyReference.isCopyReferenceEligible,
+    handleCopyReference: copyReference.handleCopyReference,
+    copyReferenceLabel: copyReference.copyReferenceLabel,
     handleCloudRemoteItemRemove,
     tCommon,
   });

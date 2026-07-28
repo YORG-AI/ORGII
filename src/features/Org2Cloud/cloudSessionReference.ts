@@ -65,6 +65,135 @@ function readSingleRequiredParam(
   return normalized || null;
 }
 
+/** One valid reference found in free text, with where it sits. */
+export interface CloudSessionReferenceSpan {
+  /** Index of the scheme in the original string. */
+  start: number;
+  /** Exclusive end of the reference text (after punctuation trimming). */
+  end: number;
+  /** The exact reference substring, usable as a link target. */
+  url: string;
+  reference: CloudSessionReference;
+}
+
+/**
+ * Case-insensitive to match `parseCloudSessionReference`, which compares a
+ * lowercased scheme and host per the URL spec. A case-sensitive scan here
+ * would find `[label](ORGII://…)` but not the same reference written bare.
+ * Matched on the original string so indices need no remapping.
+ */
+const REFERENCE_SCHEME_PATTERN = /orgii:\/\//giu;
+
+/**
+ * Trailing characters stripped before validation so a reference ending a
+ * sentence still matches. Backtick is included because a reference typed as
+ * `` `ref` `` ends its whitespace-free run on the closing backtick, which
+ * would otherwise survive into the session id and chip an id nobody wrote.
+ * Consequence (same trade GFM autolinks make): a session id whose last
+ * character is one of these cannot be found in bare text — it stays plain
+ * rather than matching a truncated id.
+ */
+const TRAILING_PUNCTUATION = /[.,;:!?"'\]})>`]+$/u;
+
+/**
+ * Upper bound on a candidate's length. The grammar's fixed part is ~128
+ * characters plus a session id, so this is generous for any real
+ * reference; anything longer fails closed instead of being truncated.
+ */
+const MAX_REFERENCE_LENGTH = 512;
+
+/**
+ * Hoisted out of `candidateEnd`: a regex literal inside the loop allocates
+ * a fresh RegExp per character, which is what made adversarial pastes
+ * (dense scheme hits in whitespace-free runs) cost tens of ms per scan.
+ */
+const WHITESPACE = /\s/u;
+
+/** Exclusive end of the whitespace-free run containing `start`. */
+function runEnd(value: string, start: number): number {
+  let index = start;
+  while (index < value.length && !WHITESPACE.test(value[index])) {
+    index += 1;
+  }
+  return index;
+}
+
+/**
+ * Find every valid reference in free text, in order. This is the single
+ * scanner behind both the markdown linkifier and composer previews, so what
+ * an editing surface previews is exactly what the rendered body will chip.
+ */
+export function scanCloudSessionReferences(
+  value: string
+): CloudSessionReferenceSpan[] {
+  const spans: CloudSessionReferenceSpan[] = [];
+  const scan = new RegExp(REFERENCE_SCHEME_PATTERN);
+  // Exclusive end of the run containing the previous hit. Later hits inside
+  // the same whitespace-free run share it, so a run is walked once no
+  // matter how many scheme hits it packs — an adversarial single-line paste
+  // costs one pass over the text, not hits × run length.
+  let knownRunEnd = -1;
+
+  for (;;) {
+    const match = scan.exec(value);
+    if (!match) break;
+    const at = match.index;
+
+    const end = at < knownRunEnd ? knownRunEnd : runEnd(value, at);
+    knownRunEnd = end;
+    // Candidates longer than any legitimate reference fail closed rather
+    // than truncating: a truncated candidate can still PARSE, which would
+    // surface a valid-looking reference to a session id nobody wrote.
+    if (end - at > MAX_REFERENCE_LENGTH) continue;
+
+    const trimmed = value.slice(at, end).replace(TRAILING_PUNCTUATION, "");
+    if (!trimmed) continue;
+    const reference = parseCloudSessionReference(trimmed);
+    if (!reference) continue;
+
+    spans.push({
+      start: at,
+      end: at + trimmed.length,
+      url: trimmed,
+      reference,
+    });
+    scan.lastIndex = at + trimmed.length;
+  }
+  return spans;
+}
+
+/**
+ * Code regions the markdown renderer keeps literal, so a composer preview
+ * must not chip references inside them. Fences first: an inline-span pass
+ * running before it would pair the fence's own backticks. An unpaired
+ * backtick stays literal in GFM too, so it is left alone here as well.
+ */
+const CODE_FENCE = /^(```|~~~).*?^\1.*?$/gmsu;
+const INLINE_CODE_SPAN = /`[^`\n]*`/gu;
+
+/**
+ * Unique references in markdown-bound composer text, first-appearance
+ * order — what a composer preview shows for the text as typed so far.
+ * References inside code spans/fences are excluded to match the rendered
+ * body, where code stays literal and never chips.
+ */
+export function collectUniqueCloudSessionReferences(
+  value: string
+): CloudSessionReference[] {
+  const scannable = value
+    .replace(CODE_FENCE, " ")
+    .replace(INLINE_CODE_SPAN, " ");
+  const seen = new Set<string>();
+  const references: CloudSessionReference[] = [];
+  for (const span of scanCloudSessionReferences(scannable)) {
+    const key = `${span.reference.orgId}\u001f${span.reference.ownerUserId}\u001f${span.reference.sourceSessionId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    references.push(span.reference);
+  }
+  return references;
+}
+
 /** Parse one exact ORG2 session reference; malformed or future versions fail closed. */
 export function parseCloudSessionReference(
   value: string

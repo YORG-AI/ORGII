@@ -560,6 +560,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "團隊工作階段",
+      "notMember": "你不是此工作階段所屬組織的成員。",
+      "signInRequired": "登入 ORG2 Cloud 以開啟此工作階段。",
+      "sessionNotFound": "該工作階段不屬於此組織。",
+      "notPublished": "先將此工作階段共享給某個組織，再複製引用。",
+      "chooseOrg": "此工作階段屬於多個組織。切換到你要引用的組織，然後重新複製。"
+    },
     "sync": {
       "quotaExceededToast": "ORG2 雲端同步已暫停：此組織的方案配額已用盡",
       "syncDisabledToast": "ORG2 雲端同步已暫停：此組織的方案未啟用工作階段同步",
@@ -791,6 +799,9 @@
       "optionNone": "無最低要求",
       "memberNote": "組織管理員要求至少分享到{{mode}}，因此你無法將工作階段設得比這更低"
     },
-    "signedInAs": "已登入：{{name}}"
+    "signedInAs": "已登入：{{name}}",
+    "renameDisplayName": "編輯顯示名稱",
+    "renameSaved": "顯示名稱已更新",
+    "renameFailed": "顯示名稱更新失敗"
   }
 }
