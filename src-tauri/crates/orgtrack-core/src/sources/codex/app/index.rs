@@ -14,7 +14,7 @@ use crate::sources::codex::{canonical_session_id, SESSION_PREFIX as CODEX_APP_SE
 use crate::sources::imported_history::{
     self, cache as imported_cache,
     metadata::{ImportedHistoryDiscoveredRecord, ImportedHistoryRecordSignature, SOURCE_CODEX_APP},
-    paths as imported_paths,
+    paths as imported_paths, scan_snapshot,
 };
 use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 
@@ -252,7 +252,16 @@ pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
 }
 
 fn refresh_codex_app_catalog(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_codex_app_records()?;
+    let previous_snapshots = scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CODEX_APP);
+    let mut walker = scan_snapshot::SnapshotDirWalker::new(&previous_snapshots, "jsonl", "Codex");
+    let mut discovered = discover_codex_app_records(&codex_sessions_dirs()?, &mut walker)?;
+    let next_snapshots = walker.into_snapshots();
+    scan_snapshot::persist_dir_snapshots_if_changed(
+        conn,
+        SOURCE_CODEX_APP,
+        &previous_snapshots,
+        &next_snapshots,
+    )?;
     let managed_ids =
         crate::sources::imported_history::managed_mirror::managed_source_session_ids_from_conn(
             conn,
@@ -547,13 +556,16 @@ fn is_codex_catalog_placeholder(cached: &CachedCodexCatalogTitle, source_session
         || matches!(name, "New Agent" | "Untitled")
 }
 
-fn discover_codex_app_records() -> Result<Vec<DiscoveredCodexCatalogRecord>, String> {
+fn discover_codex_app_records(
+    sessions_dirs: &[PathBuf],
+    walker: &mut scan_snapshot::SnapshotDirWalker<'_>,
+) -> Result<Vec<DiscoveredCodexCatalogRecord>, String> {
     let mut sessions = Vec::new();
-    for sessions_dir in codex_sessions_dirs()? {
+    for sessions_dir in sessions_dirs {
         if sessions_dir.is_dir() {
-            let title_index = load_codex_session_index_for_sessions_dir(&sessions_dir)?;
+            let title_index = load_codex_session_index_for_sessions_dir(sessions_dir)?;
             let mut files = Vec::new();
-            collect_codex_session_files(&sessions_dir, &mut files)?;
+            walker.collect_files(sessions_dir, &mut files)?;
             for path in files {
                 let Some(file_stem) = path
                     .file_stem()

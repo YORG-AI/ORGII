@@ -102,6 +102,8 @@ pub struct AgentOrgInboxPreviewRow {
     pub created_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub read_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delivery_resolution: Option<String>,
     pub recipient_name: String,
     pub sender_name: String,
     pub display_text: String,
@@ -131,6 +133,7 @@ pub struct AgentOrgRunTaskOverview {
     pub pending: usize,
     pub in_progress: usize,
     pub completed: usize,
+    pub corrupt: usize,
     pub visible: usize,
     pub truncated: bool,
 }
@@ -218,6 +221,7 @@ fn build_agent_org_run_view(
         pending: finality.facts.pending_task_count,
         in_progress: finality.facts.in_progress_task_count,
         completed: finality.facts.completed_task_count,
+        corrupt: finality.facts.corrupt_task_count,
         visible: task_page.tasks.len(),
         truncated: task_page.has_more,
     };
@@ -339,7 +343,8 @@ pub(super) fn project_run_phase(
         AgentOrgRunStatus::Running => {
             let all_tasks_completed = task_overview.total > 0
                 && task_overview.pending == 0
-                && task_overview.in_progress == 0;
+                && task_overview.in_progress == 0
+                && task_overview.corrupt == 0;
             if all_tasks_completed {
                 return AgentOrgRunPhase::Finalizing;
             }
@@ -362,7 +367,10 @@ pub(super) fn project_run_phase(
             if unread_inbox_count > 0 {
                 return AgentOrgRunPhase::Dispatching;
             }
-            if task_overview.pending > 0 || task_overview.in_progress > 0 {
+            if task_overview.pending > 0
+                || task_overview.in_progress > 0
+                || task_overview.corrupt > 0
+            {
                 AgentOrgRunPhase::Waiting
             } else {
                 AgentOrgRunPhase::Coordinating
@@ -573,6 +581,7 @@ fn enrich_inbox_preview_rows(
                 request_id: row.request_id,
                 created_at: row.created_at,
                 read_at: row.read_at,
+                delivery_resolution: row.delivery_resolution,
                 recipient_name,
                 sender_name,
                 display_text,
@@ -653,6 +662,9 @@ fn member_view_from_parts(
     } = identity;
     let (inbox_activity_count, unread_inbox_count) = inbox_counts
         .iter()
+        // member_id is the only canonical Agent Org identity. A legacy row
+        // without it remains visible in the bounded Run Inbox, but is not
+        // copied onto every roster member that happens to share agent_id.
         .filter(|counts| counts.recipient_member_id.as_deref() == Some(member_id.as_str()))
         .fold((0usize, 0usize), |(activity, unread), counts| {
             (

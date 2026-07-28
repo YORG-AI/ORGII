@@ -45,6 +45,7 @@ pub(crate) fn register_database_schemas() {
 
         orgtrack_core::store::sqlite::SqliteRecordStore::init_tables(conn)?;
         orgtrack_core::store::sqlite::SqliteRecordStore::init_source_cache_tables(conn)?;
+        orgtrack_core::profile::store::init_tables(conn)?;
 
         project_management::lineage::schema::init_lineage_tables(conn)?;
 

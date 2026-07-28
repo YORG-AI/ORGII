@@ -19,6 +19,7 @@ import {
 } from "../TeamCollaboration/sync/CollabSyncBackend";
 import { bytesToBase64 } from "../TeamCollaboration/sync/collabGzip";
 import type { CloudEndpoint } from "./config";
+import { endpointForOrg } from "./org2CloudOrgEndpointRouter";
 import {
   type GuestReplayObjectReader,
   createGuestReplayObjectReader,
@@ -159,7 +160,12 @@ export function buildCloudSessionWirePageClient(
     const shareToken = input.shareToken;
     if (shareToken === undefined) {
       return (storagePath, signal) =>
-        downloadReplayObject(accessToken, storagePath, endpoint, signal);
+        downloadReplayObject(
+          accessToken,
+          storagePath,
+          endpoint ?? endpointForOrg(input.orgId),
+          signal
+        );
     }
     const sessionId = cloudSessionIdFromRowId(input.sessionRowId);
     const readerKey = `${input.orgId}\u001f${sessionId}\u001f${shareToken}`;

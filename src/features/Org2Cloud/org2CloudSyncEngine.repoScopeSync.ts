@@ -39,6 +39,12 @@ export function getSessionScopeKeys(
 export class Org2CloudRepoScopeSync {
   /** orgId → last repo-scope hydration attempt (TTL-gated per pass). */
   private readonly hydratedAtMs = new Map<string, number>();
+  /** Orgs whose scopes this RUN has confirmed against the server. The
+   * persisted mirror is restored empty-or-stale on boot, and an empty scope
+   * list makes every candidate read as out-of-scope — which retracts live
+   * shared rows and drops their org tags. Destructive scope decisions wait
+   * for a confirmed fetch; pushes still run off the mirror. */
+  private readonly serverConfirmedOrgIds = new Set<string>();
 
   constructor(
     private readonly getStore: () => CloudStore | null,
@@ -47,12 +53,23 @@ export class Org2CloudRepoScopeSync {
 
   reset(): void {
     this.hydratedAtMs.clear();
+    this.serverConfirmedOrgIds.clear();
   }
 
   prune(currentOrgIds: ReadonlySet<string>): void {
     for (const orgId of this.hydratedAtMs.keys()) {
       if (!currentOrgIds.has(orgId)) this.hydratedAtMs.delete(orgId);
     }
+    for (const orgId of this.serverConfirmedOrgIds) {
+      if (!currentOrgIds.has(orgId)) this.serverConfirmedOrgIds.delete(orgId);
+    }
+  }
+
+  /** True once THIS run has read the org's scopes from the server. Gates
+   * every scope-driven retract/untag: a mirror that was never confirmed
+   * cannot prove a session is out of scope. */
+  hasServerConfirmedScopes(orgId: string): boolean {
+    return this.serverConfirmedOrgIds.has(orgId);
   }
 
   /** Realtime full-recovery invalidation (or a plain reconnect when
@@ -93,6 +110,7 @@ export class Org2CloudRepoScopeSync {
           ...current,
           [org.orgId]: state.repoScopes,
         }));
+        this.serverConfirmedOrgIds.add(org.orgId);
       } catch (error) {
         if (!isCurrentGeneration(generation)) return;
         log.warn(`repo-scope hydration failed for org ${org.orgId}:`, error);

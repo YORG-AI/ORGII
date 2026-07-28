@@ -4,26 +4,36 @@
 //! converts them into ORGII's canonical `ActivityChunk` shape for read-only
 //! replay.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
+use std::collections::BTreeSet;
+
 use core_types::activity::ActivityChunk;
 use rusqlite::Connection;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::{json, Value};
+
+#[cfg(test)]
+use serde::Serialize;
 
 use crate::sources::imported_history::{
     self, cache as imported_cache, managed_mirror,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
-        RoundUsage, StoredRoundUsage, SOURCE_CLAUDE_CODE,
+        SOURCE_CLAUDE_CODE,
     },
-    paths as imported_paths,
+    paths as imported_paths, scan_snapshot, ImportedHistoryRecentPath, ImportedHistorySessionPage,
+    ImportedHistorySessionRow, ImportedToolCall,
+};
+
+#[cfg(test)]
+use crate::sources::imported_history::{
+    metadata::{RoundUsage, StoredRoundUsage},
     watermark::{ImportedParseWatermark, WatermarkedTranscriptReader},
-    ImportedHistoryRecentPath, ImportedHistorySessionPage, ImportedHistorySessionRow,
-    ImportedToolCall,
 };
 
 use super::SESSION_PREFIX as CLAUDE_CODE_SESSION_PREFIX;
@@ -41,6 +51,7 @@ pub type ClaudeCodeHistorySessionRow = ImportedHistorySessionRow;
 pub type ClaudeCodeHistorySessionPage = ImportedHistorySessionPage;
 pub type ClaudeCodeRecentPath = ImportedHistoryRecentPath;
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 struct ClaudeCodeHistoryMeta {
     source_session_id: String,
@@ -81,9 +92,11 @@ struct ClaudeJsonlLine {
     #[serde(default)]
     summary: String,
     /// `ai-title` records: the auto-generated title shown in the Claude Code app.
+    #[cfg(test)]
     #[serde(default)]
     ai_title: String,
     /// `custom-title` records: a user-set title that overrides the AI title.
+    #[cfg(test)]
     #[serde(default)]
     custom_title: String,
     #[serde(default)]
@@ -118,16 +131,19 @@ struct ClaudeMessage {
     /// Assistant API-response id (`msg_…`). One response is written across
     /// several JSONL lines that each repeat the cumulative `usage`, so tokens
     /// are counted once per unique id.
+    #[cfg(test)]
     #[serde(default)]
     id: String,
     #[serde(default)]
     model: String,
     #[serde(default)]
     content: Value,
+    #[cfg(test)]
     #[serde(default)]
     usage: Option<ClaudeUsage>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Deserialize)]
 struct ClaudeUsage {
     #[serde(default)]
@@ -168,7 +184,7 @@ pub fn list_claude_code_history_sessions_paginated(
     limit: usize,
     offset: usize,
 ) -> Result<ClaudeCodeHistorySessionPage, String> {
-    sync_claude_code_history_cache(conn)?;
+    refresh_claude_code_catalog(conn)?;
     imported_cache::query_imported_session_page_from_conn(conn, SOURCE_CLAUDE_CODE, limit, offset)
 }
 
@@ -176,7 +192,7 @@ pub fn list_claude_code_recent_paths(
     conn: &mut Connection,
     limit: usize,
 ) -> Result<Vec<ClaudeCodeRecentPath>, String> {
-    sync_claude_code_history_cache(conn)?;
+    refresh_claude_code_catalog(conn)?;
     imported_cache::query_imported_recent_paths_from_conn(conn, SOURCE_CLAUDE_CODE, limit)
 }
 
@@ -219,7 +235,20 @@ pub(crate) fn refresh_catalog(conn: &mut Connection) -> Result<(), String> {
 }
 
 fn refresh_claude_code_catalog(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_claude_code_history_records()?;
+    let previous_snapshots = scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CLAUDE_CODE);
+    let mut walker = scan_snapshot::SnapshotDirWalker::new(&previous_snapshots, "jsonl", "Claude");
+    let discovery = discover_claude_code_history_records(&claude_projects_dirs()?, &mut walker)?;
+    let next_snapshots = walker.into_snapshots();
+    scan_snapshot::persist_dir_snapshots_if_changed(
+        conn,
+        SOURCE_CLAUDE_CODE,
+        &previous_snapshots,
+        &next_snapshots,
+    )?;
+    let ClaudeCodeDiscovery {
+        records: mut discovered,
+        ..
+    } = discovery;
     let managed_ids = managed_mirror::managed_source_session_ids_from_conn(
         conn,
         SOURCE_CLAUDE_CODE,
@@ -266,94 +295,66 @@ fn refresh_claude_code_catalog(conn: &mut Connection) -> Result<(), String> {
     imported_cache::demote_superseded_continuations_from_conn(conn, SOURCE_CLAUDE_CODE).map(|_| ())
 }
 
-fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
-    let mut discovered = discover_claude_code_history_records()?;
-    // Managed (GUI-launched) sessions surface through their code_sessions
-    // row; the imported twin goes unlistable. Folding the verdict into the
-    // fingerprint re-parses a session whose managed status flips.
-    let managed_ids = managed_mirror::managed_source_session_ids_from_conn(
-        conn,
-        SOURCE_CLAUDE_CODE,
-        SOURCE_CLAUDE_CODE,
-    )?;
-    for record in &mut discovered {
-        managed_mirror::append_managed_fingerprint(
-            &mut record.source_fingerprint,
-            managed_ids.contains(&record.source_session_id),
-        );
-    }
-    let signatures = discovered
-        .iter()
-        .map(ImportedHistoryDiscoveredRecord::signature)
-        .collect::<Vec<_>>();
-    let changed = imported_cache::changed_records_from_conn(
-        conn,
-        SOURCE_CLAUDE_CODE,
-        &discovered,
-        |record| record.signature(),
-    )?;
-    let mut inputs = Vec::new();
-    let mut rounds = Vec::new();
-    let mut reparsed_ids = Vec::new();
-    for record in changed {
-        let stored_watermark = imported_history::watermark::read_parse_watermark_from_conn(
-            conn,
-            SOURCE_CLAUDE_CODE,
-            &record.source_session_id,
-        )?;
-        let parse = parse_claude_session_meta_incremental(record, stored_watermark.as_ref())?;
-        imported_history::watermark::write_parse_watermark_from_conn(
-            conn,
-            SOURCE_CLAUDE_CODE,
-            &record.source_session_id,
-            &parse.watermark,
-        )?;
-        if let Some(mut meta) = parse.meta {
-            let is_managed_history_mirror = managed_ids.contains(&meta.source_session_id);
-            reparsed_ids.push(meta.session_id.clone());
-            rounds.append(&mut meta.rounds);
-            let mut input = session_meta_to_cache_input(meta);
-            input.listable = input.listable && !is_managed_history_mirror;
-            inputs.push(input);
-        }
-    }
-    imported_cache::sync_source_cache_from_conn(
-        conn,
-        SOURCE_CLAUDE_CODE,
-        imported_cache::live_ids_from_signatures(&signatures),
-        inputs,
-    )?;
-    imported_cache::write_session_rounds_from_conn(conn, &reparsed_ids, &rounds)?;
-    // Context-window continuations rewrite the conversation into a new
-    // session file with the same first-user-message uuid; keep only the
-    // newest sibling of each family listable.
-    imported_cache::demote_superseded_continuations_from_conn(conn, SOURCE_CLAUDE_CODE)?;
-    Ok(())
+#[derive(Debug)]
+struct ClaudeCodeDiscovery {
+    records: Vec<ImportedHistoryDiscoveredRecord>,
 }
 
-fn discover_claude_code_history_records() -> Result<Vec<ImportedHistoryDiscoveredRecord>, String> {
+fn discover_claude_code_history_records(
+    projects_dirs: &[PathBuf],
+    walker: &mut scan_snapshot::SnapshotDirWalker<'_>,
+) -> Result<ClaudeCodeDiscovery, String> {
     let mut records = Vec::new();
-    for projects_dir in claude_projects_dirs()? {
-        if projects_dir.is_dir() {
-            let title_index = load_claude_session_titles_for_projects_dir(&projects_dir)?;
-            let mut files = Vec::new();
-            collect_claude_session_files(&projects_dir, &mut files)?;
-            for file in files {
-                let (source_mtime_ms, source_size_bytes) =
-                    imported_paths::file_metadata_signature(&file.path, "Claude")?;
-                records.push(ImportedHistoryDiscoveredRecord {
-                    source_session_id: file.file_stem.clone(),
-                    source_path: file.path,
-                    source_record_key: file.file_stem.clone(),
-                    source_mtime_ms,
-                    source_size_bytes,
-                    source_fingerprint: claude_source_fingerprint(&file.file_stem, &title_index),
-                    parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
-                });
+    for projects_dir in projects_dirs {
+        if !projects_dir.is_dir() {
+            continue;
+        }
+        let title_index = load_claude_session_titles_for_projects_dir(projects_dir)?;
+        let mut paths = Vec::new();
+        walker.collect_files(projects_dir, &mut paths)?;
+        for path in paths {
+            if is_claude_workflow_journal_path(&path) {
+                continue;
             }
+            let Some(file_stem) = path
+                .file_stem()
+                .and_then(|value| value.to_str())
+                .map(str::to_string)
+            else {
+                continue;
+            };
+            let (source_mtime_ms, source_size_bytes) =
+                imported_paths::file_metadata_signature(&path, "Claude")?;
+            records.push(ImportedHistoryDiscoveredRecord {
+                source_session_id: file_stem.clone(),
+                source_path: path,
+                source_record_key: file_stem.clone(),
+                source_mtime_ms,
+                source_size_bytes,
+                source_fingerprint: claude_source_fingerprint(&file_stem, &title_index),
+                parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+            });
         }
     }
-    Ok(records)
+    Ok(ClaudeCodeDiscovery { records })
+}
+
+/// `<uuid>/subagents/workflows/wf_*/journal.jsonl` files are workflow event
+/// journals, not session transcripts. Their shared `journal` stem collides
+/// into one cache row that every sync pass re-upserts, so they are excluded
+/// at discovery. Workflow `agent-*.jsonl` files in the same tree ARE real
+/// sidechain transcripts and stay included.
+fn is_claude_workflow_journal_path(path: &Path) -> bool {
+    if path.file_stem().and_then(|value| value.to_str()) != Some("journal") {
+        return false;
+    }
+    let components = path
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect::<Vec<_>>();
+    components
+        .windows(2)
+        .any(|pair| pair == ["subagents", "workflows"])
 }
 
 fn collect_claude_session_files(
@@ -369,6 +370,9 @@ fn collect_claude_session_files(
             .extension()
             .is_some_and(|extension| extension == "jsonl")
         {
+            if is_claude_workflow_journal_path(&path) {
+                continue;
+            }
             let Some(file_stem) = path.file_stem().and_then(|value| value.to_str()) else {
                 continue;
             };
@@ -475,6 +479,7 @@ fn claude_sessions_dir_for_session_path(session_path: &Path) -> Option<PathBuf> 
 /// exactly the per-file state the old single-pass loop kept in locals, so it
 /// can be frozen into a parse watermark's `state_json` at a complete-line
 /// boundary and resumed against only the appended suffix.
+#[cfg(test)]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 struct ClaudeSessionMetaState {
     created_at_ms: i64,
@@ -511,6 +516,7 @@ struct ClaudeSessionMetaState {
     first_user_uuid: Option<String>,
 }
 
+#[cfg(test)]
 impl ClaudeSessionMetaState {
     fn feed(&mut self, trimmed: &str, record: &ImportedHistoryDiscoveredRecord) {
         let parsed: ClaudeJsonlLine = match serde_json::from_str(trimmed) {
@@ -730,6 +736,7 @@ impl ClaudeSessionMetaState {
     }
 }
 
+#[cfg(test)]
 struct ClaudeSessionMetaParse {
     meta: Option<ClaudeCodeHistoryMeta>,
     watermark: ImportedParseWatermark,
@@ -737,9 +744,11 @@ struct ClaudeSessionMetaParse {
     resumed: bool,
 }
 
-fn parse_claude_session_meta_incremental(
+#[cfg(test)]
+fn parse_claude_session_meta_with_title(
     record: &ImportedHistoryDiscoveredRecord,
     watermark: Option<&ImportedParseWatermark>,
+    external_title: String,
 ) -> Result<ClaudeSessionMetaParse, String> {
     let mut reader = WatermarkedTranscriptReader::open(
         &record.source_path,
@@ -783,7 +792,6 @@ fn parse_claude_session_meta_incremental(
             tail_state = Some(snapshot);
         }
     }
-    let external_title = claude_session_title_for_record(record)?;
     let state_json = serde_json::to_string(&state)
         .map_err(|err| format!("Failed to serialize Claude parse state: {err}"))?;
     let next_watermark = reader.into_watermark(
@@ -798,6 +806,15 @@ fn parse_claude_session_meta_incremental(
         watermark: next_watermark,
         resumed,
     })
+}
+
+#[cfg(test)]
+fn parse_claude_session_meta_incremental(
+    record: &ImportedHistoryDiscoveredRecord,
+    watermark: Option<&ImportedParseWatermark>,
+) -> Result<ClaudeSessionMetaParse, String> {
+    let external_title = claude_session_title_for_record(record)?;
+    parse_claude_session_meta_with_title(record, watermark, external_title)
 }
 
 #[cfg(test)]
@@ -921,6 +938,7 @@ fn parse_claude_catalog_input(
     }))
 }
 
+#[cfg(test)]
 fn session_meta_to_cache_input(meta: ClaudeCodeHistoryMeta) -> ImportedHistoryCacheInput {
     ImportedHistoryCacheInput {
         source: SOURCE_CLAUDE_CODE,
@@ -957,6 +975,7 @@ fn session_meta_to_cache_input(meta: ClaudeCodeHistoryMeta) -> ImportedHistoryCa
 /// results containing a unified-diff-style `structuredPatch`. Each hunk's `lines`
 /// are prefixed with `+` (added), `-` (removed), or ` ` (context), so this yields
 /// the same counts a `git diff` would — unlike the old_string/new_string heuristic.
+#[cfg(test)]
 fn collect_claude_impact_from_tool_result(
     result: &Value,
     impact: &mut ImportedHistoryImpactStats,
@@ -987,6 +1006,7 @@ fn collect_claude_impact_from_tool_result(
     }
 }
 
+#[cfg(test)]
 fn collect_claude_impact_from_item(
     item: &Value,
     impact: &mut ImportedHistoryImpactStats,
@@ -1034,6 +1054,7 @@ fn collect_claude_impact_from_item(
     }
 }
 
+#[cfg(test)]
 fn accumulate_claude_edit_input(input: &Value, impact: &mut ImportedHistoryImpactStats) {
     if let Some(old_string) = input.get("old_string").and_then(Value::as_str) {
         impact.lines_removed += count_text_lines(old_string);
@@ -1043,6 +1064,7 @@ fn accumulate_claude_edit_input(input: &Value, impact: &mut ImportedHistoryImpac
     }
 }
 
+#[cfg(test)]
 fn count_text_lines(text: &str) -> i64 {
     if text.is_empty() {
         0

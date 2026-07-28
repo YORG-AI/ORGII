@@ -17,6 +17,7 @@ This is **advisory**, not a hard contract. Use judgment based on PR size and ris
 | React performance, re-renders, async waterfalls, bundle size, heavy dependencies, virtualization, high-frequency events    | `react-best-practices`              | For performance-focused React implementation/review; not for routine styling, copy, or single-file bug fixes without a performance concern    |
 | Both architecture and React performance change together                                                                    | Run both, keep findings categorized | Apply `architecture-audit` to ownership/boundaries and `react-best-practices` to measured React runtime concerns                              |
 | E2E test surface (Playwright / WebDriver), test stability                                                                  | `e2e-testing`                       | When adding or repairing rendered E2E specs                                                                                                   |
+| Cloud sync / session sharing / collab correctness (share, push/retract, fork, replay, comments, continuation)              | `dual-instance-verification`        | Before declaring any sharing/sync change "verified"; when a sharing bug escaped earlier testing                                               |
 
 Skills live at:
 
@@ -25,6 +26,7 @@ Skills live at:
 - `.orgii/skills/architecture-audit/SKILL.md` (workspace copy, if present)
 - `.orgii/skills/react-best-practices/SKILL.md` (workspace; ORGII overlay for Vercel's React guidance)
 - `.orgii/skills/e2e-testing/SKILL.md` (workspace)
+- `.orgii/skills/dual-instance-verification/SKILL.md` (workspace; 双机实测 protocol for cloud sync / sharing)
 
 If the skill block isn't already prefetched in your context, read its `SKILL.md` before acting on it.
 

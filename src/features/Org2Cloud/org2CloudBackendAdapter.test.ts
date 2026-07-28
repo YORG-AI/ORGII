@@ -4,6 +4,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import { bytesToBase64 } from "../TeamCollaboration/sync/collabGzip";
 import { toFrozenSegmentStorage } from "../TeamCollaboration/sync/segmentCodec";
+import { getCloudEndpoint } from "./config";
 import {
   buildCloudSessionWirePageClient,
   cloudSessionIdFromRowId,
@@ -233,6 +234,46 @@ describe("cloud bounded replay adapter", () => {
     ]);
     expect(result.segments[0]).not.toHaveProperty("events");
     expect(createGuestReaderMock).not.toHaveBeenCalled();
+  });
+
+  it("routes member storage downloads through the org endpoint", async () => {
+    const stored = await toFrozenSegmentStorage({
+      seq: 1,
+      events: [makeEvent("member")],
+    });
+    const storagePath = `org-1/agentsession-abc/1/1-${stored.segmentHash}.gz`;
+    getSessionEventsMock.mockResolvedValue({
+      ...emptyPage(),
+      epoch: 1,
+      frozenSeq: 1,
+      count: 1,
+      segments: [
+        {
+          seq: 1,
+          storagePath,
+          eventCount: stored.eventCount,
+          segmentHash: stored.segmentHash,
+        },
+      ],
+    });
+    downloadReplayObjectMock.mockResolvedValue(stored.bytes);
+    const client = buildCloudSessionWirePageClient("jwt-member");
+
+    await client.getSessionEventWirePage({
+      orgId: "org-1",
+      sessionRowId: "org-1:user-1:agentsession-abc",
+      cursor: { direction: "backward" },
+      includeTail: true,
+      maxSegments: 16,
+      maxWireBytes: 1024 * 1024,
+    });
+
+    expect(downloadReplayObjectMock).toHaveBeenCalledWith(
+      "jwt-member",
+      storagePath,
+      getCloudEndpoint(),
+      undefined
+    );
   });
 
   it("reads share-token storage rows through the signed-url flow", async () => {

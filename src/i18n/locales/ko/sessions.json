@@ -145,7 +145,8 @@
         "hooks": "훅",
         "usage": "사용량",
         "quota": "할당량",
-        "assets": "자산"
+        "assets": "자산",
+        "profile": "프로필"
       },
       "usage": {
         "title": "사용량 및 비용",

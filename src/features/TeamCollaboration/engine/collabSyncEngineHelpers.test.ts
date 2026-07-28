@@ -19,6 +19,7 @@ import {
   ForkSnapshotIntegrityError,
 } from "../forkSnapshotIntegrity";
 import {
+  computeFrozenEventCount,
   deriveImportedSessionId,
   forkSession,
   importRemoteSession,
@@ -110,6 +111,176 @@ describe("isCollabConflictError (both backends' OCC rejection)", () => {
     expect(isCollabConflictError(new Error("ORG2_FORBIDDEN"))).toBe(false);
     expect(isCollabConflictError("ORG2_CONFLICT")).toBe(false);
     expect(isCollabConflictError(undefined)).toBe(false);
+  });
+});
+
+describe("computeFrozenEventCount frozen line + stuck-sentinel skip-over", () => {
+  function event(overrides: Partial<SessionEvent>): SessionEvent {
+    return {
+      id: `evt-${Math.random().toString(36).slice(2)}`,
+      sessionId: "session-1",
+      functionName: "",
+      uiCanonical: "",
+      source: "assistant",
+      args: {},
+      result: {},
+      displayStatus: "completed",
+      ...overrides,
+    } as SessionEvent;
+  }
+
+  function pendingPlanCard(revision: string): SessionEvent {
+    return event({
+      id: revision,
+      functionName: "plan_approval",
+      uiCanonical: "plan_approval",
+      callId: revision,
+      args: { planRevisionId: revision },
+      result: { status: "pending", planRevisionId: revision },
+      displayStatus: "awaiting_user",
+    });
+  }
+
+  function resolutionSibling(
+    revision: string,
+    status: "approved" | "archived" | "cancelled"
+  ): SessionEvent {
+    return event({
+      id: `${revision}-${status}`,
+      functionName: "plan_approval",
+      uiCanonical: "plan_approval",
+      callId: revision,
+      args: { planRevisionId: revision },
+      result: { status, planRevisionId: revision },
+      displayStatus: "completed",
+    });
+  }
+
+  it("cuts the frozen line at the first still-mutable non-terminal event", () => {
+    const events = [
+      event({}),
+      event({ displayStatus: "running", functionName: "run_shell" }),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(1);
+  });
+
+  it("holds recently-terminal events inside the mutation horizon in the tail", () => {
+    // Terminal ≠ immutable while the ingest can still amend (tool-result
+    // backfill): freezing them made every amendment a full epoch rewrite.
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = { createdAt: "2026-07-25T11:00:00Z" };
+    const recent = { createdAt: "2026-07-25T11:55:00Z" };
+    const events = [event(old), event(old), event(recent), event(recent)];
+    expect(computeFrozenEventCount(events, now)).toBe(2);
+  });
+
+  it("freezes everything once the session is quiescent past the horizon", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const old = { createdAt: "2026-07-25T11:00:00Z" };
+    const events = [event(old), event(old), event(old)];
+    expect(computeFrozenEventCount(events, now)).toBe(3);
+  });
+
+  it("caps horizon holdback so a busy span cannot grow the tail unbounded", () => {
+    const now = Date.parse("2026-07-25T12:00:00Z");
+    const recent = { createdAt: "2026-07-25T11:59:00Z" };
+    const events = Array.from({ length: 60 }, () => event(recent));
+    expect(computeFrozenEventCount(events, now)).toBe(20);
+  });
+
+  it("counts a missing displayStatus as terminal (hash chain catches mutation)", () => {
+    const events = [event({ displayStatus: undefined as never }), event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("freezes past an awaiting_user plan card whose revision was resolved", () => {
+    const events = [
+      event({}),
+      pendingPlanCard("rev-1"),
+      event({}),
+      resolutionSibling("rev-1", "archived"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(5);
+  });
+
+  it("accepts a resolution marker that precedes the dangling card", () => {
+    const events = [
+      resolutionSibling("rev-1", "approved"),
+      pendingPlanCard("rev-1"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(3);
+  });
+
+  it("freezes past a plan card superseded by a later pending revision, which itself still blocks", () => {
+    const superseded = pendingPlanCard("rev-1");
+    const latest = pendingPlanCard("rev-2");
+    const events = [superseded, event({}), latest, event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("keeps a genuinely pending latest plan card in the tail", () => {
+    const events = [event({}), pendingPlanCard("rev-1"), event({})];
+    expect(computeFrozenEventCount(events)).toBe(1);
+  });
+
+  it("freezes past a dangling create_plan tool call once its revision resolved", () => {
+    const createPlanCall = event({
+      id: "tool-call-rev-1",
+      functionName: "create_plan",
+      uiCanonical: "create_plan",
+      callId: "rev-1",
+      displayStatus: "awaiting_user",
+    });
+    const events = [
+      createPlanCall,
+      pendingPlanCard("rev-1"),
+      resolutionSibling("rev-1", "approved"),
+      event({}),
+    ];
+    expect(computeFrozenEventCount(events)).toBe(4);
+  });
+
+  it("freezes past a running synchronous tool zombie once a later user event exists", () => {
+    const zombie = event({
+      displayStatus: "running",
+      functionName: "read_file",
+      uiCanonical: "read_file",
+    });
+    const events = [event({}), zombie, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(4);
+  });
+
+  it("keeps a running synchronous tool in the tail while its turn may still be live", () => {
+    const running = event({
+      displayStatus: "running",
+      functionName: "read_file",
+      uiCanonical: "read_file",
+    });
+    const events = [event({ source: "user" }), event({}), running, event({})];
+    expect(computeFrozenEventCount(events)).toBe(2);
+  });
+
+  it("never freezes a running backgroundable tool, even after later user events", () => {
+    const backgroundable = event({
+      displayStatus: "running",
+      functionName: "agent",
+      uiCanonical: "subagent",
+    });
+    const events = [backgroundable, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(0);
+  });
+
+  it("keeps a non-plan awaiting_user interaction in the tail", () => {
+    const question = event({
+      displayStatus: "awaiting_user",
+      functionName: "ask_user_questions",
+      uiCanonical: "ask_user_questions",
+    });
+    const events = [event({}), question, event({}), event({ source: "user" })];
+    expect(computeFrozenEventCount(events)).toBe(1);
   });
 });
 
@@ -242,7 +413,11 @@ describe("importRemoteSession bounded snapshot publication", () => {
     );
     const row = (store.get(sessionsAtom) as Session[])[0];
     expect(row.category).toBe("external_history");
-    expect(row.orgId).toBe("org-1");
+    expect(row.orgId).toBe("cloud:org-1");
+    expect(row).toMatchObject({
+      agentDisplayName: "Codex App",
+      agentIconId: "codex",
+    });
     expect(row.importedFrom).toMatchObject({
       sourceSessionId: "remote-1",
       sourceEndpointUrl: "https://cloud.example.com",
@@ -309,6 +484,11 @@ describe("importRemoteSession bounded snapshot publication", () => {
       })
     );
     expect(eventStoreMock.getPersistedEvents).not.toHaveBeenCalled();
+    expect(
+      (store.get(sessionsAtom) as Session[]).find(
+        (session) => session.session_id === localSessionId
+      )?.orgId
+    ).toBe("cloud:org-1");
   });
 
   it("keeps guest imports personal and restores their capability registry", async () => {
@@ -478,6 +658,55 @@ describe("forkSession bounded snapshot publication", () => {
       expect.stringMatching(/^agentsession-/)
     );
     expect(store.get(sessionsAtom)).toEqual([]);
+  });
+
+  it("accepts a bounded snapshot that grew past the list summary", async () => {
+    ingestRemoteSnapshotMock.mockImplementationOnce(
+      async ({ localSessionId }: { localSessionId: string }) =>
+        makeCommit(localSessionId, {
+          eventCount: 6,
+          tailHash: "fresh-tail",
+        })
+    );
+
+    const result = await forkSession({
+      client: makeWireClient(),
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsCount: 5,
+        eventsTailHash: "stale-tail",
+      }),
+    });
+
+    expect(result?.eventCount).toBe(6);
+    expect(eventStoreMock.clearPersistedHistory).not.toHaveBeenCalled();
+  });
+
+  it("accepts a bounded snapshot whose generation advanced", async () => {
+    ingestRemoteSnapshotMock.mockImplementationOnce(
+      async ({ localSessionId }: { localSessionId: string }) =>
+        makeCommit(localSessionId, {
+          epoch: 4,
+          frozenSeq: 1,
+          eventCount: 2,
+          frozenEventCount: 1,
+          tailHash: "rewritten-tail",
+        })
+    );
+
+    const result = await forkSession({
+      client: makeWireClient(),
+      orgId: "org-1",
+      remoteSession: makeRemote({
+        eventsEpoch: 3,
+        eventsFrozenSeq: 9,
+        eventsCount: 12,
+        eventsTailHash: "old-tail",
+      }),
+    });
+
+    expect(result?.eventCount).toBe(2);
+    expect(eventStoreMock.clearPersistedHistory).not.toHaveBeenCalled();
   });
 
   it("uses a viewer-local workspace and preserves the original relay root", async () => {

@@ -2,7 +2,8 @@
 //! row mappers shared by the store submodules.
 
 use rusqlite::Result as SqliteResult;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 use super::AgentMessage;
 
@@ -74,6 +75,7 @@ pub struct AgentInboxPreviewRecord {
     pub created_at: String,
     pub read_at: Option<String>,
     pub display_preview: Option<String>,
+    pub delivery_resolution: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -88,6 +90,71 @@ pub struct AgentInboxPage {
     pub rows: Vec<AgentInboxRecord>,
     pub has_more: bool,
     pub next_cursor: Option<i64>,
+}
+
+/// Explicit disposition for an Inbox row that can no longer be delivered to
+/// its original canonical recipient. The source row remains immutable and
+/// unread for audit/history; operational readers treat a row with one of
+/// these append-only records as no longer pending delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentInboxDeliveryResolutionKind {
+    Cancelled,
+    Superseded,
+}
+
+impl AgentInboxDeliveryResolutionKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cancelled => "cancelled",
+            Self::Superseded => "superseded",
+        }
+    }
+
+    pub(super) fn parse(value: &str) -> Result<Self, String> {
+        match value {
+            "cancelled" => Ok(Self::Cancelled),
+            "superseded" => Ok(Self::Superseded),
+            other => Err(format!(
+                "unknown Agent Inbox delivery resolution kind: {other:?}"
+            )),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentInboxDeliveryResolution {
+    pub inbox_id: i64,
+    pub org_run_id: String,
+    pub resolution_kind: AgentInboxDeliveryResolutionKind,
+    pub resolved_by_member_id: String,
+    pub reason: String,
+    pub replacement_inbox_id: Option<i64>,
+    pub replacement_task_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ResolveInboxDeliveryParams {
+    pub inbox_id: i64,
+    pub org_run_id: String,
+    pub resolved_by_member_id: String,
+    pub resolution_kind: AgentInboxDeliveryResolutionKind,
+    pub reason: String,
+    pub replacement_inbox_id: Option<i64>,
+    pub replacement_task_id: Option<String>,
+}
+
+/// Typed boundary between expected coordinator corrections and infrastructure
+/// failures. The LLM tool renders `Constraint` as recoverable guidance while
+/// keeping SQLite/schema/locking failures as real execution failures.
+#[derive(Debug, Error)]
+pub enum ResolveInboxDeliveryError {
+    #[error("{0}")]
+    Constraint(String),
+    #[error("{0}")]
+    Storage(String),
 }
 
 impl AgentInboxRecord {
@@ -143,5 +210,6 @@ pub(super) fn row_to_preview_record(
         created_at: row.get(8)?,
         read_at: row.get(9)?,
         display_preview: row.get(10)?,
+        delivery_resolution: row.get(11)?,
     })
 }

@@ -44,6 +44,8 @@ pub(super) async fn execute_parallel_group(
     tools: &ToolRegistry,
     policy: &ResolvedToolPolicy,
     session_id: &str,
+    turn_intent_id: &str,
+    projected_inbox_ids: &[i64],
     handler: &dyn TurnEventHandler,
     permission_provider: Option<&dyn PermissionProvider>,
     cancel_flag: Option<&Arc<AtomicBool>>,
@@ -225,7 +227,12 @@ pub(super) async fn execute_parallel_group(
             .map(|(idx, effective_args, _display_name)| {
                 let tool_name = &calls[*idx].name;
                 let call_id = &calls[*idx].id;
-                let ctx = crate::tools::call_context::CallContext::new(call_id, session_id);
+                let ctx = crate::tools::call_context::CallContext::for_turn(
+                    call_id,
+                    session_id,
+                    turn_intent_id,
+                    projected_inbox_ids.to_vec(),
+                );
                 let args = effective_args.clone();
                 async move {
                     let start = Instant::now();

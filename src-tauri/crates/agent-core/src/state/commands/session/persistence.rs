@@ -476,6 +476,7 @@ mod tests {
                 session_id TEXT NOT NULL,
                 turn_intent_id TEXT NOT NULL,
                 client_message_id TEXT,
+                org_run_id TEXT,
                 source TEXT NOT NULL,
                 status TEXT NOT NULL,
                 created_at TEXT NOT NULL,

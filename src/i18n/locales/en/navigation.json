@@ -728,6 +728,9 @@
       "optionNone": "No minimum",
       "memberNote": "Your org admin requires sharing at least {{mode}}, so you can't set sessions below that"
     },
-    "signedInAs": "Signed in as {{name}}"
+    "signedInAs": "Signed in as {{name}}",
+    "renameDisplayName": "Edit display name",
+    "renameSaved": "Display name updated",
+    "renameFailed": "Failed to update display name"
   }
 }

@@ -47,3 +47,4 @@ git2 = { version = "0.20", default-features = false, features = [
 [dev-dependencies]
 libc = "0.2"
 prost = "0.14.3"
+tempfile = "3.13"

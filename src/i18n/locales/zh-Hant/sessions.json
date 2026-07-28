@@ -156,7 +156,8 @@
         "hooks": "掛鉤",
         "usage": "用量",
         "quota": "配額",
-        "assets": "資產"
+        "assets": "資產",
+        "profile": "輪廓"
       },
       "usage": {
         "title": "用量與成本",

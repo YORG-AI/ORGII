@@ -46,8 +46,9 @@ pub use message::{
 };
 pub(crate) use record::AgentInboxUnreadRecipientCounts;
 pub use record::{
-    AgentInboxBatch, AgentInboxPage, AgentInboxPreviewRecord, AgentInboxRecipientCounts,
-    AgentInboxRecord, InsertInboxParams,
+    AgentInboxBatch, AgentInboxDeliveryResolution, AgentInboxDeliveryResolutionKind,
+    AgentInboxPage, AgentInboxPreviewRecord, AgentInboxRecipientCounts, AgentInboxRecord,
+    InsertInboxParams, ResolveInboxDeliveryError, ResolveInboxDeliveryParams,
 };
 pub use schema::init_schema;
 

@@ -145,7 +145,8 @@
         "hooks": "Hooks",
         "usage": "Mức sử dụng",
         "quota": "Hạn mức",
-        "assets": "Tài sản"
+        "assets": "Tài sản",
+        "profile": "Hồ sơ"
       },
       "usage": {
         "title": "Mức sử dụng và chi phí",

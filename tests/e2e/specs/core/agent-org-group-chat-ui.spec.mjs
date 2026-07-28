@@ -446,19 +446,14 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await waitForAgentOrgRunView(
       sessionId,
       (view) =>
-        (view?.inbox ?? []).some((row) => {
-          const payload = parseInboxPayload(
-            row,
-            "default coordinator group chat"
-          );
-          return (
+        (view?.inbox ?? []).some(
+          (row) =>
+            row.id === coordinatorInboxRow.id &&
             row.senderAgentId === "_user" &&
             row.senderName === "User" &&
             row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-            row.payloadKind === "plain" &&
-            payload.text === coordinatorMessage
-          );
-        }),
+            row.payloadKind === "plain"
+        ),
       "default coordinator group chat inbox row persisted"
     );
     await assertNoMemberIntervention(

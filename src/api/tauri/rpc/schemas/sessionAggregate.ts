@@ -61,6 +61,7 @@ export const SessionFilterInput = z.object({
   updatedBeforeMs: z.number().int().optional(),
   activeOnly: z.boolean().optional(),
   pinnedOnly: z.boolean().optional(),
+  includeContinuationSuperseded: z.boolean().optional(),
 });
 
 export const SessionAggregateListInput = z.object({

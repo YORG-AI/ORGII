@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>The system of record for software built with agents.<br />Run your coding agents — replay any session, review as a team, and trace every line back to the decision behind it.</strong></p>
+  <p><strong>The system of record for how agents build software.<br />Run your coding agents — replay any session, review as a team, and trace every line back to the decision behind it.</strong></p>
 </div>
 
 ---

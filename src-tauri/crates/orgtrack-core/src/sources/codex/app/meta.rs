@@ -345,7 +345,6 @@ pub(crate) fn parse_codex_session_meta_incremental(
             tail_state = Some(snapshot);
         }
     }
-    let external_title = codex_session_index_title_for_record(record)?;
     let state_json = serde_json::to_string(&state)
         .map_err(|err| format!("Failed to serialize Codex parse state: {err}"))?;
     let next_watermark = reader.into_watermark(
@@ -354,6 +353,7 @@ pub(crate) fn parse_codex_session_meta_incremental(
         record.source_size_bytes,
         state_json,
     );
+    let external_title = codex_session_index_title_for_record(record)?;
     let meta = tail_state.unwrap_or(state).finish(record, external_title);
     Ok(CodexSessionMetaParse {
         meta,

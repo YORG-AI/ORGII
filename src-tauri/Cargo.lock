@@ -5261,6 +5261,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "similar",
+ "tempfile",
 ]
 
 [[package]]

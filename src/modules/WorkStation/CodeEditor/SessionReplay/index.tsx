@@ -43,6 +43,7 @@ import { CodePanel } from "./CodePanel";
 import { FileSidebar } from "./FileSidebar";
 import { isGenericIDEFallbackToolEvent } from "./config";
 import { isExplorePanelTool } from "./converters/exploreTypeResolver";
+import { isShellSearchEvent } from "./converters/shellSearchConverter";
 import {
   type EventScopedExploreSelection,
   resolveExploreSelection,
@@ -70,12 +71,16 @@ const SessionReplayIDEComponent: React.FC<SimulatorIDEProps> = ({
     typeof isGenericIDEFallbackToolEvent
   >[0];
   const functionName = sessionEvent?.functionName || "";
-  const currentEventType = isExplorePanelTool(functionName)
-    ? IDE_EVENT_TYPE.EXPLORE
-    : currentEventTypeProp ||
-      (isGenericIDEFallbackToolEvent(sessionEvent)
-        ? IDE_EVENT_TYPE.TOOL
-        : getIDEEventType(functionName));
+  const currentEventType =
+    isExplorePanelTool(functionName) ||
+    // Shell commands that are really grep/rg pipelines are routed to the
+    // explore panel (see deriveIDEState) — the current event must follow.
+    isShellSearchEvent(sessionEvent)
+      ? IDE_EVENT_TYPE.EXPLORE
+      : currentEventTypeProp ||
+        (isGenericIDEFallbackToolEvent(sessionEvent)
+          ? IDE_EVENT_TYPE.TOOL
+          : getIDEEventType(functionName));
   const terminalRevealRequest = useAtomValue(
     simulatorIdeTerminalRevealRequestAtom
   );

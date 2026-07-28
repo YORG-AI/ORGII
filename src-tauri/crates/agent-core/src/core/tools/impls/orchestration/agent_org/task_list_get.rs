@@ -7,7 +7,10 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::coordination::agent_org_runs::{AgentOrgFinalityDecision, AgentOrgRunStore};
+use crate::coordination::agent_org_payload_limits::validate_task_identifier;
+use crate::coordination::agent_org_runs::{
+    guaranteed_current_turn_effects_with_connection, AgentOrgFinalityDecision, AgentOrgRunStore,
+};
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
@@ -93,7 +96,7 @@ impl Tool for TaskListTool {
     async fn execute_text(
         &self,
         params_value: Value,
-        _call_ctx: &CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
         let params: TaskListParams = parse_params(params_value)?;
         let normalized_status = params
@@ -129,6 +132,11 @@ impl Tool for TaskListTool {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string);
+        if let Some(after_task_id) = after_task_id.as_deref() {
+            validate_task_identifier("task_list.after_task_id", after_task_id)
+                .map_err(ToolError::InvalidParams)?;
+        }
+
         // Task summaries and run finality facts must describe the same
         // database moment. Use one deferred read transaction and project only
         // bounded columns; routine task_list calls never deserialize full
@@ -136,46 +144,67 @@ impl Tool for TaskListTool {
         let run_id = self.ctx.org_context.run_id.clone();
         let read_owner_filter = owner_filter.clone();
         let read_after_task_id = after_task_id.clone();
-        let (completion, page, open_task_ids_preview, open_task_ids_truncated) =
-            tokio::task::spawn_blocking(move || {
-                let mut conn = get_connection().map_err(|err| err.to_string())?;
-                let tx = conn
-                    .transaction_with_behavior(TransactionBehavior::Deferred)
-                    .map_err(|err| err.to_string())?;
-                let completion =
-                    AgentOrgRunStore::finality_assessment_with_connection(&tx, &run_id)?;
-                let page = AgentOrgTaskStore::list_summary_page_with_connection(
-                    &tx,
-                    &run_id,
-                    status_filter,
-                    read_owner_filter.as_deref(),
-                    read_after_task_id.as_deref(),
-                    limit,
-                )?;
-                let (open_task_ids_preview, open_task_ids_truncated) =
-                    AgentOrgTaskStore::open_task_ids_preview_with_connection(&tx, &run_id, 200)?;
-                tx.commit().map_err(|err| err.to_string())?;
-                Ok::<_, String>((
-                    completion,
-                    page,
-                    open_task_ids_preview,
-                    open_task_ids_truncated,
-                ))
-            })
-            .await
-            .map_err(|err| {
-                ToolError::ExecutionFailed(format!("task_list snapshot worker failed: {err}"))
-            })?
-            .map_err(|error| {
-                if error.starts_with("task_list after_task_id '") {
-                    ToolError::InvalidParams(error)
-                } else {
-                    ToolError::ExecutionFailed(error)
-                }
-            })?;
+        let dispatching_session_id = call_ctx.session_id.clone();
+        let turn_intent_id = call_ctx.turn_intent_id.clone();
+        let projected_inbox_ids = call_ctx.projected_inbox_ids.clone();
+        let (
+            completion,
+            guaranteed_turn_effects,
+            page,
+            open_task_ids_preview,
+            open_task_ids_truncated,
+        ) = tokio::task::spawn_blocking(move || {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(TransactionBehavior::Deferred)
+                .map_err(|err| err.to_string())?;
+            let completion = AgentOrgRunStore::finality_assessment_with_connection(&tx, &run_id)?;
+            let guaranteed_turn_effects = guaranteed_current_turn_effects_with_connection(
+                &tx,
+                &run_id,
+                completion.facts.root_session_id.as_deref(),
+                &dispatching_session_id,
+                &turn_intent_id,
+                &projected_inbox_ids,
+            )?;
+            let page = AgentOrgTaskStore::list_summary_page_with_connection(
+                &tx,
+                &run_id,
+                status_filter,
+                read_owner_filter.as_deref(),
+                read_after_task_id.as_deref(),
+                limit,
+            )?;
+            let (open_task_ids_preview, open_task_ids_truncated) =
+                AgentOrgTaskStore::open_task_ids_preview_with_connection(&tx, &run_id, 200)?;
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok::<_, String>((
+                completion,
+                guaranteed_turn_effects,
+                page,
+                open_task_ids_preview,
+                open_task_ids_truncated,
+            ))
+        })
+        .await
+        .map_err(|err| {
+            ToolError::ExecutionFailed(format!("task_list snapshot worker failed: {err}"))
+        })?
+        .map_err(|error| {
+            if error.starts_with("task_list after_task_id '") {
+                ToolError::InvalidParams(error)
+            } else {
+                ToolError::ExecutionFailed(error)
+            }
+        })?;
 
         let active_member_ids = completion.facts.active_member_ids();
-        let completion_ready = matches!(completion.decision, AgentOrgFinalityDecision::Complete);
+        let completion_after_turn =
+            completion.after_successful_coordinator_turn_with_effects(guaranteed_turn_effects);
+        let completion_ready = matches!(
+            completion_after_turn.decision,
+            AgentOrgFinalityDecision::Complete
+        );
         let body = json!({
             "tasks": page.tasks.iter().map(compact_task_summary_to_json).collect::<Vec<_>>(),
             "total": page.tasks.len(),
@@ -198,6 +227,7 @@ impl Tool for TaskListTool {
                 "pending": completion.facts.pending_task_count,
                 "in_progress": completion.facts.in_progress_task_count,
                 "completed": completion.facts.completed_task_count,
+                "corrupt_task_count": completion.facts.corrupt_task_count,
                 "open_task_ids": open_task_ids_preview,
                 "open_task_ids_truncated": open_task_ids_truncated,
                 "active_member_ids": active_member_ids,
@@ -208,7 +238,7 @@ impl Tool for TaskListTool {
                 "completion_ready": completion_ready,
                 "finality_decision": completion.decision,
                 "current_finality_blockers": &completion.blockers,
-                "completion_blockers": &completion.blockers,
+                "completion_blockers": &completion_after_turn.blockers,
             },
             "org_run_id": self.ctx.org_context.run_id,
         });
@@ -272,6 +302,7 @@ impl Tool for TaskGetTool {
                 "task_get requires a non-empty `id`".into(),
             ));
         }
+        validate_task_identifier("task_get.id", &task_id).map_err(ToolError::InvalidParams)?;
         let run_id = self.ctx.org_context.run_id.clone();
         let read_task_id = task_id.clone();
         let task =

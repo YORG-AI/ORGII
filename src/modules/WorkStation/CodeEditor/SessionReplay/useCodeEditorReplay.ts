@@ -23,6 +23,7 @@ import {
 } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorEvents";
+import { isShellSearchCommand } from "@src/util/terminal/searchCommandParser";
 
 import { deriveIDEState, matchesIDEEventRecord } from "./config";
 import { applyLiveOperationOverlay } from "./liveOperationOverlay";
@@ -330,6 +331,9 @@ export function useCodeEditorReplay(
   // Create current shell operation from pre-extracted data
   const currentShellOperation = useMemo<ShellOperationEntry | null>(() => {
     if (!currentShellData?.command) return null;
+    // Grep/rg pipelines are routed to the explore panel (see deriveIDEState);
+    // don't re-inject them as the selected terminal command.
+    if (isShellSearchCommand(currentShellData.command)) return null;
 
     return {
       command: currentShellData.command,

@@ -1,4 +1,5 @@
 pub mod agent_live_status;
+pub mod builder_profile_commands;
 pub mod exporter;
 pub mod external_cli_detection;
 pub mod extraction_scheduler;

@@ -75,26 +75,36 @@ function markSessionChannelReady(sessionId: string): void {
  * Wait until the active SessionSyncProvider has registered the per-session IPC
  * channel. New fork sessions can complete very quickly; dispatching before this
  * edge can lose the terminal event and leave only the optimistic running state.
+ *
+ * Resolves `true` when the channel registered, `false` on timeout. A timeout
+ * means NO surface has mounted the session's channel — every lifecycle frame
+ * (agent:complete, queue_status) for a dispatch made now will be dropped at
+ * the bus registry and the turn will only end via the 60s planning-indicator
+ * watchdog. Callers must surface this loudly instead of dispatching as if
+ * ready.
  */
 export async function waitForSessionChannelReady(
   sessionId: string,
   timeoutMs = 5_000
-): Promise<void> {
-  if (readySessionChannels.has(sessionId)) return;
-  await new Promise<void>((resolve) => {
+): Promise<boolean> {
+  if (readySessionChannels.has(sessionId)) return true;
+  return new Promise<boolean>((resolve) => {
     const waiters = readySessionChannelWaiters.get(sessionId) ?? new Set();
-    waiters.add(resolve);
     readySessionChannelWaiters.set(sessionId, waiters);
     const timer = setTimeout(() => {
-      waiters.delete(resolve);
+      waiters.delete(wrappedResolve);
       if (waiters.size === 0) readySessionChannelWaiters.delete(sessionId);
-      resolve();
+      log.warn(
+        `[SessionChannel] channel for ${sessionId} not registered after ` +
+          `${timeoutMs}ms — no surface mounted it; lifecycle frames for ` +
+          `dispatches made now will be lost until a session view mounts`
+      );
+      resolve(false);
     }, timeoutMs);
     const wrappedResolve = () => {
       clearTimeout(timer);
-      resolve();
+      resolve(true);
     };
-    waiters.delete(resolve);
     waiters.add(wrappedResolve);
   });
 }
@@ -269,6 +279,13 @@ export function subscribeToSessionEvents(
         warn: (message, error) => log.warn(message, error),
       },
       (raw) => {
+        if (listeners.size === 0) {
+          log.warn(
+            `[SessionChannel] delivered frame for ${sessionId} had no ` +
+              `subscribers; the backend channel outlived every consumer`
+          );
+          return;
+        }
         for (const subscriber of [...listeners]) {
           try {
             subscriber(raw);
@@ -287,6 +304,15 @@ export function subscribeToSessionEvents(
 
     channel.onmessage = (message: string) => {
       recordPushEvent("channel", "session-events");
+      if (
+        message.includes('"agent:complete"') ||
+        message.includes('"agent:error"')
+      ) {
+        log.info(
+          `[SessionChannel] lifecycle frame arrived for ${sessionId} ` +
+            `(destroyed=${lifecycle.isDestroyed()})`
+        );
+      }
       lifecycle.onMessage(message);
     };
     void lifecycle.start().then((channelId) => {
@@ -301,6 +327,14 @@ export function subscribeToSessionEvents(
   }
 
   shared.listeners.add(listener);
+  // Re-subscribing onto a channel that is still registered must re-assert
+  // readiness: `readySessionChannels` is cleared on the last unsubscribe, and
+  // without this a later consumer would wait out the full readiness timeout
+  // (and dispatch believing no channel exists) even though the backend
+  // registration never went away.
+  if (shared.lifecycle.getChannelId() !== null) {
+    markSessionChannelReady(sessionId);
+  }
   let disposed = false;
   return () => {
     if (disposed) return;

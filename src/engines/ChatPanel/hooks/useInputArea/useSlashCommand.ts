@@ -32,6 +32,14 @@ interface UseSlashCommandOptions {
   /** The session already resolved by the owning InputArea. */
   sessionId?: string;
   /**
+   * The session the user is VIEWING, even when the composer dispatches
+   * elsewhere. The external-history fork composer mounts with
+   * `sessionScope="none"` (sending forks into a new session), which
+   * blanks `sessionId` — but Address Comments must still target the
+   * viewed history's threads; its run path forks first by design.
+   */
+  addressSessionId?: string | null;
+  /**
    * When `true`, `/mode` always reads + writes `creatorDefaultExecModeAtom`
    * even if there is an active session in the route. Set by callers that
    * mount the input outside an in-session context (e.g. the
@@ -74,6 +82,7 @@ export function useSlashCommand(
     setSlashQuery,
     workspacePaths,
     sessionId,
+    addressSessionId,
     creatorDefaultMode: forceCreatorDefault = false,
   } = options;
 
@@ -107,7 +116,7 @@ export function useSlashCommand(
   const { t } = useTranslation("sessions");
   const { t: tNav } = useTranslation("navigation");
   const addressComments = useAddressCommentsSlashCommand(
-    isInSession ? sessionId : null
+    isInSession ? sessionId : (addressSessionId ?? null)
   );
   const addressCommentsItem = addressComments.item;
   const builtinSlashItems = useMemo<SlashItem[]>(

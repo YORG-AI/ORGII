@@ -7,6 +7,7 @@
  * the renderer never assembles a session-sized event array.
  */
 import { indexOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
+import { buildCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { createLogger } from "@src/hooks/logger";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { recordGuestImportedSession } from "@src/store/session/sessionAtom/guestImportRegistry";
@@ -17,6 +18,7 @@ import type {
   SessionImportedFrom,
 } from "@src/store/session/sessionAtom/types";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 
 import {
   deriveImportedSessionId,
@@ -86,6 +88,19 @@ function resolveImportedSourceDisplay(
   };
 }
 
+function resolveImportedSourcePresentation(
+  localSessionId: string,
+  importedFrom: SessionImportedFrom
+) {
+  return resolveSessionDisplayMetadata({
+    kind: "local",
+    session: {
+      session_id: localSessionId,
+      importedFrom,
+    },
+  });
+}
+
 function refreshImportedSessionPresentation(
   existing: Session,
   remoteSession: ImportRemoteSessionOptions["remoteSession"]
@@ -101,9 +116,33 @@ function refreshImportedSessionPresentation(
   const ownerAvatarUrl =
     remoteSession.ownerAvatarUrl ?? importedFrom.ownerAvatarUrl;
   const repoPath = remoteSession.repoPath ?? existing.repoPath;
+  const refreshedImportedFrom: SessionImportedFrom = {
+    ...importedFrom,
+    ownerMemberId: remoteSession.ownerMemberId,
+    ownerDisplayName: remoteSession.ownerDisplayName,
+    ownerAvatarUrl,
+    externalHistorySource,
+    sourceDisplay,
+  };
+  const sourcePresentation = resolveImportedSourcePresentation(
+    existing.session_id,
+    refreshedImportedFrom
+  );
+  // Rows imported before the ownership stamp used the selector form carry a
+  // bare org uuid, which resolves to no owning org. Heal them here: this
+  // refresh is the only path a long-lived import takes, so without it a
+  // legacy row never regains its ownership-derived affordances. Guest rows
+  // (no ownership stamp) and non-cloud scopes are left untouched.
+  const normalizedOrgId =
+    existing.orgId === importedFrom.orgId
+      ? buildCloudOrgSelectorValue(importedFrom.orgId)
+      : existing.orgId;
   const unchanged =
+    existing.orgId === normalizedOrgId &&
     existing.name === remoteSession.title &&
     existing.repoPath === repoPath &&
+    existing.agentDisplayName === sourcePresentation.agentLabel &&
+    existing.agentIconId === sourcePresentation.agentIconId &&
     importedFrom.ownerMemberId === remoteSession.ownerMemberId &&
     importedFrom.ownerDisplayName === remoteSession.ownerDisplayName &&
     importedFrom.ownerAvatarUrl === ownerAvatarUrl &&
@@ -118,16 +157,12 @@ function refreshImportedSessionPresentation(
 
   const refreshed: Session = {
     ...existing,
+    ...(normalizedOrgId !== undefined ? { orgId: normalizedOrgId } : {}),
     name: remoteSession.title,
     repoPath,
-    importedFrom: {
-      ...importedFrom,
-      ownerMemberId: remoteSession.ownerMemberId,
-      ownerDisplayName: remoteSession.ownerDisplayName,
-      ownerAvatarUrl,
-      externalHistorySource,
-      sourceDisplay,
-    },
+    agentDisplayName: sourcePresentation.agentLabel,
+    agentIconId: sourcePresentation.agentIconId,
+    importedFrom: refreshedImportedFrom,
   };
   upsertSession(refreshed);
   recordGuestImportedSession(refreshed);
@@ -295,6 +330,10 @@ async function importRemoteSessionInner(
     shareEndpointUrl:
       shareEndpointUrl ?? existing?.importedFrom?.shareEndpointUrl,
   };
+  const sourcePresentation = resolveImportedSourcePresentation(
+    localSessionId,
+    importedFrom
+  );
   const importedRow: Session = {
     session_id: localSessionId,
     status: "completed",
@@ -310,8 +349,10 @@ async function importRemoteSessionInner(
     // composer ask which of the viewer's OWN local models/keys the fork should
     // actually use.
     model: undefined,
-    agentIconId: "archive",
-    agentDisplayName: "Collaboration Snapshot",
+    // Preserve the source agent's presentation when the remote list row is
+    // replaced by its local bounded replay.
+    agentIconId: sourcePresentation.agentIconId,
+    agentDisplayName: sourcePresentation.agentLabel,
     pinned: existing?.pinned ?? false,
     // Ownership stamp (`Session.orgId`, distinct from `importedFrom.orgId`
     // provenance — see sessionAtom/types.ts): filing the import under the
@@ -320,7 +361,8 @@ async function importRemoteSessionInner(
     // context (org sync profile, no token). A share-token import is the
     // GUEST path (CollabShareImportDialog, no local membership): it stays
     // under Personal, i.e. no orgId (preserving any prior member stamp).
-    orgId: shareToken ? existing?.orgId : orgId,
+    // Session.orgId is a selector value; provenance above keeps the bare id.
+    orgId: shareToken ? existing?.orgId : buildCloudOrgSelectorValue(orgId),
     importedFrom,
     // Retire the legacy error_message idiom for collab imports; clears any
     // leftover value on upgraded pre-M3 rows.

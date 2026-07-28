@@ -37,19 +37,19 @@ describe("buildReplayObjectPath", () => {
 });
 
 describe("uploadReplayObject", () => {
-  it("PUTs raw gzip bytes with JWT + apikey + upsert headers", async () => {
+  it("POSTs raw gzip bytes with JWT + apikey headers", async () => {
     const bytes = new Uint8Array([31, 139, 8, 0]);
     await uploadReplayObject("jwt-1", "org-1/s-1/3/7-abc.gz", bytes);
     const { url, init } = lastCall();
     expect(url).toBe(
       `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/storage/v1/object/replay/org-1/s-1/3/7-abc.gz`
     );
-    expect(init.method).toBe("PUT");
+    expect(init.method).toBe("POST");
     const headers = init.headers as Record<string, string>;
     expect(headers.apikey).toBe(ORG2_CLOUD_OFFICIAL_ANON_KEY);
     expect(headers.authorization).toBe("Bearer jwt-1");
     expect(headers["content-type"]).toBe("application/gzip");
-    expect(headers["x-upsert"]).toBe("true");
+    expect(headers["x-upsert"]).toBeUndefined();
     expect(new Uint8Array(init.body as Uint8Array)).toEqual(bytes);
   });
 
@@ -81,6 +81,58 @@ describe("uploadReplayObject", () => {
     ).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(Org2CloudStorageError);
     expect((error as Org2CloudStorageError).status).toBe(403);
+  });
+
+  it("treats an RLS-wrapped duplicate as success once the object is readable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            statusCode: "403",
+            error: "Unauthorized",
+            message: "new row violates row-level security policy",
+          }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+    await expect(
+      uploadReplayObject("jwt-1", "org-1/s-1/1/1-h.gz", new Uint8Array([1]))
+    ).resolves.toBeUndefined();
+    expect(lastCall().init.method).toBe("HEAD");
+  });
+
+  it("still throws when the RLS denial is genuine (object not readable)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            statusCode: "403",
+            message: "new row violates row-level security policy",
+          }),
+          { status: 400 }
+        )
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+    const error = await uploadReplayObject(
+      "jwt-1",
+      "org-1/s-1/1/1-h.gz",
+      new Uint8Array([1])
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(Org2CloudStorageError);
+    expect((error as Org2CloudStorageError).status).toBe(400);
+  });
+
+  it("accepts a plain 409 duplicate when the object is readable", async () => {
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 409 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+    await expect(
+      uploadReplayObject("jwt-1", "org-1/s-1/1/1-h.gz", new Uint8Array([1]))
+    ).resolves.toBeUndefined();
   });
 });
 

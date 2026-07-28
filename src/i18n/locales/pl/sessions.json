@@ -145,7 +145,8 @@
         "hooks": "Hooks",
         "usage": "Użycie",
         "quota": "Limit",
-        "assets": "Zasoby"
+        "assets": "Zasoby",
+        "profile": "Profil"
       },
       "usage": {
         "title": "Użycie i koszt",

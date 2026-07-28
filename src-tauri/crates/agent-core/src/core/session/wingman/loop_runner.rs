@@ -248,6 +248,7 @@ impl WingmanLoop {
             &self.session_id,
             &msg.turn_intent_id,
             None,
+            None,
             crate::foundation::session_bridge::TurnIntentBridgeSource::Wingman,
             crate::foundation::session_bridge::TurnIntentBridgeStatus::Queued,
         );

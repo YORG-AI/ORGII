@@ -23,6 +23,22 @@ import {
   parseCloudOrgSelectorValue,
 } from "../org2CloudOrgsAtom";
 
+const BARE_ORG_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Owning cloud org from `Session.orgId`, tolerating rows written before
+ * fork/import stamped the selector form: those carry a BARE org uuid, which
+ * the strict parser rejects, so their session looked org-less and lost every
+ * ownership-derived affordance (share dialog, org selector placement).
+ * `personal-org` and other non-cloud scopes still resolve to null.
+ */
+function resolveOwningCloudOrgId(orgId: string): string | null {
+  const parsed = parseCloudOrgSelectorValue(orgId);
+  if (parsed) return parsed;
+  return BARE_ORG_UUID_RE.test(orgId) ? orgId : null;
+}
+
 export function getCloudShareOrgsForSession(
   session: Pick<Session, "session_id" | "orgId">,
   sessionOrgTags: SessionOrgTags,
@@ -35,7 +51,7 @@ export function getCloudShareOrgsForSession(
     cloudOrgIdsForSession(sessionOrgTags, session.session_id)
   );
   const owningCloudOrgId = session.orgId
-    ? parseCloudOrgSelectorValue(session.orgId)
+    ? resolveOwningCloudOrgId(session.orgId)
     : null;
   if (owningCloudOrgId) explicitOrgIds.add(owningCloudOrgId);
 
