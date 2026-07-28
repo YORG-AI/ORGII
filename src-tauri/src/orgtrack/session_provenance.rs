@@ -493,6 +493,10 @@ mod tests {
     fn codex_lifecycle_maps_actor_to_independently_loadable_transcript() {
         let conn = Connection::open_in_memory().expect("in-memory SQLite");
         SqliteRecordStore::init_tables(&conn).expect("initialize orgtrack schema");
+        // The lifecycle locator falls back to imported_history_session_cache
+        // for child-session links, so the production source-cache schema must
+        // exist on this connection like it does behind get_connection().
+        SqliteRecordStore::init_source_cache_tables(&conn).expect("initialize source cache schema");
         let store = SqliteRecordStore::new(&conn);
         let temp = tempfile::tempdir().expect("Codex session root");
         let sessions_dir = temp
