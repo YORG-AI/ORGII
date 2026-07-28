@@ -71,7 +71,7 @@ describe("IssueTimelineEventRow", () => {
           source: {
             number: 460,
             title: "fix(chat): refresh question status after answer",
-            html_url: "https://github.com/yorgai/ORG2/pull/460",
+            html_url: "https://github.com/org2ai/ORG2/pull/460",
             state: "open",
             is_pull_request: true,
           },
@@ -81,7 +81,7 @@ describe("IssueTimelineEventRow", () => {
 
     expect(markup).toContain("referenced this issue from");
     expect(markup).toContain("#460");
-    expect(markup).toContain('href="https://github.com/yorgai/ORG2/pull/460"');
+    expect(markup).toContain('href="https://github.com/org2ai/ORG2/pull/460"');
     expect(markup).toContain("fix(chat): refresh question status after answer");
     expect(markup).toContain('class="lucide lucide-git-pull-request');
     expect(markup).toContain("max-w-full");

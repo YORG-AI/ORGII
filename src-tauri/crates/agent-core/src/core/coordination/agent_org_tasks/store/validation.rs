@@ -8,13 +8,46 @@ use std::collections::HashSet;
 use rusqlite::{params, OptionalExtension};
 
 use crate::coordination::agent_org_payload_limits::{
-    validate_optional_text, validate_required_text, validate_text_len, TASK_ACTIVE_FORM_MAX_BYTES,
+    validate_optional_text, validate_required_text, validate_task_eligible_member_ids,
+    validate_task_identifier, validate_text_len, TASK_ACTIVE_FORM_MAX_BYTES,
     TASK_ACTIVE_FORM_MAX_CHARS, TASK_DESCRIPTION_MAX_BYTES, TASK_DESCRIPTION_MAX_CHARS,
     TASK_OUTPUT_CONTENT_MAX_BYTES, TASK_OUTPUT_CONTENT_MAX_CHARS, TASK_OUTPUT_SUMMARY_MAX_BYTES,
-    TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_SUBJECT_MAX_BYTES, TASK_SUBJECT_MAX_CHARS,
+    TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_RUN_MAX_TASKS, TASK_SUBJECT_MAX_BYTES,
+    TASK_SUBJECT_MAX_CHARS,
 };
 
-use super::super::TaskStatus;
+use super::super::{TaskStatus, TASK_RUN_TASK_LIMIT_ERROR};
+
+pub(super) fn ensure_task_rows_safe_for_operational_projection(
+    conn: &rusqlite::Connection,
+    run_id: &str,
+) -> Result<(), String> {
+    if super::dependencies::run_is_safe_for_dependency_normalization(conn, run_id)? {
+        Ok(())
+    } else {
+        Err(
+            "Agent Org task board contains oversized or corrupt rows; operational projection refused"
+                .to_string(),
+        )
+    }
+}
+
+pub(super) fn ensure_task_run_capacity(
+    existing_count: usize,
+    incoming_count: usize,
+) -> Result<(), String> {
+    let projected_count = existing_count.checked_add(incoming_count).ok_or_else(|| {
+        format!(
+            "{TASK_RUN_TASK_LIMIT_ERROR}: task count overflow while checking the Agent Org run capacity"
+        )
+    })?;
+    if projected_count <= TASK_RUN_MAX_TASKS {
+        return Ok(());
+    }
+    Err(format!(
+        "{TASK_RUN_TASK_LIMIT_ERROR}: run retains {existing_count} tasks and this mutation would add {incoming_count}; maximum total is {TASK_RUN_MAX_TASKS}"
+    ))
+}
 
 pub(super) fn reject_writable_blocks(blocks: &[String]) -> Result<(), String> {
     if blocks.is_empty() {
@@ -93,6 +126,9 @@ pub(super) fn validate_task_persistence_invariants(
     status: TaskStatus,
     metadata: Option<&serde_json::Value>,
 ) -> Result<(), String> {
+    if let Some(owner) = owner {
+        validate_task_identifier("task owner_member_id", owner)?;
+    }
     let metadata_object = match metadata {
         None => None,
         Some(serde_json::Value::Object(object)) => Some(object),
@@ -106,6 +142,15 @@ pub(super) fn validate_task_persistence_invariants(
         let values = value.as_array().ok_or_else(|| {
             "eligible_member_ids must be an array of member_id strings".to_string()
         })?;
+        let raw_member_ids = values
+            .iter()
+            .map(|value| {
+                value.as_str().map(str::to_string).ok_or_else(|| {
+                    "eligible_member_ids must contain only non-empty member_id strings".to_string()
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        validate_task_eligible_member_ids("eligible_member_ids", &raw_member_ids)?;
         let mut seen = HashSet::new();
         for value in values {
             let member_id = value
@@ -173,12 +218,17 @@ pub(super) fn validate_task_persistence_invariants(
             TASK_OUTPUT_CONTENT_MAX_CHARS,
             TASK_OUTPUT_CONTENT_MAX_BYTES,
         )?;
-        if output.produced_by_member_id.trim().is_empty() {
-            return Err("task output produced_by_member_id must not be empty".to_string());
-        }
+        validate_task_identifier(
+            "task output produced_by_member_id",
+            &output.produced_by_member_id,
+        )?;
         if chrono::DateTime::parse_from_rfc3339(&output.produced_at).is_err() {
             return Err("task output produced_at must be a valid RFC3339 timestamp".to_string());
         }
+        crate::coordination::agent_org_payload_limits::validate_task_artifact_ids(
+            "task output artifact_ids",
+            &output.artifact_ids,
+        )?;
     }
 
     let snapshot_json: Option<String> = conn

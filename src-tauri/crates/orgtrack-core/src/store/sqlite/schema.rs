@@ -609,6 +609,20 @@ impl SqliteRecordStore<'_> {
                 parser_version     INTEGER NOT NULL DEFAULT 0,
                 state_json         TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (source, source_session_id)
+            );
+
+            -- Discovery-walk resume points: per-directory name-set snapshots
+            -- (see sources::imported_history::scan_snapshot for the
+            -- invalidation contract). Purely an enumeration cache — safe to
+            -- drop at any time.
+            CREATE TABLE IF NOT EXISTS imported_history_scan_snapshots (
+                source            TEXT NOT NULL,
+                directory_path    TEXT NOT NULL,
+                dir_mtime_ns      INTEGER NOT NULL DEFAULT 0,
+                file_count        INTEGER NOT NULL DEFAULT 0,
+                snapshot_version  INTEGER NOT NULL DEFAULT 0,
+                entries_json      TEXT NOT NULL DEFAULT '{}',
+                PRIMARY KEY (source, directory_path)
             );",
         )
     }

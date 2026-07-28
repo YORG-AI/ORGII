@@ -24,7 +24,7 @@ describe("isLocalRepoPath", () => {
     expect(isLocalRepoPath("\\\\server\\share\\ORGII")).toBe(true);
     expect(isLocalRepoPath("\\\\?\\C:\\Repos\\ORGII")).toBe(true);
     expect(isLocalRepoPath("\\\\?\\UNC\\server\\share\\ORGII")).toBe(true);
-    expect(isLocalRepoPath("github.com/yorgai/ORG2")).toBe(false);
+    expect(isLocalRepoPath("github.com/org2ai/ORG2")).toBe(false);
   });
 });
 

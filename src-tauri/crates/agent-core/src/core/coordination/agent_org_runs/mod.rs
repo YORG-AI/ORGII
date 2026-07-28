@@ -12,13 +12,16 @@ mod worker;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use finality::guaranteed_current_turn_effects_with_connection;
 pub use finality::{
     AgentOrgFinalityAssessment, AgentOrgFinalityBlocker, AgentOrgFinalityDecision,
-    AgentOrgFinalityFacts, AgentOrgFinalitySessionFact,
+    AgentOrgFinalityFacts, AgentOrgFinalityProjection, AgentOrgFinalitySessionFact,
+    AgentOrgGuaranteedTurnEffects,
 };
 pub(crate) use progress::bump_work_revision_in_tx;
 pub use progress::AgentOrgRunProgress;
 pub use store::AgentOrgRunStore;
+pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 
 use rusqlite::{Connection, Result as SqliteResult};

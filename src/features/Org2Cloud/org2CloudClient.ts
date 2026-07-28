@@ -168,6 +168,22 @@ export async function getCloudProfile(
   };
 }
 
+/**
+ * Rename the signed-in user's display name (0008 `update_cloud_profile`).
+ * Returns the stored name, or `null` on any failure — including pre-0008
+ * backends, where the RPC is absent.
+ */
+export async function updateCloudProfileDisplayName(
+  accessToken: string,
+  displayName: string
+): Promise<string | null> {
+  const payload = await callRpc("update_cloud_profile", accessToken, {
+    p_display_name: displayName,
+  });
+  const parsed = z.object({ displayName: z.string() }).safeParse(payload);
+  return parsed.success ? parsed.data.displayName : null;
+}
+
 const EntitlementStateWireSchema = z.object({
   plan: z.string(),
   status: z.string(),

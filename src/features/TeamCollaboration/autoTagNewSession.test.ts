@@ -92,7 +92,7 @@ describe("autoTagLaunchedSessionToActiveCloudOrg", () => {
 
   it("tags when differently named GitHub forks resolve to one upstream", async () => {
     seedCloudScope();
-    resolveScopeKeysMock.mockResolvedValue(["github.com/yorgai/org2"]);
+    resolveScopeKeysMock.mockResolvedValue(["github.com/org2ai/org2"]);
     resolveMatchingScopeMock.mockResolvedValue("github.com/vantanode/org2");
 
     const tagged = await autoTagLaunchedSessionToActiveCloudOrg({

@@ -353,12 +353,20 @@ fn load_imported_history_sessions(
         .and_then(|filter| filter.session_ids.as_ref())
         .filter(|session_ids| !session_ids.is_empty())
     {
+        let include_superseded = filter
+            .and_then(|filter| filter.include_continuation_superseded)
+            .unwrap_or(false);
         for session_id in session_ids {
-            let Some((source, session)) =
+            let resolved = if include_superseded {
+                imported_history_cache::query_cached_session_by_session_id_including_superseded_from_conn(
+                    &conn, session_id,
+                )?
+            } else {
                 imported_history_cache::query_cached_session_by_session_id_from_conn(
                     &conn, session_id,
                 )?
-            else {
+            };
+            let Some((source, session)) = resolved else {
                 continue;
             };
             if source_filter.is_some_and(|expected| expected != source.as_str())
@@ -444,6 +452,9 @@ fn plain_native_page(
         created_after_ms,
         created_before_ms,
         active_only,
+        // Only meaningful with session_ids, and plain requires session_ids
+        // to be absent, so the flag cannot affect the fast path.
+        include_continuation_superseded: _,
     } = filter;
 
     let plain = session_ids.is_none()

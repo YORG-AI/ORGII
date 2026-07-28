@@ -160,7 +160,8 @@
         "hooks": "钩子",
         "usage": "用量",
         "quota": "配额",
-        "assets": "资产"
+        "assets": "资产",
+        "profile": "画像"
       },
       "usage": {
         "title": "用量与成本",

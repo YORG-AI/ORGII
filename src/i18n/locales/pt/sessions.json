@@ -145,7 +145,8 @@
         "hooks": "Hooks",
         "usage": "Uso",
         "quota": "Cota",
-        "assets": "Recursos"
+        "assets": "Recursos",
+        "profile": "Perfil"
       },
       "usage": {
         "title": "Uso e custo",

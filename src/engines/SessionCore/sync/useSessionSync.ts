@@ -269,6 +269,7 @@ export function useSessionSync(
       return;
     }
 
+    logger.info(`pipeline switching to session ${sessionId}`);
     return runSessionSwitchEffect({
       sessionId,
       reloadEpoch,

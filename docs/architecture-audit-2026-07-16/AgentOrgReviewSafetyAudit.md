@@ -1,139 +1,305 @@
-# Agent Org PR Review Correctness and Performance Audit
+# Agent Org PR #373 Review Safety — Architecture Audit
 
 - Date: 2026-07-16
-- Scope: the two review rounds on PR #373 and the minimum dependencies needed to make those fixes compile, run, and remain testable
-- Status: implementation audit and A-only verification complete, with documented clean-develop baselines
-- Verification date: 2026-07-18
+- Scope: All safety fixes identified by the two PR #373 review rounds, excluding the full Revision Event architecture
+- Conclusion: The correctness, concurrency, payload, polling, recovery, deletion-lifecycle, and test-fidelity issues found in this review are addressed on production paths. The full Revision Event architecture remains a separate follow-up PR by design.
 
-## Executive summary
+## Executive conclusion
 
-This follow-up keeps Agent Org's product model unchanged: coordinators and workers still reason about the work, while Rust owns durable state transitions and the frontend renders persisted facts. The implementation and this report are limited to the two review rounds and the minimum dependencies required to make those fixes correct and independently testable.
+This work does not change the product responsibilities of Agent Org, nor does it turn the Analyzer, Poller, or Snapshot into a new decision-making “brain.” Coordinators and workers still perform reasoning. The Rust backend constrains their actions into recoverable, concurrent, auditable state transitions, while the frontend reads and displays facts already persisted by the backend.
 
-The reviewed production path is:
+The review hardened this production chain:
 
 ```mermaid
 flowchart LR
-    MODEL["Coordinator or worker proposes an action"]
-    TOOL["Typed tool boundary"]
-    TX["Short SQLite transaction"]
-    WAKE["Budgeted Wake dispatch"]
-    VIEW["Read-only compact Run View"]
-    UI["Group Chat, Team Tasks, and Kanban"]
+    LLM["Coordinator / Worker\nproposes an action"]
+    TOOL["Typed Tool Boundary\nauthority + size + state validation"]
+    TX["SQLite IMMEDIATE Transaction\nRun + Task + Inbox + Approval"]
+    WAKE["Wake Dispatcher\nbudget + idempotency + execution-time recheck"]
+    VIEW["Read-only Compact Snapshot\nshared Poller"]
+    UI["Group Chat / Team Tasks / Kanban"]
 
-    MODEL --> TOOL --> TX --> WAKE
+    LLM --> TOOL --> TX --> WAKE
     TX --> VIEW --> UI
 ```
 
-## Scope boundary
+## Acceptance checklist
 
-Included here:
-
-- the first review's read-path, polling, payload, locking, task-graph, finality, Wake-budget, and error-isolation findings;
-- the second review's failure finality, Plan approval, Inbox receipt, Task authority, legacy dependency, extractor, Kanban, wire-parity, and test-fidelity findings;
-- stable `useSyncExternalStore` Snapshot identity, keyset Group Chat history, canonical finality/progress helpers, transactional Task outbox, Inbox materialization receipts, and real-Run fixtures as required dependencies;
-- dispatch-time user-intervention establishment for direct and queued user messages: intervention is persisted after the durable user event and immediately before provider dispatch; persistence failure stops dispatch;
-- focused tests and these English audit reports.
-
-This audit intentionally contains only the two review rounds and their required integration dependencies. Later hardening and future architectural work are tracked outside this branch.
-
-## Review finding matrix
-
-### First review
-
-| Finding                                               | Risk                                                                                        | In-scope resolution                                                                                                                         |
-| ----------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run View reads performed writes                       | Frequent UI polling could take the global writer lock and mutate lifecycle state.           | Run View now reads a deferred, read-only Snapshot. Reconciliation and intervention cleanup remain explicit write operations.                |
-| `task_list` used the global writer path               | A read-only tool could serialize unrelated Task, Session, and Inbox work.                   | `task_list` uses a read transaction and returns bounded summaries; `task_get` loads full detail on demand.                                  |
-| Poll payloads grew with Inbox, Plan, and Task content | Every poll copied large durable payloads and repeated frontend parsing.                     | Run View carries counts, previews, and Plan summaries. Full Plan, Task, Inbox, and Group Chat data use explicit detail or keyset APIs.      |
-| Task board loading repeated graph work                | Repeated lists and per-Task dependency scans created N+1 behavior.                          | A transaction-local `TaskGraphIndex` is built once and shared by mutation and outbox decisions.                                             |
-| Finality checks disagreed                             | A Run could repeatedly reconcile without reaching a stable terminal decision.               | Finality facts, assessment, and decision are centralized; minimal work revision and explicit empty-Run completion provide durable evidence. |
-| Idle Wake bypassed recovery budget                    | Some paths could call the model repeatedly while watchdog paths backed off.                 | Production Wake sources use durable reserve, enqueue, and commit-or-refund accounting.                                                      |
-| Plan and text persistence lacked direct bounds        | One request could write an unexpectedly large Plan, feedback, Task description, or message. | Review-requested content fields are validated before file, SQLite, or Inbox persistence. Historical rows remain until Run deletion.         |
-| File I/O occurred while holding the writer lock       | Slow Plan writes could block unrelated Agent Org updates.                                   | Plan content is staged outside the lock; the lock protects only the short transaction and atomic installation step.                         |
-| Synchronous SQLite ran on async execution threads     | Database calls could stall unrelated async work.                                            | Synchronous persistence work runs in a blocking section and reuses one connection per operation.                                            |
-| Frontend reparsed completed results                   | Large result wrappers were parsed repeatedly during render.                                 | Explicit outcomes return early, and Task outcome resolution is memoized at the adapter boundary.                                            |
-| `task_graph_create` was not extracted consistently    | Communication cards or replay could show raw JSON or erase existing Kanban state.           | Rust extraction, Task cards, event routing, and additive Kanban replay recognize Task Graph outcomes.                                       |
-| One bad Run stopped watchdog scanning                 | A single database or analysis error could prevent later Runs from recovering.               | Watchdog reports an inner per-Run error and continues scanning remaining Runs.                                                              |
-
-### Second review
-
-| Finding                                                         | Risk                                                                       | In-scope resolution                                                                                                                                                      |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A failed or cancelled worker immediately abandoned the Run      | Recoverable work could be declared terminal.                               | Run-terminalization paths covered by this review use the shared finality model; abandonment requires all relevant workers to be archived and no recovery path to remain. |
-| Task Graph rendered inconsistently                              | Some surfaces showed raw JSON and historical replay could clear the board. | All three UI projections consume structured graph outcomes and merge graph creation additively.                                                                          |
-| Rust E2E fixtures skipped a real Run                            | Tests could pass while violating production Run invariants.                | Fixtures initialize the canonical schema and create an actual Running Run before exercising Agent Org commands.                                                          |
-| Watchdog hid errors or accepted an empty plan forever           | Runs could remain stuck without an observable recovery action.             | Errors remain visible per Run; a rejected reconcile continues to Wake valid work or emits the minimum coordinator repair notice.                                         |
-| Empty-task Runs could not complete                              | A coordinator that legitimately needed no Tasks had no terminal action.    | The minimal `org_run_complete` path records explicit coordinator completion intent and still passes canonical finality checks.                                           |
-| Pause or restart cancelled pending Plan approval                | User approval state disappeared even though the Run was not terminal.      | Pending approval survives pause and restart; only terminal or missing Runs clear it.                                                                                     |
-| Crash windows could duplicate Inbox delivery                    | The durable row and visible turn could diverge after restart.              | Inbox materialization receipts and `causation_inbox_id` make acknowledgement conditional on successful materialization.                                                  |
-| Legacy `blocks` did not participate in readiness                | Old Tasks could unlock too early.                                          | `blocks` is normalized into the canonical dependency graph used by every readiness check.                                                                                |
-| Workers could delete ownerless Tasks                            | A worker could remove coordinator-managed work it did not own.             | Ownerless Task deletion is coordinator-only.                                                                                                                             |
-| Approval persisted but notification failure returned UI failure | The user could retry an approval that was already committed.               | Approval state and Inbox notification commit together; Wake happens after commit and stale revisions return a readable error.                                            |
-| TypeScript treated args-only operations as success              | A failed tool attempt could mutate historical Kanban state.                | New events require a structured outcome; legacy events require durable result evidence. Successful deletion removes the Task row from replay.                            |
-| Rust and TypeScript wires drifted                               | `executionMode` and Task output could be absent or duplicated.             | `executionMode` is explicit and Task output has one canonical wire location.                                                                                             |
-| Tests initialized a weaker schema                               | Test-only behavior could mask missing tables or invalid Run state.         | Production and tests share schema initialization and real-Run invariants; test-only bypasses are removed.                                                                |
-
-### Required integration dependency
-
-| Dependency                           | Why it is required                                                                                                                                      | A-only implementation                                                                                                                                                                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| User intervention at actual dispatch | A direct or queued user message must prevent a background Wake from racing the same member, but merely waiting in the queue must not suppress recovery. | Direct messages establish intervention after the durable user event and immediately before provider dispatch. Queued messages establish it only when dequeued for dispatch. Both paths fail closed if intervention persistence fails. |
+| Acceptance item                               | Result              | Evidence                                                                                                                                                        |
+| --------------------------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust / TypeScript compilation                 | Pass                | `cargo check -p agent_core --all-targets`, `cargo check -p e2e-test`, `cargo check -p org2 --lib`, and `pnpm typecheck`                                         |
+| New Clippy warnings introduced by this change | 0                   | The one warning on a newly added line was fixed. Remaining strict-Clippy findings are existing develop baseline; see “Known develop and environment baseline.”  |
+| Frontend lint                                 | Pass                | `pnpm lint`                                                                                                                                                     |
+| Full frontend unit suite                      | Pass                | 450 files, 5,181 tests                                                                                                                                          |
+| Focused Agent Org Rust suites                 | Pass                | Watchdog, Run, Plan, Task, Inbox, Lifecycle, Commands, and Send suites                                                                                          |
+| Full `agent_core` suite                       | Pass                | 3,155 / 3,155 with loopback access and an isolated persistence directory                                                                                        |
+| Full `session_persistence` suite              | Pass                | 34 / 34, single-threaded outside the restricted sandbox                                                                                                         |
+| High-frequency Run View has no hidden writes  | Pass                | Snapshot uses a read-only deferred transaction. Historical Plan artifact reconciliation is an explicit, low-frequency operation limited to a managed directory. |
+| Large payloads are bounded                    | Pass                | Task summaries, Inbox drain batches, Plan detail, pagination, identifiers, and per-Run task counts all have explicit limits.                                    |
+| Runtime HTTP E2E                              | Pass                | 47 / 47 scenarios against a real isolated Debug App                                                                                                             |
+| Rendered UI E2E                               | Pass                | 19 / 19 WebDriver scenarios across Group Chat, pause/resume, recovery, and settings                                                                             |
+| Production return-to-work path                | Pass                | Real scheduler → processor → deterministic provider → Inbox drain path                                                                                          |
+| Revision Event architecture                   | Explicitly excluded | See [AgentOrgRevisionEventPlan.md](./AgentOrgRevisionEventPlan.md).                                                                                             |
 
 ## Ten-layer architecture audit
 
-| Layer                                 | Result                            | Evidence and boundary                                                                                                                                                                                       |
-| ------------------------------------- | --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Compilation and static correctness | Verified with baseline exceptions | Rust compilation, TypeScript typecheck, formatting, frontend lint, and circular-dependency checks pass. Strict Clippy remains blocked by clean-develop findings documented below.                           |
-| 2. Dead code and duplicate paths      | Reviewed                          | Run reads, finality, Task graph evaluation, Task outbox, Plan persistence, Wake budgeting, and user-intervention dispatch were reviewed for competing paths; no duplicate A-only production path was found. |
-| 3. Naming consistency                 | Reviewed                          | Run, Session, Task, delivery, Snapshot, Wake, and work revision remain distinct concepts.                                                                                                                   |
-| 4. Semantic overloading               | Reviewed                          | Run status does not stand in for Session, Task, or Inbox state; finality consumes typed facts across those dimensions.                                                                                      |
-| 5. Default branches                   | Reviewed                          | Paused, terminal, failed, missing, stale approval, legacy outcome, and rejected tool states fail closed or return explicit guidance.                                                                        |
-| 6. Cross-domain leakage               | Reviewed                          | Models reason; Rust validates and persists; the scheduler dispatches; the frontend projects durable state.                                                                                                  |
-| 7. New-developer comprehension        | Reviewed                          | Mutation outcomes, finality blockers, Wake outcomes, and Plan summaries use typed structures rather than human-text parsing.                                                                                |
-| 8. Wire protocol and payloads         | Reviewed                          | Polling returns summaries and exact counts; detail endpoints carry complete content; outcome evidence is explicit.                                                                                          |
-| 9. Initialization parity              | Reviewed                          | Production, unit tests, and HTTP E2E use the shared schema and real Run records.                                                                                                                            |
-| 10. Resolver symmetry                 | Not applicable                    | This scope does not change a multi-field fallback resolver. Relevant identity and fallback paths were reviewed and no asymmetric resolution was introduced.                                                 |
+### Layer 1 — Compilation and static correctness
 
-## Core invariants retained by this scope
+- All three relevant Rust crates compile.
+- TypeScript typecheck and ESLint pass.
+- Strict Clippy found no warning on a line introduced by this review after the final cleanup. Remaining warnings are reproducible on existing develop code.
+- Changed-scope rustfmt and `git diff --check` pass.
 
-1. Only a Running Run may mutate Tasks.
-2. Ownerless means unassigned, not available for arbitrary worker self-claim.
-3. A normal worker may mutate only its own assigned work state.
-4. Task mutation and its TaskAssigned or TaskCompleted outbox share one transaction result.
-5. Wake attempts are charged only after scheduler acceptance; rejected and coalesced requests are refunded.
-6. A Paused or terminal Run is rechecked before Wake execution and cannot be revived accidentally.
-7. Plan approval is durable independently of transient Wake delivery.
-8. Completion requires the coordinator to observe the latest work revision and pass the shared finality decision.
-9. Historical Group Chat remains available through keyset pagination after reload.
-10. Task and Plan UI state comes from structured persisted outcomes, not attempted tool arguments.
-11. A user message establishes member intervention only when it is actually dispatched. A message waiting in the queue does not suppress Wake, and failure to persist intervention prevents provider dispatch.
+Conclusion: no `allow` attribute was added to hide a new error, and unrelated modules were not changed merely to make a gate look green.
 
-## Verification status
+### Layer 2 — Dead code and duplicate paths
 
-The implementation was split after a larger combined audit. Only results produced from the A-only tree are reported here.
+This review traced production entry points instead of relying on reference counts:
 
-| Gate                                            | A-only result                                                                                                                                                 |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust compilation and focused review regressions | Pass. The Agent Org compilation and focused review suites complete successfully.                                                                              |
-| `agent_core` application suite                  | Pass: 3,028 / 3,028. The 23 `specialization::external_import` tests are filtered because the same nested `lock_home` deadlock is reproduced on clean develop. |
-| `session_persistence`                           | Pass: 29 / 29.                                                                                                                                                |
-| Frontend unit and static verification           | Pass: Vitest 5,318 / 5,318; TypeScript typecheck, ESLint, and circular-dependency checks pass.                                                                |
-| Changed-scope Rust formatting                   | Pass: all 80 Rust files changed relative to develop pass `rustfmt --check`.                                                                                   |
-| Strict Clippy                                   | Baseline-blocked; no new A-only warning is known. See the baseline note below.                                                                                |
-| Isolated real Debug App Agent Org HTTP E2E      | Pass: 46 / 46 against the real isolated Debug App and production behavior paths.                                                                              |
-| Rendered WebDriver Group Chat E2E               | 5 / 6 pass. The remaining mention-menu scenario fails identically on clean develop and is not an A regression.                                                |
-| Rendered WebDriver Pause/Resume E2E             | Pass: 8 / 8.                                                                                                                                                  |
-| Rendered WebDriver Recovery E2E                 | Pass: 2 / 2.                                                                                                                                                  |
+| Business entry point                          | Unified production path                                                        | Duplicate behavior removed or avoided                                                             |
+| --------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
+| Watchdog / resume / task tool requests a Wake | recovery disposition → shared budget → dispatcher → scheduler                  | Each entry point making its own decision, enqueueing directly, and consuming budget independently |
+| Root / Member / Kanban reads a Run            | one per-Run shared poller → compact snapshot → caller projection               | Every session polling and copying the full Run independently                                      |
+| Single Task / Task Graph creation             | typed validation → one transaction → one mutation outcome                      | Writing graph nodes one by one and leaving a partial graph after failure                          |
+| Dependency release after Task completion      | transaction outcome → exact transactional outbox / Wake                        | Re-reading state outside the transaction and duplicating `TaskAssigned` under concurrency         |
+| Plan artifact persistence                     | stage temporary file outside lock → short durable transaction → atomic install | Slow file I/O while holding the global writer lock and repeated connection setup                  |
+| Plan artifact ownership                       | source session → managed Plan root → exact `.plan.md` child                    | Overwriting or deleting an external Markdown file or symlink referenced by historical bad data    |
+| Member intervention clear                     | clear + capture unread high-water mark in one IMMEDIATE transaction            | Reading clear state and delivery boundary separately, creating a race                             |
+| Turn intent ownership                         | persist nullable `org_run_id` on every intent                                  | Guessing Run ownership from the Session tree and damaging nested Runs or missing Resume Wakes     |
 
-### Clean-develop baseline exceptions
+Conclusion: Analyzer, Executor, Snapshot, Progress, and Finality types are wired into real production entry points. They are not abstractions kept alive only by tests.
 
-- Strict workspace Clippy is blocked by seven `orgtrack_core` diagnostics reproduced on clean develop.
-- `agent_core --no-deps` reports 45 diagnostics reproduced on clean develop.
-- `e2e-test --no-deps` reports three diagnostics on A versus four on clean develop, so A does not add a Clippy diagnostic.
-- Workspace-wide `cargo fmt --all --check` reports formatting drift in unchanged develop files; every Rust file changed by A passes an explicit `rustfmt --check`.
-- The 23 filtered `specialization::external_import` tests enter the same nested non-reentrant `lock_home` deadlock on clean develop. They are reported explicitly rather than counted as passing.
-- The rendered mention-menu scenario fails on A and clean develop with the same `Agent Org mention menu did not include both member and normal context options` assertion. It is not counted as passing and is outside this A-only follow-up.
+### Layer 3 — Naming consistency
 
-## Conclusion
+| Name                              | Exact meaning                                                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `AgentOrgRun`                     | The durable business container for one team execution; it is not a model turn.                                   |
+| `RunView` / Snapshot              | A compact, read-only projection of one Run at a point in time; it is not another source of truth.                |
+| `work_revision`                   | A monotonic proof that the Coordinator observed the latest work state; it is not a full event-stream revision.   |
+| `RecoveryAnalyzer`                | A pure analysis step that reads a snapshot and proposes actions; it does not call a model or write the database. |
+| `RecoveryExecutor`                | Executes proposed recovery actions after revalidating current state; it does not reason about task content.      |
+| `Wake`                            | Requests a scheduler opportunity for a Session; it does not mean the turn is already Running.                    |
+| `TaskSummary`                     | A bounded list/poll projection; full content is loaded through `task_get`.                                       |
+| `session_turn_intents.org_run_id` | Explicit ownership of a turn intent by an Agent Org Run; it is not inferred from Session ancestry.               |
 
-The A-only tree addresses the two review rounds and their minimum correctness dependencies. Source-level, unit, integration, real Debug App HTTP, and all in-scope rendered UI verification are complete. The one remaining rendered scenario is a reproduced clean-develop baseline outside this follow-up, not an A regression.
+Comments, wire fields, and TypeScript types were checked so that `running` does not ambiguously mean Run state, Session state, Task state, and UI activity.
+
+### Layer 4 — Semantic overloading
+
+The four state dimensions remain independent sources of truth:
+
+| Dimension      | Source of truth                | Invalid inference                                     |
+| -------------- | ------------------------------ | ----------------------------------------------------- |
+| Run state      | `agent_org_runs.status`        | An Idle Session does not mean the Run is complete.    |
+| Session state  | `agent_sessions.status`        | A Running Run does not mean every worker is healthy.  |
+| Task state     | `agent_org_tasks.status/owner` | A Pending Task does not mean any worker may claim it. |
+| Delivery state | Inbox row + scheduler intent   | Unread Inbox data does not prove a Wake was accepted. |
+
+Run finality is now evaluated from typed facts rather than treating one status as a substitute for the entire collaboration state.
+
+### Layer 5 — Default-branch audit
+
+- Recovery explicitly classifies `SessionStatus` as Active, Wakeable, Backoff, Exhausted, Paused, Pending materialization, Missing, or Archived.
+- Paused, pending grace, Missing, Archived, and invalid timestamps have explicit behavior instead of falling into `_ => false`.
+- Before a Wake begins execution, Running, Paused, terminal, missing, and database-error states are handled separately. Database errors fail closed.
+- The frontend handles null, stale responses, and unknown or failed payloads separately; parse failure never defaults to “clear the board.”
+- A Run View generation created by an abandoned React render and never subscribed is retired after 30 seconds. Late IPC responses cannot restore it as poll owner.
+
+Conclusion: new states and malformed input cannot silently become normal Idle or Running behavior.
+
+### Layer 6 — Cross-domain leakage
+
+- Coordinator and worker reasoning remains in the model layer. Recovery Analyzer, Recovery Executor, and Poller contain no business-reasoning prompts.
+- The frontend does not directly mutate Task, Run, or Inbox truth. It invokes typed commands and projects durable outcomes.
+- Incomplete CLI Agent Org runtime support still fails loudly instead of borrowing the Rust-member transport.
+- A Plan file is an artifact of durable approval content. The SQLite approval row remains lifecycle truth.
+
+Conclusion: UI, model, scheduler, and persistence layers retain separate responsibilities.
+
+### Layer 7 — New-developer comprehension
+
+Important rules are now expressed through types, structured outcomes, and comments:
+
+- `WakeRequestOutcome` distinguishes Enqueued, Coalesced, DeferredPaused, DeferredBackoff, NoWork, RunTerminal, SessionUnavailable, and Failed.
+- `TaskMutationOutcome` carries transaction-local previous/current state and meaningful transitions, so side effects do not guess after the transaction.
+- Finality follows facts → assessment → decision and returns typed blockers explaining why completion is unsafe.
+- Task tools return structured guidance for recoverable misuse instead of leaking red SQL or validation failures into the model trajectory.
+
+Conclusion: a new developer can distinguish an action that occurred from a request, deferral, or no-op without knowing the history of the bug.
+
+### Layer 8 — Wire protocol and payloads
+
+| Channel          | Current boundary                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `task_list`      | 50 rows by default, 200 maximum; descriptions are at most 512 Unicode characters and expose `description_truncated`.      |
+| `task_get`       | Loads one Task with full detail on demand.                                                                                |
+| Run View         | At most 200 Task summaries; exact totals and counts are returned separately and are never inferred from window length.    |
+| Task persistence | At most 200 Tasks per Run and 32 nodes per graph; existing + incoming counts are checked inside the same transaction.     |
+| Task identifier  | At most 1,000 Unicode characters / 4,000 UTF-8 bytes across Task, dependency, cursor, and every Inbox task-id position.   |
+| Inbox            | Message, array, and JSON fields have character and byte bounds; one drain is capped at 128 rows / 1 MiB.                  |
+| Plan             | Snapshot carries only a summary; detail is loaded and cached by `run + approval + revision`.                              |
+| Tool outcome     | New events prefer typed outcomes. Legacy events require durable success evidence and cannot succeed from arguments alone. |
+
+High-frequency polling no longer copies full TaskOutput, Plan, or Inbox payloads. Full information remains available through bounded, on-demand APIs.
+
+### Layer 9 — Initialization parity
+
+| Entry point              | Run schema              | Task / Inbox / Recovery  | Plan approval             | Session runtime                     | Production drain                 |
+| ------------------------ | ----------------------- | ------------------------ | ------------------------- | ----------------------------------- | -------------------------------- |
+| Tauri production         | Yes                     | Yes                      | Yes                       | Yes                                 | Yes                              |
+| App restart              | Yes                     | Yes, with reconciliation | Yes, with artifact repair | stale Running → failure disposition | Yes                              |
+| Rust unit sandbox        | Yes, shared initializer | Yes, shared initializer  | Yes                       | Complete test schema                | Production Store                 |
+| HTTP E2E production path | Yes                     | Yes                      | Yes                       | Real Session registration           | scheduler → processor → provider |
+
+`session_turn_intents.org_run_id` is included in both fresh DDL and historical database initialization. It is nullable for non-Agent-Org and Wingman intents, while root, member, Wake, steering, and normal follow-up Agent Org turns persist explicit Run ownership. Historical NULL rows may be backfilled safely; an existing, different non-NULL owner fails closed and cannot be silently reassigned.
+
+Fixtures that previously omitted tables or Run rows now use the canonical initializer and Store. Production invariants were not weakened to accommodate tests.
+
+### Layer 10 — Resolver symmetry
+
+| Resolver            | Primary condition                                        | Fallback / recheck                                                                                               | Symmetry result                                                                      |
+| ------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Wake target         | Run + member + session + real work                       | Re-read Run before execution; classify terminal, paused, and missing separately.                                 | Every entry point uses the same dispatcher and budget.                               |
+| Plan detail         | run id + approval id + revision id                       | Validate Run ownership before artifact repair.                                                                   | No cross-Run file read or mutation.                                                  |
+| Run View poll owner | live Session + known Run id                              | On owner error/null/hang, hand off to another live Session in the same Run; unknown-Run bootstrap has a timeout. | Root and member use the same source chain.                                           |
+| Task availability   | pending + ownerless + ready + eligible + member not busy | Coordinator assignment / recovery only; arbitrary workers no longer self-claim.                                  | Watchdog, resume, and tools use the same definition.                                 |
+| Turn intent owner   | explicit `org_run_id`                                    | Explicit/runtime mismatch fails closed; non-Agent-Org intent remains NULL.                                       | Deletion, finality, and nested Runs no longer infer ownership from Session ancestry. |
+
+Conclusion: related fields do not mix database truth with memory-only truth, and no production Wake entry point bypasses the shared recovery budget.
+
+## Mapping the two review rounds to fixes
+
+| Finding category                           | Original risk                                                                                                                     | Final fix                                                                                                                                                   |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Read View side effects                     | Opening the UI could repair or write state and block the global writer.                                                           | Read-only deferred Snapshot; repair moved to explicit write paths.                                                                                          |
+| Duplicate polling by multiple Sessions     | Root and every member repeatedly fetched the full Run.                                                                            | One shared poller per Run with caller-specific `currentMemberId` projection.                                                                                |
+| Failed poll owner                          | A null/error/hung owner could clear the board or block another Run.                                                               | Sequence guard, same-Run failover, null ghost cleanup, and one-second bootstrap timeout.                                                                    |
+| Unstable Snapshot identity                 | `useSyncExternalStore` could repeatedly render or loop.                                                                           | Create a stable entry on the first read and preserve reference identity until an actual publish.                                                            |
+| Oversized Task / Inbox / Plan payloads     | High-frequency polling copied long content, increasing memory and token pressure.                                                 | Summary by default, detail APIs, pagination, and independent row/byte limits.                                                                               |
+| Unbounded Task count                       | A Run could accumulate unlimited Tasks.                                                                                           | 200 per Run, 32 per graph, checked transactionally under concurrency.                                                                                       |
+| Plan file write under lock                 | Slow file I/O blocked the Agent Org writer.                                                                                       | Stage outside the lock, perform a short transaction, then atomically install after commit.                                                                  |
+| Cross-Run Plan detail                      | A wrong id could repair an artifact belonging to another Run.                                                                     | Validate the exact `run + approval + revision` relationship before read or repair.                                                                          |
+| Plan path escape                           | Historical or corrupt paths could reference arbitrary Markdown files, symlinks, or another workspace.                             | Permit only a direct `.plan.md` child under the source Session's managed root; external historical paths are warning-only and are never written or deleted. |
+| Wake budget bypass                         | Some sources could enqueue directly while only Watchdog respected backoff.                                                        | Every production Wake source checks the durable budget; only Enqueued consumes an attempt.                                                                  |
+| Intervention-clear race                    | A new message between clear and boundary reads could be misclassified.                                                            | Clear and capture unread high-water in one IMMEDIATE transaction.                                                                                           |
+| `block_in_place` on current-thread Tokio   | Lifecycle code could panic on a current-thread runtime.                                                                           | Shared blocking-section helper selects safe behavior for the active runtime flavor.                                                                         |
+| Finality guessed from status               | Coordinator could finish without seeing the latest Task state.                                                                    | Durable `work_revision`, observed revision, terminal turn, and explicit completion request.                                                                 |
+| Reconcile/create race                      | A terminal Run could end up with a newly created open Task.                                                                       | Same writer lock and IMMEDIATE transaction; only serializable outcomes are allowed.                                                                         |
+| Incomplete deletion lifecycle              | Deleting a worker could delete a Run, or deleting a root could retain Inbox/Plan history.                                         | Worker deletion removes only the Session; root deletion removes the owned Run and cascades owned history by foreign key.                                    |
+| Session tree mistaken for Run boundary     | Outer-Run deletion/finality could damage a nested Run, while Resume Wake intents could be missed.                                 | Persist `org_run_id` on intents and query deletion/in-flight state by exact Run.                                                                            |
+| Abandoned React render leak                | `getSnapshot` without subscribe retained a bounded preview forever and late IPC could revive poll ownership.                      | Retire zero-listener generations after 30 seconds and reject responses for retired or replaced generations.                                                 |
+| Task identifier beyond delivery boundary   | A Task could persist but fail to produce `TaskAssigned`, leaving unreachable work.                                                | Store, tool, and Inbox independently validate Task, dependency, and cursor IDs before persistence.                                                          |
+| False test path                            | Debug drain or partial SQL fixtures produced false positives and false negatives.                                                 | Canonical Store fixtures plus real scheduler/provider/Inbox-drain paths.                                                                                    |
+| Undeliverable unread Inbox blocks finality | Missing, Archived, Paused, CLI, or expired-pending recipients could never read a row, while unread state blocked the Run forever. | Immutable roster + canonical member identity produces typed repair; the source remains unread and is never guessed or falsely acknowledged.                 |
+| Analyzer/Executor TOCTOU                   | Member, Task, or Run state could change after analysis and produce stale Assignment, Continuation, or repair actions.             | Revalidate Run, Session, transport, agent identity, Task graph, and typed fingerprint in the final writer transaction.                                      |
+| Coordinator notice budget race             | Notice insert, unavailable diagnostic, and attempt accounting were separate writes.                                               | Budget gate, notice/diagnostic, and attempt update commit in one IMMEDIATE transaction.                                                                     |
+| Legacy shared AgentDefinition double count | A historical Inbox row with only `agent_id` could be attributed to multiple members.                                              | Member cards use canonical `member_id`; legacy rows remain visible only in Run-level history.                                                               |
+| Old unread message treated as empty UI     | Exact unread state outside the most recent 200 activities could show a member as `No tasks` and disable navigation.               | Both member switchers share a pure predicate that checks recent activity and exact unread total.                                                            |
+
+## Core invariants
+
+1. Only a Running Run may mutate Tasks; Paused and terminal Runs reject writes.
+2. Ownerless means “currently unassigned,” not “any worker may claim this Task.”
+3. An `in_progress` Task must have a valid owner, and a normal worker may change only its own work state.
+4. A Wake counts as an attempt only after scheduler acceptance; coalesced and rejected requests consume no attempt.
+5. A queued Wake does not mean the Session is Running; Running is persisted only when the turn actually starts.
+6. A Paused Run does not drain Inbox or call the provider; a terminal Run is never revived.
+7. Without a real message, unlocked Task, approval response, or explicit work item, Wake returns no-op and does not call the model.
+8. Every Task mutation and its side-effect outbox share one transaction outcome.
+9. Completed requires proof that the Coordinator observed the latest work revision and that no finality blocker remains.
+10. Historical Inbox rows, Plan revisions, and future Events live as long as the Run by default and cascade only on explicit Run deletion.
+11. Every Agent Org turn intent carries explicit `org_run_id`; deletion and finality do not infer a Run from Session ancestry.
+12. A Plan artifact must be under the source Session's managed directory; Agent Org never overwrites or deletes an external path or symlink.
+13. Task identifiers independently satisfy the same character and byte limits in the Store, tool boundary, and every Inbox task-id position.
+14. A retired frontend Run View generation never accepts late responses or regains poll ownership.
+
+## Performance and resource boundaries
+
+- Running Runs are selected directly with `WHERE status='running'` instead of fetching an arbitrary 500 rows and filtering in memory.
+- Unread checks use `SELECT EXISTS`.
+- Watchdog interval uses missed-tick skip, so a process stall does not replay a burst of historical ticks.
+- Task readiness uses sets and a single scan instead of Task × member × full-list queries.
+- Watchdog and high-frequency Run View unread statistics scan only the `read_at IS NULL` partial index, not all read history.
+- Recovery `TaskAssigned` actions for one member are revalidated in one writer transaction against Session state, the Task graph, and existing delivery.
+- One Run shares one UI Snapshot. Full Plan and Task bodies are fetched on demand.
+- Lists enforce count/cursor bounds and independent byte/character bounds.
+
+## Test results
+
+### Rust suites
+
+| Suite                      | Result                                                                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent Org Watchdog         | Pass, including budget, backoff, paused/terminal, invalid timestamp, undeliverable recipient, and stale-plan matrices                         |
+| Agent Org Run / finality   | Pass, including work revision, concurrent mutation, nested Run, explicit intent owner, empty board, and recoverable Failed/Cancelled sessions |
+| Plan approvals             | Pass, including external files, symlinks, managed-path deletion, paused restart, atomic notification, and historical compatibility            |
+| Task Store / tools         | Pass, including graph atomicity, pagination, `task_get`, Run cap, identifier boundary, legacy `blocks`, and worker authority                  |
+| Inbox production drain     | Pass, including row/byte bounds, task-id message matrix, idempotent materialization, delivery resolution, and the real consumption path       |
+| Member idle / Lifecycle    | Pass, including failure disposition, pause/resume, and restart recovery                                                                       |
+| Agent Org Tauri commands   | Pass, including pure Snapshot, exact counts, Plan detail ownership, and execution mode wire projection                                        |
+| Send / Wake / turn intents | Pass, including coalescing, budget reservation/refund, execution-time Run checks, and explicit `org_run_id`                                   |
+| Full `agent_core`          | 3,155 / 3,155 pass in an isolated environment                                                                                                 |
+| Full `session_persistence` | 34 / 34 pass, single-threaded outside the restricted sandbox                                                                                  |
+
+### Frontend
+
+- Full Vitest: 450 files, 5,181 / 5,181 tests.
+- Typecheck: pass.
+- ESLint: pass.
+- Independent UI audit: [AgentOrgReviewSafetyAudit.md](../frontend-ui-audit-2026-07-16/AgentOrgReviewSafetyAudit.md).
+
+### Real isolated Debug App runtime E2E
+
+The Agent Org HTTP suite passed 47 / 47 scenarios against a real Debug App with isolated ports and an isolated `ORGII_HOME`.
+
+The production return-to-work scenario proved:
+
+- `TaskAssigned` begins unread;
+- production return-to-work enqueues and completes a Wake;
+- production Inbox drain materializes exactly one visible assignment input and acknowledges the source row only after success;
+- the deterministic provider completes a real member turn;
+- a second return-to-work with no new durable input returns no-op.
+
+This is a real Rust/Tauri runtime path with a deterministic provider. It is not presented as a paid external-provider integration test.
+
+### Rendered Debug App E2E
+
+WebDriver tests passed 19 / 19 against rendered Debug App instances:
+
+- Group Chat: 6 / 6, including real keyboard mention selection, 230+ durable history rows, and Plan approval.
+- Pause / Resume: 8 / 8.
+- Recovery: 2 / 2.
+- Settings: 3 / 3.
+
+Debug helpers only seed or inspect state; the user-visible behaviors under assertion use production application paths.
+
+## Known develop and environment baseline
+
+The following were deliberately not “fixed along the way” in #373:
+
+1. Full workspace `cargo clippy --all-targets -- -D warnings` stops on existing findings in unchanged `integrations` and `orgtrack-core` code.
+2. `cargo clippy -p agent_core --all-targets --no-deps -- -D warnings` reports existing warnings on lines not introduced by #373. The one warning on a newly added line was fixed, and a non-blocking Clippy run completed successfully.
+3. `pnpm check:circular` reports two existing cycles in unchanged Org2Cloud and SessionCore paths; every file in those cycles has zero #373 diff.
+4. Full workspace `cargo fmt --all -- --check` reports six unchanged develop files. Changed-scope formatting and `git diff --check` pass.
+5. Tests that bind local ports require loopback access outside the restricted sandbox; final isolated runs were executed with that access.
+6. Rendered and runtime E2E use deterministic fake-provider responses to make state-machine assertions reproducible. They do not make paid external model calls.
+
+## Explicitly outside this PR
+
+The full Revision Event architecture is not part of #373. The current `work_revision` answers only whether the Coordinator observed the latest work state; it is not an incremental UI event bus.
+
+The follow-up design will atomically commit canonical mutations and small, sequentially numbered Events, then drive the frontend with Snapshot + replay + real-time notification. Design, phases, and acceptance gates are documented in [AgentOrgRevisionEventPlan.md](./AgentOrgRevisionEventPlan.md).
+
+## Final verdict
+
+This review does not change Agent Org's macro collaboration model. It converges the implementation from “multiple paths independently guess current state” to:
+
+- the model proposes intent;
+- a typed tool boundary validates it;
+- one SQLite transaction writes canonical truth;
+- recovery performs bounded actions from persisted facts only;
+- the UI reads a small, consistent Snapshot;
+- full content is loaded on demand;
+- completion requires durable proof.
+
+Within the approved #373 scope, no known P0/P1 correctness issue remains. Deferred work is limited to the explicitly separated Revision Event architecture and existing develop baseline findings.

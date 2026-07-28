@@ -8,7 +8,9 @@ use rusqlite::{params, OptionalExtension};
 use serde_json::json;
 
 use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
-use crate::coordination::agent_org_runs::{AgentOrgParticipant, AgentOrgRunStore, COORDINATOR_MEMBER_ID};
+use crate::coordination::agent_org_runs::{
+    AgentOrgParticipant, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
+};
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::core::session::SessionStatus;
 use crate::tools::traits::ToolError;

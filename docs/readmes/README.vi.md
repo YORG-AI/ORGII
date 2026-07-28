@@ -1,23 +1,23 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>Agent IDE open-source theo phong cách Cursor — nhưng được xây dựng cho khả năng review, truy vết và tự do sáng tạo, không chỉ để code nhanh hơn.</strong></p>
+  <p><strong>Hệ thống ghi nhận cách Agents xây dựng phần mềm.<br />Chạy các Agent lập trình của bạn — replay bất kỳ phiên nào, review theo nhóm và truy vết từng dòng về đúng quyết định đằng sau nó.</strong></p>
   <p>Được xây dựng bằng Rust và Tauri cho thực thi local-first, chiếm dưới 100MB trên ổ đĩa. Hỗ trợ livestream và replay trajectory của Agents. Dễ theo dõi và review.</p>
 </div>
 
 ---
 
 <p align="center">
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest"><strong>All latest release assets</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest"><strong>All latest release assets</strong></a>
 </p>
 
 ---
@@ -30,9 +30,11 @@
   <video src="https://github.com/user-attachments/assets/bd4833d2-4cc4-4971-9805-84529b14d01a" controls width="720"></video>
 </p>
 
-Đây không chỉ là một công cụ lập trình AI khác; đây là một thử nghiệm về tổ chức human/Agent và org-level alignment. Agents đang tốt hơn, nhưng collaboration, observability, cấu trúc và accountability chung không theo kịp — và trong một số trường hợp còn tệ hơn. Cursor, Claude Code và các công cụ tương tự thường xem Agents như trợ lý thuê ngoài: hữu ích cho đầu ra, nhưng khó audit, phối hợp, align hoặc tiến hóa ở cấp hệ thống.
+Để trả lời vì sao một đoạn mã tồn tại — và liệu nó có hiệu quả hay không — người ta luôn phải ghép thủ công nhiều hệ thống lại với nhau. Jira chỉ thấy ticket. Codex chỉ thấy phiên của chính nó. GitHub chỉ thấy những dòng đã commit. Amplitude chỉ thấy chỉ số. Điều đó còn chịu được khi con người viết mã. Ở tốc độ của Agent thì không: mã viết hôm thứ Hai đến thứ Sáu đã thành legacy.
 
-ORG-II khám phá một mô hình khác: Agents như những đồng nghiệp bền bỉ và có thể quan sát trong một tổ chức có cấu trúc. Thay vì các AI IDE sessions không trạng thái và khó review, nó giới thiệu Agent execution có thể replay, bộ nhớ xuyên phiên, AI blame và local-first Rust runtime để con người, Agents và nhóm có thể cộng tác quanh ngữ cảnh chung và mục tiêu đã align.
+ORG-2 là nơi nhóm của bạn chạy các Agent lập trình — một Rust harness native cùng trình khởi chạy cho hơn 20 Agent CLI — và nó tự động dựng nên bản ghi đó. Mỗi phiên trở thành một trajectory mà đồng đội replay như xem video: họ review công việc thực sự đã được dựng ra sao thay vì chỉ nhìn diff, và bình luận ngay trong ngữ cảnh. Các phiên chạy ở công cụ khác cũng được nạp vào và bổ sung ngược từ lịch sử của chúng, nên bản ghi bao phủ cả phần việc chưa từng đi qua ứng dụng. Bản ghi liên kết điều con người yêu cầu, điều Agent hiểu và điều nó thực sự làm, nên bất kỳ dòng nào đã lên production đều truy ngược được về phiên đã viết ra nó.
+
+Đây không chỉ là một công cụ lập trình AI khác; đó là một thử nghiệm về các tổ chức người/Agent và sự align ở cấp tổ chức. ORG-II xem Agents như những đồng nghiệp bền bỉ và có thể quan sát trong một tổ chức có cấu trúc — thực thi có thể replay, bộ nhớ xuyên phiên, AI blame và local-first Rust runtime để con người, Agents và nhóm cùng cộng tác quanh ngữ cảnh chung và mục tiêu đã align.
 
 ## Tính năng
 
@@ -104,12 +106,12 @@ Phiên bản build hiện tại: v1.1.24 (2026-07-16)
 
 Tải ứng dụng desktop ORGII mới nhất chỉ với một lần nhấp:
 
-- [macOS Apple Silicon](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
-- [Trình cài đặt Windows x64](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
-- [Windows x64 MSI](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
-- [Linux x64 AppImage](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
-- [Linux x64 DEB](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
-- [Tất cả tài nguyên của bản phát hành mới nhất](https://github.com/yorgai/ORG2/releases/latest)
+- [macOS Apple Silicon](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
+- [Trình cài đặt Windows x64](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
+- [Windows x64 MSI](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
+- [Linux x64 AppImage](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
+- [Linux x64 DEB](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
+- [Tất cả tài nguyên của bản phát hành mới nhất](https://github.com/org2AI/ORG2/releases/latest)
 
 Các liên kết tải trực tiếp luôn trỏ đến bản phát hành mới nhất trên GitHub.
 
@@ -141,7 +143,7 @@ Nếu thiếu sidecar, Rust build tạo một placeholder resource nhỏ để c
 Có câu hỏi, phản hồi hoặc muốn theo dõi quá trình phát triển của ORG-2? Hãy tham gia Discord:
 
 👉 **Discord: [discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
-👉 **WeChat: [https://github.com/yorgai/ORG2/issues/128]**
+👉 **WeChat: [https://github.com/org2AI/ORG2/issues/128]**
 
 - **#how-to-use-org2** và **#faq** — bắt đầu sử dụng
 - **#announcement** — tin phát hành và cập nhật

@@ -77,6 +77,10 @@ export function stripContextPillBase64(text: string): string {
 export interface UseSubmitMessageOptions {
   refs: InputAreaRefs;
   draftSessionId: string;
+  /** Session whose comment threads Address Comments targets when the
+   * composer dispatches elsewhere (external-history fork composer, where
+   * `draftSessionId` is empty by design). */
+  addressSessionId?: string | null;
   replyTargetEventId: string | undefined;
   flushDraft: (text: string) => Promise<void>;
   clearReplyTarget: () => Promise<void>;
@@ -116,6 +120,7 @@ function lastSerializedPillLabel(rawLabel: string): string {
 export function useSubmitMessage({
   refs,
   draftSessionId,
+  addressSessionId,
   replyTargetEventId,
   flushDraft,
   clearReplyTarget,
@@ -133,7 +138,7 @@ export function useSubmitMessage({
   const { runManualCompact } = useManualCompact();
   const guardAgainstSecrets = useSecretScanGuard();
   const addressComments = useAddressCommentsSlashCommand(
-    draftSessionId || null
+    draftSessionId || addressSessionId || null
   );
 
   return useCallback(
@@ -195,9 +200,11 @@ export function useSubmitMessage({
         const addressDraft = parseAddressCommentsSlashCommand(displayText);
         if (addressDraft) {
           refs.composerInputRef.current.clear();
-          void flushDraft("").catch((err: unknown) => {
-            log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
-          });
+          if (draftSessionId) {
+            void flushDraft("").catch((err: unknown) => {
+              log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
+            });
+          }
           addressComments.run({
             selectedHeadIds: addressDraft.selectedHeadIds,
             instruction: addressDraft.instruction,

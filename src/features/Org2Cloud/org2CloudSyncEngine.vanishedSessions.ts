@@ -11,14 +11,19 @@
  *
  * Absence from `sessionsAtom` alone is WEAK evidence (the roster is
  * paginated), so every suspect is confirmed gone through the backend
- * exact-id lookup before it is eligible for retraction. That lookup also
- * reports continuation-superseded siblings as absent, which is what lets the
- * sweep clean up rows pushed for siblings that were later demoted.
+ * exact-id lookup before it is eligible for retraction. The lookup runs with
+ * `includeContinuationSuperseded`: a sibling demoted by the continuation
+ * election still exists locally, and reporting it absent would retract the
+ * team's shared cloud row on every context-window continuation (/compact).
  *
  * Only ids THIS device push-marked are ever candidates: rows the same
  * account pushed from another device carry no local marker and are never
  * touched. A failed lookup means "unknown", never "gone" — the sweep returns
- * nothing rather than risk retracting a live row.
+ * nothing rather than risk retracting a live row. A successful-but-empty
+ * lookup is still weak while the imported-history cache is rebuilding
+ * (schema migration, cleared cache), so the ENGINE additionally requires a
+ * suspect to be confirmed absent on two consecutive sweeps before
+ * retracting.
  */
 import { sessionAggregateList } from "@src/api/tauri/session";
 import { createLogger } from "@src/hooks/logger";
@@ -42,6 +47,7 @@ export const resolveLocalSessionIdsViaAggregateList: LocalSessionIdResolver =
     const response = await sessionAggregateList({
       sessionIds: [...sessionIds],
       includeExternalHistory: true,
+      includeContinuationSuperseded: true,
       limit: sessionIds.length,
     });
     return new Set(response.sessions.map((record) => record.sessionId));

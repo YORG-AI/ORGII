@@ -23,6 +23,28 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             transcript_intent_id TEXT NOT NULL,
             materialized_at TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS agent_inbox_delivery_resolutions (
+            inbox_id INTEGER PRIMARY KEY,
+            org_run_id TEXT NOT NULL,
+            resolution_kind TEXT NOT NULL
+                CHECK(resolution_kind IN ('cancelled', 'superseded')),
+            resolved_by_member_id TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            replacement_inbox_id INTEGER,
+            replacement_task_id TEXT,
+            created_at TEXT NOT NULL,
+            CHECK(
+                (resolution_kind='cancelled'
+                    AND replacement_inbox_id IS NULL
+                    AND replacement_task_id IS NULL)
+                OR
+                (resolution_kind='superseded'
+                    AND ((replacement_inbox_id IS NOT NULL)
+                         <> (replacement_task_id IS NOT NULL)))
+            )
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_inbox_delivery_resolutions_run
+            ON agent_inbox_delivery_resolutions(org_run_id, inbox_id);
         CREATE INDEX IF NOT EXISTS idx_agent_inbox_materializations_session
             ON agent_inbox_materializations(session_id, inbox_id);
         CREATE INDEX IF NOT EXISTS idx_agent_inbox_recipient_member_unread
@@ -89,6 +111,10 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
                        SELECT 1 FROM agent_inbox inbox
                        WHERE inbox.id=receipt.inbox_id
                          AND inbox.read_at IS NULL
+                         AND NOT EXISTS (
+                             SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                             WHERE resolution.inbox_id=inbox.id
+                         )
                    )
                 OR NOT EXISTS (
                        SELECT 1 FROM agent_messages message

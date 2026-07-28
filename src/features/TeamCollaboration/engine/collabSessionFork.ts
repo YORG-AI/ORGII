@@ -9,7 +9,15 @@
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session/dispatchTypes";
 import type { KeyInfo } from "@src/api/types/keys";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import {
+  getCloudOrgAccessSettings,
+  org2CloudAccessSettingsAtom,
+  withCloudSessionMode,
+  withCloudSessionVisibility,
+} from "@src/features/Org2Cloud/org2CloudAccessSettings";
+import { buildCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
+import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import { lastModelPairMapAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { upsertSession } from "@src/store/session/sessionAtom/mutations";
@@ -41,6 +49,36 @@ import { fetchAndAssembleSegments } from "./collabRemoteFetch";
  */
 export function createForkedSessionId(): string {
   return `agentsession-${crypto.randomUUID()}`;
+}
+
+/**
+ * Carry the forker's OWN explicit sharing-ladder entry for the source
+ * session over to the fork id. A fork continues a conversation the forker
+ * already chose to share at a specific level; without the copy an
+ * owner-side fork of a full_replay session has no entry, lands at the tag
+ * floor (metadata_only), and teammates get a fork row that can never
+ * replay. A guest has no entry for a teammate's session, so guest forks
+ * keep the privacy default. An explicit OFF override is not share intent
+ * and never copies.
+ */
+export function inheritCloudShareLadderForFork(
+  store: ReturnType<typeof getInstrumentedStore>,
+  orgId: string,
+  sourceSessionId: string,
+  forkSessionId: string
+): void {
+  const byOrg = store.get(org2CloudAccessSettingsAtom);
+  const settings = getCloudOrgAccessSettings(byOrg, orgId);
+  const mode = settings.sessionModes[sourceSessionId];
+  const visibility = settings.sessionVisibility[sourceSessionId];
+  let next = byOrg;
+  if (mode !== undefined && mode !== COLLAB_SESSION_ACCESS_MODE.OFF) {
+    next = withCloudSessionMode(next, orgId, forkSessionId, mode);
+  }
+  if (visibility !== undefined) {
+    next = withCloudSessionVisibility(next, orgId, forkSessionId, visibility);
+  }
+  if (next !== byOrg) store.set(org2CloudAccessSettingsAtom, next);
 }
 
 /**
@@ -174,15 +212,30 @@ export async function forkSession(
   // Full fetch from seq 0, same assembly + validation as the importer. Forks
   // additionally fail closed against the list-row summary: an internally
   // valid tail-only response must not materialize when the row promised a
-  // larger frozen history.
+  // larger frozen history. The summary is a floor, not an exact match — a
+  // LIVE source keeps pushing between the list read and the segment fetch,
+  // so a snapshot that is AHEAD of the summary (owner rewrote to a newer
+  // epoch, or the same epoch grew) is the healthy race, while anything
+  // BEHIND the summary is the truncation this guard exists for.
   const assembled = await fetchAndAssembleSegments(options, 0, [], null);
-  const summaryMatches =
+  const summaryEpoch = remoteSession.eventsEpoch;
+  const summaryFrozenSeq = remoteSession.eventsFrozenSeq ?? 0;
+  const summaryCount = remoteSession.eventsCount;
+  const summaryTailHash = remoteSession.eventsTailHash ?? null;
+  const atSummary =
     assembled !== null &&
-    assembled.epoch === remoteSession.eventsEpoch &&
-    assembled.frozenSeq === (remoteSession.eventsFrozenSeq ?? 0) &&
-    assembled.events.length === remoteSession.eventsCount &&
-    assembled.tailHash === (remoteSession.eventsTailHash ?? null);
-  if (!summaryMatches) {
+    assembled.epoch === summaryEpoch &&
+    assembled.frozenSeq === summaryFrozenSeq &&
+    assembled.events.length === summaryCount &&
+    assembled.tailHash === summaryTailHash;
+  const aheadOfSummary =
+    assembled !== null &&
+    (assembled.epoch > summaryEpoch ||
+      (assembled.epoch === summaryEpoch &&
+        (assembled.frozenSeq > summaryFrozenSeq ||
+          (assembled.frozenSeq === summaryFrozenSeq &&
+            assembled.events.length > summaryCount))));
+  if (!atSummary && !aheadOfSummary) {
     throw new ForkSnapshotIntegrityError(
       FORK_SNAPSHOT_ERROR_KIND.SNAPSHOT_INCOMPLETE,
       `Fork snapshot does not match source summary for ${remoteSession.sourceSessionId}`
@@ -250,11 +303,22 @@ export async function forkSession(
     // filed under the source org so the sidebar org selector lists it; a
     // guest (share-token) fork stays under Personal. Today forks only run in
     // member context (panel fork action), so the guard is future-proofing.
-    orgId: shareToken ? undefined : orgId,
+    // `Session.orgId` is a SELECTOR value (`cloud:<uuid>`), not a bare org
+    // uuid: a bare value fails `parseCloudOrgSelectorValue`, so the share
+    // dialog saw no owning org and never offered link sharing for a fork.
+    orgId: shareToken ? undefined : buildCloudOrgSelectorValue(orgId),
     forkedFrom,
     // Deliberately NO importedFrom: that field marks read-only replay copies
     // and excludes them from push (isSessionPushAllowed).
   });
+  if (!shareToken) {
+    inheritCloudShareLadderForFork(
+      store,
+      orgId,
+      remoteSession.sourceSessionId,
+      localSessionId
+    );
+  }
   persistSessions(store.get(sessionsAtom) as Session[]);
   return {
     localSessionId,

@@ -158,7 +158,11 @@ function formatOne(value: unknown): string {
   }
   if (typeof value === "symbol") return value.toString();
   if (value instanceof Error) {
-    return value.stack || `${value.name}: ${value.message}`;
+    // WebKit stacks omit the message line, so always lead with name+message.
+    const head = `${value.name}: ${value.message}`;
+    return value.stack && !value.stack.startsWith(head)
+      ? `${head}\n${value.stack}`
+      : value.stack || head;
   }
   if (typeof value === "object") {
     try {

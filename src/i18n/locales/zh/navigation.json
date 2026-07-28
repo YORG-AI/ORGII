@@ -791,6 +791,9 @@
       "optionNone": "无最低要求",
       "memberNote": "组织管理员要求至少分享到{{mode}}，因此你不能把会话设得比这更低"
     },
-    "signedInAs": "已登录：{{name}}"
+    "signedInAs": "已登录：{{name}}",
+    "renameDisplayName": "修改显示名",
+    "renameSaved": "显示名已更新",
+    "renameFailed": "显示名更新失败"
   }
 }

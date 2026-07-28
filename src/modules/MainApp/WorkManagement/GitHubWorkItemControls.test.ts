@@ -18,9 +18,9 @@ const linkedIssue: ManagedIssueItem = {
   kind: GITHUB_ITEM_KIND.ISSUE,
   id: 42,
   title: "Fix linked pull request visibility",
-  repo: "yorgai/ORG2",
+  repo: "org2ai/ORG2",
   repoPath: "/workspace/ORG2",
-  remoteUrl: "https://github.com/yorgai/ORG2.git",
+  remoteUrl: "https://github.com/org2ai/ORG2.git",
   viewerLogin: "viewer",
   rawIssue: {
     number: 42,
@@ -28,7 +28,7 @@ const linkedIssue: ManagedIssueItem = {
     body: null,
     state: "open",
     state_reason: null,
-    html_url: "https://github.com/yorgai/ORG2/issues/42",
+    html_url: "https://github.com/org2ai/ORG2/issues/42",
     created_at: "2026-07-21T08:00:00Z",
     updated_at: "2026-07-21T08:10:00Z",
     closed_at: null,
@@ -52,13 +52,13 @@ const draftPr: ManagedPrItem = {
   kind: GITHUB_ITEM_KIND.PR,
   id: 465,
   title: "Consolidate audited workspace refactors",
-  repo: "yorgai/ORG2",
+  repo: "org2ai/ORG2",
   repoId: "repo-1",
   repoPath: "/workspace/ORG2",
-  remoteUrl: "https://github.com/yorgai/ORG2.git",
+  remoteUrl: "https://github.com/org2ai/ORG2.git",
   rawPr: {
     number: 465,
-    url: "https://github.com/yorgai/ORG2/pull/465",
+    url: "https://github.com/org2ai/ORG2/pull/465",
     title: "Consolidate audited workspace refactors",
     state: "open",
     head_branch: "audit-workspace",
@@ -119,9 +119,9 @@ describe("GitHub work-item header controls", () => {
       createElement(RepoFilterPill, {
         options: [
           { key: "all", label: "All repositories" },
-          { key: "yorgai/ORG2", label: "yorgai/ORG2" },
+          { key: "org2ai/ORG2", label: "org2ai/ORG2" },
         ],
-        selectedRepo: "yorgai/ORG2",
+        selectedRepo: "org2ai/ORG2",
         allReposLabel: "All repositories",
         onSelectRepo: vi.fn(),
       })
@@ -129,7 +129,7 @@ describe("GitHub work-item header controls", () => {
 
     expect(markup).toContain("lucide-code-xml");
     expect(markup).toContain(">ORG2<");
-    expect(markup).not.toContain("yorgai/ORG2");
+    expect(markup).not.toContain("org2ai/ORG2");
     expect(markup).toContain("select-ghost");
     expect(markup).toContain("!w-fit shrink-0");
     expect(markup).toContain('style="width:fit-content"');
@@ -140,11 +140,11 @@ describe("GitHub work-item header controls", () => {
       createElement(RepoFilterPill, {
         options: [
           {
-            key: "yorgai/12345678901234567890",
-            label: "yorgai/12345678901234567890",
+            key: "org2ai/12345678901234567890",
+            label: "org2ai/12345678901234567890",
           },
         ],
-        selectedRepo: "yorgai/12345678901234567890",
+        selectedRepo: "org2ai/12345678901234567890",
         allReposLabel: "All repositories",
         onSelectRepo: vi.fn(),
       })

@@ -2,8 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type AgentOrgGroupChatHistoryRow,
+  type AgentOrgInboxPreviewRow,
   getAgentOrgGroupChatHistoryPage,
 } from "@src/api/tauri/agent";
+
+const MAX_HISTORY_GAP_FRONTIERS = 32;
 
 interface AgentOrgGroupChatHistoryState {
   rows: AgentOrgGroupChatHistoryRow[];
@@ -26,6 +29,7 @@ interface HistoryModel {
   error: string | null;
   errorKind: "refresh" | "older" | null;
   continuationFrontiers: HistoryFrontier[];
+  scanThroughLoadedRows: boolean;
 }
 
 interface HistoryFrontier {
@@ -36,6 +40,10 @@ interface HistoryFrontier {
 interface HistoryRequestIdentity {
   scopeKey: string;
   generation: number;
+}
+
+interface HistoryOlderRequestIdentity extends HistoryRequestIdentity {
+  beforeId: number;
 }
 
 function createHistoryModel(
@@ -54,6 +62,7 @@ function createHistoryModel(
     error: null,
     errorKind: null,
     continuationFrontiers: [],
+    scanThroughLoadedRows: false,
   };
 }
 
@@ -82,6 +91,8 @@ function mergeRows(
             ...existing,
             ...row,
             readAt: row.readAt ?? existing.readAt,
+            deliveryResolution:
+              row.deliveryResolution ?? existing.deliveryResolution,
           }
         : row
     );
@@ -130,15 +141,24 @@ function applyRefreshPage(
   // before the gap once an older request overlaps already-loaded rows.
   const adoptsPageFrontier =
     !model.initialized || model.rows.length === 0 || opensNewGap;
-  const continuationFrontiers = opensNewGap
-    ? [
-        ...model.continuationFrontiers,
-        {
-          hasMore: model.hasMore,
-          nextBeforeId: model.nextBeforeId,
-        },
-      ]
-    : model.continuationFrontiers;
+  const frontierLimitReached =
+    opensNewGap &&
+    !model.scanThroughLoadedRows &&
+    model.continuationFrontiers.length >= MAX_HISTORY_GAP_FRONTIERS;
+  // Extremely fragmented histories fall back to walking the server cursor to
+  // the end. That may refetch bounded pages, but cannot skip rows or grow this
+  // client-side continuation stack without limit.
+  const continuationFrontiers = frontierLimitReached
+    ? []
+    : opensNewGap && !model.scanThroughLoadedRows
+      ? [
+          ...model.continuationFrontiers,
+          {
+            hasMore: model.hasMore,
+            nextBeforeId: model.nextBeforeId,
+          },
+        ]
+      : model.continuationFrontiers;
   return {
     ...model,
     rows: mergeRows(model.rows, page.rows),
@@ -151,6 +171,7 @@ function applyRefreshPage(
     error: model.errorKind === "refresh" ? null : model.error,
     errorKind: model.errorKind === "refresh" ? null : model.errorKind,
     continuationFrontiers,
+    scanThroughLoadedRows: model.scanThroughLoadedRows || frontierLimitReached,
   };
 }
 
@@ -169,7 +190,7 @@ function beginLoadOlder(
 
 function applyOlderPage(
   model: HistoryModel,
-  request: HistoryRequestIdentity,
+  request: HistoryOlderRequestIdentity,
   page: {
     rows: AgentOrgGroupChatHistoryRow[];
     hasMore: boolean;
@@ -177,13 +198,27 @@ function applyOlderPage(
   }
 ): HistoryModel {
   if (!requestMatches(model, request)) return model;
+  if (model.nextBeforeId !== request.beforeId) {
+    // A refresh landed while this page was in flight and adopted a newer
+    // frontier past a gap. That cursor supersedes this page's: keep the rows,
+    // but let the gap walk own pagination — it re-reaches them by overlap.
+    return {
+      ...model,
+      rows: mergeRows(model.rows, page.rows),
+      loadingOlder: false,
+      error: model.errorKind === "older" ? null : model.error,
+      errorKind: model.errorKind === "older" ? null : model.errorKind,
+    };
+  }
   const existingIds = new Set(model.rows.map((row) => row.inboxId));
   const overlapsLoadedRows = page.rows.some((row) =>
     existingIds.has(row.inboxId)
   );
   const continuationFrontiers = [...model.continuationFrontiers];
   const resumedFrontier =
-    overlapsLoadedRows && continuationFrontiers.length > 0
+    !model.scanThroughLoadedRows &&
+    overlapsLoadedRows &&
+    continuationFrontiers.length > 0
       ? continuationFrontiers.pop()
       : undefined;
   return {
@@ -198,6 +233,7 @@ function applyOlderPage(
     error: model.errorKind === "older" ? null : model.error,
     errorKind: model.errorKind === "older" ? null : model.errorKind,
     continuationFrontiers,
+    scanThroughLoadedRows: model.scanThroughLoadedRows && page.hasMore,
   };
 }
 
@@ -215,6 +251,27 @@ function applyRequestFailure(
     error,
     errorKind: requestKind,
   };
+}
+
+export function isGroupChatDeliveryResolved(
+  inboxId: number,
+  historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow>
+): boolean {
+  return historyRows.some(
+    (row) => row.inboxId === inboxId && Boolean(row.deliveryResolution)
+  );
+}
+
+export function isGroupChatPendingDeliverySettled(
+  inboxId: number,
+  previewRow: AgentOrgInboxPreviewRow | undefined,
+  historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow>
+): boolean {
+  return Boolean(
+    (previewRow?.readAt && previewRow.readAt.trim()) ||
+    previewRow?.deliveryResolution ||
+    isGroupChatDeliveryResolved(inboxId, historyRows)
+  );
 }
 
 /**
@@ -306,8 +363,9 @@ export function useAgentOrgGroupChatHistory(
     const request = {
       scopeKey,
       generation: generationRef.current,
-    } satisfies HistoryRequestIdentity;
-    const beforeId = visibleModel.nextBeforeId;
+      beforeId: visibleModel.nextBeforeId,
+    } satisfies HistoryOlderRequestIdentity;
+    const beforeId = request.beforeId;
     loadOlderInFlightRef.current = true;
     setModel((current) => beginLoadOlder(current, request));
     try {
@@ -370,4 +428,6 @@ export const agentOrgGroupChatHistoryTestApi = {
   beginLoadOlder,
   applyOlderPage,
   applyRequestFailure,
+  isGroupChatDeliveryResolved,
+  isGroupChatPendingDeliverySettled,
 };

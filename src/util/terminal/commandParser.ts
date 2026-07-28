@@ -93,12 +93,12 @@ interface Frame {
   pendingRedirectTarget: boolean;
 }
 
-interface OperatorSpan {
+export interface OperatorSpan {
   index: number;
   length: number;
 }
 
-interface CommandScan {
+export interface CommandScan {
   /** First token of each sub-command, in order, un-deduped. */
   executables: string[];
   /** Offsets of the top-level `&&` / `||` / `|` / `;` / `&` operators. */
@@ -144,8 +144,12 @@ function cleanExecutableToken(token: string): string {
  * is scoped: a `|` in there belongs to that scope, not to the outer command.
  * Command substitutions are still descended into — `f=$(ls -t | head -1)`
  * really does run `ls` and `head`, and those are the useful labels.
+ *
+ * Exported for consumers that need the structural view of a command (e.g.
+ * `searchCommandParser` deciding whether a shell command is a pure grep
+ * pipeline) — everything else should use the higher-level helpers below.
  */
-function scanCommand(commandText: string): CommandScan {
+export function scanCommand(commandText: string): CommandScan {
   const executables: string[] = [];
   const operators: OperatorSpan[] = [];
   const stack: Frame[] = [createFrame(null, true)];

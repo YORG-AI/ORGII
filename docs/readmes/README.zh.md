@@ -1,23 +1,23 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>开源的 Cursor 风格 Agent IDE——但它为可审查性、可追踪性和创作自由而构建，而不只是为了更快写代码。</strong></p>
+  <p><strong>记录 Agent 如何构建软件的系统（System of Record）。<br />运行你的编程 Agent——回放任意会话、与团队一起审查，并把每一行代码追溯到它背后的决策。</strong></p>
   <p>基于 Rust 和 Tauri 构建，面向 local-first 执行，磁盘占用低于 100MB。支持 Agent 轨迹直播和回放，易于跟踪和审查。</p>
 </div>
 
 ---
 
 <p align="center">
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg"><strong>macOS Apple Silicon</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe"><strong>Windows installer</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi"><strong>Windows MSI</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage"><strong>Linux AppImage</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb"><strong>Linux DEB</strong></a>
   ·
-  <a href="https://github.com/yorgai/ORG2/releases/latest"><strong>All latest release assets</strong></a>
+  <a href="https://github.com/org2AI/ORG2/releases/latest"><strong>All latest release assets</strong></a>
 </p>
 
 ---
@@ -30,9 +30,11 @@
   <video src="https://github.com/user-attachments/assets/bd4833d2-4cc4-4971-9805-84529b14d01a" controls width="720"></video>
 </p>
 
-它不只是另一个 AI 编程工具；它是一次关于人类/Agent 组织以及组织级对齐的实验。Agent 正在变得更强，但协作、可观测性、结构化流程和共享责任并没有同步提升——在某些情况下甚至变得更差。Cursor、Claude Code 和类似工具通常把 Agent 当作外包助手：它们对产出很有帮助，但很难在系统层面进行审计、协调、对齐或演进。
+要回答一段代码为什么存在、以及它是否真的奏效，一直都需要手动把多个系统拼接起来。Jira 只看得到工单。Codex 只看得到自己的会话。GitHub 只看得到提交的代码行。Amplitude 只看得到指标。当代码由人类编写时，这还勉强撑得住；在 Agent 的速度下则不然：周一写的代码，到周五就成了遗留代码。
 
-ORG-II 探索另一种模式：把 Agent 视为结构化组织中持久、可观测的同事。它不是无状态、难以审查的 AI IDE 会话，而是引入可回放的 Agent 执行、跨会话记忆、AI blame，以及 local-first 的 Rust runtime，让人类、Agent 和团队能够围绕共享上下文与对齐目标协作。
+ORG-2 就是你的团队运行编程 Agent 的地方——内置原生 Rust harness，外加 20+ 个 Agent CLI 的启动器——并自动构建这份记录。每个会话都会成为一条可以像视频一样回放的轨迹，队友据此审查工作究竟是如何完成的，而不只是看最终 diff，并在上下文中留下评论。在其他工具里运行的会话也会被接入，并从它们的历史中回填，因此这份记录同样覆盖从未经过本应用的工作。记录把人类提出的要求、Agent 的理解、以及它实际做了什么链接在一起，因此任何上线的代码行都能追溯到写下它的那次会话。
+
+它不只是另一个 AI 编程工具；它是一次关于人类/Agent 组织以及组织级对齐的实验。ORG-II 把 Agent 视为结构化组织中持久、可观测的同事——可回放的执行、跨会话记忆、AI blame，以及 local-first 的 Rust runtime，让人类、Agent 和团队能够围绕共享上下文与对齐目标协作。
 
 ## 功能
 
@@ -104,12 +106,12 @@ ORG-II 探索另一种模式：把 Agent 视为结构化组织中持久、可观
 
 一键下载最新 ORGII 桌面应用：
 
-- [macOS Apple Silicon](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
-- [Windows x64 安装程序](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
-- [Windows x64 MSI](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
-- [Linux x64 AppImage](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
-- [Linux x64 DEB](https://github.com/yorgai/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
-- [最新版本的所有资源](https://github.com/yorgai/ORG2/releases/latest)
+- [macOS Apple Silicon](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-mac-apple-silicon.dmg)
+- [Windows x64 安装程序](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64-setup.exe)
+- [Windows x64 MSI](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-windows-x64.msi)
+- [Linux x64 AppImage](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.AppImage)
+- [Linux x64 DEB](https://github.com/org2AI/ORG2/releases/latest/download/ORG2-latest-linux-x64.deb)
+- [最新版本的所有资源](https://github.com/org2AI/ORG2/releases/latest)
 
 直接下载链接始终指向 GitHub 的最新版本。
 
@@ -141,7 +143,7 @@ Computer Use 目前仅支持 macOS。Browser Use 可在受支持平台上使用 
 有任何问题、反馈，或想关注 ORG-2 的发展吗？欢迎加入 Discord：
 
 👉 **Discord：[discord.gg/tvWgAqhCzs](https://discord.gg/tvWgAqhCzs)**
-👉 **WeChat：[https://github.com/yorgai/ORG2/issues/128]**
+👉 **WeChat：[https://github.com/org2AI/ORG2/issues/128]**
 
 - **#how-to-use-org2** 和 **#faq** — 快速开始使用
 - **#announcement** — 版本新闻和更新

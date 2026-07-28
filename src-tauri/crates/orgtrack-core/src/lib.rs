@@ -13,6 +13,7 @@ mod edit_extraction_tests;
 pub mod hook_adapter;
 pub mod policy;
 pub mod pricing;
+pub mod profile;
 pub mod privacy;
 pub mod projectors;
 pub mod repo_sync;

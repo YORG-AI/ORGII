@@ -291,11 +291,11 @@ describe("storage segment offload (0006)", () => {
     expect(uploadUrl).toBe(
       `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/storage/v1/object/replay/${path}`
     );
-    expect(uploadInit.method).toBe("PUT");
+    expect(uploadInit.method).toBe("POST");
     const uploadHeaders = uploadInit.headers as Record<string, string>;
     expect(uploadHeaders.authorization).toBe("Bearer jwt-1");
     expect(uploadHeaders["content-type"]).toBe("application/gzip");
-    expect(uploadHeaders["x-upsert"]).toBe("true");
+    expect(uploadHeaders["x-upsert"]).toBeUndefined();
     expect(
       await decodeSegmentEventsFromBytes(uploadInit.body as Uint8Array)
     ).toEqual(frozen);

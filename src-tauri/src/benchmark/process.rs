@@ -199,13 +199,16 @@ pub(super) async fn terminate_process(process_id: u32) -> Result<(), String> {
         .await;
 
     #[cfg(windows)]
-    let output = Command::new("taskkill")
-        .arg("/PID")
-        .arg(process_id.to_string())
-        .arg("/T")
-        .arg("/F")
-        .output()
-        .await;
+    let output = {
+        let mut cmd = Command::new("taskkill");
+        cmd.arg("/PID")
+            .arg(process_id.to_string())
+            .arg("/T")
+            .arg("/F");
+        // Suppress the console window on Windows.
+        cmd.creation_flags(app_platform::CREATE_NO_WINDOW);
+        cmd.output().await
+    };
 
     let output =
         output.map_err(|error| format!("Failed to terminate process {process_id}: {error}"))?;

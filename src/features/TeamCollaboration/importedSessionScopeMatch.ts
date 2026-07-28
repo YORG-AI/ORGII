@@ -9,18 +9,24 @@ import {
 
 type MatchableSession = Pick<
   Session,
-  "session_id" | "repoPath" | "repoRemoteUrls"
+  "session_id" | "repoPath" | "repoRemoteUrls" | "parentSessionId"
 >;
 
 /**
  * Persisted repo scope keys for imported history. `undefined` means the
  * session is not imported; `null` means it is imported but has no cached
- * shareable remote.
+ * shareable remote — or is a spawned CHILD (subagent transcript), which is
+ * a rendering detail of its parent, never an independently shareable unit.
+ * Without the child exclusion every subagent transcript in a scoped
+ * checkout auto-published as its own top-level team session, flooding the
+ * team list with prompt-titled rows no fold can reclaim (the cloud row
+ * carries no parent linkage).
  */
 export function persistedScopeKeysForImportedSession(
   session: MatchableSession
 ): string[] | null | undefined {
   if (!isImportedHistorySession(session.session_id)) return undefined;
+  if (session.parentSessionId) return null;
   return shareableScopeKeysFromRemoteUrls(session.repoRemoteUrls);
 }
 

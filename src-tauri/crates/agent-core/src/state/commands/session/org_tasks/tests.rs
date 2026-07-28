@@ -173,6 +173,7 @@ fn run_phase_projects_all_completed_running_board_as_finalizing() {
         pending: 0,
         in_progress: 0,
         completed: 1,
+        corrupt: 0,
         visible: 1,
         truncated: false,
     };
@@ -189,6 +190,7 @@ fn run_phase_projects_all_completed_running_board_as_finalizing() {
                 pending: 0,
                 in_progress: 0,
                 completed: 0,
+                corrupt: 0,
                 visible: 0,
                 truncated: false,
             },
@@ -261,6 +263,7 @@ fn run_view_inbox_preview_omits_durable_payload_json() {
         request_id: None,
         created_at: "2026-05-28T00:00:00Z".to_string(),
         read_at: None,
+        delivery_resolution: None,
         recipient_name: "Alice".to_string(),
         sender_name: "User".to_string(),
         display_text: "hello".to_string(),
@@ -287,6 +290,7 @@ fn run_phase_projects_quiet_user_plan_gate_as_awaiting_approval() {
         pending: 0,
         in_progress: 1,
         completed: 0,
+        corrupt: 0,
         visible: 1,
         truncated: false,
     };

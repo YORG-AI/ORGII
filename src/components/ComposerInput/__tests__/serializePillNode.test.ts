@@ -74,12 +74,12 @@ describe("serializePillNode", () => {
 
   it("preserves a pasted GitHub pull URL in its PR pill token", () => {
     const serialized = serializePillNode({
-      filePath: "https://github.com/yorgai/ORG2/pull/406",
-      fileName: "yorgai/ORG2#406",
+      filePath: "https://github.com/org2ai/ORG2/pull/406",
+      fileName: "org2ai/ORG2#406",
       iconType: "pr",
     });
     expect(serialized).toBe(
-      "yorgai/ORG2#406 [pr:https://github.com/yorgai/ORG2/pull/406]"
+      "org2ai/ORG2#406 [pr:https://github.com/org2ai/ORG2/pull/406]"
     );
   });
 

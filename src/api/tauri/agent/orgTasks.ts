@@ -125,6 +125,7 @@ export interface AgentOrgRunTaskOverview {
   pending: number;
   inProgress: number;
   completed: number;
+  corrupt: number;
   visible: number;
   truncated: boolean;
 }
@@ -250,6 +251,7 @@ export interface AgentOrgInboxPreviewRow {
   requestId?: string | null;
   createdAt: string;
   readAt?: string | null;
+  deliveryResolution?: "cancelled" | "superseded" | null;
 }
 
 export interface AgentOrgInboxRuntimeRow extends AgentOrgInboxPreviewRow {
@@ -265,6 +267,7 @@ export interface AgentOrgGroupChatHistoryRow {
   displayText: string;
   createdAt: string;
   readAt?: string | null;
+  deliveryResolution?: "cancelled" | "superseded" | null;
 }
 
 export interface AgentOrgGroupChatHistoryPage {
