@@ -9,6 +9,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { VirtualizedListBase } from "@src/components/TreeRow";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 
 import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
 import type { ChangedFileRow } from "./sessionViewProjections";
@@ -28,7 +29,9 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
     const { t } = useTranslation("sessions");
     return (
       <div
-        className="flex h-[34px] items-center gap-2 px-3 text-xs"
+        // Same 900px cap the transcript rows use, so switching views does not
+        // change how wide the session reads.
+        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
         data-testid="session-changes-row"
         data-path={row.path}
       >

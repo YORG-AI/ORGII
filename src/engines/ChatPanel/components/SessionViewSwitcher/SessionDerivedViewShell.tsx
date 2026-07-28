@@ -5,6 +5,8 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+
 export interface SessionDerivedViewShellProps {
   testId: string;
   loading: boolean;
@@ -61,8 +63,14 @@ export const SessionDerivedViewShell: React.FC<SessionDerivedViewShellProps> =
         data-testid={testId}
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <div className="flex h-8 shrink-0 items-center justify-end border-b border-border-2 px-3 text-xs text-text-3">
-          {summary}
+        <div className="shrink-0 border-b border-border-2">
+          {/* Capped to the same 900px as the rows below, so the stats sit over
+              the right edge of the content rather than the panel. */}
+          <div
+            className={`flex h-8 items-center justify-end px-3 text-xs text-text-3 ${DETAIL_PANEL_TOKENS.contentWidth}`}
+          >
+            {summary}
+          </div>
         </div>
         <div className="min-h-0 flex-1">{children}</div>
       </div>

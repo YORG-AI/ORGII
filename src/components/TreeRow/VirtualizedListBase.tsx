@@ -70,6 +70,28 @@ export interface VirtualizedListBaseProps<T> {
   onScrollPositionChange?: (scrollTop: number) => void;
 }
 
+/**
+ * Resolve Virtuoso's `initialTopMostItemIndex` from a saved scroll offset.
+ *
+ * MUST return a number, never `undefined`. Virtuoso normalizes this prop with
+ *
+ *   const e = typeof t === "number" ? { index: t } : t;
+ *   e.align || (e.align = "start");
+ *
+ * so an explicit `undefined` is not treated as "prop absent" — it falls into
+ * the object branch and throws `undefined is not an object (evaluating
+ * 'e.align')` on mount. 0 is the prop's own default and the correct "start at
+ * the top" value.
+ */
+export function resolveInitialTopMostItemIndex(
+  initialScrollTop: number,
+  itemHeight: number
+): number {
+  if (!Number.isFinite(initialScrollTop) || initialScrollTop <= 0) return 0;
+  if (!Number.isFinite(itemHeight) || itemHeight <= 0) return 0;
+  return Math.max(0, Math.floor(initialScrollTop / itemHeight));
+}
+
 // ============================================
 // Component
 // ============================================
@@ -308,8 +330,10 @@ function VirtualizedListBaseInner<T>(
   }
 
   // Calculate initial item index from scroll position for more reliable restoration
-  const initialItemIndex =
-    initialScrollTop > 0 ? Math.floor(initialScrollTop / itemHeight) : 0;
+  const initialItemIndex = resolveInitialTopMostItemIndex(
+    initialScrollTop,
+    itemHeight
+  );
 
   return (
     <Virtuoso
@@ -325,10 +349,9 @@ function VirtualizedListBaseInner<T>(
       followOutput={followOutput}
       style={paddingTop ? { paddingTop } : undefined}
       // Use initialTopMostItemIndex for reliable scroll restoration on mount
-      // This is more reliable than trying to set scrollTop after render
-      initialTopMostItemIndex={
-        initialItemIndex > 0 ? initialItemIndex : undefined
-      }
+      // This is more reliable than trying to set scrollTop after render.
+      // Always a number — see resolveInitialTopMostItemIndex.
+      initialTopMostItemIndex={initialItemIndex}
     />
   );
 }
