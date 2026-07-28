@@ -259,6 +259,46 @@ impl SessionEvent {
             self.recompute_extracted();
         }
     }
+
+    /// Content equality for no-op detection on re-ingest paths (imported
+    /// history refresh re-normalizes the same transcript every tick).
+    ///
+    /// Ignores `extracted` (derived from `args`/`result`; the stored copy may
+    /// be fresher than a just-normalized incoming one and keeping it is
+    /// strictly better than replacing) and `last_extract_at` (volatile
+    /// monotonic stamp, never serialized). Replay state IS compared, so merge
+    /// callers must reconcile it first (`preserve_first_insert_replay`) or the
+    /// check will conservatively report a difference.
+    ///
+    /// Cheap scalar fields are compared before the potentially large
+    /// `args`/`result` payloads so mismatches bail early.
+    pub fn content_eq(&self, other: &Self) -> bool {
+        self.id == other.id
+            && self.chunk_id == other.chunk_id
+            && self.session_id == other.session_id
+            && self.created_at == other.created_at
+            && self.function_name == other.function_name
+            && self.ui_canonical == other.ui_canonical
+            && self.action_type == other.action_type
+            && self.source == other.source
+            && self.display_status == other.display_status
+            && self.display_variant == other.display_variant
+            && self.activity_status == other.activity_status
+            && self.thread_id == other.thread_id
+            && self.process_id == other.process_id
+            && self.call_id == other.call_id
+            && self.file_path == other.file_path
+            && self.command == other.command
+            && self.is_delta == other.is_delta
+            && self.repo_id == other.repo_id
+            && self.repo_path == other.repo_path
+            && self.display_text == other.display_text
+            && self.payload_refs == other.payload_refs
+            && self.shell_replay == other.shell_replay
+            && self.shell_replay_bookmarks == other.shell_replay_bookmarks
+            && self.args == other.args
+            && self.result == other.result
+    }
 }
 
 // ============================================

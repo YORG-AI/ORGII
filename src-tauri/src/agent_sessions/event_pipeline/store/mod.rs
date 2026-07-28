@@ -451,6 +451,17 @@ impl EventStore {
         (base_version, changed_ids, removed_ids)
     }
 
+    /// True when anything happened since the last emitted snapshot (full or
+    /// delta). When false, a delta emit would carry zero upserts and identical
+    /// index arrays — pure churn for the frontend and projection worker — so
+    /// `emit_snapshot` skips it. Reorder-only mutations still bump `version`
+    /// and therefore still emit.
+    pub fn has_pending_delta(&self) -> bool {
+        self.version != self.last_full_snapshot_version
+            || !self.changed_ids.is_empty()
+            || !self.removed_ids.is_empty()
+    }
+
     // -------------------------------------------------------------------------
     // Streaming / hydration mode
     // -------------------------------------------------------------------------

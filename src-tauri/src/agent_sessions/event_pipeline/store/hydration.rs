@@ -46,6 +46,22 @@ impl EventStore {
         for event in &mut events {
             hydrate_shell_event_bounded(event);
         }
+        // Windowed imported-history refresh calls `es_set` with a freshly
+        // re-normalized copy of the same window every settled tick. When the
+        // replacement is content-identical to what the store already holds,
+        // replacing anyway would reset `last_full_snapshot_version` and force
+        // a full snapshot rebuild + re-emit + worker re-clone of an unchanged
+        // transcript. Detect that and keep the store untouched.
+        if self.hydration_mode == hydration_mode
+            && self.events.len() == events.len()
+            && self
+                .events
+                .iter()
+                .zip(events.iter())
+                .all(|(current, incoming)| current.content_eq(incoming))
+        {
+            return;
+        }
         self.events = events;
         self.hydration_mode = hydration_mode;
         self.cap_events();
@@ -236,6 +252,12 @@ impl EventStore {
                     continue;
                 }
                 preserve_first_insert_replay(&self.events[idx], &mut event);
+                // Imported-history refresh re-normalizes the whole transcript
+                // every tick; a byte-identical event must not churn indexes,
+                // mark_changed, or the downstream snapshot/worker pipeline.
+                if self.events[idx].content_eq(&event) {
+                    continue;
+                }
                 if let Some(ref old_cid) = self.events[idx].call_id {
                     self.call_id_index.remove(old_cid);
                 }

@@ -27,6 +27,10 @@ const CODEX_PROVIDER_SLUG: &str = "codex";
 const CODEX_EMBEDDED_IMAGE_MARKER: &str = "\"image_url\":\"data:image/";
 const CODEX_OMITTED_IMAGE_VALUE: &str = "[embedded image omitted]";
 const CODEX_TURN_OFFSET_CACHE_CAPACITY: usize = 8;
+/// Multi-call groups with ambiguous output attribution duplicate the shared
+/// output per call only up to this size (keeps small status/error lines on
+/// every row); larger outputs go to the final call alone (#443).
+const AMBIGUOUS_GROUP_SHARED_OUTPUT_MAX_BYTES: usize = 4 * 1024;
 const CODEX_TURN_OFFSET_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_TURN_LIMIT: usize = 4_096;
 const CODEX_REVERSE_SCAN_BLOCK_BYTES: usize = 256 * 1024;
@@ -419,10 +423,15 @@ pub fn load_codex_app_initial_window_from_path(
 ) -> Result<CodexAppInitialWindow, String> {
     let signature_before = codex_transcript_file_signature(path)?;
     let recent_turn_count = recent_turn_count.clamp(1, CODEX_INITIAL_TURN_LIMIT);
+    // Collect EVERY turn offset (bounded by CODEX_INITIAL_TURN_LIMIT), not
+    // just the hydrated tail plus one: the initial window must carry a
+    // user-bubble + placeholder pair for each older round so a 100-round
+    // session opens with its full skeleton visible, mirroring cursor_ide
+    // (#443 — previously only the last 2 rounds reached the frontend).
     let recent_offsets = find_recent_codex_user_offsets(
         path,
         signature_before.size_bytes,
-        recent_turn_count.saturating_add(1),
+        CODEX_INITIAL_TURN_LIMIT,
     )?;
     if !recent_offsets.is_empty() {
         let window = load_codex_app_initial_tail_window(
@@ -540,13 +549,17 @@ fn load_codex_app_initial_tail_window(
     let mut chunks = Vec::new();
     let mut turns = Vec::new();
 
-    if body_start > 0 {
-        let placeholder_offset = ascending_offsets[body_start - 1];
+    // Every turn before the hydrated tail contributes its user bubble plus a
+    // collapsed unloaded-turn placeholder. Each header read is one bounded
+    // seek+probe, so this scales with turn count, not file size; the existing
+    // turn loader hydrates any of these on click/page-navigation via the byte
+    // offset encoded in the lazy turn id.
+    for (index, placeholder_offset) in ascending_offsets[..body_start].iter().enumerate() {
         if let Some((user_chunk, summary)) =
-            load_codex_turn_header(session_id, path, placeholder_offset)?
+            load_codex_turn_header(session_id, path, *placeholder_offset)?
         {
             let next_turn_id = ascending_offsets
-                .get(body_start)
+                .get(index + 1)
                 .copied()
                 .map(codex_lazy_turn_id);
             chunks.push(user_chunk);
@@ -795,6 +808,16 @@ fn load_codex_app_from_path_with_mode<'a>(
             break;
         }
         next_byte_offset = next_byte_offset.saturating_add(bytes_read as u64);
+        if line.trim().is_empty() {
+            continue;
+        }
+        // Cheap pre-parse probe: `compacted` context snapshots dominate large
+        // rollouts (65% of a real 335 MB fixture) and token/image events are
+        // transcript-inert; previously each was fully parsed into a
+        // serde_json::Value tree and then dropped by the dispatch below (#443).
+        if codex_line_is_transcript_inert(line.trim()) {
+            continue;
+        }
         strip_ignored_embedded_images(&mut line);
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -1437,6 +1460,59 @@ fn wait_cell_id(calls: &[ImportedToolCall]) -> Option<&str> {
     call.args.get("cell_id").and_then(Value::as_str)
 }
 
+/// Outer line types that can never contribute transcript chunks. `compacted`
+/// re-embeds the whole prior context (65.7% of a real 335 MB rollout — 81
+/// lines totaling 231 MB) and `session_meta` repeats the session header; the
+/// dispatch already dropped both, but only after building a full payload tree.
+const CODEX_INERT_LINE_TYPES: &[&str] = &["compacted", "session_meta"];
+
+/// Payload types with no dispatch arm whose lines can be heavy: `token_count`
+/// arrives every few seconds, and `image_generation_end` inlines the whole
+/// base64 image (~2.8 MB each; 90 MB of one real 174 MB rollout).
+const CODEX_INERT_PAYLOAD_TYPES: &[&str] = &["token_count", "image_generation_end"];
+
+#[derive(serde::Deserialize)]
+struct CodexLineProbe<'a> {
+    #[serde(default, rename = "type", borrow)]
+    line_type: Option<&'a str>,
+    #[serde(default, borrow)]
+    payload: Option<&'a serde_json::value::RawValue>,
+}
+
+#[derive(serde::Deserialize)]
+struct CodexPayloadTypeProbe<'a> {
+    #[serde(default, rename = "type", borrow)]
+    payload_type: Option<&'a str>,
+}
+
+/// Decide whether a JSONL line is transcript-inert WITHOUT building a
+/// `serde_json::Value` of its payload: the probe borrows straight from the
+/// line buffer and `RawValue` records the payload span instead of
+/// materializing it. Conservative on any parse ambiguity (escaped type
+/// strings, malformed JSON): returns false and lets the normal parse decide,
+/// so behavior is byte-identical to the old path for everything not on the
+/// two skip lists.
+pub(crate) fn codex_line_is_transcript_inert(trimmed: &str) -> bool {
+    let Ok(probe) = serde_json::from_str::<CodexLineProbe>(trimmed) else {
+        return false;
+    };
+    if let Some(line_type) = probe.line_type {
+        if CODEX_INERT_LINE_TYPES.contains(&line_type) {
+            return true;
+        }
+    }
+    let Some(payload) = probe.payload else {
+        return false;
+    };
+    let Ok(payload_probe) = serde_json::from_str::<CodexPayloadTypeProbe>(payload.get()) else {
+        return false;
+    };
+    matches!(
+        payload_probe.payload_type,
+        Some(payload_type) if CODEX_INERT_PAYLOAD_TYPES.contains(&payload_type)
+    )
+}
+
 fn codex_tool_call_chunk(
     session_id: &str,
     sequence: usize,
@@ -1448,7 +1524,9 @@ fn codex_tool_call_chunk(
         imported_history::tool_call_chunk(session_id, CODEX_PROVIDER_SLUG, sequence, call, output);
     if call.canonical_name == imported_history::FUNCTION_CODE_SEARCH {
         if let Some(result) = chunk.result.as_object_mut() {
-            result.insert("content".to_string(), Value::String(output.to_string()));
+            // `matches` is load-bearing (sole source of the structured search
+            // card); the former raw-text `content` mirror was a third full
+            // copy of `output` that no reader needed (#443).
             let matches = parse_rg_output_matches(output)
                 .into_iter()
                 .map(|(file, line, content)| {
@@ -1472,12 +1550,15 @@ fn codex_tool_call_chunk(
             result.insert("success".to_string(), Value::Bool(false));
             result.insert("status".to_string(), Value::String("failed".to_string()));
             result.insert("is_error".to_string(), Value::Bool(true));
+            // The `failure` object's presence drives isFailure in the shell
+            // extractors; its former `stderr` field was a full duplicate of
+            // `output` that every reader shadows with `output` anyway (#443).
+            // Omitting the key (rather than writing "") lets the ?.stderr
+            // readers fall through their `output` chain.
             result.insert(
                 "failure".to_string(),
                 json!({
                     "command": call.args.get("command").and_then(Value::as_str).unwrap_or_default(),
-                    "stdout": "",
-                    "stderr": output,
                     "exitCode": exit_code,
                 }),
             );
@@ -1500,7 +1581,18 @@ pub(crate) fn output_parts_for_tool_calls(calls: &[ImportedToolCall], output: &s
         .map(read_line_limit_from_call)
         .collect::<Option<Vec<_>>>();
     let Some(limits) = bounded_prefix_limits else {
-        return vec![output.to_string(); calls.len()];
+        // Attribution is ambiguous when the prefix isn't all bounded reads.
+        // Small outputs (status / error lines like "command timed out") stay
+        // per-call so every failed row still shows its reason. Large outputs
+        // follow the bounded-path semantic — the final tool receives the
+        // remainder — instead of N full copies, which multiplied a 2 MB
+        // output by the group size on every parse (#443).
+        if output.len() <= AMBIGUOUS_GROUP_SHARED_OUTPUT_MAX_BYTES {
+            return vec![output.to_string(); calls.len()];
+        }
+        let mut parts = vec![String::new(); calls.len() - 1];
+        parts.push(output.to_string());
+        return parts;
     };
 
     let lines = output.split_inclusive('\n').collect::<Vec<_>>();

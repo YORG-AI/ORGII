@@ -61,6 +61,11 @@ impl EventStore {
                 return;
             }
             preserve_first_insert_replay(&self.events[idx], &mut event);
+            // Byte-identical re-upsert (e.g. imported-history re-ingest):
+            // skip the churn so no spurious changed-id reaches the snapshot.
+            if self.events[idx].content_eq(&event) {
+                return;
+            }
             if let Some(ref old_cid) = self.events[idx].call_id {
                 self.call_id_index.remove(old_cid);
             }

@@ -117,6 +117,7 @@ pub(super) fn normalized_result_object(
         .get("content")
         .and_then(parse_json_object_string)
         .or_else(|| result.get("observation").and_then(parse_json_object_string))
+        .or_else(|| result.get("output").and_then(parse_json_object_string))
         .unwrap_or_else(|| result.clone())
 }
 

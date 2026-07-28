@@ -116,6 +116,7 @@ pub(crate) fn extract_text(value: &serde_json::Value) -> Option<String> {
                 "content",
                 "text",
                 "observation",
+                "output",
                 "cmd",
                 "command",
                 "body",

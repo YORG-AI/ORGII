@@ -103,7 +103,11 @@ mod streaming_snapshot_delta_tests {
         store.mark_full_snapshot_emitted();
         store.set_streaming(true);
 
-        store.upsert(test_event("event-050", "2026-07-22T00:00:50.000Z"));
+        // A content-identical re-upsert is a no-op (#443); the event must
+        // actually differ to count as changed.
+        let mut updated = test_event("event-050", "2026-07-22T00:00:50.000Z");
+        updated.display_text = "event-050 (edited)".to_string();
+        store.upsert(updated);
         store.append(vec![test_event("event-100", "2026-07-22T00:01:40.000Z")]);
 
         let delta = build_streaming_snapshot_delta(&mut store);
@@ -119,6 +123,9 @@ mod streaming_snapshot_delta_tests {
         assert!(delta.chat_event_ids.is_empty());
         assert!(delta.sorted_simulator_event_ids.is_empty());
 
+        // Re-upserting an event whose content already matches the store must
+        // not surface as a new delta (#443 no-op detection).
+        store.upsert(test_event("event-100", "2026-07-22T00:01:40.000Z"));
         let no_op = build_streaming_snapshot_delta(&mut store);
         assert_eq!(no_op.base_version, delta.version);
         assert!(no_op.upserts.is_empty());

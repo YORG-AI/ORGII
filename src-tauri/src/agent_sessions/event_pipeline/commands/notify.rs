@@ -163,6 +163,14 @@ fn emit_snapshot(app: &AppHandle, state: &EventStoreState, session_id: &str) {
         return;
     }
 
+    // A no-op refresh (e.g. imported-history tick whose re-ingest was
+    // content-identical) leaves no pending delta; emitting would ship zero
+    // upserts plus full id/index arrays and trigger a pointless projection
+    // pass on the frontend.
+    if !store.has_pending_delta() {
+        return;
+    }
+
     let version = store.version();
     let event_count = store.event_count();
     let (base_version, changed_ids, removed_ids) = store.take_delta_tracking();

@@ -48,8 +48,9 @@ pub(crate) use meta::{parse_codex_session_meta, parse_codex_session_meta_increme
 pub(crate) use serde_json::json;
 #[cfg(test)]
 pub(crate) use transcript::{
-    output_parts_for_tool_calls, pending_custom_tool_calls_from_payload,
-    strip_ignored_embedded_images, user_message_from_payload,
+    codex_line_is_transcript_inert, output_parts_for_tool_calls,
+    pending_custom_tool_calls_from_payload, strip_ignored_embedded_images,
+    user_message_from_payload,
 };
 
 // v9: derive impact from authoritative `patch_apply_end` events (structured

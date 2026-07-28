@@ -110,7 +110,8 @@ pub(super) fn extract_glob(
     if files.is_empty() {
         let text_content = result
             .and_then(|r| obj_str(r, "content"))
-            .or_else(|| result.and_then(|r| obj_str(r, "observation")));
+            .or_else(|| result.and_then(|r| obj_str(r, "observation")))
+            .or_else(|| result.and_then(|r| obj_str(r, "output")));
         if let Some(text) = text_content {
             for line in text.split('\n') {
                 let trimmed = line.trim();
@@ -335,9 +336,21 @@ pub(super) fn extract_list_dir(
             }
         }
     }
+    // Imported-history tool chunks carry their text in a string `output`
+    // (the array-only filter above skips it deliberately).
+    if entries.is_empty() {
+        if let Some(output) = result.and_then(|r| obj_str(r, "output")) {
+            let parsed = parse_text_entries(&output);
+            if !parsed.is_empty() {
+                entries = parsed;
+            }
+        }
+    }
 
     let content_summary = if entries.is_empty() {
-        result.and_then(|r| obj_str(r, "content"))
+        result
+            .and_then(|r| obj_str(r, "content"))
+            .or_else(|| result.and_then(|r| obj_str(r, "output")))
     } else {
         None
     };

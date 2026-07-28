@@ -189,32 +189,43 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
         load_codex_app_initial_window_from_path("codexapp-window", &path, 1).expect("window");
     let wire = serde_json::to_value(&window).expect("serialize window");
     assert!(wire.get("turns").is_none());
-    assert_eq!(window.turns.len(), 2);
-    assert_eq!(window.chunks.len(), 4);
+    // #443: EVERY older round ships as a user-bubble + placeholder pair so
+    // the full session skeleton is visible on open; only the last turn is
+    // hydrated.
+    assert_eq!(window.turns.len(), 3);
+    assert_eq!(window.chunks.len(), 6);
     assert_eq!(
         window.chunks[0]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
+        Some("first")
+    );
+    assert!(window.chunks[1].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        window.chunks[2]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
         Some("second")
     );
     assert_eq!(
-        window.chunks[1]
+        window.chunks[3]
             .result
             .get("unloadedTurn")
             .and_then(|value| value.get("nextTurnId"))
             .and_then(Value::as_str),
-        Some(window.chunks[2].chunk_id.as_str())
+        Some(window.chunks[4].chunk_id.as_str())
     );
     assert_eq!(
-        window.chunks[2]
+        window.chunks[4]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
         Some("third")
     );
 
-    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[0].chunk_id)
+    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[2].chunk_id)
         .expect("turn");
     assert_eq!(turn.loaded_event_count, 2);
     assert_eq!(
@@ -253,18 +264,14 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
 
     let window =
         load_codex_app_initial_window_from_path("codexapp-tail-window", &path, 1).expect("window");
-    assert_eq!(
-        window.turns.len(),
-        2,
-        "only the previous and latest turns are indexed"
-    );
-    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(window.turns.len(), 3, "every turn is indexed (#443)");
+    assert_eq!(window.chunks.len(), 6);
     assert_eq!(
         window.chunks[0]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
-        Some("second")
+        Some("first")
     );
     assert!(window.chunks[1].result.get("unloadedTurn").is_some());
     assert_eq!(
@@ -272,9 +279,17 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
+        Some("second")
+    );
+    assert!(window.chunks[3].result.get("unloadedTurn").is_some());
+    assert_eq!(
+        window.chunks[4]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
         Some("third")
     );
-    let second_turn_id = window.chunks[0].chunk_id.clone();
+    let second_turn_id = window.chunks[2].chunk_id.clone();
     let second = load_codex_app_turn_from_path("codexapp-tail-window", &path, &second_turn_id)
         .expect("load previous turn");
     assert_eq!(second.loaded_event_count, 2);
@@ -483,7 +498,10 @@ fn codex_desktop_exec_preserves_failed_shell_status_and_exit_code() {
     assert_eq!(chunks[0].result["is_error"], true);
     assert_eq!(chunks[0].result["exit_code"], 1);
     assert_eq!(chunks[0].result["failure"]["exitCode"], 1);
-    assert_eq!(chunks[0].result["failure"]["stderr"], output);
+    // #443: `failure.stderr` must not duplicate the full output — readers
+    // fall through to `result.output`, which stays canonical.
+    assert!(chunks[0].result["failure"].get("stderr").is_none());
+    assert_eq!(chunks[0].result["output"], output);
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -1210,8 +1228,11 @@ fn codex_rg_shell_command_renders_as_code_search() {
         chunks[0].args.get("query").and_then(Value::as_str),
         Some("Shell Command")
     );
+    // #443: the raw text lives only in `output`; `content` must not hold a
+    // third copy. Structured `matches` stays — it feeds the search card.
+    assert!(chunks[0].result.get("content").is_none());
     assert_eq!(
-        chunks[0].result.get("content").and_then(Value::as_str),
+        chunks[0].result.get("output").and_then(Value::as_str),
         Some("src/a.rs:10:Shell Command\nsrc/b.rs:20:Shell Command")
     );
     assert_eq!(
@@ -2039,7 +2060,10 @@ fn resumes_codex_meta_parse_from_watermark() {
     let scratch_meta = scratch.meta.expect("scratch meta");
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens
@@ -2069,4 +2093,113 @@ fn resumes_codex_meta_parse_from_watermark() {
     assert_eq!(reparsed_meta.name, "RESUME ME");
 
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_inert_line_probe_classifies_lines() {
+    // Outer inert line types are skipped without parsing their payload.
+    assert!(codex_line_is_transcript_inert(
+        r#"{"timestamp":"2026-07-12T01:13:48.000Z","type":"compacted","payload":{"history":"enormous re-embedded context"}}"#
+    ));
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"session_meta","payload":{"id":"session-1","cwd":"/tmp"}}"#
+    ));
+    // Inert payload types with no dispatch arm.
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"token_count","info":{"total_tokens":42}}}"#
+    ));
+    assert!(codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"image_generation_end","call_id":"c1","result":"aGVsbG8="}}"#
+    ));
+    // Live transcript content is never skipped.
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"user_message","message":"hello"}}"#
+    ));
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"event_msg","payload":{"type":"agent_message","message":"hi"}}"#
+    ));
+    assert!(!codex_line_is_transcript_inert(
+        r#"{"type":"response_item","payload":{"type":"function_call","name":"exec","call_id":"c2","arguments":"{}"}}"#
+    ));
+    // Conservative on anything ambiguous: malformed JSON, missing types.
+    assert!(!codex_line_is_transcript_inert("not json at all"));
+    assert!(!codex_line_is_transcript_inert(r#"{"payload":{"foo":1}}"#));
+    assert!(!codex_line_is_transcript_inert(r#"{"type":"world_state","payload":{}}"#));
+}
+
+#[test]
+fn codex_inert_lines_do_not_change_parsed_chunks() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-inert-line-skip-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+    let live_lines = [
+        r#"{"timestamp":"2026-07-12T01:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"first question"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}"#,
+        r#"{"timestamp":"2026-07-12T01:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"second question"}}"#,
+        r#"{"timestamp":"2026-07-12T01:01:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}"#,
+    ];
+    let inert_lines = [
+        r#"{"timestamp":"2026-07-12T01:00:01.000Z","type":"session_meta","payload":{"id":"session-1"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:02.000Z","type":"compacted","payload":{"history":"gigantic re-embedded prior context blob"}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:03.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_tokens":9000}}}"#,
+        r#"{"timestamp":"2026-07-12T01:00:04.000Z","type":"event_msg","payload":{"type":"image_generation_end","call_id":"img1","result":"QUFBQUFBQUE="}}"#,
+    ];
+
+    // File A: live lines only. File B: inert lines interleaved after each
+    // live line. Both must parse to identical chunks.
+    let plain_path = temp_dir.join("rollout-plain.jsonl");
+    std::fs::write(&plain_path, live_lines.join("\n") + "\n").expect("write plain fixture");
+    let interleaved = live_lines
+        .iter()
+        .flat_map(|live| std::iter::once(*live).chain(inert_lines.iter().copied()))
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    let interleaved_path = temp_dir.join("rollout-interleaved.jsonl");
+    std::fs::write(&interleaved_path, interleaved).expect("write interleaved fixture");
+
+    let plain = load_codex_app_from_path("codexapp-inert", &plain_path).expect("parse plain");
+    let mixed =
+        load_codex_app_from_path("codexapp-inert", &interleaved_path).expect("parse interleaved");
+
+    assert!(!plain.is_empty());
+    assert_eq!(plain.len(), mixed.len());
+    for (plain_chunk, mixed_chunk) in plain.iter().zip(mixed.iter()) {
+        assert_eq!(plain_chunk.chunk_id, mixed_chunk.chunk_id);
+        assert_eq!(plain_chunk.function, mixed_chunk.function);
+        assert_eq!(plain_chunk.result, mixed_chunk.result);
+    }
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+/// Opt-in perf harness for real rollout files (they are far too large to
+/// commit). Point `ORGII_CODEX_ROLLOUT_FIXTURE` at a local `rollout-*.jsonl`
+/// and run:
+///
+/// ```sh
+/// ORGII_CODEX_ROLLOUT_FIXTURE=/path/to/rollout.jsonl \
+///   cargo test -p orgtrack_core --release codex_parse_real_rollout_fixture_stats -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "needs ORGII_CODEX_ROLLOUT_FIXTURE pointing at a local rollout file"]
+fn codex_parse_real_rollout_fixture_stats() {
+    let Ok(path) = std::env::var("ORGII_CODEX_ROLLOUT_FIXTURE") else {
+        eprintln!("ORGII_CODEX_ROLLOUT_FIXTURE not set; skipping");
+        return;
+    };
+    let path = std::path::PathBuf::from(path);
+    let source_bytes = std::fs::metadata(&path).expect("stat fixture").len();
+    let started = std::time::Instant::now();
+    let chunks = load_codex_app_from_path("codexapp-perf", &path).expect("parse fixture");
+    let elapsed = started.elapsed();
+    let serialized_bytes = serde_json::to_string(&chunks).expect("serialize").len();
+    eprintln!(
+        "source_bytes={source_bytes} chunks={} serialized_bytes={serialized_bytes} elapsed_ms={}",
+        chunks.len(),
+        elapsed.as_millis()
+    );
 }

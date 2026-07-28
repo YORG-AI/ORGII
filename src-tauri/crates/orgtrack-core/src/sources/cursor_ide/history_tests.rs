@@ -106,7 +106,7 @@ fn assistant_text_bubble_becomes_assistant_chunk() {
     assert_eq!(chunk.result["role"], "assistant");
     assert_eq!(chunk.result["is_delta"], false);
     assert_eq!(chunk.result["is_full_content"], true);
-    assert!(chunk.result["content"]
+    assert!(chunk.result["observation"]
         .as_str()
         .unwrap()
         .contains("simplify"));

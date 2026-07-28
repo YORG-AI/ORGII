@@ -41,6 +41,7 @@ function hasFileContent(event: SessionEvent): boolean {
     directSuccess?.content ||
     result?.content ||
     result?.file_content ||
+    (typeof result?.output === "string" && result.output) ||
     result?.observation
   );
 }
@@ -61,6 +62,8 @@ function getFileContent(event: SessionEvent): string | null {
   if (typeof result.content === "string") return result.content as string;
   if (typeof result.file_content === "string")
     return result.file_content as string;
+  // Imported tool chunks carry the file body in a string `output`.
+  if (typeof result.output === "string") return result.output;
   if (typeof result.observation === "string")
     return result.observation as string;
 
