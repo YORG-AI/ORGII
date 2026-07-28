@@ -103,6 +103,23 @@ pub fn load_codex_app_initial_window_for_session(
     Ok(window)
 }
 
+/// Round-index view of a session: bounded per-round summaries with no chunk
+/// materialization. See `round_index` module docs (#443).
+pub fn load_codex_round_index_for_session(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<
+    (
+        Vec<super::round_index::CodexRoundSummary>,
+        super::round_index::CodexRoundIndexStats,
+    ),
+    String,
+> {
+    let file_stem = codex_file_stem_from_session_id(session_id)?;
+    let path = resolve_codex_session_path(conn, file_stem)?;
+    super::round_index::load_codex_round_index(&path)
+}
+
 pub fn load_codex_app_turn_for_session(
     conn: &Connection,
     session_id: &str,

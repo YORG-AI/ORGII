@@ -38,9 +38,9 @@ const CODEX_REVERSE_SCAN_MAX_LINE_BYTES: usize = 4 * 1024 * 1024;
 const CODEX_TURN_HEADER_PROBE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct CodexTranscriptSignature {
-    modified_ns: u128,
-    size_bytes: u64,
+pub(crate) struct CodexTranscriptSignature {
+    pub(crate) modified_ns: u128,
+    pub(crate) size_bytes: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +110,7 @@ fn codex_turn_offset_cache() -> &'static Mutex<CodexTurnOffsetCache> {
     CACHE.get_or_init(|| Mutex::new(CodexTurnOffsetCache::default()))
 }
 
-fn codex_transcript_file_signature(path: &Path) -> Result<CodexTranscriptSignature, String> {
+pub(crate) fn codex_transcript_file_signature(path: &Path) -> Result<CodexTranscriptSignature, String> {
     let metadata = fs::metadata(path)
         .map_err(|err| format!("Failed to stat Codex history {}: {err}", path.display()))?;
     let modified_ns = metadata
@@ -524,7 +524,7 @@ fn codex_lazy_turn_sequence(byte_offset: u64) -> usize {
     usize::try_from(byte_offset).unwrap_or(usize::MAX)
 }
 
-fn codex_lazy_turn_id(byte_offset: u64) -> String {
+pub(crate) fn codex_lazy_turn_id(byte_offset: u64) -> String {
     format!("codex-user-{}", codex_lazy_turn_sequence(byte_offset))
 }
 
@@ -1730,7 +1730,7 @@ pub(crate) fn user_message_from_payload(payload: &Value) -> Option<String> {
     Some(stripped.to_string())
 }
 
-fn content_text_from_payload(payload: &Value) -> Option<String> {
+pub(crate) fn content_text_from_payload(payload: &Value) -> Option<String> {
     let content = payload.get("content")?;
     match content {
         Value::String(text) => Some(text.clone()),

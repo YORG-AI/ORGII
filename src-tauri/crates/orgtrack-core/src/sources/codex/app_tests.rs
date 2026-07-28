@@ -2188,3 +2188,349 @@ fn codex_parse_real_rollout_fixture_stats() {
         elapsed.as_millis()
     );
 }
+
+// ── Round index (#443) ──────────────────────────────────────────────────────
+
+fn round_index_fixture_dir(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!(
+        "orgii-codex-round-index-{tag}-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).expect("create temp dir");
+    dir
+}
+
+/// Build a rollout body while recording each line's byte offset.
+struct RolloutBuilder {
+    content: String,
+}
+
+impl RolloutBuilder {
+    fn new() -> Self {
+        Self {
+            content: String::new(),
+        }
+    }
+
+    fn push(&mut self, line: &str) -> u64 {
+        let offset = self.content.len() as u64;
+        self.content.push_str(line);
+        self.content.push('\n');
+        offset
+    }
+}
+
+#[test]
+fn codex_round_index_builds_round_summaries() {
+    let dir = round_index_fixture_dir("build");
+    let path = dir.join("rollout-build.jsonl");
+
+    let mut builder = RolloutBuilder::new();
+    let round1_user = builder.push(
+        r#"{"timestamp":"2026-07-12T01:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"first question"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:00:10.000Z","type":"event_msg","payload":{"type":"agent_reasoning","text":"thinking"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:00:20.000Z","type":"event_msg","payload":{"type":"agent_message","message":"first answer"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:00:30.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"turn-1"}}"#,
+    );
+    // Round 2 opens with a task_started marker: the turn id must anchor at
+    // the marker's offset so hydration replays the lifecycle chunk.
+    let round2_start = builder.push(
+        r#"{"timestamp":"2026-07-12T01:01:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"turn-2"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:01:00.500Z","type":"event_msg","payload":{"type":"user_message","message":"second question"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:02:00.000Z","type":"event_msg","payload":{"type":"patch_apply_end","turn_id":"turn-2","success":true,"changes":{"src/a.rs":{"unified_diff":"+x"},"src/b.rs":{"unified_diff":"+y"}}}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T01:02:30.000Z","type":"event_msg","payload":{"type":"agent_message","message":"second answer"}}"#,
+    );
+    std::fs::write(&path, &builder.content).expect("write fixture");
+
+    let (rounds, stats) = load_codex_round_index(&path).expect("index");
+
+    assert!(stats.rebuilt);
+    assert_eq!(rounds.len(), 2);
+
+    let first = &rounds[0];
+    assert_eq!(first.turn_id, format!("codex-user-{round1_user}"));
+    assert_eq!(first.user_preview, "first question");
+    assert_eq!(first.last_agent_message.as_deref(), Some("first answer"));
+    assert_eq!(first.status, "completed");
+    assert_eq!(first.started_at, "2026-07-12T01:00:00+00:00");
+    assert_eq!(first.ended_at.as_deref(), Some("2026-07-12T01:00:30+00:00"));
+    assert_eq!(first.duration_ms, Some(30_000));
+    // user + reasoning + agent_message + task_complete
+    assert_eq!(first.event_count, 4);
+    assert_eq!(first.body_event_count, 3);
+
+    let second = &rounds[1];
+    assert_eq!(second.turn_id, format!("codex-user-{round2_start}"));
+    assert_eq!(second.turn_start_offset, round2_start);
+    assert_eq!(second.user_preview, "second question");
+    assert_eq!(second.last_agent_message.as_deref(), Some("second answer"));
+    // No task_complete after the last user message: the round is active.
+    assert_eq!(second.status, "active");
+    assert_eq!(
+        second.modified_files,
+        vec!["src/a.rs".to_string(), "src/b.rs".to_string()]
+    );
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+#[test]
+fn codex_round_index_extends_incrementally_and_detects_truncation() {
+    let dir = round_index_fixture_dir("extend");
+    let path = dir.join("rollout-extend.jsonl");
+
+    let mut builder = RolloutBuilder::new();
+    builder.push(
+        r#"{"timestamp":"2026-07-12T02:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"round one"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T02:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"answer one"}}"#,
+    );
+    std::fs::write(&path, &builder.content).expect("write fixture");
+
+    let (rounds, stats) = load_codex_round_index(&path).expect("initial index");
+    assert!(stats.rebuilt);
+    assert_eq!(rounds.len(), 1);
+    assert_eq!(rounds[0].status, "active");
+    let initial_size = builder.content.len() as u64;
+    assert_eq!(stats.bytes_scanned, initial_size);
+
+    // Append a second round: only the appended bytes may be scanned.
+    let mut appended = RolloutBuilder::new();
+    appended.push(
+        r#"{"timestamp":"2026-07-12T02:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"round two"}}"#,
+    );
+    appended.push(
+        r#"{"timestamp":"2026-07-12T02:01:30.000Z","type":"event_msg","payload":{"type":"agent_message","message":"answer two"}}"#,
+    );
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("open for append");
+    std::io::Write::write_all(&mut file, appended.content.as_bytes()).expect("append");
+    drop(file);
+
+    let (rounds, stats) = load_codex_round_index(&path).expect("extended index");
+    assert!(!stats.rebuilt, "append must extend, not rebuild");
+    assert!(stats.cache_hit);
+    assert_eq!(stats.scan_start_offset, initial_size);
+    assert_eq!(stats.bytes_scanned, appended.content.len() as u64);
+    assert_eq!(rounds.len(), 2);
+    // Closing round one at round two's user message marks it completed.
+    assert_eq!(rounds[0].status, "completed");
+    assert_eq!(rounds[0].last_agent_message.as_deref(), Some("answer one"));
+    assert_eq!(rounds[1].user_preview, "round two");
+
+    // Unchanged file: pure cache hit, zero bytes scanned.
+    let (rounds, stats) = load_codex_round_index(&path).expect("cached index");
+    assert!(stats.cache_hit);
+    assert_eq!(stats.bytes_scanned, 0);
+    assert_eq!(rounds.len(), 2);
+
+    // Replace the file with different, shorter content: tail probe mismatch
+    // forces a rebuild.
+    let mut replaced = RolloutBuilder::new();
+    replaced.push(
+        r#"{"timestamp":"2026-07-12T03:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"fresh file"}}"#,
+    );
+    std::fs::write(&path, &replaced.content).expect("replace fixture");
+
+    let (rounds, stats) = load_codex_round_index(&path).expect("rebuilt index");
+    assert!(stats.rebuilt, "replacement must rebuild");
+    assert_eq!(rounds.len(), 1);
+    assert_eq!(rounds[0].user_preview, "fresh file");
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+#[test]
+fn codex_round_index_defers_incomplete_trailing_line() {
+    let dir = round_index_fixture_dir("partial");
+    let path = dir.join("rollout-partial.jsonl");
+
+    let mut builder = RolloutBuilder::new();
+    builder.push(
+        r#"{"timestamp":"2026-07-12T04:00:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"only round"}}"#,
+    );
+    let complete_size = builder.content.len() as u64;
+    let partial =
+        r#"{"timestamp":"2026-07-12T04:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","message":"tr"#;
+    std::fs::write(&path, format!("{}{partial}", builder.content)).expect("write fixture");
+
+    let (rounds, _) = load_codex_round_index(&path).expect("index with partial tail");
+    assert_eq!(rounds.len(), 1);
+    assert_eq!(
+        rounds[0].last_agent_message, None,
+        "half-written line must not be indexed"
+    );
+
+    // Complete the line: the next call scans only from the partial line on.
+    let rest = r#"uncated no more","extra":true}}"#;
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("open for append");
+    std::io::Write::write_all(&mut file, format!("{rest}\n").as_bytes()).expect("append");
+    drop(file);
+
+    let (rounds, stats) = load_codex_round_index(&path).expect("completed index");
+    assert_eq!(stats.scan_start_offset, complete_size);
+    assert_eq!(
+        rounds[0].last_agent_message.as_deref(),
+        Some("truncated no more")
+    );
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+#[test]
+fn codex_round_index_reads_both_agent_message_formats_and_bounds_previews() {
+    let dir = round_index_fixture_dir("formats");
+    let path = dir.join("rollout-formats.jsonl");
+
+    let long_message = "长".repeat(6_000); // 3 bytes each => 18 KB, over the cap
+    let mut builder = RolloutBuilder::new();
+    builder.push(&format!(
+        r#"{{"timestamp":"2026-07-12T05:00:00.000Z","type":"event_msg","payload":{{"type":"user_message","message":"{long_message}"}}}}"#,
+    ));
+    // Older rollouts carry assistant text as response_item message items.
+    builder.push(
+        r#"{"timestamp":"2026-07-12T05:00:10.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"legacy format answer"}]}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T05:01:00.000Z","type":"event_msg","payload":{"type":"user_message","message":"second"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-12T05:01:10.000Z","type":"event_msg","payload":{"type":"turn_aborted","turn_id":"t2"}}"#,
+    );
+    std::fs::write(&path, &builder.content).expect("write fixture");
+
+    let (rounds, _) = load_codex_round_index(&path).expect("index");
+    assert_eq!(rounds.len(), 2);
+
+    let first = &rounds[0];
+    assert!(first.user_preview.len() <= CODEX_ROUND_PREVIEW_MAX_BYTES);
+    assert!(!first.user_preview.is_empty());
+    assert!(first.user_preview.chars().all(|c| c == '长'));
+    assert_eq!(
+        first.last_agent_message.as_deref(),
+        Some("legacy format answer")
+    );
+
+    assert_eq!(rounds[1].status, "interrupted");
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}
+
+/// Opt-in round-index harness for real rollout files. Point
+/// `ORGII_CODEX_ROLLOUT_FIXTURE` at a local `rollout-*.jsonl` and run:
+///
+/// ```sh
+/// ORGII_CODEX_ROLLOUT_FIXTURE=/path/to/rollout.jsonl \
+///   cargo test -p orgtrack_core --release codex_round_index_real_rollout_stats -- --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "needs ORGII_CODEX_ROLLOUT_FIXTURE pointing at a local rollout file"]
+fn codex_round_index_real_rollout_stats() {
+    let Ok(path) = std::env::var("ORGII_CODEX_ROLLOUT_FIXTURE") else {
+        eprintln!("ORGII_CODEX_ROLLOUT_FIXTURE not set; skipping");
+        return;
+    };
+    let path = std::path::PathBuf::from(path);
+    let source_bytes = std::fs::metadata(&path).expect("stat fixture").len();
+    let started = std::time::Instant::now();
+    let (rounds, stats) = load_codex_round_index(&path).expect("index fixture");
+    let elapsed = started.elapsed();
+    let index_bytes = rounds
+        .iter()
+        .map(|round| {
+            round.turn_id.len()
+                + round.started_at.len()
+                + round.user_preview.len()
+                + round.last_agent_message.as_deref().map_or(0, str::len)
+                + round.modified_files.iter().map(String::len).sum::<usize>()
+                + 64
+        })
+        .sum::<usize>();
+    let cached_started = std::time::Instant::now();
+    let (_, cached_stats) = load_codex_round_index(&path).expect("cached index");
+    let cached_elapsed = cached_started.elapsed();
+    eprintln!(
+        "source_bytes={source_bytes} rounds={} index_bytes~={index_bytes} \
+         first_ms={} scanned={} rebuilt={} | cached_ms={} cached_scanned={}",
+        rounds.len(),
+        elapsed.as_millis(),
+        stats.bytes_scanned,
+        stats.rebuilt,
+        cached_elapsed.as_millis(),
+        cached_stats.bytes_scanned,
+    );
+    let clip = |text: &str| text.chars().take(40).collect::<String>();
+    for round in rounds.iter().rev().take(3) {
+        eprintln!(
+            "  round {} status={} duration_ms={:?} events={} user={:?} agent={:?}",
+            round.turn_id,
+            round.status,
+            round.duration_ms,
+            round.event_count,
+            clip(&round.user_preview),
+            round.last_agent_message.as_deref().map(clip),
+        );
+    }
+}
+
+#[test]
+fn codex_round_index_idle_gaps_and_prompt_echoes_do_not_stretch_rounds() {
+    let dir = round_index_fixture_dir("idle");
+    let path = dir.join("rollout-idle.jsonl");
+
+    let mut builder = RolloutBuilder::new();
+    builder.push(
+        r#"{"timestamp":"2026-07-18T08:40:58.000Z","type":"event_msg","payload":{"type":"user_message","message":"push it"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-18T08:46:35.000Z","type":"event_msg","payload":{"type":"agent_message","message":"done"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-18T08:46:39.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"t1"}}"#,
+    );
+    // Ten days later the user reopens the session. None of these may extend
+    // round one: settings replay, the next turn's task_started, or the next
+    // prompt's response_item role=user echo.
+    builder.push(
+        r#"{"timestamp":"2026-07-28T12:46:06.000Z","type":"event_msg","payload":{"type":"thread_settings_applied","thread_settings":{}}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-28T12:46:07.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"t2"}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-28T12:46:07.500Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"what time"}]}}"#,
+    );
+    builder.push(
+        r#"{"timestamp":"2026-07-28T12:46:08.000Z","type":"event_msg","payload":{"type":"user_message","message":"what time"}}"#,
+    );
+    std::fs::write(&path, &builder.content).expect("write fixture");
+
+    let (rounds, _) = load_codex_round_index(&path).expect("index");
+    assert_eq!(rounds.len(), 2);
+    // Round one ends at its task_complete, not at any of the 07-28 lines.
+    assert_eq!(rounds[0].duration_ms, Some(341_000));
+    assert_eq!(
+        rounds[0].ended_at.as_deref(),
+        Some("2026-07-18T08:46:39+00:00")
+    );
+
+    std::fs::remove_dir_all(&dir).expect("cleanup");
+}

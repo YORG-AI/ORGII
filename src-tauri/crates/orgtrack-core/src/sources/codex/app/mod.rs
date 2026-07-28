@@ -18,6 +18,7 @@ mod impact;
 mod index;
 mod meta;
 mod normalize;
+mod round_index;
 mod transcript;
 
 // Public API — preserved at `...::sources::codex::app::*`.
@@ -27,8 +28,13 @@ pub use index::{
     load_codex_app_for_session, load_codex_app_initial_window_for_session,
     load_codex_app_turn_for_session,
 };
+pub use index::load_codex_round_index_for_session;
 pub use meta::{resolve_codex_transcript_for_thread_id_near_path, CodexTranscriptLocator};
 pub(crate) use normalize::normalize_codex_tool_calls;
+pub use round_index::{
+    load_codex_round_index, CodexRoundIndexStats, CodexRoundSummary,
+    CODEX_ROUND_PREVIEW_MAX_BYTES,
+};
 pub use transcript::{
     load_codex_app_from_path, load_codex_app_initial_window_from_path,
     load_codex_app_turn_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
