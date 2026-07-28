@@ -35,13 +35,11 @@
   },
   "overTimeCol": {
     "window": "구간 종료",
-    "code": "유형",
-    "sessions": "세션"
+    "code": "유형"
   },
   "fanoutLabel": "서브에이전트 분기",
   "fanoutHint": "서브에이전트로 분기한 세션 비율. '집중/군집'과 분리해 둡니다. 병렬성의 다른 층이고 방향이 반대이기 때문입니다.",
   "highlights": "하이라이트",
-  "highlightsHint": "카드 한 장에 사실 하나, 모두 당신의 세션에서 나왔습니다.",
   "caveat": "느슨하게 잡힌 값입니다: {{reason}}",
   "clarity": {
     "slight": "약한 선호",
@@ -53,103 +51,103 @@
     "total_time": {
       "question": "얼마나 많은 시간을 들였나요?",
       "headline": "{{hours}}시간",
-      "detail": "세션 {{sessions}}개에 걸쳐서."
+      "detail": "세션 {{sessions}}개에 걸쳐서"
     },
     "lines": {
       "question": "얼마나 만들어 냈나요?",
       "headline": "{{added}}줄",
-      "detail": "세션 {{sessions}}개에서 추가했고, {{removed}}줄을 삭제했습니다."
+      "detail": "세션 {{sessions}}개에서 추가했고, {{removed}}줄을 삭제했습니다"
     },
     "tool_calls": {
       "question": "에이전트는 얼마나 일했나요?",
       "headline": "도구 호출 {{total}}회",
-      "detail": "세션당 약 {{perSession}}회."
+      "detail": "세션당 약 {{perSession}}회"
     },
     "longest_session": {
       "question": "가장 길었던 세션은?",
       "headline": "{{duration}}",
-      "detail": "에이전트와 끊김 없이 이어 간 가장 깊은 시간."
+      "detail": "에이전트와 끊김 없이 이어 간 가장 깊은 시간"
     },
     "longest_run": {
       "question": "에이전트는 혼자서 어디까지 가나요?",
       "headline": "{{steps}}단계",
-      "detail": "당신이 아무 말도 하지 않은 동안 가장 길게 이어 간 실행."
+      "detail": "당신이 아무 말도 하지 않은 동안 가장 길게 이어 간 실행"
     },
     "parallel_peak": {
       "question": "에이전트가 둘 이상 돌아가는 때는 얼마나 되나요?",
       "headline": "시간의 {{percent}}%",
-      "detail": "가장 병렬적이었던 세션에서 그만큼의 시간은 혼자가 아니었습니다."
+      "detail": "가장 병렬적이었던 세션에서 그만큼의 시간은 혼자가 아니었습니다"
     },
     "streak": {
       "question": "가장 긴 연속 기록은?",
       "headline": "{{days}}일 연속",
-      "detail": "에이전트와 함께 작업한 연속 일수."
+      "detail": "에이전트와 함께 작업한 연속 일수"
     },
     "peak_hour": {
       "question": "언제 일하나요?",
       "headline": "{{hour}}",
-      "detail": "그 시간대에 세션 {{sessions}}개를 시작했습니다."
+      "detail": "그 시간대에 세션 {{sessions}}개를 시작했습니다"
     },
     "deep_sessions": {
       "question": "어떻게 일하나요?",
       "headline": "깊은 세션 {{count}}개",
-      "detail": "평균 {{duration}} 동안 끊김 없이 집중했습니다."
+      "detail": "평균 {{duration}} 동안 끊김 없이 집중했습니다"
     },
     "busiest_day": {
       "question": "가장 바빴던 날은?",
       "headline": "세션 {{sessions}}개",
-      "detail": "모두 {{date}}에."
+      "detail": "모두 {{date}}에"
     },
     "prompt_length": {
       "question": "프롬프트는 얼마나 긴가요?",
       "headline": "평균 {{words}}단어",
-      "detail": "짧고 대화하듯 씁니다."
+      "detail": "짧고 대화하듯 씁니다"
     },
     "prompt_length_long": {
-      "detail": "한 줄이 아니라 문단으로 지시합니다."
+      "detail": "한 줄이 아니라 문단으로 지시합니다"
     },
     "prompts_per_session": {
       "question": "에이전트와 얼마나 이야기하나요?",
       "headline": "세션당 프롬프트 {{prompts}}개",
-      "detail": "한 세션에서 당신이 끼어드는 빈도입니다."
+      "detail": "한 세션에서 당신이 끼어드는 빈도입니다"
     },
     "longest_prompt": {
       "question": "가장 길었던 프롬프트는?",
       "headline": "{{words}}단어",
-      "detail": "메시지 하나에 전부 담았습니다."
+      "detail": "메시지 하나에 전부 담았습니다"
     },
     "redirects": {
       "question": "얼마나 자주 방향을 바꾸나요?",
       "headline": "메시지의 {{percent}}%",
-      "detail": "하던 일을 멈추게 하고 에이전트를 다른 쪽으로 돌린 경우입니다."
+      "detail": "하던 일을 멈추게 하고 에이전트를 다른 쪽으로 돌린 경우입니다"
     },
     "interrupts": {
       "question": "끝까지 두나요?",
       "headline": "{{percent}}%의 경우",
-      "detail": "나머지 {{rest}}%는 중간에 끊습니다."
+      "detail": "나머지 {{rest}}%는 중간에 끊습니다"
     },
     "interrupts_never": {
-      "detail": "실행을 중간에 끊는 일이 거의 없습니다."
+      "detail": "실행을 중간에 끊는 일이 거의 없습니다"
     },
     "plan_first": {
       "question": "얼마나 자주 먼저 계획하나요?",
       "headline": "빌드 세션의 {{percent}}%",
-      "detail": "코드를 바꾼 세션 {{builders}}개 중 {{planned}}개가 계획에서 출발했습니다."
+      "detail": "코드를 바꾼 세션 {{builders}}개 중 {{planned}}개가 계획에서 출발했습니다"
     },
     "harness": {
       "question": "자기 도구를 다듬나요?",
       "headline": "편집의 {{percent}}%",
-      "detail": "에이전트 자체 지시문에 대한 변경 — CLAUDE.md, rules, skills."
+      "detail": "에이전트 자체 지시문에 대한 변경 — CLAUDE.md, rules, skills"
     },
     "fanout": {
       "question": "서브에이전트로 분기하나요?",
       "headline": "세션의 {{percent}}%",
-      "detail": "한 에이전트가 다른 에이전트를 만들어 병렬로 일한 경우입니다."
+      "detail": "한 에이전트가 다른 에이전트를 만들어 병렬로 일한 경우입니다"
     },
     "tool_spread": {
       "question": "몇 개의 에이전트를 쓰나요?",
       "headline": "서로 다른 도구 {{tools}}개",
-      "detail": "작업이 그 모두에 걸쳐 있습니다."
+      "detail": "작업이 그 모두에 걸쳐 있습니다"
     }
   }
 }

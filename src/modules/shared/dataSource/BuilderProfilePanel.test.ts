@@ -51,6 +51,15 @@ vi.mock("@src/components/Tooltip", () => ({
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
   Placeholder: ({ variant, title }: { variant: string; title?: string }) =>
     createElement("div", { "data-testid": `placeholder-${variant}` }, title),
+  // Collapsible in the app; always-open here so section content is assertable.
+  CollapsibleSection: ({
+    title,
+    children,
+  }: {
+    title?: string;
+    children?: unknown;
+  }) => createElement("section", null, title ?? "", children as never),
+  STAT_GRID_TOKENS: { cols3: "", cols4: "" },
 }));
 
 vi.mock("@src/modules/shared/layouts/SectionLayout", () => ({

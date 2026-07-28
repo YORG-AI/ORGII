@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Highlight, HighlightKind } from "@src/api/tauri/builderProfile";
-import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
+import { STAT_GRID_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 /**
  * One fact per card: the question, the answer, and the line that makes the
@@ -12,7 +12,9 @@ import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
  * order — reading down the page alternates between records, rhythm, craft,
  * style and totals rather than marching through five blocks of the same shape.
  * `kind` only tints the question line; the card layout stays identical so the
- * grid reads as one set.
+ * grid reads as one set. The surface matches the Usage page's stat tiles, and
+ * the grid is placed directly in the page flow — wrapping it in a section
+ * container would put a card inside a card.
  *
  * The backend sends ids and raw numbers, never prose. Everything a locale can
  * disagree about is decided here: thousands separators, date format, and
@@ -26,11 +28,20 @@ const KIND_TINT: Record<HighlightKind, string> = {
   scale: "text-text-3",
 };
 
-/** Params that are not plain counts and need locale-aware rendering. */
+/**
+ * 12-hour AM/PM, everywhere. Deliberately not `toLocaleTimeString`: that hands
+ * the choice to the locale, and a 24-hour rendering ("15时", "15 h") reads as a
+ * timestamp rather than as a time of day, which is what this card is about.
+ */
+function hourLabel(hour: number): string {
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** Params that are not plain counts and need formatting before interpolation. */
 function formatParams(
   params: Record<string, number>,
-  locale: string,
-  hourLabel: (hour: number) => string
+  locale: string
 ): Record<string, string | number> {
   const out: Record<string, string | number> = {};
   for (const [key, value] of Object.entries(params)) {
@@ -78,21 +89,17 @@ const HighlightCards = memo(function HighlightCards({
 
   if (highlights.length === 0) return null;
 
-  // 12-hour vs 24-hour is a locale property, not a preference we should guess.
-  const hourLabel = (hour: number) =>
-    new Date(2000, 0, 1, hour).toLocaleTimeString(locale, { hour: "numeric" });
-
   return (
     <div
       className={STAT_GRID_TOKENS.cols3}
       data-testid="builder-profile-highlights"
     >
       {highlights.map((card) => {
-        const values = formatParams(card.params, locale, hourLabel);
+        const values = formatParams(card.params, locale);
         return (
           <div
             key={card.id}
-            className="flex flex-col gap-1 rounded-lg bg-bg-2 px-3 py-3"
+            className="flex flex-col gap-1.5 rounded-xl border border-border-1 bg-primary-container p-4"
             data-testid={`highlight-${card.id}`}
           >
             <span

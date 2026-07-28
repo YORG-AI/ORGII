@@ -35,13 +35,11 @@
   },
   "overTimeCol": {
     "window": "期間の終わり",
-    "code": "タイプ",
-    "sessions": "セッション"
+    "code": "タイプ"
   },
   "fanoutLabel": "サブエージェント展開",
   "fanoutHint": "サブエージェントに分岐したセッションの割合。「集中／群れ」とは別扱いです。並列性のもう一つの層であり、向きが逆になります。",
   "highlights": "ハイライト",
-  "highlightsHint": "1 枚につき 1 つの事実。すべてあなた自身のセッションから。",
   "caveat": "確度は低めです：{{reason}}",
   "clarity": {
     "slight": "わずかな傾向",
@@ -53,103 +51,103 @@
     "total_time": {
       "question": "どれだけ時間を注ぎましたか？",
       "headline": "{{hours}} 時間",
-      "detail": "{{sessions}} 件のセッションにわたって。"
+      "detail": "{{sessions}} 件のセッションにわたって"
     },
     "lines": {
       "question": "どれだけ書き上げましたか？",
       "headline": "{{added}} 行",
-      "detail": "{{sessions}} 件のセッションで追加し、{{removed}} 行を削除しました。"
+      "detail": "{{sessions}} 件のセッションで追加し、{{removed}} 行を削除しました"
     },
     "tool_calls": {
       "question": "エージェントはどれだけ動きましたか？",
       "headline": "{{total}} 回のツール呼び出し",
-      "detail": "1 セッションあたり約 {{perSession}} 回。"
+      "detail": "1 セッションあたり約 {{perSession}} 回"
     },
     "longest_session": {
       "question": "いちばん長かったセッションは？",
       "headline": "{{duration}}",
-      "detail": "エージェントと途切れずに向き合った最長の時間。"
+      "detail": "エージェントと途切れずに向き合った最長の時間"
     },
     "longest_run": {
       "question": "エージェントは独力でどこまで進みますか？",
       "headline": "{{steps}} ステップ",
-      "detail": "あなたが何も言わずにいた間の、最長の連続実行。"
+      "detail": "あなたが何も言わずにいた間の、最長の連続実行"
     },
     "parallel_peak": {
       "question": "複数のエージェントが同時に動くのはどれくらい？",
       "headline": "時間の {{percent}}%",
-      "detail": "最も並列だったセッションで、その割合の時間は一人ではありませんでした。"
+      "detail": "最も並列だったセッションで、その割合の時間は一人ではありませんでした"
     },
     "streak": {
       "question": "いちばん長い連続記録は？",
       "headline": "{{days}} 日連続",
-      "detail": "エージェントと作業した連続日数。"
+      "detail": "エージェントと作業した連続日数"
     },
     "peak_hour": {
       "question": "いつ働いていますか？",
       "headline": "{{hour}}",
-      "detail": "その時間帯に {{sessions}} 件のセッションを始めています。"
+      "detail": "その時間帯に {{sessions}} 件のセッションを始めています"
     },
     "deep_sessions": {
       "question": "どう働いていますか？",
       "headline": "{{count}} 件の深いセッション",
-      "detail": "平均 {{duration}} 途切れずに集中しています。"
+      "detail": "平均 {{duration}} 途切れずに集中しています"
     },
     "busiest_day": {
       "question": "いちばん忙しかった日は？",
       "headline": "{{sessions}} セッション",
-      "detail": "すべて {{date}} に。"
+      "detail": "すべて {{date}} に"
     },
     "prompt_length": {
       "question": "プロンプトはどれくらいの長さですか？",
       "headline": "平均 {{words}} 語",
-      "detail": "短く、会話のように。"
+      "detail": "短く、会話のように"
     },
     "prompt_length_long": {
-      "detail": "一行ではなく、段落で指示を出します。"
+      "detail": "一行ではなく、段落で指示を出します"
     },
     "prompts_per_session": {
       "question": "エージェントとどれだけ話しますか？",
       "headline": "1 セッション {{prompts}} 回のプロンプト",
-      "detail": "1 セッションで口を挟む頻度。"
+      "detail": "1 セッションで口を挟む頻度"
     },
     "longest_prompt": {
       "question": "いちばん長かったプロンプトは？",
       "headline": "{{words}} 語",
-      "detail": "1 通のメッセージに、すべてを詰め込んで。"
+      "detail": "1 通のメッセージに、すべてを詰め込んで"
     },
     "redirects": {
       "question": "どれくらいの頻度で方針を変えますか？",
       "headline": "メッセージの {{percent}}%",
-      "detail": "手を止めさせて、別の方向を指し示したもの。"
+      "detail": "手を止めさせて、別の方向を指し示したもの"
     },
     "interrupts": {
       "question": "最後までやらせますか？",
       "headline": "{{percent}}% の場合",
-      "detail": "残りの {{rest}}% は途中で止めています。"
+      "detail": "残りの {{rest}}% は途中で止めています"
     },
     "interrupts_never": {
-      "detail": "実行を途中で止めることはほとんどありません。"
+      "detail": "実行を途中で止めることはほとんどありません"
     },
     "plan_first": {
       "question": "どれくらいの頻度で先に計画しますか？",
       "headline": "開発セッションの {{percent}}%",
-      "detail": "コードを変更した {{builders}} 件のセッションのうち、{{planned}} 件が計画から始まりました。"
+      "detail": "コードを変更した {{builders}} 件のセッションのうち、{{planned}} 件が計画から始まりました"
     },
     "harness": {
       "question": "自分の道具を研いでいますか？",
       "headline": "編集の {{percent}}%",
-      "detail": "エージェント自身の指示への変更 — CLAUDE.md、rules、skills。"
+      "detail": "エージェント自身の指示への変更 — CLAUDE.md、rules、skills"
     },
     "fanout": {
       "question": "サブエージェントに展開しますか？",
       "headline": "セッションの {{percent}}%",
-      "detail": "1 つのエージェントが他を生み出し、並列で動かした場合。"
+      "detail": "1 つのエージェントが他を生み出し、並列で動かした場合"
     },
     "tool_spread": {
       "question": "いくつのエージェントを使っていますか？",
       "headline": "{{tools}} 種類のツール",
-      "detail": "作業はそのすべてに分散しています。"
+      "detail": "作業はそのすべてに分散しています"
     }
   }
 }

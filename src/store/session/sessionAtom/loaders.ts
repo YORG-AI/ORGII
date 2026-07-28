@@ -547,6 +547,8 @@ async function loadCategoryPage(
     case "rust_agent:agent_org":
       return fetchAggregatePage("agent_org", offset, pageSize, scope, cursor);
     case "rust_agent:os":
+      // Channel-created and desktop OS sessions use the same backend category,
+      // but keep their own scoped cursor in the split Sidebar pagination model.
       return fetchAggregatePage("os", offset, pageSize, scope, cursor);
     case "rust_agent:wingman":
       return fetchAggregatePage("wingman", offset, pageSize, scope, cursor);

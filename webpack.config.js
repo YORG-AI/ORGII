@@ -636,8 +636,15 @@ module.exports = (env, argv) => {
       // Only show minimal info in dev mode
       preset: isProduction ? "normal" : "minimal",
     },
-    // eval-cheap-module-source-map maps to original lines via loaders.
-    // Light dev disables source maps to reduce renderer and compiler memory.
-    devtool: useDevSourceMaps ? "eval-cheap-module-source-map" : false,
+    // App is bundled into main.js via `webpackMode: "eager"` in dev
+    // (see src/index.tsx) so it is not emitted as a separate runtime chunk.
+    // With eval-cheap-module-source-map, that inlines every module's source
+    // into main.js, swelling it past 80MB — too large for some WebViews to
+    // load. So dev writes source maps to separate lazily-loaded .map files
+    // (`cheap-source-map`), keeping the executable bundle small while still
+    // giving line-level debuggability. Cost vs eval mode: incremental rebuilds
+    // are marginally slower (a .map file is written each time). Light dev
+    // disables source maps entirely to reduce renderer and compiler memory.
+    devtool: useDevSourceMaps ? "cheap-source-map" : false,
   };
 };
