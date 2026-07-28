@@ -47,6 +47,7 @@ interface ChatPanelHeaderProps {
   handleCopyEventJson: () => void;
   handleMoveToWorkstation: () => void;
   handleOpenExportSessionJson: () => void;
+  handleOpenLinkProject: () => void;
   handleOpenLinkWorkItem: () => void;
   handleOpenCloudShareSettings: () => void;
   handleOpenRawTranscript: () => void;
@@ -101,6 +102,7 @@ export function ChatPanelHeader({
   handleCopyEventJson,
   handleMoveToWorkstation,
   handleOpenExportSessionJson,
+  handleOpenLinkProject,
   handleOpenLinkWorkItem,
   handleOpenCloudShareSettings,
   handleOpenRawTranscript,
@@ -215,6 +217,7 @@ export function ChatPanelHeader({
             handleMoveSession={handleMoveToWorkstation}
             handleOpenCloudShareSettings={handleOpenCloudShareSettings}
             handleOpenExportSessionJson={handleOpenExportSessionJson}
+            handleOpenLinkProject={handleOpenLinkProject}
             handleOpenLinkWorkItem={handleOpenLinkWorkItem}
             handleOpenRawTranscript={handleOpenRawTranscript}
             handleOpenSearch={handleOpenSearch}

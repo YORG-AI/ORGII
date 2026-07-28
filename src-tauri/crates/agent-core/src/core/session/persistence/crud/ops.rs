@@ -504,6 +504,39 @@ pub fn link_bootstrap_work_item(session_id: &str, work_item_id: &str) -> SqliteR
     })
 }
 
+/// Associate a session with a Project without manufacturing a Work Item link.
+///
+/// Project association is canonical session metadata, so it also switches the
+/// product mode and clears any prior Work Item id. Conversation activity time
+/// is intentionally left unchanged.
+pub fn update_project_link(
+    session_id: &str,
+    org_id: &str,
+    project_id: &str,
+    project_name: &str,
+    project_slug: &str,
+) -> SqliteResult<bool> {
+    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
+        let conn = get_connection()?;
+        let updated = conn.execute(
+            "UPDATE agent_sessions
+             SET org_id = ?2,
+                 project_id = ?3,
+                 project_name = ?4,
+                 project_slug = ?5,
+                 work_item_id = NULL,
+                 product_mode = 'project'
+             WHERE session_id = ?1",
+            params![session_id, org_id, project_id, project_name, project_slug],
+        )?;
+        Ok(updated > 0)
+    })?;
+    if changed {
+        notify_session_mirror(session_id);
+    }
+    Ok(changed)
+}
+
 /// Set the canonical Agent Org roster member id for a session.
 pub fn update_org_member_id(session_id: &str, org_member_id: &str) -> SqliteResult<bool> {
     let changed = with_sessions_writer(|| -> SqliteResult<bool> {

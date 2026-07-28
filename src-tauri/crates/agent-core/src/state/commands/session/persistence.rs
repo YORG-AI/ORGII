@@ -861,6 +861,66 @@ pub async fn agent_link_session_to_work_item(
     shared::to_json_value(updated_record).map_err(|err| err.to_string())
 }
 
+/// Associate an existing session with a Project without requiring a Work Item.
+#[tauri::command]
+pub async fn agent_link_session_to_project(
+    app: tauri::AppHandle,
+    session_id: String,
+    project_slug: String,
+) -> Result<serde_json::Value, String> {
+    let updated_record = tokio::task::spawn_blocking(move || {
+        let session = session_persistence::get_session(&session_id)
+            .map_err(|err| err.to_string())?
+            .ok_or_else(|| format!("Session not found: {session_id}"))?;
+        let project = project_management::projects::io::read_project(&project_slug)
+            .map_err(|err| format!("Failed to read project {project_slug}: {err}"))?;
+
+        if let (Some(old_project_slug), Some(old_work_item_id)) = (
+            session.project_slug.as_deref(),
+            session.work_item_id.as_deref(),
+        ) {
+            remove_linked_session_from_work_item(
+                old_project_slug,
+                old_work_item_id,
+                &session.session_id,
+            )?;
+        }
+
+        session_persistence::update_project_link(
+            &session.session_id,
+            &project.meta.org_id,
+            &project.meta.id,
+            &project.meta.name,
+            &project_slug,
+        )
+        .map_err(|err| err.to_string())?
+        .then_some(())
+        .ok_or_else(|| format!("Session not found: {}", session.session_id))?;
+
+        session_persistence::get_session(&session.session_id)
+            .map_err(|err| err.to_string())?
+            .ok_or_else(|| {
+                format!(
+                    "Session not found after project link: {}",
+                    session.session_id
+                )
+            })
+    })
+    .await
+    .map_err(|err| err.to_string())??;
+
+    {
+        use tauri::Emitter;
+        let ts = chrono::Utc::now().to_rfc3339();
+        let _ = app.emit(
+            project_management::projects::events::DATA_CHANGED_EVENT,
+            &ts,
+        );
+    }
+
+    shared::to_json_value(updated_record).map_err(|err| err.to_string())
+}
+
 /// `Track this` (orgtrack/v1 §7.2, Build→Project) and
 /// `Convert to Project` (Plan→Project): switch the session onto the
 /// Project product mode, derive the runtime exec mode the same way the
