@@ -1,0 +1,28 @@
+# Performance Guard — Team Inbox
+
+**Date:** 2026-07-28
+**Auditor:** Codex
+
+| Area                 | Verdict | Evidence                                                                                                                              | Change or reason kept                                                                                                                      | Verification                                                                      |
+| -------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| Background work      | keep    | No poller/timer was introduced. Project change callbacks use push invalidation and coordinator microtask coalescing.                  | Mounted Sidebar/full Inbox listeners may both signal, but equivalent bursts produce one invalidation transition.                           | Coordinator single-flight/coalescing ownership trace; no idle polling path found. |
+| Network lifecycle    | fixed   | Cloud list and receipt RPCs run through `runCloudRequestWithTimeout` with a 15-second deadline and owner AbortSignal.                 | Scope disposal aborts best-effort transport work; local timeout race guarantees settlement even when WebKit fetch does not.                | Cloud abort test plus timeout-helper tests.                                       |
+| I/O fan-out          | fixed   | `readAllProjectMembers` uses at most eight workers and one shared in-flight promise.                                                  | Individual member-file failures are settled independently and surface a structured partial issue; only an all-file failure rejects.        | Static worker-loop trace and TypeScript checks.                                   |
+| Single-flight        | fixed   | `WeakMap<Store, CoordinatorRuntime>` shares refresh/load-more/mutation state within one rendered store and isolates secondary stores. | Equivalent requests reuse one promise; different request versions queue one newest refresh; generations reject stale completions.          | Shared cursor and scope-switch tests.                                             |
+| Memory / queue       | fixed   | Snapshot is capped at 500 rows; receipt mutations at 100; same-item Work Item updates at 50; terminal keyed state is removed.         | Cursor closes at the retained-window boundary. Scope switch replaces the runtime/cache; Work Item updates preserve invocation order.       | Cache-bound, mutation rollback and ordered-update tests.                          |
+| Scope / privacy      | fixed   | Scope key includes resolved member ids, cloud auth identity and org; cloud viewer remains JWT-derived.                                | Cross-scope rows are synchronously evicted, the prior controller is aborted, and late completions fail generation/runtime identity checks. | Exact-identity negative tests and stale-scope test.                               |
+| Rendering / hot path | keep    | Sorting/deduplication occurs on snapshot commit; search/grouping is memoized; selected Work Item detail loads on demand.              | No continuous rerender source or eager full Work Item hydration was added.                                                                 | Static production-path trace and component tests.                                 |
+| Listener cleanup     | keep    | Jotai subscriptions return `store.sub` cleanup; React effects abort/mark cancelled on unmount.                                        | Sidebar may keep the shared cache warm while the full Inbox closes; account/org switch evicts protected data.                              | Cleanup trace and unmount guards.                                                 |
+
+## Lifecycle matrix
+
+| State                             | Behavior                                                                        | Verdict                    |
+| --------------------------------- | ------------------------------------------------------------------------------- | -------------------------- |
+| App idle, Sidebar mounted         | Push listeners remain; no polling, retry loop or recurring scan runs.           | pass by code/test evidence |
+| Inbox opened                      | Second consumer reuses the same per-store request, cursors and cache.           | pass                       |
+| Inbox closed                      | Component subscriptions clean up; bounded shared cache remains for the Sidebar. | pass                       |
+| Network stalled                   | Cloud operations settle by abort or 15-second timeout.                          | pass                       |
+| Account/org/viewer switch         | Old cache is cleared synchronously and old completion cannot commit.            | pass                       |
+| Secondary Jotai/rendered instance | Runtime state is isolated by `WeakMap<Store, ...>`.                             | pass                       |
+
+Performance verdict: **blocked on rendered runtime measurement only**. Static ownership, bounds, cancellation, compilation and targeted lifecycle tests pass; this run did not collect real Tauri primary/secondary visible-idle, hidden-idle and repeated open/close request-count measurements, so the guard does not claim a fully measured performance pass.
