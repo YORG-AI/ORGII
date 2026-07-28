@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "动态",
+      "discussionTitle": "讨论",
+      "activityHistory": "活动记录",
+      "activityHistoryCount": "{{count}} 条事件",
+      "noComments": "暂无评论",
       "subscribe": "订阅",
       "unsubscribe": "取消订阅",
       "commentPlaceholder": "留下评论...",
@@ -389,6 +393,16 @@
       "clearedField": "清除了{{field}}",
       "changedDescription": "更新了描述",
       "editedFields": "编辑了 {{count}} 个字段:",
+      "groupedChanges": "进行了 {{count}} 项更改",
+      "groupedTodoChanges": "更新了待办 · {{count}} 项操作",
+      "todoAdded": "新增了「{{todo}}」",
+      "todoRemoved": "删除了「{{todo}}」",
+      "todoCompleted": "完成了「{{todo}}」",
+      "todoReopened": "重新打开了「{{todo}}」",
+      "todoStarted": "开始了「{{todo}}」",
+      "todoMarkedPending": "将「{{todo}}」标记为待处理",
+      "todoRenamed": "将「{{from}}」重命名为「{{to}}」",
+      "todoUpdated": "更新了「{{todo}}」",
       "justNow": "刚刚",
       "daysAgo": "{{count}}天前",
       "hoursAgo": "{{count}}小时前",
@@ -411,7 +425,8 @@
         "todos": "待办事项",
         "comments": "评论",
         "schedule": "计划",
-        "orchestratorConfig": "Orchestrator 配置"
+        "orchestratorConfig": "Orchestrator 配置",
+        "handoff": "工作交接"
       }
     },
     "todos": {

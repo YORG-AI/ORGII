@@ -44,6 +44,7 @@ import {
   COLLAPSED_SIDEBAR_CHROME_OFFSET,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
@@ -51,6 +52,7 @@ import {
   type SessionTabTransfer,
 } from "@src/shared/dnd/sessionTabDrag";
 import { useSessionTabDropTarget } from "@src/shared/dnd/useSessionTabDropTarget";
+import { openTeamInboxInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import { type GitFileInfo, gitFileStatusMapAtom } from "@src/store/git";
 import {
   moveSessionTabAtom,
@@ -227,6 +229,10 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const containerRef = useRef<HTMLDivElement>(null);
     const moveSessionTab = useSetAtom(moveSessionTabAtom);
     const openSessionInWorkstation = useSetAtom(openSessionInWorkstationAtom);
+    const openTeamInbox = useSetAtom(openTeamInboxInChatPanelTabAtom);
+    const requestSessionHandoff = useSetAtom(
+      requestTeamInboxSessionHandoffAtom
+    );
     const handleSessionTabDrop = useCallback(
       (transfer: SessionTabTransfer) => moveSessionTab(transfer),
       [moveSessionTab]
@@ -330,6 +336,17 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const handleViewRawTranscript = useCallback((sessionId: string) => {
       setRawTranscriptSessionId(sessionId);
     }, []);
+    const handleCreateWorkItemFromSession = useCallback(
+      (tab: WorkStationTab) => {
+        const sessionId = tab.data.sessionId;
+        if (tab.type !== "chat-session" || typeof sessionId !== "string") {
+          return;
+        }
+        requestSessionHandoff({ sessionId, title: tab.title });
+        openTeamInbox();
+      },
+      [openTeamInbox, requestSessionHandoff]
+    );
     const handleCloseRawTranscript = useCallback(() => {
       setRawTranscriptSessionId(null);
     }, []);
@@ -471,6 +488,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
             onCloseSavedTabs={onCloseSavedTabs ?? noopAction}
             onMoveSessionToChatPanel={handleMoveSessionToChatPanel}
             onViewRawTranscript={handleViewRawTranscript}
+            onCreateWorkItemFromSession={handleCreateWorkItemFromSession}
             dispatch={dispatch}
           />
         )}

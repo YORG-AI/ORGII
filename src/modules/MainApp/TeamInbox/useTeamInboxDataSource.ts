@@ -15,13 +15,25 @@ import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOr
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import { sessionByIdAtom } from "@src/store/session";
 
+import { createWorkItemFromSession } from "./createWorkItemFromSession";
+import { sessionHandoffDraft } from "./createWorkItemFromSession";
 import type {
   TeamInboxDataSource,
   TeamInboxFilter,
+  TeamInboxHandoffProject,
   TeamInboxIssue,
   TeamInboxItem,
+  TeamInboxSessionHandoffDraft,
 } from "./domain";
+import { SessionHandoffPreparationError } from "./sessionHandoffError";
+import {
+  type SessionHandoffProjectRoster,
+  eligibleSessionHandoffProjects,
+  handoffProjectFromRoster,
+} from "./sessionHandoffProjects";
+import { observeSharedOperation } from "./sharedOperation";
 import { teamInboxCacheAtom, teamInboxInvalidationAtom } from "./store";
 import {
   type TeamInboxCoordinatorScope,
@@ -30,14 +42,24 @@ import {
 
 const log = createLogger("TeamInboxDataSource");
 const MEMBER_READ_CONCURRENCY = 8;
+const sessionCreationFlights = new Map<
+  string,
+  ReturnType<typeof createWorkItemFromSession>
+>();
+const sessionPreparationFlights = new Map<
+  string,
+  Promise<TeamInboxSessionHandoffDraft>
+>();
 
 interface MemberSnapshot {
   members: MemberEntry[];
+  projectRosters: SessionHandoffProjectRoster[];
   issue: TeamInboxIssue | null;
 }
 
 const EMPTY_MEMBER_SNAPSHOT: MemberSnapshot = {
   members: [],
+  projectRosters: [],
   issue: null,
 };
 
@@ -49,7 +71,7 @@ async function readAllProjectMembers(): Promise<MemberSnapshot> {
     const projects = await projectApi.readProjects();
     if (projects.length === 0) return EMPTY_MEMBER_SNAPSHOT;
 
-    const memberFiles: MemberEntry[][] = [];
+    const projectRosters: SessionHandoffProjectRoster[] = [];
     const failures: unknown[] = [];
     let nextIndex = 0;
     const workerCount = Math.min(MEMBER_READ_CONCURRENCY, projects.length);
@@ -60,14 +82,14 @@ async function readAllProjectMembers(): Promise<MemberSnapshot> {
         const project = projects[index];
         try {
           const file = await projectApi.readMembers(project.slug);
-          memberFiles.push(file.members);
+          projectRosters.push({ project, members: file.members });
         } catch (error) {
           failures.push(error);
         }
       }
     });
     await Promise.all(workers);
-    if (memberFiles.length === 0 && failures.length > 0) {
+    if (projectRosters.length === 0 && failures.length > 0) {
       throw failures[0];
     }
     if (failures.length > 0) {
@@ -77,8 +99,8 @@ async function readAllProjectMembers(): Promise<MemberSnapshot> {
     }
 
     const members = new Map<string, MemberEntry>();
-    for (const file of memberFiles) {
-      for (const member of file) {
+    for (const roster of projectRosters) {
+      for (const member of roster.members) {
         const existing = members.get(member.id);
         if (
           !existing ||
@@ -90,6 +112,7 @@ async function readAllProjectMembers(): Promise<MemberSnapshot> {
     }
     return {
       members: [...members.values()],
+      projectRosters,
       issue:
         failures.length > 0
           ? {
@@ -197,8 +220,62 @@ export function useTeamInboxDataSource(): {
 
   useProjectDataChanged(() => teamInboxCoordinator.invalidate(store));
 
-  const dataSource = useMemo<TeamInboxDataSource>(
-    () => ({
+  const dataSource = useMemo<TeamInboxDataSource>(() => {
+    const prepareSessionHandoff = async ({
+      sessionId,
+      title,
+      signal,
+    }: {
+      sessionId: string;
+      title: string;
+      signal?: AbortSignal;
+    }): Promise<TeamInboxSessionHandoffDraft> => {
+      const session = store.get(sessionByIdAtom(sessionId));
+      if (!session) {
+        throw new SessionHandoffPreparationError("session_unavailable");
+      }
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+      let sourceProjectSlug: string | undefined;
+      let projects: TeamInboxHandoffProject[] = [];
+      if (session.projectSlug || session.projectId) {
+        const project = session.projectSlug
+          ? await projectApi.readProject(session.projectSlug)
+          : (await projectApi.readProjects()).find(
+              (entry) => entry.meta.id === session.projectId
+            );
+        if (!project) {
+          throw new SessionHandoffPreparationError("project_unavailable");
+        }
+        const entries = (await projectApi.readMembers(project.slug)).members;
+        const candidate = handoffProjectFromRoster(
+          project,
+          entries,
+          viewerMemberIds
+        );
+        if (candidate) projects = [candidate];
+        sourceProjectSlug = project.slug;
+      } else {
+        // A standalone Session has no canonical project boundary. Resolve a
+        // fresh roster for both preview and submit so a removed membership or
+        // newly joined project cannot be accepted from a stale hook snapshot.
+        const latestMemberSnapshot = await readAllProjectMembers();
+        projects = eligibleSessionHandoffProjects(
+          latestMemberSnapshot.projectRosters,
+          viewerMemberIds
+        );
+      }
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+      if (projects.length === 0) {
+        throw new SessionHandoffPreparationError(
+          sourceProjectSlug ? "identity_unavailable" : "no_project"
+        );
+      }
+      return sessionHandoffDraft(session, projects, title, sourceProjectSlug);
+    };
+
+    return {
       listPage: async () => {
         const cache = store.get(teamInboxCacheAtom);
         if (
@@ -236,6 +313,98 @@ export function useTeamInboxDataSource(): {
         teamInboxCoordinator.markAllRead(store, scope, filter),
       reconcileItem: (itemKey, nextItem) =>
         teamInboxCoordinator.reconcileItem(store, scope.key, itemKey, nextItem),
+      prepareSessionHandoff: viewerMemberIds[0]
+        ? ({ sessionId, title, signal }) => {
+            const flightKey = `${scope.key}:${sessionId}:${title.trim()}`;
+            const existing = sessionPreparationFlights.get(flightKey);
+            if (existing) return observeSharedOperation(existing, signal);
+            const flight = prepareSessionHandoff({
+              sessionId,
+              title,
+            }).finally(() => {
+              if (sessionPreparationFlights.get(flightKey) === flight) {
+                sessionPreparationFlights.delete(flightKey);
+              }
+            });
+            sessionPreparationFlights.set(flightKey, flight);
+            return observeSharedOperation(flight, signal);
+          }
+        : undefined,
+      createWorkItemFromSession: viewerMemberIds[0]
+        ? ({
+            sessionId,
+            title,
+            projectSlug,
+            assigneeMemberId,
+            handoffNote,
+            signal,
+          }) => {
+            const flightKey = [
+              scope.key,
+              sessionId,
+              projectSlug,
+              assigneeMemberId,
+              title.trim(),
+              handoffNote?.trim() ?? "",
+            ].join(":");
+            const existing = sessionCreationFlights.get(flightKey);
+            if (existing) return observeSharedOperation(existing, signal);
+
+            const session = store.get(sessionByIdAtom(sessionId));
+            if (!session) {
+              return Promise.reject(
+                new Error("The dropped Session is no longer available")
+              );
+            }
+
+            const flight = prepareSessionHandoff({
+              sessionId,
+              title,
+            })
+              .then((draft) => {
+                const project = draft.projects.find(
+                  (candidate) => candidate.slug === projectSlug
+                );
+                if (!project) {
+                  throw new Error(
+                    "The selected project is no longer available"
+                  );
+                }
+                const recipient = project.recipients.find(
+                  (member) => member.id === assigneeMemberId
+                );
+                if (!recipient) {
+                  throw new Error(
+                    "The selected recipient is no longer available"
+                  );
+                }
+                return createWorkItemFromSession({
+                  session,
+                  title,
+                  activeOrgId: activeCloudOrgId,
+                  selectedProjectSlug: project.slug,
+                  assigneeMemberId: recipient.id,
+                  assigneeMemberName: recipient.name,
+                  senderMemberId: project.sender.id,
+                  senderMemberName: project.sender.name,
+                  recipientIsCurrentUser: recipient.isCurrentUser,
+                  handoffNote,
+                });
+              })
+              .then((result) => {
+                invalidateProjectCache();
+                teamInboxCoordinator.invalidate(store);
+                return result;
+              })
+              .finally(() => {
+                if (sessionCreationFlights.get(flightKey) === flight) {
+                  sessionCreationFlights.delete(flightKey);
+                }
+              });
+            sessionCreationFlights.set(flightKey, flight);
+            return observeSharedOperation(flight, signal);
+          }
+        : undefined,
       subscribe: (listener) => {
         let revision = store.get(teamInboxCacheAtom).revision;
         return store.sub(teamInboxCacheAtom, () => {
@@ -245,9 +414,8 @@ export function useTeamInboxDataSource(): {
           listener();
         });
       },
-    }),
-    [scope, store]
-  );
+    };
+  }, [activeCloudOrgId, scope, store, viewerMemberIds]);
 
   return { dataSource, viewerMemberIds };
 }

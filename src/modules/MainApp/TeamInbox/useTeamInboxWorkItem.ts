@@ -132,18 +132,20 @@ export function useTeamInboxWorkItem(
           ? (members.find((member) => member.id === converted.assignee?.id) ??
             converted.assignee)
           : undefined;
+        const resolvedWorkItem = project
+          ? {
+              ...converted,
+              assignee: resolvedAssignee,
+              project: {
+                id: project.slug,
+                name: project.meta.name,
+              },
+            }
+          : converted;
+        onWorkItemUpdated?.(resolvedWorkItem);
         setResolved({
           key: requestKey,
-          workItem: project
-            ? {
-                ...converted,
-                assignee: resolvedAssignee,
-                project: {
-                  id: project.slug,
-                  name: project.meta.name,
-                },
-              }
-            : converted,
+          workItem: resolvedWorkItem,
           repoPath: project?.meta.linked_repos[0] ?? null,
           members,
           issue,
@@ -164,7 +166,7 @@ export function useTeamInboxWorkItem(
     return () => {
       cancelled = true;
     };
-  }, [projectId, refreshGeneration, requestKey, workItemId]);
+  }, [onWorkItemUpdated, projectId, refreshGeneration, requestKey, workItemId]);
 
   const refreshWorkItem = useCallback(() => {
     setRefreshGeneration((current) => current + 1);

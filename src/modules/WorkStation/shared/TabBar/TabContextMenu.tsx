@@ -53,6 +53,8 @@ export interface TabContextMenuProps {
   onMoveSessionToChatPanel?: (tab: WorkStationTab) => void;
   /** Open the full raw transcript for a chat-session tab. */
   onViewRawTranscript?: (sessionId: string) => void;
+  /** Review a chat-session as a Team Inbox Work Item handoff. */
+  onCreateWorkItemFromSession?: (tab: WorkStationTab) => void;
   /** Dispatch function for GUI actions */
   dispatch?: DispatchFn;
 }
@@ -204,33 +206,47 @@ export function TabContextMenu(props: TabContextMenuProps) {
         if (tab.type === "chat-session") {
           const sessionId = tab.data.sessionId;
           if (typeof sessionId === "string" && sessionId.length > 0) {
-            const [separator, moveItem, rawTranscriptItem] = await Promise.all([
-              PredefinedMenuItem.new({ item: "Separator" }),
-              MenuItem.new({
-                text: t("sessions:chat.moveToChatPanel", {
-                  defaultValue: "Move to Chat Panel",
+            const [separator, createWorkItem, moveItem, rawTranscriptItem] =
+              await Promise.all([
+                PredefinedMenuItem.new({ item: "Separator" }),
+                MenuItem.new({
+                  text: t("teamInbox.handoff.createFromSession", {
+                    defaultValue: "Create team Work Item…",
+                  }),
+                  action: () => {
+                    const context = contextMenuRef.current;
+                    if (context) {
+                      context.onCreateWorkItemFromSession?.(context.tab);
+                    }
+                    context?.onClose();
+                  },
                 }),
-                action: () => {
-                  const context = contextMenuRef.current;
-                  if (context) context.onMoveSessionToChatPanel?.(context.tab);
-                  context?.onClose();
-                },
-              }),
-              MenuItem.new({
-                text: t("sessions:chat.rawTranscript.menuItem", {
-                  defaultValue: "View raw transcript",
+                MenuItem.new({
+                  text: t("sessions:chat.moveToChatPanel", {
+                    defaultValue: "Move to Chat Panel",
+                  }),
+                  action: () => {
+                    const context = contextMenuRef.current;
+                    if (context)
+                      context.onMoveSessionToChatPanel?.(context.tab);
+                    context?.onClose();
+                  },
                 }),
-                action: () => {
-                  const context = contextMenuRef.current;
-                  const activeSessionId = context?.tab.data.sessionId;
-                  if (typeof activeSessionId === "string") {
-                    context?.onViewRawTranscript?.(activeSessionId);
-                  }
-                  context?.onClose();
-                },
-              }),
-            ]);
-            items.push(separator, moveItem, rawTranscriptItem);
+                MenuItem.new({
+                  text: t("sessions:chat.rawTranscript.menuItem", {
+                    defaultValue: "View raw transcript",
+                  }),
+                  action: () => {
+                    const context = contextMenuRef.current;
+                    const activeSessionId = context?.tab.data.sessionId;
+                    if (typeof activeSessionId === "string") {
+                      context?.onViewRawTranscript?.(activeSessionId);
+                    }
+                    context?.onClose();
+                  },
+                }),
+              ]);
+            items.push(separator, createWorkItem, moveItem, rawTranscriptItem);
           }
         }
 

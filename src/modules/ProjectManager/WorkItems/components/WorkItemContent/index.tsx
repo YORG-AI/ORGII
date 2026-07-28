@@ -2,6 +2,7 @@ import { Bot, Pencil, Repeat, Terminal } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { type WorkItemHandoff, projectApi } from "@src/api/http/project";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
@@ -39,10 +40,15 @@ import AgentWorkflow from "../AgentWorkflow";
 import { ROLE_I18N_KEYS, STATUS_I18N_KEYS } from "../AgentWorkflow/types";
 import TodoChecklist from "../TodoChecklist";
 import WorkItemContentStack from "../WorkItemContentStack";
-import { WorkItemThreadLayout } from "../WorkItemThread";
+import {
+  WorkItemThreadLayout,
+  type WorkItemThreadView,
+  WorkItemThreadViewAction,
+} from "../WorkItemThread";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
 import ThreadTodoChecklist from "./ThreadTodoChecklist";
+import WorkItemHandoffNotice from "./WorkItemHandoffNotice";
 import { normalizeLegacyEscapedMarkdown } from "./descriptionMarkdown";
 import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
 import { useWorkItemContentState } from "./hooks/useWorkItemContentState";
@@ -194,6 +200,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const {
     currentUser,
+    currentUserMemberIds,
     activeSessionTab,
     setActiveSessionTab,
     commentText,
@@ -252,6 +259,13 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const [descriptionEditWorkItemId, setDescriptionEditWorkItemId] = useState<
     string | null
   >(null);
+  const [threadViewSelection, setThreadViewSelection] = useState<{
+    workItemId: string;
+    view: WorkItemThreadView;
+  }>({
+    workItemId: workItem.session_id,
+    view: "overview",
+  });
   const currentDescriptionDraft =
     descriptionDraftState?.workItemId === workItem.session_id
       ? descriptionDraftState
@@ -269,8 +283,91 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     Boolean(workItem.proofOfWork)
   );
   const isThread = presentation === "thread";
+  const activeThreadView =
+    threadViewSelection.workItemId === workItem.session_id
+      ? threadViewSelection.view
+      : "overview";
   const isEditingThreadDescription =
     isThread && descriptionEditWorkItemId === workItem.session_id;
+  const [handoffOverride, setHandoffOverride] = useState<{
+    workItemId: string;
+    value: WorkItemHandoff;
+  } | null>(null);
+  const [respondingHandoff, setRespondingHandoff] = useState<
+    "accept" | "return" | null
+  >(null);
+  const [handoffError, setHandoffError] = useState<string | null>(null);
+  const handoff =
+    handoffOverride?.workItemId === workItem.session_id &&
+    handoffOverride.value.id === workItem.handoff?.id
+      ? handoffOverride.value
+      : workItem.handoff;
+  const canRespondToHandoff = Boolean(
+    handoff &&
+    projectSlug &&
+    shortId &&
+    currentUserMemberIds.has(handoff.recipientMemberId) &&
+    handoff.status === "pending"
+  );
+  const handoffRecipientName = handoff
+    ? teamMembers.find((member) => member.id === handoff.recipientMemberId)
+        ?.name
+    : undefined;
+  const handoffResponseUnavailableReason =
+    handoff?.status === "pending" && currentUser.id === "system"
+      ? t("common:teamInbox.handoff.identityUnavailable")
+      : undefined;
+
+  const respondToHandoff = (action: "accept" | "return", note?: string) => {
+    if (
+      !handoff ||
+      !projectSlug ||
+      !shortId ||
+      respondingHandoff ||
+      !currentUserMemberIds.has(handoff.recipientMemberId)
+    ) {
+      return;
+    }
+    setRespondingHandoff(action);
+    setHandoffError(null);
+    void projectApi
+      .transitionWorkItemHandoff(projectSlug, shortId, {
+        handoffId: handoff.id,
+        action,
+        actor: {
+          id: handoff.recipientMemberId,
+          name:
+            handoffRecipientName || handoff.recipientName || currentUser.name,
+        },
+        note,
+      })
+      .then((result) => {
+        if (result.frontmatter.handoff) {
+          setHandoffOverride({
+            workItemId: workItem.session_id,
+            value: result.frontmatter.handoff,
+          });
+        }
+        onRefreshWorkflow?.();
+      })
+      .catch(() => {
+        setHandoffError(t("common:teamInbox.handoff.responseError"));
+      })
+      .finally(() => {
+        setRespondingHandoff(null);
+      });
+  };
+  const handoffNotice = handoff ? (
+    <WorkItemHandoffNotice
+      handoff={handoff}
+      canRespond={canRespondToHandoff}
+      error={handoffError}
+      unavailableReason={handoffResponseUnavailableReason}
+      responding={respondingHandoff}
+      onAccept={() => respondToHandoff("accept")}
+      onReturn={(reason) => respondToHandoff("return", reason)}
+    />
+  ) : null;
 
   const handleDescriptionDraftChange = (markdown: string) => {
     setDescriptionDraftState((current) => {
@@ -499,6 +596,20 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       onCommentSubmit={handleCommentSubmit}
       isSubmittingComment={isSubmittingComment}
       presentation={presentation}
+      canComment={Boolean(onUpdateWorkItem)}
+      threadNavigation={
+        isThread && activeThreadView === "discussion" ? (
+          <WorkItemThreadViewAction
+            activeView="discussion"
+            onChange={(view) =>
+              setThreadViewSelection({
+                workItemId: workItem.session_id,
+                view,
+              })
+            }
+          />
+        ) : undefined
+      }
     />
   );
 
@@ -538,16 +649,37 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     <>
       {sectionPolicy.showInlineWorkflow ? agentWorkflow : null}
       {sectionPolicy.showInlineOutput ? outputContent : null}
-      {sectionPolicy.showInlineHistory ? historyContent : null}
     </>
   );
 
   if (isThread) {
     return (
       <WorkItemThreadLayout path={headerPath} properties={headerProperties}>
-        {descriptionSection}
-        {todosSection}
-        {threadLowerSection}
+        {activeThreadView === "overview" ? (
+          <>
+            {handoffNotice}
+            {descriptionSection}
+            {todosSection}
+            {threadLowerSection}
+            <nav
+              className="flex min-h-8 items-center justify-end"
+              aria-label={t("workItems.activity.discussionTitle")}
+              data-testid="work-item-thread-secondary-navigation"
+            >
+              <WorkItemThreadViewAction
+                activeView="overview"
+                onChange={(view) =>
+                  setThreadViewSelection({
+                    workItemId: workItem.session_id,
+                    view,
+                  })
+                }
+              />
+            </nav>
+          </>
+        ) : (
+          historyContent
+        )}
       </WorkItemThreadLayout>
     );
   }
@@ -557,7 +689,16 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       <WorkItemContentStack
         pathContent={headerPath}
         propertiesContent={headerProperties}
-        descriptionContent={descriptionSection}
+        descriptionContent={
+          handoffNotice ? (
+            <div className="flex flex-col gap-4">
+              {handoffNotice}
+              {descriptionSection}
+            </div>
+          ) : (
+            descriptionSection
+          )
+        }
         todosContent={todosSection}
         lowerContent={
           sectionPolicy.showTabbedLowerSection

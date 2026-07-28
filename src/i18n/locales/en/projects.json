@@ -367,6 +367,10 @@
     },
     "activity": {
       "title": "Activity",
+      "discussionTitle": "Discussion",
+      "activityHistory": "Activity history",
+      "activityHistoryCount": "{{count}} events",
+      "noComments": "No comments yet",
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",
       "commentPlaceholder": "Leave a comment...",
@@ -388,6 +392,16 @@
       "clearedField": "cleared {{field}}",
       "changedDescription": "updated the description",
       "editedFields": "edited {{count}} fields:",
+      "groupedChanges": "made {{count}} changes",
+      "groupedTodoChanges": "updated to-dos · {{count}} actions",
+      "todoAdded": "added “{{todo}}”",
+      "todoRemoved": "removed “{{todo}}”",
+      "todoCompleted": "completed “{{todo}}”",
+      "todoReopened": "reopened “{{todo}}”",
+      "todoStarted": "started “{{todo}}”",
+      "todoMarkedPending": "marked “{{todo}}” as pending",
+      "todoRenamed": "renamed “{{from}}” to “{{to}}”",
+      "todoUpdated": "updated “{{todo}}”",
       "justNow": "just now",
       "daysAgo": "{{count}}d ago",
       "hoursAgo": "{{count}}h ago",
@@ -410,7 +424,8 @@
         "todos": "to-dos",
         "comments": "comments",
         "schedule": "schedule",
-        "orchestratorConfig": "orchestrator config"
+        "orchestratorConfig": "orchestrator config",
+        "handoff": "handoff"
       }
     },
     "todos": {

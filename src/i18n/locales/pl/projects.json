@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Aktywność",
+      "discussionTitle": "Dyskusja",
+      "activityHistory": "Historia aktywności",
+      "activityHistoryCount": "{{count}} zdarzeń",
+      "noComments": "Brak komentarzy",
       "subscribe": "Subskrybuj",
       "unsubscribe": "Anuluj subskrypcję",
       "commentPlaceholder": "Zostaw komentarz...",
@@ -389,6 +393,16 @@
       "clearedField": "wyczyścił {{field}}",
       "changedDescription": "zaktualizował opis",
       "editedFields": "edytował {{count}} pól:",
+      "groupedChanges": "wprowadził {{count}} zmian",
+      "groupedTodoChanges": "zaktualizował zadania · {{count}} operacji",
+      "todoAdded": "dodał „{{todo}}”",
+      "todoRemoved": "usunął „{{todo}}”",
+      "todoCompleted": "ukończył „{{todo}}”",
+      "todoReopened": "ponownie otworzył „{{todo}}”",
+      "todoStarted": "rozpoczął „{{todo}}”",
+      "todoMarkedPending": "oznaczył „{{todo}}” jako oczekujące",
+      "todoRenamed": "zmienił nazwę „{{from}}” na „{{to}}”",
+      "todoUpdated": "zaktualizował „{{todo}}”",
       "justNow": "przed chwilą",
       "daysAgo": "{{count}}d temu",
       "hoursAgo": "{{count}}g temu",
@@ -411,7 +425,8 @@
         "todos": "lista zadań",
         "comments": "komentarze",
         "schedule": "harmonogram",
-        "orchestratorConfig": "konfiguracja Orchestrator"
+        "orchestratorConfig": "konfiguracja Orchestrator",
+        "handoff": "przekazanie"
       }
     },
     "todos": {

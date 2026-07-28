@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Hoạt động",
+      "discussionTitle": "Thảo luận",
+      "activityHistory": "Lịch sử hoạt động",
+      "activityHistoryCount": "{{count}} sự kiện",
+      "noComments": "Chưa có bình luận",
       "subscribe": "Theo dõi",
       "unsubscribe": "Bỏ theo dõi",
       "commentPlaceholder": "Để lại bình luận...",
@@ -389,6 +393,16 @@
       "clearedField": "đã xóa {{field}}",
       "changedDescription": "đã cập nhật mô tả",
       "editedFields": "đã chỉnh sửa {{count}} trường:",
+      "groupedChanges": "đã thực hiện {{count}} thay đổi",
+      "groupedTodoChanges": "đã cập nhật việc cần làm · {{count}} thao tác",
+      "todoAdded": "đã thêm “{{todo}}”",
+      "todoRemoved": "đã xóa “{{todo}}”",
+      "todoCompleted": "đã hoàn thành “{{todo}}”",
+      "todoReopened": "đã mở lại “{{todo}}”",
+      "todoStarted": "đã bắt đầu “{{todo}}”",
+      "todoMarkedPending": "đã đánh dấu “{{todo}}” là đang chờ",
+      "todoRenamed": "đã đổi tên “{{from}}” thành “{{to}}”",
+      "todoUpdated": "đã cập nhật “{{todo}}”",
       "justNow": "vừa xong",
       "daysAgo": "{{count}} ngày trước",
       "hoursAgo": "{{count}} giờ trước",
@@ -411,7 +425,8 @@
         "todos": "việc cần làm",
         "comments": "bình luận",
         "schedule": "lịch trình",
-        "orchestratorConfig": "cấu hình Orchestrator"
+        "orchestratorConfig": "cấu hình Orchestrator",
+        "handoff": "bàn giao"
       }
     },
     "todos": {

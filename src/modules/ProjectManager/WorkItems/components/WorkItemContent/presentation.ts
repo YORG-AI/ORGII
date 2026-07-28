@@ -5,15 +5,14 @@ export interface WorkItemContentSectionPolicy {
   showLinkedSessionsTable: boolean;
   showInlineWorkflow: boolean;
   showInlineOutput: boolean;
-  showInlineHistory: boolean;
 }
 
 /**
  * Keep the Work Item presentation policy explicit and testable.
  *
  * The default surface retains its existing tabs/table. Team Inbox uses the
- * thread policy: workflow/session cards and activity are inline, while the
- * duplicate linked-session table is absent.
+ * thread policy: workflow/session cards stay in Overview, Discussion is a
+ * drill-in view, and the duplicate linked-session table is absent.
  */
 export function resolveWorkItemContentSectionPolicy(
   presentation: WorkItemContentPresentation,
@@ -25,7 +24,6 @@ export function resolveWorkItemContentSectionPolicy(
       showLinkedSessionsTable: false,
       showInlineWorkflow: true,
       showInlineOutput: hasProofOfWork,
-      showInlineHistory: true,
     };
   }
 
@@ -34,6 +32,5 @@ export function resolveWorkItemContentSectionPolicy(
     showLinkedSessionsTable: true,
     showInlineWorkflow: false,
     showInlineOutput: false,
-    showInlineHistory: false,
   };
 }

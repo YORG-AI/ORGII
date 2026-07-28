@@ -18,7 +18,28 @@ import HistoryTab from "../HistoryTab";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key,
+    i18n: { resolvedLanguage: "en" },
+    t: (key: string, options?: string | Record<string, unknown>) => {
+      if (key === "workItems.activity.groupedChanges") {
+        return `made ${String(
+          typeof options === "object" ? options.count : ""
+        )} changes`;
+      }
+      if (key === "workItems.activity.groupedTodoChanges") {
+        return `updated to-dos · ${String(
+          typeof options === "object" ? options.count : ""
+        )} actions`;
+      }
+      if (key === "workItems.activity.activityHistory") {
+        return "Activity history";
+      }
+      if (key === "workItems.activity.activityHistoryCount") {
+        return `${String(
+          typeof options === "object" ? options.count : ""
+        )} events`;
+      }
+      return typeof options === "string" ? options : key;
+    },
   }),
 }));
 
@@ -77,7 +98,7 @@ const baseProps = {
   isSubmittingComment: false,
 };
 
-describe("HistoryTab activity presentation", () => {
+describe("HistoryTab discussion and activity presentation", () => {
   let container: HTMLDivElement;
   let root: Root;
   const actEnvironment = globalThis as typeof globalThis & {
@@ -120,58 +141,76 @@ describe("HistoryTab activity presentation", () => {
     });
   };
 
-  it("keeps thread activity collapsed by default and exposes its count", () => {
-    renderHistory("thread");
+  it("renders human comments as the primary thread discussion", () => {
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          presentation: "thread",
+          threadNavigation: createElement(
+            "button",
+            { "data-testid": "thread-back" },
+            "Back"
+          ),
+        })
+      );
+    });
 
-    const toggle = container.querySelector<HTMLButtonElement>(
-      "[data-testid='work-item-thread-activity-toggle']"
+    expect(container.textContent).toContain("updated to-dos");
+    expect(
+      container.querySelector("[data-testid='work-item-thread-discussion']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-activity-history']"
+      )
+    ).toBeNull();
+    const backAction = container.querySelector("[data-testid='thread-back']");
+    const subscriptionAction = container.querySelector(
+      "[data-testid='work-item-subscription-toggle']"
     );
+    expect(backAction).not.toBeNull();
+    expect(backAction?.parentElement).toBe(subscriptionAction?.parentElement);
+    expect(subscriptionAction).not.toBeNull();
+    expect(
+      container
+        .querySelector("[data-testid='work-item-comment-editor']")
+        ?.getAttribute("data-appearance")
+    ).toBe("plain");
+    const commentDock = container.querySelector(
+      "[data-testid='work-item-thread-comment-dock']"
+    );
+    expect(commentDock?.className).toContain("bg-transparent");
+    expect(commentDock?.className).not.toContain("bg-bg-1");
+    expect(commentDock?.className).not.toContain("border-t");
+    expect(
+      container.querySelectorAll("img[src='https://example.com/yuki.png']")
+    ).toHaveLength(2);
+  });
 
-    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
-    expect(toggle?.textContent).toContain("workItems.activity.title · 1");
-    expect(container.textContent).not.toContain("updated to-dos");
+  it("keeps an empty read-only discussion useful without a dead composer", () => {
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          timelineEntries: [],
+          presentation: "thread",
+          canComment: false,
+        })
+      );
+    });
+
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-discussion-empty']"
+      )?.textContent
+    ).toContain("workItems.activity.noComments");
     expect(
       container.querySelector("[data-testid='work-item-comment-composer']")
     ).toBeNull();
     expect(
       container.querySelector("[data-testid='work-item-subscription-toggle']")
     ).not.toBeNull();
-  });
-
-  it("expands and re-collapses the compact thread activity surface", () => {
-    renderHistory("thread");
-
-    const toggle = container.querySelector<HTMLButtonElement>(
-      "[data-testid='work-item-thread-activity-toggle']"
-    );
-
-    act(() => toggle?.click());
-
-    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
-    expect(container.textContent).toContain("updated to-dos");
-
-    const composer = container.querySelector(
-      "[data-testid='work-item-comment-composer']"
-    );
-
-    expect(composer).not.toBeNull();
-    expect(composer?.className).toContain("flex-row items-end");
-    expect(
-      container
-        .querySelector("[data-testid='work-item-comment-editor']")
-        ?.getAttribute("data-appearance")
-    ).toBe("plain");
-    expect(
-      container.querySelectorAll("img[src='https://example.com/yuki.png']")
-    ).toHaveLength(2);
-
-    act(() => toggle?.click());
-
-    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
-    expect(container.textContent).not.toContain("updated to-dos");
-    expect(
-      container.querySelector("[data-testid='work-item-comment-composer']")
-    ).toBeNull();
   });
 
   it("keeps the full editor treatment in the default presentation", () => {
@@ -182,9 +221,7 @@ describe("HistoryTab activity presentation", () => {
     );
 
     expect(
-      container.querySelector(
-        "[data-testid='work-item-thread-activity-toggle']"
-      )
+      container.querySelector("[data-testid='work-item-thread-discussion']")
     ).toBeNull();
     expect(container.textContent).toContain("updated to-dos");
     expect(
@@ -193,5 +230,162 @@ describe("HistoryTab activity presentation", () => {
     expect(editor?.getAttribute("data-appearance")).toBe("outlined");
     expect(editor?.getAttribute("data-min-height")).toBe("60");
     expect(editor?.getAttribute("data-show-tabs")).toBe("true");
+  });
+
+  it("keeps machine events in a collapsed activity-history disclosure", () => {
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          presentation: "thread",
+          timelineEntries: [
+            {
+              id: "update-1",
+              timestamp: "2026-07-28T11:14:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["changed status"],
+              changeFields: ["status"],
+              changeFieldKeys: ["status"],
+            },
+            baseProps.timelineEntries[0],
+            {
+              id: "update-2",
+              timestamp: "2026-07-28T11:15:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["changed priority"],
+              changeFields: ["priority"],
+              changeFieldKeys: ["priority"],
+            },
+          ],
+        })
+      );
+    });
+
+    const activityHistory = container.querySelector<HTMLDetailsElement>(
+      "[data-testid='work-item-thread-activity-history']"
+    );
+    const commentCard = Array.from(
+      container.querySelectorAll(
+        "[data-testid='work-item-thread-discussion'] *"
+      )
+    ).find((element) => element.textContent?.includes("updated to-dos"));
+
+    expect(activityHistory?.open).toBe(false);
+    expect(activityHistory?.querySelector("summary")?.textContent).toContain(
+      "Activity history"
+    );
+    expect(activityHistory?.querySelector("summary")?.textContent).toContain(
+      "2 events"
+    );
+    expect(commentCard?.closest("details")).toBeNull();
+
+    act(() => activityHistory?.querySelector("summary")?.click());
+    expect(activityHistory?.open).toBe(true);
+  });
+
+  it("condenses adjacent changes while keeping the raw audit trail expandable", () => {
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          timelineEntries: [
+            {
+              id: "update-1",
+              timestamp: "2026-07-28T11:14:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["changed status from In Review to Backlog"],
+              changeFields: ["status"],
+              changeFieldKeys: ["status"],
+            },
+            {
+              id: "update-2",
+              timestamp: "2026-07-28T11:15:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["changed priority from High to Urgent"],
+              changeFields: ["priority"],
+              changeFieldKeys: ["priority"],
+            },
+            baseProps.timelineEntries[0],
+          ],
+        })
+      );
+    });
+
+    const group = container.querySelector<HTMLDetailsElement>(
+      "[data-testid='work-item-activity-change-group']"
+    );
+    const summary = group?.querySelector("summary");
+
+    expect(group?.open).toBe(false);
+    expect(summary?.textContent).toContain("Yuki made 2 changes");
+    expect(summary?.textContent).toContain("status");
+    expect(summary?.textContent).toContain("priority");
+    expect(summary?.textContent).not.toContain("2026");
+    expect(container.textContent).toContain("updated to-dos");
+
+    act(() => summary?.click());
+
+    expect(group?.open).toBe(true);
+    expect(
+      group?.querySelector(
+        "[data-testid='work-item-activity-change-group-details']"
+      )?.textContent
+    ).toContain("changed priority from High to Urgent");
+  });
+
+  it("labels a to-do-only burst without an ambiguous field chip", () => {
+    act(() => {
+      root.render(
+        createElement(HistoryTab, {
+          ...baseProps,
+          timelineEntries: [
+            {
+              id: "todo-1",
+              timestamp: "2026-07-28T12:54:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["completed “Ship it”"],
+              changeFields: ["to-dos"],
+              changeFieldKeys: ["todos"],
+            },
+            {
+              id: "todo-2",
+              timestamp: "2026-07-28T12:55:00.000Z",
+              type: WORK_ITEM_HISTORY_ACTION.UPDATED,
+              actorId: "user-1",
+              userName: "Yuki",
+              descriptions: ["added “Verify it”"],
+              changeFields: ["to-dos"],
+              changeFieldKeys: ["todos"],
+            },
+          ],
+        })
+      );
+    });
+
+    const group = container.querySelector<HTMLDetailsElement>(
+      "[data-testid='work-item-activity-change-group']"
+    );
+    const summary = group?.querySelector("summary");
+
+    expect(summary?.textContent).toContain("Yuki updated to-dos · 2 actions");
+    expect(summary?.querySelector("[aria-label='to-dos']")).toBeNull();
+
+    act(() => summary?.click());
+
+    expect(
+      group?.querySelector(
+        "[data-testid='work-item-activity-change-group-details']"
+      )?.textContent
+    ).toContain("completed “Ship it”");
   });
 });

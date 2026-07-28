@@ -49,8 +49,10 @@ export function useWorkItemContentState(
   } = options;
 
   const { t } = useTranslation("projects");
-  const { currentUser: resolvedCurrentUser } =
-    useCurrentUserMemberIds(teamMembers);
+  const {
+    currentUser: resolvedCurrentUser,
+    memberIds: resolvedCurrentUserMemberIds,
+  } = useCurrentUserMemberIds(teamMembers);
 
   const currentUser = useMemo(
     () =>
@@ -62,6 +64,11 @@ export function useWorkItemContentState(
       },
     [currentUserProp, resolvedCurrentUser, t]
   );
+  const currentUserMemberIds = useMemo(() => {
+    const ids = new Set(resolvedCurrentUserMemberIds);
+    if (currentUserProp?.id) ids.add(currentUserProp.id);
+    return ids;
+  }, [currentUserProp?.id, resolvedCurrentUserMemberIds]);
 
   const [activeSessionTab, setActiveSessionTab] =
     useState<SessionTab>("session");
@@ -254,6 +261,7 @@ export function useWorkItemContentState(
 
   return {
     currentUser,
+    currentUserMemberIds,
     activeSessionTab,
     setActiveSessionTab,
     commentText,
