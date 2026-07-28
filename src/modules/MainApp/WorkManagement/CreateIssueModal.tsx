@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import Modal from "@src/scaffold/ModalSystem";
 
 import type { GitHubRepoSource } from "./githubWorkItemsTypes";
@@ -41,6 +42,13 @@ export function CreateIssueModal({
   const [repoKey, setRepoKey] = useState("");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const { isDragOver: bodyDragOver } = useSessionReferenceDropTarget({
+    elementRef: bodyRef,
+    value: body,
+    onChange: setBody,
+    enabled: open,
+  });
   const effectiveRepoKey =
     repoKey || selectedRepo?.repoFullName || repoSources[0]?.repoFullName || "";
   const source =
@@ -104,9 +112,12 @@ export function CreateIssueModal({
           size="default"
         />
         <textarea
+          ref={bodyRef}
           value={body}
           onChange={(event) => setBody(event.target.value)}
-          className="bg-surface-0 focus:border-accent-5 min-h-28 w-full resize-none rounded-lg border border-border-2 px-3 py-2 text-[13px] text-text-1 outline-none placeholder:text-text-4"
+          className={`bg-surface-0 focus:border-accent-5 min-h-28 w-full resize-none rounded-lg border px-3 py-2 text-[13px] text-text-1 outline-none placeholder:text-text-4 ${
+            bodyDragOver ? "border-primary-6" : "border-border-2"
+          }`}
           placeholder={labels.issueBodyPlaceholder}
         />
       </div>

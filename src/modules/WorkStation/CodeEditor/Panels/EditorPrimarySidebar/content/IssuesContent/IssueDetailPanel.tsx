@@ -1,5 +1,5 @@
 import { CheckCircle2, ChevronLeft, CircleDot, Globe } from "lucide-react";
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -17,6 +17,7 @@ import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/config/workstation/tokens";
+import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import {
   ActivityTimestamp,
@@ -223,6 +224,12 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
   }) => {
     const { t } = useTranslation("common");
     const [commentBody, setCommentBody] = useState("");
+    const commentRef = useRef<HTMLTextAreaElement | null>(null);
+    const { isDragOver: commentDragOver } = useSessionReferenceDropTarget({
+      elementRef: commentRef,
+      value: commentBody,
+      onChange: setCommentBody,
+    });
     const isOpen = issue.state === "open";
     const stateLabel = isOpen
       ? t("git.issues.status.open")
@@ -360,6 +367,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
             className={`${ISSUE_PANEL_WIDTH_TOKENS.headerWidth} flex flex-col gap-2`}
           >
             <Textarea
+              ref={commentRef}
               value={commentBody}
               onChange={setCommentBody}
               placeholder={t(
@@ -369,7 +377,9 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
               rows={3}
               size="default"
               resize="none"
-              className="min-h-[64px]"
+              className={`min-h-[64px] ${
+                commentDragOver ? "ring-2 ring-primary-6" : ""
+              }`.trim()}
               data-testid="issue-comment-editor"
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {

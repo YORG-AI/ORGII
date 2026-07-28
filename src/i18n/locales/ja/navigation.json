@@ -468,6 +468,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "チームセッション",
+      "notMember": "このセッションを所有する組織のメンバーではありません。",
+      "signInRequired": "このセッションを開くには ORG2 Cloud にサインインしてください。",
+      "sessionNotFound": "そのセッションはこの組織に属していません。",
+      "notPublished": "参照をコピーする前に、このセッションを組織と共有してください。",
+      "chooseOrg": "このセッションは複数の組織に属しています。参照したい組織に切り替えてから、もう一度コピーしてください。"
+    },
     "sync": {
       "quotaExceededToast": "ORG2 クラウド同期を一時停止しました：この組織のプランのクォータを超過しています",
       "syncDisabledToast": "ORG2 クラウド同期を一時停止しました：この組織のプランではセッション同期が無効です",
@@ -698,6 +706,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "表示名を編集",
+    "renameSaved": "表示名を更新しました",
+    "renameFailed": "表示名を更新できませんでした"
   }
 }

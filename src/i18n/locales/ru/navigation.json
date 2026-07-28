@@ -468,6 +468,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Сессия команды",
+      "notMember": "Вы не являетесь участником организации, которой принадлежит эта сессия.",
+      "signInRequired": "Войдите в ORG2 Cloud, чтобы открыть эту сессию.",
+      "sessionNotFound": "Эта сессия не принадлежит этой организации.",
+      "notPublished": "Поделитесь этой сессией с организацией, прежде чем копировать ссылку на неё.",
+      "chooseOrg": "Эта сессия принадлежит нескольким организациям. Переключитесь на нужную организацию и скопируйте ссылку ещё раз."
+    },
     "sync": {
       "quotaExceededToast": "Синхронизация ORG2 Cloud приостановлена: квота плана этой организации исчерпана",
       "syncDisabledToast": "Синхронизация ORG2 Cloud приостановлена: в плане этой организации синхронизация сессий отключена",
@@ -698,6 +706,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "Изменить отображаемое имя",
+    "renameSaved": "Отображаемое имя обновлено",
+    "renameFailed": "Не удалось обновить отображаемое имя"
   }
 }

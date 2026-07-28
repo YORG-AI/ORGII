@@ -468,6 +468,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Phiên của nhóm",
+      "notMember": "Bạn không phải là thành viên của tổ chức sở hữu phiên này.",
+      "signInRequired": "Đăng nhập ORG2 Cloud để mở phiên này.",
+      "sessionNotFound": "Phiên đó không thuộc tổ chức này.",
+      "notPublished": "Chia sẻ phiên này với một tổ chức trước khi sao chép tham chiếu.",
+      "chooseOrg": "Phiên này thuộc nhiều tổ chức. Chuyển sang tổ chức bạn muốn tham chiếu, rồi sao chép lại."
+    },
     "sync": {
       "quotaExceededToast": "Đồng bộ ORG2 Cloud tạm dừng: tổ chức này đã vượt hạn mức của gói",
       "syncDisabledToast": "Đồng bộ ORG2 Cloud tạm dừng: gói của tổ chức này không bật đồng bộ phiên",
@@ -698,6 +706,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "Sửa tên hiển thị",
+    "renameSaved": "Đã cập nhật tên hiển thị",
+    "renameFailed": "Không cập nhật được tên hiển thị"
   }
 }

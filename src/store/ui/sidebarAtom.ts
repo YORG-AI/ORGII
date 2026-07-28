@@ -76,10 +76,23 @@ export interface SessionSidebarRevealTarget {
   sidebarItemId?: string;
   /** Cloud org whose Team Sessions section owns `sidebarItemId`. */
   cloudOrgId?: string;
+  /**
+   * Open the target instead of only revealing it. Set by in-app session
+   * references, whose whole point is landing in the transcript; OS deep
+   * links stay reveal-only so an external click never starts a download.
+   */
+  autoReplay?: boolean;
 }
 
 export interface SessionSidebarRevealRequest extends SessionSidebarRevealTarget {
   requestId: number;
+  /**
+   * Epoch ms the request was published. Nothing clears a reveal aimed at a
+   * cloud row (its local id never matches the requested one), so an
+   * `autoReplay` request that could not be served stays resident; consumers
+   * use this to stop honouring one long after the click that made it.
+   */
+  issuedAt: number;
 }
 
 /**
@@ -109,7 +122,9 @@ export const requestSessionSidebarRevealAtom = atom(
       parentSessionId,
       ...(sidebarItemId ? { sidebarItemId } : {}),
       ...(cloudOrgId ? { cloudOrgId } : {}),
+      ...(target.autoReplay ? { autoReplay: true } : {}),
       requestId,
+      issuedAt: Date.now(),
     });
   }
 );

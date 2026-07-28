@@ -468,6 +468,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Ekip oturumu",
+      "notMember": "Bu oturumun sahibi olan organizasyonun üyesi değilsin.",
+      "signInRequired": "Bu oturumu açmak için ORG2 Cloud'da oturum aç.",
+      "sessionNotFound": "Bu oturum bu organizasyona ait değil.",
+      "notPublished": "Referansı kopyalamadan önce bu oturumu bir organizasyonla paylaş.",
+      "chooseOrg": "Bu oturum birden çok organizasyona ait. Referans vermek istediğin organizasyona geç, sonra tekrar kopyala."
+    },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
       "syncDisabledToast": "ORG2 Cloud sync paused: session sync is disabled for this org's plan",
@@ -698,6 +706,9 @@
     },
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
-    }
+    },
+    "renameDisplayName": "Görünen adı düzenle",
+    "renameSaved": "Görünen ad güncellendi",
+    "renameFailed": "Görünen ad güncellenemedi"
   }
 }

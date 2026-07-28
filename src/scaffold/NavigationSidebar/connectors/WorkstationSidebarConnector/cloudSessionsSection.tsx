@@ -33,6 +33,7 @@ import { useTranslation } from "react-i18next";
 
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
+import Message from "@src/components/Message";
 import {
   buildCloudRemoteItemId,
   includeRevealedCloudRow,
@@ -62,6 +63,10 @@ import {
 } from "./cloudScopedMenuItems";
 import { useCloudMemberFilterDropdown } from "./cloudSessionsSection.MemberFilterDropdown";
 import {
+  type CloudAutoReplaySkipReason,
+  useCloudSessionAutoReplayReveal,
+} from "./cloudSessionsSection.autoReplayReveal";
+import {
   HIDDEN_REMOTE_SESSIONS_STORAGE_KEY,
   hiddenRemoteSessionKey,
   readHiddenRemoteSessionIds,
@@ -90,7 +95,7 @@ export function useCloudSessionsSection({
   const { t } = useTranslation("navigation");
   const { t: tCommon } = useTranslation("common");
   const store = useStore();
-  const { rows, state, documentVisible, refresh } =
+  const { rows, state, fetchedAt, documentVisible, refresh } =
     useCloudOrgRemoteSessions(orgId);
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(
@@ -247,6 +252,30 @@ export function useCloudSessionsSection({
     },
     [forkSession]
   );
+
+  const handleAutoReplaySkip = useCallback(
+    (reason: CloudAutoReplaySkipReason) => {
+      Message.error(
+        reason === "not-found"
+          ? t("cloud.sessionRef.sessionNotFound")
+          : t("cloud.sidebar.notPublished")
+      );
+    },
+    [t]
+  );
+
+  useCloudSessionAutoReplayReveal({
+    orgId,
+    rows,
+    state,
+    fetchedAt,
+    busySessionRowId,
+    selfUserId,
+    localOwnSessionIds,
+    refresh,
+    runReplay,
+    onSkip: handleAutoReplaySkip,
+  });
 
   const handleCloudSessionItemClick = useCallback(
     (item: NavigationMenuItem): boolean => {

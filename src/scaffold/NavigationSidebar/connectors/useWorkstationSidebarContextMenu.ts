@@ -44,6 +44,14 @@ interface UseWorkstationSidebarContextMenuParams {
   isCloudShareEligible: (session: Session) => boolean;
   handleOpenCloudShare: (session: Session) => void;
   cloudShareLabel: string;
+  /**
+   * Copy a non-secret session reference. Gated on the session actually
+   * being published to a cloud org: a reference for an org it was never
+   * pushed to resolves for nobody, and the paste looks fine either way.
+   */
+  isCopyReferenceEligible: (session: Session) => boolean;
+  handleCopyReference: (session: Session) => void;
+  copyReferenceLabel: string;
   /** Teammate cloud rows have no local Session; remove means local hide. */
   handleCloudRemoteItemRemove?: (item: NavigationMenuItem) => boolean;
   tCommon: (key: string, defaultValue?: string) => string;
@@ -67,6 +75,9 @@ export function useWorkstationSidebarContextMenu({
   isCloudShareEligible,
   handleOpenCloudShare,
   cloudShareLabel,
+  isCopyReferenceEligible,
+  handleCopyReference,
+  copyReferenceLabel,
   handleCloudRemoteItemRemove,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
@@ -199,6 +210,16 @@ export function useWorkstationSidebarContextMenu({
             })
           );
         }
+        // Non-secret reference for issue trackers and PRs. Sits beside the
+        // sharing actions because it is only meaningful once shared.
+        if (session && isCopyReferenceEligible(session)) {
+          primaryItems.push(
+            await MenuItem.new({
+              text: copyReferenceLabel,
+              action: () => handleCopyReference(session),
+            })
+          );
+        }
         primaryItems.push(pinItem);
         const menu = await TauriMenu.new({
           items: [...primaryItems, menuSeparator, deleteItem],
@@ -227,6 +248,9 @@ export function useWorkstationSidebarContextMenu({
       handleOpenCloudShare,
       isCloudShareEligible,
       cloudShareLabel,
+      handleCopyReference,
+      isCopyReferenceEligible,
+      copyReferenceLabel,
       handleCloudRemoteItemRemove,
     ]
   );

@@ -497,6 +497,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "Team session",
+      "notMember": "You are not a member of the organization that owns this session.",
+      "signInRequired": "Sign in to ORG2 Cloud to open this session.",
+      "sessionNotFound": "That session is not in this organization.",
+      "notPublished": "Share this session to an organization before copying a reference.",
+      "chooseOrg": "This session is in several organizations. Switch to the one you want to reference, then copy again."
+    },
     "sync": {
       "quotaExceededToast": "ORG2 Cloud sync paused: this org's plan quota is exceeded",
       "syncDisabledToast": "ORG2 Cloud sync paused: session sync is disabled for this org's plan",

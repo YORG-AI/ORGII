@@ -560,6 +560,14 @@
       "viewerOverflow_one": "and 1 more viewer",
       "viewerOverflow_other": "and {{count}} more viewers"
     },
+    "sessionRef": {
+      "chipLabel": "团队会话",
+      "notMember": "你不是此会话所属组织的成员。",
+      "signInRequired": "登录 ORG2 Cloud 以打开此会话。",
+      "sessionNotFound": "该会话不属于此组织。",
+      "notPublished": "先将此会话共享给某个组织，再复制引用。",
+      "chooseOrg": "此会话属于多个组织。切换到你要引用的组织，然后重新复制。"
+    },
     "sync": {
       "quotaExceededToast": "ORG2 云同步已暂停：该组织的套餐配额已用尽",
       "syncDisabledToast": "ORG2 云同步已暂停：该组织的套餐未启用会话同步",
