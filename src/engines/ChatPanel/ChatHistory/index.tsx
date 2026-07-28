@@ -34,6 +34,7 @@ import {
   removeChatRenderedTreeMemoryEntry,
   updateChatRenderedTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
+import { sessionsAtom } from "@src/store/session";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
@@ -55,6 +56,7 @@ import ChatHistoryList from "./components/ChatHistoryList";
 import ChatPinnedHeaderLayer from "./components/ChatPinnedHeaderLayer";
 import ChatSearchBar from "./components/ChatSearchBar";
 import ConversationMinimap from "./components/ConversationMinimap";
+import ProgressMindMap from "./components/ProgressMindMap";
 import RevertConfirmDialog from "./components/RevertConfirmDialog";
 import TurnMetadataLoader from "./components/TurnMetadataLoader";
 import TurnPageList from "./components/TurnPageList";
@@ -332,6 +334,14 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
   // so kanban detail panels don't race with WorkStation's session.
   const contextSessionId = useChatSessionId();
   const activeId = contextSessionId ?? null;
+  const allSessions = useAtomValue(sessionsAtom);
+  const childSessions = useMemo(
+    () =>
+      activeId
+        ? allSessions.filter((session) => session.parentSessionId === activeId)
+        : [],
+    [activeId, allSessions]
+  );
 
   const rawCursorIdeTurnSummaries = useAtomValue(
     cursorIdeTurnSummariesAtomFamily(activeId ?? "")
@@ -1289,6 +1299,16 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     [scrollToDisplayFlatIndex]
   );
 
+  const handleProgressMindMapJump = useCallback(
+    (turnIndex: number) => {
+      const target = minimapItems.find(
+        (item) => item.kind === "user" && item.turnNumber === turnIndex + 1
+      );
+      if (target) handleMinimapJump(target.flatIndex);
+    },
+    [handleMinimapJump, minimapItems]
+  );
+
   // ============================================
   // Render
   // ============================================
@@ -1319,6 +1339,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
         >
           <SessionHeader sessionInfo={sessionInfo} />
         </div>
+
+        {activeId && displayMode === "full" && !hideGroupUserMessage && (
+          <ProgressMindMap
+            sessionId={activeId}
+            childSessions={childSessions}
+            reloadKey={`${activeId}:${isAgentWorking ? "active" : "idle"}:${chatHistory.length}`}
+            onJumpToTurn={handleProgressMindMapJump}
+          />
+        )}
 
         <ChatSearchBar
           ref={searchBarRef}

@@ -208,11 +208,7 @@ async fn handle_ready_message(
         }
         Err(err_msg) => {
             error!("[gateway] Error processing message: {}", err_msg);
-            let mut response = OutboundMessage::new(
-                &msg.channel,
-                &msg.chat_id,
-                &format!("Sorry, I encountered an error: {}", err_msg),
-            );
+            let mut response = build_error_response(&reaction_channel, &reaction_chat_id, &err_msg);
             if !message_id.is_empty() {
                 response.metadata.insert(
                     "processing_reaction_chat_id".to_string(),
@@ -245,6 +241,27 @@ async fn handle_ready_message(
             mgr.notify_processing_end(&reaction_channel, &reaction_chat_id, &message_id)
                 .await;
         }
+    }
+}
+
+fn build_error_response(channel: &str, chat_id: &str, error: &str) -> OutboundMessage {
+    OutboundMessage::new(
+        channel,
+        chat_id,
+        &format!("Sorry, I encountered an error: {}", error),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_error_response;
+
+    #[test]
+    fn reinjected_error_response_targets_original_transport() {
+        let response = build_error_response("feishu", "oc_chat", "model missing");
+        assert_eq!(response.channel, "feishu");
+        assert_eq!(response.chat_id, "oc_chat");
+        assert!(response.content.contains("model missing"));
     }
 }
 

@@ -14,8 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::state::AgentSession;
 
 const ZENMUX_TTL: Duration = Duration::from_secs(300);
-const ZENMUX_MGMT_KEY: &str =
-    "sk-mg-v1-7eb0ee4075005d1865dfc2f3de2d4cd7ef2a214523e5caec01b2684b23744a59";
+const ZENMUX_MGMT_KEY_ENV: &str = "ZENMUX_MGMT_KEY";
 
 #[derive(Clone, Default)]
 struct ZenmuxBarCache {
@@ -234,9 +233,17 @@ async fn get_zenmux_bar_text() -> Option<String> {
 }
 
 async fn fetch_zenmux_bar_text() -> Option<String> {
-    let resp = reqwest::Client::new()
+    let api_key = std::env::var(ZENMUX_MGMT_KEY_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(1))
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok()?;
+    let resp = client
         .get("https://zenmux.ai/api/v1/management/subscription/detail")
-        .header("Authorization", format!("Bearer {}", ZENMUX_MGMT_KEY))
+        .header("Authorization", format!("Bearer {api_key}"))
         .send()
         .await
         .ok()?;
@@ -295,11 +302,17 @@ pub struct ZenmuxQuotaStatus {
 /// Fetch ZenMux quota as structured data (cached, same 5-min TTL as the bar
 /// text). Returns `None` when the API is unreachable and no stale value exists.
 pub async fn get_zenmux_quota() -> Option<ZenmuxQuotaStatus> {
-    // Re-use the existing bar-text fetch path to populate the cache, then
-    // parse fresh data ourselves. This avoids duplicating HTTP + cache logic.
-    let resp = reqwest::Client::new()
+    let api_key = std::env::var(ZENMUX_MGMT_KEY_ENV)
+        .ok()
+        .filter(|value| !value.trim().is_empty())?;
+    let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(1))
+        .timeout(Duration::from_secs(2))
+        .build()
+        .ok()?;
+    let resp = client
         .get("https://zenmux.ai/api/v1/management/subscription/detail")
-        .header("Authorization", format!("Bearer {}", ZENMUX_MGMT_KEY))
+        .header("Authorization", format!("Bearer {api_key}"))
         .send()
         .await
         .ok()?;
