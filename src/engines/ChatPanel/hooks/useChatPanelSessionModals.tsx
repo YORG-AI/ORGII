@@ -5,6 +5,7 @@ import { type ComponentProps, useCallback, useState } from "react";
 import Message from "@src/components/Message";
 import { SessionImportExportModal } from "@src/scaffold/NavigationSidebar/connectors/SessionImportExportModal";
 
+import LinkSessionToProjectModal from "../panels/LinkSessionToProjectModal";
 import LinkSessionToWorkItemModal from "../panels/LinkSessionToWorkItemModal";
 
 type ExportActiveSession = ComponentProps<
@@ -26,6 +27,7 @@ export function useChatPanelSessionModals({
 }: UseChatPanelSessionModalsOptions) {
   const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isLinkWorkItemModalOpen, setLinkWorkItemModalOpen] = useState(false);
+  const [isLinkProjectModalOpen, setLinkProjectModalOpen] = useState(false);
 
   const handleOpenExportSessionJson = useCallback(() => {
     setExportModalOpen(true);
@@ -49,6 +51,20 @@ export function useChatPanelSessionModals({
     setLinkWorkItemModalOpen(false);
   }, []);
 
+  const handleOpenLinkProject = useCallback(() => {
+    if (!currentSessionId) {
+      Message.warning(t("common:toasts.openSessionBeforeLinking"));
+      return;
+    }
+    setLinkProjectModalOpen(true);
+    closeHeaderActionsMenu();
+  }, [closeHeaderActionsMenu, currentSessionId, t]);
+
+  const handleCloseLinkProject = useCallback(
+    () => setLinkProjectModalOpen(false),
+    []
+  );
+
   const handleSessionLinkedToWorkItem = useCallback(() => {
     void emit("orgii-data-changed", new Date().toISOString());
   }, []);
@@ -59,6 +75,12 @@ export function useChatPanelSessionModals({
         open={isLinkWorkItemModalOpen}
         sessionId={currentSessionId ?? null}
         onClose={handleCloseLinkWorkItem}
+        onLinked={handleSessionLinkedToWorkItem}
+      />
+      <LinkSessionToProjectModal
+        open={isLinkProjectModalOpen}
+        sessionId={currentSessionId ?? null}
+        onClose={handleCloseLinkProject}
         onLinked={handleSessionLinkedToWorkItem}
       />
       <SessionImportExportModal
@@ -75,6 +97,7 @@ export function useChatPanelSessionModals({
   return {
     handleOpenExportSessionJson,
     handleOpenLinkWorkItem,
+    handleOpenLinkProject,
     sessionModals,
   };
 }

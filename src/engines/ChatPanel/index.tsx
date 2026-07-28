@@ -352,6 +352,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const {
       handleOpenExportSessionJson,
       handleOpenLinkWorkItem,
+      handleOpenLinkProject,
       sessionModals,
     } = useChatPanelSessionModals({
       activeSession,
@@ -535,6 +536,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           handleExploreAgentSearchToggle={handleExploreAgentSearchToggle}
           handleOpenExportSessionJson={handleOpenExportSessionJson}
           handleOpenLinkWorkItem={handleOpenLinkWorkItem}
+          handleOpenLinkProject={handleOpenLinkProject}
           handleOpenSearch={handleOpenSearch}
           handleNewSession={handleNewSession}
           handleOpenStartPage={handleOpenStartPage}

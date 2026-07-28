@@ -81,6 +81,7 @@ interface ChatPanelHeaderProps {
   handleExploreAgentSearchToggle: (enabled: boolean) => void;
   handleOpenExportSessionJson: () => void;
   handleOpenLinkWorkItem: () => void;
+  handleOpenLinkProject: () => void;
   handleOpenSearch: () => void;
   handleNewSession: () => void;
   handleOpenStartPage: () => void;
@@ -151,6 +152,7 @@ export function ChatPanelHeader({
   handleExploreAgentSearchToggle,
   handleOpenExportSessionJson,
   handleOpenLinkWorkItem,
+  handleOpenLinkProject,
   handleOpenSearch,
   handleNewSession,
   handleOpenStartPage,
@@ -471,6 +473,16 @@ export function ChatPanelHeader({
             >
               <Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
               <span className="flex-1 truncate">Link to Work Item…</span>
+            </button>
+            <button
+              type="button"
+              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={handleOpenLinkProject}
+              disabled={!currentSessionId}
+              data-testid="session-link-project-button"
+            >
+              <Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              <span className="flex-1 truncate">Link to Project…</span>
             </button>
             <button
               type="button"
