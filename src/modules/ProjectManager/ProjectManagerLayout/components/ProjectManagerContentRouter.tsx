@@ -1,6 +1,7 @@
 import React, { Suspense, memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { UnifiedTabContent } from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
@@ -421,6 +422,13 @@ function renderNonWorkItemsContent({
           />
         </Suspense>
       );
+
+    // Project Tree/Journey are self-contained registry renderers. Keep the
+    // current Project Manager Git Sync and Org Hub routes intact rather than
+    // routing these tabs through the org-only surface.
+    case "project-tree":
+    case "project-journey":
+      return <UnifiedTabContent tab={activeTab} paneId="main" isActive />;
 
     case "project-org":
     case "project-org-settings": {

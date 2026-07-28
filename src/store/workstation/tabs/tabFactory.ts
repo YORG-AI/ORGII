@@ -98,6 +98,8 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   devtools: "browser",
   "project-dashboard": "project",
   "project-work-items": "project",
+  "project-tree": "project",
+  "project-journey": "project",
   "project-linear-projects": "project",
   "project-linear-work-items": "project",
   "project-settings": "project",

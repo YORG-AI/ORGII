@@ -1,0 +1,159 @@
+/**
+ * Load real projects/work items and fall back to demo fixture.
+ */
+
+import {
+  enrichedWorkItemToUI,
+  projectApi,
+  type ProjectData,
+} from "@src/api/http/project";
+
+import {
+  DEMO_PROJECT,
+  DEMO_WORK_ITEMS,
+  type ProjectLike,
+  type WorkItemLike,
+  buildWorkspaceProjectTree,
+  type ProjectTreeNode,
+} from "./model";
+
+export interface ProjectTreeBundle {
+  tree: ProjectTreeNode;
+  projects: ProjectLike[];
+  workItemsByProject: Record<string, WorkItemLike[]>;
+  standaloneWorkItems: WorkItemLike[];
+  usedDemo: boolean;
+  error?: string;
+}
+
+function projectDataToLike(p: ProjectData): ProjectLike {
+  return {
+    id: p.meta.id,
+    name: p.meta.name,
+    slug: p.slug,
+    status: p.meta.status,
+    description: p.description,
+  };
+}
+
+export async function loadProjectTreeBundle(options?: {
+  forceDemo?: boolean;
+  workspaceName?: string;
+}): Promise<ProjectTreeBundle> {
+  if (options?.forceDemo) {
+    const workItemsByProject = {
+      [DEMO_PROJECT.id]: DEMO_WORK_ITEMS,
+      [DEMO_PROJECT.slug!]: DEMO_WORK_ITEMS,
+    };
+    return {
+      tree: buildWorkspaceProjectTree({
+        workspaceName: options.workspaceName ?? "Workspace",
+        projects: [DEMO_PROJECT],
+        workItemsByProject,
+      }),
+      projects: [DEMO_PROJECT],
+      workItemsByProject,
+      standaloneWorkItems: [],
+      usedDemo: true,
+    };
+  }
+
+  try {
+    const projectsRaw = await projectApi.readProjects();
+    const projects = (projectsRaw ?? []).map(projectDataToLike);
+    const workItemsByProject: Record<string, WorkItemLike[]> = {};
+
+    await Promise.all(
+      projects.map(async (project) => {
+        const slug = project.slug || project.id;
+        try {
+          const enriched = await projectApi.readWorkItemsEnriched(slug);
+          const items = (enriched ?? []).map((item) =>
+            enrichedWorkItemToUI(item)
+          ) as unknown as WorkItemLike[];
+          workItemsByProject[project.id] = items;
+          workItemsByProject[slug] = items;
+        } catch {
+          workItemsByProject[project.id] = [];
+          workItemsByProject[slug] = [];
+        }
+      })
+    );
+
+    let standaloneWorkItems: WorkItemLike[] = [];
+    try {
+      const standalone = await projectApi.readStandaloneWorkItems();
+      standaloneWorkItems = (standalone ?? []).map((item) => {
+        const anyItem = item as unknown as Record<string, unknown>;
+        return {
+          session_id: String(
+            anyItem.session_id ?? anyItem.id ?? anyItem.short_id ?? ""
+          ),
+          name: String(anyItem.name ?? anyItem.title ?? "work item"),
+          status: String(anyItem.status ?? ""),
+          workItemStatus: String(
+            anyItem.workItemStatus ?? anyItem.status ?? ""
+          ),
+          linkedSessions: (anyItem.linkedSessions ??
+            anyItem.linked_sessions ??
+            []) as WorkItemLike["linkedSessions"],
+          todos: (anyItem.todos as WorkItemLike["todos"]) ?? [],
+          workProducts:
+            (anyItem.workProducts as WorkItemLike["workProducts"]) ??
+            (anyItem.work_products as WorkItemLike["workProducts"]) ??
+            [],
+          created_time: String(
+            anyItem.created_time ?? anyItem.created_at ?? ""
+          ),
+          updated_time: String(
+            anyItem.updated_time ?? anyItem.updated_at ?? ""
+          ),
+        };
+      });
+    } catch {
+      standaloneWorkItems = [];
+    }
+
+    const hasLinks = Object.values(workItemsByProject).some((items) =>
+      items.some(
+        (wi) =>
+          (wi.linkedSessions?.length ?? 0) > 0 || (wi.todos?.length ?? 0) > 0
+      )
+    );
+
+    if (projects.length === 0 && standaloneWorkItems.length === 0) {
+      return loadProjectTreeBundle({
+        forceDemo: true,
+        workspaceName: options?.workspaceName,
+      });
+    }
+
+    const finalProjects = hasLinks ? projects : [...projects, DEMO_PROJECT];
+    if (!hasLinks) {
+      workItemsByProject[DEMO_PROJECT.id] = DEMO_WORK_ITEMS;
+      workItemsByProject[DEMO_PROJECT.slug!] = DEMO_WORK_ITEMS;
+    }
+
+    return {
+      tree: buildWorkspaceProjectTree({
+        workspaceName: options?.workspaceName ?? "Workspace",
+        projects: finalProjects,
+        workItemsByProject,
+        standaloneWorkItems,
+      }),
+      projects: finalProjects,
+      workItemsByProject,
+      standaloneWorkItems,
+      usedDemo: !hasLinks,
+    };
+  } catch (error) {
+    const demo = await loadProjectTreeBundle({
+      forceDemo: true,
+      workspaceName: options?.workspaceName,
+    });
+    return {
+      ...demo,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

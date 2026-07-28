@@ -54,6 +54,8 @@ export type WorkStationTabType =
   | "project-org"
   | "project-org-settings"
   | "project-git-sync-review"
+  | "project-tree"
+  | "project-journey"
   | "project-workitems"
   | "workItem-detail"
   | "chat-session"
@@ -436,6 +438,8 @@ export const TOOL_TAB_TYPES = [
   "project-settings",
   "project-org",
   "project-org-settings",
+  "project-tree",
+  "project-journey",
   "project-workitems",
   "workItem-detail",
   "chat-session",

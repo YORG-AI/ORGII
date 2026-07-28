@@ -108,6 +108,8 @@ export {
   projectOrgTabFactory,
   projectGitSyncReviewTabFactory,
   projectWorkItemsTabFactory,
+  projectTreeTabFactory,
+  projectJourneyTabFactory,
   workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
@@ -120,6 +122,8 @@ export {
   normalizeProjectDetailSurfaceView,
   createProjectGitSyncReviewTab,
   createProjectWorkItemsTab,
+  createProjectTreeTab,
+  createProjectJourneyTab,
   createWorkItemDetailTab,
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -138,6 +142,8 @@ export type {
   ProjectGitSyncReviewTabData,
   ProjectWorkItemsTabData,
   WorkItemDetailTabData,
+} from "./project,
+  ProjectJourneyTabData,
 } from "./project";
 export type { NewWorkItemTabData } from "../types";
 

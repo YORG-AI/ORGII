@@ -137,6 +137,8 @@ export {
   projectOrgTabFactory,
   projectGitSyncReviewTabFactory,
   projectWorkItemsTabFactory,
+  projectTreeTabFactory,
+  projectJourneyTabFactory,
   workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
@@ -149,6 +151,8 @@ export {
   normalizeProjectDetailSurfaceView,
   createProjectGitSyncReviewTab,
   createProjectWorkItemsTab,
+  createProjectTreeTab,
+  createProjectJourneyTab,
   createWorkItemDetailTab,
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -244,3 +248,5 @@ export {
   clearAllEditorCacheAtom,
   switchActiveRepoAtom,
 } from "./editorCache";
+
+export type { ProjectJourneyTabData } from "./factories/project";

@@ -34,6 +34,8 @@ interface UseProjectManagerSidebarConfigOptions {
   onImportOrgs: () => void;
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree: () => void;
+  onOpenProjectJourney: () => void;
   onOpenPersonalOrg: (view?: ProjectOrgSurfaceView) => void;
   onOpenProjectOrg: (org: ProjectOrg, view?: ProjectOrgSurfaceView) => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;
@@ -62,6 +64,8 @@ export function useProjectManagerSidebarConfig({
   onImportOrgs,
   onOpenProjects,
   onOpenWorkItems,
+  onOpenProjectTree,
+  onOpenProjectJourney,
   onOpenPersonalOrg,
   onOpenProjectOrg,
   onOpenLinearProjects,
@@ -106,6 +110,8 @@ export function useProjectManagerSidebarConfig({
             onImportOrgs={onImportOrgs}
             onOpenProjects={onOpenProjects}
             onOpenWorkItems={onOpenWorkItems}
+            onOpenProjectTree={onOpenProjectTree}
+            onOpenProjectJourney={onOpenProjectJourney}
             onOpenPersonalOrg={onOpenPersonalOrg}
             onOpenProjectOrg={onOpenProjectOrg}
             onOpenLinearProjects={onOpenLinearProjects}
@@ -138,6 +144,8 @@ export function useProjectManagerSidebarConfig({
       onImportOrgs,
       onOpenProjects,
       onOpenWorkItems,
+      onOpenProjectTree,
+      onOpenProjectJourney,
       onOpenPersonalOrg,
       onOpenProjectOrg,
       onOpenLinearProjects,
@@ -226,6 +234,10 @@ function getActiveRepoView(activeTab: WorkStationTab | null): ActiveRepoView {
       return "projects";
     case "project-work-items":
       return "work-items";
+    case "project-tree":
+      return "project-tree";
+    case "project-journey":
+      return "project-journey";
     case "project-linear-projects":
       return "linear-projects";
     case "project-linear-work-items":

@@ -25,6 +25,8 @@ interface WorkspaceTreeNode extends TreeRowNode {
   kind:
     | "local-projects"
     | "local-work-items"
+    | "local-project-tree"
+    | "local-project-journey"
     | "linear-projects"
     | "linear-work-items";
 }
@@ -32,11 +34,15 @@ interface WorkspaceTreeNode extends TreeRowNode {
 interface WorkspaceTreeContentProps {
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree?: () => void;
+  onOpenProjectJourney?: () => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;
   onOpenLinearWorkItems: (selection?: LinearProjectSelection) => void;
   activeRepoView:
     | "projects"
     | "work-items"
+    | "project-tree"
+    | "project-journey"
     | "linear-projects"
     | "linear-work-items"
     | "settings"
@@ -54,6 +60,8 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
   ({
     onOpenProjects,
     onOpenWorkItems,
+    onOpenProjectTree,
+    onOpenProjectJourney,
     onOpenLinearProjects,
     onOpenLinearWorkItems,
     activeRepoView,
@@ -94,6 +102,30 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
         {
           depth: 0,
           node: {
+            id: "workspace:local-project-tree",
+            name: t("workspace.projectTree"),
+            path: "workspace:local-project-tree",
+            type: "file",
+            icon: (
+              <BookOpen size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+            ),
+            kind: "local-project-tree",
+          },
+        },
+        {
+          depth: 0,
+          node: {
+            id: "workspace:local-project-journey",
+            name: t("workspace.projectJourney"),
+            path: "workspace:local-project-journey",
+            type: "file",
+            icon: <Box size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
+            kind: "local-project-journey",
+          },
+        },
+        {
+          depth: 0,
+          node: {
             id: LINEAR_PROJECTS_ID,
             name: t("workspace.linearProjects"),
             path: LINEAR_PROJECTS_ID,
@@ -126,6 +158,10 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
           (node.kind === "local-projects" && activeRepoView === "projects") ||
           (node.kind === "local-work-items" &&
             activeRepoView === "work-items") ||
+          (node.kind === "local-project-tree" &&
+            activeRepoView === "project-tree") ||
+          (node.kind === "local-project-journey" &&
+            activeRepoView === "project-journey") ||
           (node.kind === "linear-projects" &&
             activeRepoView === "linear-projects") ||
           (node.kind === "linear-work-items" &&
@@ -145,6 +181,14 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
                 onOpenWorkItems();
                 return;
               }
+              if (node.kind === "local-project-tree") {
+                onOpenProjectTree?.();
+                return;
+              }
+              if (node.kind === "local-project-journey") {
+                onOpenProjectJourney?.();
+                return;
+              }
               if (node.kind === "linear-projects") {
                 onOpenLinearProjects();
                 return;
@@ -161,6 +205,8 @@ export const WorkspaceTreeContent: React.FC<WorkspaceTreeContentProps> = memo(
         onOpenLinearWorkItems,
         onOpenProjects,
         onOpenWorkItems,
+        onOpenProjectTree,
+        onOpenProjectJourney,
       ]
     );
 
