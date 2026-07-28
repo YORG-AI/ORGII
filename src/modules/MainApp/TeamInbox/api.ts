@@ -75,7 +75,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
   const occurredAt = new Date(item.occurredAt).toISOString();
   const actor = item.actor ?? {
     id: "system",
-    displayName: "Team Inbox",
+    displayName: "",
   };
 
   if (

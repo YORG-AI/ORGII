@@ -383,6 +383,13 @@ where
 /// All fields are optional — only provided fields will be updated.
 /// This enables atomic read-modify-write in Rust, eliminating
 /// multiple IPC calls and JS-side type conversions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkItemMutationActor {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkItemPartialUpdate {
@@ -469,6 +476,10 @@ pub struct WorkItemPartialUpdate {
     pub close_out: Option<Option<WorkItemCloseOut>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub work_products: Option<Vec<WorkItemWorkProduct>>,
+    /// Request metadata used to attribute the generated history event.
+    /// This is never copied into Work Item frontmatter as mutable item data.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor: Option<WorkItemMutationActor>,
 }
 
 // ============================================

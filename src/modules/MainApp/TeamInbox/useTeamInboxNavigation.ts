@@ -1,5 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   enrichedWorkItemToUI,
@@ -21,6 +22,7 @@ const log = createLogger("TeamInboxNavigation");
 export function useTeamInboxNavigation(): (
   intent: TeamInboxNavigationIntent
 ) => void {
+  const { t } = useTranslation();
   const sessions = useAtomValue(sessionsAtom);
   const openSession = useSetAtom(openOrFocusSessionInChatPanelTabAtom);
   const openWorkItem = useSetAtom(openWorkItemInChatPanelTabAtom);
@@ -60,9 +62,12 @@ export function useTeamInboxNavigation(): (
             standaloneWorkItemDataToEnriched(workItem)
           ),
           shortId,
-          projectId: project?.meta.id ?? "",
-          projectSlug: project?.slug ?? "",
-          projectName: project?.meta.name ?? "Standalone",
+          projectId: project?.meta.id ?? intent.projectId ?? "",
+          projectSlug: project?.slug ?? intent.projectId ?? "",
+          projectName:
+            project?.meta.name ??
+            intent.projectId ??
+            t("teamInbox.detail.standaloneProject"),
           orgId: project?.meta.org_id,
         });
         if (intent.action) {
@@ -83,15 +88,31 @@ export function useTeamInboxNavigation(): (
         return;
       }
 
-      void Promise.all([
+      void Promise.allSettled([
         projectApi.readProject(intent.projectId),
         projectApi.readWorkItem(intent.projectId, intent.workItemId),
       ])
-        .then(([project, workItem]) => openResolvedWorkItem(workItem, project))
+        .then(([projectResult, workItemResult]) => {
+          if (workItemResult.status === "rejected") {
+            throw workItemResult.reason;
+          }
+          if (projectResult.status === "rejected") {
+            log.warn(
+              "Opening Team Inbox Work Item without project metadata",
+              projectResult.reason
+            );
+          }
+          openResolvedWorkItem(
+            workItemResult.value,
+            projectResult.status === "fulfilled"
+              ? projectResult.value
+              : undefined
+          );
+        })
         .catch((error: unknown) => {
           log.warn("Failed to open project Team Inbox Work Item", error);
         });
     },
-    [openSession, openWorkItem, requestWorkItemAction, sessions]
+    [openSession, openWorkItem, requestWorkItemAction, sessions, t]
   );
 }

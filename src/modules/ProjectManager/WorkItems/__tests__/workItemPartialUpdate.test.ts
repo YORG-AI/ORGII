@@ -5,14 +5,17 @@ import { toWorkItemPartialUpdate } from "../workItemPartialUpdate";
 describe("toWorkItemPartialUpdate", () => {
   it("maps editable Work Item fields to the project-store payload", () => {
     expect(
-      toWorkItemPartialUpdate({
-        name: "Inbox thread",
-        spec: "Unified body",
-        workItemStatus: "in_progress",
-        priority: "high",
-        assignee: { id: "member-1", name: "Ada" },
-        labels: [{ id: "label-1", name: "UX", color: "#000000" }],
-      })
+      toWorkItemPartialUpdate(
+        {
+          name: "Inbox thread",
+          spec: "Unified body",
+          workItemStatus: "in_progress",
+          priority: "high",
+          assignee: { id: "member-1", name: "Ada" },
+          labels: [{ id: "label-1", name: "UX", color: "#000000" }],
+        },
+        { id: "member-1", name: " Ada " }
+      )
     ).toMatchObject({
       title: "Inbox thread",
       body: "Unified body",
@@ -20,6 +23,7 @@ describe("toWorkItemPartialUpdate", () => {
       priority: "high",
       assignee: "member-1",
       labels: ["label-1"],
+      actor: { id: "member-1", name: "Ada" },
     });
   });
 
@@ -28,18 +32,22 @@ describe("toWorkItemPartialUpdate", () => {
       toWorkItemPartialUpdate({
         assignee: null,
         milestone: null,
+        project: null,
         labels: [],
         endDate: null,
       })
     ).toMatchObject({
       assignee: null,
       milestone: null,
+      project: null,
       labels: [],
       targetDate: null,
     });
   });
 
   it("returns an empty payload when no persisted field changes", () => {
-    expect(toWorkItemPartialUpdate({})).toEqual({});
+    expect(
+      toWorkItemPartialUpdate({}, { id: "member-1", name: "Ada" })
+    ).toEqual({});
   });
 });

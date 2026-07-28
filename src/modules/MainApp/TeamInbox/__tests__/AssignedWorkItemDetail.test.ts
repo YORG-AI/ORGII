@@ -52,33 +52,46 @@ vi.mock("../useTeamInboxWorkItem", () => ({
   useTeamInboxWorkItem: () => ({
     workItem: mocks.workItem,
     status: "ready",
-    error: null,
+    issue: null,
     repoPath: "/repo",
     members: [],
+    currentUser: {
+      id: "user-ea821852",
+      name: "hanafish",
+      avatar: "https://example.com/hanafish.png",
+      color: "#52c41a",
+    },
     updateWorkItem: vi.fn(),
     refreshWorkItem: vi.fn(),
   }),
 }));
 
 vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
-  WorkItemProperties: ({ pillLayout }: { pillLayout?: string }) =>
-    createElement("div", {
-      "data-testid": "work-item-properties",
-      "data-pill-layout": pillLayout,
-    }),
-  WorkItemContent: ({
+  WorkItemThreadSurface: ({
     onStartAgent,
     onOpenSession,
-    headerProperties,
+    propertyProps,
+    currentUser,
   }: {
     onStartAgent?: () => void;
     onOpenSession?: (sessionId: string) => void;
-    headerProperties?: React.ReactNode;
+    propertyProps?: Record<string, unknown>;
+    currentUser?: { id: string; name: string; avatar?: string };
   }) =>
     createElement(
       "div",
-      null,
-      headerProperties,
+      {
+        "data-testid": "work-item-content",
+        "data-current-user-id": currentUser?.id,
+        "data-current-user-name": currentUser?.name,
+        "data-current-user-avatar": currentUser?.avatar,
+      },
+      propertyProps
+        ? createElement("div", {
+            "data-testid": "work-item-properties",
+            "data-property-configured": "true",
+          })
+        : null,
       createElement(
         "button",
         {
@@ -176,7 +189,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     });
   });
 
-  it("uses the responsive wrapping layout for constrained property pills", () => {
+  it("provides editable properties to the shared thread surface", () => {
     act(() => {
       root.render(createElement(AssignedWorkItemDetail, { item }));
     });
@@ -184,8 +197,23 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     expect(
       container
         .querySelector("[data-testid='work-item-properties']")
-        ?.getAttribute("data-pill-layout")
-    ).toBe("wrap");
+        ?.getAttribute("data-property-configured")
+    ).toBe("true");
+  });
+
+  it("passes one resolved identity to the comment composer and history surface", () => {
+    act(() => {
+      root.render(createElement(AssignedWorkItemDetail, { item }));
+    });
+
+    const content = container.querySelector(
+      "[data-testid='work-item-content']"
+    );
+    expect(content?.getAttribute("data-current-user-id")).toBe("user-ea821852");
+    expect(content?.getAttribute("data-current-user-name")).toBe("hanafish");
+    expect(content?.getAttribute("data-current-user-avatar")).toBe(
+      "https://example.com/hanafish.png"
+    );
   });
 
   it("preserves linked-session navigation as a distinct Session tab intent", () => {

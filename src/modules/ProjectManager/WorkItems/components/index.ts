@@ -7,7 +7,11 @@ export { default as WorkItemContextMenu } from "./WorkItemContextMenu";
 export { default as WorkItemDetail } from "./WorkItemDetail";
 export type { WorkItemDetailActions } from "./WorkItemDetail";
 export { default as WorkItemDetailPage } from "./WorkItemDetailPage";
-export { default as WorkItemProperties } from "./WorkItemProperties";
+export {
+  default as WorkItemProperties,
+  WORK_ITEM_THREAD_PROPERTY_FIELDS,
+} from "./WorkItemProperties";
+export { default as WorkItemThreadSurface } from "./WorkItemThreadSurface";
 export { default as WorkItemRow } from "./WorkItemRow";
 export { default as WorkItemSection } from "./WorkItemSection";
 export { default as WorkItemsListContent } from "./WorkItemsListContent";

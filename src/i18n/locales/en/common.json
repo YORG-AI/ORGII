@@ -2466,7 +2466,8 @@
       "unread": "Unread"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}"
+      "assignedSummary": "{{status}} · {{priority}}",
+      "ariaLabel": "{{title}}, {{status}}"
     },
     "search": {
       "placeholder": "Search inbox",
@@ -2500,15 +2501,24 @@
     "errors": {
       "loadTitle": "Unable to load Team Inbox",
       "load": "Unable to load Team Inbox",
+      "loadMore": "Unable to load more Team Inbox items. Try again.",
       "refresh": "Unable to refresh Team Inbox",
       "markRead": "Unable to mark this item as read. Try again.",
       "markUnread": "Unable to mark this item as unread. Try again.",
-      "markAllRead": "Unable to mark all items as read. Try again."
+      "markAllRead": "Unable to mark all items as read. Try again.",
+      "identity": "Your account could not be matched to a project member. Check your project profile email.",
+      "partialLoad": "Some Team Inbox sources could not be refreshed. Available items are still shown.",
+      "workItemContext": "Some project context is unavailable. The work item remains usable.",
+      "workItemLoad": "Unable to load this work item. Try again.",
+      "workItemUpdate": "Unable to save the latest work item change. Try again."
     },
     "detail": {
       "assignedSubtitle": "Assigned work item",
+      "standaloneProject": "Standalone",
       "mentionSubtitle": "Mentioned in a comment",
-      "mentionedYou": "mentioned you"
+      "mentionedYou": "mentioned you",
+      "threadComments_one": "{{count}} comment in this thread",
+      "threadComments_other": "{{count}} comments in this thread"
     },
     "actions": {
       "markRead": "Mark as read",

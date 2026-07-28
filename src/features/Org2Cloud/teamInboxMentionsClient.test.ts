@@ -238,6 +238,25 @@ describe("listTeamInboxMentions", () => {
     expect(error).toMatchObject({ code: "ORG2_MEMBER_REQUIRED", status: 403 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("cancels an in-flight RPC when its owning Inbox scope is disposed", async () => {
+    fetchMock.mockImplementationOnce(
+      () => new Promise<Response>(() => undefined)
+    );
+    const controller = new AbortController();
+
+    const request = listTeamInboxMentions(
+      "jwt-viewer",
+      "org-1",
+      null,
+      25,
+      controller.signal
+    );
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect((lastCall().init.signal as AbortSignal).aborted).toBe(true);
+  });
 });
 
 describe("Team Inbox read receipts", () => {

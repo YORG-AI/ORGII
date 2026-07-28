@@ -2,11 +2,7 @@ import { ClipboardList, ExternalLink } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  WorkItemContent,
-  WorkItemProperties,
-} from "@src/modules/ProjectManager/WorkItems/components";
-import type { WorkItemPropertyFieldKey } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/types";
+import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
@@ -17,22 +13,15 @@ import {
   isGitHubIssueStatus,
 } from "../domain";
 import { useTeamInboxWorkItem } from "../useTeamInboxWorkItem";
+import type { TeamInboxWorkItemIssue } from "../useTeamInboxWorkItem";
 import TeamInboxDetailLayout from "./TeamInboxDetailLayout";
-
-const WORK_ITEM_THREAD_PROPERTY_FIELDS: WorkItemPropertyFieldKey[] = [
-  "project",
-  "status",
-  "priority",
-  "assignee",
-  "reviewer",
-  "date",
-];
 
 export interface AssignedWorkItemDetailProps {
   item: AssignedWorkItem;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   onMarkRead?: (item: AssignedWorkItem) => void;
   onMarkUnread?: (item: AssignedWorkItem) => void;
+  onWorkItemUpdated?: (workItem: WorkItem) => void;
 }
 
 interface AssignedWorkItemThreadProps {
@@ -40,7 +29,9 @@ interface AssignedWorkItemThreadProps {
   workItem: WorkItem;
   repoPath: string | null;
   members: Person[];
-  error: string | null;
+  currentUser: Person | null;
+  issueMessage: string | null;
+  issueTone: "warning" | "error" | null;
   updateWorkItem: (updates: Partial<WorkItem>) => void;
   refreshWorkItem: () => void;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
@@ -51,7 +42,9 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
   workItem,
   repoPath,
   members,
-  error,
+  currentUser,
+  issueMessage,
+  issueTone,
   updateWorkItem,
   refreshWorkItem,
   onNavigate,
@@ -59,41 +52,42 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
   const canUpdate = Boolean(item.target.projectId);
   const isGitHubIssue = isGitHubIssueStatus(item.payload.status);
 
-  const properties = canUpdate ? (
-    <WorkItemProperties
-      workItem={workItem}
-      onUpdate={updateWorkItem}
-      availableProjects={workItem.project ? [workItem.project] : []}
-      availableMilestones={workItem.milestone ? [workItem.milestone] : []}
-      availableLabels={workItem.labels ?? []}
-      availableMembers={members}
-      projectIconType={isGitHubIssue ? "github" : undefined}
-      projectReadonly
-      fieldVariant="pill"
-      pillLayout="wrap"
-      visibleFields={WORK_ITEM_THREAD_PROPERTY_FIELDS}
-      showMoreMenu
-    />
-  ) : null;
-
   return (
     <div className="relative flex min-h-0 flex-1 overflow-hidden">
-      {error ? (
+      {issueMessage ? (
         <div
           role="status"
-          className="absolute inset-x-0 top-0 z-30 border-b border-danger-3 bg-danger-1 px-3 py-2 text-xs text-danger-6"
+          className={`absolute inset-x-0 top-0 z-30 border-b px-3 py-2 text-xs ${
+            issueTone === "warning"
+              ? "border-warning-3 bg-warning-6/10 text-warning-6"
+              : "border-danger-3 bg-danger-1 text-danger-6"
+          }`}
         >
-          {error}
+          {issueMessage}
         </div>
       ) : null}
       <div className="min-w-0 flex-1 overflow-hidden">
-        <WorkItemContent
+        <WorkItemThreadSurface
           workItem={workItem}
-          presentation="thread"
-          headerProperties={properties}
+          propertyProps={
+            canUpdate
+              ? {
+                  onUpdate: updateWorkItem,
+                  availableProjects: workItem.project ? [workItem.project] : [],
+                  availableMilestones: workItem.milestone
+                    ? [workItem.milestone]
+                    : [],
+                  availableLabels: workItem.labels ?? [],
+                  availableMembers: members,
+                  projectIconType: isGitHubIssue ? "github" : undefined,
+                  projectReadonly: true,
+                }
+              : undefined
+          }
           onUpdateWorkItem={canUpdate ? updateWorkItem : undefined}
           onUpdateWorkItemImmediate={canUpdate ? updateWorkItem : undefined}
           teamMembers={members}
+          currentUser={currentUser ?? undefined}
           repoPath={repoPath}
           projectSlug={item.target.projectId || null}
           shortId={item.target.workItemId}
@@ -129,17 +123,27 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
   onNavigate,
   onMarkRead,
   onMarkUnread,
+  onWorkItemUpdated,
 }) => {
   const { t } = useTranslation();
   const {
     workItem,
     status,
-    error,
+    issue,
     repoPath,
     members,
+    currentUser,
     updateWorkItem,
     refreshWorkItem,
-  } = useTeamInboxWorkItem(item.target);
+  } = useTeamInboxWorkItem(item.target, onWorkItemUpdated);
+  const issueMessage = ((): string | null => {
+    const keyByIssue: Record<TeamInboxWorkItemIssue, string> = {
+      context_unavailable: "teamInbox.errors.workItemContext",
+      load_failed: "teamInbox.errors.workItemLoad",
+      update_failed: "teamInbox.errors.workItemUpdate",
+    };
+    return issue ? t(keyByIssue[issue]) : null;
+  })();
 
   return (
     <TeamInboxDetailLayout
@@ -178,7 +182,11 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
           workItem={workItem}
           repoPath={repoPath}
           members={members}
-          error={error}
+          currentUser={currentUser}
+          issueMessage={issueMessage}
+          issueTone={
+            issue === "context_unavailable" ? "warning" : issue ? "error" : null
+          }
           updateWorkItem={updateWorkItem}
           refreshWorkItem={refreshWorkItem}
           onNavigate={onNavigate}
@@ -187,7 +195,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
         <Placeholder
           variant="error"
           title={t("teamInbox.errors.loadTitle")}
-          subtitle={error ?? undefined}
+          subtitle={issueMessage ?? t("teamInbox.errors.workItemLoad")}
           fillParentHeight
         />
       )}

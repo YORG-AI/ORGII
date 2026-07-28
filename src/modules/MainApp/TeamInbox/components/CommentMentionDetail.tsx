@@ -56,14 +56,6 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
           label: t("teamInbox.fields.comments"),
           value: item.payload.commentCount,
         },
-        {
-          label: t("teamInbox.fields.threadId"),
-          value: item.target.threadId,
-        },
-        {
-          label: t("teamInbox.fields.commentId"),
-          value: item.target.commentId,
-        },
       ]}
     >
       <div className={CARD_ROW_TOKENS.container}>
@@ -78,9 +70,14 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
             </span>
           ) : null}
         </div>
-        {item.payload.context ? (
+        {item.payload.threadCommentCount !== undefined ||
+        item.payload.context ? (
           <p className="mt-3 border-l-2 border-border-2 pl-3 text-sm text-text-3">
-            {item.payload.context}
+            {item.payload.threadCommentCount !== undefined
+              ? t("teamInbox.detail.threadComments", {
+                  count: item.payload.threadCommentCount,
+                })
+              : item.payload.context}
           </p>
         ) : null}
         <div className="mt-3 text-sm leading-6 text-text-1">

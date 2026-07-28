@@ -12,13 +12,13 @@ import { useCallback, useMemo, useState } from "react";
 
 import {
   type MemberEntry,
-  type WorkItemPartialUpdate,
   enrichedWorkItemToUI,
   projectApi,
 } from "@src/api/http/project";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { useCurrentUserMemberIds } from "@src/hooks/project";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
+import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemsKanbanGroup,
@@ -99,7 +99,7 @@ export function useProjectWorkItemsTabContentInteractions({
     }
     return [...people.values()];
   }, [workItems]);
-  const { memberIds: currentUserMemberIds } =
+  const { currentUser, memberIds: currentUserMemberIds } =
     useCurrentUserMemberIds(workItemPeople);
   const pinnedKanbanColumnIds = useMemo(
     () => [...currentUserMemberIds].map((memberId) => `person:${memberId}`),
@@ -213,14 +213,7 @@ export function useProjectWorkItemsTabContentInteractions({
         return;
       }
 
-      const payload: WorkItemPartialUpdate = {};
-      if (updates.name !== undefined) payload.title = updates.name;
-      if (updates.spec !== undefined) payload.body = updates.spec;
-      if (updates.workItemStatus !== undefined) {
-        payload.status = updates.workItemStatus;
-      }
-      if (updates.priority !== undefined) payload.priority = updates.priority;
-      if ("endDate" in updates) payload.targetDate = updates.endDate ?? null;
+      const payload = toWorkItemPartialUpdate(updates, currentUser);
       if (Object.keys(payload).length === 0) return;
 
       const updated = await projectApi.updateWorkItemPartial(
@@ -240,7 +233,7 @@ export function useProjectWorkItemsTabContentInteractions({
         )
       );
     },
-    [projectOptions, workItemById, setWorkItemsByProject]
+    [currentUser, projectOptions, workItemById, setWorkItemsByProject]
   );
 
   const handleKanbanTaskMove = useCallback(

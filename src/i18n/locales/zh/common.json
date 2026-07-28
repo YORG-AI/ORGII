@@ -2346,7 +2346,8 @@
       "unread": "未读"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}"
+      "assignedSummary": "{{status}} · {{priority}}",
+      "ariaLabel": "{{title}}，{{status}}"
     },
     "search": {
       "placeholder": "搜索收件箱",
@@ -2380,15 +2381,23 @@
     "errors": {
       "loadTitle": "无法加载团队收件箱",
       "load": "无法加载团队收件箱",
+      "loadMore": "加载更多团队收件箱事项失败，请重试。",
       "refresh": "无法刷新团队收件箱",
       "markRead": "标记已读失败，请重试。",
       "markUnread": "标记未读失败，请重试。",
-      "markAllRead": "全部标记已读失败，请重试。"
+      "markAllRead": "全部标记已读失败，请重试。",
+      "identity": "当前账户无法匹配到项目成员，请检查项目个人资料中的邮箱。",
+      "partialLoad": "部分团队收件箱来源刷新失败，当前可用事项仍会保留显示。",
+      "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
+      "workItemLoad": "无法加载此工作项，请重试。",
+      "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
     },
     "detail": {
       "assignedSubtitle": "分配给你的工作项",
+      "standaloneProject": "独立工作项",
       "mentionSubtitle": "评论中提及了你",
-      "mentionedYou": "提及了你"
+      "mentionedYou": "提及了你",
+      "threadComments": "该话题中有 {{count}} 条评论"
     },
     "actions": {
       "markRead": "标记已读",

@@ -19,25 +19,48 @@ export interface TeamInboxRowProps {
   onSelect: (item: TeamInboxItem) => void;
 }
 
+function toCompactPreview(content: string): string {
+  return content
+    .replace(/\\[nr]/g, "\n")
+    .replace(/^\s*```[^\n]*$/gm, "")
+    .replace(/!\[([^\]]*)\]\((?:\\.|[^)])*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\((?:\\.|[^)])*\)/g, "$1")
+    .replace(/^\s{0,3}#{1,6}[\t ]+/gm, "")
+    .replace(/^\s{0,3}>[\t ]?/gm, "")
+    .replace(/^\s{0,3}(?:[-+*]|\d+[.)])[\t ]+/gm, "")
+    .replace(/^\s*\[[ xX]\][\t ]+/gm, "")
+    .replace(/(`+)([\s\S]*?)\1/g, "$2")
+    .replace(/(\*\*|__)(?=\S)([\s\S]*?\S)\1/g, "$2")
+    .replace(/~~(?=\S)([\s\S]*?\S)~~/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
   ({ item, itemKey, selected, onSelect }, ref) => {
     const { t } = useTranslation();
     const isMention = item.kind === "comment_mention";
     const title = isMention ? item.target.sessionTitle : item.payload.title;
-    const summary = useMemo(() => {
-      if (item.kind === "comment_mention") return item.payload.commentBody;
-      if (item.payload.summary) return item.payload.summary;
+    const { meta, summary } = useMemo(() => {
+      if (item.kind === "comment_mention") {
+        return {
+          meta: item.actor.displayName,
+          summary: toCompactPreview(item.payload.commentBody),
+        };
+      }
       const status = t(workItemStatusLabelKey(item.payload.status), {
         defaultValue: humanizeToken(item.payload.status),
       });
       const priority = t(workItemPriorityLabelKey(item.payload.priority), {
         defaultValue: humanizeToken(item.payload.priority),
       });
-      return t("teamInbox.row.assignedSummary", { status, priority });
+      return {
+        meta: `${status} · ${priority}`,
+        summary: item.payload.summary
+          ? toCompactPreview(item.payload.summary)
+          : "",
+      };
     }, [item, t]);
-    const personName = isMention
-      ? item.actor.displayName
-      : (item.payload.assigneeName ?? item.payload.assigneeMemberId);
     const relativeTime = useMemo(
       () => formatRelativeTime(item.occurredAt, "nano"),
       [item.occurredAt]
@@ -54,7 +77,10 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         type="button"
         role="option"
         aria-selected={selected}
-        aria-label={`${title}，${readLabel}`}
+        aria-label={t("teamInbox.row.ariaLabel", {
+          title,
+          status: readLabel,
+        })}
         tabIndex={selected ? 0 : -1}
         data-testid="team-inbox-row"
         data-item-kind={item.kind}
@@ -86,11 +112,16 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
               {relativeTime}
             </span>
           </span>
-          <span className="mt-0.5 line-clamp-2 block text-xs font-normal leading-5 text-text-3">
-            {summary}
-          </span>
-          <span className="mt-1 flex items-center gap-2 text-xs font-normal text-text-4">
-            <span className="truncate">{personName}</span>
+          {summary ? (
+            <span
+              className="mt-0.5 line-clamp-2 block max-h-10 overflow-hidden text-xs font-normal leading-5 text-text-1"
+              title={summary}
+            >
+              {summary}
+            </span>
+          ) : null}
+          <span className="mt-1 block truncate text-xs font-normal text-text-4">
+            {meta}
           </span>
         </span>
       </button>
