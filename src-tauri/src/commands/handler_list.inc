@@ -1128,16 +1128,10 @@ agent_sessions::event_pipeline::commands::es_get_parent_session,
 agent_sessions::event_pipeline::commands::debug_seed_child_session,
 // Unified Session API commands
 
-agent_sessions::unified_stats::commands::session_aggregate_list,
-agent_sessions::unified_stats::commands::session_check_health,
-agent_sessions::unified_stats::commands::session_get_aggregate_stats,
-agent_sessions::unified_stats::commands::session_get_history,
-agent_sessions::unified_stats::commands::session_heatmap,
-agent_sessions::unified_stats::commands::session_usage_list,
-agent_sessions::unified_stats::commands::session_usage_summary,
-agent_sessions::unified_stats::commands::quota_get_zenmux_status,
-agent_sessions::unified_stats::commands::session_get_context_status,
-agent_sessions::unified_stats::patch::session_patch,
+agent_sessions::session_directory::commands::session_aggregate_list,
+agent_sessions::session_directory::commands::quota_get_zenmux_status,
+agent_sessions::session_directory::commands::session_get_context_status,
+agent_sessions::session_directory::patch::session_patch,
 agent_sessions::session_directory::commands::session_external_history_sidebar_list,
 
 // Flow Awareness commands (user activity tracking for intent inference)

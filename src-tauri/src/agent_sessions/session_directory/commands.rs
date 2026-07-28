@@ -19,6 +19,15 @@ use super::types::{
     ExternalHistorySidebarResponse, ExternalHistorySidebarSourceRequest, SessionFilter,
     SessionListResponse,
 };
+use serde::Serialize;
+
+/// Per-session context status for the quota monitoring panel.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionContextStatus {
+    pub round_count: i64,
+    pub total_tokens: i64,
+}
 
 // ============================================================================
 // Tauri Commands
@@ -36,6 +45,33 @@ pub async fn session_aggregate_list(
     tokio::task::spawn_blocking(move || list_all_sessions(filter.as_ref()))
         .await
         .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Get ZenMux quota status for the monitoring panel.
+///
+/// Shares the same five-minute TTL cache as the Feishu status bar.
+#[tauri::command]
+pub async fn quota_get_zenmux_status(
+) -> Result<Option<agent_core::core::session::status_bar::ZenmuxQuotaStatus>, String> {
+    Ok(agent_core::core::session::status_bar::get_zenmux_quota().await)
+}
+
+/// Get the current round count and token total for one session.
+#[tauri::command]
+pub async fn session_get_context_status(
+    session_id: String,
+) -> Result<SessionContextStatus, String> {
+    tokio::task::spawn_blocking(move || {
+        let (round_count, total_tokens) =
+            agent_core::core::session::status_bar::get_session_token_summary(&session_id)
+                .unwrap_or((0, 0));
+        Ok(SessionContextStatus {
+            round_count,
+            total_tokens,
+        })
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
 }
 
 const EXTERNAL_HISTORY_SIDEBAR_BUCKET_MAX_LIMIT: usize = 50;
