@@ -8,6 +8,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use core_types::activity::ActivityChunk;
+use memchr::{memchr_iter, memmem};
 use serde::Serialize;
 use serde_json::{json, Value};
 
@@ -29,7 +30,8 @@ const CODEX_OMITTED_IMAGE_VALUE: &str = "[embedded image omitted]";
 const CODEX_TURN_OFFSET_CACHE_CAPACITY: usize = 8;
 const CODEX_TURN_OFFSET_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_TURN_LIMIT: usize = 4_096;
-const CODEX_REVERSE_SCAN_BLOCK_BYTES: usize = 256 * 1024;
+const CODEX_TURN_CATALOG_PREVIEW_MAX_BYTES: usize = 512;
+const CODEX_REVERSE_SCAN_BLOCK_BYTES: usize = 1024 * 1024;
 const CODEX_REVERSE_SCAN_MAX_LINE_BYTES: usize = 4 * 1024 * 1024;
 const CODEX_TURN_HEADER_PROBE_BYTES: u64 = 8 * 1024 * 1024;
 
@@ -44,6 +46,14 @@ struct CodexTurnOffset {
     turn_id: String,
     byte_offset: u64,
     sequence: usize,
+}
+
+#[derive(Debug, Clone)]
+struct CodexTurnCatalogEntry {
+    byte_offset: u64,
+    started_at: String,
+    user_preview: String,
+    following_line_count: usize,
 }
 
 #[derive(Debug)]
@@ -106,6 +116,70 @@ fn codex_turn_offset_cache() -> &'static Mutex<CodexTurnOffsetCache> {
     CACHE.get_or_init(|| Mutex::new(CodexTurnOffsetCache::default()))
 }
 
+#[derive(Debug)]
+struct CodexTurnCatalogCacheEntry {
+    path: PathBuf,
+    signature: CodexTranscriptSignature,
+    entries: Vec<CodexTurnCatalogEntry>,
+}
+
+#[derive(Debug, Default)]
+struct CodexTurnCatalogCache {
+    entries: VecDeque<CodexTurnCatalogCacheEntry>,
+}
+
+impl CodexTurnCatalogCache {
+    fn exact(
+        &mut self,
+        path: &Path,
+        signature: CodexTranscriptSignature,
+    ) -> Option<Vec<CodexTurnCatalogEntry>> {
+        let index = self
+            .entries
+            .iter()
+            .position(|entry| entry.path == path && entry.signature == signature)?;
+        let entry = self.entries.remove(index)?;
+        let catalog = entry.entries.clone();
+        self.entries.push_back(entry);
+        Some(catalog)
+    }
+
+    fn latest_for_path(
+        &self,
+        path: &Path,
+    ) -> Option<(CodexTranscriptSignature, Vec<CodexTurnCatalogEntry>)> {
+        self.entries
+            .iter()
+            .rev()
+            .find(|entry| entry.path == path)
+            .map(|entry| (entry.signature, entry.entries.clone()))
+    }
+
+    fn insert(
+        &mut self,
+        path: PathBuf,
+        signature: CodexTranscriptSignature,
+        entries: Vec<CodexTurnCatalogEntry>,
+    ) {
+        if let Some(index) = self.entries.iter().position(|entry| entry.path == path) {
+            self.entries.remove(index);
+        }
+        self.entries.push_back(CodexTurnCatalogCacheEntry {
+            path,
+            signature,
+            entries,
+        });
+        while self.entries.len() > CODEX_TURN_OFFSET_CACHE_CAPACITY {
+            self.entries.pop_front();
+        }
+    }
+}
+
+fn codex_turn_catalog_cache() -> &'static Mutex<CodexTurnCatalogCache> {
+    static CACHE: OnceLock<Mutex<CodexTurnCatalogCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(CodexTurnCatalogCache::default()))
+}
+
 fn codex_transcript_file_signature(path: &Path) -> Result<CodexTranscriptSignature, String> {
     let metadata = fs::metadata(path)
         .map_err(|err| format!("Failed to stat Codex history {}: {err}", path.display()))?;
@@ -119,6 +193,17 @@ fn codex_transcript_file_signature(path: &Path) -> Result<CodexTranscriptSignatu
         modified_ns,
         size_bytes: metadata.len(),
     })
+}
+
+fn bounded_codex_turn_preview(message: &str) -> String {
+    if message.len() <= CODEX_TURN_CATALOG_PREVIEW_MAX_BYTES {
+        return message.to_string();
+    }
+    let mut cut = CODEX_TURN_CATALOG_PREVIEW_MAX_BYTES;
+    while !message.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}…", &message[..cut])
 }
 
 fn remember_codex_turn_offsets(
@@ -419,24 +504,16 @@ pub fn load_codex_app_initial_window_from_path(
 ) -> Result<CodexAppInitialWindow, String> {
     let signature_before = codex_transcript_file_signature(path)?;
     let recent_turn_count = recent_turn_count.clamp(1, CODEX_INITIAL_TURN_LIMIT);
-    let recent_offsets = find_recent_codex_user_offsets(
-        path,
-        signature_before.size_bytes,
-        recent_turn_count.saturating_add(1),
-    )?;
-    if !recent_offsets.is_empty() {
-        let window = load_codex_app_initial_tail_window(
-            session_id,
-            path,
-            recent_turn_count,
-            &recent_offsets,
-        )?;
-        let offsets = recent_offsets
+    let turn_catalog = load_codex_turn_catalog(path, signature_before)?;
+    if !turn_catalog.is_empty() {
+        let window =
+            load_codex_app_initial_tail_window(session_id, path, recent_turn_count, &turn_catalog)?;
+        let offsets = turn_catalog
             .iter()
-            .map(|byte_offset| CodexTurnOffset {
-                turn_id: codex_lazy_turn_id(*byte_offset),
-                byte_offset: *byte_offset,
-                sequence: codex_lazy_turn_sequence(*byte_offset),
+            .map(|entry| CodexTurnOffset {
+                turn_id: codex_lazy_turn_id(entry.byte_offset),
+                byte_offset: entry.byte_offset,
+                sequence: codex_lazy_turn_sequence(entry.byte_offset),
             })
             .collect();
         remember_codex_turn_offsets(path, signature_before, offsets)?;
@@ -489,6 +566,7 @@ pub fn load_codex_app_turn_from_path(
         if let Some(previous_offset) = find_recent_codex_user_offsets(path, start_offset, 1)?
             .into_iter()
             .next()
+            .map(|entry| entry.byte_offset)
         {
             if let Some((previous_user, previous_summary)) =
                 load_codex_turn_header(session_id, path, previous_offset)?
@@ -532,47 +610,76 @@ fn load_codex_app_initial_tail_window(
     session_id: &str,
     path: &Path,
     recent_turn_count: usize,
-    newest_first_offsets: &[u64],
+    newest_first_catalog: &[CodexTurnCatalogEntry],
 ) -> Result<CodexAppInitialWindow, String> {
-    let mut ascending_offsets = newest_first_offsets.to_vec();
-    ascending_offsets.sort_unstable();
-    let body_start = ascending_offsets.len().saturating_sub(recent_turn_count);
+    let mut ascending_catalog = newest_first_catalog.to_vec();
+    ascending_catalog.sort_unstable_by_key(|entry| entry.byte_offset);
+    let body_start = ascending_catalog.len().saturating_sub(recent_turn_count);
     let mut chunks = Vec::new();
     let mut turns = Vec::new();
 
-    if body_start > 0 {
-        let placeholder_offset = ascending_offsets[body_start - 1];
-        if let Some((user_chunk, summary)) =
-            load_codex_turn_header(session_id, path, placeholder_offset)?
-        {
-            let next_turn_id = ascending_offsets
-                .get(body_start)
-                .copied()
-                .map(codex_lazy_turn_id);
-            chunks.push(user_chunk);
-            chunks.push(build_unloaded_turn_placeholder_chunk(
-                session_id,
-                &summary,
-                next_turn_id,
-            ));
-            turns.push(summary);
-        }
+    for index in 0..body_start {
+        let entry = &ascending_catalog[index];
+        let next_turn_id = ascending_catalog
+            .get(index + 1)
+            .map(|next| codex_lazy_turn_id(next.byte_offset));
+        let ended_at = ascending_catalog
+            .get(index + 1)
+            .map(|next| next.started_at.clone());
+        let (user_chunk, summary) = codex_catalog_turn_header(session_id, entry, ended_at);
+        chunks.push(user_chunk);
+        chunks.push(build_unloaded_turn_placeholder_chunk(
+            session_id,
+            &summary,
+            next_turn_id,
+        ));
+        turns.push(summary);
     }
 
-    for byte_offset in ascending_offsets.into_iter().skip(body_start) {
-        let turn_id = codex_lazy_turn_id(byte_offset);
+    for entry in ascending_catalog.into_iter().skip(body_start) {
+        let turn_id = codex_lazy_turn_id(entry.byte_offset);
         let (turn_chunks, _, _) = load_codex_app_from_path_with_mode(
             session_id,
             path,
             CodexTranscriptCollectionMode::Turn { turn_id: &turn_id },
-            byte_offset,
-            codex_lazy_turn_sequence(byte_offset),
+            entry.byte_offset,
+            codex_lazy_turn_sequence(entry.byte_offset),
         )?;
         turns.extend(project_activity_chunks(&turn_chunks));
         chunks.extend(turn_chunks);
     }
 
     Ok(CodexAppInitialWindow { chunks, turns })
+}
+
+fn codex_catalog_turn_header(
+    session_id: &str,
+    entry: &CodexTurnCatalogEntry,
+    ended_at: Option<String>,
+) -> (ActivityChunk, ProjectedTurnMetadata) {
+    let sequence = codex_lazy_turn_sequence(entry.byte_offset);
+    let user_chunk = imported_history::user_message_chunk(
+        session_id,
+        CODEX_PROVIDER_SLUG,
+        sequence,
+        &entry.started_at,
+        &entry.user_preview,
+    );
+    let body_event_count = i64::try_from(entry.following_line_count.max(1)).unwrap_or(i64::MAX);
+    let summary = ProjectedTurnMetadata {
+        turn_id: user_chunk.chunk_id.clone(),
+        start_sequence: i64::try_from(sequence).unwrap_or(i64::MAX),
+        started_at: entry.started_at.clone(),
+        ended_at,
+        status: "completed".to_string(),
+        user_preview: entry.user_preview.clone(),
+        event_count: body_event_count.saturating_add(1),
+        body_event_count,
+        modified_files: Vec::new(),
+        resource_interactions: Vec::new(),
+        git_artifacts: Vec::new(),
+    };
+    (user_chunk, summary)
 }
 
 fn load_codex_turn_header(
@@ -646,12 +753,88 @@ fn load_codex_turn_header(
     Ok(None)
 }
 
+fn load_codex_turn_catalog(
+    path: &Path,
+    signature: CodexTranscriptSignature,
+) -> Result<Vec<CodexTurnCatalogEntry>, String> {
+    let previous = {
+        let mut cache = codex_turn_catalog_cache()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(entries) = cache.exact(path, signature) {
+            return Ok(entries);
+        }
+        cache.latest_for_path(path)
+    };
+
+    let entries = if let Some((previous_signature, previous_entries)) = previous {
+        if signature.size_bytes > previous_signature.size_bytes {
+            // The active Codex writer appends to its rollout. Re-read a bounded
+            // overlap so a line that straddled the previous EOF can be
+            // completed, then merge by byte offset. This keeps a live 1+ GiB
+            // session from rescanning its entire transcript on every refresh.
+            let overlap_start = previous_signature
+                .size_bytes
+                .saturating_sub(CODEX_REVERSE_SCAN_MAX_LINE_BYTES as u64);
+            let appended = find_codex_user_offsets_in_range(
+                path,
+                signature.size_bytes,
+                overlap_start,
+                CODEX_INITIAL_TURN_LIMIT,
+            )?;
+            merge_codex_turn_catalog(previous_entries, appended)
+        } else {
+            // Truncation or an in-place rewrite invalidates byte offsets.
+            find_codex_user_offsets_in_range(
+                path,
+                signature.size_bytes,
+                0,
+                CODEX_INITIAL_TURN_LIMIT,
+            )?
+        }
+    } else {
+        find_codex_user_offsets_in_range(path, signature.size_bytes, 0, CODEX_INITIAL_TURN_LIMIT)?
+    };
+
+    codex_turn_catalog_cache()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .insert(path.to_path_buf(), signature, entries.clone());
+    Ok(entries)
+}
+
+fn merge_codex_turn_catalog(
+    previous: Vec<CodexTurnCatalogEntry>,
+    appended: Vec<CodexTurnCatalogEntry>,
+) -> Vec<CodexTurnCatalogEntry> {
+    let mut by_offset = previous
+        .into_iter()
+        .map(|entry| (entry.byte_offset, entry))
+        .collect::<HashMap<_, _>>();
+    for entry in appended {
+        by_offset.insert(entry.byte_offset, entry);
+    }
+    let mut entries = by_offset.into_values().collect::<Vec<_>>();
+    entries.sort_unstable_by(|left, right| right.byte_offset.cmp(&left.byte_offset));
+    entries.truncate(CODEX_INITIAL_TURN_LIMIT);
+    entries
+}
+
 fn find_recent_codex_user_offsets(
     path: &Path,
     before_exclusive: u64,
     limit: usize,
-) -> Result<Vec<u64>, String> {
-    if limit == 0 || before_exclusive == 0 {
+) -> Result<Vec<CodexTurnCatalogEntry>, String> {
+    find_codex_user_offsets_in_range(path, before_exclusive, 0, limit)
+}
+
+fn find_codex_user_offsets_in_range(
+    path: &Path,
+    before_exclusive: u64,
+    after_inclusive: u64,
+    limit: usize,
+) -> Result<Vec<CodexTurnCatalogEntry>, String> {
+    if limit == 0 || before_exclusive <= after_inclusive {
         return Ok(Vec::new());
     }
     let mut file = fs::File::open(path)
@@ -663,10 +846,13 @@ fn find_recent_codex_user_offsets(
     let mut cursor = before_exclusive.min(file_len);
     let mut suffix = Vec::<u8>::new();
     let mut discarding_oversized_line = false;
-    let mut offsets = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
+    let mut entries = Vec::with_capacity(limit.min(CODEX_INITIAL_TURN_LIMIT));
+    let mut lines_since_boundary = 0usize;
 
-    while cursor > 0 && offsets.len() < limit {
-        let block_start = cursor.saturating_sub(CODEX_REVERSE_SCAN_BLOCK_BYTES as u64);
+    while cursor > after_inclusive && entries.len() < limit {
+        let block_start = cursor
+            .saturating_sub(CODEX_REVERSE_SCAN_BLOCK_BYTES as u64)
+            .max(after_inclusive);
         let block_len = usize::try_from(cursor - block_start).unwrap_or_default();
         file.seek(SeekFrom::Start(block_start)).map_err(|err| {
             format!(
@@ -682,36 +868,41 @@ fn find_recent_codex_user_offsets(
 
         let mut line_end = combined.len();
         let mut skipped_boundary_fragment = !discarding_oversized_line;
-        while line_end > 0 {
-            let Some(newline_index) = combined[..line_end].iter().rposition(|byte| *byte == b'\n')
-            else {
-                break;
-            };
+        // Keep the byte-heavy scan in memchr's optimized implementation.
+        // The catalog parser itself only visits complete JSONL records.
+        for newline_index in memchr_iter(b'\n', &combined).rev() {
             let line_start = newline_index + 1;
             if skipped_boundary_fragment {
-                maybe_record_codex_user_offset(
+                observe_codex_catalog_line(
                     &combined[line_start..line_end],
                     block_start.saturating_add(line_start as u64),
-                    &mut offsets,
+                    &mut entries,
                     limit,
+                    &mut lines_since_boundary,
                 );
             } else {
                 skipped_boundary_fragment = true;
                 discarding_oversized_line = false;
             }
-            if offsets.len() >= limit {
+            if entries.len() >= limit {
                 break;
             }
             line_end = newline_index;
         }
-        if offsets.len() >= limit {
+        if entries.len() >= limit {
             break;
         }
 
         let leading_fragment = &combined[..line_end];
-        if block_start == 0 {
+        if block_start == after_inclusive {
             if !discarding_oversized_line {
-                maybe_record_codex_user_offset(leading_fragment, 0, &mut offsets, limit);
+                observe_codex_catalog_line(
+                    leading_fragment,
+                    block_start,
+                    &mut entries,
+                    limit,
+                    &mut lines_since_boundary,
+                );
             }
         } else if discarding_oversized_line {
             suffix.clear();
@@ -724,29 +915,48 @@ fn find_recent_codex_user_offsets(
         cursor = block_start;
     }
 
-    Ok(offsets)
+    Ok(entries)
 }
 
-fn maybe_record_codex_user_offset(
+fn observe_codex_catalog_line(
     line: &[u8],
     byte_offset: u64,
-    offsets: &mut Vec<u64>,
+    entries: &mut Vec<CodexTurnCatalogEntry>,
     limit: usize,
+    lines_since_boundary: &mut usize,
 ) {
     const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
-    if offsets.len() >= limit
-        || !line
-            .windows(USER_MESSAGE_NEEDLE.len())
-            .any(|window| window == USER_MESSAGE_NEEDLE)
-    {
+    if line.is_empty() {
+        return;
+    }
+    if entries.len() >= limit || memmem::find(line, USER_MESSAGE_NEEDLE).is_none() {
+        *lines_since_boundary = lines_since_boundary.saturating_add(1);
         return;
     }
     let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) else {
+        *lines_since_boundary = lines_since_boundary.saturating_add(1);
         return;
     };
-    if parsed.payload.get("type").and_then(Value::as_str) == Some("user_message") {
-        offsets.push(byte_offset);
+    if parsed.payload.get("type").and_then(Value::as_str) != Some("user_message") {
+        *lines_since_boundary = lines_since_boundary.saturating_add(1);
+        return;
     }
+    let Some(message) = user_message_from_payload(&parsed.payload) else {
+        *lines_since_boundary = lines_since_boundary.saturating_add(1);
+        return;
+    };
+    let started_at = parsed
+        .timestamp
+        .as_deref()
+        .map(imported_history::normalize_created_at)
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    entries.push(CodexTurnCatalogEntry {
+        byte_offset,
+        started_at,
+        user_preview: bounded_codex_turn_preview(&message),
+        following_line_count: *lines_since_boundary,
+    });
+    *lines_since_boundary = 0;
 }
 
 fn load_codex_app_from_path_with_mode<'a>(

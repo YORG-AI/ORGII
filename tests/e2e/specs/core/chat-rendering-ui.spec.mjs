@@ -1997,6 +1997,201 @@ async function assertEarlyCancelStopNavigatesToPreviousTurnPage() {
   );
 }
 
+async function assertOneHundredRoundSkeletonRemainsNavigable() {
+  const sessionId = `sdeagent-e2e-hundred-round-skeleton-${RUN_ID}`;
+  const baseTime = Date.now() - 100_000;
+  const events = [];
+  for (let index = 0; index < 100; index++) {
+    const turnId = `round-user-${index}`;
+    events.push({
+      id: turnId,
+      chunk_id: turnId,
+      sessionId,
+      createdAt: new Date(baseTime + index * 1_000).toISOString(),
+      functionName: "user_message",
+      uiCanonical: "user_message",
+      actionType: "raw",
+      args: {},
+      result: {
+        type: "user",
+        message: `Round ${index + 1} prompt`,
+        is_delta: false,
+      },
+      source: "user",
+      displayText: `Round ${index + 1} prompt`,
+      displayStatus: "completed",
+      displayVariant: "message",
+      activityStatus: "processed",
+      isDelta: false,
+    });
+    if (index < 99) {
+      events.push({
+        id: `round-placeholder-${index}`,
+        chunk_id: `round-placeholder-${index}`,
+        sessionId,
+        createdAt: new Date(baseTime + index * 1_000 + 500).toISOString(),
+        functionName: "turn_placeholder",
+        uiCanonical: "turn_placeholder",
+        actionType: "turn_placeholder",
+        args: {},
+        result: {
+          observation: `Round ${index + 1} is not loaded yet`,
+          unloadedTurn: {
+            turnId,
+            nextTurnId: `round-user-${index + 1}`,
+            startedAt: new Date(baseTime + index * 1_000).toISOString(),
+            endedAt: new Date(baseTime + (index + 1) * 1_000).toISOString(),
+            durationMs: 1_000,
+            eventCount: 2,
+            bodyEventCount: 1,
+          },
+        },
+        source: "assistant",
+        displayText: `Round ${index + 1} is not loaded yet`,
+        displayStatus: "completed",
+        displayVariant: "message",
+        activityStatus: "processed",
+        isDelta: false,
+      });
+    } else {
+      events.push({
+        ...makeAssistantEvent(sessionId, "hundred-round-skeleton"),
+        id: "round-assistant-99",
+        chunk_id: "round-assistant-99",
+        createdAt: new Date(baseTime + index * 1_000 + 500).toISOString(),
+        displayText: "Round 100 answer",
+        result: {
+          type: "assistant",
+          message: "Round 100 answer",
+          is_delta: false,
+        },
+      });
+    }
+  }
+
+  const seed = await invokeE2E("seedChatEvents", sessionId, events, {
+    chatPanelMaximized: true,
+    stationMode: "my-station",
+    runtimeStatus: "completed",
+  });
+  if (!seed || seed.ok !== true) {
+    throw new Error(
+      `seedChatEvents failed for 100-round skeleton: ${seed?.error ?? "unknown"}`
+    );
+  }
+
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return current && /latest/i.test(current.textContent || '') && !current.disabled;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "100-round skeleton did not open on Latest Round",
+    }
+  );
+  await execJS(`
+    document.querySelector('[data-testid="turn-pagination-current-round"]')?.click();
+  `);
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const list = document.querySelector('[data-testid="turn-page-list"]');
+        if (!list) return false;
+        list.scrollTop = 50 * 36;
+        list.dispatchEvent(new Event('scroll', { bubbles: true }));
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "100-round selector list did not open",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const item = document.querySelector(
+          '[data-testid="turn-page-list-item"][data-page-index="49"]'
+        );
+        if (!item) return false;
+        item.click();
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "virtualized round selector never exposed round 50",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return current && /round\\s+50/i.test(current.textContent || '');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "round 50 was not selectable from the 100-round skeleton",
+    }
+  );
+
+  const setPaginationEnabled = async (enabled) => {
+    await execJS(`
+      document.querySelector('[data-testid="chat-panel-header-more-button"]')?.click();
+    `);
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const toggle = Array.from(document.querySelectorAll('[role="switch"]'))
+            .find((node) => /pagination/i.test(node.getAttribute('aria-label') || ''));
+          if (!toggle) return false;
+          const checked = toggle.getAttribute('aria-checked') === 'true';
+          if (checked !== ${enabled}) toggle.click();
+          return true;
+        `),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: `pagination toggle did not become available for enabled=${enabled}`,
+      }
+    );
+    await execJS(`
+      const menu = document.querySelector('[data-testid="chat-panel-header-more-button"]');
+      if (menu?.getAttribute('aria-expanded') === 'true') menu.click();
+    `);
+  };
+
+  await setPaginationEnabled(false);
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        if (document.querySelector('[data-testid="turn-pagination-current-round"]')) {
+          return false;
+        }
+        const scroller = document.querySelector('[data-testid="chat-history-scroll-container"]');
+        if (!scroller) return false;
+        scroller.scrollTop = 0;
+        scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "non-paginated timeline did not render",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const first = document.querySelector('[data-chat-group-index="0"]');
+        return !!first && (first.textContent || '').includes('Round 1 prompt');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "non-paginated timeline never exposed collapsed round 1",
+    }
+  );
+  await setPaginationEnabled(true);
+}
+
 async function assertMultiRepoReadPathRendered() {
   const sessionId = `e2e-render-multirepo-read-${Date.now()}`;
   const baseTime = Date.now();
@@ -2752,6 +2947,15 @@ describe("Core chat rendering UI", () => {
     }
 
     await assertEarlyCancelStopNavigatesToPreviousTurnPage();
+  });
+
+  it("keeps a 100-round lazy skeleton navigable to the middle", async function () {
+    if (!shouldRunScenario("hundred-round-skeleton")) {
+      this.skip();
+      return;
+    }
+
+    await assertOneHundredRoundSkeletonRemainsNavigable();
   });
 
   it("renders multi-repo read file targets as paths instead of generic file labels", async function () {

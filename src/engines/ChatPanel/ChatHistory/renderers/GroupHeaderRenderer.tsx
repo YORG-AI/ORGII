@@ -4,7 +4,10 @@ import React, { memo, useCallback } from "react";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
-import { loadSessionTurnBodyIntoStore } from "@src/engines/SessionCore/turns";
+import {
+  loadSessionTurnBodyIntoStore,
+  pruneLoadedTurnBodies,
+} from "@src/engines/SessionCore/turns";
 import TurnCommentChrome from "@src/features/Org2Cloud/SessionComments/TurnCommentChrome";
 
 import UserChatItem from "../../ChatItems/UserChatItem";
@@ -178,6 +181,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
         sessionId,
         turnId: unloadedTurnId,
       });
+      await pruneLoadedTurnBodies(sessionId, [unloadedTurnId]);
     }, [sessionId, unloadedTurnId]);
     const handleEdit = useCallback(
       (newText: string, imageDataUrls?: string[]) => {

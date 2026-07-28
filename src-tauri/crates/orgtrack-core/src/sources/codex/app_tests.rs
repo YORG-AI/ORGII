@@ -171,7 +171,7 @@ fn parses_codex_jsonl_into_replay_chunks() {
 }
 
 #[test]
-fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
+fn codex_initial_window_catalogs_old_turns_and_loads_one_turn_on_demand() {
     let temp_dir =
         std::env::temp_dir().join(format!("orgii-codex-window-test-{}", std::process::id()));
     std::fs::create_dir_all(&temp_dir).expect("create temp dir");
@@ -189,14 +189,14 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
         load_codex_app_initial_window_from_path("codexapp-window", &path, 1).expect("window");
     let wire = serde_json::to_value(&window).expect("serialize window");
     assert!(wire.get("turns").is_none());
-    assert_eq!(window.turns.len(), 2);
-    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(window.turns.len(), 3);
+    assert_eq!(window.chunks.len(), 6);
     assert_eq!(
         window.chunks[0]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
-        Some("second")
+        Some("first")
     );
     assert_eq!(
         window.chunks[1]
@@ -211,10 +211,17 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
+        Some("second")
+    );
+    assert_eq!(
+        window.chunks[4]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
         Some("third")
     );
 
-    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[0].chunk_id)
+    let turn = load_codex_app_turn_from_path("codexapp-window", &path, &window.chunks[2].chunk_id)
         .expect("turn");
     assert_eq!(turn.loaded_event_count, 2);
     assert_eq!(
@@ -255,16 +262,16 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
         load_codex_app_initial_window_from_path("codexapp-tail-window", &path, 1).expect("window");
     assert_eq!(
         window.turns.len(),
-        2,
-        "only the previous and latest turns are indexed"
+        3,
+        "every round is discoverable before its body is loaded"
     );
-    assert_eq!(window.chunks.len(), 4);
+    assert_eq!(window.chunks.len(), 6);
     assert_eq!(
         window.chunks[0]
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
-        Some("second")
+        Some("first")
     );
     assert!(window.chunks[1].result.get("unloadedTurn").is_some());
     assert_eq!(
@@ -272,9 +279,16 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
             .result
             .pointer("/message/content")
             .and_then(Value::as_str),
+        Some("second")
+    );
+    assert_eq!(
+        window.chunks[4]
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str),
         Some("third")
     );
-    let second_turn_id = window.chunks[0].chunk_id.clone();
+    let second_turn_id = window.chunks[2].chunk_id.clone();
     let second = load_codex_app_turn_from_path("codexapp-tail-window", &path, &second_turn_id)
         .expect("load previous turn");
     assert_eq!(second.loaded_event_count, 2);
@@ -297,6 +311,151 @@ fn codex_current_rollout_reads_latest_turn_and_pages_backward_from_tail() {
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_initial_window_keeps_one_hundred_rounds_discoverable() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-hundred-round-window-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-hundred-round-window.jsonl");
+    let mut content = String::new();
+    for index in 0..100 {
+        content.push_str(&format!(
+            "{{\"timestamp\":\"2026-07-21T01:00:00.{index:03}Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"round {index}\"}}}}\n"
+        ));
+        content.push_str(&format!(
+            "{{\"timestamp\":\"2026-07-21T01:00:01.{index:03}Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"reply {index}\"}}}}\n"
+        ));
+    }
+    std::fs::write(&path, content).expect("write fixture");
+
+    let window = load_codex_app_initial_window_from_path("codexapp-hundred-rounds", &path, 1)
+        .expect("window");
+    assert_eq!(window.turns.len(), 100);
+    assert_eq!(
+        window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .count(),
+        100
+    );
+    assert_eq!(
+        window
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
+            .count(),
+        99
+    );
+    for (chunk_index, expected) in [(0, "round 0"), (98, "round 49"), (198, "round 99")] {
+        assert_eq!(
+            window.chunks[chunk_index]
+                .result
+                .pointer("/message/content")
+                .and_then(Value::as_str),
+            Some(expected)
+        );
+    }
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn codex_turn_catalog_incrementally_discovers_an_appended_round() {
+    use std::io::Write;
+
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-incremental-catalog-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-incremental-catalog.jsonl");
+    std::fs::write(
+        &path,
+        "{\"timestamp\":\"2026-07-21T01:00:00.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"first\"}}\n{\"timestamp\":\"2026-07-21T01:00:01.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"message\":\"first reply\"}}\n",
+    )
+    .expect("write fixture");
+
+    let initial = load_codex_app_initial_window_from_path("codexapp-incremental", &path, 1)
+        .expect("initial window");
+    assert_eq!(initial.turns.len(), 1);
+
+    let mut file = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&path)
+        .expect("open fixture for append");
+    file.write_all(
+        b"{\"timestamp\":\"2026-07-21T01:01:00.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"message\":\"second\"}}\n{\"timestamp\":\"2026-07-21T01:01:01.000Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"message\":\"second reply\"}}\n",
+    )
+    .expect("append fixture");
+    file.flush().expect("flush fixture");
+
+    let refreshed = load_codex_app_initial_window_from_path("codexapp-incremental", &path, 1)
+        .expect("refreshed window");
+    assert_eq!(refreshed.turns.len(), 2);
+    assert_eq!(
+        refreshed
+            .chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+            .filter_map(|chunk| chunk.result.pointer("/message/content"))
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>(),
+        vec!["first", "second"]
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+#[ignore = "needs ORGII_CODEX_ROLLOUT_FIXTURE pointing at a local rollout file"]
+fn codex_initial_window_real_fixture_catalog_stats() {
+    let Ok(path) = std::env::var("ORGII_CODEX_ROLLOUT_FIXTURE") else {
+        eprintln!("ORGII_CODEX_ROLLOUT_FIXTURE not set; skipping");
+        return;
+    };
+    let path = std::path::Path::new(&path);
+    let source_bytes = std::fs::metadata(path).expect("stat fixture").len();
+
+    let cold_started = std::time::Instant::now();
+    let window = load_codex_app_initial_window_from_path("codexapp-real-catalog", path, 1)
+        .expect("cold window");
+    let cold_elapsed = cold_started.elapsed();
+    let serialized_bytes = serde_json::to_vec(&window).expect("serialize window").len();
+    let placeholder_count = window
+        .chunks
+        .iter()
+        .filter(|chunk| chunk.result.get("unloadedTurn").is_some())
+        .count();
+
+    let warm_started = std::time::Instant::now();
+    let warm = load_codex_app_initial_window_from_path("codexapp-real-catalog", path, 1)
+        .expect("warm window");
+    let warm_elapsed = warm_started.elapsed();
+
+    if let Ok(expected) = std::env::var("ORGII_CODEX_EXPECTED_ROUNDS") {
+        assert_eq!(
+            window.turns.len(),
+            expected
+                .parse::<usize>()
+                .expect("numeric expected round count")
+        );
+    }
+    assert_eq!(warm.turns.len(), window.turns.len());
+    assert_eq!(placeholder_count, window.turns.len().saturating_sub(1));
+    eprintln!(
+        "source_bytes={source_bytes} rounds={} chunks={} placeholders={placeholder_count} serialized_window_bytes={serialized_bytes} cold_ms={} warm_ms={}",
+        window.turns.len(),
+        window.chunks.len(),
+        cold_elapsed.as_millis(),
+        warm_elapsed.as_millis()
+    );
 }
 
 #[test]
@@ -2039,7 +2198,10 @@ fn resumes_codex_meta_parse_from_watermark() {
     let scratch_meta = scratch.meta.expect("scratch meta");
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens

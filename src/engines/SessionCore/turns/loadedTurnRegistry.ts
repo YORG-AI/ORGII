@@ -1,7 +1,13 @@
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
+import {
+  isCodexAppSession,
+  isCursorIdeSession,
+} from "@src/util/session/sessionDispatch";
 
-import { MAX_LOADED_HISTORICAL_TURN_BODIES } from "./turnWindowConfig";
+import {
+  MAX_LOADED_CODEX_HISTORICAL_TURN_BODIES,
+  MAX_LOADED_HISTORICAL_TURN_BODIES,
+} from "./turnWindowConfig";
 
 const loadedTurnsBySession = new Map<string, Map<string, number>>();
 const pendingLoads = new Map<string, Promise<void>>();
@@ -66,7 +72,10 @@ export async function pruneLoadedTurnBodies(
   if (isCursorIdeSession(sessionId)) return;
 
   const loadedTurns = loadedTurnsBySession.get(sessionId);
-  if (!loadedTurns || loadedTurns.size <= MAX_LOADED_HISTORICAL_TURN_BODIES) {
+  const maxLoadedHistoricalTurns = isCodexAppSession(sessionId)
+    ? MAX_LOADED_CODEX_HISTORICAL_TURN_BODIES
+    : MAX_LOADED_HISTORICAL_TURN_BODIES;
+  if (!loadedTurns || loadedTurns.size <= maxLoadedHistoricalTurns) {
     return;
   }
 
@@ -76,7 +85,7 @@ export async function pruneLoadedTurnBodies(
     .sort((left, right) => left[1] - right[1]);
 
   while (
-    loadedTurns.size > MAX_LOADED_HISTORICAL_TURN_BODIES &&
+    loadedTurns.size > maxLoadedHistoricalTurns &&
     unloadCandidates.length > 0
   ) {
     const candidate = unloadCandidates.shift();
