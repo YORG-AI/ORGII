@@ -43,7 +43,9 @@ The repository-requested `frontend-ui-audit` skill was not available at either d
 
 - Passed: `git diff --check` before each commit.
 - Passed: conflict-marker search after each manual resolution.
-- Not runnable in this checkout: `pnpm`, `cargo`, and `node_modules` are absent. Consequently TypeScript typecheck/Vitest, Rust formatting/check/test, and rendered UI validation were not run.
+- Passed: `npx vitest run src/engines/ChatPanel/ChatHistory/progressMindMap.test.ts` (1 file, 3 tests).
+- Attempted: `NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit`. This environment terminates foreground commands at 30 seconds before `tsc` reports an exit status; both attempts emitted no TypeScript diagnostics.
+- Not run during the original consolidation: Rust formatting/check/test and rendered UI validation.
 - Git hooks are broken in this checkout because `.husky/_/husky.sh` is missing. Commits were created with `core.hooksPath=/dev/null`; no hook was silently skipped.
 
 ## Next Steps

@@ -33,6 +33,8 @@ function turn(index: number): TurnSummary {
             },
           ]
         : [],
+    resourceInteractions: [],
+    gitArtifacts: [],
   };
 }
 
