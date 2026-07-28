@@ -35,13 +35,11 @@
   },
   "overTimeCol": {
     "window": "Kết thúc cửa sổ",
-    "code": "Kiểu",
-    "sessions": "Phiên"
+    "code": "Kiểu"
   },
   "fanoutLabel": "Phân nhánh tác tử con",
   "fanoutHint": "Tỷ lệ phiên phân nhánh thành tác tử con. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
   "highlights": "Điểm nổi bật",
-  "highlightsHint": "Mỗi thẻ một dữ kiện, rút từ chính các phiên của bạn.",
   "caveat": "chưa chắc: {{reason}}",
   "clarity": {
     "slight": "thiên hướng nhẹ",
@@ -53,103 +51,103 @@
     "total_time": {
       "question": "Bạn đã bỏ ra bao nhiêu thời gian?",
       "headline": "{{hours}} giờ",
-      "detail": "Trải trên {{sessions}} phiên."
+      "detail": "Trải trên {{sessions}} phiên"
     },
     "lines": {
       "question": "Bạn đã làm ra bao nhiêu?",
       "headline": "{{added}} dòng",
-      "detail": "Được thêm qua {{sessions}} phiên, và {{removed}} dòng bị xóa."
+      "detail": "Được thêm qua {{sessions}} phiên, và {{removed}} dòng bị xóa"
     },
     "tool_calls": {
       "question": "Tác tử đã làm bao nhiêu?",
       "headline": "{{total}} lượt gọi công cụ",
-      "detail": "Khoảng {{perSession}} mỗi phiên."
+      "detail": "Khoảng {{perSession}} mỗi phiên"
     },
     "longest_session": {
       "question": "Phiên đơn dài nhất của bạn?",
       "headline": "{{duration}}",
-      "detail": "Quãng làm việc liền mạch sâu nhất của bạn với tác tử."
+      "detail": "Quãng làm việc liền mạch sâu nhất của bạn với tác tử"
     },
     "longest_run": {
       "question": "Tác tử tự đi được bao xa?",
       "headline": "{{steps}} bước",
-      "detail": "Lượt chạy dài nhất mà bạn không nói một lời."
+      "detail": "Lượt chạy dài nhất mà bạn không nói một lời"
     },
     "parallel_peak": {
       "question": "Bao lâu thì có hơn một tác tử cùng chạy?",
       "headline": "{{percent}}% thời gian của bạn",
-      "detail": "Trong phiên song song nhất, đó là phần thời gian tác tử không đơn độc."
+      "detail": "Trong phiên song song nhất, đó là phần thời gian tác tử không đơn độc"
     },
     "streak": {
       "question": "Chuỗi ngày dài nhất của bạn?",
       "headline": "{{days}} ngày liên tiếp",
-      "detail": "Số ngày liên tiếp bạn làm việc cùng tác tử."
+      "detail": "Số ngày liên tiếp bạn làm việc cùng tác tử"
     },
     "peak_hour": {
       "question": "Bạn làm việc lúc nào?",
       "headline": "{{hour}}",
-      "detail": "Bạn đã mở {{sessions}} phiên vào giờ đó."
+      "detail": "Bạn đã mở {{sessions}} phiên vào giờ đó"
     },
     "deep_sessions": {
       "question": "Bạn làm việc thế nào?",
       "headline": "{{count}} phiên chuyên sâu",
-      "detail": "Trung bình {{duration}} tập trung không đứt quãng."
+      "detail": "Trung bình {{duration}} tập trung không đứt quãng"
     },
     "busiest_day": {
       "question": "Ngày bận nhất của bạn?",
       "headline": "{{sessions}} phiên",
-      "detail": "Tất cả trong ngày {{date}}."
+      "detail": "Tất cả trong ngày {{date}}"
     },
     "prompt_length": {
       "question": "Câu lệnh của bạn dài bao nhiêu?",
       "headline": "Trung bình {{words}} từ",
-      "detail": "Ngắn và như trò chuyện."
+      "detail": "Ngắn và như trò chuyện"
     },
     "prompt_length_long": {
-      "detail": "Bạn giao việc bằng đoạn văn, không phải một dòng."
+      "detail": "Bạn giao việc bằng đoạn văn, không phải một dòng"
     },
     "prompts_per_session": {
       "question": "Bạn nói chuyện với tác tử nhiều đến đâu?",
       "headline": "{{prompts}} câu lệnh mỗi phiên",
-      "detail": "Mức độ bạn xen vào trong một phiên."
+      "detail": "Mức độ bạn xen vào trong một phiên"
     },
     "longest_prompt": {
       "question": "Câu lệnh đơn dài nhất của bạn?",
       "headline": "{{words}} từ",
-      "detail": "Một tin nhắn, chứa tất cả."
+      "detail": "Một tin nhắn, chứa tất cả"
     },
     "redirects": {
       "question": "Bạn đổi hướng thường xuyên đến đâu?",
       "headline": "{{percent}}% số tin nhắn",
-      "detail": "Những lúc bạn dừng lại và chỉ tác tử sang hướng khác."
+      "detail": "Những lúc bạn dừng lại và chỉ tác tử sang hướng khác"
     },
     "interrupts": {
       "question": "Bạn có để nó làm xong không?",
       "headline": "{{percent}}% số lần",
-      "detail": "{{rest}}% còn lại bạn cắt ngang."
+      "detail": "{{rest}}% còn lại bạn cắt ngang"
     },
     "interrupts_never": {
-      "detail": "Bạn gần như không bao giờ cắt ngang một lượt chạy."
+      "detail": "Bạn gần như không bao giờ cắt ngang một lượt chạy"
     },
     "plan_first": {
       "question": "Bạn lập kế hoạch trước thường xuyên đến đâu?",
       "headline": "{{percent}}% phiên có sửa code",
-      "detail": "{{planned}} trong {{builders}} phiên có thay đổi code bắt đầu từ một kế hoạch."
+      "detail": "{{planned}} trong {{builders}} phiên có thay đổi code bắt đầu từ một kế hoạch"
     },
     "harness": {
       "question": "Bạn có mài giũa công cụ của mình không?",
       "headline": "{{percent}}% số chỉnh sửa",
-      "detail": "Thay đổi trong chính hướng dẫn của tác tử — CLAUDE.md, rules, skills."
+      "detail": "Thay đổi trong chính hướng dẫn của tác tử — CLAUDE.md, rules, skills"
     },
     "fanout": {
       "question": "Bạn có phân nhánh thành tác tử con không?",
       "headline": "{{percent}}% số phiên",
-      "detail": "Những lúc một tác tử sinh ra các tác tử khác để chạy song song."
+      "detail": "Những lúc một tác tử sinh ra các tác tử khác để chạy song song"
     },
     "tool_spread": {
       "question": "Bạn dùng bao nhiêu tác tử?",
       "headline": "{{tools}} công cụ khác nhau",
-      "detail": "Công việc của bạn trải đều trên tất cả."
+      "detail": "Công việc của bạn trải đều trên tất cả"
     }
   }
 }

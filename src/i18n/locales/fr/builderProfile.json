@@ -35,13 +35,11 @@
   },
   "overTimeCol": {
     "window": "Fin de fenêtre",
-    "code": "Type",
-    "sessions": "Sessions"
+    "code": "Type"
   },
   "fanoutLabel": "Essaimage en sous-agents",
   "fanoutHint": "Part des sessions qui se ramifient en sous-agents. Tenu à l'écart de Concentré/Essaim : c'est l'autre niveau de parallélisme, et il pointe dans l'autre sens.",
   "highlights": "Points marquants",
-  "highlightsHint": "Un fait par carte, tiré de vos propres sessions.",
   "caveat": "peu affirmé : {{reason}}",
   "clarity": {
     "slight": "préférence légère",
@@ -53,103 +51,103 @@
     "total_time": {
       "question": "Combien de temps y avez-vous consacré ?",
       "headline": "{{hours}} heures",
-      "detail": "Sur {{sessions}} sessions."
+      "detail": "Sur {{sessions}} sessions"
     },
     "lines": {
       "question": "Combien avez-vous livré ?",
       "headline": "{{added}} lignes",
-      "detail": "Ajoutées sur {{sessions}} sessions, avec {{removed}} supprimées."
+      "detail": "Ajoutées sur {{sessions}} sessions, avec {{removed}} supprimées"
     },
     "tool_calls": {
       "question": "Combien l'agent en a-t-il fait ?",
       "headline": "{{total}} appels d'outils",
-      "detail": "Environ {{perSession}} par session."
+      "detail": "Environ {{perSession}} par session"
     },
     "longest_session": {
       "question": "Votre plus longue session ?",
       "headline": "{{duration}}",
-      "detail": "Votre plus longue plage ininterrompue avec un agent."
+      "detail": "Votre plus longue plage ininterrompue avec un agent"
     },
     "longest_run": {
       "question": "Jusqu'où l'agent va-t-il seul ?",
       "headline": "{{steps}} étapes",
-      "detail": "Sa plus longue série sans un mot de votre part."
+      "detail": "Sa plus longue série sans un mot de votre part"
     },
     "parallel_peak": {
       "question": "À quelle fréquence plusieurs agents tournent-ils ?",
       "headline": "{{percent}} % de votre temps",
-      "detail": "Dans votre session la plus parallèle, cette part s'est déroulée à plusieurs."
+      "detail": "Dans votre session la plus parallèle, cette part s'est déroulée à plusieurs"
     },
     "streak": {
       "question": "Votre plus longue série ?",
       "headline": "{{days}} jours d'affilée",
-      "detail": "Jours consécutifs de travail avec un agent."
+      "detail": "Jours consécutifs de travail avec un agent"
     },
     "peak_hour": {
       "question": "Quand travaillez-vous ?",
       "headline": "{{hour}}",
-      "detail": "Vous avez lancé {{sessions}} sessions à cette heure-là."
+      "detail": "Vous avez lancé {{sessions}} sessions à cette heure-là"
     },
     "deep_sessions": {
       "question": "Comment travaillez-vous ?",
       "headline": "{{count}} sessions profondes",
-      "detail": "En moyenne {{duration}} de concentration sans coupure."
+      "detail": "En moyenne {{duration}} de concentration sans coupure"
     },
     "busiest_day": {
       "question": "Votre journée la plus chargée ?",
       "headline": "{{sessions}} sessions",
-      "detail": "Toutes le {{date}}."
+      "detail": "Toutes le {{date}}"
     },
     "prompt_length": {
       "question": "Quelle est la longueur de vos prompts ?",
       "headline": "{{words}} mots en moyenne",
-      "detail": "Courts et conversationnels."
+      "detail": "Courts et conversationnels"
     },
     "prompt_length_long": {
-      "detail": "Vous briefez en paragraphes, pas en une ligne."
+      "detail": "Vous briefez en paragraphes, pas en une ligne"
     },
     "prompts_per_session": {
       "question": "À quel point parlez-vous à votre agent ?",
       "headline": "{{prompts}} prompts par session",
-      "detail": "Votre fréquence d'intervention sur une session."
+      "detail": "Votre fréquence d'intervention sur une session"
     },
     "longest_prompt": {
       "question": "Votre plus long prompt ?",
       "headline": "{{words}} mots",
-      "detail": "Un seul message, tout dedans."
+      "detail": "Un seul message, tout dedans"
     },
     "redirects": {
       "question": "À quelle fréquence changez-vous de cap ?",
       "headline": "{{percent}} % des messages",
-      "detail": "Quand vous arrêtez tout et réorientez l'agent."
+      "detail": "Quand vous arrêtez tout et réorientez l'agent"
     },
     "interrupts": {
       "question": "Le laissez-vous finir ?",
       "headline": "{{percent}} % du temps",
-      "detail": "Vous interrompez les {{rest}} % restants."
+      "detail": "Vous interrompez les {{rest}} % restants"
     },
     "interrupts_never": {
-      "detail": "Vous n'interrompez presque jamais une exécution."
+      "detail": "Vous n'interrompez presque jamais une exécution"
     },
     "plan_first": {
       "question": "À quelle fréquence planifiez-vous d'abord ?",
       "headline": "{{percent}} % des sessions de développement",
-      "detail": "{{planned}} des {{builders}} sessions ayant modifié du code ont démarré par un plan."
+      "detail": "{{planned}} des {{builders}} sessions ayant modifié du code ont démarré par un plan"
     },
     "harness": {
       "question": "Affûtez-vous vos propres outils ?",
       "headline": "{{percent}} % des modifications",
-      "detail": "Modifications des instructions de votre agent — CLAUDE.md, rules, skills."
+      "detail": "Modifications des instructions de votre agent — CLAUDE.md, rules, skills"
     },
     "fanout": {
       "question": "Essaimez-vous vers des sous-agents ?",
       "headline": "{{percent}} % des sessions",
-      "detail": "Quand un agent en a lancé d'autres pour travailler en parallèle."
+      "detail": "Quand un agent en a lancé d'autres pour travailler en parallèle"
     },
     "tool_spread": {
       "question": "Combien d'agents utilisez-vous ?",
       "headline": "{{tools}} outils différents",
-      "detail": "Votre travail se répartit entre tous."
+      "detail": "Votre travail se répartit entre tous"
     }
   }
 }

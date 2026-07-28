@@ -218,15 +218,23 @@ export default function BuilderProfilePanel() {
     [t]
   );
 
-  const driftColumns: SettingsTableColumn<DriftPoint>[] = useMemo(
-    () => [
+  const driftColumns: SettingsTableColumn<DriftPoint>[] = useMemo(() => {
+    const day = (ms: number) =>
+      new Date(ms).toLocaleDateString(undefined, {
+        month: "numeric",
+        day: "numeric",
+      });
+    return [
       {
         key: "when",
+        // Each window holds the same number of sessions, so the count would be
+        // a constant column. The span is the part that carries information:
+        // how quickly that many sessions went by.
         label: t("overTimeCol.window"),
         width: SETTINGS_TABLE_COL.fill,
         renderCell: (row) => (
           <span className={SETTINGS_TABLE_CELL.primary}>
-            {new Date(row.endedAtMs).toLocaleDateString()}
+            {day(row.startedAtMs)} – {day(row.endedAtMs)}
           </span>
         ),
       },
@@ -234,24 +242,15 @@ export default function BuilderProfilePanel() {
         key: "code",
         label: t("overTimeCol.code"),
         width: SETTINGS_TABLE_COL.valueSm,
+        align: "right",
         renderCell: (row) => (
           <span className={`${SETTINGS_TABLE_CELL.value} font-mono`}>
             {row.code}
           </span>
         ),
       },
-      {
-        key: "sessions",
-        label: t("overTimeCol.sessions"),
-        width: SETTINGS_TABLE_COL.valueMd,
-        align: "right",
-        renderCell: (row) => (
-          <span className={SETTINGS_TABLE_CELL.muted}>{row.sessions}</span>
-        ),
-      },
-    ],
-    [t]
-  );
+    ];
+  }, [t]);
 
   // The header stays put in every state — loading, error and empty included —
   // so the panel never collapses to a bare spinner. Everything below it
@@ -374,7 +373,6 @@ export default function BuilderProfilePanel() {
         </div>
 
         <Section id="highlights" title={t("highlights")}>
-          <p className="pb-2 pl-1 text-xs text-text-3">{t("highlightsHint")}</p>
           <HighlightCards highlights={data.highlights} />
         </Section>
 

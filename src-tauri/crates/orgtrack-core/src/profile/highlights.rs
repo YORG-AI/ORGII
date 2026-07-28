@@ -366,7 +366,9 @@ fn busiest_day(sessions: &[SessionSignals]) -> Option<(i64, i64)> {
 /// blocks of near-identical cards.
 fn interleave(cards: Vec<Highlight>) -> Vec<Highlight> {
     use HighlightKind::*;
-    let order = [Extreme, Rhythm, Craft, Style, Scale];
+    // Rhythm leads so the streak — the longest span the deck can show — opens
+    // the grid; the rest of the rotation keeps the families mixed.
+    let order = [Rhythm, Extreme, Craft, Style, Scale];
     let mut buckets: Vec<Vec<Highlight>> = order.iter().map(|_| Vec::new()).collect();
     for c in cards {
         let idx = order.iter().position(|k| *k == c.kind).unwrap_or(0);

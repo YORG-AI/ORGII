@@ -35,13 +35,11 @@
   },
   "overTimeCol": {
     "window": "Pencere bitişi",
-    "code": "Tip",
-    "sessions": "Oturumlar"
+    "code": "Tip"
   },
   "fanoutLabel": "Alt ajana dallanma",
   "fanoutHint": "Alt ajanlara dallanan oturumların payı. Odaklı/Sürü ekseninden ayrı tutuluyor: bu, paralelliğin diğer katmanı ve ters yönü işaret ediyor.",
   "highlights": "Öne çıkanlar",
-  "highlightsHint": "Kart başına bir olgu, hepsi kendi oturumlarınızdan.",
   "caveat": "zayıf tutuluyor: {{reason}}",
   "clarity": {
     "slight": "hafif eğilim",
@@ -53,103 +51,103 @@
     "total_time": {
       "question": "Ne kadar zaman ayırdınız?",
       "headline": "{{hours}} saat",
-      "detail": "{{sessions}} oturum boyunca."
+      "detail": "{{sessions}} oturum boyunca"
     },
     "lines": {
       "question": "Ne kadar iş çıkardınız?",
       "headline": "{{added}} satır",
-      "detail": "{{sessions}} oturumda eklendi, {{removed}} satır silindi."
+      "detail": "{{sessions}} oturumda eklendi, {{removed}} satır silindi"
     },
     "tool_calls": {
       "question": "Ajan ne kadar iş yaptı?",
       "headline": "{{total}} araç çağrısı",
-      "detail": "Oturum başına yaklaşık {{perSession}}."
+      "detail": "Oturum başına yaklaşık {{perSession}}"
     },
     "longest_session": {
       "question": "En uzun tek oturumunuz?",
       "headline": "{{duration}}",
-      "detail": "Bir ajanla geçirdiğiniz en derin kesintisiz süre."
+      "detail": "Bir ajanla geçirdiğiniz en derin kesintisiz süre"
     },
     "longest_run": {
       "question": "Ajan kendi başına ne kadar ilerliyor?",
       "headline": "{{steps}} adım",
-      "detail": "Sizden tek kelime almadan yaptığı en uzun koşu."
+      "detail": "Sizden tek kelime almadan yaptığı en uzun koşu"
     },
     "parallel_peak": {
       "question": "Ne sıklıkla birden fazla ajan çalışıyor?",
       "headline": "Zamanınızın %{{percent}} kadarı",
-      "detail": "En paralel oturumunuzda sürenin bu kadarında ajan yalnız değildi."
+      "detail": "En paralel oturumunuzda sürenin bu kadarında ajan yalnız değildi"
     },
     "streak": {
       "question": "En uzun seriniz ne kadar?",
       "headline": "{{days}} gün üst üste",
-      "detail": "Bir ajanla çalıştığınız ardışık günler."
+      "detail": "Bir ajanla çalıştığınız ardışık günler"
     },
     "peak_hour": {
       "question": "Ne zaman çalışıyorsunuz?",
       "headline": "{{hour}}",
-      "detail": "Bu saatte {{sessions}} oturum başlattınız."
+      "detail": "Bu saatte {{sessions}} oturum başlattınız"
     },
     "deep_sessions": {
       "question": "Nasıl çalışıyorsunuz?",
       "headline": "{{count}} derin oturum",
-      "detail": "Ortalama {{duration}} kesintisiz odak."
+      "detail": "Ortalama {{duration}} kesintisiz odak"
     },
     "busiest_day": {
       "question": "En yoğun gününüz?",
       "headline": "{{sessions}} oturum",
-      "detail": "Hepsi {{date}} tarihinde."
+      "detail": "Hepsi {{date}} tarihinde"
     },
     "prompt_length": {
       "question": "İstemleriniz ne kadar uzun?",
       "headline": "Ortalama {{words}} kelime",
-      "detail": "Kısa ve sohbet eder gibi."
+      "detail": "Kısa ve sohbet eder gibi"
     },
     "prompt_length_long": {
-      "detail": "Tek satırla değil, paragraflarla brifing veriyorsunuz."
+      "detail": "Tek satırla değil, paragraflarla brifing veriyorsunuz"
     },
     "prompts_per_session": {
       "question": "Ajanınızla ne kadar konuşuyorsunuz?",
       "headline": "Oturum başına {{prompts}} istem",
-      "detail": "Bir oturum boyunca ne sıklıkla devreye girdiğiniz."
+      "detail": "Bir oturum boyunca ne sıklıkla devreye girdiğiniz"
     },
     "longest_prompt": {
       "question": "En uzun tek isteminiz?",
       "headline": "{{words}} kelime",
-      "detail": "Tek mesaj, her şey içinde."
+      "detail": "Tek mesaj, her şey içinde"
     },
     "redirects": {
       "question": "Ne sıklıkla rota değiştiriyorsunuz?",
       "headline": "Mesajların %{{percent}} kadarı",
-      "detail": "Durup ajanı başka yöne çevirdiğiniz yerler."
+      "detail": "Durup ajanı başka yöne çevirdiğiniz yerler"
     },
     "interrupts": {
       "question": "Bitirmesine izin veriyor musunuz?",
       "headline": "Zamanın %{{percent}} kadarı",
-      "detail": "Kalan %{{rest}} kadarında sözünü kesiyorsunuz."
+      "detail": "Kalan %{{rest}} kadarında sözünü kesiyorsunuz"
     },
     "interrupts_never": {
-      "detail": "Bir koşuyu neredeyse hiç yarıda kesmiyorsunuz."
+      "detail": "Bir koşuyu neredeyse hiç yarıda kesmiyorsunuz"
     },
     "plan_first": {
       "question": "Ne sıklıkla önce plan yapıyorsunuz?",
       "headline": "Kod oturumlarının %{{percent}} kadarı",
-      "detail": "Kodu değiştiren {{builders}} oturumun {{planned}} tanesi bir planla başladı."
+      "detail": "Kodu değiştiren {{builders}} oturumun {{planned}} tanesi bir planla başladı"
     },
     "harness": {
       "question": "Kendi aletlerinizi biler misiniz?",
       "headline": "Düzenlemelerin %{{percent}} kadarı",
-      "detail": "Ajanınızın kendi talimatlarındaki değişiklikler — CLAUDE.md, rules, skills."
+      "detail": "Ajanınızın kendi talimatlarındaki değişiklikler — CLAUDE.md, rules, skills"
     },
     "fanout": {
       "question": "Alt ajanlara dallanıyor musunuz?",
       "headline": "Oturumların %{{percent}} kadarı",
-      "detail": "Bir ajanın paralel çalışmak için başkalarını başlattığı yerler."
+      "detail": "Bir ajanın paralel çalışmak için başkalarını başlattığı yerler"
     },
     "tool_spread": {
       "question": "Kaç ajan kullanıyorsunuz?",
       "headline": "{{tools}} farklı araç",
-      "detail": "İşiniz hepsine yayılmış durumda."
+      "detail": "İşiniz hepsine yayılmış durumda"
     }
   }
 }

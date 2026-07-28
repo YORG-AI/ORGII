@@ -76,6 +76,11 @@ export interface SourceProfile {
 }
 
 export interface DriftPoint {
+  /**
+   * Window bounds. `sessions` is a fixed window size and therefore the same on
+   * every row — what varies is how long the window took to accumulate.
+   */
+  startedAtMs: number;
   endedAtMs: number;
   sessions: number;
   code: string;

@@ -28,11 +28,20 @@ const KIND_TINT: Record<HighlightKind, string> = {
   scale: "text-text-3",
 };
 
-/** Params that are not plain counts and need locale-aware rendering. */
+/**
+ * 12-hour AM/PM, everywhere. Deliberately not `toLocaleTimeString`: that hands
+ * the choice to the locale, and a 24-hour rendering ("15时", "15 h") reads as a
+ * timestamp rather than as a time of day, which is what this card is about.
+ */
+function hourLabel(hour: number): string {
+  const h = hour % 12 === 0 ? 12 : hour % 12;
+  return `${h} ${hour < 12 ? "AM" : "PM"}`;
+}
+
+/** Params that are not plain counts and need formatting before interpolation. */
 function formatParams(
   params: Record<string, number>,
-  locale: string,
-  hourLabel: (hour: number) => string
+  locale: string
 ): Record<string, string | number> {
   const out: Record<string, string | number> = {};
   for (const [key, value] of Object.entries(params)) {
@@ -80,17 +89,13 @@ const HighlightCards = memo(function HighlightCards({
 
   if (highlights.length === 0) return null;
 
-  // 12-hour vs 24-hour is a locale property, not a preference we should guess.
-  const hourLabel = (hour: number) =>
-    new Date(2000, 0, 1, hour).toLocaleTimeString(locale, { hour: "numeric" });
-
   return (
     <div
       className={STAT_GRID_TOKENS.cols3}
       data-testid="builder-profile-highlights"
     >
       {highlights.map((card) => {
-        const values = formatParams(card.params, locale, hourLabel);
+        const values = formatParams(card.params, locale);
         return (
           <div
             key={card.id}

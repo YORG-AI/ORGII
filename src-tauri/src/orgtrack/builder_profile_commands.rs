@@ -66,6 +66,9 @@ pub struct SourceProfile {
 #[derive(Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriftPoint {
+    /// Window bounds. The session count is a constant (see `WINDOW`), so what
+    /// actually varies — and what the panel shows — is how long the window took.
+    pub started_at_ms: i64,
     pub ended_at_ms: i64,
     pub sessions: usize,
     pub code: String,
@@ -161,6 +164,7 @@ pub async fn builder_profile_overview(
                     let w = &ordered[start..start + WINDOW];
                     let p = profile::profile_for(w);
                     drift.push(DriftPoint {
+                        started_at_ms: w.first().map(|s| s.started_at_ms).unwrap_or(0),
                         ended_at_ms: w.last().map(|s| s.started_at_ms).unwrap_or(0),
                         sessions: w.len(),
                         code: p.code.clone(),
