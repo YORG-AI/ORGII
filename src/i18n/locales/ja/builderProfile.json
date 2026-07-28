@@ -1,0 +1,52 @@
+{
+  "title": "ビルダープロファイル",
+  "refresh": "更新",
+  "summaryLine": "{{sessions}} 件のセッションを分析",
+  "tooFewSessions": "セッションが 25 件未満のため、タイプはまだ定まっていません。",
+  "noSessionsYet": "まだ分析されたセッションがありません。履歴の読み込みが進むと文字が現れます。",
+  "axisStats": "{{sessions}} セッション · {{consistency}}% が一致",
+  "anchorFlip": "中立点を {{factor}} 倍動かすと反転します",
+  "anchorNeverFlips": "中立点をどこに置いても結論は変わりません",
+  "evidenceHint": "各シグナルのあなたの中央値と、比較対象の中立値。",
+  "secondary": "計測済み。ただし文字にするには足りません",
+  "secondaryNote": "— 検証の多くは記録に痕跡を残さないため、確度は低めです。",
+  "fanout": "{{percent}}% のセッションがサブエージェントに展開します。",
+  "byTool": "ツール別",
+  "byToolHint": "中立点はどこでも同じなので、この行同士は比較できます。一つのツールでしか成り立たない文字は疑う価値があります。",
+  "sessionCount": "{{count}} セッション",
+  "overTime": "時系列",
+  "overTimeHint": "移動ウィンドウ、新しい順。",
+  "status": "ステータス",
+  "coverage": "読み込んだセッション",
+  "coverageReading": "履歴を読み込み中です。進むほどプロファイルが鮮明になります。",
+  "coverageComplete": "このマシン上のすべてのセッションを読み込みました。",
+  "confidence": "確度",
+  "confidenceHint": "あなたのセッションが上の文字とどれだけ一致しているか。",
+  "axesTitle": "軸",
+  "evidenceCol": {
+    "signal": "シグナル",
+    "yours": "あなた",
+    "neutral": "中立"
+  },
+  "byToolCol": {
+    "tool": "ツール",
+    "code": "タイプ",
+    "sessions": "セッション"
+  },
+  "overTimeCol": {
+    "window": "期間の終わり",
+    "code": "タイプ",
+    "sessions": "セッション"
+  },
+  "fanoutLabel": "サブエージェント展開",
+  "fanoutHint": "サブエージェントに分岐したセッションの割合。「集中／群れ」とは別扱いです。並列性のもう一つの層であり、向きが逆になります。",
+  "highlights": "ハイライト",
+  "highlightsHint": "1 枚につき 1 つの事実。すべてあなた自身のセッションから。",
+  "caveat": "確度は低めです：{{reason}}",
+  "clarity": {
+    "slight": "わずかな傾向",
+    "moderate": "中程度の傾向",
+    "clear": "明確な傾向",
+    "veryClear": "非常に明確な傾向"
+  }
+}

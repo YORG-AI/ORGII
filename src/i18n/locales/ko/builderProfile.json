@@ -1,0 +1,52 @@
+{
+  "title": "빌더 프로필",
+  "refresh": "새로 고침",
+  "summaryLine": "{{sessions}}개 세션 분석됨",
+  "tooFewSessions": "세션이 25개 미만이라 유형이 아직 확정되지 않았습니다.",
+  "noSessionsYet": "아직 분석된 세션이 없습니다. 기록을 읽어 나가면서 글자가 나타납니다.",
+  "axisStats": "세션 {{sessions}}개 · {{consistency}}% 일치",
+  "anchorFlip": "중립점을 {{factor}}배 옮겨야 뒤집힙니다",
+  "anchorNeverFlips": "중립점을 어디에 두어도 결론이 유지됩니다",
+  "evidenceHint": "각 신호의 중앙값과 비교 기준인 중립값입니다.",
+  "secondary": "측정했지만 글자를 차지할 만큼은 아닙니다",
+  "secondaryNote": "— 검증 대부분은 기록에 흔적을 남기지 않아 신뢰도가 낮습니다.",
+  "fanout": "세션의 {{percent}}%가 서브에이전트로 분기합니다.",
+  "byTool": "도구별",
+  "byToolHint": "중립점이 모두 같아 이 행들은 서로 비교할 수 있습니다. 한 도구에서만 성립하는 글자는 의심해 볼 만합니다.",
+  "sessionCount": "세션 {{count}}개",
+  "overTime": "시간에 따른 변화",
+  "overTimeHint": "이동 구간, 최신순입니다.",
+  "status": "상태",
+  "coverage": "읽은 세션",
+  "coverageReading": "기록을 계속 읽는 중입니다. 진행될수록 프로필이 또렷해집니다.",
+  "coverageComplete": "이 컴퓨터의 모든 세션을 읽었습니다.",
+  "confidence": "신뢰도",
+  "confidenceHint": "세션들이 위 글자들과 얼마나 일치하는지입니다.",
+  "axesTitle": "축",
+  "evidenceCol": {
+    "signal": "신호",
+    "yours": "내 값",
+    "neutral": "중립"
+  },
+  "byToolCol": {
+    "tool": "도구",
+    "code": "유형",
+    "sessions": "세션"
+  },
+  "overTimeCol": {
+    "window": "구간 종료",
+    "code": "유형",
+    "sessions": "세션"
+  },
+  "fanoutLabel": "서브에이전트 분기",
+  "fanoutHint": "서브에이전트로 분기한 세션 비율. '집중/군집'과 분리해 둡니다. 병렬성의 다른 층이고 방향이 반대이기 때문입니다.",
+  "highlights": "하이라이트",
+  "highlightsHint": "카드 한 장에 사실 하나, 모두 당신의 세션에서 나왔습니다.",
+  "caveat": "느슨하게 잡힌 값입니다: {{reason}}",
+  "clarity": {
+    "slight": "약한 선호",
+    "moderate": "보통 선호",
+    "clear": "뚜렷한 선호",
+    "veryClear": "매우 뚜렷한 선호"
+  }
+}

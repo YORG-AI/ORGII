@@ -1,0 +1,52 @@
+{
+  "title": "Builder-Profil",
+  "refresh": "Aktualisieren",
+  "summaryLine": "{{sessions}} Sitzungen ausgewertet",
+  "tooFewSessions": "Weniger als 25 Sitzungen – der Typ steht noch nicht fest.",
+  "noSessionsYet": "Noch keine Sitzungen ausgewertet – die Buchstaben erscheinen, während der Verlauf gelesen wird.",
+  "axisStats": "{{sessions}} Sitzungen · {{consistency}} % stimmen überein",
+  "anchorFlip": "der Neutralpunkt müsste sich um das {{factor}}-fache verschieben",
+  "anchorNeverFlips": "gilt unabhängig vom Neutralpunkt",
+  "evidenceHint": "Ihr Median je Signal, gegenüber dem Neutralwert, mit dem verglichen wurde.",
+  "secondary": "Gemessen, aber nicht buchstabenwürdig",
+  "secondaryNote": "– die meisten Prüfungen hinterlassen keine Spur, daher geringe Konfidenz.",
+  "fanout": "{{percent}} % Ihrer Sitzungen verzweigen sich in Subagenten.",
+  "byTool": "Nach Werkzeug",
+  "byToolHint": "Überall dieselben Neutralpunkte, daher sind diese Zeilen vergleichbar. Ein Buchstabe, der nur in einem Werkzeug gilt, ist zweifelhaft.",
+  "sessionCount": "{{count}} Sitzungen",
+  "overTime": "Im Zeitverlauf",
+  "overTimeHint": "Gleitende Fenster, neueste zuerst.",
+  "status": "Status",
+  "coverage": "Gelesene Sitzungen",
+  "coverageReading": "Ihr Verlauf wird noch gelesen – das Profil wird dabei schärfer.",
+  "coverageComplete": "Alle Sitzungen auf diesem Rechner wurden gelesen.",
+  "confidence": "Konfidenz",
+  "confidenceHint": "Wie stark Ihre Sitzungen mit den Buchstaben oben übereinstimmen.",
+  "axesTitle": "Achsen",
+  "evidenceCol": {
+    "signal": "Signal",
+    "yours": "Sie",
+    "neutral": "Neutral"
+  },
+  "byToolCol": {
+    "tool": "Werkzeug",
+    "code": "Typ",
+    "sessions": "Sitzungen"
+  },
+  "overTimeCol": {
+    "window": "Fenster endet",
+    "code": "Typ",
+    "sessions": "Sitzungen"
+  },
+  "fanoutLabel": "Subagenten-Verzweigung",
+  "fanoutHint": "Anteil der Sitzungen, die sich in Subagenten verzweigen. Getrennt von Fokussiert/Schwarm gehalten: das ist die andere Ebene der Parallelität und zeigt in die andere Richtung.",
+  "highlights": "Höhepunkte",
+  "highlightsHint": "Eine Tatsache pro Karte, aus Ihren eigenen Sitzungen.",
+  "caveat": "nur schwach gestützt: {{reason}}",
+  "clarity": {
+    "slight": "leichte Präferenz",
+    "moderate": "mäßige Präferenz",
+    "clear": "klare Präferenz",
+    "veryClear": "sehr klare Präferenz"
+  }
+}

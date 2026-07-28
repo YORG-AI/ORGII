@@ -1,0 +1,52 @@
+{
+  "title": "Hồ sơ người xây dựng",
+  "refresh": "Làm mới",
+  "summaryLine": "Đã phân tích {{sessions}} phiên",
+  "tooFewSessions": "Dưới 25 phiên — kiểu chưa ổn định.",
+  "noSessionsYet": "Chưa phân tích phiên nào — các chữ cái xuất hiện dần khi lịch sử được đọc.",
+  "axisStats": "{{sessions}} phiên · {{consistency}}% đồng thuận",
+  "anchorFlip": "điểm trung tính phải dịch {{factor}}×",
+  "anchorNeverFlips": "kết luận giữ nguyên ở mọi điểm trung tính",
+  "evidenceHint": "Trung vị của bạn cho mỗi tín hiệu, so với giá trị trung tính dùng để đối chiếu.",
+  "secondary": "Đã đo, nhưng chưa đủ để thành một chữ cái",
+  "secondaryNote": "— phần lớn việc kiểm chứng không để lại dấu vết, nên độ tin cậy thấp.",
+  "fanout": "{{percent}}% số phiên của bạn phân nhánh thành tác tử con.",
+  "byTool": "Theo công cụ",
+  "byToolHint": "Điểm trung tính giống nhau ở mọi nơi nên các hàng này so sánh được. Một chữ cái chỉ đúng trong một công cụ thì đáng ngờ.",
+  "sessionCount": "{{count}} phiên",
+  "overTime": "Theo thời gian",
+  "overTimeHint": "Cửa sổ trượt, mới nhất trước.",
+  "status": "Trạng thái",
+  "coverage": "Phiên đã đọc",
+  "coverageReading": "Vẫn đang đọc lịch sử của bạn — hồ sơ sắc nét dần theo tiến độ.",
+  "coverageComplete": "Đã đọc mọi phiên trên máy này.",
+  "confidence": "Độ tin cậy",
+  "confidenceHint": "Mức độ các phiên của bạn đồng thuận với những chữ cái ở trên.",
+  "axesTitle": "Các trục",
+  "evidenceCol": {
+    "signal": "Tín hiệu",
+    "yours": "Của bạn",
+    "neutral": "Trung tính"
+  },
+  "byToolCol": {
+    "tool": "Công cụ",
+    "code": "Kiểu",
+    "sessions": "Phiên"
+  },
+  "overTimeCol": {
+    "window": "Kết thúc cửa sổ",
+    "code": "Kiểu",
+    "sessions": "Phiên"
+  },
+  "fanoutLabel": "Phân nhánh tác tử con",
+  "fanoutHint": "Tỷ lệ phiên phân nhánh thành tác tử con. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
+  "highlights": "Điểm nổi bật",
+  "highlightsHint": "Mỗi thẻ một dữ kiện, rút từ chính các phiên của bạn.",
+  "caveat": "chưa chắc: {{reason}}",
+  "clarity": {
+    "slight": "thiên hướng nhẹ",
+    "moderate": "thiên hướng vừa",
+    "clear": "thiên hướng rõ",
+    "veryClear": "thiên hướng rất rõ"
+  }
+}

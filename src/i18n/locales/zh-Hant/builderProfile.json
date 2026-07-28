@@ -1,0 +1,52 @@
+{
+  "title": "建構者輪廓",
+  "refresh": "重新整理",
+  "summaryLine": "已分析 {{sessions}} 個工作階段",
+  "tooFewSessions": "不足 25 個工作階段，類型尚未穩定。",
+  "noSessionsYet": "尚未分析任何工作階段——隨著歷史被讀取，字母會逐步出現。",
+  "axisStats": "{{sessions}} 個工作階段 · {{consistency}}% 一致",
+  "anchorFlip": "中性點需移動 {{factor}}× 才會翻轉",
+  "anchorNeverFlips": "無論中性點定在哪都不翻轉",
+  "evidenceHint": "每項訊號你的中位數，與它所對照的中性值。",
+  "secondary": "已測量，但不足以佔一個字母",
+  "secondaryNote": "——大部分驗證不會在紀錄裡留下痕跡，所以信賴度低。",
+  "fanout": "{{percent}}% 的工作階段會派生子代理。",
+  "byTool": "依工具",
+  "byToolHint": "各處中性點相同，所以這些列可以橫向比較。只在一個工具裡成立的字母值得懷疑。",
+  "sessionCount": "{{count}} 個工作階段",
+  "overTime": "隨時間變化",
+  "overTimeHint": "滾動視窗，最新在前。",
+  "status": "狀態",
+  "coverage": "已讀取的工作階段",
+  "coverageReading": "仍在讀取你的歷史——隨著進度推進，輪廓會越來越準。",
+  "coverageComplete": "本機上的所有工作階段都已讀取。",
+  "confidence": "信賴度",
+  "confidenceHint": "你的工作階段與上面這些字母的一致程度。",
+  "axesTitle": "維度",
+  "evidenceCol": {
+    "signal": "訊號",
+    "yours": "你的",
+    "neutral": "中性值"
+  },
+  "byToolCol": {
+    "tool": "工具",
+    "code": "類型",
+    "sessions": "工作階段數"
+  },
+  "overTimeCol": {
+    "window": "視窗結束於",
+    "code": "類型",
+    "sessions": "工作階段數"
+  },
+  "fanoutLabel": "子代理分叉",
+  "fanoutHint": "分叉出子代理的工作階段占比。與「專注／叢集」分開計：那是另一層並行，而且方向相反。",
+  "highlights": "亮點",
+  "highlightsHint": "每張卡片一個事實，全部來自你自己的工作階段。",
+  "caveat": "把握不牢：{{reason}}",
+  "clarity": {
+    "slight": "輕微傾向",
+    "moderate": "中等傾向",
+    "clear": "明確傾向",
+    "veryClear": "非常明確的傾向"
+  }
+}

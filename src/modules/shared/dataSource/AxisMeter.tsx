@@ -31,9 +31,7 @@ const AxisMeter = memo(function AxisMeter({
   expanded,
   onToggle,
 }: AxisMeterProps) {
-  const { t } = useTranslation("sessions", {
-    keyPrefix: "kanban.dataSource.profile",
-  });
+  const { t } = useTranslation("builderProfile");
 
   // The letter always stands; clarity decides how much weight it is drawn with.
   const soft = axis.clarity === "slight" || axis.clarity === "moderate";

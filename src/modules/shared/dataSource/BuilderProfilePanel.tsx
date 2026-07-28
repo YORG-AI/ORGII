@@ -55,9 +55,7 @@ const RELOAD_EVERY_BATCHES = 5;
  *   tooltip, never replaced by a placeholder.
  */
 export default function BuilderProfilePanel() {
-  const { t } = useTranslation("sessions", {
-    keyPrefix: "kanban.dataSource.profile",
-  });
+  const { t } = useTranslation("builderProfile");
   const [data, setData] = useState<BuilderProfileOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

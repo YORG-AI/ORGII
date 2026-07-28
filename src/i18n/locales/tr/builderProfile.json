@@ -1,0 +1,52 @@
+{
+  "title": "Geliştirici profili",
+  "refresh": "Yenile",
+  "summaryLine": "{{sessions}} oturum incelendi",
+  "tooFewSessions": "25 oturumdan az — tip henüz oturmadı.",
+  "noSessionsYet": "Henüz incelenen oturum yok — geçmiş okundukça harfler belirir.",
+  "axisStats": "{{sessions}} oturum · %{{consistency}} aynı yönde",
+  "anchorFlip": "nötr noktanın {{factor}}× kayması gerekirdi",
+  "anchorNeverFlips": "nötr nokta neresi olursa olsun sonuç değişmiyor",
+  "evidenceHint": "Her sinyal için medyanınız ve karşılaştırıldığı nötr değer.",
+  "secondary": "Ölçüldü, ama bir harfi hak edecek kadar değil",
+  "secondaryNote": "— doğrulamaların çoğu kayıtta iz bırakmaz, bu yüzden güven düşük.",
+  "fanout": "Oturumlarınızın %{{percent}} kadarı alt ajanlara dallanıyor.",
+  "byTool": "Araca göre",
+  "byToolHint": "Nötr noktalar her yerde aynı, dolayısıyla bu satırlar karşılaştırılabilir. Yalnızca tek araçta geçerli olan bir harf şüphelidir.",
+  "sessionCount": "{{count}} oturum",
+  "overTime": "Zaman içinde",
+  "overTimeHint": "Kayan pencereler, en yeniden başlayarak.",
+  "status": "Durum",
+  "coverage": "Okunan oturumlar",
+  "coverageReading": "Geçmişiniz hâlâ okunuyor — doldukça profil keskinleşiyor.",
+  "coverageComplete": "Bu makinedeki tüm oturumlar okundu.",
+  "confidence": "Güven",
+  "confidenceHint": "Oturumlarınızın yukarıdaki harflerle ne kadar uyuştuğu.",
+  "axesTitle": "Eksenler",
+  "evidenceCol": {
+    "signal": "Sinyal",
+    "yours": "Sizinki",
+    "neutral": "Nötr"
+  },
+  "byToolCol": {
+    "tool": "Araç",
+    "code": "Tip",
+    "sessions": "Oturumlar"
+  },
+  "overTimeCol": {
+    "window": "Pencere bitişi",
+    "code": "Tip",
+    "sessions": "Oturumlar"
+  },
+  "fanoutLabel": "Alt ajana dallanma",
+  "fanoutHint": "Alt ajanlara dallanan oturumların payı. Odaklı/Sürü ekseninden ayrı tutuluyor: bu, paralelliğin diğer katmanı ve ters yönü işaret ediyor.",
+  "highlights": "Öne çıkanlar",
+  "highlightsHint": "Kart başına bir olgu, hepsi kendi oturumlarınızdan.",
+  "caveat": "zayıf tutuluyor: {{reason}}",
+  "clarity": {
+    "slight": "hafif eğilim",
+    "moderate": "orta eğilim",
+    "clear": "belirgin eğilim",
+    "veryClear": "çok belirgin eğilim"
+  }
+}

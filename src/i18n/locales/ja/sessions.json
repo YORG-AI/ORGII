@@ -145,7 +145,8 @@
         "hooks": "フック",
         "usage": "使用量",
         "quota": "クォータ",
-        "assets": "アセット"
+        "assets": "アセット",
+        "profile": "プロファイル"
       },
       "usage": {
         "title": "使用量とコスト",

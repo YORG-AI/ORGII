@@ -1,0 +1,52 @@
+{
+  "title": "Perfil de creador",
+  "refresh": "Actualizar",
+  "summaryLine": "{{sessions}} sesiones analizadas",
+  "tooFewSessions": "Menos de 25 sesiones: el tipo aún no está asentado.",
+  "noSessionsYet": "Aún no hay sesiones analizadas: las letras aparecen a medida que se lee tu historial.",
+  "axisStats": "{{sessions}} sesiones · {{consistency}} % coinciden",
+  "anchorFlip": "el punto neutro tendría que moverse {{factor}}×",
+  "anchorNeverFlips": "el veredicto se mantiene con cualquier punto neutro",
+  "evidenceHint": "Tu mediana por señal, frente al valor neutro con el que se comparó.",
+  "secondary": "Medido, pero no merece una letra",
+  "secondaryNote": "— la mayoría de las verificaciones no deja rastro, así que la confianza es baja.",
+  "fanout": "El {{percent}} % de tus sesiones se ramifica en subagentes.",
+  "byTool": "Por herramienta",
+  "byToolHint": "Los puntos neutros son iguales en todas partes, así que estas filas son comparables. Una letra que solo se sostiene en una herramienta merece dudas.",
+  "sessionCount": "{{count}} sesiones",
+  "overTime": "A lo largo del tiempo",
+  "overTimeHint": "Ventanas móviles, las más recientes primero.",
+  "status": "Estado",
+  "coverage": "Sesiones leídas",
+  "coverageReading": "Aún leyendo tu historial: el perfil se afina a medida que avanza.",
+  "coverageComplete": "Se han leído todas las sesiones de este equipo.",
+  "confidence": "Confianza",
+  "confidenceHint": "Cuánto concuerdan tus sesiones con las letras de arriba.",
+  "axesTitle": "Ejes",
+  "evidenceCol": {
+    "signal": "Señal",
+    "yours": "Tú",
+    "neutral": "Neutro"
+  },
+  "byToolCol": {
+    "tool": "Herramienta",
+    "code": "Tipo",
+    "sessions": "Sesiones"
+  },
+  "overTimeCol": {
+    "window": "Fin de ventana",
+    "code": "Tipo",
+    "sessions": "Sesiones"
+  },
+  "fanoutLabel": "Ramificación en subagentes",
+  "fanoutHint": "Proporción de sesiones que se ramifican en subagentes. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
+  "highlights": "Destacados",
+  "highlightsHint": "Un dato por tarjeta, extraído de tus propias sesiones.",
+  "caveat": "poco firme: {{reason}}",
+  "clarity": {
+    "slight": "preferencia leve",
+    "moderate": "preferencia moderada",
+    "clear": "preferencia clara",
+    "veryClear": "preferencia muy clara"
+  }
+}
