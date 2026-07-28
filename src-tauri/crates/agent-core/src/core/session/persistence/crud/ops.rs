@@ -438,6 +438,32 @@ pub fn update_work_item_link(
     })
 }
 
+/// Associate a session with a project without manufacturing a work-item link.
+/// This is deliberately separate from `update_work_item_link`: an empty work
+/// item id otherwise leaks into the persisted session model.
+pub fn update_project_link(
+    session_id: &str,
+    org_id: &str,
+    project_id: &str,
+    project_name: &str,
+    project_slug: &str,
+) -> SqliteResult<bool> {
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        let updated = conn.execute(
+            "UPDATE agent_sessions
+             SET org_id = ?2,
+                 project_id = ?3,
+                 project_name = ?4,
+                 project_slug = ?5,
+                 work_item_id = NULL
+             WHERE session_id = ?1",
+            params![session_id, org_id, project_id, project_name, project_slug],
+        )?;
+        Ok(updated > 0)
+    })
+}
+
 /// Set the canonical Agent Org roster member id for a session.
 pub fn update_org_member_id(session_id: &str, org_member_id: &str) -> SqliteResult<bool> {
     let changed = with_sessions_writer(|| -> SqliteResult<bool> {

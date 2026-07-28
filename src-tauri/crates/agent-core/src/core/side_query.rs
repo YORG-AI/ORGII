@@ -344,7 +344,10 @@ pub async fn side_query_typed(
 }
 
 fn is_output_truncated(response: &LLMResponse) -> bool {
-    response.finish_reason == finish_reason::LENGTH
+    matches!(
+        response.finish_reason.as_str(),
+        finish_reason::LENGTH | finish_reason::STREAM_ERROR
+    )
 }
 
 /// Issue the underlying chat call, honoring the `stream` flag.

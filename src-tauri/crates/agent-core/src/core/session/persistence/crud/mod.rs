@@ -26,8 +26,9 @@ pub use ops::{
     backfill_agent_definition_id, delete_session, finalize_terminal_turn_status,
     get_child_sessions, get_parent_session, get_session, list_sessions,
     mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
-    register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id, update_agent_exec_mode, update_draft_text,
-    update_model, update_model_and_account, update_name, update_org_member_id, update_pinned,
+    register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id,
+    update_agent_exec_mode, update_draft_text, update_model, update_model_and_account,
+    update_name, update_org_member_id, update_pinned, update_project_link,
     update_reply_target_event_id, update_status, update_work_item_link, upsert_session,
 };
 pub use record::{session_type, UnifiedSessionRecord};

@@ -371,6 +371,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleOpenLinkWorkItem,
       handleOpenCloudShareSettings,
       showCloudShareSettings,
+      handleOpenLinkProject,
       sessionModals,
     } = useChatPanelSessionModals({
       activeSession,
@@ -493,6 +494,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           handleOpenExportSessionJson={handleOpenExportSessionJson}
           handleOpenLinkWorkItem={handleOpenLinkWorkItem}
           handleOpenCloudShareSettings={handleOpenCloudShareSettings}
+          handleOpenLinkProject={handleOpenLinkProject}
           handleOpenSearch={handleOpenSearch}
           handleNewSession={handleNewSession}
           handlePaginationToggle={handlePaginationToggle}

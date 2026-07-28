@@ -149,6 +149,11 @@ export const SessionMetaSchema = z
   })
   .catchall(z.unknown()) as unknown as z.ZodType<SessionMeta, SessionMeta>;
 
+export const LinkSessionToProjectInput = z.object({
+  sessionId: z.string(),
+  projectSlug: z.string(),
+});
+
 export const CancelReasonSchema = z.enum([
   "user_stop",
   "force_send",

@@ -8,6 +8,7 @@ import { useCloudSessionShareDialog } from "@src/features/Org2Cloud/CloudSession
 import { SessionImportExportModal } from "@src/scaffold/NavigationSidebar/connectors/SessionImportExportModal";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
+import LinkSessionToProjectModal from "../panels/LinkSessionToProjectModal";
 import LinkSessionToWorkItemModal from "../panels/LinkSessionToWorkItemModal";
 
 type ExportActiveSession = ComponentProps<
@@ -33,6 +34,7 @@ export function useChatPanelSessionModals({
   const [isExportModalOpen, setExportModalOpen] = useState(false);
   const [isLinkWorkItemModalOpen, setLinkWorkItemModalOpen] = useState(false);
   const cloudShare = useCloudSessionShareDialog();
+  const [isLinkProjectModalOpen, setLinkProjectModalOpen] = useState(false);
 
   const handleOpenExportSessionJson = useCallback(() => {
     setExportModalOpen(true);
@@ -55,6 +57,20 @@ export function useChatPanelSessionModals({
   const handleCloseLinkWorkItem = useCallback(() => {
     setLinkWorkItemModalOpen(false);
   }, []);
+
+  const handleOpenLinkProject = useCallback(() => {
+    if (!currentSessionId) {
+      Message.warning(t("common:toasts.openSessionBeforeLinking"));
+      return;
+    }
+    setLinkProjectModalOpen(true);
+    closeHeaderActionsMenu();
+  }, [closeHeaderActionsMenu, currentSessionId, t]);
+
+  const handleCloseLinkProject = useCallback(
+    () => setLinkProjectModalOpen(false),
+    []
+  );
 
   const handleSessionLinkedToWorkItem = useCallback(() => {
     void emit("orgii-data-changed", new Date().toISOString());
@@ -80,6 +96,12 @@ export function useChatPanelSessionModals({
         onClose={handleCloseLinkWorkItem}
         onLinked={handleSessionLinkedToWorkItem}
       />
+      <LinkSessionToProjectModal
+        open={isLinkProjectModalOpen}
+        sessionId={currentSessionId ?? null}
+        onClose={handleCloseLinkProject}
+        onLinked={handleSessionLinkedToWorkItem}
+      />
       <SessionImportExportModal
         visible={isExportModalOpen}
         mode="export"
@@ -101,6 +123,7 @@ export function useChatPanelSessionModals({
     handleOpenLinkWorkItem,
     handleOpenCloudShareSettings,
     showCloudShareSettings,
+    handleOpenLinkProject,
     sessionModals,
   };
 }

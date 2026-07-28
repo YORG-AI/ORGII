@@ -20,7 +20,7 @@ mod interaction;
 pub mod launch;
 pub mod message;
 pub mod org_tasks;
-mod persistence;
+pub mod persistence;
 mod workspace;
 
 pub use coding::*;

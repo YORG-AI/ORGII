@@ -21,7 +21,7 @@
 
 use super::ops::{
     finalize_terminal_turn_status, list_sessions, reconcile_sessions_with_terminal_turn_markers,
-    upsert_session,
+    update_project_link, upsert_session,
 };
 use super::record::UnifiedSessionRecord;
 use crate::session::persistence;
@@ -174,6 +174,35 @@ fn terminal_turn_finalize_updates_session_status_and_marker() {
         .expect("session exists");
     assert_eq!(row.status, SessionStatus::Completed.as_str());
     assert_eq!(row.updated_at, "2026-06-05T12:00:00.000Z");
+}
+
+#[test]
+fn project_link_persists_project_metadata_and_clears_work_item() {
+    let _sandbox = test_env::sandbox();
+    seed_session("sid-project", SessionStatus::Idle);
+
+    let mut record = super::ops::get_session("sid-project")
+        .expect("get seed")
+        .expect("seed exists");
+    record.work_item_id = Some("OLD-1".to_string());
+    upsert_session(&record).expect("seed work item link");
+
+    assert!(update_project_link(
+        "sid-project",
+        "org-1",
+        "proj-1",
+        "Project One",
+        "project-one"
+    )
+    .expect("link project"));
+    let linked = super::ops::get_session("sid-project")
+        .expect("get linked")
+        .expect("linked exists");
+    assert_eq!(linked.org_id.as_deref(), Some("org-1"));
+    assert_eq!(linked.project_id.as_deref(), Some("proj-1"));
+    assert_eq!(linked.project_name.as_deref(), Some("Project One"));
+    assert_eq!(linked.project_slug.as_deref(), Some("project-one"));
+    assert_eq!(linked.work_item_id, None);
 }
 
 #[test]

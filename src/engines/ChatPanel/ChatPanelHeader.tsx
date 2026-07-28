@@ -81,6 +81,7 @@ interface ChatPanelHeaderProps {
   handleOpenExportSessionJson: () => void;
   handleOpenLinkWorkItem: () => void;
   handleOpenCloudShareSettings: () => void;
+  handleOpenLinkProject: () => void;
   handleOpenSearch: () => void;
   handleNewSession: () => void;
   handlePaginationToggle: (checked: boolean) => void;
@@ -156,6 +157,7 @@ export function ChatPanelHeader({
   handleOpenExportSessionJson,
   handleOpenLinkWorkItem,
   handleOpenCloudShareSettings,
+  handleOpenLinkProject,
   handleOpenSearch,
   handleNewSession,
   handlePaginationToggle,
@@ -451,6 +453,16 @@ export function ChatPanelHeader({
                 </span>
               </button>
             )}
+            <button
+              type="button"
+              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={handleOpenLinkProject}
+              disabled={!currentSessionId}
+              data-testid="session-link-project-button"
+            >
+              <Link2 size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              <span className="flex-1 truncate">Link to Project…</span>
+            </button>
             <button
               type="button"
               className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}

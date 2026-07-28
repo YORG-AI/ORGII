@@ -234,6 +234,54 @@ pub async fn agent_link_session_to_work_item(
     shared::to_json_value(updated_record).map_err(|err| err.to_string())
 }
 
+/// Associate an existing session with a Project without requiring a Work Item.
+#[tauri::command]
+pub async fn agent_link_session_to_project(
+    app: tauri::AppHandle,
+    session_id: String,
+    project_slug: String,
+) -> Result<serde_json::Value, String> {
+    let updated_record = tokio::task::spawn_blocking(move || {
+        let session = session_persistence::get_session(&session_id)
+            .map_err(|err| err.to_string())?
+            .ok_or_else(|| format!("Session not found: {session_id}"))?;
+        let project = project_management::projects::io::read_project(&project_slug)
+            .map_err(|err| format!("Failed to read project {project_slug}: {err}"))?;
+
+        session_persistence::update_project_link(
+            &session.session_id,
+            &project.meta.org_id,
+            &project.meta.id,
+            &project.meta.name,
+            &project_slug,
+        )
+        .map_err(|err| err.to_string())?
+        .then_some(())
+        .ok_or_else(|| format!("Session not found: {}", session.session_id))?;
+
+        session_persistence::get_session(&session.session_id)
+            .map_err(|err| err.to_string())?
+            .ok_or_else(|| {
+                format!(
+                    "Session not found after project link: {}",
+                    session.session_id
+                )
+            })
+    })
+    .await
+    .map_err(|err| err.to_string())??;
+
+    {
+        use tauri::Emitter;
+        let _ = app.emit(
+            project_management::projects::events::DATA_CHANGED_EVENT,
+            &chrono::Utc::now().to_rfc3339(),
+        );
+    }
+
+    shared::to_json_value(updated_record).map_err(|err| err.to_string())
+}
+
 fn link_session_to_work_item_sync(
     session_id: &str,
     org_id: Option<&str>,

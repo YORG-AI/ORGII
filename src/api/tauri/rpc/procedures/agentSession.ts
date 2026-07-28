@@ -80,6 +80,10 @@ export const agentSession = {
     .input(schemas.agentSession.LinkSessionToWorkItemInput)
     .output(schemas.agentSession.SessionMetaSchema)
     .build(),
+  linkSessionToProject: defineProcedure("agent_link_session_to_project")
+    .input(schemas.agentSession.LinkSessionToProjectInput)
+    .output(schemas.agentSession.SessionMetaSchema)
+    .build(),
   respondQuestion: defineProcedure("agent_question_response")
     .input(schemas.agentSession.QuestionResponseInput)
     .build(),

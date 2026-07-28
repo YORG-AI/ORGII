@@ -1177,6 +1177,7 @@ agent_core::state::commands::agent_check_snapshot_changes,
 agent_core::state::commands::agent_update_session_status,
 agent_core::state::commands::agent_save_session,
 agent_core::state::commands::agent_link_session_to_work_item,
+agent_core::state::commands::session::persistence::agent_link_session_to_project,
 agent_core::state::commands::agent_get_session_workspace_path,
 // Unified Agent Interaction commands
 agent_core::state::commands::agent_question_response,
