@@ -54,15 +54,15 @@ Do not treat grep hits as findings. Trace ownership, start conditions, steady-st
 
 For each resource, record the required behavior in these states:
 
-| Dimension | States to check |
-| --- | --- |
-| App | start, idle, active, shutdown |
-| Document | visible, hidden, focus return |
-| Network | online, offline, retry/backoff |
-| Identity | signed out, signed in, refresh, account switch, endpoint switch |
-| Scope | personal org, cloud org, removed org, revoked share |
-| Session | unopened, active, inactive, deleted, forked |
-| Instance | primary, direct-launched secondary, launcher-created secondary |
+| Dimension | States to check                                                 |
+| --------- | --------------------------------------------------------------- |
+| App       | start, idle, active, shutdown                                   |
+| Document  | visible, hidden, focus return                                   |
+| Network   | online, offline, retry/backoff                                  |
+| Identity  | signed out, signed in, refresh, account switch, endpoint switch |
+| Scope     | personal org, cloud org, removed org, revoked share             |
+| Session   | unopened, active, inactive, deleted, forked                     |
+| Instance  | primary, direct-launched secondary, launcher-created secondary  |
 
 Flag any resource whose owner or terminal state is ambiguous.
 
@@ -148,12 +148,12 @@ Reject or revise a change when any applicable answer is unknown or false:
 
 Report findings and evidence in this compact form:
 
-| Area | Verdict | Evidence | Change or reason kept | Verification |
-| --- | --- | --- | --- | --- |
-| Background work | fix / keep | timer/subscription owner and cadence | exact lifecycle decision | test or measurement |
-| Memory | fix / keep | retained structure and growth bound | cap/TTL/eviction | bound/eviction test |
-| Scope/isolation | fix / keep | cache/request key | identity/generation guard | switch/revocation test |
-| Rendering/hot path | fix / keep | subscription/allocation trace | narrowing/coalescing | render or unit evidence |
+| Area               | Verdict    | Evidence                             | Change or reason kept     | Verification            |
+| ------------------ | ---------- | ------------------------------------ | ------------------------- | ----------------------- |
+| Background work    | fix / keep | timer/subscription owner and cadence | exact lifecycle decision  | test or measurement     |
+| Memory             | fix / keep | retained structure and growth bound  | cap/TTL/eviction          | bound/eviction test     |
+| Scope/isolation    | fix / keep | cache/request key                    | identity/generation guard | switch/revocation test  |
+| Rendering/hot path | fix / keep | subscription/allocation trace        | narrowing/coalescing      | render or unit evidence |
 
 End with:
 

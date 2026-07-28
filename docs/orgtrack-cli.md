@@ -59,7 +59,7 @@ binary (see the crate README "Publishing" section for the extraction path).
    every provider to `ActivityChunk`; an `orgtrack export --format md` that
    writes a portable, human-readable transcript (plus a JSON neutral schema) is
    a small, high-value add and a natural repo-shareable artifact next to
-   `.orgtrack/`. The stretch goal is regenerating a tool's *native* on-disk
+   `.orgtrack/`. The stretch goal is regenerating a tool's _native_ on-disk
    format from the neutral schema so a session can resume in a different agent.
    This lands naturally on the plugin **formatter** tier (see
    `orgtrack-plugins-design.md`).
