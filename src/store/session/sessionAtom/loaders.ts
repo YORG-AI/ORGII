@@ -50,6 +50,7 @@ import {
 } from "./atoms";
 import { mergeGuestImportedSessions } from "./guestImportRegistry";
 import {
+  BASE_SESSION_LIST_CATEGORIES,
   type DateBucketPaginationMap,
   SESSION_LIST_CATEGORIES,
   SESSION_SIDEBAR_PAGE_SIZE,
@@ -67,10 +68,13 @@ const log = createLogger("SessionAtom");
 const getStore = () => getInstrumentedStore();
 const BULK_CACHE_DURATION_MS = 5 * 60 * 1000;
 const DEFAULT_FLAT_LIST_PAGE_SIZE = 200;
+const RECENT_NATIVE_REFRESH_LIMIT =
+  SESSION_SIDEBAR_PAGE_SIZE * BASE_SESSION_LIST_CATEGORIES.length;
 const exactSessionBatchLoadsByStore = new WeakMap<
   object,
   Map<string, Promise<Session[]>>
 >();
+const recentNativeRefreshesByStore = new WeakMap<object, Promise<void>>();
 
 function exactSessionBatchLoadsForStore(
   store: object
@@ -661,6 +665,46 @@ export const loadSessionRoster = createSidebarLoadCoordinator(
  * and Kanban code should use `loadSessionRoster` so ownership is unambiguous.
  */
 export const loadSidebarSessions = loadSessionRoster;
+
+/**
+ * Refresh only the recent native rows that can be created by gateways and
+ * other out-of-process surfaces.
+ *
+ * The focused sidebar safety poll exists so a `/newsession` command appears
+ * without a manual reload. Running the full roster loader for that poll used
+ * to fan out across every native category and every imported-history source
+ * every 15 seconds. One bounded newest-first native query is sufficient for
+ * discovery and preserves the paginated imported rows already in memory.
+ */
+export function refreshRecentNativeSessions(): Promise<void> {
+  const store = getStore();
+  const active = recentNativeRefreshesByStore.get(store);
+  if (active) return active;
+
+  const refresh = (async () => {
+    const response = await sessionAggregateList({
+      includeExternalHistory: false,
+      limit: RECENT_NATIVE_REFRESH_LIMIT,
+      sortBy: "updated_at",
+      sortOrder: "desc",
+    });
+    const incoming = toFrontendSessions(response.sessions).filter(
+      isPrimarySessionListSession
+    );
+    let merged: Session[] = [];
+    store.set(sessionsAtom, (previous) => {
+      merged = mergeSessions(previous, incoming);
+      return merged;
+    });
+    persistSessions(merged);
+  })().finally(() => {
+    if (recentNativeRefreshesByStore.get(store) === refresh) {
+      recentNativeRefreshesByStore.delete(store);
+    }
+  });
+  recentNativeRefreshesByStore.set(store, refresh);
+  return refresh;
+}
 
 /**
  * Hydrate canonical session rows by exact id.

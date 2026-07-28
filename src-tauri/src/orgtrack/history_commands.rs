@@ -43,23 +43,24 @@ async fn acquire_external_history_scan_permit(
         .map_err(|_| "External history scan queue closed".to_string())
 }
 
-const CODEX_TURN_PROJECTION_CACHE_CAPACITY: usize = 8;
-const CODEX_TURN_PROJECTION_LIMIT_PER_SESSION: usize = 4_096;
+const IMPORTED_TURN_PROJECTION_CACHE_CAPACITY: usize = 8;
+const IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_RECENT_TURN_COUNT: usize = 1;
+const IMPORTED_INITIAL_RECENT_TURN_COUNT: usize = 1;
 
 #[derive(Debug)]
-struct CodexTurnProjectionCacheEntry {
+struct ImportedTurnProjectionCacheEntry {
     session_id: String,
     signature: (i64, u64),
     projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
 }
 
 #[derive(Debug, Default)]
-struct CodexTurnProjectionCache {
-    entries: VecDeque<CodexTurnProjectionCacheEntry>,
+struct ImportedTurnProjectionCache {
+    entries: VecDeque<ImportedTurnProjectionCacheEntry>,
 }
 
-impl CodexTurnProjectionCache {
+impl ImportedTurnProjectionCache {
     fn get(
         &mut self,
         session_id: &str,
@@ -91,11 +92,11 @@ impl CodexTurnProjectionCache {
         {
             self.entries.remove(index);
         }
-        let projected = if projected.len() > CODEX_TURN_PROJECTION_LIMIT_PER_SESSION {
+        let projected = if projected.len() > IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION {
             projected
                 .into_iter()
                 .rev()
-                .take(CODEX_TURN_PROJECTION_LIMIT_PER_SESSION)
+                .take(IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION)
                 .collect::<Vec<_>>()
                 .into_iter()
                 .rev()
@@ -103,37 +104,87 @@ impl CodexTurnProjectionCache {
         } else {
             projected
         };
-        self.entries.push_back(CodexTurnProjectionCacheEntry {
+        self.entries.push_back(ImportedTurnProjectionCacheEntry {
             session_id,
             signature,
             projected,
         });
-        while self.entries.len() > CODEX_TURN_PROJECTION_CACHE_CAPACITY {
+        while self.entries.len() > IMPORTED_TURN_PROJECTION_CACHE_CAPACITY {
             self.entries.pop_front();
         }
     }
 }
 
-fn codex_turn_projection_cache() -> &'static Mutex<CodexTurnProjectionCache> {
-    static CACHE: OnceLock<Mutex<CodexTurnProjectionCache>> = OnceLock::new();
-    CACHE.get_or_init(|| Mutex::new(CodexTurnProjectionCache::default()))
+fn imported_turn_projection_cache() -> &'static Mutex<ImportedTurnProjectionCache> {
+    static CACHE: OnceLock<Mutex<ImportedTurnProjectionCache>> = OnceLock::new();
+    CACHE.get_or_init(|| Mutex::new(ImportedTurnProjectionCache::default()))
 }
 
-fn codex_transcript_signature(
+fn imported_transcript_signature(
     conn: &rusqlite::Connection,
     session_id: &str,
 ) -> Result<Option<(i64, u64)>, String> {
-    if !session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX) {
+    let Some((source, cached)) =
+        imported_history::cache::query_cached_session_by_session_id_including_superseded_from_conn(
+            conn, session_id,
+        )?
+    else {
         return Ok(None);
-    }
-    imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
-        conn,
-        imported_history::metadata::SOURCE_CODEX_APP,
-        session_id,
-    )
+    };
+    imported_transcript_signature_for_cached(conn, &source, &cached, session_id)
 }
 
-fn remember_codex_turn_projection(
+fn imported_transcript_signature_for_cached(
+    conn: &rusqlite::Connection,
+    source: &str,
+    cached: &imported_history::cache::ImportedHistoryCachedSession,
+    session_id: &str,
+) -> Result<Option<(i64, u64)>, String> {
+    match source {
+        imported_history::metadata::SOURCE_CURSOR_IDE => {
+            let composer_id = session_id
+                .strip_prefix(orgtrack_core::sources::cursor_ide::CURSORIDE_SESSION_PREFIX)
+                .unwrap_or(session_id);
+            Ok(
+                cursor_disk_reads::cursor_composer_last_updated_at(composer_id)?
+                    .map(|updated_at| (updated_at, 0)),
+            )
+        }
+        imported_history::metadata::SOURCE_OPENCODE
+        | imported_history::metadata::SOURCE_ZCODE
+        | imported_history::metadata::SOURCE_MIMO_CODE => {
+            imported_history::paths::sqlite_session_activity_signature(
+                Path::new(&cached.source_path),
+                &cached.source_record_key,
+                source,
+            )
+            // Provider schema drift must not turn a cheap freshness probe into
+            // a permanent error/reload loop. The file signature is broader
+            // (unrelated sessions can invalidate it) but remains correct.
+            .or_else(|_| {
+                imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
+                    conn, source, session_id,
+                )
+            })
+        }
+        imported_history::metadata::SOURCE_WINDSURF => {
+            windsurf_history::windsurf_session_activity_signature(
+                Path::new(&cached.source_path),
+                &cached.source_record_key,
+            )
+            .or_else(|_| {
+                imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
+                    conn, source, session_id,
+                )
+            })
+        }
+        _ => imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
+            conn, source, session_id,
+        ),
+    }
+}
+
+fn remember_imported_turn_projection(
     session_id: &str,
     signature_before: Option<(i64, u64)>,
     signature_after: Option<(i64, u64)>,
@@ -148,7 +199,7 @@ fn remember_codex_turn_projection(
     if before != after {
         return;
     }
-    codex_turn_projection_cache()
+    imported_turn_projection_cache()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .insert(session_id.to_string(), after, projected);
@@ -158,9 +209,9 @@ fn load_projected_turn_metadata(
     conn: &rusqlite::Connection,
     session_id: &str,
 ) -> Result<Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>>, String> {
-    let signature_before = codex_transcript_signature(conn, session_id)?;
+    let signature_before = imported_transcript_signature(conn, session_id)?;
     if let Some(signature) = signature_before {
-        if let Some(projected) = codex_turn_projection_cache()
+        if let Some(projected) = imported_turn_projection_cache()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .get(session_id, signature)
@@ -169,12 +220,25 @@ fn load_projected_turn_metadata(
         }
     }
 
+    if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+        let projected =
+            claude_code_history::load_claude_code_turn_index_for_session(conn, session_id)?;
+        let signature_after = imported_transcript_signature(conn, session_id)?;
+        remember_imported_turn_projection(
+            session_id,
+            signature_before,
+            signature_after,
+            projected.clone(),
+        );
+        return Ok(Some(projected));
+    }
+
     let Some(chunks) = imported_history::load_activity_chunks_for_session(conn, session_id)? else {
         return Ok(None);
     };
     let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
-    let signature_after = codex_transcript_signature(conn, session_id)?;
-    remember_codex_turn_projection(
+    let signature_after = imported_transcript_signature(conn, session_id)?;
+    remember_imported_turn_projection(
         session_id,
         signature_before,
         signature_after,
@@ -217,6 +281,29 @@ fn projected_rounds_to_cached_turns(
             resource_interactions: round.resource_interactions,
             git_artifacts: round.git_artifacts,
         })
+        .collect()
+}
+
+fn cursor_turns_to_projected(
+    turns: &[cursor_db_history::CursorIdeTurnSummary],
+) -> Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata> {
+    turns
+        .iter()
+        .map(
+            |turn| orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata {
+                turn_id: turn.turn_id.clone(),
+                start_sequence: turn.turn_index as i64,
+                started_at: turn.started_at.clone(),
+                ended_at: turn.ended_at.clone(),
+                status: "completed".to_string(),
+                user_preview: turn.user_preview.clone(),
+                event_count: turn.event_count as i64,
+                body_event_count: turn.body_event_count as i64,
+                modified_files: Vec::new(),
+                resource_interactions: Vec::new(),
+                git_artifacts: Vec::new(),
+            },
+        )
         .collect()
 }
 
@@ -451,7 +538,20 @@ pub async fn cursor_ide_initial_window(
 ) -> Result<cursor_db_history::CursorIdeInitialWindow, String> {
     tokio::task::spawn_blocking(move || {
         let mut conn = open_cache_conn()?;
-        cursor_db_history::load_initial_window_for_session(&mut conn, &session_id, recent_limit)
+        let signature_before = imported_transcript_signature(&conn, &session_id)?;
+        let window = cursor_db_history::load_initial_window_for_session(
+            &mut conn,
+            &session_id,
+            recent_limit,
+        )?;
+        let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        remember_imported_turn_projection(
+            &session_id,
+            signature_before,
+            signature_after,
+            cursor_turns_to_projected(&window.turns),
+        );
+        Ok(window)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -482,16 +582,107 @@ pub async fn cursor_ide_turn_window(
 }
 
 #[tauri::command]
+pub async fn imported_history_initial_window(
+    session_id: String,
+    recent_turn_count: Option<usize>,
+) -> Result<imported_history::window::ImportedHistoryInitialWindow, String> {
+    let recent_turn_count = recent_turn_count
+        .unwrap_or(IMPORTED_INITIAL_RECENT_TURN_COUNT)
+        .clamp(1, 20);
+    tokio::task::spawn_blocking(move || {
+        if session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX)
+            || session_id.starts_with(orgtrack_core::sources::cursor_ide::CURSORIDE_SESSION_PREFIX)
+        {
+            return Err(format!(
+                "Session {session_id} has a source-specific initial-window loader"
+            ));
+        }
+        let conn = open_cache_conn()?;
+        let signature_before = imported_transcript_signature(&conn, &session_id)?;
+        let window = if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX)
+        {
+            claude_code_history::load_claude_code_initial_window_for_session(
+                &conn,
+                &session_id,
+                recent_turn_count,
+            )?
+        } else {
+            imported_history::window::load_initial_window_for_session(
+                &conn,
+                &session_id,
+                recent_turn_count,
+            )?
+            .ok_or_else(|| format!("Unknown imported history session: {session_id}"))?
+        };
+        let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        remember_imported_turn_projection(
+            &session_id,
+            signature_before,
+            signature_after,
+            window.turns.clone(),
+        );
+        Ok(window)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
+pub async fn imported_history_turn_windows(
+    session_id: String,
+    mut turn_ids: Vec<String>,
+) -> Result<Vec<imported_history::window::ImportedHistoryTurnWindow>, String> {
+    if turn_ids.len() > 50 {
+        return Err("At most 50 imported history turns can be loaded at once".to_string());
+    }
+    if turn_ids.iter().any(|turn_id| turn_id.len() > 1_024) {
+        return Err("Imported history turn id is too long".to_string());
+    }
+    let mut seen = HashSet::with_capacity(turn_ids.len());
+    turn_ids.retain(|turn_id| seen.insert(turn_id.clone()));
+    if turn_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    tokio::task::spawn_blocking(move || {
+        if session_id.starts_with(orgtrack_core::sources::codex::SESSION_PREFIX)
+            || session_id.starts_with(orgtrack_core::sources::cursor_ide::CURSORIDE_SESSION_PREFIX)
+        {
+            return Err(format!(
+                "Session {session_id} has a source-specific turn-window loader"
+            ));
+        }
+        let conn = open_cache_conn()?;
+        if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+            claude_code_history::load_claude_code_turn_windows_for_session(
+                &conn,
+                &session_id,
+                &turn_ids,
+            )
+        } else {
+            imported_history::window::load_turn_windows_for_session(&conn, &session_id, &turn_ids)?
+                .ok_or_else(|| format!("Unknown imported history session: {session_id}"))
+        }
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+#[tauri::command]
 pub async fn codex_app_chunks(
     session_id: String,
 ) -> Result<Vec<core_types::activity::ActivityChunk>, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        let signature_before = codex_transcript_signature(&conn, &session_id)?;
+        let signature_before = imported_transcript_signature(&conn, &session_id)?;
         let chunks = codex_app::load_codex_app_for_session(&conn, &session_id)?;
         let projected = orgtrack_core::projectors::turn_metadata::project_activity_chunks(&chunks);
-        let signature_after = codex_transcript_signature(&conn, &session_id)?;
-        remember_codex_turn_projection(&session_id, signature_before, signature_after, projected);
+        let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        remember_imported_turn_projection(
+            &session_id,
+            signature_before,
+            signature_after,
+            projected,
+        );
         Ok(chunks)
     })
     .await
@@ -504,14 +695,14 @@ pub async fn codex_app_initial_window(
 ) -> Result<codex_app::CodexAppInitialWindow, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        let signature_before = codex_transcript_signature(&conn, &session_id)?;
+        let signature_before = imported_transcript_signature(&conn, &session_id)?;
         let window = codex_app::load_codex_app_initial_window_for_session(
             &conn,
             &session_id,
             CODEX_INITIAL_RECENT_TURN_COUNT,
         )?;
-        let signature_after = codex_transcript_signature(&conn, &session_id)?;
-        remember_codex_turn_projection(
+        let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        remember_imported_turn_projection(
             &session_id,
             signature_before,
             signature_after,
@@ -628,12 +819,10 @@ pub async fn claude_code_history_stat(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Source-agnostic freshness probe for the replay auto-refresh: resolves the
-/// session's transcript path from the imported-history cache and stats it
-/// (folding in the SQLite `-wal` sibling for WAL-mode stores, whose main db
-/// mtime doesn't move between checkpoints). `None` when the session is
-/// uncached or the file is missing — the frontend then falls back to the
-/// full refresh, which re-syncs the cache.
+/// Source-agnostic freshness probe for replay auto-refresh. Shared SQLite
+/// providers use a session-local row signature so writes to another session
+/// do not trigger a full parse of the open replay. File-backed providers use
+/// the transcript file signature (including SQLite sidecars where applicable).
 #[tauri::command]
 pub async fn imported_history_stat(
     source_id: String,
@@ -641,17 +830,30 @@ pub async fn imported_history_stat(
 ) -> Result<Option<ImportedTranscriptStat>, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        Ok(
-            imported_history::cache::stat_imported_transcript_by_session_id_from_conn(
+        let Some((cached_source, cached)) =
+            imported_history::cache::query_cached_session_by_session_id_including_superseded_from_conn(
                 &conn,
-                &source_id,
                 &session_id,
             )?
-            .map(|(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                mtime_ms,
-                size_bytes,
-            }),
-        )
+        else {
+            return Ok(None);
+        };
+        if cached_source != source_id {
+            return Err(format!(
+                "Imported history source mismatch for {session_id}: expected {cached_source}, got {source_id}"
+            ));
+        }
+
+        let signature = imported_transcript_signature_for_cached(
+            &conn,
+            &source_id,
+            &cached,
+            &session_id,
+        )?;
+        Ok(signature.map(|(mtime_ms, size_bytes)| ImportedTranscriptStat {
+            mtime_ms,
+            size_bytes,
+        }))
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?
@@ -1084,9 +1286,9 @@ mod tests {
     }
 
     #[test]
-    fn codex_projection_cache_is_bounded_and_rejects_stale_signatures() {
-        let mut cache = CodexTurnProjectionCache::default();
-        for index in 0..=CODEX_TURN_PROJECTION_CACHE_CAPACITY {
+    fn imported_projection_cache_is_bounded_and_rejects_stale_signatures() {
+        let mut cache = ImportedTurnProjectionCache::default();
+        for index in 0..=IMPORTED_TURN_PROJECTION_CACHE_CAPACITY {
             cache.insert(
                 format!("codexapp-{index}"),
                 (index as i64, index as u64),
@@ -1094,19 +1296,19 @@ mod tests {
             );
         }
 
-        assert_eq!(cache.entries.len(), CODEX_TURN_PROJECTION_CACHE_CAPACITY);
+        assert_eq!(cache.entries.len(), IMPORTED_TURN_PROJECTION_CACHE_CAPACITY);
         assert!(cache.get("codexapp-0", (0, 0)).is_none());
         assert!(cache.get("codexapp-1", (999, 999)).is_none());
         assert!(cache.get("codexapp-2", (2, 2)).is_some());
     }
 
     #[test]
-    fn codex_projection_cache_bounds_turns_per_session() {
-        let mut cache = CodexTurnProjectionCache::default();
+    fn imported_projection_cache_bounds_turns_per_session() {
+        let mut cache = ImportedTurnProjectionCache::default();
         cache.insert(
             "codexapp-large".to_string(),
             (1, 2),
-            (0..=CODEX_TURN_PROJECTION_LIMIT_PER_SESSION)
+            (0..=IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION)
                 .map(|index| projected(&format!("user-{index}"), index as i64))
                 .collect(),
         );
@@ -1114,7 +1316,7 @@ mod tests {
         let projected = cache
             .get("codexapp-large", (1, 2))
             .expect("cached projection");
-        assert_eq!(projected.len(), CODEX_TURN_PROJECTION_LIMIT_PER_SESSION);
+        assert_eq!(projected.len(), IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION);
         assert_eq!(
             projected.first().map(|turn| turn.turn_id.as_str()),
             Some("user-1")

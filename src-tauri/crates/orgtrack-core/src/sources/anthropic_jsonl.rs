@@ -92,6 +92,21 @@ struct TranscriptTurn {
     message: JsonlMessage,
 }
 
+#[derive(Default)]
+struct TranscriptRead {
+    turns: Vec<TranscriptTurn>,
+    created_at_ms: i64,
+    updated_at_ms: i64,
+    repo_path: Option<String>,
+    branch: Option<String>,
+    model: Option<String>,
+    input_tokens: i64,
+    output_tokens: i64,
+    cache_read_tokens: i64,
+    cache_write_tokens: i64,
+    first_user_text: Option<String>,
+}
+
 pub fn list_sessions_paginated(
     config: &AnthropicJsonlSource,
     conn: &mut Connection,
@@ -229,65 +244,15 @@ fn parse_session_meta(
     config: &AnthropicJsonlSource,
     record: &ImportedHistoryDiscoveredRecord,
 ) -> Result<SessionMeta, String> {
-    let turns = read_turns(config, &record.source_path)?;
-    let mut created_at_ms = 0;
-    let mut updated_at_ms = 0;
-    let mut repo_path = None;
-    let mut branch = None;
-    let mut model = None;
-    let mut input_tokens = 0;
-    let mut output_tokens = 0;
-    let mut cache_read_tokens = 0;
-    let mut cache_write_tokens = 0;
-    let mut first_user_text = None;
-
-    let file = fs::File::open(&record.source_path).map_err(|err| {
-        format!(
-            "Failed to open {} history {}: {err}",
-            config.display_name,
-            record.source_path.display()
-        )
-    })?;
-    for line in BufReader::new(file).lines() {
-        let Ok(line) = line else { continue };
-        let Ok(parsed) = serde_json::from_str::<JsonlLine>(line.trim()) else {
-            continue;
-        };
-        if let Some(ms) = timestamp_ms(&parsed.timestamp) {
-            if created_at_ms == 0 || ms < created_at_ms {
-                created_at_ms = ms;
-            }
-            updated_at_ms = updated_at_ms.max(ms);
-        }
-        if repo_path.is_none() && !parsed.cwd.trim().is_empty() {
-            repo_path = Some(parsed.cwd.trim().to_string());
-        }
-        if branch.is_none() && !parsed.git_branch.trim().is_empty() {
-            branch = Some(parsed.git_branch.trim().to_string());
-        }
-        if model.is_none() && !parsed.model_id.trim().is_empty() {
-            model = Some(parsed.model_id.trim().to_string());
-        }
-        if let Some(message) = parsed.message {
-            if model.is_none() && !message.model.trim().is_empty() {
-                model = Some(message.model.trim().to_string());
-            }
-            let (input, output, cache_read, cache_write) = usage_tokens(&message.usage);
-            input_tokens += input;
-            output_tokens += output;
-            cache_read_tokens += cache_read;
-            cache_write_tokens += cache_write;
-            let role = effective_role(&parsed.line_type, &message.role);
-            if first_user_text.is_none() && role == "user" {
-                first_user_text = first_content_text(&message.content);
-            }
-        }
-    }
+    let read = read_transcript(config, &record.source_path)?;
 
     let fallback_ms = record.source_mtime_ms / 1_000_000;
     let session_id = format!("{}{}", config.session_prefix, record.source_session_id);
-    let impact =
-        imported_history::impact_from_edit_chunks(&messages_to_chunks(config, &session_id, &turns));
+    let impact = imported_history::impact_from_edit_chunks(&messages_to_chunks(
+        config,
+        &session_id,
+        &read.turns,
+    ));
     Ok(SessionMeta {
         source_session_id: record.source_session_id.clone(),
         session_id,
@@ -295,26 +260,27 @@ fn parse_session_meta(
         source_record_key: record.source_record_key.clone(),
         source_mtime_ms: record.source_mtime_ms,
         source_size_bytes: record.source_size_bytes,
-        name: first_user_text
+        name: read
+            .first_user_text
             .map(|value| imported_history::truncate_name(&value, 200))
             .unwrap_or_else(|| record.source_record_key.clone()),
-        created_at_ms: if created_at_ms > 0 {
-            created_at_ms
+        created_at_ms: if read.created_at_ms > 0 {
+            read.created_at_ms
         } else {
             fallback_ms
         },
-        updated_at_ms: if updated_at_ms > 0 {
-            updated_at_ms
+        updated_at_ms: if read.updated_at_ms > 0 {
+            read.updated_at_ms
         } else {
             fallback_ms
         },
-        model,
-        input_tokens,
-        output_tokens,
-        cache_read_tokens,
-        cache_write_tokens,
-        repo_path,
-        branch,
+        model: read.model,
+        input_tokens: read.input_tokens,
+        output_tokens: read.output_tokens,
+        cache_read_tokens: read.cache_read_tokens,
+        cache_write_tokens: read.cache_write_tokens,
+        repo_path: read.repo_path,
+        branch: read.branch,
         impact,
     })
 }
@@ -355,11 +321,11 @@ fn load_from_path(
     session_id: &str,
     path: &Path,
 ) -> Result<Vec<ActivityChunk>, String> {
-    let turns = read_turns(config, path)?;
-    Ok(messages_to_chunks(config, session_id, &turns))
+    let read = read_transcript(config, path)?;
+    Ok(messages_to_chunks(config, session_id, &read.turns))
 }
 
-fn read_turns(config: &AnthropicJsonlSource, path: &Path) -> Result<Vec<TranscriptTurn>, String> {
+fn read_transcript(config: &AnthropicJsonlSource, path: &Path) -> Result<TranscriptRead, String> {
     let file = fs::File::open(path).map_err(|err| {
         format!(
             "Failed to open {} history {}: {err}",
@@ -367,7 +333,7 @@ fn read_turns(config: &AnthropicJsonlSource, path: &Path) -> Result<Vec<Transcri
             path.display()
         )
     })?;
-    let mut turns = Vec::new();
+    let mut read = TranscriptRead::default();
     for line in BufReader::new(file).lines() {
         let line = line
             .map_err(|err| format!("Failed to read {} history line: {err}", config.display_name))?;
@@ -375,13 +341,42 @@ fn read_turns(config: &AnthropicJsonlSource, path: &Path) -> Result<Vec<Transcri
             continue;
         };
         let created_at = normalized_timestamp(&parsed.timestamp);
+        if let Some(ms) = timestamp_ms(&parsed.timestamp) {
+            if read.created_at_ms == 0 || ms < read.created_at_ms {
+                read.created_at_ms = ms;
+            }
+            read.updated_at_ms = read.updated_at_ms.max(ms);
+        }
+        if read.repo_path.is_none() && !parsed.cwd.trim().is_empty() {
+            read.repo_path = Some(parsed.cwd.trim().to_string());
+        }
+        if read.branch.is_none() && !parsed.git_branch.trim().is_empty() {
+            read.branch = Some(parsed.git_branch.trim().to_string());
+        }
+        if read.model.is_none() && !parsed.model_id.trim().is_empty() {
+            read.model = Some(parsed.model_id.trim().to_string());
+        }
+        if let Some(message) = parsed.message.as_ref() {
+            if read.model.is_none() && !message.model.trim().is_empty() {
+                read.model = Some(message.model.trim().to_string());
+            }
+            let (input, output, cache_read, cache_write) = usage_tokens(&message.usage);
+            read.input_tokens += input;
+            read.output_tokens += output;
+            read.cache_read_tokens += cache_read;
+            read.cache_write_tokens += cache_write;
+            let role = effective_role(&parsed.line_type, &message.role);
+            if read.first_user_text.is_none() && role == "user" {
+                read.first_user_text = first_content_text(&message.content);
+            }
+        }
         match parsed.line_type.as_str() {
             "message" | "user" | "assistant" => {
                 if let Some(mut message) = parsed.message.take() {
                     if message.role.trim().is_empty() {
                         message.role = parsed.line_type;
                     }
-                    turns.push(TranscriptTurn {
+                    read.turns.push(TranscriptTurn {
                         created_at,
                         message,
                     });
@@ -390,7 +385,7 @@ fn read_turns(config: &AnthropicJsonlSource, path: &Path) -> Result<Vec<Transcri
             "reasoning" => {
                 if let Some(message) = parsed.message.take() {
                     let text = first_content_text(&message.content).unwrap_or_default();
-                    turns.push(TranscriptTurn {
+                    read.turns.push(TranscriptTurn {
                         created_at,
                         message: JsonlMessage {
                             role: "assistant".to_string(),
@@ -403,7 +398,7 @@ fn read_turns(config: &AnthropicJsonlSource, path: &Path) -> Result<Vec<Transcri
             _ => {}
         }
     }
-    Ok(turns)
+    Ok(read)
 }
 
 fn messages_to_chunks(

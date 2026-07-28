@@ -9,8 +9,8 @@ import type { SessionCreatorDraft } from "@src/store/session";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 // ORG2 channel sessions can be created from external surfaces (Feishu, etc.)
-// without any frontend action. Refresh the full sidebar list while focused so
-// `/newsession ...` appears in ORG2 without a manual page reload.
+// without any frontend action. Refresh the bounded recent-native window while
+// focused so `/newsession ...` appears without polling every imported source.
 export const SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS = 15_000;
 export const SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS = 60_000;
 

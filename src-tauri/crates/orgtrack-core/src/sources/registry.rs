@@ -27,7 +27,10 @@
 
 use rusqlite::Connection;
 
-use super::imported_history::{metadata, ImportedHistorySessionPage, ImportedHistorySessionRow};
+use super::imported_history::{
+    cache as imported_history_cache, metadata, ImportedHistorySessionPage,
+    ImportedHistorySessionRow,
+};
 use super::{
     claude_code, cline, codex, cursor_cli, cursor_ide, mimo_code, omp, opencode, qoder, qoder_cli,
     trae, warp, windsurf, workbuddy, zcode,
@@ -35,8 +38,8 @@ use super::{
 
 /// Signature every provider's paginated session loader shares. The `&mut
 /// Connection` is the source cache store the scan writes through; `limit` /
-/// `offset` page the returned rows (the full provider set is always synced to
-/// the cache regardless of the page window).
+/// `offset` page the returned rows. Page zero performs discovery/sync;
+/// continuation pages read the resulting cache snapshot directly.
 type ScanFn = fn(&mut Connection, usize, usize) -> Result<ImportedHistorySessionPage, String>;
 
 /// One registered provider: its stable `source` id (matches the
@@ -49,15 +52,21 @@ pub struct RegisteredSource {
 }
 
 impl RegisteredSource {
-    /// Discover this provider's sessions on disk, upsert them into `conn`'s
-    /// source cache tables, and read back `[offset, offset + limit)`.
+    /// Discover this provider on page zero, then read continuation pages from
+    /// the stable cache snapshot without repeating the scan.
     pub fn scan(
         &self,
         conn: &mut Connection,
         limit: usize,
         offset: usize,
     ) -> Result<ImportedHistorySessionPage, String> {
-        (self.scan)(conn, limit, offset)
+        if offset == 0 {
+            (self.scan)(conn, limit, offset)
+        } else {
+            imported_history_cache::query_imported_session_page_from_conn(
+                conn, self.id, limit, offset,
+            )
+        }
     }
 }
 
@@ -226,6 +235,14 @@ pub fn scan_source(
 mod tests {
     use super::*;
 
+    fn should_not_scan(
+        _conn: &mut Connection,
+        _limit: usize,
+        _offset: usize,
+    ) -> Result<ImportedHistorySessionPage, String> {
+        panic!("continuation page repeated provider scan")
+    }
+
     #[test]
     fn registry_ids_are_unique_and_nonempty() {
         let mut seen = std::collections::HashSet::new();
@@ -248,5 +265,22 @@ mod tests {
             0
         )
         .is_err());
+    }
+
+    #[test]
+    fn continuation_page_reads_cache_without_provider_scan() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::store::sqlite::SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("init source cache");
+        let source = RegisteredSource {
+            id: metadata::SOURCE_CLAUDE_CODE,
+            label: "test",
+            scan: should_not_scan,
+        };
+
+        let page = source.scan(&mut conn, 20, 20).expect("cached page");
+
+        assert!(page.sessions.is_empty());
+        assert!(!page.has_more);
     }
 }

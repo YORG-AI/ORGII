@@ -15,6 +15,6 @@ export const codexAppTurnLoader: SessionTurnLoader = {
     }
     const events = await processChunksRust(turnWindow.chunks, sessionId);
     if (events.length === 0) return;
-    await eventStoreProxy.mergeEvents(events, sessionId);
+    await eventStoreProxy.mergeRoundWindowEvents(events, sessionId);
   },
 };

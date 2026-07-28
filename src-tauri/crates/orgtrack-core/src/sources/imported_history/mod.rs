@@ -7,6 +7,7 @@ pub mod paths;
 pub mod repo_identity;
 pub mod scan_snapshot;
 pub mod watermark;
+pub mod window;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;

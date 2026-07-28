@@ -174,6 +174,48 @@ pub fn load_windsurf_history_for_session(session_id: &str) -> Result<Vec<Activit
     load_windsurf_history_from_conn(&conn, session_id, composer_id)
 }
 
+/// Session-local freshness signal for a composer in Windsurf's shared
+/// `state.vscdb`. Unrelated composer writes leave this signature unchanged.
+pub fn windsurf_session_activity_signature(
+    db_path: &Path,
+    composer_id: &str,
+) -> Result<Option<(i64, u64)>, String> {
+    let conn = Connection::open_with_flags(
+        db_path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+    )
+    .map_err(|err| {
+        format!(
+            "Failed to open Windsurf database {}: {err}",
+            db_path.display()
+        )
+    })?;
+    let key = format!("composerData:{composer_id}");
+    let signature = conn
+        .query_row(
+            "SELECT
+                COALESCE(CAST(json_extract(value, '$.lastUpdatedAt') AS INTEGER), 0),
+                COALESCE(CAST(json_extract(value, '$.createdAt') AS INTEGER), 0),
+                length(CAST(value AS BLOB))
+             FROM cursorDiskKV
+             WHERE key = ?1",
+            [key],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, i64>(2)?.max(0) as u64,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|err| format!("Failed to read Windsurf composer {composer_id}: {err}"))?;
+    let Some((last_updated_at, created_at, byte_len)) = signature else {
+        return Ok(None);
+    };
+    Ok(Some((last_updated_at.max(created_at), byte_len)))
+}
+
 #[cfg(test)]
 #[path = "../history_tests.rs"]
 mod tests;

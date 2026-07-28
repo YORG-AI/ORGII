@@ -1,10 +1,12 @@
 import {
   isCodexAppSession,
   isCursorIdeSession,
+  isExternalHistorySession,
 } from "@src/util/session/sessionDispatch";
 
 import { codexAppTurnLoader } from "./codexAppTurnLoader";
 import { cursorIdeTurnLoader } from "./cursorIdeTurnLoader";
+import { importedHistoryTurnLoader } from "./importedHistoryTurnLoader";
 import {
   captureLoadedTurnRegistryGeneration,
   getPendingTurnLoad,
@@ -20,6 +22,9 @@ export function getSessionTurnLoader(sessionId: string): SessionTurnLoader {
   }
   if (isCodexAppSession(sessionId)) {
     return codexAppTurnLoader;
+  }
+  if (isExternalHistorySession(sessionId)) {
+    return importedHistoryTurnLoader;
   }
   return ownDbTurnLoader;
 }

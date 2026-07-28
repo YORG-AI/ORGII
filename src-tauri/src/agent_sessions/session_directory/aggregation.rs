@@ -401,7 +401,23 @@ fn load_imported_history_sessions(
         if disabled_sources.contains(loader.source) {
             continue;
         }
-        let page = (loader.load_page)(&mut conn, page_limit, page_offset)?;
+        // Page zero is the explicit freshness boundary: it discovers the
+        // provider and incrementally updates its cache. Follow-up "Load more"
+        // pages read that stable cache snapshot directly. Re-running a full
+        // provider scan for every offset made pagination multiply filesystem
+        // and SQLite work without improving freshness.
+        let page = if page_offset == 0 {
+            (loader.load_page)(&mut conn, page_limit, page_offset)?
+        } else {
+            ExternalHistoryPage::Imported(
+                imported_history_cache::query_imported_session_page_from_conn(
+                    &conn,
+                    loader.source,
+                    page_limit,
+                    page_offset,
+                )?,
+            )
+        };
         append_external_history_page(&mut records, loader.source, page);
     }
 

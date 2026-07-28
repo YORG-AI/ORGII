@@ -12,6 +12,7 @@ import {
   loadSidebarSessionById,
   loadSidebarSessions,
   loadSidebarSessionsByIds,
+  refreshRecentNativeSessions,
 } from "../loaders";
 import { sessionPaginationAtom } from "../paginationAtoms";
 
@@ -61,6 +62,66 @@ describe("loadSidebarSessions", () => {
 
   it("keeps legacy sidebar callers on the canonical roster coordinator", () => {
     expect(loadSidebarSessions).toBe(loadSessionRoster);
+  });
+
+  it("refreshes gateway-created native rows without reloading imported sources", async () => {
+    const imported = {
+      session_id: "claude-code-imported",
+      name: "Imported",
+      status: "completed",
+      created_at: "2026-07-01T00:00:00Z",
+      updated_at: "2026-07-01T00:00:00Z",
+    };
+    const existing = {
+      session_id: "existing-native",
+      name: "Existing",
+      status: "completed",
+      created_at: "2026-07-02T00:00:00Z",
+      updated_at: "2026-07-02T00:00:00Z",
+    };
+    const incoming = {
+      session_id: "gateway-native",
+      name: "Gateway",
+      status: "running",
+      created_at: "2026-07-03T00:00:00Z",
+      updated_at: "2026-07-03T00:00:00Z",
+    };
+    mocks.store?.set(sessionsAtom, [existing, imported]);
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [incoming] });
+
+    await refreshRecentNativeSessions();
+
+    expect(mocks.sessionAggregateList).toHaveBeenCalledOnce();
+    expect(mocks.sessionAggregateList).toHaveBeenCalledWith({
+      includeExternalHistory: false,
+      limit: 30,
+      sortBy: "updated_at",
+      sortOrder: "desc",
+    });
+    expect(mocks.externalHistorySidebarList).not.toHaveBeenCalled();
+    expect(
+      mocks.store?.get(sessionsAtom).map((session) => session.session_id)
+    ).toEqual(["gateway-native", "existing-native", "claude-code-imported"]);
+  });
+
+  it("single-flights overlapping recent native refreshes", async () => {
+    let resolveRefresh:
+      | ((value: { sessions: Array<{ session_id: string }> }) => void)
+      | undefined;
+    mocks.sessionAggregateList.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve;
+        })
+    );
+
+    const first = refreshRecentNativeSessions();
+    const second = refreshRecentNativeSessions();
+
+    expect(second).toBe(first);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledOnce();
+    resolveRefresh?.({ sessions: [] });
+    await Promise.all([first, second]);
   });
 
   it("loads an independent initial page for every external-history source", async () => {

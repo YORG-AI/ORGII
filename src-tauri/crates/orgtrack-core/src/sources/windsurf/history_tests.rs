@@ -1,4 +1,53 @@
 use super::*;
+
+#[test]
+fn session_signature_ignores_unrelated_composer_writes() {
+    let path = std::env::temp_dir().join(format!(
+        "orgii-windsurf-signature-{}-{}.sqlite",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    std::fs::remove_file(&path).ok();
+    let conn = Connection::open(&path).expect("open fixture");
+    conn.execute_batch(
+        r#"CREATE TABLE cursorDiskKV (key TEXT PRIMARY KEY, value TEXT);
+           INSERT INTO cursorDiskKV VALUES (
+             'composerData:a',
+             '{"composerId":"a","createdAt":10,"lastUpdatedAt":20,"fullConversationHeadersOnly":[]}'
+           );
+           INSERT INTO cursorDiskKV VALUES (
+             'composerData:b',
+             '{"composerId":"b","createdAt":10,"lastUpdatedAt":20,"fullConversationHeadersOnly":[]}'
+           );"#,
+    )
+    .expect("seed fixture");
+
+    let before =
+        windsurf_session_activity_signature(&path, "a").expect("signature before unrelated write");
+    conn.execute(
+        "UPDATE cursorDiskKV SET value = ?1 WHERE key = 'composerData:b'",
+        [r#"{"composerId":"b","createdAt":10,"lastUpdatedAt":30,"fullConversationHeadersOnly":[]}"#],
+    )
+    .expect("update unrelated composer");
+    let unrelated =
+        windsurf_session_activity_signature(&path, "a").expect("signature after unrelated write");
+    assert_eq!(unrelated, before);
+
+    conn.execute(
+        "UPDATE cursorDiskKV SET value = ?1 WHERE key = 'composerData:a'",
+        [r#"{"composerId":"a","createdAt":10,"lastUpdatedAt":40,"fullConversationHeadersOnly":[]}"#],
+    )
+    .expect("update selected composer");
+    let changed =
+        windsurf_session_activity_signature(&path, "a").expect("signature after selected write");
+    assert_ne!(changed, before);
+
+    drop(conn);
+    std::fs::remove_file(path).ok();
+}
 use rusqlite::Connection;
 use serde_json::Value;
 

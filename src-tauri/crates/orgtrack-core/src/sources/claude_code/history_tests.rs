@@ -6,7 +6,7 @@ fn includes_claude_project_dir_candidates() {
     let paths = claude_projects_dir_candidates(home);
     let rendered = paths
         .iter()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
 
     assert!(rendered
@@ -73,6 +73,65 @@ fn parses_claude_jsonl_into_replay_chunks() {
         imported_history::ACTION_TYPE_ASSISTANT
     );
     assert_eq!(chunks[2].function, imported_history::FUNCTION_ASSISTANT);
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn byte_index_discovers_rounds_without_parsing_tool_result_bodies() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-history-window-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-window.jsonl");
+    let large_output = "x".repeat(200_000);
+    let content = format!(
+        "{{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:00:00Z\",\"message\":{{\"role\":\"user\",\"content\":\"first\"}}}}\n\
+         {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:00:01Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"Bash\",\"input\":{{\"command\":\"build\"}}}}]}}}}\n\
+         {{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:00:02Z\",\"message\":{{\"role\":\"user\",\"content\":[{{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\",\"content\":\"{large_output}\"}}]}}}}\n\
+         {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:00:03Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"text\",\"text\":\"first done\"}}]}}}}\n\
+         {{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:01:00Z\",\"message\":{{\"role\":\"user\",\"content\":\"second\"}}}}\n\
+         {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:01:01Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"text\",\"text\":\"second done\"}}]}}}}\n\
+         {{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:02:00Z\",\"message\":{{\"role\":\"user\",\"content\":\"third\"}}}}\n\
+         {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:02:01Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"text\",\"text\":\"third done\"}}]}}}}\n"
+    );
+    std::fs::write(&path, content).expect("write fixture");
+
+    let indexed = index_claude_user_turns("claudecodeapp-window", &path).expect("index user turns");
+    assert_eq!(indexed.len(), 3);
+    assert!(indexed.iter().all(|turn| turn
+        .user_chunk
+        .chunk_id
+        .starts_with(CLAUDE_WINDOW_TURN_ID_PREFIX)));
+
+    let second = &indexed[1];
+    let third = &indexed[2];
+    let mut file = std::fs::File::open(&path).expect("open fixture");
+    let chunks = load_claude_turn_range(
+        &mut file,
+        "claudecodeapp-window",
+        second.start_offset,
+        third.start_offset,
+        &second.user_chunk.chunk_id,
+    )
+    .expect("load second round");
+
+    assert_eq!(
+        chunks.first().map(|chunk| chunk.chunk_id.as_str()),
+        Some(second.user_chunk.chunk_id.as_str())
+    );
+    let rendered = chunks
+        .iter()
+        .map(|chunk| format!("{} {}", chunk.args, chunk.result))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(rendered.contains("second"));
+    assert!(rendered.contains("second done"));
+    assert!(!rendered.contains("first done"));
+    assert!(!rendered.contains("third"));
+    assert!(!rendered.contains(&large_output));
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -717,7 +776,10 @@ fn resumes_claude_meta_parse_from_watermark() {
     assert_eq!(resumed_meta.input_tokens, 21 + 55);
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens
@@ -749,10 +811,8 @@ fn resumes_claude_meta_parse_from_watermark() {
 }
 
 fn journal_filter_fixture(tag: &str) -> std::path::PathBuf {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "orgii-claude-journal-{tag}-{}",
-        std::process::id()
-    ));
+    let temp_dir =
+        std::env::temp_dir().join(format!("orgii-claude-journal-{tag}-{}", std::process::id()));
     std::fs::remove_dir_all(&temp_dir).ok();
     let projects_dir = temp_dir.join("projects");
     let project = projects_dir.join("-Users-example-proj");
@@ -762,14 +822,14 @@ fn journal_filter_fixture(tag: &str) -> std::path::PathBuf {
     let line = r#"{"type":"user","sessionId":"s","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"hello"}}
 "#;
     std::fs::write(project.join(format!("{session}.jsonl")), line).expect("write session");
-    std::fs::write(workflow_dir.join("journal.jsonl"), "{\"type\":\"started\"}\n")
-        .expect("write journal");
-    std::fs::write(workflow_dir.join("agent-a1.jsonl"), line).expect("write workflow agent");
     std::fs::write(
-        project.join(session).join("subagents/agent-a2.jsonl"),
-        line,
+        workflow_dir.join("journal.jsonl"),
+        "{\"type\":\"started\"}\n",
     )
-    .expect("write subagent");
+    .expect("write journal");
+    std::fs::write(workflow_dir.join("agent-a1.jsonl"), line).expect("write workflow agent");
+    std::fs::write(project.join(session).join("subagents/agent-a2.jsonl"), line)
+        .expect("write subagent");
     temp_dir
 }
 
@@ -790,14 +850,11 @@ fn excludes_workflow_journal_files_from_discovery_and_collect() {
     assert!(stems.contains(&"agent-a2"));
 
     let previous = HashMap::new();
-    let mut walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &previous, "jsonl", "Claude",
-    );
-    let discovery = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut walker,
-    )
-    .expect("discover");
+    let mut walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+    let discovery =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover");
     let ids = discovery
         .records
         .iter()
@@ -852,14 +909,11 @@ fn prunes_stale_journal_cache_row_after_discovery_filter() {
     .expect("seed journal watermark");
 
     let previous = HashMap::new();
-    let mut walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &previous, "jsonl", "Claude",
-    );
-    let discovery = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut walker,
-    )
-    .expect("discover");
+    let mut walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+    let discovery =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover");
     let signatures = discovery
         .records
         .iter()
@@ -909,14 +963,11 @@ fn snapshot_reuse_keeps_fresh_file_signatures() {
     std::thread::sleep(std::time::Duration::from_millis(5));
 
     let empty = HashMap::new();
-    let mut cold_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &empty, "jsonl", "Claude",
-    );
-    let cold = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut cold_walker,
-    )
-    .expect("cold discover");
+    let mut cold_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&empty, "jsonl", "Claude");
+    let cold =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut cold_walker)
+            .expect("cold discover");
     assert_eq!(cold.records.len(), 1);
     let cold_size = cold.records[0].source_size_bytes;
     assert!(cold_walker.dirs_enumerated >= 2);
@@ -928,14 +979,11 @@ fn snapshot_reuse_keeps_fresh_file_signatures() {
         .and_then(|mut file| std::io::Write::write_all(&mut file, b"{\"type\":\"assistant\"}\n"))
         .expect("append to session");
 
-    let mut warm_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &snapshots, "jsonl", "Claude",
-    );
-    let warm = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut warm_walker,
-    )
-    .expect("warm discover");
+    let mut warm_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&snapshots, "jsonl", "Claude");
+    let warm =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut warm_walker)
+            .expect("warm discover");
     assert_eq!(warm_walker.dirs_enumerated, 0);
     assert_eq!(warm_walker.dirs_reused, 2);
     assert_eq!(warm.records.len(), 1);
@@ -952,9 +1000,8 @@ fn bench_real_home_claude_discovery_cold_vs_warm() {
     let empty = HashMap::new();
 
     let started = std::time::Instant::now();
-    let mut cold_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &empty, "jsonl", "Claude",
-    );
+    let mut cold_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&empty, "jsonl", "Claude");
     let cold =
         discover_claude_code_history_records(&projects_dirs, &mut cold_walker).expect("cold");
     let cold_elapsed = started.elapsed();
@@ -962,9 +1009,8 @@ fn bench_real_home_claude_discovery_cold_vs_warm() {
     let snapshots = cold_walker.into_snapshots();
 
     let started = std::time::Instant::now();
-    let mut warm_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &snapshots, "jsonl", "Claude",
-    );
+    let mut warm_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&snapshots, "jsonl", "Claude");
     let warm =
         discover_claude_code_history_records(&projects_dirs, &mut warm_walker).expect("warm");
     let warm_elapsed = started.elapsed();
