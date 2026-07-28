@@ -205,6 +205,12 @@ fn codex_initial_window_compacts_old_turns_and_loads_one_turn_on_demand() {
     // card can render "worked for X · N events": duration spans to the next
     // round's start, and the event count comes from the reverse scan's
     // per-round line tally (#443 follow-up).
+    // The collapsed card shows the round's last agent message, not the
+    // internal "not loaded yet" marker.
+    assert_eq!(
+        window.chunks[1].result.get("observation").and_then(Value::as_str),
+        Some("first reply")
+    );
     let first_placeholder = window.chunks[1]
         .result
         .get("unloadedTurn")
@@ -2234,4 +2240,27 @@ fn codex_parse_real_rollout_fixture_stats() {
         chunks.len(),
         elapsed.as_millis()
     );
+}
+
+/// Diagnostic: dump the first few skeleton placeholders' unloadedTurn payloads
+/// for a real rollout. ORGII_CODEX_ROLLOUT_FIXTURE=/path cargo test ... -- --ignored --nocapture
+#[test]
+#[ignore = "needs ORGII_CODEX_ROLLOUT_FIXTURE"]
+fn codex_initial_window_real_fixture_metadata_dump() {
+    let Ok(path) = std::env::var("ORGII_CODEX_ROLLOUT_FIXTURE") else {
+        return;
+    };
+    let window =
+        load_codex_app_initial_window_from_path("codexapp-diag", std::path::Path::new(&path), 1)
+            .expect("window");
+    let placeholders: Vec<&Value> = window
+        .chunks
+        .iter()
+        .filter_map(|chunk| chunk.result.get("unloadedTurn"))
+        .collect();
+    eprintln!("chunks={} placeholders={}", window.chunks.len(), placeholders.len());
+    for placeholder in placeholders.iter().take(5) {
+        eprintln!("{placeholder}");
+    }
+    eprintln!("last: {:?}", placeholders.last());
 }

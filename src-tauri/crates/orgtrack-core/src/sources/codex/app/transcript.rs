@@ -305,6 +305,7 @@ impl<'a> CodexTranscriptCollector<'a> {
                     self.session_id,
                     &completed.summary,
                     completed.next_turn_id,
+                    None,
                 ),
             ]);
         }
@@ -344,6 +345,7 @@ fn build_unloaded_turn_placeholder_chunk(
     session_id: &str,
     turn: &ProjectedTurnMetadata,
     next_turn_id: Option<String>,
+    last_agent_preview: Option<&str>,
 ) -> ActivityChunk {
     let mut chunk = ActivityChunk::new(session_id, "assistant", "assistant");
     chunk.chunk_id = format!("codex-unloaded-turn-{}", turn.turn_id);
@@ -352,8 +354,14 @@ fn build_unloaded_turn_placeholder_chunk(
         .clone()
         .unwrap_or_else(|| turn.started_at.clone());
     let duration_ms = codex_turn_duration_ms(&turn.started_at, turn.ended_at.as_deref());
+    // Show the round's final agent message on the collapsed card when the
+    // scan captured one; the internal marker is only a last resort.
+    let observation = last_agent_preview.map_or_else(
+        || format!("Codex turn {} is not loaded yet.", turn.turn_id),
+        str::to_string,
+    );
     chunk.result = json!({
-        "observation": format!("Codex turn {} is not loaded yet.", turn.turn_id),
+        "observation": observation,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,
@@ -533,6 +541,7 @@ pub fn load_codex_app_turn_from_path(
                     session_id,
                     &previous_summary,
                     Some(turn_id.to_string()),
+                    None,
                 ));
                 remembered_offsets.push(CodexTurnOffset {
                     turn_id: previous_summary.turn_id,
@@ -578,7 +587,7 @@ fn load_codex_app_initial_tail_window(
     // seek+probe, so this scales with turn count, not file size; the existing
     // turn loader hydrates any of these on click/page-navigation via the byte
     // offset encoded in the lazy turn id.
-    let mut skeleton: Vec<(ActivityChunk, ProjectedTurnMetadata)> = Vec::new();
+    let mut skeleton: Vec<(ActivityChunk, ProjectedTurnMetadata, Option<String>)> = Vec::new();
     for boundary in &ascending[..body_start] {
         if let Some((user_chunk, mut summary)) =
             load_codex_turn_header(session_id, path, boundary.byte_offset)?
@@ -590,7 +599,7 @@ fn load_codex_app_initial_tail_window(
                 i64::try_from(boundary.following_line_count).unwrap_or(i64::MAX);
             summary.event_count =
                 i64::try_from(boundary.following_line_count.saturating_add(1)).unwrap_or(i64::MAX);
-            skeleton.push((user_chunk, summary));
+            skeleton.push((user_chunk, summary, boundary.last_agent_preview.clone()));
         }
     }
 
@@ -617,11 +626,11 @@ fn load_codex_app_initial_tail_window(
         .map(|index| {
             skeleton
                 .get(index + 1)
-                .map(|(_, summary)| summary.started_at.clone())
+                .map(|(_, summary, _)| summary.started_at.clone())
                 .or_else(|| first_hydrated_start.clone())
         })
         .collect();
-    for ((_, summary), next_start) in skeleton.iter_mut().zip(next_starts) {
+    for ((_, summary, _), next_start) in skeleton.iter_mut().zip(next_starts) {
         if let Some(next_start) = next_start {
             summary.ended_at = Some(next_start);
         }
@@ -635,14 +644,15 @@ fn load_codex_app_initial_tail_window(
     for index in 0..skeleton.len() {
         let next_turn_id = skeleton
             .get(index + 1)
-            .map(|(user_chunk, _)| user_chunk.chunk_id.clone())
+            .map(|(user_chunk, _, _)| user_chunk.chunk_id.clone())
             .or_else(|| first_hydrated_turn_id.clone());
-        let (user_chunk, summary) = &skeleton[index];
+        let (user_chunk, summary, last_agent_preview) = &skeleton[index];
         chunks.push(user_chunk.clone());
         chunks.push(build_unloaded_turn_placeholder_chunk(
             session_id,
             summary,
             next_turn_id,
+            last_agent_preview.as_deref(),
         ));
         turns.push(summary.clone());
     }
@@ -735,11 +745,18 @@ fn load_codex_turn_header(
 /// side-product of the scan — no JSON parsing — and approximates the round's
 /// event count so skeleton placeholders can render "worked for X · N events"
 /// instead of an empty summary.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct CodexRoundBoundary {
     pub(crate) byte_offset: u64,
     pub(crate) following_line_count: usize,
+    /// Bounded preview of the round's LAST agent message (first one met while
+    /// scanning backwards), so the collapsed card shows what the agent said
+    /// instead of an internal "not loaded yet" marker.
+    pub(crate) last_agent_preview: Option<String>,
 }
+
+/// Char bound for the collapsed card's agent-message preview.
+const CODEX_LAST_AGENT_PREVIEW_MAX_BYTES: usize = 400;
 
 fn find_recent_codex_user_offsets(
     path: &Path,
@@ -763,6 +780,7 @@ fn find_recent_codex_user_offsets(
     // boundary; becomes that round's body-line count when the next boundary
     // (earlier in the file) is found.
     let mut lines_since_boundary = 0usize;
+    let mut pending_last_agent: Option<String> = None;
 
     while cursor > 0 && boundaries.len() < limit {
         let block_start = cursor.saturating_sub(CODEX_REVERSE_SCAN_BLOCK_BYTES as u64);
@@ -794,6 +812,7 @@ fn find_recent_codex_user_offsets(
                     &mut boundaries,
                     limit,
                     &mut lines_since_boundary,
+                    &mut pending_last_agent,
                 );
             } else {
                 skipped_boundary_fragment = true;
@@ -817,6 +836,7 @@ fn find_recent_codex_user_offsets(
                     &mut boundaries,
                     limit,
                     &mut lines_since_boundary,
+                    &mut pending_last_agent,
                 );
             }
         } else if discarding_oversized_line {
@@ -839,8 +859,10 @@ fn observe_codex_scan_line(
     boundaries: &mut Vec<CodexRoundBoundary>,
     limit: usize,
     lines_since_boundary: &mut usize,
+    pending_last_agent: &mut Option<String>,
 ) {
     const USER_MESSAGE_NEEDLE: &[u8] = b"\"user_message\"";
+    const AGENT_MESSAGE_NEEDLE: &[u8] = b"\"agent_message\"";
     if boundaries.len() >= limit {
         return;
     }
@@ -853,9 +875,36 @@ fn observe_codex_scan_line(
                 boundaries.push(CodexRoundBoundary {
                     byte_offset,
                     following_line_count: *lines_since_boundary,
+                    last_agent_preview: pending_last_agent.take(),
                 });
                 *lines_since_boundary = 0;
                 return;
+            }
+        }
+    }
+    // Scanning newest→oldest, the first agent_message inside a segment is the
+    // round's LAST agent message. One bounded parse per round.
+    if pending_last_agent.is_none()
+        && line
+            .windows(AGENT_MESSAGE_NEEDLE.len())
+            .any(|window| window == AGENT_MESSAGE_NEEDLE)
+    {
+        if let Ok(parsed) = serde_json::from_slice::<CodexJsonlLine>(line) {
+            if parsed.payload.get("type").and_then(Value::as_str) == Some("agent_message") {
+                if let Some(message) = parsed.payload.get("message").and_then(Value::as_str) {
+                    let trimmed = message.trim();
+                    if !trimmed.is_empty() {
+                        let mut cut = trimmed.len().min(CODEX_LAST_AGENT_PREVIEW_MAX_BYTES);
+                        while !trimmed.is_char_boundary(cut) {
+                            cut -= 1;
+                        }
+                        let mut preview = trimmed[..cut].to_string();
+                        if cut < trimmed.len() {
+                            preview.push('…');
+                        }
+                        *pending_last_agent = Some(preview);
+                    }
+                }
             }
         }
     }
