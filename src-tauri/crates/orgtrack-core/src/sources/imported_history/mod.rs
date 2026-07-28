@@ -470,9 +470,12 @@ pub fn assistant_message_chunk(
     let mut chunk = ActivityChunk::new(session_id, ACTION_TYPE_ASSISTANT, FUNCTION_ASSISTANT);
     chunk.chunk_id = format!("{provider_slug}-asst-{sequence}");
     chunk.created_at = created_at.to_string();
+    // `observation` is the canonical assistant-text field: every reader
+    // (normalizer display_text, chat bubble extractors, CLI preview/index)
+    // tries it first. Duplicating it into `content` doubled every assistant
+    // message's resident size through the whole pipeline (#443).
     chunk.result = json!({
         "observation": message,
-        "content": message,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,
@@ -490,10 +493,11 @@ pub fn thinking_chunk(
     let mut chunk = ActivityChunk::new(session_id, ACTION_TYPE_THINKING, FUNCTION_THINKING);
     chunk.chunk_id = format!("{provider_slug}-thinking-{sequence}");
     chunk.created_at = created_at.to_string();
+    // `thought` is the canonical thinking-text field: every reader tries it
+    // first (normalizer, extractors, visibility filters). The former
+    // `content`/`observation` mirrors tripled every reasoning block (#443).
     chunk.result = json!({
         "thought": thought,
-        "content": thought,
-        "observation": thought,
         "is_delta": false,
     });
     chunk
@@ -528,12 +532,14 @@ pub fn tool_call_chunk(
     chunk.chunk_id = format!("{provider_slug}-tool-{sequence}-{}", call.call_id);
     chunk.created_at = call.created_at.clone();
     chunk.args = call.args.clone();
+    // `output` is the canonical tool-output field; readers that historically
+    // only knew `observation` gained an `output` fallback when the duplicate
+    // was removed (#443 — it doubled every tool output's resident size).
     chunk.result = json!({
         "success": true,
         "status": IMPORTED_STATUS_COMPLETED,
         "call_id": call.call_id,
         "output": output,
-        "observation": output,
         "raw_tool_name": call.raw_name,
     });
     chunk

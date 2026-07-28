@@ -230,6 +230,7 @@ fn text_of(value: &serde_json::Value) -> Option<String> {
                 "content",
                 "text",
                 "observation",
+                "output",
                 "cmd",
                 "command",
                 "summary",

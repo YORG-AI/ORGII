@@ -27,6 +27,10 @@ const CODEX_PROVIDER_SLUG: &str = "codex";
 const CODEX_EMBEDDED_IMAGE_MARKER: &str = "\"image_url\":\"data:image/";
 const CODEX_OMITTED_IMAGE_VALUE: &str = "[embedded image omitted]";
 const CODEX_TURN_OFFSET_CACHE_CAPACITY: usize = 8;
+/// Multi-call groups with ambiguous output attribution duplicate the shared
+/// output per call only up to this size (keeps small status/error lines on
+/// every row); larger outputs go to the final call alone (#443).
+const AMBIGUOUS_GROUP_SHARED_OUTPUT_MAX_BYTES: usize = 4 * 1024;
 const CODEX_TURN_OFFSET_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_TURN_LIMIT: usize = 4_096;
 const CODEX_REVERSE_SCAN_BLOCK_BYTES: usize = 256 * 1024;
@@ -1448,7 +1452,9 @@ fn codex_tool_call_chunk(
         imported_history::tool_call_chunk(session_id, CODEX_PROVIDER_SLUG, sequence, call, output);
     if call.canonical_name == imported_history::FUNCTION_CODE_SEARCH {
         if let Some(result) = chunk.result.as_object_mut() {
-            result.insert("content".to_string(), Value::String(output.to_string()));
+            // `matches` is load-bearing (sole source of the structured search
+            // card); the former raw-text `content` mirror was a third full
+            // copy of `output` that no reader needed (#443).
             let matches = parse_rg_output_matches(output)
                 .into_iter()
                 .map(|(file, line, content)| {
@@ -1472,12 +1478,15 @@ fn codex_tool_call_chunk(
             result.insert("success".to_string(), Value::Bool(false));
             result.insert("status".to_string(), Value::String("failed".to_string()));
             result.insert("is_error".to_string(), Value::Bool(true));
+            // The `failure` object's presence drives isFailure in the shell
+            // extractors; its former `stderr` field was a full duplicate of
+            // `output` that every reader shadows with `output` anyway (#443).
+            // Omitting the key (rather than writing "") lets the ?.stderr
+            // readers fall through their `output` chain.
             result.insert(
                 "failure".to_string(),
                 json!({
                     "command": call.args.get("command").and_then(Value::as_str).unwrap_or_default(),
-                    "stdout": "",
-                    "stderr": output,
                     "exitCode": exit_code,
                 }),
             );
@@ -1500,7 +1509,18 @@ pub(crate) fn output_parts_for_tool_calls(calls: &[ImportedToolCall], output: &s
         .map(read_line_limit_from_call)
         .collect::<Option<Vec<_>>>();
     let Some(limits) = bounded_prefix_limits else {
-        return vec![output.to_string(); calls.len()];
+        // Attribution is ambiguous when the prefix isn't all bounded reads.
+        // Small outputs (status / error lines like "command timed out") stay
+        // per-call so every failed row still shows its reason. Large outputs
+        // follow the bounded-path semantic — the final tool receives the
+        // remainder — instead of N full copies, which multiplied a 2 MB
+        // output by the group size on every parse (#443).
+        if output.len() <= AMBIGUOUS_GROUP_SHARED_OUTPUT_MAX_BYTES {
+            return vec![output.to_string(); calls.len()];
+        }
+        let mut parts = vec![String::new(); calls.len() - 1];
+        parts.push(output.to_string());
+        return parts;
     };
 
     let lines = output.split_inclusive('\n').collect::<Vec<_>>();

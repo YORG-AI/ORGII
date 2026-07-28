@@ -483,7 +483,10 @@ fn codex_desktop_exec_preserves_failed_shell_status_and_exit_code() {
     assert_eq!(chunks[0].result["is_error"], true);
     assert_eq!(chunks[0].result["exit_code"], 1);
     assert_eq!(chunks[0].result["failure"]["exitCode"], 1);
-    assert_eq!(chunks[0].result["failure"]["stderr"], output);
+    // `failure.stderr` was a full duplicate of `output`; readers fall through
+    // to `output`, so the envelope no longer mirrors it (#443).
+    assert!(chunks[0].result["failure"].get("stderr").is_none());
+    assert_eq!(chunks[0].result["output"], output);
 
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
@@ -1210,8 +1213,12 @@ fn codex_rg_shell_command_renders_as_code_search() {
         chunks[0].args.get("query").and_then(Value::as_str),
         Some("Shell Command")
     );
+    // The raw-text `content` mirror was a third copy of `output`; the search
+    // card renders from structured `matches`, readers fall back to `output`
+    // (#443).
+    assert!(chunks[0].result.get("content").is_none());
     assert_eq!(
-        chunks[0].result.get("content").and_then(Value::as_str),
+        chunks[0].result.get("output").and_then(Value::as_str),
         Some("src/a.rs:10:Shell Command\nsrc/b.rs:20:Shell Command")
     );
     assert_eq!(

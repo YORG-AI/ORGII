@@ -32,6 +32,7 @@ const RESULT_STRING_PAYLOAD_FIELDS: &[&str] = &[
     "result.content",
     "result.observation",
     "result.output",
+    "result.thought",
     "result.output.stdout",
     "result.output.stderr",
     "result.error",

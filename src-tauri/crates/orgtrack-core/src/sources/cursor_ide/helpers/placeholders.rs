@@ -102,7 +102,6 @@ pub(in crate::sources::cursor_ide) fn build_unloaded_turn_placeholder_chunk(
     chunk.created_at = ended_at.clone();
     chunk.result = json!({
         "observation": content,
-        "content": content,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,

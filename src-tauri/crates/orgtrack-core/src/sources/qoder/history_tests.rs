@@ -136,7 +136,7 @@ fn transcript_to_chunks_unwraps_query_and_pairs_tools() {
     assert_eq!(tool.args["command"], "vm_stat");
     assert_eq!(tool.result["output"], "Pages free: 100");
 
-    assert_eq!(chunks[3].result["content"], "RAM looks fine.");
+    assert_eq!(chunks[3].result["observation"], "RAM looks fine.");
 }
 
 #[test]

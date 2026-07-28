@@ -113,9 +113,10 @@ pub(in crate::sources::cursor_ide) fn assistant_text_bubble_to_chunk(
     let mut chunk = ActivityChunk::new(session_id, "assistant", "assistant");
     chunk.chunk_id = format!("cursoride-asst-{}", ob.bubble_id);
     chunk.created_at = normalize_created_at(&ob.raw.created_at);
+    // `observation` is canonical for assistant text; the `content` mirror
+    // doubled every bubble's resident size (#443).
     chunk.result = json!({
         "observation": text,
-        "content": text,
         "role": "assistant",
         "is_delta": false,
         "is_full_content": true,

@@ -348,8 +348,16 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
         );
       }
 
-      const observation = event.result?.observation;
-      if (observation && typeof observation === "string") {
+      // Imported tool chunks carry their canonical text in `output`;
+      // `observation` remains for assistant/legacy shapes.
+      const fallbackText = [
+        event.result?.observation,
+        event.result?.output,
+      ].find(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0
+      );
+      if (fallbackText) {
         return (
           <AgentChatItemDefault
             itemIndex={itemIndex}
@@ -357,7 +365,7 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
             finish={true}
             streamHtml={false}
           >
-            {observation}
+            {fallbackText}
           </AgentChatItemDefault>
         );
       }

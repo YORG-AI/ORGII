@@ -21,6 +21,7 @@ export function isEmptyRunningEvent(event: SessionEvent): boolean {
   const hasContent =
     result?.observation ||
     result?.content ||
+    (typeof result?.output === "string" && result.output) ||
     successData?.content ||
     successData?.afterFullFileContent ||
     successData?.diffString;

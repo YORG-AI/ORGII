@@ -210,7 +210,7 @@ fn parses_store_messages_into_replay_chunks() {
         Some("Find the login handler first."),
     );
     assert_eq!(
-        chunks[2].result.get("content").and_then(Value::as_str),
+        chunks[2].result.get("observation").and_then(Value::as_str),
         Some("Searching for the login handler."),
     );
     assert_eq!(
@@ -233,7 +233,7 @@ fn parses_store_messages_into_replay_chunks() {
         Some("search_replace"),
     );
     assert_eq!(
-        chunks[4].result.get("content").and_then(Value::as_str),
+        chunks[4].result.get("observation").and_then(Value::as_str),
         Some("Done."),
     );
 }

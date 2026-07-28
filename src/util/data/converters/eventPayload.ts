@@ -386,9 +386,12 @@ export function normalizeSearchPayload(
   // Handle search result content field
   if (
     (fn === "codebase_search" || fn === "grep" || fn === "find_files") &&
-    (result.content || result.observation)
+    (result.content || result.observation || typeof result.output === "string")
   ) {
-    const contentData = result.content || result.observation;
+    const contentData =
+      result.content ||
+      result.observation ||
+      (typeof result.output === "string" ? result.output : undefined);
     try {
       const parsed =
         typeof contentData === "string" ? JSON.parse(contentData) : contentData;
