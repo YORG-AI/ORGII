@@ -46,6 +46,14 @@ const EXTRACT_TICK_MS = 1_200;
  */
 const RELOAD_EVERY_BATCHES = 5;
 
+type BreakdownKey = "bySource" | "drift";
+type BreakdownStatus = "idle" | "loading" | "loaded" | "error";
+
+const INITIAL_BREAKDOWN_STATUS: Record<BreakdownKey, BreakdownStatus> = {
+  bySource: "idle",
+  drift: "idle",
+};
+
 /**
  * Chat pane → Runtime → Profile: how you work with coding agents, measured from
  * your own sessions.
@@ -69,22 +77,56 @@ function Section({
   id,
   title,
   children,
+  defaultOpen = true,
+  onOpenChange,
 }: {
   id: string;
   title: string;
   children: React.ReactNode;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <CollapsibleSection
       title={title}
-      defaultOpen
+      defaultOpen={defaultOpen}
       compact
       titleClassName={SECTION_SUBHEADING_CLASSES}
       titleButtonTestId={`profile-section-${id}`}
+      onOpenChange={onOpenChange}
     >
       {children}
     </CollapsibleSection>
   );
+}
+
+function LazyBreakdownContent({
+  status,
+  onRetry,
+  children,
+}: {
+  status: BreakdownStatus;
+  onRetry: () => void;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation("common");
+
+  if (status === "error") {
+    return (
+      <div className="flex min-h-24 flex-col items-center justify-center gap-2 text-xs text-text-3">
+        <span>{t("errors.failedToLoad")}</span>
+        <Button variant="tertiary" size="small" onClick={onRetry}>
+          {t("actions.retry")}
+        </Button>
+      </div>
+    );
+  }
+
+  if (status !== "loaded") {
+    return <Placeholder variant="loading" className="min-h-24" />;
+  }
+
+  return children;
 }
 
 export default function BuilderProfilePanel() {
@@ -99,10 +141,20 @@ export default function BuilderProfilePanel() {
   );
   const [openAxis, setOpenAxis] = useState<string | null>(null);
   const [showTypesGallery, setShowTypesGallery] = useState(false);
+  const [breakdownStatus, setBreakdownStatus] = useState(
+    INITIAL_BREAKDOWN_STATUS
+  );
 
   // Tauri invokes are not abortable; a monotonic counter keeps a stale response
   // from overwriting a newer one.
   const requestRef = useRef(0);
+  const requestedBreakdownsRef = useRef<Record<BreakdownKey, boolean>>({
+    bySource: false,
+    drift: false,
+  });
+  const breakdownStatusRef = useRef<Record<BreakdownKey, BreakdownStatus>>(
+    INITIAL_BREAKDOWN_STATUS
+  );
   const aliveRef = useRef(true);
   useEffect(() => {
     aliveRef.current = true;
@@ -112,22 +164,68 @@ export default function BuilderProfilePanel() {
     };
   }, []);
 
-  const load = useCallback(async () => {
-    const seq = (requestRef.current += 1);
-    try {
-      const next = await builderProfileOverview({}, true);
-      if (seq === requestRef.current && aliveRef.current) {
-        setData(next);
-        setError(null);
+  const updateBreakdownStatus = useCallback(
+    (key: BreakdownKey, status: BreakdownStatus) => {
+      breakdownStatusRef.current = {
+        ...breakdownStatusRef.current,
+        [key]: status,
+      };
+      setBreakdownStatus((current) => ({ ...current, [key]: status }));
+    },
+    []
+  );
+
+  const load = useCallback(
+    async (reason: "base" | BreakdownKey = "base") => {
+      const seq = (requestRef.current += 1);
+      const options = {
+        includeBySource: requestedBreakdownsRef.current.bySource,
+        includeDrift: requestedBreakdownsRef.current.drift,
+      };
+      try {
+        const next = await builderProfileOverview({}, options);
+        if (seq === requestRef.current && aliveRef.current) {
+          setData(next);
+          if (reason === "base") setError(null);
+          if (requestedBreakdownsRef.current.bySource) {
+            updateBreakdownStatus("bySource", "loaded");
+          }
+          if (requestedBreakdownsRef.current.drift) {
+            updateBreakdownStatus("drift", "loaded");
+          }
+        }
+      } catch (err) {
+        if (seq === requestRef.current && aliveRef.current) {
+          if (reason === "base") {
+            setError(err instanceof Error ? err.message : String(err));
+          } else {
+            updateBreakdownStatus(reason, "error");
+          }
+        }
+      } finally {
+        if (
+          reason === "base" &&
+          seq === requestRef.current &&
+          aliveRef.current
+        ) {
+          setLoading(false);
+        }
       }
-    } catch (err) {
-      if (seq === requestRef.current && aliveRef.current) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      if (seq === requestRef.current && aliveRef.current) setLoading(false);
-    }
-  }, []);
+    },
+    [updateBreakdownStatus]
+  );
+
+  const loadBreakdown = useCallback(
+    (key: BreakdownKey) => {
+      const status = breakdownStatusRef.current[key];
+      if (status === "loading" || status === "loaded") return;
+
+      requestedBreakdownsRef.current[key] = true;
+      updateBreakdownStatus(key, "loading");
+      void load(key);
+    },
+    [load, updateBreakdownStatus]
+  );
 
   useEffect(() => {
     void load();
@@ -442,37 +540,61 @@ export default function BuilderProfilePanel() {
           </Section>
         )}
 
-        {data.bySource.length > 1 && (
-          <Section id="byTool" title={t("byTool")}>
-            <SectionContainer>
-              <SectionRow description={t("byToolHint")} layout="vertical">
-                <SettingsTable
-                  columns={sourceColumns}
-                  rows={data.bySource}
-                  getRowKey={(row) => row.source}
-                  headerHeight="compact"
-                  dense
-                  surfaceVariant="transparent"
-                />
-              </SectionRow>
-            </SectionContainer>
+        {data.bySourceCount > 1 && (
+          <Section
+            id="byTool"
+            title={t("byTool")}
+            defaultOpen={false}
+            onOpenChange={(open) => {
+              if (open) loadBreakdown("bySource");
+            }}
+          >
+            <LazyBreakdownContent
+              status={breakdownStatus.bySource}
+              onRetry={() => loadBreakdown("bySource")}
+            >
+              <SectionContainer>
+                <SectionRow description={t("byToolHint")} layout="vertical">
+                  <SettingsTable
+                    columns={sourceColumns}
+                    rows={data.bySource}
+                    getRowKey={(row) => row.source}
+                    headerHeight="compact"
+                    dense
+                    surfaceVariant="transparent"
+                  />
+                </SectionRow>
+              </SectionContainer>
+            </LazyBreakdownContent>
           </Section>
         )}
 
-        {data.drift.length > 1 && (
-          <Section id="overTime" title={t("overTime")}>
-            <SectionContainer>
-              <SectionRow description={t("overTimeHint")} layout="vertical">
-                <SettingsTable
-                  columns={driftColumns}
-                  rows={data.drift}
-                  getRowKey={(row) => String(row.endedAtMs)}
-                  headerHeight="compact"
-                  dense
-                  surfaceVariant="transparent"
-                />
-              </SectionRow>
-            </SectionContainer>
+        {data.driftCount > 1 && (
+          <Section
+            id="overTime"
+            title={t("overTime")}
+            defaultOpen={false}
+            onOpenChange={(open) => {
+              if (open) loadBreakdown("drift");
+            }}
+          >
+            <LazyBreakdownContent
+              status={breakdownStatus.drift}
+              onRetry={() => loadBreakdown("drift")}
+            >
+              <SectionContainer>
+                <SectionRow description={t("overTimeHint")} layout="vertical">
+                  <SettingsTable
+                    columns={driftColumns}
+                    rows={data.drift}
+                    getRowKey={(row) => String(row.endedAtMs)}
+                    headerHeight="compact"
+                    dense
+                    surfaceVariant="transparent"
+                  />
+                </SectionRow>
+              </SectionContainer>
+            </LazyBreakdownContent>
           </Section>
         )}
       </div>

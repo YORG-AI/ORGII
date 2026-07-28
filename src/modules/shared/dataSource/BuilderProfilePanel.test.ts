@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, useState } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -63,14 +63,38 @@ vi.mock("@src/components/Tooltip", () => ({
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
   Placeholder: ({ variant, title }: { variant: string; title?: string }) =>
     createElement("div", { "data-testid": `placeholder-${variant}` }, title),
-  // Collapsible in the app; always-open here so section content is assertable.
   CollapsibleSection: ({
     title,
     children,
+    defaultOpen = true,
+    onOpenChange,
+    titleButtonTestId,
   }: {
     title?: string;
     children?: unknown;
-  }) => createElement("section", null, title ?? "", children as never),
+    defaultOpen?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    titleButtonTestId?: string;
+  }) => {
+    const [open, setOpen] = useState(defaultOpen);
+    return createElement(
+      "section",
+      null,
+      createElement(
+        "button",
+        {
+          "data-testid": titleButtonTestId,
+          onClick: () =>
+            setOpen((current) => {
+              onOpenChange?.(!current);
+              return !current;
+            }),
+        },
+        title ?? ""
+      ),
+      open ? (children as never) : null
+    );
+  },
   PANEL_HEADER_TOKENS: {
     actionButton: {
       variant: "tertiary",
@@ -182,7 +206,9 @@ function overview(over: Partial<BuilderProfileOverview> = {}) {
       startedAtMs: 0,
       endedAtMs: 0,
     },
+    bySourceCount: 0,
     bySource: [],
+    driftCount: 0,
     drift: [],
     highlights: [
       {
@@ -279,6 +305,104 @@ describe("BuilderProfilePanel", () => {
       container.querySelector('[data-testid="builder-type-detail"]')
         ?.textContent
     ).toContain("EAWH");
+  });
+
+  it("loads per-tool and over-time rows only after first expansion", async () => {
+    const bySource = [
+      {
+        source: "codex",
+        sessions: 240,
+        code: "EAWH",
+        confidence: 0.8,
+        scores: [],
+      },
+      {
+        source: "claude",
+        sessions: 154,
+        code: "EAFH",
+        confidence: 0.7,
+        scores: [],
+      },
+    ];
+    const drift = [
+      {
+        startedAtMs: 1,
+        endedAtMs: 2,
+        sessions: 400,
+        code: "EAWH",
+        scores: [],
+      },
+      {
+        startedAtMs: 3,
+        endedAtMs: 4,
+        sessions: 400,
+        code: "EAWS",
+        scores: [],
+      },
+    ];
+    api.overview.mockImplementation(
+      (
+        _scope: unknown,
+        options: { includeBySource?: boolean; includeDrift?: boolean }
+      ) =>
+        Promise.resolve(
+          overview({
+            bySourceCount: 2,
+            bySource: options.includeBySource ? bySource : [],
+            driftCount: 2,
+            drift: options.includeDrift ? drift : [],
+          })
+        )
+    );
+
+    await mount();
+
+    const byToolToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-section-byTool"]'
+    );
+    const overTimeToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="profile-section-overTime"]'
+    );
+    expect(byToolToggle).not.toBeNull();
+    expect(overTimeToggle).not.toBeNull();
+    expect(container.querySelectorAll("table")).toHaveLength(0);
+    expect(api.overview).toHaveBeenNthCalledWith(
+      1,
+      {},
+      { includeBySource: false, includeDrift: false }
+    );
+
+    await act(async () => {
+      byToolToggle?.click();
+      await Promise.resolve();
+    });
+
+    expect(api.overview).toHaveBeenNthCalledWith(
+      2,
+      {},
+      { includeBySource: true, includeDrift: false }
+    );
+    expect(
+      byToolToggle?.closest("section")?.querySelector("table")
+    ).not.toBeNull();
+
+    act(() => byToolToggle?.click());
+    act(() => byToolToggle?.click());
+    expect(api.overview).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      overTimeToggle?.click();
+      await Promise.resolve();
+    });
+
+    expect(api.overview).toHaveBeenNthCalledWith(
+      3,
+      {},
+      { includeBySource: true, includeDrift: true }
+    );
+    expect(
+      overTimeToggle?.closest("section")?.querySelector("table")
+    ).not.toBeNull();
   });
 
   it("always shows a letter, and says when it is only weakly held", async () => {
