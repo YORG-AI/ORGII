@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::projects::types::WorkItemHandoff;
+
 /// Sources supported by the stable Team Inbox wire contract.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -74,6 +76,8 @@ pub enum TeamInboxPayload {
         assignee_member_id: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         summary: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        handoff: Option<WorkItemHandoff>,
     },
 }
 

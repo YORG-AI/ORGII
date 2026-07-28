@@ -154,6 +154,28 @@ export interface WorkItemWorkProduct {
   updatedAt: string;
 }
 
+export type WorkItemHandoffStatus = "pending" | "accepted" | "returned";
+
+export interface WorkItemHandoff {
+  id: string;
+  status: WorkItemHandoffStatus;
+  senderMemberId: string;
+  senderName: string;
+  recipientMemberId: string;
+  recipientName: string;
+  note?: string;
+  requestedAt: string;
+  respondedAt?: string;
+  responseNote?: string;
+}
+
+export interface WorkItemHandoffTransition {
+  handoffId: string;
+  action: "accept" | "return";
+  actor: WorkItemMutationActor;
+  note?: string;
+}
+
 export interface WorkItemFrontmatter {
   id: string;
   short_id: string;
@@ -176,6 +198,7 @@ export interface WorkItemFrontmatter {
   todos: TodoEntry[];
   comments?: CommentEntry[];
   history?: WorkItemHistoryEvent[];
+  handoff?: WorkItemHandoff;
   linked_sessions?: LinkedSession[];
   proof_of_work?: ProofOfWork;
   orchestrator_config?: OrchestratorConfig;
@@ -216,6 +239,7 @@ export interface WorkItemPartialUpdate {
   targetDate?: string | null;
   todos?: TodoEntry[];
   comments?: CommentEntry[];
+  handoff?: WorkItemHandoff | null;
   linkedSessions?: LinkedSession[];
   orchestratorConfig?: OrchestratorConfig;
   orchestratorState?: OrchestratorState;
@@ -287,6 +311,7 @@ export interface EnrichedWorkItem {
   todos: TodoEntry[];
   comments: CommentEntry[];
   history: WorkItemHistoryEvent[];
+  handoff?: WorkItemHandoff;
 
   linkedSessions: LinkedSession[];
   proofOfWork?: ProofOfWork;

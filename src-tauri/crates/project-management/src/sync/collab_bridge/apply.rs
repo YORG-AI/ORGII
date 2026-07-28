@@ -669,6 +669,7 @@ fn frontmatter_from_wire(
         comments: tail(payload, "comments"),
         history: tail(payload, "history"),
         delegations: Vec::new(),
+        handoff: tail_opt(payload, "handoff"),
         linked_sessions: tail(payload, "linkedSessions"),
         proof_of_work: tail_opt(payload, "proofOfWork"),
         orchestrator_config: tail_opt(payload, "orchestratorConfig"),
@@ -932,6 +933,9 @@ fn apply_wire_tail(update: &mut WorkItemPartialUpdate, payload: &Value) {
     }
     if let Some(comments) = tail(payload, "comments") {
         update.comments = Some(comments);
+    }
+    if payload.get("handoff").is_some() {
+        update.handoff = Some(tail(payload, "handoff"));
     }
     if let Some(linked_sessions) = tail(payload, "linkedSessions") {
         update.linked_sessions = Some(linked_sessions);

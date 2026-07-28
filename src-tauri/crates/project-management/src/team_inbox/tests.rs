@@ -10,6 +10,7 @@ use super::{
     TeamInboxItem, TeamInboxItemKind, TeamInboxListOptions, TeamInboxPayload, TeamInboxTarget,
 };
 use crate::projects::schema::init_project_tables;
+use crate::projects::types::WorkItemHandoffStatus;
 
 fn database() -> Connection {
     let connection = Connection::open_in_memory().expect("open in-memory database");
@@ -507,4 +508,64 @@ fn assigned_item_carries_body_excerpt_as_summary() {
         other => panic!("expected assigned payload, got {other:?}"),
     };
     assert_eq!(summary.as_deref(), Some("Investigate the flaky auth test"));
+}
+
+#[test]
+fn assigned_item_projects_durable_handoff_context() {
+    let connection = database();
+    insert_project(&connection, "project-1", "alpha");
+    insert_work_item(
+        &connection,
+        WorkItemFixture {
+            id: "work-handoff",
+            short_id: "TST-10",
+            title: "Continue the investigation",
+            project_id: Some("project-1"),
+            assigned_human_id: Some("member-recipient"),
+            assignee: Some("member-recipient"),
+            assignee_type: Some("member"),
+            updated_at: 10,
+            deleted_at: None,
+        },
+    );
+    connection
+        .execute(
+            "INSERT INTO workitem_extras (work_item_id, extras_json)
+             VALUES ('work-handoff', ?1)",
+            [json!({
+                "handoff": {
+                    "id": "handoff-1",
+                    "status": "pending",
+                    "senderMemberId": "member-sender",
+                    "senderName": "Ada",
+                    "recipientMemberId": "member-recipient",
+                    "recipientName": "Lin",
+                    "note": "Continue from the failing test.",
+                    "requestedAt": "2026-07-28T10:00:00Z"
+                }
+            })
+            .to_string()],
+        )
+        .expect("insert handoff extras");
+
+    let page = list_page_with_connection(&connection, options(&["member-recipient"], 10))
+        .expect("list handoff");
+    assert_eq!(
+        page.items[0].actor.as_ref().map(|actor| actor.id.as_str()),
+        Some("member-sender")
+    );
+    match &page.items[0].payload {
+        TeamInboxPayload::WorkItemAssigned {
+            handoff: Some(handoff),
+            ..
+        } => {
+            assert_eq!(handoff.status, WorkItemHandoffStatus::Pending);
+            assert_eq!(handoff.sender_name, "Ada");
+            assert_eq!(
+                handoff.note.as_deref(),
+                Some("Continue from the failing test.")
+            );
+        }
+        other => panic!("expected assigned handoff payload, got {other:?}"),
+    }
 }

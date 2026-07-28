@@ -9,7 +9,8 @@ use super::orchestrator::{
 use super::project::{CommentEntry, TodoEntry};
 use super::routines::WorkItemRoutineSource;
 use super::work_items::{
-    WorkItemCloseOut, WorkItemExecutionLock, WorkItemHistoryEvent, WorkItemWorkProduct,
+    WorkItemCloseOut, WorkItemExecutionLock, WorkItemHandoff, WorkItemHistoryEvent,
+    WorkItemWorkProduct,
 };
 
 // ============================================
@@ -95,6 +96,8 @@ pub struct EnrichedWorkItem {
     pub todos: Vec<TodoEntry>,
     pub comments: Vec<CommentEntry>,
     pub history: Vec<WorkItemHistoryEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handoff: Option<WorkItemHandoff>,
 
     // Agent workflow
     pub linked_sessions: Vec<LinkedSession>,
