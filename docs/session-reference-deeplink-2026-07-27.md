@@ -331,3 +331,20 @@ separate change.
 | Ledger                               | pass — zero tombstones, downgrades, count drops |
 | Destructive verbs / watchdog / ERROR | 0 / 0 / 0                                       |
 | Resources                            | CPU 0.3-0.5%, RSS ~305MB                        |
+
+### Cross-machine, the whole matrix
+
+The second account, on its own install with its own GitHub connection,
+opened the fixture issue directly — the surface the feature is for — and:
+
+| Assertion                                    | Result                                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Bare reference into the shared org           | pass — opened the teammate's session, content rendered                                |
+| Reference into an org this account is NOT in | pass — refused, no navigation, no scope change                                        |
+| Code span and fence                          | pass — literal                                                                        |
+| Chip label without the title resolver        | pass — generic wording, which is what a client that cannot resolve a name should show |
+| Destructive verbs / watchdog / ERROR         | 0 / 0 / 0                                                                             |
+| Resources                                    | CPU 0.0%, RSS 190MB                                                                   |
+
+That install predates the producer work, so it also shows an OLDER client
+consuming what the newer one emits.
