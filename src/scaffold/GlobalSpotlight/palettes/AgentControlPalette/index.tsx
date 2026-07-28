@@ -14,6 +14,10 @@ import { PaletteBody, SpotlightShell } from "../../shell";
 import { AgentControlInputTrailing } from "./AgentControlInputTrailing";
 import { AgentControlStatus } from "./AgentControlStatus";
 import { AgentControlToolbar } from "./AgentControlToolbar";
+import {
+  CountdownScheduler,
+  getCountdownRemaining,
+} from "./countdownScheduler";
 import { useAgentControlPalette } from "./useAgentControlPalette";
 
 export type { AdeManagerSubmitDetail } from "./types";
@@ -26,55 +30,15 @@ export {
 
 const TOTAL_MS = 5 * 60 * 1000;
 
-function getCountdownRemaining(expiresAt: number): number {
-  return Math.max(0, expiresAt - Date.now());
-}
-
 function useCountdown(expiresAt: number) {
   const [remaining, setRemaining] = useState(() =>
     getCountdownRemaining(expiresAt)
   );
 
   useEffect(() => {
-    let timeoutId: number | undefined;
-
-    const clearScheduledUpdate = () => {
-      if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId);
-        timeoutId = undefined;
-      }
-    };
-
-    const updateAndSchedule = () => {
-      clearScheduledUpdate();
-      const nextRemaining = getCountdownRemaining(expiresAt);
-      setRemaining(nextRemaining);
-
-      if (nextRemaining > 0 && document.visibilityState !== "hidden") {
-        timeoutId = window.setTimeout(
-          updateAndSchedule,
-          Math.min(1000, nextRemaining)
-        );
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        clearScheduledUpdate();
-      } else {
-        updateAndSchedule();
-      }
-    };
-
-    // The label only changes once per second. Updating React state every frame
-    // needlessly re-rendered the entire proposal creator (including ChatPanel)
-    // at ~60 FPS for the full five-minute lifetime.
-    updateAndSchedule();
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      clearScheduledUpdate();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    const scheduler = new CountdownScheduler(expiresAt, setRemaining);
+    scheduler.start();
+    return () => scheduler.stop();
   }, [expiresAt]);
 
   const seconds = Math.ceil(remaining / 1000);
