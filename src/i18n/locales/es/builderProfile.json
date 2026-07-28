@@ -1,7 +1,6 @@
 {
   "title": "Perfil de creador",
   "refresh": "Actualizar",
-  "summaryLine": "{{sessions}} sesiones analizadas",
   "tooFewSessions": "Menos de 25 sesiones: el tipo aún no está asentado.",
   "noSessionsYet": "Aún no hay sesiones analizadas: las letras aparecen a medida que se lee tu historial.",
   "axisStats": "{{sessions}} sesiones · {{consistency}} % coinciden",
@@ -46,6 +45,58 @@
     "moderate": "preferencia moderada",
     "clear": "preferencia clara",
     "veryClear": "preferencia muy clara"
+  },
+  "types": {
+    "title": "Tipos de creador",
+    "subtitle": "Conoce las 16 formas en que las personas trabajan con agentes de programación.",
+    "howTitle": "Cómo leer el código",
+    "howBody": "Cuatro preferencias observadas forman un tipo de creador. Las letras describen un patrón de trabajo, no una identidad fija; pueden cambiar con tus hábitos y herramientas.",
+    "galleryTitle": "Los 16 tipos",
+    "galleryHint": "Elige un retrato para ver el perfil completo y consejos prácticos para colaborar con agentes.",
+    "knowMore": "Saber más",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Mapear",
+        "description": "Define el objetivo y las restricciones antes de empezar a implementar",
+        "agentTip": "Da al agente un brief escrito con criterios de éxito, límites y puntos de control"
+      },
+      "E": {
+        "name": "Explorar",
+        "description": "Reduce la incertidumbre mediante pruebas, observación y correcciones de rumbo",
+        "agentTip": "Pide un experimento pequeño o una investigación útil antes de comprometerte con un plan"
+      },
+      "D": {
+        "name": "Dirigir",
+        "description": "Mantiene el control humano sobre la división y la secuencia del trabajo",
+        "agentTip": "Delega pasos bien delimitados y confirma la dirección entre hitos importantes"
+      },
+      "A": {
+        "name": "Delegar",
+        "description": "Define el resultado y deja que el agente elija el camino",
+        "agentTip": "Explica el resultado, el nivel de calidad y los límites; deja que el agente planifique y ejecute"
+      },
+      "F": {
+        "name": "Enfocar",
+        "description": "Prefiere profundidad y cierre en una línea de trabajo cada vez",
+        "agentTip": "Mantén activo un único paso siguiente y termínalo antes de abrir trabajo nuevo"
+      },
+      "W": {
+        "name": "Enjambre",
+        "description": "Usa varias líneas en paralelo para ganar cobertura y velocidad",
+        "agentTip": "Divide investigaciones o implementaciones independientes y reúnelas en puntos de entrega claros"
+      },
+      "S": {
+        "name": "Sistematizar",
+        "description": "Invierte en flujos repetibles, herramientas y mejoras duraderas",
+        "agentTip": "Pide al agente que convierta el trabajo recurrente en pruebas, scripts, reglas o plantillas"
+      },
+      "H": {
+        "name": "Entregar",
+        "description": "Optimiza para obtener cuanto antes un resultado validado y progreso inmediato",
+        "agentTip": "Pide el parche completo más pequeño, ejecuta las comprobaciones relevantes e itera con el resultado"
+      }
+    }
   },
   "cards": {
     "total_time": {

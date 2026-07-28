@@ -1,7 +1,6 @@
 {
   "title": "Geliştirici profili",
   "refresh": "Yenile",
-  "summaryLine": "{{sessions}} oturum incelendi",
   "tooFewSessions": "25 oturumdan az — tip henüz oturmadı.",
   "noSessionsYet": "Henüz incelenen oturum yok — geçmiş okundukça harfler belirir.",
   "axisStats": "{{sessions}} oturum · %{{consistency}} aynı yönde",
@@ -46,6 +45,58 @@
     "moderate": "orta eğilim",
     "clear": "belirgin eğilim",
     "veryClear": "çok belirgin eğilim"
+  },
+  "types": {
+    "title": "Geliştirici türleri",
+    "subtitle": "İnsanların kodlama ajanlarıyla çalıştığı 16 yolu keşfedin.",
+    "howTitle": "Kod nasıl okunur",
+    "howBody": "Gözlemlenen dört tercih bir geliştirici türü oluşturur. Harfler sabit bir kimliği değil çalışma düzenini anlatır; alışkanlıklarınız ve araçlarınızla birlikte değişebilir.",
+    "galleryTitle": "16 türün tamamı",
+    "galleryHint": "Tam profili ve ajanlarla iş birliğine yönelik pratik ipuçlarını görmek için bir portre seçin.",
+    "knowMore": "Daha fazla bilgi",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Haritala",
+        "description": "Uygulama başlamadan önce hedefi ve kısıtları çerçeveler",
+        "agentTip": "Ajana başarı ölçütleri, sınırlar ve kontrol noktaları içeren yazılı bir özet verin"
+      },
+      "E": {
+        "name": "Keşfet",
+        "description": "Deneme, gözlem ve yön düzeltmeyle belirsizliği azaltır",
+        "agentTip": "Bir plana bağlanmadan önce küçük bir deney veya yararlı bir inceleme isteyin"
+      },
+      "D": {
+        "name": "Yönlendir",
+        "description": "İşin bölünmesini ve sırasını insan denetiminde tutar",
+        "agentTip": "Sınırları net adımlar devredin ve önemli kilometre taşları arasında yönü doğrulayın"
+      },
+      "A": {
+        "name": "Devret",
+        "description": "Sonucu tanımlar ve yolu ajanın seçmesine izin verir",
+        "agentTip": "Sonucu, kalite çıtasını ve sınırları anlatın; planlama ile uygulamayı ajana bırakın"
+      },
+      "F": {
+        "name": "Odaklan",
+        "description": "Her seferinde tek bir iş akışında derinliği ve tamamlamayı tercih eder",
+        "agentTip": "Tek ve net bir sonraki adımı aktif tutun; yeni iş açmadan önce onu bitirin"
+      },
+      "W": {
+        "name": "Sürü",
+        "description": "Kapsam ve hız kazanmak için birden fazla paralel akış kullanır",
+        "agentTip": "Bağımsız inceleme veya uygulamaları bölün ve net teslim noktalarında birleştirin"
+      },
+      "S": {
+        "name": "Sistemleştir",
+        "description": "Tekrarlanabilir akışlara, araçlara ve kalıcı iyileştirmelere yatırım yapar",
+        "agentTip": "Ajandan tekrarlanan işleri test, betik, kural veya şablon olarak kalıcılaştırmasını isteyin"
+      },
+      "H": {
+        "name": "Yayınla",
+        "description": "En hızlı doğrulanmış sonuç ve anında ilerleme için çalışır",
+        "agentTip": "En küçük eksiksiz yamayı isteyin, ilgili kontrolleri çalıştırın ve sonuca göre yineleyin"
+      }
+    }
   },
   "cards": {
     "total_time": {
