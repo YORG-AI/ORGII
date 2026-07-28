@@ -85,10 +85,8 @@ On that rule:
 - **Copy ID on My Sessions rows**, hidden entirely for an unpublished
   session rather than failing when clicked.
 - **Drag a session row onto a text surface** (issue comment box, new
-  issue body) to insert the reference at the caret. The sidebar already
-  emitted a pill drag, but its payload is the local `session://` path,
-  which means nothing to a reader — so the drop resolves a cloud
-  reference or declines with a reason. Deliberately NOT wired to the work
+  issue body) to insert the reference at the caret; teammate rows became
+  draggable in round two, see below. Deliberately NOT wired to the work
   item description: that is a Tiptap editor which both edits and displays
   the text, so a reference dropped there would never render as a chip.
 - **The chip shows the session's real name** when the viewer already has
@@ -144,11 +142,11 @@ one row past the user's filters indefinitely.
 
 ## Verification
 
-- 70 unit tests across the plugin, the url transform, the admission gate,
+- 82 unit tests across the plugin, the url transform, the admission gate,
   the auto-replay decision, the org and title resolvers, the drop-target
   helpers, and a real-pipeline integration test that renders through
   react-markdown with remark-gfm.
-- Full suite green (709 files, 6460 tests); tsc and eslint clean.
+- Full suite green (711 files, 6472 tests); tsc and eslint clean.
 - Adversarial multi-lens review over the diff, every finding
   independently verified before acting. Six defects confirmed and fixed,
   the two most serious found only by measurement or by tracing real
