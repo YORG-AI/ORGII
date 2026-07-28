@@ -344,9 +344,7 @@ export function useComposerInput(
       // pill path assumes a bare local session id, and the markdown
       // renderer is what turns a reference into a chip.
       if (type === "cloudSession") {
-        composerInputRef.current.insertMentionText(
-          referenceInsertText(value, displayName)
-        );
+        composerInputRef.current.insertMentionText(referenceInsertText(value));
         handleAtMentionClose();
         return;
       }

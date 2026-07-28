@@ -151,7 +151,7 @@ export function useAtMention(options: UseAtMentionOptions): AtMentionHandlers {
           // reference text the markdown renderer turns into a chip rather
           // than through the pill path, which assumes a local session.
           composerInputRef.current.insertMentionText(
-            referenceInsertText(value, resolvedDisplayName)
+            referenceInsertText(value)
           );
           hasContentRef.current = true;
           break;

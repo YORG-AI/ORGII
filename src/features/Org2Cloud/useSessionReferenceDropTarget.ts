@@ -41,9 +41,9 @@ const SESSION_PILL_PREFIX = "session://";
 
 export type DraggedSession =
   /** A teammate row: it already knows the full reference. */
-  | { kind: "reference"; reference: string; title?: string }
+  | { kind: "reference"; reference: string }
   /** A local row: only an id, so the org still has to be resolved. */
-  | { kind: "local"; sessionId: string; title?: string };
+  | { kind: "local"; sessionId: string };
 
 /** What a dragged pill names, or null when it is not a session at all. */
 export function draggedSession(
@@ -51,14 +51,13 @@ export function draggedSession(
 ): DraggedSession | null {
   const pill = detail.pill;
   if (pill?.iconType !== "session") return null;
-  const title = pill.name?.trim() || undefined;
   if (parseCloudSessionReference(pill.path)) {
-    return { kind: "reference", reference: pill.path, title };
+    return { kind: "reference", reference: pill.path };
   }
   if (!pill.path.startsWith(SESSION_PILL_PREFIX)) return null;
   const sessionId =
     pill.path.slice(SESSION_PILL_PREFIX.length).split("/")[0].trim() || null;
-  return sessionId ? { kind: "local", sessionId, title } : null;
+  return sessionId ? { kind: "local", sessionId } : null;
 }
 
 function isPointInside(
@@ -164,7 +163,7 @@ export function useSessionReferenceDropTarget({
         value,
         element.selectionStart ?? value.length,
         element.selectionEnd ?? value.length,
-        referenceInsertText(reference, dragged.title)
+        referenceInsertText(reference)
       );
       onChange(next);
       window.requestAnimationFrame(() => {

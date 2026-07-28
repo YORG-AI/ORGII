@@ -62,7 +62,7 @@ export function insertPillFromTabPayload(
   // places: icon lookup, serialization, and the agent context line.
   if (parseCloudSessionReference(payload.path)) {
     composerInputRef.current.insertMentionText(
-      referenceInsertText(payload.path, payload.name)
+      referenceInsertText(payload.path)
     );
     return;
   }

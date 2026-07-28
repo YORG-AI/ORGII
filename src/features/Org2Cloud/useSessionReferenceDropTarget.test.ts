@@ -23,7 +23,7 @@ describe("draggedSession", () => {
       draggedSession(
         detail({ path: TEAM_REFERENCE, name: "x", iconType: "session" })
       )
-    ).toEqual({ kind: "reference", reference: TEAM_REFERENCE, title: "x" });
+    ).toEqual({ kind: "reference", reference: TEAM_REFERENCE });
   });
 
   it("reads the id from a local session pill", () => {
@@ -31,7 +31,7 @@ describe("draggedSession", () => {
       draggedSession(
         detail({ path: "session://sdeagent-1", name: "x", iconType: "session" })
       )
-    ).toEqual({ kind: "local", sessionId: "sdeagent-1", title: "x" });
+    ).toEqual({ kind: "local", sessionId: "sdeagent-1" });
   });
 
   it("drops the legacy timestamp suffix", () => {
@@ -43,7 +43,7 @@ describe("draggedSession", () => {
           iconType: "session",
         })
       )
-    ).toEqual({ kind: "local", sessionId: "sdeagent-1", title: "x" });
+    ).toEqual({ kind: "local", sessionId: "sdeagent-1" });
   });
 
   it("ignores drags that are not sessions", () => {

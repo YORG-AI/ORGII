@@ -274,10 +274,15 @@ Four changes, and one defect they caused:
 - **Team Sessions rows are draggable**, carrying the whole reference as
   their payload. Someone else's session has no local push marker, so
   there is no org to resolve — the row has to know it.
-- **What gets inserted is a markdown link**, `[title](orgii://…)`, not a
-  bare url. That is one of the forms the renderer turns into a chip, so
-  the posted result is identical; only the draft is legible. A textarea
-  cannot hold a pill, so the draft is text either way.
+- **What gets inserted is the BARE reference.** A titled markdown link
+  was tried first, because a raw url reads badly while composing, and it
+  was wrong: GitHub strips the anchor and href from a non-http scheme and
+  renders only the label, which deletes the id from the issue — a reader
+  cannot tell a reference is there, and copying the rendered text loses
+  it — and puts the session TITLE in plain view of anyone who can see the
+  repo, when the premise is that an outsider learns nothing. A title
+  leaks more than an opaque uuid. The ugly draft is the cheaper cost, and
+  in-app the chip shows the real name anyway.
 - **The drag ghost mirrors the row** — its icon, its title, the owner
   underneath — instead of a bare text chip.
 - **The `@` menu lists the active org's team sessions** beside local
