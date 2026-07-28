@@ -222,12 +222,35 @@ export default function BuilderProfilePanel() {
     [t]
   );
 
-  if (loading && !data) return <Placeholder variant="loading" />;
+  // Placeholders own the whole panel: detail-panel sizing, and stretched so the
+  // spinner sits in the middle of the pane rather than pinned under the tabs.
+  if (loading && !data)
+    return (
+      <Placeholder
+        variant="loading"
+        placement="detail-panel"
+        fillParentHeight
+      />
+    );
   if (error && !data)
     return (
-      <Placeholder variant="error" placement="detail-panel" title={error} />
+      <Placeholder
+        variant="error"
+        placement="detail-panel"
+        fillParentHeight
+        title={error}
+        onRetry={onRefresh}
+      />
     );
-  if (!profile) return <Placeholder variant="empty" />;
+  if (!profile)
+    return (
+      <Placeholder
+        variant="empty"
+        placement="detail-panel"
+        fillParentHeight
+        title={t("noSessionsYet")}
+      />
+    );
 
   const letters = profile.code.split("");
 

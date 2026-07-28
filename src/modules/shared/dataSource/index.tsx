@@ -118,7 +118,7 @@ function RuntimeSectionContent({
 const RuntimeDataSourcePanel: React.FC = () => {
   const [panelView, setPanelView] = useState<RuntimeSection>("usage");
   const loadingFallback = (
-    <Placeholder variant="loading" placement="detail-panel" />
+    <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
   );
 
   return (
@@ -151,7 +151,10 @@ const RuntimeDataSourcePanel: React.FC = () => {
           </Suspense>
         ) : (
           <div
-            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
+            // min-h-full so a section that renders only a placeholder can
+            // stretch: `fillParentHeight` is `flex-1`, which needs a parent
+            // with real height to fill.
+            className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES} min-h-full`}
           >
             <Suspense key={panelView} fallback={loadingFallback}>
               <RuntimeSectionContent activeView={panelView} />

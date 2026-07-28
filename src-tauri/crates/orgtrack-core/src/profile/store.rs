@@ -25,6 +25,30 @@ use crate::sources::imported_history::load_activity_chunks_for_session;
 /// Table owned by this module.
 pub const TABLE: &str = "orgtrack_core_session_signals";
 
+/// Add a column to an existing table. `CREATE TABLE IF NOT EXISTS` is a no-op
+/// once the table exists, so every column added after the first release needs
+/// one of these or installs that already have the table break on the next read.
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> rusqlite::Result<()> {
+    let mut statement = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let existing = statement.query_map([], |row| row.get::<_, String>(1))?;
+    for name in existing {
+        if name? == column {
+            return Ok(());
+        }
+    }
+    drop(statement);
+    conn.execute(
+        &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+        [],
+    )?;
+    Ok(())
+}
+
 pub fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "
@@ -51,7 +75,15 @@ pub fn init_tables(conn: &Connection) -> rusqlite::Result<()> {
             computed_at TEXT NOT NULL
         );
         ",
-    )
+    )?;
+    // Columns added after the table shipped.
+    ensure_column(
+        conn,
+        TABLE,
+        "unreadable",
+        "INTEGER NOT NULL DEFAULT 0",
+    )?;
+    Ok(())
 }
 
 fn table_exists(conn: &Connection, name: &str) -> Result<bool, String> {
@@ -514,6 +546,44 @@ mod tests {
             fp.starts_with(&format!("{SIGNALS_VERSION}:")),
             "fingerprint must carry the extractor version, got {fp}"
         );
+    }
+
+    #[test]
+    fn an_older_table_gains_columns_added_after_it_shipped() {
+        // A database created before `unreadable` existed. CREATE TABLE IF NOT
+        // EXISTS will not touch it, so without the additive migration every
+        // read fails with "no such column".
+        let conn = Connection::open_in_memory().expect("memory db");
+        conn.execute_batch(
+            "CREATE TABLE orgtrack_core_session_signals (
+                 session_id TEXT PRIMARY KEY,
+                 source TEXT NOT NULL,
+                 signals_version INTEGER NOT NULL,
+                 started_at_ms INTEGER NOT NULL DEFAULT 0,
+                 active_secs REAL NOT NULL DEFAULT 0,
+                 active_spans_json TEXT NOT NULL DEFAULT '[]',
+                 has_edit INTEGER NOT NULL DEFAULT 0,
+                 postedit_turns INTEGER NOT NULL DEFAULT 0,
+                 signals_json TEXT NOT NULL,
+                 computed_at TEXT NOT NULL
+             );",
+        )
+        .expect("legacy schema");
+
+        init_tables(&conn).expect("migrate");
+        upsert(&conn, &sample("a")).expect("upsert");
+        let out = load_signals(&conn, &[], None, 10).expect("read must not fail");
+        assert_eq!(out.len(), 1);
+        assert_eq!(coverage(&conn).expect("coverage").unreadable, 0);
+    }
+
+    #[test]
+    fn migrating_twice_is_harmless() {
+        let conn = db();
+        init_tables(&conn).expect("second init");
+        init_tables(&conn).expect("third init");
+        upsert(&conn, &sample("a")).expect("upsert");
+        assert_eq!(load_signals(&conn, &[], None, 10).expect("read").len(), 1);
     }
 
     #[test]
