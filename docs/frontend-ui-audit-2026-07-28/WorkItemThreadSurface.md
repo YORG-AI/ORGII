@@ -2,7 +2,7 @@
 
 **Files:**
 
-- `src/modules/ProjectManager/WorkItems/components/WorkItemThreadSurface/index.tsx` (57 LOC)
+- `src/modules/ProjectManager/WorkItems/components/WorkItemThreadSurface/index.tsx` (58 LOC)
 - `src/engines/ChatPanel/panels/WorkItemPanelView.tsx` (thread composition)
 - `src/modules/MainApp/TeamInbox/components/AssignedWorkItemDetail.tsx` (thread composition)
 
@@ -38,7 +38,7 @@
 
 ## D5 — Visual Patterns Observed
 
-- Both entry points now use the same ordered property pills, wrapping policy, description card, To-Do, Agent Workflow and collapsed Activity hierarchy.
+- Both entry points now use the same ordered property pills, wrapping policy, primary task hierarchy and Discussion drill-in action.
 - The formal page no longer adds a second Properties rail or the legacy Preview/Raw and Agent/Output/History presentation around the shared content.
 - Navigation-specific chrome remains outside the shared surface: Inbox owns read/open actions; the formal page owns breadcrumb, delete and linked-session overlay.
 
