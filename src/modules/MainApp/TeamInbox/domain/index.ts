@@ -33,6 +33,8 @@ export type {
   TeamInboxDataSource,
   TeamInboxFilter,
   TeamInboxItem,
+  TeamInboxIssue,
+  TeamInboxIssueCode,
   TeamInboxNavigationIntent,
   TeamInboxPage,
   TeamInboxTarget,

@@ -89,6 +89,20 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
     [items, recencyAnchorMs]
   );
   const activeFilterUnread = unreadCounts[filter];
+  const loadMoreAction =
+    hasMore && onLoadMore ? (
+      <div className="flex shrink-0 justify-center px-3 pb-2 pt-1">
+        <Button
+          variant="tertiary"
+          size="small"
+          loading={loadingMore}
+          disabled={loadingMore}
+          onClick={onLoadMore}
+        >
+          {t("teamInbox.loadMore")}
+        </Button>
+      </div>
+    ) : null;
   const filterTabs = useMemo<TabPillItem[]>(
     () => [
       {
@@ -224,34 +238,36 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       </div>
 
       {items.length === 0 ? (
-        hasQuery ? (
-          <Placeholder
-            variant="empty"
-            title={t("teamInbox.empty.noResults.title")}
-            subtitle={t("teamInbox.empty.noResults.subtitle", {
-              query: query.trim(),
-            })}
-            fillParentHeight
-          />
-        ) : (
-          <Placeholder
-            variant="empty"
-            title={t(`teamInbox.empty.${filter}.title`, {
-              defaultValue: t("teamInbox.empty.title"),
-            })}
-            subtitle={t(`teamInbox.empty.${filter}.subtitle`, {
-              defaultValue: t("teamInbox.empty.subtitle"),
-            })}
-            fillParentHeight
-          />
-        )
+        <div className="flex min-h-0 flex-1 flex-col">
+          {hasQuery ? (
+            <Placeholder
+              variant="empty"
+              title={t("teamInbox.empty.noResults.title")}
+              subtitle={t("teamInbox.empty.noResults.subtitle", {
+                query: query.trim(),
+              })}
+              fillParentHeight
+            />
+          ) : (
+            <Placeholder
+              variant="empty"
+              title={t(`teamInbox.empty.${filter}.title`, {
+                defaultValue: t("teamInbox.empty.title"),
+              })}
+              subtitle={t(`teamInbox.empty.${filter}.subtitle`, {
+                defaultValue: t("teamInbox.empty.subtitle"),
+              })}
+              fillParentHeight
+            />
+          )}
+          {loadMoreAction}
+        </div>
       ) : (
         <ListPanelScrollArea listPaddingTop="default">
           <div
             className="flex flex-col gap-4"
             role="listbox"
             aria-label={t("teamInbox.itemsLabel")}
-            aria-activedescendant={selectedItemId ?? undefined}
             onKeyDown={handleListKeyDown}
           >
             {groups.map((group) => {
@@ -290,19 +306,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
               );
             })}
           </div>
-          {hasMore && onLoadMore ? (
-            <div className="flex justify-center px-3 pb-2 pt-1">
-              <Button
-                variant="tertiary"
-                size="small"
-                loading={loadingMore}
-                disabled={loadingMore}
-                onClick={onLoadMore}
-              >
-                {t("teamInbox.loadMore", { defaultValue: "Load more" })}
-              </Button>
-            </div>
-          ) : null}
+          {loadMoreAction}
         </ListPanelScrollArea>
       )}
     </section>

@@ -223,6 +223,13 @@ export interface WorkItemPartialUpdate {
   executionLock?: WorkItemExecutionLock | null;
   closeOut?: WorkItemCloseOut | null;
   workProducts?: WorkItemWorkProduct[];
+  /** Identity of the user initiating this mutation; used only for history attribution. */
+  actor?: WorkItemMutationActor;
+}
+
+export interface WorkItemMutationActor {
+  id: string;
+  name: string;
 }
 
 export interface ResolvedPerson {

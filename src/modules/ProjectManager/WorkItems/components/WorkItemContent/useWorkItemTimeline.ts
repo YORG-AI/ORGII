@@ -45,12 +45,10 @@ export function buildWorkItemTimelineEntries(
   t: TimelineTranslator,
   teamMembers: readonly Person[] = []
 ): TimelineEntry[] {
-  const memberNameById = new Map(
-    teamMembers.map((member) => [member.id, member.name])
-  );
+  const memberById = new Map(teamMembers.map((member) => [member.id, member]));
   const entries =
     workItem.history?.map((event) =>
-      historyEventToTimelineEntry(event, t, memberNameById)
+      historyEventToTimelineEntry(event, t, memberById)
     ) ?? [];
   const existingCommentIds = commentIdsFromHistory(workItem.history ?? []);
 
@@ -59,11 +57,14 @@ export function buildWorkItemTimelineEntries(
       continue;
     }
 
+    const author = memberById.get(comment.author);
     entries.push({
       id: comment.id,
       timestamp: comment.created_at,
       type: WORK_ITEM_HISTORY_ACTION.COMMENTED,
-      userName: memberNameById.get(comment.author) ?? comment.author,
+      userName: author?.name ?? comment.author,
+      userAvatar: author?.avatar,
+      userColor: author?.color,
       descriptions: [comment.content || t("workItems.activity.commented")],
     });
   }
@@ -90,17 +91,20 @@ function commentIdsFromHistory(history: WorkItemHistoryEvent[]): Set<string> {
 function historyEventToTimelineEntry(
   event: WorkItemHistoryEvent,
   t: TimelineTranslator,
-  memberNameById: ReadonlyMap<string, string>
+  memberById: ReadonlyMap<string, Person>
 ): TimelineEntry {
+  const actor = event.actorId ? memberById.get(event.actorId) : undefined;
   return {
     id: event.id,
     timestamp: event.timestamp,
     type: event.action,
     userName:
+      actor?.name ||
       event.actorName ||
-      (event.actorId ? memberNameById.get(event.actorId) : undefined) ||
       event.actorId ||
       t("workItems.activity.system"),
+    userAvatar: actor?.avatar,
+    userColor: actor?.color,
     descriptions: eventDescriptions(event, t),
   };
 }

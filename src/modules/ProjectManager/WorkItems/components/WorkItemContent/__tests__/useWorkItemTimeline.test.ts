@@ -186,14 +186,30 @@ describe("work item history timeline", () => {
             action: WORK_ITEM_HISTORY_ACTION.UPDATED,
             timestamp: "2026-01-01T00:00:00Z",
             actorId: "member-2",
+            actorName: "member-2",
             summary: "Updated",
           },
         ],
       }),
       translate,
-      [{ id: "member-2", name: "Lin" }]
+      [
+        {
+          id: "member-2",
+          name: "Lin",
+          avatar: "https://example.com/lin.png",
+          color: "#1677ff",
+        },
+      ]
     );
 
     expect(entries.map((entry) => entry.userName)).toEqual(["Lin", "Lin"]);
+    expect(entries.map((entry) => entry.userAvatar)).toEqual([
+      "https://example.com/lin.png",
+      "https://example.com/lin.png",
+    ]);
+    expect(entries.map((entry) => entry.userColor)).toEqual([
+      "#1677ff",
+      "#1677ff",
+    ]);
   });
 });

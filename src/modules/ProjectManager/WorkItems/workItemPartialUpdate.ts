@@ -1,12 +1,17 @@
-import type { WorkItemPartialUpdate } from "@src/api/http/project";
+import type {
+  WorkItemMutationActor,
+  WorkItemPartialUpdate,
+} from "@src/api/http/project";
+import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
 
 export type WorkItemUiPatch = Omit<
   Partial<WorkItem>,
-  "assignee" | "milestone" | "endDate" | "target_date"
+  "assignee" | "milestone" | "project" | "endDate" | "target_date"
 > & {
   assignee?: WorkItem["assignee"] | null;
   milestone?: WorkItem["milestone"] | null;
+  project?: WorkItem["project"] | null;
   endDate?: WorkItem["endDate"] | null;
   target_date?: WorkItem["target_date"] | null;
 };
@@ -18,7 +23,8 @@ export type WorkItemUiPatch = Omit<
  * drift on which fields are persisted.
  */
 export function toWorkItemPartialUpdate(
-  updates: WorkItemUiPatch
+  updates: WorkItemUiPatch,
+  actor?: Pick<Person, "id" | "name"> | null
 ): WorkItemPartialUpdate {
   const payload: WorkItemPartialUpdate = {};
 
@@ -28,7 +34,7 @@ export function toWorkItemPartialUpdate(
     payload.status = updates.workItemStatus;
   }
   if (updates.priority !== undefined) payload.priority = updates.priority;
-  if (updates.project?.id) payload.project = updates.project.id;
+  if ("project" in updates) payload.project = updates.project?.id ?? null;
   if (updates.star !== undefined) payload.starred = updates.star;
   if ("assignee" in updates) payload.assignee = updates.assignee?.id ?? null;
   if ("assigneeType" in updates) {
@@ -78,5 +84,20 @@ export function toWorkItemPartialUpdate(
     payload.workProducts = updates.workProducts;
   }
 
-  return payload;
+  return withWorkItemMutationActor(payload, actor);
+}
+
+export function withWorkItemMutationActor(
+  payload: WorkItemPartialUpdate,
+  actor?: Pick<Person, "id" | "name"> | null
+): WorkItemPartialUpdate {
+  const hasMutation = Object.keys(payload).some((field) => field !== "actor");
+  if (!hasMutation || !actor) return payload;
+
+  const id = actor.id.trim();
+  const name = actor.name.trim();
+  if (!id || !name) return payload;
+
+  const normalizedActor: WorkItemMutationActor = { id, name };
+  return { ...payload, actor: normalizedActor };
 }

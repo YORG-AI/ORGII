@@ -48,11 +48,13 @@ vi.mock("@src/modules/ProjectManager/shared", () => ({
       onDescriptionChange,
       editable,
       descriptionDefaultMode,
+      descriptionShowTabs,
     }: {
       initialDescription: string;
       onDescriptionChange?: (markdown: string, text: string) => void;
       editable?: boolean;
       descriptionDefaultMode?: string;
+      descriptionShowTabs?: boolean;
     },
     _ref
   ) {
@@ -61,6 +63,7 @@ vi.mock("@src/modules/ProjectManager/shared", () => ({
       readOnly: !editable,
       "data-testid": "description-editor",
       "data-default-mode": descriptionDefaultMode ?? "",
+      "data-show-tabs": String(descriptionShowTabs ?? true),
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
         onDescriptionChange?.(event.target.value, event.target.value),
     });
@@ -273,6 +276,7 @@ describe("WorkItemContent description editing", () => {
     );
     expect(editor?.readOnly).toBe(false);
     expect(editor?.getAttribute("data-default-mode")).toBe("");
+    expect(editor?.getAttribute("data-show-tabs")).toBe("true");
     expect(
       container.querySelector("[data-testid='description-footer']")
     ).toBeNull();
@@ -383,6 +387,11 @@ describe("WorkItemContent description editing", () => {
       container.querySelector("[data-testid='description-editor']")
     ).not.toBeNull();
     expect(
+      container
+        .querySelector("[data-testid='description-editor']")
+        ?.getAttribute("data-show-tabs")
+    ).toBe("false");
+    expect(
       container.querySelector<HTMLButtonElement>(
         "[data-testid='work-item-description-save']"
       )?.disabled
@@ -410,5 +419,64 @@ describe("WorkItemContent description editing", () => {
     expect(
       container.querySelector("[data-testid='description-editor']")
     ).toBeNull();
+  });
+
+  it("renders legacy escaped Markdown as real Markdown without rewriting it on view", () => {
+    const onUpdateWorkItem = vi.fn();
+    const legacyMarkdown =
+      "## 验收目标\\n- 打开 Team Inbox\\n- 验证 Sidebar 未读数";
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: { ...baseWorkItem, spec: legacyMarkdown },
+          presentation: "thread",
+          onUpdateWorkItem,
+        })
+      );
+    });
+
+    const rendered = container.querySelector(
+      "[data-testid='github-read-only-description']"
+    );
+    expect(rendered?.textContent).toBe(
+      "## 验收目标\n- 打开 Team Inbox\n- 验证 Sidebar 未读数"
+    );
+    expect(rendered?.textContent).not.toContain("\\n");
+    expect(onUpdateWorkItem).not.toHaveBeenCalled();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-edit']"
+        )
+        ?.click();
+    });
+
+    expect(
+      container.querySelector<HTMLTextAreaElement>(
+        "[data-testid='description-editor']"
+      )?.value
+    ).toBe("## 验收目标\n- 打开 Team Inbox\n- 验证 Sidebar 未读数");
+  });
+
+  it("preserves a single inline escaped newline in technical prose", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            spec: "Use `\\n` as the delimiter.",
+          },
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+        ?.textContent
+    ).toBe("Use `\\n` as the delimiter.");
   });
 });

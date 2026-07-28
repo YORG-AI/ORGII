@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { WORK_ITEM_HISTORY_ACTION } from "@src/api/http/project/types";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
+import ComposerShell from "@src/components/ComposerShell";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ActivityTimestamp,
@@ -27,6 +28,7 @@ import {
 } from "@src/modules/shared/components/ActivityTimeline";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
 import type { HistoryTabProps, TimelineEntry } from "./types";
 
@@ -101,11 +103,20 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                       avatar={
                         <Avatar
                           size={18}
+                          src={
+                            entry.userAvatar ||
+                            (entry.userName === currentUser.name
+                              ? currentUser.avatar
+                              : undefined)
+                          }
                           style={
+                            entry.userColor ||
                             entry.userName === currentUser.name
                               ? {
                                   backgroundColor:
-                                    currentUser.color || "var(--color-fill-3)",
+                                    entry.userColor ||
+                                    currentUser.color ||
+                                    "var(--color-fill-3)",
                                   color: "var(--color-text-white)",
                                 }
                               : undefined
@@ -178,69 +189,91 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
     </div>
   );
 
-  const composer = (
-    <div
-      className={
-        isThread
-          ? "flex items-start gap-2 rounded-xl border border-border-1 bg-primary-container p-3"
-          : "mt-auto flex flex-col gap-2"
-      }
-    >
-      {isThread ? (
-        <Avatar
-          size={24}
-          style={{
-            backgroundColor: currentUser.color || "var(--color-fill-3)",
-            color: "var(--color-text-white)",
-          }}
-        >
-          {currentUser.name.charAt(0).toUpperCase()}
-        </Avatar>
-      ) : null}
+  const hasComment = commentText.trim().length > 0;
+  const submitButton = (
+    <Button
+      variant={hasComment ? "primary" : isThread ? "tertiary" : "secondary"}
+      appearance={!hasComment && isThread ? "ghost" : undefined}
+      shape="circle"
+      size="small"
+      iconOnly
+      icon={<ArrowUp size={16} aria-hidden />}
+      title={t("workItems.activity.submitComment", "Submit comment")}
+      aria-label={t("workItems.activity.submitComment", "Submit comment")}
+      onClick={onCommentSubmit}
+      disabled={!hasComment || isSubmittingComment}
+      loading={isSubmittingComment}
+    />
+  );
+
+  const composer = isThread ? (
+    <div className="flex items-start gap-2.5">
+      <Avatar
+        size={28}
+        src={currentUser.avatar}
+        style={{
+          backgroundColor: currentUser.color || "var(--color-fill-3)",
+          color: "var(--color-text-white)",
+        }}
+      >
+        {currentUser.name.charAt(0).toUpperCase()}
+      </Avatar>
+      <ComposerShell
+        variant="comment"
+        className="min-w-0 flex-1"
+        data-testid="work-item-comment-composer"
+      >
+        <RichMarkdownEditor
+          className="min-w-0 flex-1"
+          placeholder={t("workItems.activity.commentPlaceholder")}
+          value={commentText}
+          onChange={(markdown) => onCommentTextChange(markdown)}
+          onSubmit={onCommentSubmit}
+          minHeight={28}
+          maxHeight={120}
+          appearance="plain"
+          showTabs={false}
+          matchMarkdownPreview={false}
+          dataTestId="work-item-comment-editor"
+        />
+        {submitButton}
+      </ComposerShell>
+    </div>
+  ) : (
+    <div className="mt-auto flex flex-col gap-2">
       <div className="min-w-0 flex-1">
         <RichMarkdownEditor
           placeholder={t("workItems.activity.commentPlaceholder")}
           value={commentText}
           onChange={(markdown) => onCommentTextChange(markdown)}
           onSubmit={onCommentSubmit}
-          minHeight={isThread ? 48 : 60}
+          minHeight={60}
           maxHeight={120}
           appearance="outlined"
-          showTabs={!isThread}
+          showTabs
           dataTestId="work-item-comment-editor"
         />
-        <div className="mt-2 flex items-center justify-end">
-          <Button
-            variant={commentText.trim() ? "primary" : "secondary"}
-            shape="circle"
-            size="small"
-            iconOnly
-            icon={<ArrowUp size={16} />}
-            title={t("workItems.activity.submitComment", "Submit comment")}
-            aria-label={t("workItems.activity.submitComment", "Submit comment")}
-            onClick={onCommentSubmit}
-            disabled={!commentText.trim() || isSubmittingComment}
-            loading={isSubmittingComment}
-          />
-        </div>
+        <div className="mt-2 flex items-center justify-end">{submitButton}</div>
       </div>
     </div>
   );
 
   if (isThread) {
     return (
-      <section
-        className="flex flex-col gap-3"
-        data-testid="work-item-thread-activity"
-      >
-        <div className="flex min-h-8 items-center justify-between gap-3">
-          <h3 className="text-[13px] font-semibold text-text-1">
-            {t("workItems.activity.title")}
-          </h3>
-          {subscriptionControl}
-        </div>
-        {timeline}
-        {composer}
+      <section data-testid="work-item-thread-activity">
+        <CollapsibleSection
+          title={`${t("workItems.activity.title")} · ${timelineEntries.length}`}
+          defaultOpen={false}
+          actions={subscriptionControl}
+          compact
+          headerRowClassName="!mb-0 min-h-8"
+          titleButtonTestId="work-item-thread-activity-toggle"
+        >
+          <div className="flex flex-col gap-3 pt-3">
+            {timeline}
+            {composer}
+          </div>
+        </CollapsibleSection>
       </section>
     );
   }
@@ -254,6 +287,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           {subscriptionControl}
           <Avatar
             size={24}
+            src={currentUser.avatar}
             style={{
               backgroundColor: currentUser.color || "var(--color-fill-3)",
               color: "var(--color-text-white)",

@@ -41,6 +41,7 @@ import {
   type StatusFilterType,
   WORK_ITEMS_DEFAULT_STATUS,
 } from "@src/modules/ProjectManager/WorkItems/types";
+import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
 import {
   WORK_ITEMS_KANBAN_GROUP,
   type WorkItemsKanbanGroup,
@@ -367,7 +368,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     }
     return [...people.values()];
   }, [workItems]);
-  const { memberIds: currentUserMemberIds } =
+  const { currentUser, memberIds: currentUserMemberIds } =
     useCurrentUserMemberIds(workItemPeople);
   const pinnedKanbanColumnIds = useMemo(
     () => [...currentUserMemberIds].map((memberId) => `person:${memberId}`),
@@ -475,15 +476,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       const shortId = getWorkItemShortId(workItemId);
       if (!shortId) return;
 
-      const payload = {} as Parameters<
-        typeof projectApi.updateWorkItemPartial
-      >[2];
-      if (updates.name !== undefined) payload.title = updates.name;
-      if (updates.spec !== undefined) payload.body = updates.spec;
-      if (updates.workItemStatus !== undefined) {
-        payload.status = updates.workItemStatus;
-      }
-      if (updates.priority !== undefined) payload.priority = updates.priority;
+      const payload = toWorkItemPartialUpdate(updates, currentUser);
       if (Object.keys(payload).length === 0) return;
 
       const updated = await projectApi.updateWorkItemPartial(
@@ -499,7 +492,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
         ),
       }));
     },
-    [getWorkItemShortId, projectSlug, setWorkItemsData]
+    [currentUser, getWorkItemShortId, projectSlug, setWorkItemsData]
   );
 
   const handleAddKanbanTask = useCallback(

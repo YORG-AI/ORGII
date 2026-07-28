@@ -1,6 +1,7 @@
 import { atom } from "jotai";
 
 import type { TeamInboxItem } from "./domain";
+import type { TeamInboxIssue } from "./domain";
 import type { TeamInboxUnreadCounts } from "./domain";
 
 export interface TeamInboxCacheState {
@@ -8,7 +9,7 @@ export interface TeamInboxCacheState {
   unreadCount: number;
   unreadCounts: TeamInboxUnreadCounts;
   loading: boolean;
-  error: string | null;
+  issue: TeamInboxIssue | null;
   revision: number;
   loadedForViewerKey: string | null;
   /** True when either the local or cloud source still has a next page. */
@@ -20,7 +21,7 @@ export const teamInboxCacheAtom = atom<TeamInboxCacheState>({
   unreadCount: 0,
   unreadCounts: { all: 0, mentions: 0, assigned: 0 },
   loading: false,
-  error: null,
+  issue: null,
   revision: 0,
   loadedForViewerKey: null,
   hasMore: false,

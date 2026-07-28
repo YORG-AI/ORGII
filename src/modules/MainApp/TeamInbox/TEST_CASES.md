@@ -19,20 +19,43 @@
 - Assigned items carry a trimmed, whitespace-folded, 240-char body excerpt as `summary`; blank bodies omit the field (`work_item_summary_excerpt`).
 - `mark_unread` deletes the viewer-scoped local or cloud receipt so the item returns to unread and remains idempotent; cloud receipts are not owned by localStorage.
 - `toWireCursorItemId` preserves the backend `work_item_assigned:` source prefix (strips only the UI `assigned_work_item:` kind prefix) so `Load more` cursor pagination round-trips instead of erroring.
+- Sidebar and full Inbox consumers in the same Jotai store share one scope-keyed coordinator, including initial request identity, local/cloud cursors, mutation ordering, cancellation, and the bounded 500-row snapshot.
+- Local and cloud reads settle independently: one successful source remains visible with a localized partial-success notice, and a failed pagination cursor remains retryable.
+- Switching account, organization, or resolved viewer identity synchronously evicts the old snapshot, aborts cloud work, and prevents late responses from committing into the new scope.
+- Exact account IDs, verified full email addresses, linked emails, and provider usernames may resolve a viewer; matching display names or equal email local-parts across domains never does.
+- Reassigning a Work Item changes `assigned_human_id` and deletes the prior assignment episode's read receipt in the same SQLite transaction; agent assignments never enter the human-assignment projection.
+- Failed read/unread persistence rolls back the coordinator-owned optimistic snapshot, while a newer per-item mutation supersedes an older response.
 
 ## Presentation / polish
 
 1. Filter tabs (`All` / `Mentions` / `Assigned`) show a primary count badge only when that surface has unread items; badge clamps to `99+`.
 2. Unread rows render a leading primary dot and bold title; read rows drop the dot and use medium weight.
-3. Assigned rows show the resolved assignee **name** (not the raw member id) and a `status · priority` summary using localized labels.
-4. Assigned detail shows localized `Status` and `Priority` rows and no misleading `Assigned by` row when no assigner is known.
-5. `Mark all as read` in the header marks **only the active filter's** unread items (Mentions view never marks Assigned, and vice versa).
-6. Empty state copy is filter-specific (`No mentions` vs `Nothing assigned to you`), falling back to the generic empty copy for `All`.
-7. A `SearchInput` toolbar row filters the loaded items live; typing a non-matching query shows a dedicated `No matches` empty state (distinct from the filter-empty copy); clearing the query restores the list.
-8. Rows are grouped under recency headers (`Today` / `Yesterday` / `This week` / `Earlier`); empty groups are hidden, and Arrow/Home/End keyboard navigation still traverses the flat visible order across group boundaries.
-9. Selecting an assigned item lazily loads the full Work Item body and renders it as Markdown; while loading / on failure / when empty it falls back to the short list excerpt. Selecting a mention renders the comment body as Markdown. Stale body responses are discarded when the selection changes.
-10. A read item's detail exposes a `Mark as unread` action; invoking it returns the row + Sidebar unread badge to the unread state (local assignment deletes the SQLite receipt; cloud mention deletes the managed-cloud receipt). Re-marking read still works after refresh or on another device.
-11. When a source still has a next page, the list shows a `Load more` control; invoking it appends the next page (local cursor round-trips with the `work_item_assigned:` prefix intact) and de-duplicates against the loaded set. The control hides once no source has more.
+3. Assigned rows show one title line, at most two plain-text excerpt lines, and a localized `status · priority` metadata line; Markdown syntax, escaped newlines, and redundant assignee names do not leak into the card.
+4. Successful edits in the selected Work Item immediately update the matching list row's title, summary, status, priority, and assignee; reassigning away from the viewer removes the stale assigned row.
+5. The list excerpt and detail Markdown body use the same `text-text-1` content token; hierarchy comes from size and weight rather than mismatched foreground colors.
+6. Assigned detail shows localized `Status` and `Priority` rows and no misleading `Assigned by` row when no assigner is known.
+7. `Mark all as read` in the header marks **only the active filter's** unread items (Mentions view never marks Assigned, and vice versa).
+8. Empty state copy is filter-specific (`No mentions` vs `Nothing assigned to you`), falling back to the generic empty copy for `All`.
+9. A `SearchInput` toolbar row filters the loaded items live; typing a non-matching query shows a dedicated `No matches` empty state (distinct from the filter-empty copy); clearing the query restores the list.
+10. Rows are grouped under recency headers (`Today` / `Yesterday` / `This week` / `Earlier`); empty groups are hidden, and Arrow/Home/End keyboard navigation still traverses the flat visible order across group boundaries.
+11. Selecting an assigned item lazily loads the full Work Item body and renders it as Markdown; while loading / on failure / when empty it falls back to the short list excerpt. Selecting a mention renders the comment body as Markdown. Stale body responses are discarded when the selection changes.
+12. A read item's detail exposes a `Mark as unread` action; invoking it returns the row + Sidebar unread badge to the unread state (local assignment deletes the SQLite receipt; cloud mention deletes the managed-cloud receipt). Re-marking read still works after refresh or on another device.
+13. When a source still has a next page, the list shows a `Load more` control—even when the active filter/search has no visible first-page result; invoking it appends the next page (local cursor round-trips with the `work_item_assigned:` prefix intact) and de-duplicates against the loaded set. The control hides once no source has more.
+14. Activating Retry after an initial load error calls the backing source's refresh boundary before reading a new snapshot; it never loops on the same failed cache entry.
+15. Partial-source degradation uses a warning treatment and preserves readable results; a total failure uses the blocking error state.
+
+## Coordinator state machine
+
+| State                | Entry                                                         | Visible behavior                                                                       | Allowed transition                                   | Ownership / persistence                                                   |
+| -------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------- |
+| Unavailable identity | Member files loaded but no exact viewer identity matches      | Cloud results may remain visible; local assignment availability is explicitly degraded | Refresh after profile/account correction             | Identity is derived; no guessed member id is persisted                    |
+| Loading              | New viewer/account/org scope or explicit refresh              | Old scope is synchronously removed; the new scope shows loading                        | Success, partial success, empty, error, scope switch | Coordinator owns request generation and AbortController                   |
+| Ready                | Every requested source succeeds                               | Shared list, counts, cursors, filters and detail are usable                            | Load more, mutation, refresh, scope switch           | Jotai cache is the canonical runtime snapshot                             |
+| Empty                | Successful sources return no rows                             | Filter-specific empty state; Load more stays available when a cursor exists            | Load more or refresh                                 | Empty is a successful snapshot, not an error                              |
+| Partial success      | At least one source/prerequisite succeeds and one degrades    | Successful rows stay actionable under a localized warning                              | Retry, pagination of remaining cursors, scope switch | Successful source data replaces only that source's projection             |
+| Error / timeout      | Every requested source fails or prerequisite loading fails    | Blocking error only when no usable rows remain; retained rows otherwise stay visible   | Retry invokes the real refresh boundary              | Diagnostic details remain internal; UI maps issue codes to localized copy |
+| Mutating             | Read/unread operation enters the shared mutation queue        | Snapshot updates optimistically once                                                   | Commit authoritative receipt, rollback, or supersede | Durable receipt is SQLite/cloud; optimistic state is coordinator-owned    |
+| Superseded           | Scope generation changes or a newer same-item mutation starts | Late completion is ignored; cloud work is aborted best-effort                          | New scope/request continues                          | No stale completion may write the current snapshot                        |
 
 ## Unified Work Item thread
 
@@ -43,7 +66,7 @@
 | 3   | Activate `View live chat` / `View conversation` on a Session card.                                                     | A separate Session Chat Panel tab opens or the existing tab for that Session is focused. Team Inbox remains open as its singleton tab.                                            |
 | 4   | Inspect a Work Item with proof of work and comments/history.                                                           | Output and activity render inline after the workflow; no second nested detail surface is introduced.                                                                              |
 | 5   | Switch assigned rows while the first full Work Item is still loading.                                                  | A late response from the first row never replaces the newly selected Work Item.                                                                                                   |
-| 6   | Make two property changes in quick succession.                                                                         | Only the newest response may replace the displayed Work Item snapshot; both writes use the canonical partial-update payload.                                                      |
+| 6   | Make two property changes in quick succession.                                                                         | Same-item writes run in invocation order through a bounded queue, so the final response contains both atomic partial updates and an older response cannot overwrite newer intent. |
 | 7   | Open a standalone assigned Work Item.                                                                                  | The thread remains readable, but edit controls/property rail are not exposed because standalone persistence requires the owning frontmatter round-trip.                           |
 | 8   | Fail the selected Work Item read.                                                                                      | A visible error placeholder is shown; the short list row remains available for retry/navigation.                                                                                  |
 | 9   | Open a project Work Item with a short description.                                                                     | The description renders at its natural Markdown height. `Preview / Raw` and the editor are absent until `Edit` is activated.                                                      |
@@ -57,6 +80,7 @@
 | 17  | Compare the To-Do and Agent Workflow cards, then collapse Workflow.                                                    | Both cards share one Work Item thread visual shell; Workflow retains its existing collapse behavior and To-Do remains independently interactive.                                  |
 | 18  | Open Assignee or Reviewer in a project-scoped Inbox Work Item.                                                         | The picker contains the complete active project roster, resolves stored member ids to names, and persists through the canonical partial-update boundary.                          |
 | 19  | Inspect creator, comments, and history written with stored member ids.                                                 | Known ids resolve to project-member names; unknown ids remain visible instead of being guessed or silently blanked.                                                               |
+| 20  | Load a Work Item while its project or member context read fails.                                                       | The successfully loaded Work Item remains usable under a localized warning; only failure of the required Work Item read replaces it with an error state.                          |
 
 ### Unified thread acceptance criteria
 

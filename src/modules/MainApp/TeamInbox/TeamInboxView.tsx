@@ -1,8 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import type { WorkItem } from "@src/types/core/workItem";
 
 import {
   AssignedWorkItemDetail,
@@ -12,11 +19,11 @@ import {
 import {
   type TeamInboxDataSource,
   type TeamInboxFilter,
+  type TeamInboxIssue,
   type TeamInboxItem,
   type TeamInboxNavigationIntent,
   type TeamInboxUnreadCounts,
   countUnreadTeamInboxItemsByFilter,
-  filterItemKind,
   getTeamInboxItemKey,
   searchTeamInboxItems,
   selectTeamInboxItems,
@@ -28,6 +35,7 @@ export interface TeamInboxViewProps {
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   initialFilter?: TeamInboxFilter;
   pageSize?: number;
+  viewerMemberIds?: readonly string[];
 }
 
 const EMPTY_TEAM_INBOX_DATA_SOURCE: TeamInboxDataSource = {
@@ -37,7 +45,7 @@ const EMPTY_TEAM_INBOX_DATA_SOURCE: TeamInboxDataSource = {
 };
 
 interface LoadState {
-  status: "loading" | "ready" | "error";
+  status: "loading" | "ready" | "warning" | "error";
   message: string | null;
 }
 
@@ -46,6 +54,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   onNavigate,
   initialFilter = "all",
   pageSize = 50,
+  viewerMemberIds = [],
 }) => {
   const { t } = useTranslation();
   const [filter, setFilter] = useState<TeamInboxFilter>(initialFilter);
@@ -62,8 +71,27 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [reloadRevision, setReloadRevision] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const mutationEpochRef = useRef(0);
-  const mutationByItemRef = useRef(new Map<string, number>());
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const issueMessage = useCallback(
+    (issue: TeamInboxIssue): string => {
+      if (issue.code === "identity_unresolved") {
+        return t("teamInbox.errors.identity");
+      }
+      if (issue.code === "partial_load") {
+        return t("teamInbox.errors.partialLoad");
+      }
+      return t("teamInbox.errors.load");
+    },
+    [t]
+  );
 
   useEffect(() => {
     const abortController = new AbortController();
@@ -76,7 +104,17 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         setAuthoritativeUnreadCounts(page.unreadCounts ?? null);
         setRecencyAnchorMs(Date.now());
         setHasMore(page.nextCursor != null);
-        setLoadState({ status: "ready", message: null });
+        setLoadState(
+          page.loading
+            ? { status: "loading", message: null }
+            : page.issue
+              ? {
+                  status:
+                    page.issue.code === "partial_load" ? "warning" : "error",
+                  message: issueMessage(page.issue),
+                }
+              : { status: "ready", message: null }
+        );
       })
       .catch((reason: unknown) => {
         if (abortController.signal.aborted) return;
@@ -84,13 +122,18 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
           status: "error",
           message:
             reason instanceof Error
-              ? reason.message
+              ? "issue" in reason &&
+                reason.issue &&
+                typeof reason.issue === "object" &&
+                "code" in reason.issue
+                ? issueMessage(reason.issue as TeamInboxIssue)
+                : reason.message
               : t("teamInbox.errors.load"),
         });
       });
 
     return () => abortController.abort();
-  }, [dataSource, pageSize, reloadRevision, t]);
+  }, [dataSource, issueMessage, pageSize, reloadRevision, t]);
 
   useEffect(() => {
     if (!dataSource.subscribe) return;
@@ -121,26 +164,25 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     ? getTeamInboxItemKey(selectedItem)
     : null;
 
-  const retry = () => {
-    setLoadState({ status: "loading", message: null });
-    setReloadRevision((value) => value + 1);
-  };
-
   const handleLoadMore = () => {
     if (!dataSource.loadMore || loadingMore) return;
     setLoadingMore(true);
     void dataSource
       .loadMore()
-      .catch((reason: unknown) => {
+      .then(() => {
+        if (mountedRef.current) {
+          setReloadRevision((value) => value + 1);
+        }
+      })
+      .catch(() => {
         setLoadState({
           status: "error",
-          message:
-            reason instanceof Error
-              ? reason.message
-              : t("teamInbox.errors.load"),
+          message: t("teamInbox.errors.loadMore"),
         });
       })
-      .finally(() => setLoadingMore(false));
+      .finally(() => {
+        if (mountedRef.current) setLoadingMore(false);
+      });
   };
 
   const handleRefresh = () => {
@@ -149,70 +191,25 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
       setReloadRevision((value) => value + 1);
       return;
     }
-    void dataSource.refresh().catch((reason: unknown) => {
-      setLoadState({
-        status: "error",
-        message:
-          reason instanceof Error
-            ? reason.message
-            : t("teamInbox.errors.refresh"),
+    void dataSource
+      .refresh()
+      .then(() => {
+        if (mountedRef.current) {
+          setReloadRevision((value) => value + 1);
+        }
+      })
+      .catch(() => {
+        setLoadState({
+          status: "error",
+          message: t("teamInbox.errors.refresh"),
+        });
       });
-    });
-  };
-
-  const beginItemMutations = (itemIds: readonly string[]): number => {
-    const epoch = ++mutationEpochRef.current;
-    for (const itemId of itemIds) mutationByItemRef.current.set(itemId, epoch);
-    return epoch;
-  };
-
-  const isCurrentItemMutation = (itemId: string, epoch: number): boolean =>
-    mutationByItemRef.current.get(itemId) === epoch;
-
-  const updateUnreadCount = (kind: TeamInboxItem["kind"], delta: number) => {
-    setAuthoritativeUnreadCounts((current) => {
-      if (!current) return null;
-      const key =
-        kind === "comment_mention"
-          ? ("mentions" as const)
-          : ("assigned" as const);
-      const nextForKind = Math.max(0, current[key] + delta);
-      return {
-        ...current,
-        [key]: nextForKind,
-        all: Math.max(0, current.all + delta),
-      };
-    });
-  };
-
-  const markLocallyRead = (item: TeamInboxItem) => {
-    const readAt = new Date().toISOString();
-    setItems((current) =>
-      current.map((candidate) =>
-        getTeamInboxItemKey(candidate) === getTeamInboxItemKey(item)
-          ? { ...candidate, readAt }
-          : candidate
-      )
-    );
   };
 
   const handleSelect = (item: TeamInboxItem) => {
     setRequestedItemId(getTeamInboxItemKey(item));
     if (item.readAt !== null) return;
-    const epoch = beginItemMutations([item.id]);
-    markLocallyRead(item);
-    updateUnreadCount(item.kind, -1);
     void dataSource.markRead?.(item).catch(() => {
-      if (isCurrentItemMutation(item.id, epoch)) {
-        setItems((current) =>
-          current.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, readAt: null }
-              : candidate
-          )
-        );
-        updateUnreadCount(item.kind, 1);
-      }
       setLoadState({
         status: "error",
         message: t("teamInbox.errors.markRead"),
@@ -222,20 +219,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
 
   const handleMarkRead = (item: TeamInboxItem) => {
     if (item.readAt !== null) return;
-    const epoch = beginItemMutations([item.id]);
-    markLocallyRead(item);
-    updateUnreadCount(item.kind, -1);
     void dataSource.markRead?.(item).catch(() => {
-      if (isCurrentItemMutation(item.id, epoch)) {
-        setItems((current) =>
-          current.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, readAt: null }
-              : candidate
-          )
-        );
-        updateUnreadCount(item.kind, 1);
-      }
       setLoadState({
         status: "error",
         message: t("teamInbox.errors.markRead"),
@@ -245,27 +229,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
 
   const handleMarkUnread = (item: TeamInboxItem) => {
     if (item.readAt === null) return;
-    const previousReadAt = item.readAt;
-    const epoch = beginItemMutations([item.id]);
-    setItems((current) =>
-      current.map((candidate) =>
-        getTeamInboxItemKey(candidate) === getTeamInboxItemKey(item)
-          ? { ...candidate, readAt: null }
-          : candidate
-      )
-    );
-    updateUnreadCount(item.kind, 1);
     void dataSource.markUnread?.(item).catch(() => {
-      if (isCurrentItemMutation(item.id, epoch)) {
-        setItems((current) =>
-          current.map((candidate) =>
-            candidate.id === item.id
-              ? { ...candidate, readAt: previousReadAt }
-              : candidate
-          )
-        );
-        updateUnreadCount(item.kind, -1);
-      }
       setLoadState({
         status: "error",
         message: t("teamInbox.errors.markUnread"),
@@ -274,12 +238,6 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   };
 
   const handleMarkAllRead = () => {
-    const targetKind = filterItemKind(filter);
-    const unreadItems = items.filter(
-      (item) =>
-        item.readAt === null &&
-        (targetKind === null || item.kind === targetKind)
-    );
     const filterUnreadCount =
       filter === "all"
         ? unreadCounts.all
@@ -287,51 +245,60 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
           ? unreadCounts.mentions
           : unreadCounts.assigned;
     if (filterUnreadCount === 0) return;
-    const readAt = new Date().toISOString();
-    const affectedItems = items.filter(
-      (item) => targetKind === null || item.kind === targetKind
-    );
-    const previousReadAtById = new Map(
-      affectedItems.map((item) => [item.id, item.readAt])
-    );
-    const affectedIds = affectedItems.map((item) => item.id);
-    const epoch = beginItemMutations(affectedIds);
-    const previousCounts = authoritativeUnreadCounts;
-    const markedIds = new Set(affectedIds);
-    setItems((current) =>
-      current.map((item) =>
-        markedIds.has(item.id) ? { ...item, readAt } : item
-      )
-    );
-    setAuthoritativeUnreadCounts((current) => {
-      if (!current) return null;
-      const assigned =
-        filter === "all" || filter === "assigned" ? 0 : current.assigned;
-      const mentions =
-        filter === "all" || filter === "mentions" ? 0 : current.mentions;
-      return { all: assigned + mentions, assigned, mentions };
-    });
-    void dataSource.markAllRead?.(unreadItems, filter).catch(() => {
-      setItems((current) =>
-        current.map((item) =>
-          isCurrentItemMutation(item.id, epoch) &&
-          previousReadAtById.has(item.id)
-            ? {
-                ...item,
-                readAt: previousReadAtById.get(item.id) ?? null,
-              }
-            : item
-        )
-      );
-      if (affectedIds.every((itemId) => isCurrentItemMutation(itemId, epoch))) {
-        setAuthoritativeUnreadCounts(previousCounts);
-      }
+    void dataSource.markAllRead?.([], filter).catch(() => {
       setLoadState({
         status: "error",
         message: t("teamInbox.errors.markAllRead"),
       });
     });
   };
+
+  const handleWorkItemUpdated = useCallback(
+    (sourceItem: TeamInboxItem, workItem: WorkItem) => {
+      if (sourceItem.kind !== "assigned_work_item") return;
+      const sourceKey = getTeamInboxItemKey(sourceItem);
+      const assignee = workItem.assignee;
+      const belongsToViewer = assignee
+        ? viewerMemberIds.length > 0
+          ? viewerMemberIds.includes(assignee.id)
+          : assignee.id === sourceItem.payload.assigneeMemberId
+        : false;
+      const status =
+        workItem.workItemStatus ?? workItem.status ?? sourceItem.payload.status;
+      const updatedAt = workItem.updated_time || sourceItem.payload.updatedAt;
+      const nextItem: TeamInboxItem | null =
+        assignee && belongsToViewer
+          ? {
+              ...sourceItem,
+              occurredAt: updatedAt,
+              payload: {
+                ...sourceItem.payload,
+                title: workItem.name || sourceItem.payload.title,
+                status,
+                priority: workItem.priority ?? sourceItem.payload.priority,
+                assigneeMemberId: assignee.id,
+                assigneeName: assignee.name,
+                summary: workItem.spec?.trim() || undefined,
+                updatedAt,
+              },
+            }
+          : null;
+      if (dataSource.reconcileItem) {
+        dataSource.reconcileItem(sourceKey, nextItem);
+        return;
+      }
+      setItems((current) =>
+        current.flatMap((candidate) =>
+          getTeamInboxItemKey(candidate) === sourceKey
+            ? nextItem
+              ? [nextItem]
+              : []
+            : [candidate]
+        )
+      );
+    },
+    [dataSource, viewerMemberIds]
+  );
 
   const detail = (() => {
     if (loadState.status === "loading") {
@@ -351,7 +318,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
           placement="detail-panel"
           title={t("teamInbox.errors.loadTitle")}
           subtitle={loadState.message ?? undefined}
-          action={{ label: t("common:actions.retry"), onClick: retry }}
+          action={{ label: t("common:actions.retry"), onClick: handleRefresh }}
           fillParentHeight
         />
       );
@@ -387,24 +354,33 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         onMarkRead={dataSource.markRead ? handleMarkRead : undefined}
         onMarkUnread={dataSource.markUnread ? handleMarkUnread : undefined}
         onNavigate={onNavigate}
+        onWorkItemUpdated={(workItem) =>
+          handleWorkItemUpdated(selectedItem, workItem)
+        }
       />
     );
   })();
 
   return (
-    <div className="relative h-full min-h-0">
-      {loadState.status === "error" && items.length > 0 ? (
+    <div className="flex h-full min-h-0 flex-col">
+      {(loadState.status === "error" || loadState.status === "warning") &&
+      items.length > 0 ? (
         <div
           role="status"
-          className="absolute inset-x-0 top-0 z-10 border-b border-danger-3 bg-danger-1 px-3 py-2 text-xs text-danger-6"
+          className={`shrink-0 border-b px-3 py-2 text-xs ${
+            loadState.status === "warning"
+              ? "border-warning-3 bg-warning-6/10 text-warning-6"
+              : "border-danger-3 bg-danger-1 text-danger-6"
+          }`}
         >
           {loadState.message}
         </div>
       ) : null}
       <SplitViewLayout
-        className="h-full rounded-page"
-        listWidth={200}
-        minListWidth={160}
+        className="min-h-0 flex-1 rounded-page"
+        listWidth={280}
+        minListWidth={220}
+        maxListWidth={360}
         resizable
         collapsible
         hideBreadcrumbWhenSidebarCollapsed
@@ -422,7 +398,10 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
               variant="error"
               title={t("teamInbox.errors.loadTitle")}
               subtitle={loadState.message ?? undefined}
-              action={{ label: t("common:actions.retry"), onClick: retry }}
+              action={{
+                label: t("common:actions.retry"),
+                onClick: handleRefresh,
+              }}
               fillParentHeight
             />
           ) : (

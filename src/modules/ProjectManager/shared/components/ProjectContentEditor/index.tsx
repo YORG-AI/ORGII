@@ -71,6 +71,7 @@ export interface ProjectContentEditorProps {
   descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
   descriptionDefaultMode?: RichMarkdownEditorMode;
+  descriptionShowTabs?: boolean;
   repoPath?: string | null;
   dataTestId?: string;
 }
@@ -144,6 +145,7 @@ const ProjectContentEditor = forwardRef<
       descriptionMinHeight = 200,
       descriptionMaxHeight,
       descriptionDefaultMode,
+      descriptionShowTabs = true,
       repoPath,
       dataTestId,
     },
@@ -395,6 +397,7 @@ const ProjectContentEditor = forwardRef<
               minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
               defaultMode={descriptionDefaultMode}
+              showTabs={descriptionShowTabs}
               editable={editable}
               toolbarClassName="work-item-toolbar"
               className={`noDrag flex-1 cursor-text rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}

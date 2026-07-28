@@ -92,5 +92,7 @@ export interface TimelineEntry {
   timestamp: string;
   type: WorkItemHistoryAction;
   userName: string;
+  userAvatar?: string;
+  userColor?: string;
   descriptions: string[];
 }

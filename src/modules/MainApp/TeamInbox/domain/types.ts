@@ -36,6 +36,8 @@ export interface CommentMentionItem extends TeamInboxItemBase {
   payload: {
     commentBody: string;
     context?: string;
+    /** Structured cloud value; presentation localizes it at render time. */
+    threadCommentCount?: number;
     commentCount: number;
   };
 }
@@ -66,12 +68,27 @@ export interface TeamInboxCursor {
 export interface TeamInboxPage {
   items: TeamInboxItem[];
   nextCursor: TeamInboxCursor | null;
+  /** True when this snapshot was synchronously cleared for a new scope. */
+  loading?: boolean;
+  /** Non-fatal or fatal source condition associated with this snapshot. */
+  issue?: TeamInboxIssue | null;
   /** Authoritative source totals; absent on lightweight/test data sources. */
   unreadCounts?: {
     all: number;
     mentions: number;
     assigned: number;
   };
+}
+
+export type TeamInboxIssueCode =
+  | "identity_unresolved"
+  | "load_failed"
+  | "partial_load";
+
+export interface TeamInboxIssue {
+  code: TeamInboxIssueCode;
+  /** Diagnostic detail for logs/support; UI copy is derived from `code`. */
+  detail?: string;
 }
 
 export interface ListTeamInboxInput {
@@ -101,6 +118,11 @@ export interface TeamInboxDataSource {
    */
   loadMore?(): Promise<void>;
   subscribe?(listener: () => void): () => void;
+  /**
+   * Reconciles a detail-side projection into the canonical list snapshot.
+   * `nextItem = null` removes an item that no longer belongs to this viewer.
+   */
+  reconcileItem?(itemKey: string, nextItem: TeamInboxItem | null): void;
 }
 
 export type TeamInboxNavigationIntent =

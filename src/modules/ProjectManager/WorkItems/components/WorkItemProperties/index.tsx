@@ -60,6 +60,21 @@ export const WORK_ITEM_PROPERTY_INLINE_FIELDS: WorkItemPropertyFieldKey[] = [
   "priority",
 ];
 
+/**
+ * Canonical property summary for thread-style Work Item surfaces.
+ *
+ * Keep this list shared so opening the same Work Item from another surface
+ * does not silently change its visible metadata or ordering.
+ */
+export const WORK_ITEM_THREAD_PROPERTY_FIELDS: WorkItemPropertyFieldKey[] = [
+  "project",
+  "status",
+  "priority",
+  "assignee",
+  "reviewer",
+  "date",
+];
+
 const DEFAULT_VISIBLE_FIELDS: WorkItemPropertyFieldKey[] = [
   "project",
   "status",

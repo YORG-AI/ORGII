@@ -43,6 +43,7 @@ import { WorkItemThreadLayout } from "../WorkItemThread";
 import HistoryTab from "./HistoryTab";
 import OutputTab from "./OutputTab";
 import ThreadTodoChecklist from "./ThreadTodoChecklist";
+import { normalizeLegacyEscapedMarkdown } from "./descriptionMarkdown";
 import { useGitHubIssueTimeline } from "./hooks/useGitHubIssueTimeline";
 import { useWorkItemContentState } from "./hooks/useWorkItemContentState";
 import { resolveWorkItemContentSectionPolicy } from "./presentation";
@@ -227,7 +228,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     teamMembers?.find((member) => member.id === workItem.user_id)?.name ||
     workItem.user_id ||
     t("workItems.activity.system");
-  const displayedDescription = resolvedDescription ?? rawDescription;
+  const normalizedRawDescription =
+    normalizeLegacyEscapedMarkdown(rawDescription);
+  const displayedDescription = normalizeLegacyEscapedMarkdown(
+    resolvedDescription ?? rawDescription
+  );
   const displayStatus = workItem.workItemStatus ?? workItem.status;
   const isGitHubWorkItem =
     displayStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
@@ -314,7 +319,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         }
       >
         <TimelineCard
-          copyBody={rawDescription}
+          copyBody={normalizedRawDescription}
           actions={descriptionActions}
           className={isThread ? "shadow-sm" : undefined}
           bodyClassName={isThread ? "px-4 py-4" : undefined}
@@ -406,6 +411,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               descriptionMinHeight={isThread ? 120 : 200}
               descriptionMaxHeight={isThread ? 360 : 600}
               descriptionDefaultMode={isThread ? "raw" : undefined}
+              descriptionShowTabs={!isThread}
               descriptionClassName="no-bottom-border"
               repoPath={repoPath}
               className="w-full"
@@ -483,6 +489,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
 
   const historyContent = (
     <HistoryTab
+      key={workItem.session_id}
       timelineEntries={timelineEntries}
       currentUser={currentUser}
       isSubscribed={isSubscribed}
