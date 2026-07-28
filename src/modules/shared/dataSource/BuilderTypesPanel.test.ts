@@ -44,7 +44,7 @@ describe("BuilderTypesPanel", () => {
       '[data-testid="builder-type-card-MDFS"]'
     );
 
-    const textColumn = systemsArchitect?.firstElementChild?.lastElementChild;
+    const textColumn = systemsArchitect?.lastElementChild;
     const lines = Array.from(textColumn?.children ?? []);
     expect(lines.slice(0, 2).map((line) => line.textContent)).toEqual([
       "MDFS",
@@ -58,28 +58,38 @@ describe("BuilderTypesPanel", () => {
     ]);
   });
 
-  it("opens a second-layer detail and returns to the gallery", () => {
-    const knowMore = container.querySelector<HTMLButtonElement>(
-      '[data-testid="builder-type-know-more-EAWH"]'
+  it("opens detail in a navigable modal without replacing the gallery", () => {
+    const card = container.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-type-card-EAWH"]'
     );
-    act(() => knowMore?.click());
+    act(() => card?.click());
 
     expect(
-      container.querySelector('[data-testid="builder-type-detail"]')
+      document.body.querySelector('[data-testid="builder-type-detail"]')
         ?.textContent
     ).toContain("EAWH");
     expect(
       container.querySelector('[data-testid="builder-types-gallery"]')
-    ).toBeNull();
+    ).not.toBeNull();
 
-    const back = container.querySelector<HTMLButtonElement>(
-      '[data-testid="builder-type-detail-back"]'
+    const next = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-type-next"]'
     );
-    act(() => back?.click());
+    act(() => next?.click());
 
     expect(
-      container.querySelector('[data-testid="builder-types-gallery"]')
-    ).not.toBeNull();
+      document.body.querySelector('[data-testid="builder-type-detail"]')
+        ?.textContent
+    ).toContain("MDFS");
+
+    const close = document.body.querySelector<HTMLButtonElement>(
+      '.liquid-modal-content button[title="Close"]'
+    );
+    act(() => close?.click());
+
+    expect(
+      document.body.querySelector('[data-testid="builder-type-detail-modal"]')
+    ).toBeNull();
 
     act(() =>
       container
@@ -87,5 +97,15 @@ describe("BuilderTypesPanel", () => {
         ?.click()
     );
     expect(onBack).toHaveBeenCalledOnce();
+  });
+
+  it("renders the gallery back control as an icon-only tertiary button", () => {
+    const back = container.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-types-back"]'
+    );
+
+    expect(back?.textContent).toBe("");
+    expect(back?.getAttribute("aria-label")).toBe("common:actions.back");
+    expect(back?.className).toContain("text-text-2");
   });
 });

@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import BuilderTypeDetailPanel from "./BuilderTypeDetailPanel";
+import BuilderTypeDetailModal from "./BuilderTypeDetailPanel";
 import { getBuilderType } from "./builderTypes";
 
 vi.mock("react-i18next", () => ({
@@ -17,7 +17,7 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-describe("BuilderTypeDetailPanel", () => {
+describe("BuilderTypeDetailModal", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -34,19 +34,23 @@ describe("BuilderTypeDetailPanel", () => {
 
   it("renders the selected type profile and agent guidance", () => {
     const type = getBuilderType("EAWH");
-    const onBack = vi.fn();
+    const onClose = vi.fn();
+    const onPrevious = vi.fn();
+    const onNext = vi.fn();
     expect(type).toBeDefined();
 
     act(() =>
       root.render(
-        createElement(BuilderTypeDetailPanel, {
+        createElement(BuilderTypeDetailModal, {
           type: type!,
-          onBack,
+          onClose,
+          onPrevious,
+          onNext,
         })
       )
     );
 
-    const detail = container.querySelector(
+    const detail = document.body.querySelector(
       '[data-testid="builder-type-detail"]'
     );
     expect(detail?.textContent).toContain("EAWH");
@@ -59,12 +63,37 @@ describe("BuilderTypeDetailPanel", () => {
     ).not.toBeNull();
 
     act(() =>
-      container
+      document.body
         .querySelector<HTMLButtonElement>(
-          '[data-testid="builder-type-detail-back"]'
+          '[data-testid="builder-type-previous"]'
         )
         ?.click()
     );
-    expect(onBack).toHaveBeenCalledOnce();
+    act(() =>
+      document.body
+        .querySelector<HTMLButtonElement>('[data-testid="builder-type-next"]')
+        ?.click()
+    );
+
+    expect(onPrevious).toHaveBeenCalledOnce();
+    expect(onNext).toHaveBeenCalledOnce();
+
+    const previous = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-type-previous"]'
+    );
+    const next = document.body.querySelector<HTMLButtonElement>(
+      '[data-testid="builder-type-next"]'
+    );
+    expect(previous?.textContent).toBe("");
+    expect(next?.textContent).toBe("");
+
+    act(() =>
+      document.body
+        .querySelector<HTMLButtonElement>(
+          '.liquid-modal-content button[title="Close"]'
+        )
+        ?.click()
+    );
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });

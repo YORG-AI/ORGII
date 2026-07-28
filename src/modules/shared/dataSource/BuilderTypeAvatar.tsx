@@ -21,7 +21,7 @@ const BuilderTypeAvatar = memo(function BuilderTypeAvatar({
       height={640}
       loading={eager ? "eager" : "lazy"}
       decoding="async"
-      className={`aspect-square object-cover ${className}`}
+      className={`aspect-square object-contain ${className}`}
       data-testid={`builder-type-avatar-${type.code}`}
     />
   );

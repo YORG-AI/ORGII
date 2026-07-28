@@ -71,6 +71,16 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     title?: string;
     children?: unknown;
   }) => createElement("section", null, title ?? "", children as never),
+  PANEL_HEADER_TOKENS: {
+    actionButton: {
+      variant: "tertiary",
+      size: "mini",
+      shape: "circle",
+      iconOnly: true,
+    },
+    buttonIconSize: 16,
+    iconStrokeWidth: 1.75,
+  },
   STAT_GRID_TOKENS: { cols3: "", cols4: "" },
 }));
 

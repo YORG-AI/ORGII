@@ -1,12 +1,9 @@
-import { ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import {
-  SECTION_GAP_CLASSES,
-  SECTION_SUBHEADING_CLASSES,
-} from "@src/modules/shared/layouts/SectionLayout";
+import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks";
+import Modal from "@src/scaffold/ModalSystem";
 
 import BuilderTypeAvatar from "./BuilderTypeAvatar";
 import type { BuilderTypeDefinition, BuilderTypeLetter } from "./builderTypes";
@@ -68,7 +65,7 @@ export function BuilderTypeDetailContent({
         <BuilderTypeAvatar
           type={type}
           eager={eager}
-          className={`w-full rounded-xl @[600px]:h-64 @[600px]:w-64 ${
+          className={`w-full rounded-xl @[600px]:h-72 @[600px]:w-72 ${
             muted ? "opacity-60 grayscale" : ""
           }`}
         />
@@ -113,45 +110,63 @@ export function BuilderTypeDetailContent({
   );
 }
 
-export interface BuilderTypeDetailPanelProps {
+export interface BuilderTypeDetailModalProps {
   type: BuilderTypeDefinition;
-  onBack: () => void;
+  onClose: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
 }
 
-export default function BuilderTypeDetailPanel({
+export default function BuilderTypeDetailModal({
   type,
-  onBack,
-}: BuilderTypeDetailPanelProps) {
+  onClose,
+  onPrevious,
+  onNext,
+}: BuilderTypeDetailModalProps) {
   const { t } = useTranslation(["builderProfile", "common"]);
 
   return (
-    <div
-      className="flex h-full min-h-0 flex-col"
-      data-testid="builder-type-detail-panel"
+    <Modal
+      visible
+      title={`${type.code} · ${type.name}`}
+      width={960}
+      onCancel={onClose}
+      bodyClassName="p-3 @container"
     >
       <div
-        className={`${DETAIL_PANEL_TOKENS.headerWidth} flex min-h-10 shrink-0 items-center gap-2 px-4 pt-2`}
+        className="flex items-center gap-2"
+        data-testid="builder-type-detail-modal"
       >
         <Button
-          variant="tertiary"
-          size="small"
-          onClick={onBack}
-          data-testid="builder-type-detail-back"
-          icon={<ArrowLeft className="h-3.5 w-3.5" />}
-        >
-          {t("common:actions.back")}
-        </Button>
-        <h2 className={SECTION_SUBHEADING_CLASSES}>
-          {type.code} · {type.name}
-        </h2>
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container">
-        <div
-          className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} pb-[50vh] pt-2`}
-        >
+          {...PANEL_HEADER_TOKENS.actionButton}
+          onClick={onPrevious}
+          data-testid="builder-type-previous"
+          icon={
+            <ChevronLeft
+              size={PANEL_HEADER_TOKENS.buttonIconSize}
+              strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+            />
+          }
+          title={t("common:actions.previous")}
+          aria-label={t("common:actions.previous")}
+        />
+        <div className="min-w-0 flex-1">
           <BuilderTypeDetailContent type={type} eager />
         </div>
+        <Button
+          {...PANEL_HEADER_TOKENS.actionButton}
+          onClick={onNext}
+          data-testid="builder-type-next"
+          icon={
+            <ChevronRight
+              size={PANEL_HEADER_TOKENS.buttonIconSize}
+              strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+            />
+          }
+          title={t("common:actions.next")}
+          aria-label={t("common:actions.next")}
+        />
       </div>
-    </div>
+    </Modal>
   );
 }

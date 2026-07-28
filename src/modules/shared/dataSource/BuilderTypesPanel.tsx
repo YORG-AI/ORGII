@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,10 +8,13 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { STAT_GRID_TOKENS } from "@src/modules/shared/layouts/blocks";
+import {
+  PANEL_HEADER_TOKENS,
+  STAT_GRID_TOKENS,
+} from "@src/modules/shared/layouts/blocks";
 
 import BuilderTypeAvatar from "./BuilderTypeAvatar";
-import BuilderTypeDetailPanel from "./BuilderTypeDetailPanel";
+import BuilderTypeDetailModal from "./BuilderTypeDetailPanel";
 import {
   BUILDER_TYPES,
   type BuilderTypeDefinition,
@@ -39,45 +42,34 @@ function BuilderTypeCard({
   );
 
   return (
-    <article
-      className="flex min-h-32 flex-col rounded-lg border border-border-2 bg-bg-2 p-3"
+    <button
+      type="button"
+      className="group flex min-h-56 flex-col items-start rounded-lg border border-border-2 bg-bg-2 p-3 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-6"
+      onClick={onOpen}
+      aria-label={`${type.code} ${type.name}`}
       data-testid={`builder-type-card-${type.code}`}
     >
-      <div className="flex items-center gap-3">
-        <BuilderTypeAvatar
-          type={type}
-          className="h-16 w-16 shrink-0 rounded-md"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="font-mono text-sm font-semibold text-text-1">
-            {type.code}
+      <BuilderTypeAvatar
+        type={type}
+        className="mx-auto h-32 w-32 shrink-0 transition-transform group-hover:scale-[1.02]"
+      />
+      <div className="mt-2 w-full min-w-0">
+        <div className="font-mono text-sm font-semibold text-text-1">
+          {type.code}
+        </div>
+        <div className="mt-0.5 text-[13px] font-medium text-text-1">
+          {type.name}
+        </div>
+        <div className="mt-1.5 text-xs leading-relaxed text-text-3">
+          <div>
+            {preferenceNames[0]} · {preferenceNames[1]}
           </div>
-          <div className="mt-0.5 text-[13px] font-medium text-text-1">
-            {type.name}
-          </div>
-          <div className="mt-1.5 text-xs leading-relaxed text-text-3">
-            <div>
-              {preferenceNames[0]} · {preferenceNames[1]}
-            </div>
-            <div>
-              {preferenceNames[2]} · {preferenceNames[3]}
-            </div>
+          <div>
+            {preferenceNames[2]} · {preferenceNames[3]}
           </div>
         </div>
       </div>
-      <div className="mt-auto flex justify-end pt-3">
-        <Button
-          variant="tertiary"
-          size="small"
-          onClick={onOpen}
-          data-testid={`builder-type-know-more-${type.code}`}
-          icon={<ArrowRight className="h-3.5 w-3.5" />}
-          iconPosition="right"
-        >
-          {t("types.knowMore")}
-        </Button>
-      </div>
-    </article>
+    </button>
   );
 }
 
@@ -89,14 +81,17 @@ export default function BuilderTypesPanel({ onBack }: BuilderTypesPanelProps) {
   const { t } = useTranslation(["builderProfile", "common"]);
   const [selectedType, setSelectedType] = useState<BuilderTypeDefinition>();
 
-  if (selectedType) {
-    return (
-      <BuilderTypeDetailPanel
-        type={selectedType}
-        onBack={() => setSelectedType(undefined)}
-      />
-    );
-  }
+  const navigateType = (offset: number) => {
+    setSelectedType((current) => {
+      if (!current) return current;
+      const currentIndex = BUILDER_TYPES.findIndex(
+        (type) => type.code === current.code
+      );
+      const nextIndex =
+        (currentIndex + offset + BUILDER_TYPES.length) % BUILDER_TYPES.length;
+      return BUILDER_TYPES[nextIndex];
+    });
+  };
 
   return (
     <div
@@ -107,14 +102,18 @@ export default function BuilderTypesPanel({ onBack }: BuilderTypesPanelProps) {
         className={`${DETAIL_PANEL_TOKENS.headerWidth} flex min-h-10 shrink-0 items-center gap-2 px-4 pt-2`}
       >
         <Button
-          variant="tertiary"
-          size="small"
+          {...PANEL_HEADER_TOKENS.actionButton}
           onClick={onBack}
           data-testid="builder-types-back"
-          icon={<ArrowLeft className="h-3.5 w-3.5" />}
-        >
-          {t("common:actions.back")}
-        </Button>
+          icon={
+            <ArrowLeft
+              size={PANEL_HEADER_TOKENS.buttonIconSize}
+              strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
+            />
+          }
+          title={t("common:actions.back")}
+          aria-label={t("common:actions.back")}
+        />
         <h2 className={SECTION_SUBHEADING_CLASSES}>{t("types.title")}</h2>
       </div>
 
@@ -173,6 +172,15 @@ export default function BuilderTypesPanel({ onBack }: BuilderTypesPanelProps) {
           </section>
         </div>
       </div>
+
+      {selectedType && (
+        <BuilderTypeDetailModal
+          type={selectedType}
+          onClose={() => setSelectedType(undefined)}
+          onPrevious={() => navigateType(-1)}
+          onNext={() => navigateType(1)}
+        />
+      )}
     </div>
   );
 }
