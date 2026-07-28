@@ -29,7 +29,6 @@ interface UseWorkstationSidebarContextMenuParams {
   handleTogglePin: (sessionId: string) => Promise<void>;
 
   onLinkToWorkItem?: (sessionId: string) => void;
-
   /** Owner-side share dialog gate + opener (design §6.3, M4b). */
   /** Move-to-cloud-org (session→org tag) gate + opener. */
   isMoveEligible: (session: Session) => boolean;
@@ -45,7 +44,7 @@ interface UseWorkstationSidebarContextMenuParams {
   cloudShareLabel: string;
   /** Teammate cloud rows have no local Session; remove means local hide. */
   handleCloudRemoteItemRemove?: (item: NavigationMenuItem) => boolean;
-
+  onLinkToProject?: (sessionId: string) => void;
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -59,7 +58,6 @@ export function useWorkstationSidebarContextMenu({
   handleTogglePin,
 
   onLinkToWorkItem,
-
   isMoveEligible,
   handleOpenMoveToOrg,
   moveToOrgLabel,
@@ -70,7 +68,7 @@ export function useWorkstationSidebarContextMenu({
   handleOpenCloudShare,
   cloudShareLabel,
   handleCloudRemoteItemRemove,
-
+  onLinkToProject,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -152,11 +150,12 @@ export function useWorkstationSidebarContextMenu({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
+        const linkProject = await MenuItem.new({
+          text: tCommon("sessions:chat.linkToProject", "Link to Project / Create Project"),
+          action: () => onLinkToProject?.(item.id),
+        });
         const linkWorkItem = await MenuItem.new({
-          text: tCommon(
-            "sessions:chat.linkToWorkItem",
-            "Link to project / Work Item"
-          ),
+          text: tCommon("sessions:chat.linkToWorkItem", "Link to Work Item"),
           action: () => onLinkToWorkItem?.(item.id),
         });
         const deleteItem = await MenuItem.new({
@@ -171,6 +170,7 @@ export function useWorkstationSidebarContextMenu({
           openInNewTabItem,
           renameItem,
           exportItem,
+          linkProject,
           linkWorkItem,
         ];
         // Move (tag) the session into a managed cloud org, independent of
@@ -224,7 +224,6 @@ export function useWorkstationSidebarContextMenu({
       handleTogglePin,
 
       onLinkToWorkItem,
-
       handleOpenMoveToOrg,
       isMoveEligible,
       moveToOrgLabel,
@@ -235,7 +234,7 @@ export function useWorkstationSidebarContextMenu({
       isCloudShareEligible,
       cloudShareLabel,
       handleCloudRemoteItemRemove,
-
+      onLinkToProject,
     ]
   );
 }

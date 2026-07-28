@@ -15,7 +15,7 @@ import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import type { SelectOption } from "@src/components/Select";
 import CloudSessionHoverCard from "@src/components/SessionHoverCard/CloudSessionHoverCard";
 import { ROUTES } from "@src/config/routes";
-
+import LinkSessionToProjectModal from "@src/engines/ChatPanel/panels/LinkSessionToProjectModal";
 import LinkSessionToWorkItemModal from "@src/engines/ChatPanel/panels/LinkSessionToWorkItemModal";
 
 import CloudSessionShareDialog from "@src/features/Org2Cloud/CloudSessionShareDialog";
@@ -251,7 +251,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const [linkWorkItemSessionId, setLinkWorkItemSessionId] = useState<
     string | null
   >(null);
-
+  const [linkProjectSessionId, setLinkProjectSessionId] = useState<
+    string | null
+  >(null);
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
     useState("");
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
@@ -878,7 +880,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleTogglePin,
 
     onLinkToWorkItem: setLinkWorkItemSessionId,
-
     isMoveEligible: moveToOrg.isMoveEligible,
     handleOpenMoveToOrg: moveToOrg.openMoveToOrg,
     moveToOrgLabel: t("cloud.moveToOrg.menuItem"),
@@ -889,7 +890,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleOpenCloudShare: cloudShare.openCloudShare,
     cloudShareLabel: t("cloud.share.menuItem"),
     handleCloudRemoteItemRemove,
-
+    onLinkToProject: setLinkProjectSessionId,
     tCommon,
   });
 
@@ -1246,6 +1247,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
               }
             : undefined
         }
+      />
+      <LinkSessionToProjectModal
+        open={Boolean(linkProjectSessionId)}
+        sessionId={linkProjectSessionId}
+        onClose={() => setLinkProjectSessionId(null)}
+        onLinked={() => void loadSidebarSessions({ forceRefresh: true })}
       />
       <LinkSessionToWorkItemModal
         open={Boolean(linkWorkItemSessionId)}
