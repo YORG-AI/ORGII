@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Highlight, HighlightKind } from "@src/api/tauri/builderProfile";
-import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
+import { STAT_GRID_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 /**
  * One fact per card: the question, the answer, and the line that makes the
@@ -12,7 +12,9 @@ import { STAT_GRID_TOKENS } from "@src/config/detailPanelTokens";
  * order — reading down the page alternates between records, rhythm, craft,
  * style and totals rather than marching through five blocks of the same shape.
  * `kind` only tints the question line; the card layout stays identical so the
- * grid reads as one set.
+ * grid reads as one set. The surface matches the Usage page's stat tiles, and
+ * the grid is placed directly in the page flow — wrapping it in a section
+ * container would put a card inside a card.
  *
  * The backend sends ids and raw numbers, never prose. Everything a locale can
  * disagree about is decided here: thousands separators, date format, and
@@ -92,7 +94,7 @@ const HighlightCards = memo(function HighlightCards({
         return (
           <div
             key={card.id}
-            className="flex flex-col gap-1 rounded-lg bg-bg-2 px-3 py-3"
+            className="flex flex-col gap-1.5 rounded-xl border border-border-1 bg-primary-container p-4"
             data-testid={`highlight-${card.id}`}
           >
             <span

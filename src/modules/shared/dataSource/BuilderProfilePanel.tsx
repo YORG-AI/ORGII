@@ -26,7 +26,10 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  CollapsibleSection,
+  Placeholder,
+} from "@src/modules/shared/layouts/blocks";
 
 import AxisMeter from "./AxisMeter";
 import HighlightCards from "./HighlightCards";
@@ -55,6 +58,33 @@ const RELOAD_EVERY_BATCHES = 5;
  *   verdict that hinges on the anchor — renders dimmed with its caveat in the
  *   tooltip, never replaced by a placeholder.
  */
+/**
+ * One collapsible section. `CollapsibleSection` draws no surface of its own, so
+ * whatever goes inside supplies the single card layer — a `SectionContainer`
+ * for row lists, or the highlight tiles' own surfaces.
+ */
+function Section({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <CollapsibleSection
+      title={title}
+      defaultOpen
+      compact
+      titleClassName={SECTION_SUBHEADING_CLASSES}
+      titleButtonTestId={`profile-section-${id}`}
+    >
+      {children}
+    </CollapsibleSection>
+  );
+}
+
 export default function BuilderProfilePanel() {
   const { t } = useTranslation("builderProfile");
   const [data, setData] = useState<BuilderProfileOverview | null>(null);
@@ -231,7 +261,9 @@ export default function BuilderProfilePanel() {
       className="flex h-full min-h-0 flex-col"
       data-testid="builder-profile-panel"
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-2">
+      <div
+        className={`${DETAIL_PANEL_TOKENS.headerWidth} flex shrink-0 items-center justify-between gap-2 px-4 pt-2`}
+      >
         <h2 className={SECTION_SUBHEADING_CLASSES}>{t("title")}</h2>
         <Button
           variant="tertiary"
@@ -280,7 +312,9 @@ export default function BuilderProfilePanel() {
   return shell(
     <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container">
       <div
-        className={`${DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop} ${SECTION_GAP_CLASSES}`}
+        // Same 932px track as the tab header above, so nothing steps in or
+        // out of alignment as you scroll.
+        className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} pb-[50vh] pt-2`}
       >
         {/* The code. Soft letters render dimmed, with the reason in the tooltip.
           Before any session has been read there is no evidence at all, so no
@@ -339,97 +373,114 @@ export default function BuilderProfilePanel() {
           )}
         </div>
 
-        <SectionContainer title={t("highlights")}>
-          <SectionRow description={t("highlightsHint")} layout="vertical">
-            <HighlightCards highlights={data.highlights} />
-          </SectionRow>
-        </SectionContainer>
+        <Section id="highlights" title={t("highlights")}>
+          <p className="pb-2 pl-1 text-xs text-text-3">{t("highlightsHint")}</p>
+          <HighlightCards highlights={data.highlights} />
+        </Section>
 
-        <SectionContainer title={t("status")}>
-          <SectionRow
-            label={t("coverage")}
-            description={
-              stillReading ? t("coverageReading") : t("coverageComplete")
-            }
-          >
-            <div
-              className="flex w-44 items-center gap-2"
-              data-testid="builder-profile-coverage"
-            >
-              <ProgressBar percent={percent} animated={stillReading} />
-              <span className="w-10 shrink-0 text-right text-xs text-text-3">
-                {percent}%
-              </span>
-            </div>
-          </SectionRow>
-          <SectionRow label={t("confidence")} description={t("confidenceHint")}>
-            <div className="flex w-44 items-center gap-2">
-              <ProgressBar percent={Math.round(profile.confidence * 100)} />
-              <span className="w-10 shrink-0 text-right text-xs text-text-3">
-                {Math.round(profile.confidence * 100)}%
-              </span>
-            </div>
-          </SectionRow>
-        </SectionContainer>
-
-        <SectionContainer title={t("axesTitle")}>
-          {profile.axes.map((axis) => (
-            <AxisMeter
-              key={axis.key}
-              axis={axis}
-              expanded={openAxis === axis.key}
-              onToggle={() =>
-                setOpenAxis((cur) => (cur === axis.key ? null : axis.key))
+        <Section id="status" title={t("status")}>
+          <SectionContainer>
+            <SectionRow
+              label={t("coverage")}
+              description={
+                stillReading ? t("coverageReading") : t("coverageComplete")
               }
-            />
-          ))}
-        </SectionContainer>
-
-        {profile.secondary.length > 0 && (
-          <SectionContainer title={t("secondary")}>
-            {profile.secondary.map((axis) => (
-              <SectionRow
-                key={axis.key}
-                label={axis.score >= 0 ? axis.positiveName : axis.negativeName}
-                description={t("secondaryNote")}
-              />
-            ))}
-            <SectionRow label={t("fanoutLabel")} description={t("fanoutHint")}>
-              <span className="text-xs text-text-3">
-                {Math.round(profile.subagentSessionShare * 100)}%
-              </span>
+            >
+              <div
+                className="flex w-44 items-center gap-2"
+                data-testid="builder-profile-coverage"
+              >
+                <ProgressBar percent={percent} animated={stillReading} />
+                <span className="w-10 shrink-0 text-right text-xs text-text-3">
+                  {percent}%
+                </span>
+              </div>
+            </SectionRow>
+            <SectionRow
+              label={t("confidence")}
+              description={t("confidenceHint")}
+            >
+              <div className="flex w-44 items-center gap-2">
+                <ProgressBar percent={Math.round(profile.confidence * 100)} />
+                <span className="w-10 shrink-0 text-right text-xs text-text-3">
+                  {Math.round(profile.confidence * 100)}%
+                </span>
+              </div>
             </SectionRow>
           </SectionContainer>
+        </Section>
+
+        <Section id="axes" title={t("axesTitle")}>
+          <SectionContainer>
+            {profile.axes.map((axis) => (
+              <AxisMeter
+                key={axis.key}
+                axis={axis}
+                expanded={openAxis === axis.key}
+                onToggle={() =>
+                  setOpenAxis((cur) => (cur === axis.key ? null : axis.key))
+                }
+              />
+            ))}
+          </SectionContainer>
+        </Section>
+
+        {profile.secondary.length > 0 && (
+          <Section id="secondary" title={t("secondary")}>
+            <SectionContainer>
+              {profile.secondary.map((axis) => (
+                <SectionRow
+                  key={axis.key}
+                  label={
+                    axis.score >= 0 ? axis.positiveName : axis.negativeName
+                  }
+                  description={t("secondaryNote")}
+                />
+              ))}
+              <SectionRow
+                label={t("fanoutLabel")}
+                description={t("fanoutHint")}
+              >
+                <span className="text-xs text-text-3">
+                  {Math.round(profile.subagentSessionShare * 100)}%
+                </span>
+              </SectionRow>
+            </SectionContainer>
+          </Section>
         )}
 
         {data.bySource.length > 1 && (
-          <SectionContainer title={t("byTool")}>
-            <SectionRow description={t("byToolHint")} layout="vertical">
-              <SettingsTable
-                columns={sourceColumns}
-                rows={data.bySource}
-                getRowKey={(row) => row.source}
-                headerHeight="compact"
-                dense
-                surfaceVariant="transparent"
-              />
-            </SectionRow>
-          </SectionContainer>
+          <Section id="byTool" title={t("byTool")}>
+            <SectionContainer>
+              <SectionRow description={t("byToolHint")} layout="vertical">
+                <SettingsTable
+                  columns={sourceColumns}
+                  rows={data.bySource}
+                  getRowKey={(row) => row.source}
+                  headerHeight="compact"
+                  dense
+                  surfaceVariant="transparent"
+                />
+              </SectionRow>
+            </SectionContainer>
+          </Section>
         )}
 
         {data.drift.length > 1 && (
-          <SectionContainer title={t("overTime")}>
-            <SectionRow description={t("overTimeHint")} layout="vertical">
-              <SettingsTable
-                columns={driftColumns}
-                rows={data.drift}
-                getRowKey={(row) => String(row.endedAtMs)}
-                headerHeight="compact"
-                dense
-                surfaceVariant="transparent"
-              />
-            </SectionRow>
-          </SectionContainer>
+          <Section id="overTime" title={t("overTime")}>
+            <SectionContainer>
+              <SectionRow description={t("overTimeHint")} layout="vertical">
+                <SettingsTable
+                  columns={driftColumns}
+                  rows={data.drift}
+                  getRowKey={(row) => String(row.endedAtMs)}
+                  headerHeight="compact"
+                  dense
+                  surfaceVariant="transparent"
+                />
+              </SectionRow>
+            </SectionContainer>
+          </Section>
         )}
       </div>
     </div>
