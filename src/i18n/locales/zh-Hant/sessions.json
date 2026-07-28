@@ -1213,6 +1213,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "對話",
+      "timeline": "時間軸",
+      "changes": "變更",
+      "raw": "原始",
+      "timelineSummary_one": "{{count}} 輪，歷時 {{duration}}",
+      "timelineSummary_other": "{{count}} 輪，歷時 {{duration}}",
+      "timelineEmpty": "尚無可顯示的輪次。",
+      "changesEmpty": "此工作階段沒有寫入任何檔案。",
+      "fileCount_one": "{{count}} 個檔案",
+      "fileCount_other": "{{count}} 個檔案",
+      "turnCount_one": "{{count}} 輪",
+      "turnCount_other": "{{count}} 輪"
     }
   },
   "chatStatus": {

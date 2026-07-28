@@ -1215,6 +1215,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Чат",
+      "timeline": "Хронология",
+      "changes": "Изменения",
+      "raw": "Исходные данные",
+      "timelineSummary_one": "{{count}} раунд за {{duration}}",
+      "timelineSummary_other": "{{count}} раундов за {{duration}}",
+      "timelineEmpty": "Пока нет раундов для показа.",
+      "changesEmpty": "В этой сессии не было записано ни одного файла.",
+      "fileCount_one": "{{count}} файл",
+      "fileCount_other": "{{count}} файлов",
+      "turnCount_one": "{{count}} раунд",
+      "turnCount_other": "{{count}} раундов"
     }
   },
   "chatStatus": {

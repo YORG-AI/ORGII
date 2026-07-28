@@ -1197,6 +1197,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Chat",
+      "timeline": "Zeitachse",
+      "changes": "Änderungen",
+      "raw": "Rohdaten",
+      "timelineSummary_one": "{{count}} Runde über {{duration}}",
+      "timelineSummary_other": "{{count}} Runden über {{duration}}",
+      "timelineEmpty": "Noch keine Runden vorhanden.",
+      "changesEmpty": "Diese Sitzung hat keine Dateien geschrieben.",
+      "fileCount_one": "{{count}} Datei",
+      "fileCount_other": "{{count}} Dateien",
+      "turnCount_one": "{{count}} Runde",
+      "turnCount_other": "{{count}} Runden"
     }
   },
   "chatStatus": {

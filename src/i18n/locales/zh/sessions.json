@@ -1244,6 +1244,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "对话",
+      "timeline": "时间线",
+      "changes": "变更",
+      "raw": "原始",
+      "timelineSummary_one": "{{count}} 轮，历时 {{duration}}",
+      "timelineSummary_other": "{{count}} 轮，历时 {{duration}}",
+      "timelineEmpty": "暂无可展示的轮次。",
+      "changesEmpty": "此会话没有写入任何文件。",
+      "fileCount_one": "{{count}} 个文件",
+      "fileCount_other": "{{count}} 个文件",
+      "turnCount_one": "{{count}} 轮",
+      "turnCount_other": "{{count}} 轮"
     }
   },
   "chatStatus": {
