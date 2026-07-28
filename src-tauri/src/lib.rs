@@ -348,16 +348,43 @@ pub fn run() {
 
     let builder = tauri::Builder::default();
 
+    // Keep this plugin first. On Windows and Linux the OS launches a second
+    // process for a custom-scheme URL; the single-instance plugin's
+    // `deep-link` feature forwards that argv URL to the already-running
+    // process before this callback runs. The frontend's app-lifetime
+    // `onOpenUrl` listener remains the single owner of invite routing.
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+        // Never log argv: deep-link query/fragment values can contain invite
+        // codes, share capabilities, or OAuth tokens.
+        tracing::info!(
+            argument_count = argv.len(),
+            "external open request forwarded to the running app"
+        );
+
+        if let Some(main_window) = app.get_webview_window("main") {
+            if let Err(error) = main_window.unminimize() {
+                tracing::warn!(?error, "failed to restore the main window");
+            }
+            if let Err(error) = main_window.show() {
+                tracing::warn!(?error, "failed to show the main window");
+            }
+            if let Err(error) = main_window.set_focus() {
+                tracing::warn!(?error, "failed to focus the main window");
+            }
+        } else if let Err(error) = app_window::recreate_main_window(app) {
+            tracing::warn!(
+                %error,
+                "failed to recreate the main window for an external open request"
+            );
+        }
+    }));
+
     // E2E WebDriver automation — only when built with `--features webdriver` (debug/test only).
     #[cfg(all(debug_assertions, feature = "webdriver"))]
     let builder = builder.plugin(tauri_plugin_webdriver_automation::init());
 
     let builder = builder
-        // NOTE: Single-instance disabled for development - uncomment for production
-        // .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
-        //   tracing::info!(?argv, "a new app instance was opened and the deep link event was already triggered");
-        //   // when defining deep link schemes at runtime, you must also check `argv` here
-        // }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_fs::init())
