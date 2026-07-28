@@ -77,14 +77,30 @@ pub fn update_work_item_atomic<T, F>(
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
-    let (value, changed_fields, payload_tail_changed) =
-        update_work_item_atomic_with_revisions(
-            project_slug,
-            short_id,
-            HashMap::new(),
-            None,
-            mutator,
-        )?;
+    update_work_item_atomic_as(project_slug, short_id, None, mutator)
+}
+
+/// Actor-attributed variant of [`update_work_item_atomic`].
+///
+/// This preserves the same outbox/payload-tail behavior while allowing
+/// domain commands such as handoff acceptance to write an auditable history
+/// event without duplicating the transaction or sync logic.
+pub fn update_work_item_atomic_as<T, F>(
+    project_slug: &str,
+    short_id: &str,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    let (value, changed_fields, payload_tail_changed) = update_work_item_atomic_with_revisions(
+        project_slug,
+        short_id,
+        HashMap::new(),
+        actor,
+        mutator,
+    )?;
     if !changed_fields.is_empty() {
         // Re-read the work item to build the outbox payload. The read
         // is one extra round trip but keeps the closure-form API
@@ -458,6 +474,7 @@ fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::Value {
         "created_by": fm.created_by,
         "todos": fm.todos,
         "comments": fm.comments,
+        "handoff": fm.handoff,
         "linked_sessions": fm.linked_sessions,
         "proof_of_work": fm.proof_of_work,
         "orchestrator_config": fm.orchestrator_config,
@@ -503,6 +520,7 @@ pub fn update_work_item_partial(
 fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
     updates.todos.is_some()
         || updates.comments.is_some()
+        || updates.handoff.is_some()
         || updates.linked_sessions.is_some()
         || updates.orchestrator_config.is_some()
         || updates.orchestrator_state.is_some()
@@ -632,6 +650,9 @@ pub fn update_work_item_partial_with_revisions(
             if let Some(comments) = updates.comments.as_ref() {
                 fm.comments = comments.clone();
             }
+            if let Some(handoff) = updates.handoff.as_ref() {
+                fm.handoff = handoff.clone();
+            }
             if let Some(linked_sessions) = updates.linked_sessions.as_ref() {
                 fm.linked_sessions = linked_sessions.clone();
             }
@@ -752,10 +773,7 @@ fn slices_equal_unordered(left: &[String], right: &[String]) -> bool {
     left_sorted == right_sorted
 }
 
-fn human_assignee_id(
-    assignee: Option<&str>,
-    assignee_type: Option<&str>,
-) -> Option<String> {
+fn human_assignee_id(assignee: Option<&str>, assignee_type: Option<&str>) -> Option<String> {
     let assignee = assignee?.trim();
     if assignee.is_empty() {
         return None;
@@ -832,6 +850,7 @@ fn build_frontmatter(
         comments: extras.comments.clone(),
         history: extras.history.clone(),
         delegations: extras.delegations.clone(),
+        handoff: extras.handoff.clone(),
         linked_sessions: extras.linked_sessions.clone(),
         proof_of_work: extras.proof_of_work.clone(),
         orchestrator_config: extras.orchestrator_config.clone(),

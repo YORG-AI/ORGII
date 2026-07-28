@@ -257,6 +257,8 @@ pub struct WorkItemFrontmatter {
     pub history: Vec<WorkItemHistoryEvent>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub delegations: Vec<DelegationEntry>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub handoff: Option<WorkItemHandoff>,
     // --- Agent Workflow Fields ---
     //
     // `linked_sessions` and `orchestrator_state` are persisted in SQLite
@@ -390,6 +392,54 @@ pub struct WorkItemMutationActor {
     pub name: String,
 }
 
+/// Durable state for a human-to-human Work Item handoff.
+///
+/// Read/unread remains a Team Inbox receipt; accepting is a separate,
+/// explicit collaboration decision. A returned handoff reassigns the item to
+/// the sender in the same database transaction as this state transition.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkItemHandoffStatus {
+    Pending,
+    Accepted,
+    Returned,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkItemHandoff {
+    pub id: String,
+    pub status: WorkItemHandoffStatus,
+    pub sender_member_id: String,
+    pub sender_name: String,
+    pub recipient_member_id: String,
+    pub recipient_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    pub requested_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub responded_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub response_note: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WorkItemHandoffAction {
+    Accept,
+    Return,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkItemHandoffTransition {
+    pub handoff_id: String,
+    pub action: WorkItemHandoffAction,
+    pub actor: WorkItemMutationActor,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkItemPartialUpdate {
@@ -450,6 +500,12 @@ pub struct WorkItemPartialUpdate {
     pub todos: Option<Vec<TodoEntry>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub comments: Option<Vec<CommentEntry>>,
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_update",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub handoff: Option<Option<WorkItemHandoff>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub linked_sessions: Option<Vec<LinkedSession>>,
     #[serde(skip_serializing_if = "Option::is_none")]

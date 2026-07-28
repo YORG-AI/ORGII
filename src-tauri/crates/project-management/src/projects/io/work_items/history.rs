@@ -127,6 +127,7 @@ pub(super) struct WorkItemHistorySnapshot {
     target_date: Option<String>,
     todos: Vec<crate::projects::types::TodoEntry>,
     comments: Vec<CommentEntry>,
+    handoff: Option<crate::projects::types::WorkItemHandoff>,
     schedule: Option<crate::projects::types::WorkItemSchedule>,
     orchestrator_config: Option<crate::projects::types::OrchestratorConfig>,
 }
@@ -147,6 +148,7 @@ impl WorkItemHistorySnapshot {
             target_date: frontmatter.target_date.clone(),
             todos: frontmatter.todos.clone(),
             comments: frontmatter.comments.clone(),
+            handoff: frontmatter.handoff.clone(),
             schedule: frontmatter.schedule.clone(),
             orchestrator_config: frontmatter.orchestrator_config.clone(),
         }
@@ -204,6 +206,7 @@ impl WorkItemHistorySnapshot {
             &self.comments,
             &frontmatter.comments,
         );
+        push_change(&mut changes, "handoff", &self.handoff, &frontmatter.handoff);
         push_change(
             &mut changes,
             "schedule",

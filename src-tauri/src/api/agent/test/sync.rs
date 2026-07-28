@@ -845,6 +845,7 @@ pub async fn test_sync_conflict_seed_work_item(
             history: Vec::new(),
             delegations: Vec::new(),
             linked_sessions: Vec::new(),
+            handoff: None,
             proof_of_work: None,
             orchestrator_config: None,
             orchestrator_state: None,

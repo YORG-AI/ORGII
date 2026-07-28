@@ -1,6 +1,9 @@
 import {
+  type LinkedSession,
+  type TodoEntry,
   type WorkItemData,
   type WorkItemFrontmatter,
+  type WorkItemHandoff,
   projectApi,
 } from "@src/api/http/project";
 import {
@@ -46,6 +49,14 @@ export interface CreateWorkItemFromDraftOptions {
    * this and resolves the org from the project row.
    */
   orgId?: string | null;
+  /** Durable provenance written in the same operation as the Work Item. */
+  linkedSessions?: readonly LinkedSession[];
+  /** Optional parsed checklist; ordinary composer creation still defaults empty. */
+  todos?: readonly TodoEntry[];
+  /** Optional human handoff written atomically with initial assignment. */
+  handoff?: WorkItemHandoff;
+  /** Human member that initiated this creation. */
+  createdByMemberId?: string;
 }
 
 export async function createWorkItemFromDraft({
@@ -53,8 +64,12 @@ export async function createWorkItemFromDraft({
   defaultTitle,
   description,
   draft,
+  linkedSessions,
+  handoff,
+  createdByMemberId,
   orgId,
   selectedProjectSlug,
+  todos,
 }: CreateWorkItemFromDraftOptions): Promise<CreatedWorkItemResult> {
   const title = draft.name.trim() || defaultTitle?.trim();
   if (!title) {
@@ -90,11 +105,13 @@ export async function createWorkItemFromDraft({
     milestone: draft.milestoneId,
     start_date: draft.startDate,
     target_date: draft.targetDate,
-    created_by: undefined,
+    created_by: createdByMemberId,
     created_at: now,
     updated_at: now,
     starred: false,
-    todos: [],
+    todos: todos ? [...todos] : [],
+    handoff,
+    linked_sessions: linkedSessions ? [...linkedSessions] : undefined,
     orchestrator_config: draft.orchestratorConfig,
     schedule: draft.schedule ?? undefined,
   };

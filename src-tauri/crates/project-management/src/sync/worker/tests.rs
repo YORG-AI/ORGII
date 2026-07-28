@@ -532,6 +532,7 @@ fn wi_fm(short_id: &str, title: &str, status: &str) -> WorkItemFrontmatter {
         history: vec![],
         delegations: vec![],
         linked_sessions: vec![],
+        handoff: None,
         proof_of_work: None,
         orchestrator_config: None,
         orchestrator_state: None,

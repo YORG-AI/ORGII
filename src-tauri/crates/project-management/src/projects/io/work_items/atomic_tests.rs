@@ -2,10 +2,12 @@
 
 use super::*;
 use crate::projects::io::projects::write_project;
+use crate::projects::io::transition_work_item_handoff;
 use crate::projects::io::work_items::{read_standalone_work_item, read_work_item, write_work_item};
 use crate::projects::types::{
-    CommentEntry, ProjectMeta, TodoEntry, WorkItemHistoryAction, WorkItemPartialUpdate,
-    WorkItemMutationActor, WorkItemSchedule,
+    CommentEntry, ProjectMeta, TodoEntry, WorkItemHandoff, WorkItemHandoffAction,
+    WorkItemHandoffStatus, WorkItemHandoffTransition, WorkItemHistoryAction, WorkItemMutationActor,
+    WorkItemPartialUpdate, WorkItemSchedule,
 };
 use test_helpers::test_env;
 
@@ -57,6 +59,7 @@ fn work_item_fixture(id: &str, short_id: &str, title: &str) -> WorkItemFrontmatt
         history: vec![],
         delegations: vec![],
         linked_sessions: vec![],
+        handoff: None,
         proof_of_work: None,
         orchestrator_config: None,
         orchestrator_state: None,
@@ -362,6 +365,89 @@ fn assignee_change_atomically_resets_team_inbox_receipts() {
         receipt_count, 0,
         "the old assignment episode must not stay read"
     );
+}
+
+#[test]
+fn returned_handoff_atomically_reassigns_sender_and_resets_receipts() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+
+    update_work_item_atomic("demo", "AAA-0001", |frontmatter, _body| {
+        frontmatter.assignee = Some("member-recipient".to_string());
+        frontmatter.assignee_type = Some("member".to_string());
+        frontmatter.handoff = Some(WorkItemHandoff {
+            id: "handoff-1".to_string(),
+            status: WorkItemHandoffStatus::Pending,
+            sender_member_id: "member-sender".to_string(),
+            sender_name: "Ada".to_string(),
+            recipient_member_id: "member-recipient".to_string(),
+            recipient_name: "Lin".to_string(),
+            note: Some("Continue the investigation".to_string()),
+            requested_at: "2026-07-28T10:00:00Z".to_string(),
+            responded_at: None,
+            response_note: None,
+        });
+        Ok::<(), String>(())
+    })
+    .expect("seed handoff");
+
+    let connection = conn().expect("conn");
+    connection
+        .execute(
+            "INSERT INTO team_inbox_read_receipts
+                (viewer_member_id, source_kind, source_id, read_at)
+             VALUES ('member-recipient', 'work_item_assigned', 'w1', 42)",
+            [],
+        )
+        .expect("seed recipient receipt");
+    drop(connection);
+
+    let result = transition_work_item_handoff(
+        "demo",
+        "AAA-0001",
+        &WorkItemHandoffTransition {
+            handoff_id: "handoff-1".to_string(),
+            action: WorkItemHandoffAction::Return,
+            actor: WorkItemMutationActor {
+                id: "member-recipient".to_string(),
+                name: "Lin".to_string(),
+            },
+            note: Some("Please add reproduction steps".to_string()),
+        },
+    )
+    .expect("return handoff");
+
+    assert_eq!(
+        result.frontmatter.assignee.as_deref(),
+        Some("member-sender")
+    );
+    let handoff = result.frontmatter.handoff.expect("persisted handoff");
+    assert_eq!(handoff.status, WorkItemHandoffStatus::Returned);
+    assert_eq!(
+        handoff.response_note.as_deref(),
+        Some("Please add reproduction steps")
+    );
+    let history = result.frontmatter.history.last().expect("history event");
+    assert_eq!(history.actor_id.as_deref(), Some("member-recipient"));
+    assert!(history
+        .changes
+        .iter()
+        .any(|change| change.field == "handoff"));
+    assert!(history
+        .changes
+        .iter()
+        .any(|change| change.field == "assignee"));
+
+    let connection = conn().expect("conn");
+    let receipt_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM team_inbox_read_receipts
+              WHERE source_kind = 'work_item_assigned' AND source_id = 'w1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("receipt count");
+    assert_eq!(receipt_count, 0);
 }
 
 #[test]

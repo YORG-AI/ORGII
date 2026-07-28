@@ -12,6 +12,7 @@ import type {
   ProofOfWork,
   WorkItemCloseOut,
   WorkItemExecutionLock,
+  WorkItemHandoff,
   WorkItemHistoryEvent,
   WorkItemRoutineSource,
   WorkItemSchedule,
@@ -215,6 +216,7 @@ export interface WorkItem extends WorkItemBase {
   todos?: TodoItem[];
   comments?: WorkItemComment[];
   history?: WorkItemHistoryEvent[];
+  handoff?: WorkItemHandoff;
   delegations?: WorkItemDelegation[];
   orchestratorConfig?: OrchestratorConfig;
   orchestratorState?: OrchestratorState;

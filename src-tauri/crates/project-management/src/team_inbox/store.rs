@@ -7,9 +7,10 @@ use rusqlite::{
 };
 
 use super::{
-    schema::init_team_inbox_tables, TeamInboxCursor, TeamInboxFilter, TeamInboxItem,
-    TeamInboxItemKind, TeamInboxPage, TeamInboxPayload, TeamInboxTarget,
+    schema::init_team_inbox_tables, TeamInboxActor, TeamInboxCursor, TeamInboxFilter,
+    TeamInboxItem, TeamInboxItemKind, TeamInboxPage, TeamInboxPayload, TeamInboxTarget,
 };
+use crate::projects::types::{WorkItemHandoff, WorkItemHandoffStatus};
 
 const ASSIGNED_SOURCE_KIND: &str = "work_item_assigned";
 const DEFAULT_PAGE_LIMIT: usize = 50;
@@ -33,6 +34,29 @@ pub(crate) fn work_item_summary_excerpt(body: &str) -> Option<String> {
         Some(format!("{head}…"))
     } else {
         Some(head)
+    }
+}
+
+fn handoff_from_extras(extras_json: Option<&str>) -> Option<WorkItemHandoff> {
+    let value = serde_json::from_str::<serde_json::Value>(extras_json?).ok()?;
+    serde_json::from_value(value.get("handoff")?.clone()).ok()
+}
+
+fn handoff_actor(handoff: &WorkItemHandoff) -> TeamInboxActor {
+    let (id, display_name) = match handoff.status {
+        WorkItemHandoffStatus::Returned => (
+            handoff.recipient_member_id.clone(),
+            handoff.recipient_name.clone(),
+        ),
+        WorkItemHandoffStatus::Pending | WorkItemHandoffStatus::Accepted => (
+            handoff.sender_member_id.clone(),
+            handoff.sender_name.clone(),
+        ),
+    };
+    TeamInboxActor {
+        id,
+        display_name,
+        avatar_url: None,
     }
 }
 
@@ -131,9 +155,10 @@ pub(crate) fn list_page_with_connection(
                 (SELECT MAX(r.read_at) FROM team_inbox_read_receipts r
                   WHERE r.source_kind = '{ASSIGNED_SOURCE_KIND}'
                     AND r.source_id = w.id AND {receipt_viewer_predicate}) AS read_at,
-                w.body
+                w.body, e.extras_json
            FROM workitems w
            LEFT JOIN projects p ON p.id = w.project_id
+           LEFT JOIN workitem_extras e ON e.work_item_id = w.id
           WHERE w.deleted_at IS NULL AND {assignment_predicate}
           {cursor_predicate}
           ORDER BY w.updated_at DESC, w.id DESC
@@ -155,12 +180,14 @@ pub(crate) fn list_page_with_connection(
             let work_item_id: String = row.get(0)?;
             let assignee_member_id: String = row.get(8)?;
             let body: String = row.get(11)?;
+            let extras_json: Option<String> = row.get(12)?;
+            let handoff = handoff_from_extras(extras_json.as_deref());
             Ok(TeamInboxItem {
                 id: assigned_item_id(&work_item_id),
                 kind: TeamInboxItemKind::WorkItemAssigned,
                 occurred_at: row.get(9)?,
                 read_at: row.get(10)?,
-                actor: None,
+                actor: handoff.as_ref().map(handoff_actor),
                 target: TeamInboxTarget::WorkItem {
                     work_item_id,
                     org_id: row.get(1)?,
@@ -174,6 +201,7 @@ pub(crate) fn list_page_with_connection(
                     priority: row.get(7)?,
                     assignee_member_id,
                     summary: work_item_summary_excerpt(&body),
+                    handoff,
                 },
             })
         })
