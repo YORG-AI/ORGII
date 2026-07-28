@@ -1,19 +1,19 @@
-import EAFH_AVATAR from "@src/assets/builderProfile/avatars/EAFH.jpg";
-import EAFS_AVATAR from "@src/assets/builderProfile/avatars/EAFS.jpg";
-import EAWH_AVATAR from "@src/assets/builderProfile/avatars/EAWH.jpg";
-import EAWS_AVATAR from "@src/assets/builderProfile/avatars/EAWS.jpg";
-import EDFH_AVATAR from "@src/assets/builderProfile/avatars/EDFH.jpg";
-import EDFS_AVATAR from "@src/assets/builderProfile/avatars/EDFS.jpg";
-import EDWH_AVATAR from "@src/assets/builderProfile/avatars/EDWH.jpg";
-import EDWS_AVATAR from "@src/assets/builderProfile/avatars/EDWS.jpg";
-import MAFH_AVATAR from "@src/assets/builderProfile/avatars/MAFH.jpg";
-import MAFS_AVATAR from "@src/assets/builderProfile/avatars/MAFS.jpg";
-import MAWH_AVATAR from "@src/assets/builderProfile/avatars/MAWH.jpg";
-import MAWS_AVATAR from "@src/assets/builderProfile/avatars/MAWS.jpg";
-import MDFH_AVATAR from "@src/assets/builderProfile/avatars/MDFH.jpg";
-import MDFS_AVATAR from "@src/assets/builderProfile/avatars/MDFS.jpg";
-import MDWH_AVATAR from "@src/assets/builderProfile/avatars/MDWH.jpg";
-import MDWS_AVATAR from "@src/assets/builderProfile/avatars/MDWS.jpg";
+import EAFH_AVATAR from "@src/assets/builderProfile/avatars/EAFH.png";
+import EAFS_AVATAR from "@src/assets/builderProfile/avatars/EAFS.png";
+import EAWH_AVATAR from "@src/assets/builderProfile/avatars/EAWH.png";
+import EAWS_AVATAR from "@src/assets/builderProfile/avatars/EAWS.png";
+import EDFH_AVATAR from "@src/assets/builderProfile/avatars/EDFH.png";
+import EDFS_AVATAR from "@src/assets/builderProfile/avatars/EDFS.png";
+import EDWH_AVATAR from "@src/assets/builderProfile/avatars/EDWH.png";
+import EDWS_AVATAR from "@src/assets/builderProfile/avatars/EDWS.png";
+import MAFH_AVATAR from "@src/assets/builderProfile/avatars/MAFH.png";
+import MAFS_AVATAR from "@src/assets/builderProfile/avatars/MAFS.png";
+import MAWH_AVATAR from "@src/assets/builderProfile/avatars/MAWH.png";
+import MAWS_AVATAR from "@src/assets/builderProfile/avatars/MAWS.png";
+import MDFH_AVATAR from "@src/assets/builderProfile/avatars/MDFH.png";
+import MDFS_AVATAR from "@src/assets/builderProfile/avatars/MDFS.png";
+import MDWH_AVATAR from "@src/assets/builderProfile/avatars/MDWH.png";
+import MDWS_AVATAR from "@src/assets/builderProfile/avatars/MDWS.png";
 
 export type BuilderTypeLetter = "M" | "E" | "D" | "A" | "F" | "W" | "S" | "H";
 
