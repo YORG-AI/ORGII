@@ -9,25 +9,48 @@ async function execJS(script) {
   return browser.executeScript(script, []);
 }
 
-async function postJsonFromNode(url, body) {
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return {
-      ok: response.ok,
-      status: response.status,
-      data: await response.json(),
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      data: { error: String(error?.message ?? error) },
-    };
+async function postJsonFromNode(url, body, { attempts = 8, delayMs = 1000 } = {}) {
+  let last = null;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      let data;
+      try {
+        data = await response.json();
+      } catch (error) {
+        data = { error: `invalid json: ${String(error?.message ?? error)}` };
+      }
+      last = {
+        ok: response.ok,
+        status: response.status,
+        data,
+        url,
+        attempt,
+      };
+      if (response.ok && !data?.error) return last;
+    } catch (error) {
+      last = {
+        ok: false,
+        status: 0,
+        data: { error: String(error?.message ?? error) },
+        url,
+        attempt,
+      };
+    }
+    if (attempt < attempts) {
+      await browser.pause(delayMs);
+    }
   }
+  return last ?? {
+    ok: false,
+    status: 0,
+    data: { error: "postJsonFromNode: no attempts ran" },
+    url,
+  };
 }
 
 async function invokeE2E(method, ...args) {
@@ -129,7 +152,7 @@ async function ensureActiveSession(
 
   const existing = await invokeE2E("getActiveSessionId");
   if (existing && existing.ok && existing.sessionId) {
-    return existing.sessionId;
+    return { sessionId: existing.sessionId, accountId: null };
   }
 
   let configured;
@@ -148,6 +171,8 @@ async function ensureActiveSession(
     });
   }
   unwrap(configured, "configure memory smoke session");
+  const configuredAccountId =
+    configured.accountId ?? configured.account_id ?? null;
   // Force key-vault shared cache reload so useValidatedLastPair can see the
   // account just written via rpc.validation.saveKey (bypasses useLocalKeys.saveKey).
   unwrap(await invokeE2E("listAccounts"), "listAccounts after configure");
@@ -243,7 +268,7 @@ async function ensureActiveSession(
     },
     { timeout: 15_000, timeoutMsg: "activeSessionId never populated" }
   );
-  return sessionId;
+  return { sessionId, accountId: configuredAccountId };
 }
 
 async function ensureChatSurface(sessionId) {
@@ -370,6 +395,7 @@ describe("Core session memory UI", () => {
   let openaiModel;
   let openaiBaseUrl;
   let activeSessionId;
+  let configuredAccountId;
   let agentDefId;
   let agentScope;
   const seededLearnings = new Set();
@@ -433,12 +459,26 @@ describe("Core session memory UI", () => {
       reuseAccount = account.name ?? account.id;
     }
 
-    activeSessionId = await ensureActiveSession(
+    const ensured = await ensureActiveSession(
       reuseAccount,
       openaiApiKey,
       openaiModel,
       openaiBaseUrl
     );
+    activeSessionId = ensured.sessionId;
+    configuredAccountId = ensured.accountId;
+    if (!configuredAccountId) {
+      const accounts = unwrap(
+        await invokeE2E("listAccounts"),
+        "listAccounts(resolve configured account)"
+      ).accounts;
+      const account = findReusableApiAccount(
+        accounts,
+        reuseAccount,
+        openaiModel
+      );
+      configuredAccountId = account?.id ?? null;
+    }
     const dump = unwrap(
       await invokeE2E("promptDump", activeSessionId),
       "promptDump(initial)"
@@ -605,23 +645,47 @@ describe("Core session memory UI", () => {
       await invokeE2E("listAccounts"),
       "listAccounts(memory)"
     ).accounts;
-    const nativeAccount = reuseAccount
-      ? findReusableApiAccount(accounts, reuseAccount, openaiModel)
-      : undefined;
-    if (reuseAccount && !nativeAccount) {
+    const nativeAccount =
+      (configuredAccountId &&
+        accounts.find((account) => account.id === configuredAccountId)) ||
+      findReusableApiAccount(accounts, reuseAccount, openaiModel);
+    if (!nativeAccount?.id) {
       throw new Error(
-        `memory rendered smoke account ${reuseAccount} with model ${openaiModel} not found`
+        `memory rendered smoke could not resolve api account for model ${openaiModel}; configuredAccountId=${configuredAccountId}`
       );
     }
 
+    const nativeEndpoint = e2eUrl("/agent/test/sde");
+    // IDE HTTP comes up with the launched org2 binary; give it a moment after
+    // the GUI session path before hitting the native SDE test endpoint.
+    await browser.waitUntil(
+      async () => {
+        try {
+          const response = await fetch(nativeEndpoint, { method: "OPTIONS" });
+          return response.status > 0;
+        } catch {
+          try {
+            const response = await fetch(e2eUrl("/"), { method: "GET" });
+            return response.status > 0;
+          } catch {
+            return false;
+          }
+        }
+      },
+      {
+        timeout: 30_000,
+        timeoutMsg: `IDE base URL never became reachable: ${e2eUrl("/")}`,
+      }
+    );
+
     const nativeMemoryResponse = await postJsonFromNode(
-      e2eUrl("/agent/test/sde"),
+      nativeEndpoint,
       {
         content:
           "Reply with exactly ORGII_NATIVE_MEMORY_FLAGS_READY and no other words.",
         session_id: `sdeagent-e2e-memory-flags-${Date.now()}`,
         model: openaiModel,
-        account_id: nativeAccount?.id,
+        account_id: nativeAccount.id,
         workspace_path: workspace,
         enable_extract_memories: true,
         enable_auto_dream: true,
