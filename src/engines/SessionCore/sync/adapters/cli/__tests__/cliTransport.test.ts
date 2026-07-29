@@ -36,6 +36,7 @@ describe("sendCliMessage acceptance boundary", () => {
         content: "continue",
         turnIntentId: "intent-1",
         clientMessageId: "message-1",
+        turnIntentSource: "user_submit",
       })
     ).resolves.toBeUndefined();
 
@@ -62,6 +63,7 @@ describe("sendCliMessage acceptance boundary", () => {
         isResume: true,
         turnIntentId: "intent-2",
         clientMessageId: "message-2",
+        turnIntentSource: "user_submit",
       })
     ).rejects.toThrow("ipc unavailable");
 
