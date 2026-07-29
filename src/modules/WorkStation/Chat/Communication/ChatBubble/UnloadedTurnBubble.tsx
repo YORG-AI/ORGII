@@ -27,10 +27,17 @@
  * `MAX_LOADED_HISTORICAL_TURN_BODIES` bounds how many turn bodies stay
  * resident, so a sibling placeholder's own load can evict this one's body
  * moments after it lands, before this bubble ever gets to render it — see
- * `mountedTurnPlaceholders.ts`. `UnloadedTurnBubbleContent` below detects
- * that ("still mounted a beat after our own load resolved") and retries a
- * bounded number of times before falling back to a manual "tap to retry"
- * affordance instead of spinning forever.
+ * `mountedTurnPlaceholders.ts`. `UnloadedTurnBubbleContent` below expects to
+ * unmount on its own once `../config.ts` drops this placeholder's
+ * `MessageEntry` (its body merged into the stream — see
+ * `findResolvedUnloadedTurnPlaceholderIds` there for why that dedup lives in
+ * this surface rather than relying on the Rust `EventStore` to have removed
+ * the placeholder). "Still mounted a beat after our own load resolved" is
+ * only treated as real eviction when `isTurnBodyLoaded` confirms the body
+ * isn't resident; otherwise retries are suppressed rather than spinning (or
+ * falsely reporting "tap to retry") over content that already loaded. When
+ * eviction is confirmed, retries a bounded number of times before falling
+ * back to a manual "tap to retry" affordance instead of spinning forever.
  */
 import { Loader2, RotateCw } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
@@ -46,6 +53,7 @@ import {
 import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives/config";
 import {
   getMountedTurnPlaceholderIds,
+  isTurnBodyLoaded,
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
   registerMountedTurnPlaceholder,
@@ -129,15 +137,27 @@ const UnloadedTurnBubbleContent: React.FC<UnloadedTurnBubbleContentProps> = ({
         await pruneLoadedTurnBodies(sessionId, protectedTurnIds);
         if (cancelled) return;
 
-        // If we're still mounted a beat after our own load resolved, this
-        // placeholder's body never actually landed — it was evicted by a
-        // concurrent prune before we ever rendered it (or the fetch
-        // returned an empty body). `UnloadedTurnBubble` only renders while
-        // the store still holds the placeholder, so "still mounted" is the
-        // observable signal here. Retry a bounded number of times before
-        // giving up on the automatic path.
+        // If we're still mounted a beat after our own load resolved, that
+        // alone doesn't mean eviction happened — the Communication surface
+        // is expected to drop this placeholder's `MessageEntry` once its
+        // body is visible elsewhere in the stream (see
+        // `findResolvedUnloadedTurnPlaceholderIds` in `../config.ts`), so a
+        // healthy load unmounts this bubble on its own. Gate the retry
+        // decision on the actual eviction signal instead of mount-state:
+        // `isTurnBodyLoaded` reflects `loadedTurnRegistry`'s bookkeeping,
+        // which only forgets a turn when `pruneLoadedTurnBodies` evicts it.
+        // If the body is still resident, "still mounted" is a rendering lag
+        // (or a bug in the surface's own dedup) rather than a lost body —
+        // never spin into a retry loop or a false "tap to retry" over
+        // content that already loaded successfully.
         retryTimer = setTimeout(() => {
           if (cancelled) return;
+          if (isTurnBodyLoaded(sessionId, turnId)) {
+            log.warn(
+              `Unloaded-turn placeholder for ${turnId} is still mounted but its body is resident — suppressing retry.`
+            );
+            return;
+          }
           const decision = decideUnloadedTurnRetry(retryAttemptRef.current);
           if (!decision.shouldRetry) {
             setShowRetryAffordance(true);

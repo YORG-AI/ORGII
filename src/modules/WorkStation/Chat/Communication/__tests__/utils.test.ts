@@ -233,6 +233,128 @@ describe("deriveMessagesState", () => {
     });
   });
 
+  it("drops a stale unloaded-turn placeholder once its turn's real body events are already in the stream", () => {
+    // Regression: for imported-history sessions, the placeholder chunk's
+    // shape (`imported-unloaded-turn-<turnId>`, function "assistant" — see
+    // `imported_history/window.rs::build_unloaded_turn_placeholder_chunk`)
+    // never matches Rust's `is_turn_placeholder()` (which only recognizes
+    // the own-db/Codex-app shape: `turn-placeholder-<turnId>` / function
+    // "turn_placeholder"). So `merge_round_window_events` never strips it
+    // from the EventStore once the real body merges in, and the stale
+    // placeholder sits in `messagesEvents` forever, right alongside the
+    // body it stood in for — the exact "8 tap-to-retry rows next to loaded
+    // bodies" bug. This surface must drop it itself instead of relying on
+    // Rust having removed it.
+    const header = minimalSessionEvent({
+      id: "turn-1",
+      functionName: "user_message",
+      source: "user",
+      displayText: "do the thing",
+      result: { message: { role: "user", content: "do the thing" } },
+    });
+    const stalePlaceholder = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-1 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-1", nextTurnId: null },
+      },
+    });
+    const body = minimalSessionEvent({
+      id: "turn-1-body-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: { observation: "Here is the real reply." },
+    });
+
+    // Placeholder sorted after the body it stands in for — the shape Rust's
+    // timeline sort produces once the body has merged but the placeholder
+    // (whose timestamp mirrors the turn's end time) wasn't removed.
+    const state = deriveMessagesState([header, body, stalePlaceholder], null);
+
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-1",
+      "turn-1-body-1",
+    ]);
+  });
+
+  it("keeps the placeholder while its turn's body has not merged in yet, even once the header is present", () => {
+    const header = minimalSessionEvent({
+      id: "turn-2",
+      functionName: "user_message",
+      source: "user",
+      displayText: "do another thing",
+      result: { message: { role: "user", content: "do another thing" } },
+    });
+    const placeholder = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-2",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-2 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-2", nextTurnId: null },
+      },
+    });
+
+    const state = deriveMessagesState([header, placeholder], null);
+
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-2",
+      "imported-unloaded-turn-turn-2",
+    ]);
+    expect(state.chatMessages[1].unloadedTurn).toEqual({
+      turnId: "turn-2",
+      nextTurnId: null,
+      bodyEventCount: undefined,
+    });
+  });
+
+  it("only treats events within [turnId, nextTurnId) as resolving evidence for a placeholder", () => {
+    const header1 = minimalSessionEvent({
+      id: "turn-1",
+      functionName: "user_message",
+      source: "user",
+      result: { message: { role: "user", content: "first" } },
+    });
+    const placeholder1 = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-1 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-1", nextTurnId: "turn-2" },
+      },
+    });
+    const header2 = minimalSessionEvent({
+      id: "turn-2",
+      functionName: "user_message",
+      source: "user",
+      result: { message: { role: "user", content: "second" } },
+    });
+    const body2 = minimalSessionEvent({
+      id: "turn-2-body-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: { observation: "second reply" },
+    });
+
+    const state = deriveMessagesState(
+      [header1, placeholder1, header2, body2],
+      null
+    );
+
+    // turn-1's placeholder has nothing between it and turn-2's header (its
+    // declared `nextTurnId` boundary) — turn-2's own body must not count as
+    // evidence that turn-1's body loaded.
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-1",
+      "imported-unloaded-turn-turn-1",
+      "turn-2",
+      "turn-2-body-1",
+    ]);
+  });
+
   it("keeps thinking events in the Messages view when they are current", () => {
     const thinkingEvent = minimalSessionEvent({
       id: "thinking-1",

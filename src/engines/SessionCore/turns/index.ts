@@ -1,5 +1,6 @@
 export {
   clearLoadedTurnRegistry,
+  isTurnBodyLoaded,
   pruneLoadedTurnBodies,
 } from "./loadedTurnRegistry";
 export {

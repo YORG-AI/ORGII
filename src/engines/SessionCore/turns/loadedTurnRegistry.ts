@@ -81,6 +81,20 @@ export function markTurnBodyLoaded(
   getSessionLoadedTurns(sessionId).set(turnId, Date.now());
 }
 
+/**
+ * Whether `turnId`'s body is currently resident for `sessionId` per this
+ * registry — i.e. it was loaded and hasn't since been evicted by
+ * `pruneLoadedTurnBodies`. Lets callers (e.g. `UnloadedTurnBubble`) key a
+ * retry decision on the actual eviction signal instead of inferring it from
+ * "is the placeholder's own bubble still mounted", which also goes true
+ * when a *different* bug (a stale placeholder entry surviving in the
+ * consuming surface's own projection) keeps the bubble mounted even though
+ * the body loaded fine.
+ */
+export function isTurnBodyLoaded(sessionId: string, turnId: string): boolean {
+  return loadedTurnsBySession.get(sessionId)?.has(turnId) ?? false;
+}
+
 export async function pruneLoadedTurnBodies(
   sessionId: string,
   protectedTurnIds: Iterable<string>

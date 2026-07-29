@@ -4,6 +4,7 @@ import {
   captureLoadedTurnRegistryGeneration,
   clearLoadedTurnRegistry,
   getLoadedTurnRegistryStats,
+  isTurnBodyLoaded,
   markTurnBodyLoaded,
   pruneLoadedTurnBodies,
 } from "./loadedTurnRegistry";
@@ -99,6 +100,45 @@ describe("loadedTurnRegistry lifecycle", () => {
     expect(getLoadedTurnRegistryStats()).toMatchObject({
       sessions: 1,
       loadedTurns: 1,
+    });
+  });
+
+  describe("isTurnBodyLoaded", () => {
+    it("is false before a turn body has ever been marked loaded", () => {
+      expect(isTurnBodyLoaded("session-a", "turn-1")).toBe(false);
+    });
+
+    it("is true once a turn body is marked loaded for the current generation", () => {
+      const generation = captureLoadedTurnRegistryGeneration("session-a");
+      markTurnBodyLoaded("session-a", "turn-1", generation);
+
+      expect(isTurnBodyLoaded("session-a", "turn-1")).toBe(true);
+      // Distinct session/turn pairs stay independent.
+      expect(isTurnBodyLoaded("session-a", "turn-2")).toBe(false);
+      expect(isTurnBodyLoaded("session-b", "turn-1")).toBe(false);
+    });
+
+    it("goes false again once pruneLoadedTurnBodies evicts the entry", async () => {
+      const sessionId = "codexapp-large";
+      const generation = captureLoadedTurnRegistryGeneration(sessionId);
+      markTurnBodyLoaded(sessionId, "turn-1", generation);
+      markTurnBodyLoaded(sessionId, "turn-2", generation);
+      markTurnBodyLoaded(sessionId, "turn-3", generation);
+
+      await pruneLoadedTurnBodies(sessionId, ["turn-3"]);
+
+      // turn-1 was the oldest unprotected candidate — evicted first.
+      expect(isTurnBodyLoaded(sessionId, "turn-1")).toBe(false);
+      expect(isTurnBodyLoaded(sessionId, "turn-3")).toBe(true);
+    });
+
+    it("is false again after a stale async completion is ignored", () => {
+      const staleGeneration = captureLoadedTurnRegistryGeneration("session-a");
+      clearLoadedTurnRegistry("session-a");
+
+      markTurnBodyLoaded("session-a", "turn-1", staleGeneration);
+
+      expect(isTurnBodyLoaded("session-a", "turn-1")).toBe(false);
     });
   });
 });
