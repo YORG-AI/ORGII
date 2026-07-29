@@ -72,7 +72,10 @@ const WorkstationTabHeader: React.FC = memo(() => {
         <SourceControlHeaderActions />
       </NoDragRegion>
       {!isSourceControlTab && <WorkstationHeaderSectionSeparator />}
-      <PublishedHeaderSlotsView slots={headerSlots} />
+      <PublishedHeaderSlotsView
+        slots={headerSlots}
+        paddingLeftClassName={activeApp === "browser" ? "pl-1" : undefined}
+      />
     </div>
   );
 });
