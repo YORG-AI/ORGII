@@ -75,15 +75,23 @@ const js = {
     const element = document.querySelector(${JSON.stringify(selector)});
     if (!element) return "missing";
     element.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
     const ok = document.execCommand("insertText", false, ${JSON.stringify(text)});
-    element.dispatchEvent(new InputEvent("input", {
-      bubbles: true,
-      inputType: "insertText",
-      data: ${JSON.stringify(text)},
-    }));
-    return ok || (element.textContent || "").includes(${JSON.stringify(text)})
-      ? "typed"
-      : "insert-failed";
+    element.dispatchEvent(
+      new InputEvent("input", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "insertText",
+        data: ${JSON.stringify(text)},
+      })
+    );
+    element.dispatchEvent(new Event("input", { bubbles: true }));
+    const textNow = element.textContent || "";
+    return ok || textNow.includes(${JSON.stringify(text)}) ? "typed" : "insert-failed:" + textNow.slice(0, 80);
   `,
   click: (selector) => `
     const element = document.querySelector(${JSON.stringify(selector)});
@@ -148,13 +156,40 @@ async function ensureActiveSession(
     timeout: MOUNT_TIMEOUT_MS,
     timeoutMsg: "chat input never mounted",
   });
-  await execJS(js.type(inputSelector, prompt));
+  const typed = await execJS(js.type(inputSelector, prompt));
+  if (typed !== "typed") {
+    throw new Error(`composer type failed: ${typed}`);
+  }
   await browser.pause(400);
   await browser.waitUntil(
-    async () =>
-      (await execJS(js.click('[data-testid="chat-send-button"]'))) ===
-      "clicked",
-    { timeout: 15_000, timeoutMsg: "send-button never clickable" }
+    async () => {
+      const state = await execJS(`
+        const btn = document.querySelector('[data-testid="chat-send-button"]');
+        const editor = document.querySelector('[data-testid="chat-input"] [contenteditable="true"]');
+        const modelPill = document.querySelector('[data-testid="chat-model-pill-model"]');
+        const repoPill = document.querySelector('[data-testid="chat-repo-pill"], [data-testid="session-creator-repo-pill"], [data-repo-pill]');
+        return JSON.stringify({
+          btn: btn ? {
+            disabled: !!btn.disabled,
+            state: btn.getAttribute('data-state'),
+            aria: btn.getAttribute('aria-label'),
+          } : null,
+          editorText: editor ? (editor.textContent || '').slice(0, 120) : null,
+          modelPill: modelPill ? (modelPill.textContent || '').slice(0, 80) : null,
+          repoPill: repoPill ? (repoPill.textContent || '').slice(0, 80) : null,
+        });
+      `);
+      const parsed = JSON.parse(state);
+      if (parsed?.btn && !parsed.btn.disabled) {
+        const click = await execJS(js.click('[data-testid="chat-send-button"]'));
+        if (click === "clicked") return true;
+      }
+      return false;
+    },
+    {
+      timeout: 20_000,
+      timeoutMsg: "send-button never clickable",
+    }
   );
   await browser.waitUntil(async () => (await execJS(js.mode)) === "chat", {
     timeout: 30_000,
