@@ -324,6 +324,7 @@ mod tests {
             history: vec![],
             delegations: vec![],
             linked_sessions: vec![],
+            handoff: None,
             proof_of_work: None,
             orchestrator_config: None,
             orchestrator_state: None,

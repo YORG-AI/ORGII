@@ -54,13 +54,15 @@ export function TimelineCopyButton({
 /** Exact, timezone-aware activity timestamp. */
 export function ActivityTimestamp({
   timestamp,
+  label,
 }: {
   timestamp: string;
+  label?: string;
 }): React.ReactNode {
-  const label = formatDate(timestamp);
+  const fullLabel = formatDate(timestamp);
   return (
-    <time dateTime={timestamp} title={timestamp} className="whitespace-nowrap">
-      {label}
+    <time dateTime={timestamp} title={fullLabel} className="whitespace-nowrap">
+      {label ?? fullLabel}
     </time>
   );
 }
@@ -72,12 +74,14 @@ export function TimelineCardHeader({
   actor,
   action,
   timestamp,
+  timestampLabel,
 }: {
   avatar?: React.ReactNode;
   indicator?: React.ReactNode;
   actor: React.ReactNode;
   action: React.ReactNode;
   timestamp?: string | null;
+  timestampLabel?: string;
 }): React.ReactNode {
   return (
     <span className="flex min-w-0 items-center gap-2">
@@ -88,7 +92,7 @@ export function TimelineCardHeader({
         {timestamp ? (
           <>
             {" "}
-            <ActivityTimestamp timestamp={timestamp} />
+            <ActivityTimestamp timestamp={timestamp} label={timestampLabel} />
           </>
         ) : null}
       </span>
@@ -127,21 +131,36 @@ export function ConnectedTimelineItem({
 export function TimelineCard({
   header,
   copyBody,
+  actions,
   footer,
   children,
+  className = "",
+  bodyClassName = "",
 }: {
   header: React.ReactNode;
   copyBody?: string;
+  actions?: React.ReactNode;
   footer?: React.ReactNode;
   children?: React.ReactNode;
+  className?: string;
+  bodyClassName?: string;
 }): React.ReactNode {
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-primary-container">
+    <div
+      className={`flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border-1 bg-primary-container ${className}`.trim()}
+    >
       <div className="flex min-w-0 select-text items-center justify-between gap-3 border-b border-border-1 px-3 py-2">
         {header}
-        {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
+        {copyBody || actions ? (
+          <div className="flex shrink-0 items-center gap-1">
+            {actions}
+            {copyBody ? <TimelineCopyButton body={copyBody} /> : null}
+          </div>
+        ) : null}
       </div>
-      <div className="min-w-0 select-text px-3 py-3">{children}</div>
+      <div className={`min-w-0 select-text px-3 py-3 ${bodyClassName}`.trim()}>
+        {children}
+      </div>
       {footer}
     </div>
   );

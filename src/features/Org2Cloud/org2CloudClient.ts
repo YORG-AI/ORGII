@@ -98,7 +98,8 @@ async function callRpc(
   functionName: string,
   accessToken?: string,
   body?: Record<string, unknown>,
-  endpoint: CloudRpcEndpoint = getCloudEndpoint()
+  endpoint: CloudRpcEndpoint = getCloudEndpoint(),
+  signal?: AbortSignal
 ): Promise<unknown | null> {
   try {
     const response = await fetchWithTransportRetry(
@@ -107,6 +108,7 @@ async function callRpc(
         method: "POST",
         headers: rpcHeaders(accessToken, endpoint),
         body: JSON.stringify(body ?? {}),
+        signal,
       }
     );
     if (!response.ok) {
@@ -132,9 +134,16 @@ export async function schemaVersion(): Promise<number | null> {
  * transport failure. Interpretation/caching live in `org2CloudCapabilities`.
  */
 export async function getCloudCapabilitiesRaw(
-  accessToken: string
+  accessToken: string,
+  signal?: AbortSignal
 ): Promise<unknown | null> {
-  return callRpc("get_cloud_capabilities", accessToken);
+  return callRpc(
+    "get_cloud_capabilities",
+    accessToken,
+    undefined,
+    getCloudEndpoint(),
+    signal
+  );
 }
 
 /**

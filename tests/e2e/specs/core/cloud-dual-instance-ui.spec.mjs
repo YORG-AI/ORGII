@@ -23,6 +23,7 @@ import {
   openCreateOrgFormFromSidebar,
   openTurnCommentPanel,
   postTurnComment,
+  postTurnCommentMentioning,
   pressEscape,
   provisionCloudUser,
   publishCloudSessionMetadata,
@@ -62,6 +63,7 @@ const SESSION_NOTE_BODY = `Dual-instance session note ${RUN_ID}`;
 const EDITED_COMMENT_BODY = `@agent dual-instance edited task ${RUN_ID}`;
 const EDITED_COMMENT_BRIEF = EDITED_COMMENT_BODY.slice("@agent ".length);
 const REPLY_BODY = `Owner reply from the other instance ${RUN_ID}`;
+const TEAM_INBOX_MENTION_BODY = `Team Inbox mention ${RUN_ID}`;
 const SEND_BODY = `Continue this work from the matching workspace ${RUN_ID}`;
 const PROJECT_NAME = `Dual cloud project ${RUN_ID}`;
 const PROJECT_SLUG = PROJECT_NAME.toLowerCase()
@@ -2349,6 +2351,102 @@ describe("Cloud collaboration with two independent rendered app instances", func
     ) {
       throw new Error(
         `fork lost inherited history after the parent was reopened (event-id collision steal-back): ${JSON.stringify(forkAfterParent.chatEvents ?? [])}`
+      );
+    }
+  });
+
+  it("C2. delivers a structured member mention and persists the teammate read receipt", async function () {
+    this.timeout(180_000);
+
+    unwrap(
+      await invokeE2E("openSession", sessionId),
+      "primary reopen source session for Team Inbox mention"
+    );
+    await openTurnCommentPanel(sourceTurnAnchorEventId);
+    await postTurnCommentMentioning(TEAM_INBOX_MENTION_BODY, teammate.userId);
+    await waitForRendered(
+      '[data-testid="comment-member-mention-pill"]',
+      "primary rendered teammate mention chip",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+
+    await waitForRenderedOn(
+      second.client,
+      '[data-testid="sidebar-team-inbox"]',
+      "secondary Team Inbox navigation",
+      CLOUD_FETCH_TIMEOUT_MS
+    );
+    await clickRenderedOn(
+      second.client,
+      '[data-testid="sidebar-team-inbox"]',
+      "secondary Team Inbox navigation"
+    );
+    await second.client.waitUntil(
+      async () =>
+        executeOn(
+          second.client,
+          `
+            const body = arguments[0];
+            const row = Array.from(
+              document.querySelectorAll(
+                '[data-testid="team-inbox-row"][data-item-kind="comment_mention"]'
+              )
+            ).find((candidate) => (candidate.textContent ?? '').includes(body));
+            if (!row) return false;
+            row.setAttribute('data-e2e-team-inbox-mention', 'true');
+            return row.getAttribute('data-unread') === 'true';
+          `,
+          [TEAM_INBOX_MENTION_BODY]
+        ),
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "secondary Team Inbox never rendered the teammate mention as unread",
+      }
+    );
+
+    await clickRenderedOn(
+      second.client,
+      '[data-e2e-team-inbox-mention="true"]',
+      "secondary unread Team Inbox mention"
+    );
+
+    let teammateInbox = null;
+    await second.client.waitUntil(
+      async () => {
+        teammateInbox = await callProjectsRpc(
+          env,
+          teammate,
+          "cloud_list_team_inbox_mentions",
+          { p_org_id: teamOrgId, p_cursor: null, p_limit: 50 }
+        );
+        const mention = (teammateInbox?.mentions ?? []).find(
+          (entry) => entry.body === TEAM_INBOX_MENTION_BODY
+        );
+        return Boolean(mention?.readAt && teammateInbox.unreadCount === 0);
+      },
+      {
+        timeout: CLOUD_FETCH_TIMEOUT_MS,
+        interval: 500,
+        timeoutMsg:
+          "secondary click did not persist the viewer-scoped cloud read receipt",
+      }
+    );
+
+    const ownerInbox = await callProjectsRpc(
+      env,
+      owner,
+      "cloud_list_team_inbox_mentions",
+      { p_org_id: teamOrgId, p_cursor: null, p_limit: 50 }
+    );
+    if (
+      (ownerInbox?.mentions ?? []).some(
+        (entry) => entry.body === TEAM_INBOX_MENTION_BODY
+      )
+    ) {
+      throw new Error(
+        "mention projection leaked the teammate-targeted comment into the owner Inbox"
       );
     }
   });

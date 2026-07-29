@@ -788,7 +788,9 @@
       "addressRoundScope": "逐輪評論",
       "addressConfirm_one": "處理 {{count}} 條評論",
       "addressConfirm_other": "處理 {{count}} 條評論",
-      "agentAuthor": "Agent @{{name}}"
+      "agentAuthor": "Agent @{{name}}",
+      "mentionMembers": "提及成員",
+      "searchMembers": "搜尋成員"
     },
     "billing": {
       "openFailed": "無法開啟帳單頁，請重試。"

@@ -696,7 +696,9 @@
       "addressConfirm_other": "Xử lý {{count}} bình luận",
       "agentAuthor": "Agent @{{name}}",
       "addressSessionScope": "Session notes",
-      "addressRoundScope": "Round comments"
+      "addressRoundScope": "Round comments",
+      "mentionMembers": "Nhắc đến",
+      "searchMembers": "Tìm thành viên"
     },
     "sharingFloor": {
       "label": "Mức chia sẻ tối thiểu",

@@ -3,6 +3,7 @@ import i18next from "i18next";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import type { SessionReferenceOpen } from "@src/shared/dnd/sessionTabDrag";
 
 const logger = createLogger("ChatPanelTabContextMenu");
 
@@ -10,6 +11,8 @@ export interface ChatPanelTabContextMenuProps {
   tabId: string;
   onCloseTab: (tabId: string) => void | Promise<void>;
   onCloseOtherTabs: (tabId: string) => void | Promise<void>;
+  sessionReference?: SessionReferenceOpen;
+  onCreateWorkItem?: (reference: SessionReferenceOpen) => void;
   onDismiss: () => void;
 }
 
@@ -49,9 +52,26 @@ export function ChatPanelTabContextMenu(
             },
           }),
         ]);
-        const menu = await TauriMenu.new({
-          items: [closeItem, closeOthersItem],
-        });
+        const items: MenuItem[] = [];
+        const sessionReference = propsRef.current.sessionReference;
+        if (sessionReference) {
+          items.push(
+            await MenuItem.new({
+              text: translate("teamInbox.handoff.createFromSession", {
+                defaultValue: "Create team Work Item…",
+              }),
+              action: () => {
+                const current = propsRef.current;
+                if (current.sessionReference) {
+                  current.onCreateWorkItem?.(current.sessionReference);
+                }
+                current.onDismiss();
+              },
+            })
+          );
+        }
+        items.push(closeItem, closeOthersItem);
+        const menu = await TauriMenu.new({ items });
         await menu.popup();
         setTimeout(() => propsRef.current.onDismiss(), 50);
       } catch (error) {

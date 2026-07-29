@@ -317,6 +317,7 @@ export const WSMessageSchema = z.discriminatedUnion("type", [
 ]);
 
 export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
+  "repo:changed",
   "repo:status_updated",
   "file:changed",
   "repo:git_operation",

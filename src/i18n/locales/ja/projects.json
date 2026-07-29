@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "アクティビティ",
+      "discussionTitle": "ディスカッション",
+      "activityHistory": "アクティビティ履歴",
+      "activityHistoryCount": "{{count}}件のイベント",
+      "noComments": "コメントはまだありません",
       "subscribe": "購読する",
       "unsubscribe": "購読解除",
       "commentPlaceholder": "コメントを残す...",
@@ -389,6 +393,16 @@
       "clearedField": "{{field}}をクリアしました",
       "changedDescription": "説明を更新しました",
       "editedFields": "{{count}} 件のフィールドを編集しました:",
+      "groupedChanges": "{{count}} 件変更しました",
+      "groupedTodoChanges": "To-Doを更新 · {{count}} 件の操作",
+      "todoAdded": "「{{todo}}」を追加しました",
+      "todoRemoved": "「{{todo}}」を削除しました",
+      "todoCompleted": "「{{todo}}」を完了しました",
+      "todoReopened": "「{{todo}}」を再開しました",
+      "todoStarted": "「{{todo}}」を開始しました",
+      "todoMarkedPending": "「{{todo}}」を保留に戻しました",
+      "todoRenamed": "「{{from}}」を「{{to}}」に変更しました",
+      "todoUpdated": "「{{todo}}」を更新しました",
       "justNow": "たった今",
       "daysAgo": "{{count}}日前",
       "hoursAgo": "{{count}}時間前",
@@ -411,7 +425,8 @@
         "todos": "To-Do",
         "comments": "コメント",
         "schedule": "スケジュール",
-        "orchestratorConfig": "Orchestrator 設定"
+        "orchestratorConfig": "Orchestrator 設定",
+        "handoff": "引き継ぎ"
       }
     },
     "todos": {

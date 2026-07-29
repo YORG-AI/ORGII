@@ -9,23 +9,29 @@ import { z } from "zod/v4";
 
 import { getCloudEndpoint } from "./config";
 import { getCloudCapabilitiesRaw } from "./org2CloudClient";
+import { runCloudRequestWithTimeout } from "./org2CloudFetchRetry";
+
+const CLOUD_CAPABILITIES_TIMEOUT_MS = 15_000;
 
 const CloudCapabilitiesWireSchema = z.object({
   broadcastSignals: z.boolean().nullish().catch(undefined),
   storageSegments: z.boolean().nullish().catch(undefined),
   homeEndpoints: z.boolean().nullish().catch(undefined),
+  teamInboxMentions: z.boolean().nullish().catch(undefined),
 });
 
 export interface CloudCapabilities {
   broadcastSignals: boolean;
   storageSegments: boolean;
   homeEndpoints: boolean;
+  teamInboxMentions: boolean;
 }
 
 const LEGACY_CAPABILITIES: CloudCapabilities = {
   broadcastSignals: false,
   storageSegments: false,
   homeEndpoints: false,
+  teamInboxMentions: false,
 };
 
 const capabilitiesByEndpoint = new Map<string, CloudCapabilities>();
@@ -40,7 +46,10 @@ export async function getCloudCapabilities(
   const inFlight = inFlightByEndpoint.get(endpointKey);
   if (inFlight) return inFlight;
   const probe = (async () => {
-    const payload = await getCloudCapabilitiesRaw(accessToken);
+    const payload = await runCloudRequestWithTimeout(
+      (signal) => getCloudCapabilitiesRaw(accessToken, signal),
+      CLOUD_CAPABILITIES_TIMEOUT_MS
+    );
     const parsed = CloudCapabilitiesWireSchema.safeParse(payload);
     if (payload === null || !parsed.success) {
       // 404 (pre-0005) and transient failures are indistinguishable here, so
@@ -52,6 +61,7 @@ export async function getCloudCapabilities(
       broadcastSignals: parsed.data.broadcastSignals ?? false,
       storageSegments: parsed.data.storageSegments ?? false,
       homeEndpoints: parsed.data.homeEndpoints ?? false,
+      teamInboxMentions: parsed.data.teamInboxMentions ?? false,
     };
     capabilitiesByEndpoint.set(endpointKey, capabilities);
     return capabilities;

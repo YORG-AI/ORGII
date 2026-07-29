@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { TabPillItem } from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
+import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import {
   resolveImagePathsForDisplay,
   unresolveImagePathsForStorage,
@@ -48,12 +49,26 @@ export function useWorkItemContentState(
   } = options;
 
   const { t } = useTranslation("projects");
+  const {
+    currentUser: resolvedCurrentUser,
+    memberIds: resolvedCurrentUserMemberIds,
+  } = useCurrentUserMemberIds(teamMembers);
 
-  const currentUser = currentUserProp ?? {
-    id: "current",
-    name: t("workItems.activity.you"),
-    color: "#52c41a",
-  };
+  const currentUser = useMemo(
+    () =>
+      currentUserProp ??
+      resolvedCurrentUser ?? {
+        id: "system",
+        name: t("workItems.activity.system"),
+        color: "var(--color-fill-3)",
+      },
+    [currentUserProp, resolvedCurrentUser, t]
+  );
+  const currentUserMemberIds = useMemo(() => {
+    const ids = new Set(resolvedCurrentUserMemberIds);
+    if (currentUserProp?.id) ids.add(currentUserProp.id);
+    return ids;
+  }, [currentUserProp?.id, resolvedCurrentUserMemberIds]);
 
   const [activeSessionTab, setActiveSessionTab] =
     useState<SessionTab>("session");
@@ -66,11 +81,14 @@ export function useWorkItemContentState(
 
   const pendingOpenChatRef = useRef(false);
 
-  const handleStartAgentAndOpenChat = useCallback(
-    (instructions?: string) => {
-      pendingOpenChatRef.current = true;
-      onStartAgent?.(instructions);
-    },
+  const handleStartAgentAndOpenChat = useMemo(
+    () =>
+      onStartAgent
+        ? (instructions?: string) => {
+            pendingOpenChatRef.current = true;
+            onStartAgent(instructions);
+          }
+        : undefined,
     [onStartAgent]
   );
 
@@ -161,9 +179,19 @@ export function useWorkItemContentState(
 
   // --- Timeline ---
 
+  const timelineMembers = useMemo(
+    () =>
+      currentUser
+        ? [
+            ...teamMembers.filter((member) => member.id !== currentUser.id),
+            currentUser,
+          ]
+        : teamMembers,
+    [currentUser, teamMembers]
+  );
   const { timelineEntries } = useWorkItemTimeline({
     workItem,
-    teamMembers,
+    teamMembers: timelineMembers,
   });
 
   // --- Handlers ---
@@ -210,7 +238,7 @@ export function useWorkItemContentState(
     try {
       const newComment = {
         id: `cmt-${Date.now()}`,
-        author: currentUser.name,
+        author: currentUser.id,
         content: commentText.trim(),
         created_at: new Date().toISOString(),
       };
@@ -227,12 +255,13 @@ export function useWorkItemContentState(
     commentText,
     isSubmittingComment,
     workItem,
-    currentUser.name,
+    currentUser.id,
     onUpdateWorkItem,
   ]);
 
   return {
     currentUser,
+    currentUserMemberIds,
     activeSessionTab,
     setActiveSessionTab,
     commentText,

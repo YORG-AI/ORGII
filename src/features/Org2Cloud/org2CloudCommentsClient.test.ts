@@ -173,6 +173,30 @@ describe("addSessionComment", () => {
     expect(lastBody().p_event_id).toBeNull();
   });
 
+  it("uses the atomic mentions RPC with deduplicated member ids", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        comment: {
+          ...WIRE_COMMENT,
+          mentionedUserIds: ["user-2", "user-3"],
+        },
+      })
+    );
+
+    const comment = await addSessionComment("jwt-1", {
+      orgId: "org-1",
+      sessionId: "sess-1",
+      body: "Please review",
+      mentionedUserIds: ["user-2", "user-2", "user-3"],
+    });
+
+    expect(lastCall().url).toBe(
+      `${ORG2_CLOUD_OFFICIAL_SUPABASE_URL}/rest/v1/rpc/cloud_add_session_comment_with_mentions`
+    );
+    expect(lastBody().p_mentioned_user_ids).toEqual(["user-2", "user-3"]);
+    expect(comment.mentionedUserIds).toEqual(["user-2", "user-3"]);
+  });
+
   it("sends JWT bearer + Content-Profile", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ comment: WIRE_COMMENT }));
     await addSessionComment("jwt-9", {

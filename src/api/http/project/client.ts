@@ -32,6 +32,7 @@ import type {
   SyncProjectOrgGitFolderResult,
   WorkItemData,
   WorkItemFrontmatter,
+  WorkItemHandoffTransition,
   WorkItemPartialUpdate,
   WorkItemsViewData,
 } from "./types";
@@ -525,6 +526,23 @@ export async function updateWorkItemPartial(
       projectSlug,
       shortId,
       updates,
+    }
+  );
+  invalidateCache();
+  return result;
+}
+
+export async function transitionWorkItemHandoff(
+  projectSlug: string,
+  shortId: string,
+  transition: WorkItemHandoffTransition
+): Promise<WorkItemData> {
+  const result = await invoke<WorkItemData>(
+    "project_transition_work_item_handoff",
+    {
+      projectSlug,
+      shortId,
+      transition,
     }
   );
   invalidateCache();

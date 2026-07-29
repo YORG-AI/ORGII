@@ -1132,6 +1132,7 @@ async fn debug_work_item_runtime_launch_impl(
                 history: Vec::new(),
                 delegations: Vec::new(),
                 linked_sessions: Vec::new(),
+                handoff: None,
                 proof_of_work: None,
                 orchestrator_config: Some(OrchestratorConfig {
                     selected_account_id: Some(account_id),

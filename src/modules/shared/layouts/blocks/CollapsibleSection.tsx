@@ -101,6 +101,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         <button
           type="button"
           onClick={toggleOpen}
+          aria-expanded={isOpen}
           data-testid={titleButtonTestId}
           className={`${COLLAPSIBLE_SECTION_TOKENS.titleButton} ${titleButtonClassName}`.trim()}
         >

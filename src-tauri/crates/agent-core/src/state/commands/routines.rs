@@ -255,6 +255,7 @@ async fn create_work_item_from_routine(
             history: Vec::new(),
             delegations: Vec::new(),
             linked_sessions: Vec::new(),
+            handoff: None,
             proof_of_work: None,
             orchestrator_config: Some(routine_to_orchestrator_config(&routine)),
             orchestrator_state: None,

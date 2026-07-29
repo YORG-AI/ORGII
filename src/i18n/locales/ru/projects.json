@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Активность",
+      "discussionTitle": "Обсуждение",
+      "activityHistory": "История активности",
+      "activityHistoryCount": "{{count}} событий",
+      "noComments": "Комментариев пока нет",
       "subscribe": "Подписаться",
       "unsubscribe": "Отписаться",
       "commentPlaceholder": "Оставить комментарий...",
@@ -389,6 +393,16 @@
       "clearedField": "очистил {{field}}",
       "changedDescription": "обновил описание",
       "editedFields": "изменил {{count}} полей:",
+      "groupedChanges": "внёс {{count}} изменений",
+      "groupedTodoChanges": "обновил задачи · {{count}} действий",
+      "todoAdded": "добавил «{{todo}}»",
+      "todoRemoved": "удалил «{{todo}}»",
+      "todoCompleted": "завершил «{{todo}}»",
+      "todoReopened": "снова открыл «{{todo}}»",
+      "todoStarted": "начал «{{todo}}»",
+      "todoMarkedPending": "пометил «{{todo}}» как ожидающее",
+      "todoRenamed": "переименовал «{{from}}» в «{{to}}»",
+      "todoUpdated": "обновил «{{todo}}»",
       "justNow": "только что",
       "daysAgo": "{{count}}д назад",
       "hoursAgo": "{{count}}ч назад",
@@ -411,7 +425,8 @@
         "todos": "задачи",
         "comments": "комментарии",
         "schedule": "расписание",
-        "orchestratorConfig": "конфигурация Orchestrator"
+        "orchestratorConfig": "конфигурация Orchestrator",
+        "handoff": "передача"
       }
     },
     "todos": {

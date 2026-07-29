@@ -18,7 +18,6 @@ import type {
   RustCalendarEvent,
   RustGanttTask,
   RustKanbanTask,
-  WorkItemPartialUpdate,
   WorkItemsViewData,
 } from "@src/api/http/project";
 import type { CalendarEvent } from "@src/features/CalendarView";
@@ -27,9 +26,11 @@ import type { KanbanTask } from "@src/features/KanbanBoard";
 import { createLogger } from "@src/hooks/logger";
 import { useDebouncedCallback } from "@src/hooks/perf";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import { type OnAssignmentChanges, type StatusFilterType } from "../types";
+import { toWorkItemPartialUpdate } from "../workItemPartialUpdate";
 import {
   countWorkItemsByStatus,
   getWorkItemNavigation,
@@ -41,95 +42,6 @@ const logger = createLogger("useWorkItemsData");
 // ============================================
 // Type Converters
 // ============================================
-
-/**
- * Convert UI WorkItemExtended partial updates to Rust WorkItemPartialUpdate format.
- * Only includes fields that are present in the input.
- */
-function uiToPartialUpdate(
-  data: Partial<WorkItemExtended>
-): WorkItemPartialUpdate {
-  const updates: WorkItemPartialUpdate = {};
-
-  if (data.name !== undefined) {
-    updates.title = data.name;
-  }
-  if (data.spec !== undefined) {
-    updates.body = data.spec;
-  }
-  if (data.workItemStatus !== undefined) {
-    updates.status = data.workItemStatus;
-  }
-  if (data.priority !== undefined) {
-    updates.priority = data.priority;
-  }
-  if ("project" in data) {
-    updates.project = data.project?.id ?? null;
-  }
-  // WorkItem uses `star`, not `starred`
-  if (data.star !== undefined) {
-    updates.starred = data.star;
-  }
-  if ("assignee" in data) {
-    updates.assignee = data.assignee?.id ?? null;
-  }
-  if ("assigneeType" in data) {
-    updates.assigneeType = data.assigneeType ?? null;
-  }
-  if ("labels" in data) {
-    updates.labels = data.labels?.map((label) => label.id) ?? [];
-  }
-  if ("milestone" in data) {
-    updates.milestone = data.milestone?.id ?? null;
-  }
-  if ("startDate" in data) {
-    updates.startDate = data.startDate ?? null;
-  }
-  if ("endDate" in data) {
-    updates.targetDate = data.endDate ?? null;
-  }
-  if ("target_date" in data) {
-    updates.targetDate = data.target_date ?? null;
-  }
-  if (data.todos !== undefined) {
-    updates.todos = data.todos?.map((todo) => ({
-      id: todo.id,
-      content: todo.content,
-      status: todo.status,
-    }));
-  }
-  if (data.comments !== undefined) {
-    updates.comments = data.comments?.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-    }));
-  }
-  if (data.linkedSessions !== undefined) {
-    updates.linkedSessions = data.linkedSessions;
-  }
-  if (data.orchestratorConfig !== undefined) {
-    updates.orchestratorConfig = data.orchestratorConfig;
-  }
-  if (data.orchestratorState !== undefined) {
-    updates.orchestratorState = data.orchestratorState;
-  }
-  if (data.schedule !== undefined) {
-    updates.schedule = data.schedule ?? null;
-  }
-  if (data.executionLock !== undefined) {
-    updates.executionLock = data.executionLock ?? null;
-  }
-  if (data.closeOut !== undefined) {
-    updates.closeOut = data.closeOut ?? null;
-  }
-  if (data.workProducts !== undefined) {
-    updates.workProducts = data.workProducts;
-  }
-
-  return updates;
-}
 
 function rustKanbanToFrontend(task: RustKanbanTask): KanbanTask {
   return {
@@ -283,6 +195,7 @@ export function useWorkItemsData({
   // Members: use shared data from useProjectData, only fetch if not provided
   const [localMembers, setLocalMembers] = useState<MemberEntry[]>([]);
   const members = sharedMembers?.length ? sharedMembers : localMembers;
+  const { currentUser } = useCurrentUserMemberIds(members);
 
   useEffect(() => {
     if (sharedMembers?.length || !projectSlug) return;
@@ -314,7 +227,7 @@ export function useWorkItemsData({
           return false;
         }
 
-        const updates = uiToPartialUpdate(data);
+        const updates = toWorkItemPartialUpdate(data, currentUser);
         if (Object.keys(updates).length === 0) {
           return true;
         }
@@ -343,7 +256,7 @@ export function useWorkItemsData({
         return false;
       }
     },
-    [projectSlug, shortIdMap]
+    [currentUser, projectSlug, shortIdMap]
   );
 
   const teamId = "file";

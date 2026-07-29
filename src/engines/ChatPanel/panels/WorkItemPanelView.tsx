@@ -1,13 +1,12 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ExternalLink, Info, ListChecks, Trash2, X } from "lucide-react";
+import { ExternalLink, ListChecks, Trash2, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
   type WorkItemFrontmatter,
-  type WorkItemPartialUpdate,
   enrichedWorkItemToUI,
   projectApi,
   standaloneWorkItemDataToEnriched,
@@ -19,16 +18,12 @@ import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
-import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
-import {
-  WorkItemContent,
-  WorkItemProperties,
-} from "@src/modules/ProjectManager/WorkItems/components";
+import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import { useWorkItemOrchestrator } from "@src/modules/ProjectManager/WorkItems/hooks";
-import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
+import { toWorkItemPartialUpdate } from "@src/modules/ProjectManager/WorkItems/workItemPartialUpdate";
 import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
-import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import { closeWorkItemChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
@@ -40,12 +35,10 @@ import { WORK_ITEM_STATUS, type WorkItem } from "@src/types/core/workItem";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import SessionContentView from "../SessionContentView";
+import { usePendingWorkItemAction } from "./usePendingWorkItemAction";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
-const WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH = 240;
-const WORK_ITEM_INFO_PANEL_MIN_WIDTH = 200;
-const WORK_ITEM_INFO_PANEL_MAX_WIDTH = 280;
 
 interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
@@ -104,70 +97,6 @@ function applyWorkItemPatch(
   };
 }
 
-function toWorkItemPartialUpdate(
-  updates: Partial<WorkItem>
-): WorkItemPartialUpdate {
-  const payload: WorkItemPartialUpdate = {};
-
-  if (updates.name !== undefined) payload.title = updates.name;
-  if (updates.spec !== undefined) payload.body = updates.spec;
-  if (updates.workItemStatus !== undefined) {
-    payload.status = updates.workItemStatus;
-  }
-  if (updates.priority !== undefined) payload.priority = updates.priority;
-  if (updates.project?.id) payload.project = updates.project.id;
-  if (updates.star !== undefined) payload.starred = updates.star;
-  if ("assignee" in updates) payload.assignee = updates.assignee?.id ?? null;
-  if ("assigneeType" in updates) {
-    payload.assigneeType = updates.assigneeType ?? null;
-  }
-  if ("labels" in updates) {
-    payload.labels = updates.labels?.map((label) => label.id) ?? [];
-  }
-  if ("milestone" in updates) {
-    payload.milestone = updates.milestone?.id ?? null;
-  }
-  if ("startDate" in updates) payload.startDate = updates.startDate ?? null;
-  if ("endDate" in updates) payload.targetDate = updates.endDate ?? null;
-  if ("target_date" in updates) {
-    payload.targetDate = updates.target_date ?? null;
-  }
-  if (updates.todos !== undefined) {
-    payload.todos = updates.todos.map((todo) => ({
-      id: todo.id,
-      content: todo.content,
-      status: todo.status,
-    }));
-  }
-  if (updates.comments !== undefined) {
-    payload.comments = updates.comments.map((comment) => ({
-      id: comment.id,
-      author: comment.author,
-      content: comment.content,
-      created_at: comment.created_at,
-    }));
-  }
-  if (updates.linkedSessions !== undefined) {
-    payload.linkedSessions = updates.linkedSessions;
-  }
-  if (updates.orchestratorConfig !== undefined) {
-    payload.orchestratorConfig = updates.orchestratorConfig;
-  }
-  if (updates.orchestratorState !== undefined) {
-    payload.orchestratorState = updates.orchestratorState;
-  }
-  if (updates.schedule !== undefined) payload.schedule = updates.schedule;
-  if (updates.executionLock !== undefined) {
-    payload.executionLock = updates.executionLock;
-  }
-  if (updates.closeOut !== undefined) payload.closeOut = updates.closeOut;
-  if (updates.workProducts !== undefined) {
-    payload.workProducts = updates.workProducts;
-  }
-
-  return payload;
-}
-
 export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   selectedWorkItem,
   onUpdateWorkItem,
@@ -181,21 +110,23 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   const [floatingSessionId, setFloatingSessionId] = useState<string | null>(
     null
   );
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
-  const [infoPanelWidth, setInfoPanelWidth] = useState(
-    WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH
-  );
   const [projectSyncAdapter, setProjectSyncAdapter] = useState<{
     projectSlug: string;
     adapterId: string | null;
   } | null>(null);
-  const { handleMouseDown: handleInfoPanelResize, isResizing } =
-    useResizeHandle(infoPanelWidth, setInfoPanelWidth, {
-      direction: "horizontal",
-      minSize: WORK_ITEM_INFO_PANEL_MIN_WIDTH,
-      maxSize: WORK_ITEM_INFO_PANEL_MAX_WIDTH,
-      isReversed: true,
-    });
+  const workItemMembers = useMemo(
+    () => [
+      ...(selectedWorkItem.sourceProject?.project.members ?? []),
+      ...(selectedWorkItem.workItem.assignee
+        ? [selectedWorkItem.workItem.assignee]
+        : []),
+    ],
+    [
+      selectedWorkItem.sourceProject?.project.members,
+      selectedWorkItem.workItem.assignee,
+    ]
+  );
+  const { currentUser } = useCurrentUserMemberIds(workItemMembers);
 
   useEffect(() => {
     const projectSlug = selectedWorkItem.projectSlug;
@@ -231,7 +162,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       }
 
       try {
-        const payload = toWorkItemPartialUpdate(updates);
+        const payload = toWorkItemPartialUpdate(updates, currentUser);
         if (Object.keys(payload).length === 0) return;
 
         if (selectedWorkItem.projectSlug) {
@@ -273,7 +204,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         logger.error("Failed to update chat panel work item", error);
       }
     },
-    [onUpdateWorkItem, selectedWorkItem, setSelectedWorkItem]
+    [currentUser, onUpdateWorkItem, selectedWorkItem, setSelectedWorkItem]
   );
 
   const refreshSelectedWorkItem = useCallback(async () => {
@@ -378,6 +309,11 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     handleSave: saveNoPendingWorkItemChanges,
   });
 
+  usePendingWorkItemAction({
+    workItemShortId: selectedWorkItem.shortId,
+    onStartAgent: handleStartAgent,
+  });
+
   const handleOpenSession = useCallback(
     (sessionId: string) => {
       setFloatingSessionId(sessionId);
@@ -452,11 +388,11 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
   }, [closeWorkItemTab, selectedWorkItem, t]);
 
   const headerActions = useMemo(
-    () => (
-      <div className="flex items-center gap-px">
-        {selectedWorkItem.projectSlug &&
-        projectSyncAdapterId !== undefined &&
-        !isGitHubSyncedProject ? (
+    () =>
+      selectedWorkItem.projectSlug &&
+      projectSyncAdapterId !== undefined &&
+      !isGitHubSyncedProject ? (
+        <div className="flex items-center gap-px">
           <WorkstationToolbarTooltip
             label={t("projects:workItems.deleteWorkItem")}
           >
@@ -471,40 +407,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
             />
           </WorkstationToolbarTooltip>
-        ) : null}
-        <WorkstationToolbarTooltip
-          label={
-            propertiesOpen
-              ? t("projects:workItems.hideProperties")
-              : t("projects:workItems.showProperties")
-          }
-        >
-          <Button
-            htmlType="button"
-            variant="tertiary"
-            size="small"
-            iconOnly
-            className={
-              propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
-            }
-            onClick={() => setPropertiesOpen((current) => !current)}
-            aria-label={
-              propertiesOpen
-                ? t("projects:workItems.hideProperties")
-                : t("projects:workItems.showProperties")
-            }
-            aria-pressed={propertiesOpen}
-            data-testid="chat-panel-work-item-properties-toggle"
-            icon={<Info size={HEADER_ICON_SIZE.sm} />}
-          />
-        </WorkstationToolbarTooltip>
-      </div>
-    ),
+        </div>
+      ) : null,
     [
       handleDeleteWorkItem,
       isGitHubSyncedProject,
       projectSyncAdapterId,
-      propertiesOpen,
       selectedWorkItem.projectSlug,
       t,
     ]
@@ -554,75 +462,50 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     content: { content: headerContent, trailing: headerActions },
   });
 
-  const propertiesContent = (
-    <WorkItemProperties
-      workItem={selectedWorkItem.workItem}
-      onUpdate={handleUpdateWorkItem}
-      availableProjects={
-        selectedWorkItem.workItem.project
-          ? [selectedWorkItem.workItem.project]
-          : []
-      }
-      availableMilestones={
-        selectedWorkItem.workItem.milestone
-          ? [selectedWorkItem.workItem.milestone]
-          : []
-      }
-      availableLabels={selectedWorkItem.workItem.labels ?? []}
-      availableMembers={[
-        ...(selectedWorkItem.sourceProject?.project.members ?? []),
-        ...(selectedWorkItem.workItem.assignee
-          ? [selectedWorkItem.workItem.assignee]
-          : []),
-      ]}
-      projectIconType={
-        isGitHubSyncedProject ? STORY_SYNC_ADAPTER.GITHUB : undefined
-      }
-      projectReadonly={projectSelectionReadonly}
-    />
-  );
-
   return (
     <div
       className="relative flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden"
       data-testid="chat-panel-work-item-detail"
     >
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <WorkItemContent
-            key={workItemContentKey}
-            workItem={selectedWorkItem.workItem}
-            onUpdateWorkItem={handleUpdateWorkItem}
-            onUpdateWorkItemImmediate={handleUpdateWorkItem}
-            repoPath={repoPath}
-            projectSlug={selectedWorkItem.projectSlug}
-            shortId={selectedWorkItem.shortId}
-            onStartAgent={handleStartAgent}
-            isStartingAgent={isStartingAgent}
-            onCancelAgent={handleCancelAgent}
-            onRetry={handleRetry}
-            onAcceptAsIs={handleAcceptAsIs}
-            onCreateFollowUp={handleCreateFollowUp}
-            onOpenSession={handleOpenSession}
-            onRefreshWorkflow={refreshSelectedWorkItem}
-            activeAgentSessionId={activeAgentSessionId}
-            activeAgentRole={activeAgentRole}
-            isLockedByOther={isLockedByOther}
-            lockHolderName={lockHolderName}
-          />
-        </div>
-        {propertiesOpen ? (
-          <>
-            <VerticalResizeHandle
-              variant="transparent"
-              onMouseDown={handleInfoPanelResize}
-              isResizing={isResizing}
-            />
-            <PropertiesRailFrame width={infoPanelWidth} floatingContent>
-              {propertiesContent}
-            </PropertiesRailFrame>
-          </>
-        ) : null}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <WorkItemThreadSurface
+          key={workItemContentKey}
+          workItem={selectedWorkItem.workItem}
+          propertyProps={{
+            onUpdate: handleUpdateWorkItem,
+            availableProjects: selectedWorkItem.workItem.project
+              ? [selectedWorkItem.workItem.project]
+              : [],
+            availableMilestones: selectedWorkItem.workItem.milestone
+              ? [selectedWorkItem.workItem.milestone]
+              : [],
+            availableLabels: selectedWorkItem.workItem.labels ?? [],
+            availableMembers: workItemMembers,
+            projectIconType: isGitHubSyncedProject
+              ? STORY_SYNC_ADAPTER.GITHUB
+              : undefined,
+            projectReadonly: projectSelectionReadonly,
+          }}
+          onUpdateWorkItem={handleUpdateWorkItem}
+          onUpdateWorkItemImmediate={handleUpdateWorkItem}
+          currentUser={currentUser ?? undefined}
+          teamMembers={workItemMembers}
+          repoPath={repoPath}
+          projectSlug={selectedWorkItem.projectSlug}
+          shortId={selectedWorkItem.shortId}
+          onStartAgent={handleStartAgent}
+          isStartingAgent={isStartingAgent}
+          onCancelAgent={handleCancelAgent}
+          onRetry={handleRetry}
+          onAcceptAsIs={handleAcceptAsIs}
+          onCreateFollowUp={handleCreateFollowUp}
+          onOpenSession={handleOpenSession}
+          onRefreshWorkflow={refreshSelectedWorkItem}
+          activeAgentSessionId={activeAgentSessionId}
+          activeAgentRole={activeAgentRole}
+          isLockedByOther={isLockedByOther}
+          lockHolderName={lockHolderName}
+        />
       </div>
       {floatingSessionId && (
         <div

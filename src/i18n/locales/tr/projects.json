@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Etkinlik",
+      "discussionTitle": "Tartışma",
+      "activityHistory": "Etkinlik geçmişi",
+      "activityHistoryCount": "{{count}} etkinlik",
+      "noComments": "Henüz yorum yok",
       "subscribe": "Abone ol",
       "unsubscribe": "Abonelikten çık",
       "commentPlaceholder": "Yorum bırakın...",
@@ -389,6 +393,16 @@
       "clearedField": "{{field}} alanını temizledi",
       "changedDescription": "açıklamayı güncelledi",
       "editedFields": "{{count}} alanı düzenledi:",
+      "groupedChanges": "{{count}} değişiklik yaptı",
+      "groupedTodoChanges": "yapılacakları güncelledi · {{count}} işlem",
+      "todoAdded": "“{{todo}}” öğesini ekledi",
+      "todoRemoved": "“{{todo}}” öğesini kaldırdı",
+      "todoCompleted": "“{{todo}}” öğesini tamamladı",
+      "todoReopened": "“{{todo}}” öğesini yeniden açtı",
+      "todoStarted": "“{{todo}}” öğesini başlattı",
+      "todoMarkedPending": "“{{todo}}” öğesini beklemede olarak işaretledi",
+      "todoRenamed": "“{{from}}” adını “{{to}}” olarak değiştirdi",
+      "todoUpdated": "“{{todo}}” öğesini güncelledi",
       "justNow": "az önce",
       "daysAgo": "{{count}}g önce",
       "hoursAgo": "{{count}}s önce",
@@ -411,7 +425,8 @@
         "todos": "yapılacaklar",
         "comments": "yorumlar",
         "schedule": "zamanlama",
-        "orchestratorConfig": "Orchestrator yapılandırması"
+        "orchestratorConfig": "Orchestrator yapılandırması",
+        "handoff": "devir"
       }
     },
     "todos": {

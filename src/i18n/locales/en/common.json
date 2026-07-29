@@ -2449,6 +2449,164 @@
       "noRepo": "No repo"
     }
   },
+  "teamInbox": {
+    "title": "Team Inbox",
+    "listLabel": "Team Inbox list",
+    "itemsLabel": "Team Inbox items",
+    "unreadCount": "{{count}} unread",
+    "allRead": "All caught up",
+    "loadMore": "Load more",
+    "filters": {
+      "all": "All",
+      "mentions": "Mentions",
+      "assigned": "Assigned"
+    },
+    "status": {
+      "read": "Read",
+      "unread": "Unread"
+    },
+    "row": {
+      "assignedSummary": "{{status}} · {{priority}}",
+      "ariaLabel": "{{title}}, {{status}}"
+    },
+    "search": {
+      "placeholder": "Search inbox",
+      "ariaLabel": "Search Team Inbox"
+    },
+    "groups": {
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "thisWeek": "This week",
+      "earlier": "Earlier"
+    },
+    "empty": {
+      "title": "Nothing here yet",
+      "subtitle": "Mentions and assigned work items will appear here.",
+      "selectTitle": "Select an item",
+      "selectSubtitle": "View its comment context or work item details.",
+      "mentions": {
+        "title": "No mentions",
+        "subtitle": "When a teammate @mentions you in a comment, it shows up here."
+      },
+      "assigned": {
+        "title": "Nothing assigned to you",
+        "subtitle": "Work items assigned to you will appear here."
+      },
+      "noResults": {
+        "title": "No matches",
+        "subtitle": "No items match “{{query}}”."
+      }
+    },
+    "loading": "Loading Team Inbox…",
+    "drop": {
+      "title": "Drop to create a Work Item",
+      "subtitle": "Review the Session snapshot, then create or hand off the Work Item.",
+      "processing": "Creating a Work Item from “{{title}}”…",
+      "processingHint": "Reading the Session and resolving project members.",
+      "success": "Work Item created",
+      "reused": "Existing Work Item updated",
+      "failed": "Couldn’t create the Work Item",
+      "error": "Unable to create a Work Item from this Session.",
+      "open": "Open",
+      "dismiss": "Dismiss"
+    },
+    "handoff": {
+      "title": "Create from Session",
+      "createFromSession": "Create team Work Item…",
+      "project": "Destination project",
+      "chooseProject": "Choose a project",
+      "recipientSelf": "{{name}} (me)",
+      "chooseRecipient": "Choose a recipient",
+      "todoCount_one": "{{count}} to-do",
+      "todoCount_other": "{{count}} to-dos",
+      "workItemTitle": "Work Item title",
+      "assignTo": "Assign to",
+      "note": "Handoff note",
+      "notePlaceholder": "Share what is ready, what is unresolved, and what should happen next.",
+      "selfHint": "Assigning this to yourself creates a normal Work Item without a handoff request.",
+      "submitHandoff": "Create & hand off",
+      "submitCreate": "Create Work Item",
+      "preparing": "Preparing “{{title}}”…",
+      "preparationError": {
+        "session_unavailable": "This Session is no longer available. Reopen it and try again.",
+        "project_unavailable": "This Session’s project is no longer available.",
+        "identity_unavailable": "Your identity is not a member of this Session’s project.",
+        "no_project": "No eligible project is available. Create or join a project, then try again.",
+        "unknown": "Unable to prepare this Session. Refresh Team Inbox and try again."
+      },
+      "submitError": "The Work Item could not be created. Review the recipient and try again.",
+      "pendingTitle": "Handoff from {{name}}",
+      "acceptedTitle": "Accepted by {{name}}",
+      "returnedTitle": "Returned by {{name}}",
+      "noNote": "No handoff note.",
+      "statusLabel": "Work Item handoff",
+      "return": "Return",
+      "accept": "Accept",
+      "returnTitle": "Return this handoff?",
+      "confirmReturn": "Return to sender",
+      "returnHint": "Tell {{name}} what needs clarification or follow-up. The Work Item will be reassigned to them.",
+      "returnPlaceholder": "What needs to change before this can be handed off?",
+      "responseError": "The handoff response could not be saved. Try again.",
+      "identityUnavailable": "Your team identity could not be verified. Check your project profile before responding.",
+      "rowPending": "From {{name}} · Awaiting response",
+      "rowAccepted": "Handoff accepted · {{status}} · {{priority}}",
+      "rowReturned": "Returned by {{name}} · {{status}} · {{priority}}"
+    },
+    "errors": {
+      "loadTitle": "Unable to load Team Inbox",
+      "load": "Unable to load Team Inbox",
+      "loadMore": "Unable to load more Team Inbox items. Try again.",
+      "refresh": "Unable to refresh Team Inbox",
+      "markRead": "Unable to mark this item as read. Try again.",
+      "markUnread": "Unable to mark this item as unread. Try again.",
+      "markAllRead": "Unable to mark all items as read. Try again.",
+      "identity": "Your account could not be matched to a project member. Check your project profile email.",
+      "partialLoad": "Some Team Inbox sources could not be refreshed. Available items are still shown.",
+      "workItemContext": "Some project context is unavailable. The work item remains usable.",
+      "workItemLoad": "Unable to load this work item. Try again.",
+      "workItemUpdate": "Unable to save the latest work item change. Try again."
+    },
+    "detail": {
+      "assignedSubtitle": "Assigned work item",
+      "standaloneProject": "Standalone",
+      "mentionSubtitle": "Mentioned in a comment",
+      "mentionedYou": "mentioned you",
+      "threadComments_one": "{{count}} comment in this thread",
+      "threadComments_other": "{{count}} comments in this thread"
+    },
+    "actions": {
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "openWorkItem": "Open work item",
+      "openSession": "Open session"
+    },
+    "fields": {
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "workItemId": "Work item ID",
+      "session": "Session",
+      "comments": "Comments",
+      "threadId": "Thread ID",
+      "commentId": "Comment ID"
+    },
+    "workItemStatus": {
+      "backlog": "Backlog",
+      "todo": "To do",
+      "in_progress": "In Progress",
+      "in_review": "In Review",
+      "blocked": "Blocked",
+      "done": "Done",
+      "cancelled": "Cancelled"
+    },
+    "priority": {
+      "none": "No priority",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    }
+  },
   "globalToolbar": {
     "selectWorkspaceToStart": "Select a workspace to start",
     "selectRepoToStart": "Select a repo to start"

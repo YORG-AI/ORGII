@@ -8,7 +8,7 @@ use crate::projects::io::{
 };
 use crate::projects::types::{
     CommentEntry, CreateProjectOrgRequest, ProjectData, ProjectMeta, WorkItemExecutionLockReason,
-    WorkItemFrontmatter, WorkItemPartialUpdate,
+    WorkItemFrontmatter, WorkItemHandoffStatus, WorkItemPartialUpdate,
 };
 use crate::sync::io;
 use crate::sync::types::OutboxStatus;
@@ -75,6 +75,7 @@ fn work_item_frontmatter(short_id: &str, title: &str) -> WorkItemFrontmatter {
         history: vec![],
         delegations: vec![],
         linked_sessions: vec![],
+        handoff: None,
         proof_of_work: None,
         orchestrator_config: None,
         orchestrator_state: None,
@@ -399,6 +400,111 @@ fn apply_remote_creates_entities_without_echo() {
     assert_eq!(reapplied, 0);
     let item = read_work_item("remote-project", "REM-0001").expect("item");
     assert_eq!(item.frontmatter.title, "Remote item");
+}
+
+#[test]
+fn apply_remote_updates_handoff_on_an_existing_project_work_item() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+    apply_remote(
+        ORG,
+        None,
+        vec![
+            CollabRemoteEntity {
+                kind: KIND_PROJECT.to_string(),
+                payload: json!({
+                    "id": "proj-remote",
+                    "slug": "remote-project",
+                    "name": "Remote Project",
+                    "workItemPrefix": "REM",
+                    "updatedAt": "2026-07-01T00:00:00Z",
+                }),
+                version: 1,
+                updated_by: None,
+                deleted_at: None,
+            },
+            CollabRemoteEntity {
+                kind: KIND_WORK_ITEM.to_string(),
+                payload: json!({
+                    "id": "REM-0001",
+                    "projectId": "proj-remote",
+                    "shortId": "REM-0001",
+                    "title": "Remote item",
+                    "body": "",
+                    "status": "planned",
+                    "priority": "none",
+                    "labels": [],
+                    "handoff": {
+                        "id": "handoff-1",
+                        "status": "pending",
+                        "senderMemberId": "member-a",
+                        "senderName": "Ada",
+                        "recipientMemberId": "member-b",
+                        "recipientName": "Lin",
+                        "requestedAt": "2026-07-01T00:00:00Z"
+                    },
+                    "updatedAt": "2026-07-01T00:00:00Z",
+                }),
+                version: 1,
+                updated_by: Some("member-a".to_string()),
+                deleted_at: None,
+            },
+        ],
+    )
+    .expect("seed remote handoff");
+
+    let pending = read_work_item("remote-project", "REM-0001").expect("pending item");
+    assert_eq!(
+        pending
+            .frontmatter
+            .handoff
+            .as_ref()
+            .map(|handoff| &handoff.status),
+        Some(&WorkItemHandoffStatus::Pending)
+    );
+
+    let applied = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({
+                "id": "REM-0001",
+                "projectId": "proj-remote",
+                "shortId": "REM-0001",
+                "title": "Remote item",
+                "body": "",
+                "status": "planned",
+                "priority": "none",
+                "labels": [],
+                "handoff": {
+                    "id": "handoff-1",
+                    "status": "accepted",
+                    "senderMemberId": "member-a",
+                    "senderName": "Ada",
+                    "recipientMemberId": "member-b",
+                    "recipientName": "Lin",
+                    "requestedAt": "2026-07-01T00:00:00Z",
+                    "respondedAt": "2026-07-01T00:05:00Z"
+                },
+                "updatedAt": "2026-07-01T00:05:00Z",
+            }),
+            version: 2,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("apply accepted handoff");
+    assert_eq!(applied, 1);
+
+    let accepted = read_work_item("remote-project", "REM-0001").expect("accepted item");
+    let handoff = accepted.frontmatter.handoff.expect("persisted handoff");
+    assert_eq!(handoff.status, WorkItemHandoffStatus::Accepted);
+    assert_eq!(
+        handoff.responded_at.as_deref(),
+        Some("2026-07-01T00:05:00Z")
+    );
+    assert_eq!(pending_org_rows(), 0, "remote handoff update echoed");
 }
 
 #[test]

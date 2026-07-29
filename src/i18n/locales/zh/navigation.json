@@ -788,7 +788,9 @@
       "addressRoundScope": "逐轮评论",
       "addressConfirm_one": "处理 {{count}} 条评论",
       "addressConfirm_other": "处理 {{count}} 条评论",
-      "agentAuthor": "Agent @{{name}}"
+      "agentAuthor": "Agent @{{name}}",
+      "mentionMembers": "提及成员",
+      "searchMembers": "搜索成员"
     },
     "billing": {
       "openFailed": "无法打开账单页，请重试。"

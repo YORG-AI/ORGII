@@ -77,8 +77,30 @@ pub fn update_work_item_atomic<T, F>(
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
-    let (value, changed_fields, payload_tail_changed) =
-        update_work_item_atomic_with_revisions(project_slug, short_id, HashMap::new(), mutator)?;
+    update_work_item_atomic_as(project_slug, short_id, None, mutator)
+}
+
+/// Actor-attributed variant of [`update_work_item_atomic`].
+///
+/// This preserves the same outbox/payload-tail behavior while allowing
+/// domain commands such as handoff acceptance to write an auditable history
+/// event without duplicating the transaction or sync logic.
+pub fn update_work_item_atomic_as<T, F>(
+    project_slug: &str,
+    short_id: &str,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    mutator: F,
+) -> Result<T, String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    let (value, changed_fields, payload_tail_changed) = update_work_item_atomic_with_revisions(
+        project_slug,
+        short_id,
+        HashMap::new(),
+        actor,
+        mutator,
+    )?;
     if !changed_fields.is_empty() {
         // Re-read the work item to build the outbox payload. The read
         // is one extra round trip but keeps the closure-form API
@@ -135,6 +157,7 @@ pub fn update_work_item_atomic_with_revisions<T, F>(
     project_slug: &str,
     short_id: &str,
     override_revisions: HashMap<String, FieldRevision>,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
     mutator: F,
 ) -> Result<(T, Vec<&'static str>, bool), String>
 where
@@ -244,6 +267,12 @@ where
     let result = mutator(&mut frontmatter, &mut body)?;
 
     let changed_fields = before.diff(&frontmatter, &body);
+    let assignment_changed =
+        core.assignee != frontmatter.assignee || core.assignee_type != frontmatter.assignee_type;
+    let assigned_human_id = human_assignee_id(
+        frontmatter.assignee.as_deref(),
+        frontmatter.assignee_type.as_deref(),
+    );
     let payload_tail_changed = payload_tail_fingerprint(&frontmatter) != tail_before;
     let scheduler_changed = scheduler_before
         != (
@@ -317,16 +346,17 @@ where
             priority      = ?4,
             assignee      = ?5,
             assignee_type = ?6,
-            milestone     = ?7,
-            parent        = ?8,
-            start_date    = ?9,
-            target_date   = ?10,
-            org_id        = ?11,
-            project_id    = ?12,
-            created_at    = ?13,
-            updated_at    = ?14,
-            local_version = ?15
-         WHERE id = ?16",
+            assigned_human_id = ?7,
+            milestone     = ?8,
+            parent        = ?9,
+            start_date    = ?10,
+            target_date   = ?11,
+            org_id        = ?12,
+            project_id    = ?13,
+            created_at    = ?14,
+            updated_at    = ?15,
+            local_version = ?16
+         WHERE id = ?17",
         params![
             frontmatter.title,
             body,
@@ -334,6 +364,7 @@ where
             frontmatter.priority,
             frontmatter.assignee,
             frontmatter.assignee_type,
+            assigned_human_id,
             frontmatter.milestone,
             frontmatter.parent,
             frontmatter.start_date,
@@ -346,6 +377,17 @@ where
             &core.work_item_id,
         ],
     ))?;
+
+    if assignment_changed {
+        // A receipt acknowledges one assignment episode, not the Work Item for
+        // all time. Clear every viewer's old episode in the same transaction as
+        // the assignee write so reassignment can never commit half-way.
+        map_db(tx.execute(
+            "DELETE FROM team_inbox_read_receipts
+              WHERE source_kind = 'work_item_assigned' AND source_id = ?1",
+            params![&core.work_item_id],
+        ))?;
+    }
 
     // Replace label set.
     map_db(tx.execute(
@@ -372,7 +414,13 @@ where
     //   revision, regardless of whether the value diffed. This is
     //   what lets the merge cycle pin watermarks for fields where the
     //   resolver-adopted value happens to equal the pre-mutator value.
-    append_mutation_event(&history_before, &mut frontmatter, &body, &to_iso8601(now));
+    append_mutation_event(
+        &history_before,
+        &mut frontmatter,
+        &body,
+        &to_iso8601(now),
+        actor,
+    );
 
     let mut next_extras = ExtrasPayload::from_frontmatter(&frontmatter);
     next_extras.field_revisions = extras.field_revisions.clone();
@@ -426,6 +474,7 @@ fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::Value {
         "created_by": fm.created_by,
         "todos": fm.todos,
         "comments": fm.comments,
+        "handoff": fm.handoff,
         "linked_sessions": fm.linked_sessions,
         "proof_of_work": fm.proof_of_work,
         "orchestrator_config": fm.orchestrator_config,
@@ -471,6 +520,7 @@ pub fn update_work_item_partial(
 fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
     updates.todos.is_some()
         || updates.comments.is_some()
+        || updates.handoff.is_some()
         || updates.linked_sessions.is_some()
         || updates.orchestrator_config.is_some()
         || updates.orchestrator_state.is_some()
@@ -551,6 +601,7 @@ pub fn update_work_item_partial_with_revisions(
         project_slug,
         short_id,
         override_revisions,
+        updates.actor.as_ref(),
         |fm, body| {
             let now_iso = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
 
@@ -598,6 +649,9 @@ pub fn update_work_item_partial_with_revisions(
             }
             if let Some(comments) = updates.comments.as_ref() {
                 fm.comments = comments.clone();
+            }
+            if let Some(handoff) = updates.handoff.as_ref() {
+                fm.handoff = handoff.clone();
             }
             if let Some(linked_sessions) = updates.linked_sessions.as_ref() {
                 fm.linked_sessions = linked_sessions.clone();
@@ -719,6 +773,19 @@ fn slices_equal_unordered(left: &[String], right: &[String]) -> bool {
     left_sorted == right_sorted
 }
 
+fn human_assignee_id(assignee: Option<&str>, assignee_type: Option<&str>) -> Option<String> {
+    let assignee = assignee?.trim();
+    if assignee.is_empty() {
+        return None;
+    }
+    let is_human = assignee_type
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.eq_ignore_ascii_case("member") || value.eq_ignore_ascii_case("human"))
+        .unwrap_or(true);
+    is_human.then(|| assignee.to_string())
+}
+
 struct AtomicCore {
     work_item_id: String,
     short_id: String,
@@ -783,6 +850,7 @@ fn build_frontmatter(
         comments: extras.comments.clone(),
         history: extras.history.clone(),
         delegations: extras.delegations.clone(),
+        handoff: extras.handoff.clone(),
         linked_sessions: extras.linked_sessions.clone(),
         proof_of_work: extras.proof_of_work.clone(),
         orchestrator_config: extras.orchestrator_config.clone(),

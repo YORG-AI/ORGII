@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Activité",
+      "discussionTitle": "Discussion",
+      "activityHistory": "Historique d’activité",
+      "activityHistoryCount": "{{count}} événements",
+      "noComments": "Aucun commentaire pour le moment",
       "subscribe": "S'abonner",
       "unsubscribe": "Se désabonner",
       "commentPlaceholder": "Laisser un commentaire...",
@@ -389,6 +393,16 @@
       "clearedField": "a effacé {{field}}",
       "changedDescription": "a mis à jour la description",
       "editedFields": "a modifié {{count}} champs :",
+      "groupedChanges": "a effectué {{count}} modifications",
+      "groupedTodoChanges": "a mis à jour les tâches · {{count}} actions",
+      "todoAdded": "a ajouté « {{todo}} »",
+      "todoRemoved": "a supprimé « {{todo}} »",
+      "todoCompleted": "a terminé « {{todo}} »",
+      "todoReopened": "a rouvert « {{todo}} »",
+      "todoStarted": "a commencé « {{todo}} »",
+      "todoMarkedPending": "a marqué « {{todo}} » comme en attente",
+      "todoRenamed": "a renommé « {{from}} » en « {{to}} »",
+      "todoUpdated": "a mis à jour « {{todo}} »",
       "justNow": "à l'instant",
       "daysAgo": "il y a {{count}}j",
       "hoursAgo": "il y a {{count}}h",
@@ -411,7 +425,8 @@
         "todos": "tâches",
         "comments": "commentaires",
         "schedule": "planning",
-        "orchestratorConfig": "configuration Orchestrator"
+        "orchestratorConfig": "configuration Orchestrator",
+        "handoff": "transfert"
       }
     },
     "todos": {

@@ -3,15 +3,16 @@
  *
  * Resolves the current user's project member ID(s) by matching against
  * all known user identities:
- * - Local git config user.email (from Tauri command — most reliable)
- * - Local git config user.name (fallback)
+ * - Stable account/member IDs
+ * - Local git config user.email (from Tauri command)
  * - userAtom.git_user_email (if populated)
- * - github_infos / gitlab_infos usernames (matched against email prefix)
+ * - Exact GitHub/GitLab usernames when a member carries that provider field
  *
  * A single person often has multiple member entries (from git shortlog)
  * because they commit with different emails. This hook returns ALL
- * matching member IDs so assignment notifications work regardless of
- * which member entry was used.
+ * exact matching member IDs so assignment notifications work regardless of
+ * which verified member entry was used. Display names and email local-parts
+ * are deliberately excluded because they are not unique identities.
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useAtomValue } from "jotai";
@@ -19,13 +20,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { MemberEntry } from "@src/api/http/project";
 import { userAtom } from "@src/store/user/userAtom";
+import type { Person } from "@src/types/core/shared";
 import type { IUserInfo } from "@src/types/core/user";
 
 // ============================================
 // Git identity from Tauri
 // ============================================
 
-interface GitUserIdentity {
+export interface GitUserIdentity {
   email: string | null;
   name: string | null;
   /** GitHub username from gh CLI config (~/.config/gh/hosts.yml) */
@@ -72,7 +74,80 @@ export function resetGitIdentityCache() {
 
 interface UserIdentities {
   emails: string[];
-  userName: string;
+  accountIds: string[];
+  usernames: string[];
+}
+
+export type MemberIdentity = Pick<
+  MemberEntry,
+  "id" | "name" | "email" | "avatar" | "github_username" | "linked_emails"
+> & {
+  color?: string;
+};
+
+export function resolveCurrentUserIdentity(
+  members: readonly MemberIdentity[],
+  memberIds: ReadonlySet<string>,
+  user: IUserInfo,
+  gitIdentity: GitUserIdentity | null
+): Person | null {
+  const accountIds = new Set(
+    [user.uuid, user.authing_id].map((value) => value.trim()).filter(Boolean)
+  );
+  const currentMember = members.find(
+    (member) => memberIds.has(member.id) || accountIds.has(member.id)
+  );
+  if (currentMember) {
+    const memberName = currentMember.name.trim();
+    const accountName = (
+      user.name ||
+      gitIdentity?.name ||
+      user.git_user_name ||
+      ""
+    ).trim();
+    const memberNameIsOpaque =
+      !memberName ||
+      memberName === currentMember.id ||
+      /^user-[a-z0-9]+$/i.test(memberName);
+
+    return {
+      id: currentMember.id,
+      name:
+        memberNameIsOpaque && accountName
+          ? accountName
+          : memberName || accountName,
+      email: currentMember.email,
+      avatar:
+        currentMember.avatar ||
+        user.profile_image_url ||
+        user.picture ||
+        undefined,
+      color: currentMember.color,
+    };
+  }
+
+  const name = (
+    user.name ||
+    gitIdentity?.name ||
+    user.git_user_name ||
+    ""
+  ).trim();
+  const id = (
+    user.uuid ||
+    user.authing_id ||
+    gitIdentity?.email ||
+    user.git_user_email ||
+    name
+  ).trim();
+  if (!id || !name) return null;
+
+  return {
+    id,
+    name,
+    email: gitIdentity?.email || user.git_user_email || undefined,
+    avatar: user.profile_image_url || user.picture || undefined,
+    color: "#52c41a",
+  };
 }
 
 /**
@@ -83,42 +158,46 @@ function collectIdentities(
   gitIdentity: GitUserIdentity | null
 ): UserIdentities {
   const emailSet = new Set<string>();
+  const usernameSet = new Set<string>();
+  const accountIdSet = new Set<string>();
 
-  // 1. GitHub username from gh CLI (most reliable for matching)
-  if (gitIdentity?.github_username) {
-    emailSet.add(gitIdentity.github_username.toLowerCase().trim());
+  for (const accountId of [user.uuid, user.authing_id]) {
+    const normalized = accountId.trim();
+    if (normalized) accountIdSet.add(normalized);
   }
 
-  // 2. Local git config email (matches git shortlog entries)
+  // GitHub username from gh CLI.
+  if (gitIdentity?.github_username) {
+    usernameSet.add(gitIdentity.github_username.toLowerCase().trim());
+  }
+
+  // Exact email identities.
   if (gitIdentity?.email) {
     emailSet.add(gitIdentity.email.toLowerCase().trim());
   }
 
-  // 3. userAtom git_user_email (if populated by backend)
   if (user.git_user_email) {
     emailSet.add(user.git_user_email.toLowerCase().trim());
   }
 
-  // 4. GitHub usernames from linked accounts
+  // Exact provider usernames.
   for (const gh of user.github_infos ?? []) {
     if (gh.user_name) {
-      emailSet.add(gh.user_name.toLowerCase().trim());
+      usernameSet.add(gh.user_name.toLowerCase().trim());
     }
   }
 
-  // 5. GitLab usernames
   for (const gl of user.gitlab_infos ?? []) {
     if (gl.user_name) {
-      emailSet.add(gl.user_name.toLowerCase().trim());
+      usernameSet.add(gl.user_name.toLowerCase().trim());
     }
   }
 
-  // Best user name: prefer git config, then userAtom
-  const userName = (gitIdentity?.name || user.git_user_name || "")
-    .toLowerCase()
-    .trim();
-
-  return { emails: [...emailSet], userName };
+  return {
+    emails: [...emailSet],
+    accountIds: [...accountIdSet],
+    usernames: [...usernameSet],
+  };
 }
 
 // ============================================
@@ -129,30 +208,22 @@ function collectIdentities(
  * Check if a member entry matches any of the user's known identities.
  */
 function memberMatchesUser(
-  member: MemberEntry,
+  member: MemberIdentity,
   identities: UserIdentities
 ): boolean {
   const memberEmail = (member.email || "").toLowerCase().trim();
-  const memberName = (member.name || "").toLowerCase().trim();
+  const memberUsername = (member.github_username || "").toLowerCase().trim();
 
-  for (const email of identities.emails) {
-    // Direct email match
-    if (memberEmail === email) return true;
-
-    // Email prefix match (e.g. github username "alice" matches "alice@example.com")
-    if (memberEmail && memberEmail.split("@")[0] === email) return true;
-
-    // Reverse: member email prefix matches user email
-    if (
-      email.includes("@") &&
-      email.split("@")[0] === memberEmail.split("@")[0]
-    ) {
-      return true;
-    }
+  if (identities.accountIds.includes(member.id)) return true;
+  if (memberEmail && identities.emails.includes(memberEmail)) return true;
+  if (memberUsername && identities.usernames.includes(memberUsername)) {
+    return true;
   }
 
-  // Name-based fallback
-  if (identities.userName && memberName === identities.userName) return true;
+  for (const linked of member.linked_emails ?? []) {
+    const email = linked.email.toLowerCase().trim();
+    if (email && identities.emails.includes(email)) return true;
+  }
 
   return false;
 }
@@ -161,9 +232,9 @@ function memberMatchesUser(
  * Find a member entry by exact email match.
  */
 export function findMemberByEmail(
-  members: MemberEntry[],
+  members: readonly MemberIdentity[],
   email: string
-): MemberEntry | undefined {
+): MemberIdentity | undefined {
   const normalized = email.toLowerCase().trim();
   return members.find(
     (member) => (member.email || "").toLowerCase().trim() === normalized
@@ -182,7 +253,7 @@ export function findMemberByEmail(
  * For the async version that fetches git config, use the hook.
  */
 export function findMemberIdsByUser(
-  members: MemberEntry[],
+  members: readonly MemberIdentity[],
   user: IUserInfo,
   gitIdentity?: GitUserIdentity | null
 ): Set<string> {
@@ -207,6 +278,8 @@ interface UseCurrentUserMemberIdsReturn {
   memberIds: Set<string>;
   /** Current user's git email (primary) */
   gitEmail: string;
+  /** Display identity used by Work Item comments and mutation history. */
+  currentUser: Person | null;
 }
 
 /**
@@ -214,7 +287,7 @@ interface UseCurrentUserMemberIdsReturn {
  * Fetches git identity from local config on mount.
  */
 export function useCurrentUserMemberIds(
-  members: MemberEntry[]
+  members: readonly MemberIdentity[]
 ): UseCurrentUserMemberIdsReturn {
   const user = useAtomValue(userAtom);
   const [gitIdentity, setGitIdentity] = useState<GitUserIdentity | null>(
@@ -244,6 +317,10 @@ export function useCurrentUserMemberIds(
   );
 
   const gitEmail = gitIdentity?.email || user.git_user_email || "";
+  const currentUser = useMemo(
+    () => resolveCurrentUserIdentity(members, memberIds, user, gitIdentity),
+    [gitIdentity, memberIds, members, user]
+  );
 
-  return { memberIds, gitEmail };
+  return { memberIds, gitEmail, currentUser };
 }

@@ -148,4 +148,28 @@ describe("createWorkItemFromDraft", () => {
     ).rejects.toThrow("Work item title is required");
     expect(projectApiMock.writeStandaloneWorkItem).not.toHaveBeenCalled();
   });
+
+  it("persists linked session provenance atomically with creation", async () => {
+    const linkedSession = {
+      session_id: "session-1",
+      session_type: "native" as const,
+      agent_role: "custom" as const,
+      started_at: "2026-07-28T00:00:00.000Z",
+      status: "completed" as const,
+      cost_usd: 0,
+      total_tokens: 42,
+    };
+
+    await createWorkItemFromDraft({
+      draft: DRAFT,
+      linkedSessions: [linkedSession],
+    });
+
+    expect(projectApiMock.writeStandaloneWorkItem).toHaveBeenCalledWith(
+      "WI-0001",
+      expect.objectContaining({ linked_sessions: [linkedSession] }),
+      "details",
+      undefined
+    );
+  });
 });
