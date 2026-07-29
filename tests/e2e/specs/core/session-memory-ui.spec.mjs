@@ -261,6 +261,42 @@ async function ensureChatSurface(sessionId) {
       timeoutMsg: "chat surface never mounted for follow-up",
     }
   );
+
+  // If the previous turn left the composer in Stop (runtime still active /
+  // stale blocking events), interrupt once so a follow-up is not silently
+  // queued behind a turn that will never flush in this smoke.
+  const stopState = await execJS(`
+    const element = document.querySelector('[data-testid="chat-send-button"]');
+    return element ? (element.getAttribute('data-state') || '') : '';
+  `);
+  if (stopState === "stop" || stopState === "working") {
+    await execJS(js.click('[data-testid="chat-send-button"]'));
+    await browser.pause(800);
+  }
+
+  let chatDiag = null;
+  await browser.waitUntil(
+    async () => {
+      const inspected = await invokeE2E("inspectChatState");
+      chatDiag = inspected;
+      if (!inspected || inspected.ok !== true) return false;
+      const runtime = inspected.runtimeStatus;
+      const queued = Array.isArray(inspected.queuedMessages)
+        ? inspected.queuedMessages.length
+        : 0;
+      return (
+        (runtime === "idle" ||
+          runtime === "completed" ||
+          runtime === "failed" ||
+          runtime === "cancelled") &&
+        queued === 0
+      );
+    },
+    {
+      timeout: 60_000,
+      timeoutMsg: `chat runtime never became idle before follow-up: ${JSON.stringify(chatDiag)}`,
+    }
+  );
 }
 
 async function sendFollowUp(prompt, expectedText, sessionId) {
@@ -304,12 +340,26 @@ async function sendFollowUp(prompt, expectedText, sessionId) {
       timeoutMsg: `follow-up send-button never reached clickable submit: ${JSON.stringify(sendStateDiag)}`,
     }
   );
+  let replyDiag = null;
   await browser.waitUntil(
     async () => {
       const text = await execJS(js.latestAssistantText);
+      const inspected = await invokeE2E("inspectChatState");
+      replyDiag = {
+        text: String(text || "").slice(0, 240),
+        runtimeStatus: inspected?.runtimeStatus,
+        queued: Array.isArray(inspected?.queuedMessages)
+          ? inspected.queuedMessages.length
+          : null,
+        turnPhase: inspected?.turnPhase,
+        isSessionActive: inspected?.isSessionActive,
+      };
       return text.includes(expectedText);
     },
-    { timeout: REPLY_TIMEOUT_MS, timeoutMsg: "no follow-up assistant reply" }
+    {
+      timeout: REPLY_TIMEOUT_MS,
+      timeoutMsg: `no follow-up assistant reply: ${JSON.stringify(replyDiag)}`,
+    }
   );
   return execJS(js.latestAssistantText);
 }
