@@ -113,45 +113,33 @@ export async function loadProjectTreeBundle(options?: {
       standaloneWorkItems = [];
     }
 
-    const hasLinks = Object.values(workItemsByProject).some((items) =>
-      items.some(
-        (wi) =>
-          (wi.linkedSessions?.length ?? 0) > 0 || (wi.todos?.length ?? 0) > 0
-      )
-    );
-
-    if (projects.length === 0 && standaloneWorkItems.length === 0) {
-      return loadProjectTreeBundle({
-        forceDemo: true,
-        workspaceName: options?.workspaceName,
-      });
-    }
-
-    const finalProjects = hasLinks ? projects : [...projects, DEMO_PROJECT];
-    if (!hasLinks) {
-      workItemsByProject[DEMO_PROJECT.id] = DEMO_WORK_ITEMS;
-      workItemsByProject[DEMO_PROJECT.slug!] = DEMO_WORK_ITEMS;
-    }
-
+    // The tree is a projection of project truth. Empty or sparse real data must
+    // stay visibly empty; synthetic records are available only through the
+    // caller's explicit `forceDemo` action.
     return {
       tree: buildWorkspaceProjectTree({
         workspaceName: options?.workspaceName ?? "Workspace",
-        projects: finalProjects,
+        projects,
         workItemsByProject,
         standaloneWorkItems,
       }),
-      projects: finalProjects,
+      projects,
       workItemsByProject,
       standaloneWorkItems,
-      usedDemo: !hasLinks,
+      usedDemo: false,
     };
   } catch (error) {
-    const demo = await loadProjectTreeBundle({
-      forceDemo: true,
-      workspaceName: options?.workspaceName,
-    });
     return {
-      ...demo,
+      tree: buildWorkspaceProjectTree({
+        workspaceName: options?.workspaceName ?? "Workspace",
+        projects: [],
+        workItemsByProject: {},
+        standaloneWorkItems: [],
+      }),
+      projects: [],
+      workItemsByProject: {},
+      standaloneWorkItems: [],
+      usedDemo: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }

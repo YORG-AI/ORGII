@@ -264,7 +264,6 @@ export function useProjectTabActions({
           projectId,
           projectSlug,
           projectName,
-          forceDemo: !projectId && !projectSlug,
         })
       );
     },

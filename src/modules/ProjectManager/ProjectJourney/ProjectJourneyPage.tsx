@@ -19,11 +19,9 @@ import {
   type ProjectLike,
   type WorkItemLike,
   buildProjectJourneyGraph,
-  emptyJourneyState,
   filterFiles,
   loadJourneyState,
   nodesTouchedByFile,
-  saveJourneyState,
   togglePinNode,
   togglePruneNode,
 } from "./model";
@@ -93,13 +91,19 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
         const match =
           projects.find((p) => p.id === projectId) ||
           projects.find((p) => p.slug === projectSlug) ||
-          projects.find((p) => p.id === DEMO_PROJECT.id) ||
-          projects[0] ||
-          DEMO_PROJECT;
+          projects[0];
+        if (!match) {
+          setProject(null);
+          setWorkItems([]);
+          setState(null);
+          setGraph(null);
+          if (bundle.error) setError(bundle.error);
+          return;
+        }
         const items =
           bundle.workItemsByProject[match.id] ||
           bundle.workItemsByProject[match.slug ?? ""] ||
-          (match.id === DEMO_PROJECT.id ? DEMO_WORK_ITEMS : []);
+          [];
         const st = loadJourneyState(match.id);
         setProject(match);
         setWorkItems(items);
@@ -107,11 +111,11 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
         if (bundle.error) setError(bundle.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        const st = loadJourneyState(DEMO_PROJECT.id);
-        setProject(DEMO_PROJECT);
-        setWorkItems(DEMO_WORK_ITEMS);
-        setUsedDemo(true);
-        rebuild(DEMO_PROJECT, DEMO_WORK_ITEMS, st);
+        setProject(null);
+        setWorkItems([]);
+        setState(null);
+        setGraph(null);
+        setUsedDemo(false);
       } finally {
         setLoading(false);
       }
@@ -201,6 +205,13 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
       )}
       {loading && (
         <div className="p-4 text-xs text-text-3">Loading journey…</div>
+      )}
+
+      {!loading && !graph && (
+        <div className="p-4 text-xs text-text-3">
+          No project data yet. Refresh after creating a project, or choose Demo
+          explicitly to preview the journey view.
+        </div>
       )}
 
       {!loading && graph && (
@@ -434,9 +445,5 @@ function NodeCard({
     </div>
   );
 }
-
-// silence unused import if tree shaker complains in some builds
-void saveJourneyState;
-void emptyJourneyState;
 
 export default ProjectJourneyPage;
