@@ -39,6 +39,7 @@ import {
 } from "./cloudOrgPanelTypes";
 import { useCloudOrgManagement } from "./useCloudOrgManagement";
 import { useCloudOrgPanelState } from "./useCloudOrgPanelState";
+import { useOrgRuntimeTelemetry } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgPanelViewProps {
   selectedCloudOrg: ChatPanelSelectedCloudOrg;
@@ -62,6 +63,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
   const isAdmin = org?.role === "admin" || org?.role === "owner";
   const isOwner = org?.role === "owner";
   const panelState = useCloudOrgPanelState(orgId);
+  const runtimeSharing = useOrgRuntimeTelemetry(orgId);
   const management = useCloudOrgManagement({
     orgId,
     orgName,
@@ -111,6 +113,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                     savingFloor={panelState.savingFloor}
                     floorError={panelState.floorError}
                     onFloorChange={panelState.handleFloorChange}
+                    runtimeSharing={runtimeSharing}
                     openCloudBillingPage={openCloudBillingPage}
                     orgName={orgName}
                     members={panelState.members}

@@ -28,4 +28,11 @@ export const PRIVACY_SETTINGS_REGISTRY = {
       "Disable non-essential outbound network calls including diagnostics",
     category: "privacy",
   },
+  "privacy.shareRuntimeWithOrg": {
+    schema: z.boolean(),
+    default: true,
+    description:
+      "Share coarse runtime, usage, and builder-profile aggregates with cloud organizations that have team runtime telemetry enabled (never session contents, titles, or repo paths)",
+    category: "privacy",
+  },
 } as const satisfies Record<string, SettingDefinition>;

@@ -8,7 +8,9 @@ import type {
   LocalModelHardwareSummary,
   MemoryMetrics,
   ProcessMetrics,
+  SystemInfo,
   SystemMemoryMetrics,
+  SystemRuntimeSnapshot,
 } from "./types";
 
 export async function getProcessMetrics(): Promise<ProcessMetrics> {
@@ -25,4 +27,13 @@ export async function getSystemMemory(): Promise<SystemMemoryMetrics> {
 
 export async function detectLocalModelHardware(): Promise<LocalModelHardwareSummary> {
   return invoke<LocalModelHardwareSummary>("detect_local_model_hardware");
+}
+
+export async function getSystemInfo(): Promise<SystemInfo> {
+  return invoke<SystemInfo>("get_system_info");
+}
+
+/** ~1–2s whole-machine CPU/mem/GPU burst sample (member-runtime sharing). */
+export async function systemRuntimeSnapshot(): Promise<SystemRuntimeSnapshot> {
+  return invoke<SystemRuntimeSnapshot>("system_runtime_snapshot");
 }

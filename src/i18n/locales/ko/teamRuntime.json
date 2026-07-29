@@ -1,0 +1,79 @@
+{
+  "title": "팀 런타임",
+  "refresh": "새로 고침",
+  "loadError": "팀 런타임을 불러오지 못했습니다",
+  "signedOut": {
+    "title": "로그인하고 팀을 확인하세요",
+    "subtitle": "팀원의 런타임은 ORG2 Cloud를 통해 공유됩니다.",
+    "action": "로그인"
+  },
+  "noOrgs": {
+    "title": "아직 클라우드 조직이 없습니다",
+    "subtitle": "조직에 참여하거나 조직을 만들면 팀원이 여기에 표시됩니다."
+  },
+  "unsupported": {
+    "title": "백엔드 업그레이드가 필요합니다",
+    "subtitle": "이 조직의 클라우드 백엔드는 아직 팀 런타임 공유를 지원하지 않습니다."
+  },
+  "disabled": {
+    "title": "팀 런타임 공유가 꺼져 있습니다",
+    "subtitle": "조직 관리자가 조직 설정에서 켤 수 있습니다.",
+    "adminSubtitle": "조직 설정에서 켤 수 있습니다."
+  },
+  "empty": {
+    "title": "아직 멤버 데이터가 없습니다",
+    "subtitle": "멤버가 첫 런타임 보고를 보내면 여기에 표시됩니다."
+  },
+  "card": {
+    "you": "나",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "오늘",
+    "week": "7일",
+    "asOf": "마지막 보고: {{time}}",
+    "neverReported": "아직 보고 없음"
+  },
+  "detail": {
+    "back": "팀",
+    "profileTitle": "빌더 프로필",
+    "noProfile": "아직 공유된 프로필이 없습니다.",
+    "usageTitle": "사용량",
+    "usageEmpty": "이 기간에는 사용량이 없습니다",
+    "range": {
+      "7": "7일",
+      "30": "30일",
+      "90": "90일"
+    },
+    "agentsTitle": "설치된 에이전트",
+    "machineTitle": "머신",
+    "machineLabel": "머신",
+    "os": "운영 체제",
+    "chip": "칩",
+    "memory": "메모리",
+    "unified": "통합 메모리",
+    "gpu": "GPU",
+    "appVersion": "ORGII 버전"
+  },
+  "selfService": {
+    "hint": "공유가 켜져 있는 동안 내 런타임이 이 조직과 공유됩니다.",
+    "action": "공유 중지 및 내 데이터 삭제",
+    "confirm": "이 조직에서 공유된 내 런타임 데이터를 삭제할까요?",
+    "confirmYes": "중지 및 삭제",
+    "confirmNo": "취소"
+  },
+  "orgSettings": {
+    "label": "팀 런타임 공유",
+    "help": "이 간격으로 멤버의 머신 부하, 사용량 합계, 빌더 프로필을 조직과 공유합니다. 집계 데이터만 공유되며 대화 기록·저장소·제목은 포함되지 않습니다.",
+    "memberNote": "관리자가 활성화했습니다. 간격: {{interval}}.",
+    "off": "끄기",
+    "interval": {
+      "15": "15분마다",
+      "30": "30분마다",
+      "60": "1시간마다",
+      "180": "3시간마다",
+      "360": "6시간마다",
+      "1440": "24시간마다"
+    }
+  }
+}

@@ -63,6 +63,7 @@ beforeEach(() => {
     storageSegments: false,
     homeEndpoints: false,
     teamInboxMentions: false,
+    memberRuntime: false,
   });
 });
 
@@ -262,6 +263,7 @@ describe("storage segment offload (0006)", () => {
       storageSegments: true,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
   });
 
@@ -343,6 +345,7 @@ describe("storage segment offload (0006)", () => {
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     await appendSessionEvents("jwt-1", appendInput([makeEvent("f1")], null));
     expect(fetchMock).toHaveBeenCalledTimes(1);

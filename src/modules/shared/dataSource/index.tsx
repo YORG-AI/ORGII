@@ -12,6 +12,7 @@ import {
 
 type RuntimeSection =
   | "usage"
+  | "team"
   | "profile"
   | "quota"
   | "scanning"
@@ -19,6 +20,7 @@ type RuntimeSection =
   | "assets";
 
 const SessionUsagePanel = lazy(() => import("./SessionUsagePanel"));
+const TeamRuntimePanel = lazy(() => import("./TeamRuntimePanel"));
 const BuilderProfilePanel = lazy(() => import("./BuilderProfilePanel"));
 const RuntimeScanningPanel = lazy(() => import("./RuntimeScanningPanel"));
 const SessionProvenanceHooksPanel = lazy(
@@ -57,6 +59,11 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
           key: "usage",
           label: t("views.usage"),
           dataTestId: "data-source-view-usage",
+        },
+        {
+          key: "team",
+          label: t("views.team"),
+          dataTestId: "data-source-view-team",
         },
         {
           key: "profile",
@@ -109,6 +116,8 @@ function RuntimeSectionContent({
   switch (activeView) {
     case "usage":
       return <SessionUsagePanel />;
+    case "team":
+      return <TeamRuntimePanel />;
     case "profile":
       return <BuilderProfilePanel />;
     case "quota":

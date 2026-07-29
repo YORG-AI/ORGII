@@ -1,0 +1,79 @@
+{
+  "title": "團隊執行狀態",
+  "refresh": "重新整理",
+  "loadError": "無法載入團隊執行狀態",
+  "signedOut": {
+    "title": "登入後查看團隊",
+    "subtitle": "隊友的執行狀態會透過 ORG2 Cloud 共享。",
+    "action": "登入"
+  },
+  "noOrgs": {
+    "title": "尚未加入任何雲端組織",
+    "subtitle": "加入或建立組織後，隊友就會出現在這裡。"
+  },
+  "unsupported": {
+    "title": "後端需要升級",
+    "subtitle": "此組織的雲端後端尚不支援團隊執行狀態共享。"
+  },
+  "disabled": {
+    "title": "團隊執行狀態共享未開啟",
+    "subtitle": "組織管理員可以在組織設定中開啟。",
+    "adminSubtitle": "你可以在組織設定中開啟。"
+  },
+  "empty": {
+    "title": "尚無成員資料",
+    "subtitle": "成員首次回報執行狀態後就會顯示在這裡。"
+  },
+  "card": {
+    "you": "你",
+    "cpu": "CPU",
+    "ram": "記憶體",
+    "gpu": "GPU",
+    "today": "今天",
+    "week": "7 天",
+    "asOf": "上次回報：{{time}}",
+    "neverReported": "尚未回報"
+  },
+  "detail": {
+    "back": "團隊",
+    "profileTitle": "建構者輪廓",
+    "noProfile": "尚未共享輪廓。",
+    "usageTitle": "用量",
+    "usageEmpty": "此期間內沒有用量",
+    "range": {
+      "7": "7 天",
+      "30": "30 天",
+      "90": "90 天"
+    },
+    "agentsTitle": "已安裝的代理",
+    "machineTitle": "機器",
+    "machineLabel": "機器",
+    "os": "作業系統",
+    "chip": "晶片",
+    "memory": "記憶體",
+    "unified": "統一記憶體",
+    "gpu": "GPU",
+    "appVersion": "ORGII 版本"
+  },
+  "selfService": {
+    "hint": "共享開啟期間，你自己的執行狀態會共享給此組織。",
+    "action": "停止共享並刪除我的資料",
+    "confirm": "確定要從此組織刪除你已共享的執行狀態資料？",
+    "confirmYes": "停止並刪除",
+    "confirmNo": "取消"
+  },
+  "orgSettings": {
+    "label": "團隊執行狀態共享",
+    "help": "依此間隔向組織共享成員的機器負載、用量彙總和建構者輪廓。僅共享彙總資料——不含逐字稿、儲存庫路徑和標題。",
+    "memberNote": "已由管理員開啟。回報間隔：{{interval}}。",
+    "off": "關閉",
+    "interval": {
+      "15": "每 15 分鐘",
+      "30": "每 30 分鐘",
+      "60": "每小時",
+      "180": "每 3 小時",
+      "360": "每 6 小時",
+      "1440": "每 24 小時"
+    }
+  }
+}

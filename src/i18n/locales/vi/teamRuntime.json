@@ -1,0 +1,79 @@
+{
+  "title": "Runtime của nhóm",
+  "refresh": "Làm mới",
+  "loadError": "Không thể tải runtime của nhóm",
+  "signedOut": {
+    "title": "Đăng nhập để xem nhóm của bạn",
+    "subtitle": "Runtime của đồng đội được chia sẻ qua ORG2 Cloud.",
+    "action": "Đăng nhập"
+  },
+  "noOrgs": {
+    "title": "Chưa có tổ chức đám mây nào",
+    "subtitle": "Tham gia hoặc tạo một tổ chức và đồng đội của bạn sẽ xuất hiện ở đây."
+  },
+  "unsupported": {
+    "title": "Backend cần được nâng cấp",
+    "subtitle": "Backend đám mây của tổ chức này chưa hỗ trợ chia sẻ runtime của nhóm."
+  },
+  "disabled": {
+    "title": "Chia sẻ runtime của nhóm đang tắt",
+    "subtitle": "Quản trị viên tổ chức có thể bật trong cài đặt tổ chức.",
+    "adminSubtitle": "Bạn có thể bật trong cài đặt tổ chức."
+  },
+  "empty": {
+    "title": "Chưa có dữ liệu thành viên",
+    "subtitle": "Thành viên sẽ xuất hiện ở đây sau báo cáo runtime đầu tiên."
+  },
+  "card": {
+    "you": "Bạn",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "Hôm nay",
+    "week": "7 ngày",
+    "asOf": "báo cáo gần nhất: {{time}}",
+    "neverReported": "Chưa có báo cáo"
+  },
+  "detail": {
+    "back": "Nhóm",
+    "profileTitle": "Hồ sơ người xây dựng",
+    "noProfile": "Chưa chia sẻ hồ sơ nào.",
+    "usageTitle": "Mức sử dụng",
+    "usageEmpty": "Không có mức sử dụng trong khoảng này",
+    "range": {
+      "7": "7 ngày",
+      "30": "30 ngày",
+      "90": "90 ngày"
+    },
+    "agentsTitle": "Agent đã cài đặt",
+    "machineTitle": "Máy",
+    "machineLabel": "Máy",
+    "os": "Hệ điều hành",
+    "chip": "Chip",
+    "memory": "Bộ nhớ",
+    "unified": "bộ nhớ hợp nhất",
+    "gpu": "GPU",
+    "appVersion": "Phiên bản ORGII"
+  },
+  "selfService": {
+    "hint": "Khi chia sẻ đang bật, runtime của chính bạn được chia sẻ với tổ chức này.",
+    "action": "Ngừng chia sẻ và xóa dữ liệu của tôi",
+    "confirm": "Xóa dữ liệu runtime bạn đã chia sẻ khỏi tổ chức này?",
+    "confirmYes": "Ngừng và xóa",
+    "confirmNo": "Hủy"
+  },
+  "orgSettings": {
+    "label": "Chia sẻ runtime của nhóm",
+    "help": "Tải máy, tổng mức sử dụng và hồ sơ người xây dựng của thành viên được chia sẻ với tổ chức theo khoảng thời gian này. Chỉ dữ liệu tổng hợp — không bao giờ gồm bản ghi hội thoại, kho mã hay tiêu đề.",
+    "memberNote": "Đã được quản trị viên bật. Khoảng thời gian: {{interval}}.",
+    "off": "Tắt",
+    "interval": {
+      "15": "15 phút một lần",
+      "30": "30 phút một lần",
+      "60": "Mỗi giờ",
+      "180": "3 giờ một lần",
+      "360": "6 giờ một lần",
+      "1440": "24 giờ một lần"
+    }
+  }
+}

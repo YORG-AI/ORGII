@@ -10,6 +10,10 @@ import type {
   CloudOrgMember,
 } from "@src/features/Org2Cloud/org2CloudClient";
 import {
+  RUNTIME_TELEMETRY_INTERVAL_OPTIONS,
+  RUNTIME_TELEMETRY_OFF_VALUE,
+} from "@src/modules/shared/dataSource/teamRuntimeData";
+import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
   SectionContainer,
@@ -23,6 +27,7 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 
 import type { SelectValue } from "./cloudOrgPanelTypes";
 import type { CloudOrgManagement } from "./useCloudOrgManagement";
+import type { OrgRuntimeTelemetryState } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgSettingsSectionProps {
   t: TFunction<"navigation">;
@@ -31,6 +36,7 @@ interface CloudOrgSettingsSectionProps {
   savingFloor: boolean;
   floorError: string | null;
   onFloorChange: (value: SelectValue) => Promise<void>;
+  runtimeSharing: OrgRuntimeTelemetryState;
   openCloudBillingPage: () => void;
   orgName: string;
   members: CloudOrgMember[];
@@ -47,6 +53,7 @@ export function CloudOrgSettingsSection({
   savingFloor,
   floorError,
   onFloorChange,
+  runtimeSharing,
   openCloudBillingPage,
   orgName,
   members,
@@ -55,6 +62,7 @@ export function CloudOrgSettingsSection({
   onOpenSessions,
 }: CloudOrgSettingsSectionProps) {
   const { t: tCommon } = useTranslation("common");
+  const { t: tTeamRuntime } = useTranslation("teamRuntime");
   const {
     isAdmin,
     isOwner,
@@ -89,6 +97,23 @@ export function CloudOrgSettingsSection({
       },
     ],
     [t]
+  );
+
+  // Off + the fixed interval presets (server clamps to [15, 1440]).
+  const runtimeSharingOptions = useMemo(
+    () => [
+      {
+        value: RUNTIME_TELEMETRY_OFF_VALUE,
+        label: tTeamRuntime("orgSettings.off"),
+        dataTestId: "cloud-org-runtime-telemetry-off",
+      },
+      ...RUNTIME_TELEMETRY_INTERVAL_OPTIONS.map((minutes) => ({
+        value: String(minutes),
+        label: tTeamRuntime(`orgSettings.interval.${minutes}`),
+        dataTestId: `cloud-org-runtime-telemetry-${minutes}`,
+      })),
+    ],
+    [tTeamRuntime]
   );
 
   const [nameDraft, setNameDraft] = useState(orgName);
@@ -241,6 +266,47 @@ export function CloudOrgSettingsSection({
                 orgFloor === COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY
                   ? t("cloud.syncLevel.modeFullReplay")
                   : t("cloud.syncLevel.modeMetadata"),
+            })}
+          />
+        ) : null}
+
+        {isAdmin ? (
+          <SectionRow
+            label={tTeamRuntime("orgSettings.label")}
+            description={tTeamRuntime("orgSettings.help")}
+            align="start"
+          >
+            <div
+              className="flex flex-col gap-2"
+              data-testid="cloud-org-runtime-telemetry"
+            >
+              <Select
+                value={runtimeSharing.value}
+                options={runtimeSharingOptions}
+                onChange={(value) => void runtimeSharing.handleChange(value)}
+                size="default"
+                style={SECTION_CONTROL_STYLE}
+                disabled={runtimeSharing.saving}
+                dataTestId="cloud-org-runtime-telemetry-select"
+              />
+              {runtimeSharing.error ? (
+                <span className="text-[12px] text-danger-6">
+                  {runtimeSharing.error}
+                </span>
+              ) : null}
+            </div>
+          </SectionRow>
+        ) : runtimeSharing.value !== RUNTIME_TELEMETRY_OFF_VALUE ? (
+          <SectionRow
+            label={
+              <span data-testid="cloud-org-runtime-telemetry-member-note">
+                {tTeamRuntime("orgSettings.label")}
+              </span>
+            }
+            description={tTeamRuntime("orgSettings.memberNote", {
+              interval: tTeamRuntime(
+                `orgSettings.interval.${runtimeSharing.value}`
+              ),
             })}
           />
         ) : null}

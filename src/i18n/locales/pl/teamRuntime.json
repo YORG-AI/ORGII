@@ -1,0 +1,79 @@
+{
+  "title": "Runtime zespołu",
+  "refresh": "Odśwież",
+  "loadError": "Nie udało się wczytać danych runtime zespołu",
+  "signedOut": {
+    "title": "Zaloguj się, aby zobaczyć swój zespół",
+    "subtitle": "Runtime współpracowników jest udostępniany przez ORG2 Cloud.",
+    "action": "Zaloguj się"
+  },
+  "noOrgs": {
+    "title": "Brak organizacji w chmurze",
+    "subtitle": "Dołącz do organizacji lub utwórz ją, a współpracownicy pojawią się tutaj."
+  },
+  "unsupported": {
+    "title": "Backend wymaga aktualizacji",
+    "subtitle": "Chmurowy backend tej organizacji nie obsługuje jeszcze udostępniania runtime zespołu."
+  },
+  "disabled": {
+    "title": "Udostępnianie runtime zespołu jest wyłączone",
+    "subtitle": "Administrator organizacji może je włączyć w ustawieniach organizacji.",
+    "adminSubtitle": "Możesz je włączyć w ustawieniach organizacji."
+  },
+  "empty": {
+    "title": "Brak danych członków",
+    "subtitle": "Członkowie pojawią się tutaj po pierwszym raporcie runtime."
+  },
+  "card": {
+    "you": "Ty",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "Dziś",
+    "week": "7 dni",
+    "asOf": "ostatni raport: {{time}}",
+    "neverReported": "Brak raportu"
+  },
+  "detail": {
+    "back": "Zespół",
+    "profileTitle": "Profil twórcy",
+    "noProfile": "Nie udostępniono jeszcze profilu.",
+    "usageTitle": "Użycie",
+    "usageEmpty": "Brak użycia w tym okresie",
+    "range": {
+      "7": "7 dni",
+      "30": "30 dni",
+      "90": "90 dni"
+    },
+    "agentsTitle": "Zainstalowane agenty",
+    "machineTitle": "Maszyna",
+    "machineLabel": "Maszyna",
+    "os": "System operacyjny",
+    "chip": "Chip",
+    "memory": "Pamięć",
+    "unified": "zunifikowana",
+    "gpu": "GPU",
+    "appVersion": "Wersja ORGII"
+  },
+  "selfService": {
+    "hint": "Gdy udostępnianie jest włączone, Twój własny runtime jest udostępniany tej organizacji.",
+    "action": "Przestań udostępniać i usuń moje dane",
+    "confirm": "Usunąć udostępnione dane runtime z tej organizacji?",
+    "confirmYes": "Zatrzymaj i usuń",
+    "confirmNo": "Anuluj"
+  },
+  "orgSettings": {
+    "label": "Udostępnianie runtime zespołu",
+    "help": "Obciążenie maszyny, sumy użycia i profil twórcy członków są udostępniane organizacji w tym interwale. Wyłącznie dane zagregowane — nigdy transkrypty, repozytoria ani tytuły.",
+    "memberNote": "Włączone przez administratora. Interwał: {{interval}}.",
+    "off": "Wyłączone",
+    "interval": {
+      "15": "Co 15 minut",
+      "30": "Co 30 minut",
+      "60": "Co godzinę",
+      "180": "Co 3 godziny",
+      "360": "Co 6 godzin",
+      "1440": "Co 24 godziny"
+    }
+  }
+}

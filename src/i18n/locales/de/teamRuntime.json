@@ -1,0 +1,79 @@
+{
+  "title": "Team-Runtime",
+  "refresh": "Aktualisieren",
+  "loadError": "Team-Runtime konnte nicht geladen werden",
+  "signedOut": {
+    "title": "Melde dich an, um dein Team zu sehen",
+    "subtitle": "Die Runtime deiner Teamkollegen wird über ORG2 Cloud geteilt.",
+    "action": "Anmelden"
+  },
+  "noOrgs": {
+    "title": "Noch keine Cloud-Organisation",
+    "subtitle": "Tritt einer Organisation bei oder erstelle eine – deine Teamkollegen erscheinen dann hier."
+  },
+  "unsupported": {
+    "title": "Backend muss aktualisiert werden",
+    "subtitle": "Das Cloud-Backend dieser Organisation unterstützt das Teilen der Team-Runtime noch nicht."
+  },
+  "disabled": {
+    "title": "Team-Runtime-Freigabe ist deaktiviert",
+    "subtitle": "Ein Organisations-Admin kann sie in den Organisationseinstellungen aktivieren.",
+    "adminSubtitle": "Du kannst sie in den Organisationseinstellungen aktivieren."
+  },
+  "empty": {
+    "title": "Noch keine Mitgliederdaten",
+    "subtitle": "Mitglieder erscheinen hier nach ihrem ersten Runtime-Bericht."
+  },
+  "card": {
+    "you": "Du",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "Heute",
+    "week": "7 T",
+    "asOf": "letzter Bericht {{time}}",
+    "neverReported": "Noch kein Bericht"
+  },
+  "detail": {
+    "back": "Team",
+    "profileTitle": "Builder-Profil",
+    "noProfile": "Noch kein Profil geteilt.",
+    "usageTitle": "Nutzung",
+    "usageEmpty": "Keine Nutzung in diesem Zeitraum",
+    "range": {
+      "7": "7 Tage",
+      "30": "30 Tage",
+      "90": "90 Tage"
+    },
+    "agentsTitle": "Installierte Agenten",
+    "machineTitle": "Rechner",
+    "machineLabel": "Rechner",
+    "os": "Betriebssystem",
+    "chip": "Chip",
+    "memory": "Arbeitsspeicher",
+    "unified": "unified",
+    "gpu": "GPU",
+    "appVersion": "ORGII-Version"
+  },
+  "selfService": {
+    "hint": "Solange die Freigabe aktiv ist, wird deine eigene Runtime mit dieser Organisation geteilt.",
+    "action": "Freigabe beenden & meine Daten entfernen",
+    "confirm": "Deine geteilten Runtime-Daten aus dieser Organisation entfernen?",
+    "confirmYes": "Beenden & entfernen",
+    "confirmNo": "Abbrechen"
+  },
+  "orgSettings": {
+    "label": "Team-Runtime-Freigabe",
+    "help": "Maschinenlast, Nutzungssummen und Builder-Profil der Mitglieder werden in diesem Intervall mit der Organisation geteilt. Nur Aggregate – niemals Transkripte, Repositories oder Titel.",
+    "memberNote": "Von einem Admin aktiviert. Intervall: {{interval}}.",
+    "off": "Aus",
+    "interval": {
+      "15": "Alle 15 Minuten",
+      "30": "Alle 30 Minuten",
+      "60": "Jede Stunde",
+      "180": "Alle 3 Stunden",
+      "360": "Alle 6 Stunden",
+      "1440": "Alle 24 Stunden"
+    }
+  }
+}

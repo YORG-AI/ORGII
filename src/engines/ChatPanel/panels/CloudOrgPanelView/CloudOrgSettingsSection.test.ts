@@ -9,10 +9,16 @@ import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 
 import { CloudOrgSettingsSection } from "./CloudOrgSettingsSection";
 import type { CloudOrgManagement } from "./useCloudOrgManagement";
+import type { OrgRuntimeTelemetryState } from "./useOrgRuntimeTelemetry";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (key: string) => (key === "actions.open" ? "Open" : key),
+    t: (key: string, vars?: Record<string, unknown>) =>
+      key === "actions.open"
+        ? "Open"
+        : vars
+          ? `${key}:${Object.values(vars).join(",")}`
+          : key,
   }),
 }));
 
@@ -66,8 +72,21 @@ function management(
   } as unknown as CloudOrgManagement;
 }
 
+function runtimeSharing(
+  overrides: Partial<OrgRuntimeTelemetryState> = {}
+): OrgRuntimeTelemetryState {
+  return {
+    value: "off",
+    saving: false,
+    error: null,
+    handleChange: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
 function renderSettings(
-  overrides: Partial<CloudOrgManagement> = {}
+  overrides: Partial<CloudOrgManagement> = {},
+  runtimeSharingOverrides: Partial<OrgRuntimeTelemetryState> = {}
 ): DocumentFragment {
   const markup = renderToStaticMarkup(
     createElement(CloudOrgSettingsSection, {
@@ -81,6 +100,7 @@ function renderSettings(
       savingFloor: false,
       floorError: null,
       onFloorChange: vi.fn().mockResolvedValue(undefined),
+      runtimeSharing: runtimeSharing(runtimeSharingOverrides),
       openCloudBillingPage: vi.fn(),
       orgName: "Example team",
       members,
@@ -153,5 +173,54 @@ describe("CloudOrgSettingsSection layout", () => {
       root.querySelector('[data-testid="cloud-org-sharing-floor"]')
     ).toBeNull();
     expect(root.querySelector('[data-testid="cloud-org-settings"]')).toBeNull();
+  });
+
+  it("gives admins a runtime-sharing select beside the sharing floor", () => {
+    const root = renderSettings({}, { value: "60" });
+
+    const row = root
+      .querySelector('[data-testid="cloud-org-runtime-telemetry"]')
+      ?.closest(".section-layout-row");
+    const floorRow = root
+      .querySelector('[data-testid="cloud-org-sharing-floor"]')
+      ?.closest(".section-layout-row");
+    expect(row).not.toBeNull();
+    expect(row?.parentElement).toBe(floorRow?.parentElement);
+    expect(
+      root.querySelector('[data-testid="cloud-org-runtime-telemetry-select"]')
+    ).not.toBeNull();
+    // The hook clamps/snap-displays the stored interval; the row renders it.
+    expect(
+      root.querySelector('[data-testid="cloud-org-runtime-telemetry"]')
+        ?.textContent
+    ).toContain("orgSettings.interval.60");
+    expect(
+      root.querySelector(
+        '[data-testid="cloud-org-runtime-telemetry-member-note"]'
+      )
+    ).toBeNull();
+  });
+
+  it("shows members a read-only runtime-sharing note only while enabled", () => {
+    const enabled = renderSettings({ isAdmin: false }, { value: "180" });
+    const note = enabled.querySelector(
+      '[data-testid="cloud-org-runtime-telemetry-member-note"]'
+    );
+    expect(note).not.toBeNull();
+    expect(note?.closest(".section-layout-row")?.textContent).toContain(
+      "orgSettings.memberNote:orgSettings.interval.180"
+    );
+    expect(
+      enabled.querySelector(
+        '[data-testid="cloud-org-runtime-telemetry-select"]'
+      )
+    ).toBeNull();
+
+    const off = renderSettings({ isAdmin: false }, { value: "off" });
+    expect(
+      off.querySelector(
+        '[data-testid="cloud-org-runtime-telemetry-member-note"]'
+      )
+    ).toBeNull();
   });
 });

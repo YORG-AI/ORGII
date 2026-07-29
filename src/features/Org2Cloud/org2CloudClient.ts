@@ -17,6 +17,7 @@ import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import type { CollabSessionAccessMode } from "@src/store/collaboration/types";
 
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
+import type { OrgRuntimeTelemetry } from "./memberRuntime/types";
 import type { Org2CloudAuthState, Org2CloudProfile } from "./org2CloudAuthAtom";
 import {
   fetchWithTransportRetry,
@@ -249,6 +250,14 @@ const CloudOrgWireSchema = z.object({
   // living on the active project) ⇒ the active endpoint. `.catch(undefined)`
   // keeps a malformed value from failing the whole roster parse.
   homeEndpoint: z.string().nullish().catch(undefined),
+  // 0010 member-runtime sharing: the org's `runtime_telemetry` record.
+  // null/absent (pre-0010 backends, or telemetry never configured) ⇒ the
+  // feature is OFF for this org. `.catch(undefined)` degrades a malformed
+  // record to "off" instead of failing the whole roster parse.
+  runtimeTelemetry: z
+    .object({ enabled: z.boolean(), intervalMinutes: z.number() })
+    .nullish()
+    .catch(undefined),
 });
 
 export interface CloudOrg {
@@ -258,6 +267,8 @@ export interface CloudOrg {
   entitlement?: CloudEntitlementState;
   /** 0007 directory hook; absent ⇒ the org lives on the active endpoint. */
   homeEndpoint?: string;
+  /** 0010 member-runtime telemetry record; absent/null ⇒ feature off. */
+  runtimeTelemetry?: OrgRuntimeTelemetry | null;
 }
 
 const CloudOrgMemberWireSchema = z.object({
@@ -309,7 +320,7 @@ export async function listMyOrgs(
     return null;
   }
   return parsed.data.map(
-    ({ orgId, name, role, entitlement, homeEndpoint }) => ({
+    ({ orgId, name, role, entitlement, homeEndpoint, runtimeTelemetry }) => ({
       orgId,
       name,
       role,
@@ -317,6 +328,7 @@ export async function listMyOrgs(
         ? { entitlement: normalizeEntitlementWire(entitlement) }
         : {}),
       ...(homeEndpoint ? { homeEndpoint } : {}),
+      ...(runtimeTelemetry ? { runtimeTelemetry } : {}),
     })
   );
 }

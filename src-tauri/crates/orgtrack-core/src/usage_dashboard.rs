@@ -26,12 +26,14 @@
 //!   known, else the list-price estimate (see [`crate::session_usage`]).
 
 mod accumulator;
+mod daily_rollup;
 mod overview;
 mod rounds;
 #[cfg(test)]
 mod tests;
 
 use accumulator::UsageHeadlineAccumulator;
+pub use daily_rollup::{usage_daily_rollup, DailyRollup, DailyRollupRow};
 pub use overview::{usage_overview, usage_rounds, usage_trends, UsageOverview};
 use rounds::visit_rounds;
 pub use rounds::UsageRoundRow;

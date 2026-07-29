@@ -373,3 +373,60 @@ describe("listMyOrgs homeEndpoint (0007)", () => {
     ]);
   });
 });
+
+describe("listMyOrgs runtimeTelemetry (0010 member runtime)", () => {
+  it("carries a roster row's runtimeTelemetry record through", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "member",
+          runtimeTelemetry: { enabled: true, intervalMinutes: 30 },
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      {
+        orgId: "org-1",
+        name: "Acme",
+        role: "member",
+        runtimeTelemetry: { enabled: true, intervalMinutes: 30 },
+      },
+    ]);
+  });
+
+  it("omits the record for pre-0010 rows and for null (feature off)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        { orgId: "org-1", name: "Acme", role: "owner" },
+        {
+          orgId: "org-2",
+          name: "Beta",
+          role: "member",
+          runtimeTelemetry: null,
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+      { orgId: "org-2", name: "Beta", role: "member" },
+    ]);
+  });
+
+  it("keeps the org and drops only a malformed record (degrades to off)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse([
+        {
+          orgId: "org-1",
+          name: "Acme",
+          role: "owner",
+          runtimeTelemetry: { enabled: "yes", intervalMinutes: "soon" },
+        },
+      ])
+    );
+    await expect(listMyOrgs("at-1")).resolves.toEqual([
+      { orgId: "org-1", name: "Acme", role: "owner" },
+    ]);
+  });
+});

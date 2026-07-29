@@ -16,6 +16,7 @@ pub mod image_luminance;
 pub mod json_fast;
 pub mod local_model_hardware;
 pub mod process_metrics;
+pub mod system_runtime;
 
 // Re-export all commands
 pub use app_memory::*;
@@ -26,6 +27,7 @@ pub use image_luminance::*;
 pub use json_fast::*;
 pub use local_model_hardware::*;
 pub use process_metrics::*;
+pub use system_runtime::*;
 
 #[cfg(test)]
 mod tests;

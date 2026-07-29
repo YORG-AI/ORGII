@@ -16,6 +16,7 @@ import { useEffect } from "react";
 
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+import { memberRuntimePushScheduler } from "./memberRuntime/memberRuntimePushScheduler";
 import {
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
@@ -40,9 +41,16 @@ export function useOrg2CloudSyncEngine(): void {
   useEffect(() => {
     // stop() is idempotent and also covers the A→B switch (no null between):
     // the old identity's engine state must never survive into the new one.
+    // The member-runtime push scheduler shares the exact same identity
+    // lifecycle (its persisted push state is keyed per identity; its
+    // in-memory backoff/disabled verdicts must not cross identities), but
+    // stays a separate module — the engine deliberately has no periodic
+    // passes.
     org2CloudSyncEngine.stop();
+    memberRuntimePushScheduler.stop();
     if (authIdentityKey) {
       org2CloudSyncEngine.start(getInstrumentedStore());
+      memberRuntimePushScheduler.start(getInstrumentedStore());
     }
     return undefined;
   }, [authIdentityKey]);

@@ -634,3 +634,184 @@ fn trends_day_bucket_collapses_hours() {
     assert_eq!(series.len(), 1);
     assert_eq!(series[0].bucket_ms, ms("2026-07-18T00:00:00Z"));
 }
+
+#[test]
+fn daily_rollup_buckets_days_and_excludes_mirror() {
+    let conn = seeded_conn();
+    // A second UTC day for the native claude session, so the rollup must
+    // split one session across two day rows.
+    insert_turn(
+        &conn,
+        "cli-claude",
+        "claude-sonnet-4-5",
+        (100_000, 10_000, 0, 0),
+        "2026-07-19T01:00:00Z",
+    );
+    recompute_session_usage(&conn, "cli-claude")
+        .unwrap()
+        .expect("claude reprojected");
+
+    let rollup = usage_daily_rollup(
+        &conn,
+        ms("2026-07-01T00:00:00Z"),
+        ms("2026-07-31T23:59:59Z"),
+    )
+    .expect("daily rollup");
+
+    // Sorted by (dayStartMs, bucket).
+    let keys: Vec<(i64, &str)> = rollup
+        .days
+        .iter()
+        .map(|row| (row.day_start_ms, row.bucket.as_str()))
+        .collect();
+    assert_eq!(
+        keys,
+        vec![
+            (ms("2026-07-18T00:00:00Z"), "claude"),
+            (ms("2026-07-18T00:00:00Z"), "codex"),
+            (ms("2026-07-18T00:00:00Z"), "org2"),
+            (ms("2026-07-19T00:00:00Z"), "claude"),
+        ]
+    );
+
+    // Day-18 claude cell: exactly the 2 native turns. The listable=0 mirror
+    // twin (1.5M input at 03:30) must not add a fallback round — its tokens
+    // would double the cell and bump sessions/requests.
+    let day18_claude = &rollup.days[0];
+    assert_eq!(day18_claude.input_tokens, 1_500_000);
+    assert_eq!(day18_claude.output_tokens, 150_000);
+    assert_eq!(day18_claude.cache_read_tokens, 200_000);
+    assert_eq!(day18_claude.cache_write_tokens, 50_000);
+    assert_eq!(day18_claude.total_tokens, 1_900_000);
+    assert_eq!(day18_claude.sessions, 1);
+    assert_eq!(day18_claude.requests, 2);
+    assert!(day18_claude.cost_usd > 0.0);
+
+    let day19_claude = &rollup.days[3];
+    assert_eq!(day19_claude.input_tokens, 100_000);
+    assert_eq!(day19_claude.output_tokens, 10_000);
+    assert_eq!(day19_claude.sessions, 1);
+    assert_eq!(day19_claude.requests, 1);
+
+    // The imported codex fallback round lands as one request on day 18.
+    let day18_codex = &rollup.days[1];
+    assert_eq!(day18_codex.input_tokens, 400_000);
+    assert_eq!(day18_codex.sessions, 1);
+    assert_eq!(day18_codex.requests, 1);
+}
+
+#[test]
+fn daily_rollup_includes_other_bucket() {
+    let conn = seeded_conn();
+    // Long-tail provider → `other` bucket, which the desktop dashboard's
+    // default scope drops but the team rollup must keep.
+    insert_imported(
+        &conn,
+        "opencode",
+        "ext-opencode",
+        "gpt-5",
+        (50_000, 5_000),
+        ms("2026-07-18T06:00:00Z"),
+        1,
+    );
+    recompute_session_usage(&conn, "ext-opencode")
+        .unwrap()
+        .expect("opencode projected");
+
+    let rollup = usage_daily_rollup(
+        &conn,
+        ms("2026-07-18T00:00:00Z"),
+        ms("2026-07-18T23:59:59Z"),
+    )
+    .expect("daily rollup");
+
+    let other = rollup
+        .days
+        .iter()
+        .find(|row| row.bucket == "other")
+        .expect("other bucket present");
+    assert_eq!(other.day_start_ms, ms("2026-07-18T00:00:00Z"));
+    assert_eq!(other.input_tokens, 50_000);
+    assert_eq!(other.output_tokens, 5_000);
+    assert_eq!(other.sessions, 1);
+    assert_eq!(other.requests, 1);
+    // `other` sorts after the four scoped buckets within the day.
+    assert_eq!(
+        rollup.days.last().map(|row| row.bucket.as_str()),
+        Some("other")
+    );
+}
+
+#[test]
+fn daily_rollup_window_clips_rounds() {
+    let conn = seeded_conn();
+    // Window covering only 02:00–02:30 → just the imported codex round.
+    let rollup = usage_daily_rollup(
+        &conn,
+        ms("2026-07-18T01:30:00Z"),
+        ms("2026-07-18T02:30:00Z"),
+    )
+    .expect("daily rollup");
+
+    assert_eq!(rollup.days.len(), 1);
+    assert_eq!(rollup.days[0].bucket, "codex");
+    assert_eq!(rollup.days[0].day_start_ms, ms("2026-07-18T00:00:00Z"));
+    assert_eq!(rollup.days[0].input_tokens, 400_000);
+}
+
+#[test]
+fn daily_rollup_skips_zero_usage_cells() {
+    let conn = seeded_conn();
+    // A zero-token turn on an otherwise idle day: the cell would carry a
+    // request but no tokens/cost, and must be omitted from the wire rows.
+    insert_turn(
+        &conn,
+        "cli-claude",
+        "claude-sonnet-4-5",
+        (0, 0, 0, 0),
+        "2026-07-20T01:00:00Z",
+    );
+    recompute_session_usage(&conn, "cli-claude")
+        .unwrap()
+        .expect("claude reprojected");
+
+    let rollup = usage_daily_rollup(
+        &conn,
+        ms("2026-07-20T00:00:00Z"),
+        ms("2026-07-20T23:59:59Z"),
+    )
+    .expect("daily rollup");
+    assert!(
+        rollup.days.is_empty(),
+        "zero-usage day must be skipped: {:?}",
+        rollup.days
+    );
+}
+
+#[test]
+fn daily_rollup_serializes_camel_case() {
+    let row = DailyRollupRow {
+        day_start_ms: 1_784_332_800_000,
+        bucket: "claude".to_string(),
+        input_tokens: 1,
+        output_tokens: 2,
+        cache_read_tokens: 3,
+        cache_write_tokens: 4,
+        total_tokens: 10,
+        cost_usd: 0.5,
+        sessions: 1,
+        requests: 2,
+    };
+    let json = serde_json::to_value(DailyRollup { days: vec![row] }).expect("serialize rollup");
+    let row = &json["days"][0];
+    assert_eq!(row["dayStartMs"], 1_784_332_800_000_i64);
+    assert_eq!(row["bucket"], "claude");
+    assert_eq!(row["inputTokens"], 1);
+    assert_eq!(row["outputTokens"], 2);
+    assert_eq!(row["cacheReadTokens"], 3);
+    assert_eq!(row["cacheWriteTokens"], 4);
+    assert_eq!(row["totalTokens"], 10);
+    assert_eq!(row["costUsd"], 0.5);
+    assert_eq!(row["sessions"], 1);
+    assert_eq!(row["requests"], 2);
+}

@@ -11,8 +11,8 @@ use std::sync::OnceLock;
 use database::db::get_connection;
 use orgtrack_core::pricing;
 use orgtrack_core::usage_dashboard::{
-    self, SessionSort, TrendBucket, UsageFilter, UsageOverview, UsageRoundQuery, UsageRoundRow,
-    UsageSessionRow, UsageSummary, UsageTrendPoint,
+    self, DailyRollup, SessionSort, TrendBucket, UsageFilter, UsageOverview, UsageRoundQuery,
+    UsageRoundRow, UsageSessionRow, UsageSummary, UsageTrendPoint,
 };
 
 /// Per-Mtok list rates for one model, resolved from the bundled pricing catalog.
@@ -199,6 +199,23 @@ pub async fn usage_dashboard_rounds(
         let offset = offset.unwrap_or(0);
         let limit = limit.unwrap_or(MAX_ROUND_ROWS).min(MAX_ROUND_ROWS);
         usage_dashboard::usage_rounds(&conn, &filter, sort, offset, limit)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Per-(UTC day, bucket) rollup for the member-runtime cloud push. Unlike the
+/// scoped desktop views above, this always spans ALL sources (the `other`
+/// bucket included) so the totals a member shares with their org are complete.
+#[tauri::command]
+pub async fn usage_dashboard_daily_rollup(
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<DailyRollup, String> {
+    let _permit = acquire_usage_query_permit().await?;
+    tokio::task::spawn_blocking(move || {
+        let conn = open_conn()?;
+        usage_dashboard::usage_daily_rollup(&conn, start_ms, end_ms)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

@@ -9,7 +9,9 @@ export type {
   MemoryMetrics,
   ProcessMetrics,
   SampleRegion,
+  SystemInfo,
   SystemMemoryMetrics,
+  SystemRuntimeSnapshot,
 } from "./types";
 
 export {
@@ -43,4 +45,10 @@ export {
   computeSha256Bytes,
 } from "./hash";
 
-export { getMemoryUsage, getProcessMetrics, getSystemMemory } from "./metrics";
+export {
+  getMemoryUsage,
+  getProcessMetrics,
+  getSystemInfo,
+  getSystemMemory,
+  systemRuntimeSnapshot,
+} from "./metrics";

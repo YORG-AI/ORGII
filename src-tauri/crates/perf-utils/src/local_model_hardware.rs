@@ -161,14 +161,22 @@ fn detect_gpu(chip_type: &str, total_ram_gb: f64) -> GpuDetection {
     detect_platform_gpu(chip_type, total_ram_gb)
 }
 
-fn detect_nvidia_gpu() -> GpuDetection {
+/// Build an `nvidia-smi` invocation for one `--query-gpu=` field list, with
+/// the console window suppressed on Windows. Shared by the hardware-identity
+/// probe below and the runtime snapshot's utilization probe
+/// ([`super::system_runtime`]), so both discover the binary identically
+/// (plain `PATH` lookup — spawn failure means "no NVIDIA tooling").
+pub(crate) fn nvidia_smi_command(query_gpu_fields: &str) -> Command {
     let mut cmd = Command::new("nvidia-smi");
-    cmd.args([
-        "--query-gpu=name,memory.total",
-        "--format=csv,noheader,nounits",
-    ]);
+    cmd.arg(format!("--query-gpu={query_gpu_fields}"));
+    cmd.arg("--format=csv,noheader,nounits");
     // Suppress console window on Windows.
     app_platform::hide_console(&mut cmd);
+    cmd
+}
+
+fn detect_nvidia_gpu() -> GpuDetection {
+    let mut cmd = nvidia_smi_command("name,memory.total");
     let output = cmd.output().map_err(|err| GpuAbsence {
         status: GPU_DETECTION_STATUS_NOT_AVAILABLE,
         source: GPU_PROBE_SOURCE_NVIDIA_SMI,

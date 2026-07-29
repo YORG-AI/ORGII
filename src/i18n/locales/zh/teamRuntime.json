@@ -1,0 +1,79 @@
+{
+  "title": "团队运行状态",
+  "refresh": "刷新",
+  "loadError": "团队运行状态加载失败",
+  "signedOut": {
+    "title": "登录后查看团队",
+    "subtitle": "队友的运行状态通过 ORG2 Cloud 共享。",
+    "action": "登录"
+  },
+  "noOrgs": {
+    "title": "还没有云端组织",
+    "subtitle": "加入或创建一个组织，队友就会出现在这里。"
+  },
+  "unsupported": {
+    "title": "后端需要升级",
+    "subtitle": "该组织的云端后端尚不支持团队运行状态共享。"
+  },
+  "disabled": {
+    "title": "团队运行状态共享未开启",
+    "subtitle": "组织管理员可以在组织设置中开启。",
+    "adminSubtitle": "你可以在组织设置中开启。"
+  },
+  "empty": {
+    "title": "还没有成员数据",
+    "subtitle": "成员首次上报运行状态后就会显示在这里。"
+  },
+  "card": {
+    "you": "你",
+    "cpu": "CPU",
+    "ram": "内存",
+    "gpu": "GPU",
+    "today": "今天",
+    "week": "7 天",
+    "asOf": "上次上报：{{time}}",
+    "neverReported": "尚未上报"
+  },
+  "detail": {
+    "back": "团队",
+    "profileTitle": "构建者画像",
+    "noProfile": "尚未共享画像。",
+    "usageTitle": "用量",
+    "usageEmpty": "该时间段内没有用量",
+    "range": {
+      "7": "7 天",
+      "30": "30 天",
+      "90": "90 天"
+    },
+    "agentsTitle": "已安装的智能体",
+    "machineTitle": "机器",
+    "machineLabel": "机器",
+    "os": "操作系统",
+    "chip": "芯片",
+    "memory": "内存",
+    "unified": "统一内存",
+    "gpu": "GPU",
+    "appVersion": "ORGII 版本"
+  },
+  "selfService": {
+    "hint": "共享开启期间，你自己的运行状态会共享给该组织。",
+    "action": "停止共享并删除我的数据",
+    "confirm": "确定从该组织删除你已共享的运行状态数据？",
+    "confirmYes": "停止并删除",
+    "confirmNo": "取消"
+  },
+  "orgSettings": {
+    "label": "团队运行状态共享",
+    "help": "按此间隔向组织共享成员的机器负载、用量汇总和构建者画像。仅共享聚合数据——不含转录、仓库路径和标题。",
+    "memberNote": "已由管理员开启。上报间隔：{{interval}}。",
+    "off": "关闭",
+    "interval": {
+      "15": "每 15 分钟",
+      "30": "每 30 分钟",
+      "60": "每小时",
+      "180": "每 3 小时",
+      "360": "每 6 小时",
+      "1440": "每 24 小时"
+    }
+  }
+}

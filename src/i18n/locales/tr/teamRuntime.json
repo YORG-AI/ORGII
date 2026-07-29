@@ -1,0 +1,79 @@
+{
+  "title": "Ekip çalışma zamanı",
+  "refresh": "Yenile",
+  "loadError": "Ekip çalışma zamanı yüklenemedi",
+  "signedOut": {
+    "title": "Ekibinizi görmek için giriş yapın",
+    "subtitle": "Ekip arkadaşlarının çalışma zamanı ORG2 Cloud üzerinden paylaşılır.",
+    "action": "Giriş yap"
+  },
+  "noOrgs": {
+    "title": "Henüz bulut organizasyonu yok",
+    "subtitle": "Bir organizasyona katılın veya oluşturun; ekip arkadaşlarınız burada görünecek."
+  },
+  "unsupported": {
+    "title": "Arka ucun yükseltilmesi gerekiyor",
+    "subtitle": "Bu organizasyonun bulut arka ucu ekip çalışma zamanı paylaşımını henüz desteklemiyor."
+  },
+  "disabled": {
+    "title": "Ekip çalışma zamanı paylaşımı kapalı",
+    "subtitle": "Bir organizasyon yöneticisi bunu organizasyon ayarlarından açabilir.",
+    "adminSubtitle": "Bunu organizasyon ayarlarından açabilirsiniz."
+  },
+  "empty": {
+    "title": "Henüz üye verisi yok",
+    "subtitle": "Üyeler ilk çalışma zamanı raporlarından sonra burada görünür."
+  },
+  "card": {
+    "you": "Siz",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "Bugün",
+    "week": "7 g",
+    "asOf": "son rapor: {{time}}",
+    "neverReported": "Henüz rapor yok"
+  },
+  "detail": {
+    "back": "Ekip",
+    "profileTitle": "Geliştirici profili",
+    "noProfile": "Henüz profil paylaşılmadı.",
+    "usageTitle": "Kullanım",
+    "usageEmpty": "Bu aralıkta kullanım yok",
+    "range": {
+      "7": "7 gün",
+      "30": "30 gün",
+      "90": "90 gün"
+    },
+    "agentsTitle": "Yüklü ajanlar",
+    "machineTitle": "Makine",
+    "machineLabel": "Makine",
+    "os": "İşletim sistemi",
+    "chip": "Çip",
+    "memory": "Bellek",
+    "unified": "birleşik bellek",
+    "gpu": "GPU",
+    "appVersion": "ORGII sürümü"
+  },
+  "selfService": {
+    "hint": "Paylaşım açıkken kendi çalışma zamanınız bu organizasyonla paylaşılır.",
+    "action": "Paylaşımı durdur ve verilerimi kaldır",
+    "confirm": "Bu organizasyonla paylaşılan çalışma zamanı verileriniz kaldırılsın mı?",
+    "confirmYes": "Durdur ve kaldır",
+    "confirmNo": "İptal"
+  },
+  "orgSettings": {
+    "label": "Ekip çalışma zamanı paylaşımı",
+    "help": "Üyelerin makine yükü, kullanım toplamları ve geliştirici profili bu aralıkla organizasyonla paylaşılır. Yalnızca toplu veriler — asla transkriptler, depolar veya başlıklar değil.",
+    "memberNote": "Bir yönetici tarafından etkinleştirildi. Aralık: {{interval}}.",
+    "off": "Kapalı",
+    "interval": {
+      "15": "15 dakikada bir",
+      "30": "30 dakikada bir",
+      "60": "Saatte bir",
+      "180": "3 saatte bir",
+      "360": "6 saatte bir",
+      "1440": "24 saatte bir"
+    }
+  }
+}

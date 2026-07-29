@@ -28,12 +28,14 @@ describe("getCloudCapabilities", () => {
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -48,6 +50,7 @@ describe("getCloudCapabilities", () => {
       storageSegments: true,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
   });
 
@@ -62,6 +65,7 @@ describe("getCloudCapabilities", () => {
       storageSegments: true,
       homeEndpoints: true,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
   });
 
@@ -77,6 +81,24 @@ describe("getCloudCapabilities", () => {
       storageSegments: true,
       homeEndpoints: true,
       teamInboxMentions: true,
+      memberRuntime: false,
+    });
+  });
+
+  it("parses the 0010 member-runtime capability", async () => {
+    rawMock.mockResolvedValueOnce({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+      teamInboxMentions: true,
+      memberRuntime: true,
+    });
+    expect(await getCloudCapabilities("jwt-1")).toEqual({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+      teamInboxMentions: true,
+      memberRuntime: true,
     });
   });
 
@@ -87,6 +109,7 @@ describe("getCloudCapabilities", () => {
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
@@ -94,6 +117,7 @@ describe("getCloudCapabilities", () => {
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
@@ -109,12 +133,14 @@ describe("getCloudCapabilities", () => {
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
       storageSegments: false,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -134,12 +160,14 @@ describe("getCloudCapabilities", () => {
       storageSegments: true,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(await second).toEqual({
       broadcastSignals: true,
       storageSegments: true,
       homeEndpoints: false,
       teamInboxMentions: false,
+      memberRuntime: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });

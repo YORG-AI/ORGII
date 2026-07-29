@@ -18,6 +18,7 @@ const CloudCapabilitiesWireSchema = z.object({
   storageSegments: z.boolean().nullish().catch(undefined),
   homeEndpoints: z.boolean().nullish().catch(undefined),
   teamInboxMentions: z.boolean().nullish().catch(undefined),
+  memberRuntime: z.boolean().nullish().catch(undefined),
 });
 
 export interface CloudCapabilities {
@@ -25,6 +26,8 @@ export interface CloudCapabilities {
   storageSegments: boolean;
   homeEndpoints: boolean;
   teamInboxMentions: boolean;
+  /** 0010 member-runtime sharing tables/RPCs are present. */
+  memberRuntime: boolean;
 }
 
 const LEGACY_CAPABILITIES: CloudCapabilities = {
@@ -32,6 +35,7 @@ const LEGACY_CAPABILITIES: CloudCapabilities = {
   storageSegments: false,
   homeEndpoints: false,
   teamInboxMentions: false,
+  memberRuntime: false,
 };
 
 const capabilitiesByEndpoint = new Map<string, CloudCapabilities>();
@@ -62,6 +66,7 @@ export async function getCloudCapabilities(
       storageSegments: parsed.data.storageSegments ?? false,
       homeEndpoints: parsed.data.homeEndpoints ?? false,
       teamInboxMentions: parsed.data.teamInboxMentions ?? false,
+      memberRuntime: parsed.data.memberRuntime ?? false,
     };
     capabilitiesByEndpoint.set(endpointKey, capabilities);
     return capabilities;

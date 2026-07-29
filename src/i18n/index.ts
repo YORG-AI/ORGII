@@ -189,6 +189,7 @@ export function getFollowSystemLanguageLabel(
  * - profile: User profile (dev passport, bio, skills, education, experience)
  * - integrations: Integrations (channels, code accounts), Extensions (skills), ATC
  * - builderProfile: Runtime → Profile (axes, highlights, evidence)
+ * - teamRuntime: Runtime → Team (member runtime sharing, org telemetry row)
  * - terms: Legal notices, third-party disclaimers, responsible use notices
  * - workflow: Workflow page (design, explore, task view, status bar)
  */
@@ -205,6 +206,7 @@ export const NAMESPACES = [
   "geo",
   "profile",
   "builderProfile",
+  "teamRuntime",
   "terms",
   "workflow",
 ] as const;
@@ -247,6 +249,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/en/profile.json")).default,
         builderProfile: (await import("./locales/en/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/en/teamRuntime.json")).default,
         market: (await import("./locales/en/market.json")).default,
         integrations: (await import("./locales/en/integrations.json")).default,
         navigation: (await import("./locales/en/navigation.json")).default,
@@ -265,6 +268,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/zh/profile.json")).default,
         builderProfile: (await import("./locales/zh/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/zh/teamRuntime.json")).default,
         market: (await import("./locales/zh/market.json")).default,
         integrations: (await import("./locales/zh/integrations.json")).default,
         navigation: (await import("./locales/zh/navigation.json")).default,
@@ -283,6 +287,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/fr/profile.json")).default,
         builderProfile: (await import("./locales/fr/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/fr/teamRuntime.json")).default,
         market: (await import("./locales/fr/market.json")).default,
         integrations: (await import("./locales/fr/integrations.json")).default,
         navigation: (await import("./locales/fr/navigation.json")).default,
@@ -301,6 +306,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/de/profile.json")).default,
         builderProfile: (await import("./locales/de/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/de/teamRuntime.json")).default,
         market: (await import("./locales/de/market.json")).default,
         integrations: (await import("./locales/de/integrations.json")).default,
         navigation: (await import("./locales/de/navigation.json")).default,
@@ -319,6 +325,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/es/profile.json")).default,
         builderProfile: (await import("./locales/es/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/es/teamRuntime.json")).default,
         market: (await import("./locales/es/market.json")).default,
         integrations: (await import("./locales/es/integrations.json")).default,
         navigation: (await import("./locales/es/navigation.json")).default,
@@ -337,6 +344,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/ja/profile.json")).default,
         builderProfile: (await import("./locales/ja/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/ja/teamRuntime.json")).default,
         market: (await import("./locales/ja/market.json")).default,
         integrations: (await import("./locales/ja/integrations.json")).default,
         navigation: (await import("./locales/ja/navigation.json")).default,
@@ -355,6 +363,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/ko/profile.json")).default,
         builderProfile: (await import("./locales/ko/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/ko/teamRuntime.json")).default,
         market: (await import("./locales/ko/market.json")).default,
         integrations: (await import("./locales/ko/integrations.json")).default,
         navigation: (await import("./locales/ko/navigation.json")).default,
@@ -373,6 +382,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/ru/profile.json")).default,
         builderProfile: (await import("./locales/ru/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/ru/teamRuntime.json")).default,
         market: (await import("./locales/ru/market.json")).default,
         integrations: (await import("./locales/ru/integrations.json")).default,
         navigation: (await import("./locales/ru/navigation.json")).default,
@@ -391,6 +401,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/tr/profile.json")).default,
         builderProfile: (await import("./locales/tr/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/tr/teamRuntime.json")).default,
         market: (await import("./locales/tr/market.json")).default,
         integrations: (await import("./locales/tr/integrations.json")).default,
         navigation: (await import("./locales/tr/navigation.json")).default,
@@ -409,6 +420,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/vi/profile.json")).default,
         builderProfile: (await import("./locales/vi/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/vi/teamRuntime.json")).default,
         market: (await import("./locales/vi/market.json")).default,
         integrations: (await import("./locales/vi/integrations.json")).default,
         navigation: (await import("./locales/vi/navigation.json")).default,
@@ -427,6 +439,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/pt/profile.json")).default,
         builderProfile: (await import("./locales/pt/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/pt/teamRuntime.json")).default,
         market: (await import("./locales/pt/market.json")).default,
         integrations: (await import("./locales/pt/integrations.json")).default,
         navigation: (await import("./locales/pt/navigation.json")).default,
@@ -445,6 +458,7 @@ async function loadLanguageResources(
         profile: (await import("./locales/pl/profile.json")).default,
         builderProfile: (await import("./locales/pl/builderProfile.json"))
           .default,
+        teamRuntime: (await import("./locales/pl/teamRuntime.json")).default,
         market: (await import("./locales/pl/market.json")).default,
         integrations: (await import("./locales/pl/integrations.json")).default,
         navigation: (await import("./locales/pl/navigation.json")).default,
@@ -462,6 +476,8 @@ async function loadLanguageResources(
         geo: (await import("./locales/zh-Hant/geo.json")).default,
         profile: (await import("./locales/zh-Hant/profile.json")).default,
         builderProfile: (await import("./locales/zh-Hant/builderProfile.json"))
+          .default,
+        teamRuntime: (await import("./locales/zh-Hant/teamRuntime.json"))
           .default,
         market: (await import("./locales/zh-Hant/market.json")).default,
         integrations: (await import("./locales/zh-Hant/integrations.json"))

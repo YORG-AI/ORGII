@@ -17,6 +17,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { createLogger } from "@src/hooks/logger";
 
 import { enrichOrg2CloudProfile } from "./completeSignIn";
+import type { OrgRuntimeTelemetry } from "./memberRuntime/types";
 import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
@@ -61,6 +62,10 @@ export interface Org2CloudOrg {
   entitlement?: CloudEntitlementState;
   /** 0007 directory hook; absent ⇒ the org lives on the active endpoint. */
   homeEndpoint?: string;
+  /** 0010 member-runtime telemetry record; absent/null ⇒ feature off (the
+   * push scheduler never runs for this org). Parsed tolerantly in
+   * `listMyOrgs` — a malformed record degrades to absent. */
+  runtimeTelemetry?: OrgRuntimeTelemetry | null;
 }
 
 export interface RefetchOrg2CloudOrgsOptions {

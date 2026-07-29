@@ -1,0 +1,79 @@
+{
+  "title": "Runtime de l'équipe",
+  "refresh": "Actualiser",
+  "loadError": "Impossible de charger le runtime de l'équipe",
+  "signedOut": {
+    "title": "Connectez-vous pour voir votre équipe",
+    "subtitle": "Le runtime des coéquipiers est partagé via ORG2 Cloud.",
+    "action": "Connexion"
+  },
+  "noOrgs": {
+    "title": "Aucune organisation cloud pour l'instant",
+    "subtitle": "Rejoignez ou créez une organisation et vos coéquipiers apparaîtront ici."
+  },
+  "unsupported": {
+    "title": "Le backend doit être mis à niveau",
+    "subtitle": "Le backend cloud de cette organisation ne prend pas encore en charge le partage du runtime d'équipe."
+  },
+  "disabled": {
+    "title": "Le partage du runtime d'équipe est désactivé",
+    "subtitle": "Un administrateur peut l'activer dans les paramètres de l'organisation.",
+    "adminSubtitle": "Vous pouvez l'activer dans les paramètres de l'organisation."
+  },
+  "empty": {
+    "title": "Aucune donnée de membre pour l'instant",
+    "subtitle": "Les membres apparaissent ici après leur premier rapport de runtime."
+  },
+  "card": {
+    "you": "Vous",
+    "cpu": "CPU",
+    "ram": "RAM",
+    "gpu": "GPU",
+    "today": "Aujourd'hui",
+    "week": "7 j",
+    "asOf": "dernier rapport {{time}}",
+    "neverReported": "Aucun rapport pour l'instant"
+  },
+  "detail": {
+    "back": "Équipe",
+    "profileTitle": "Profil de créateur",
+    "noProfile": "Aucun profil partagé pour l'instant.",
+    "usageTitle": "Utilisation",
+    "usageEmpty": "Aucune utilisation sur cette période",
+    "range": {
+      "7": "7 jours",
+      "30": "30 jours",
+      "90": "90 jours"
+    },
+    "agentsTitle": "Agents installés",
+    "machineTitle": "Machine",
+    "machineLabel": "Machine",
+    "os": "Système d'exploitation",
+    "chip": "Puce",
+    "memory": "Mémoire",
+    "unified": "unifiée",
+    "gpu": "GPU",
+    "appVersion": "Version d'ORGII"
+  },
+  "selfService": {
+    "hint": "Votre propre runtime est partagé avec cette organisation tant que le partage est activé.",
+    "action": "Arrêter le partage et supprimer mes données",
+    "confirm": "Supprimer vos données de runtime partagées de cette organisation ?",
+    "confirmYes": "Arrêter et supprimer",
+    "confirmNo": "Annuler"
+  },
+  "orgSettings": {
+    "label": "Partage du runtime d'équipe",
+    "help": "La charge machine, les totaux d'utilisation et le profil de créateur des membres sont partagés avec l'organisation à cet intervalle. Uniquement des agrégats — jamais de transcriptions, de dépôts ni de titres.",
+    "memberNote": "Activé par un administrateur. Intervalle : {{interval}}.",
+    "off": "Désactivé",
+    "interval": {
+      "15": "Toutes les 15 minutes",
+      "30": "Toutes les 30 minutes",
+      "60": "Toutes les heures",
+      "180": "Toutes les 3 heures",
+      "360": "Toutes les 6 heures",
+      "1440": "Toutes les 24 heures"
+    }
+  }
+}

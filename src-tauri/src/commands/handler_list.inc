@@ -7,6 +7,8 @@
 // Diagnostics commands
 usage_diagnostics::commands::diagnostics_initialize,
 usage_diagnostics::commands::diagnostics_submit_usage_snapshot,
+// Cloud device identity for member-runtime sharing (separate id from the diagnostics install_id)
+infrastructure::cloud_identity::cloud_device_identity,
 // Dev-only ORG2 Cloud auth import from the installed app's WebKit origin
 infrastructure::dev_bundled_auth::debug_import_bundled_org2_cloud_auth,
 // Main-window appearance commands
@@ -283,6 +285,7 @@ orgtrack::usage_dashboard_commands::usage_dashboard_sessions,
 orgtrack::usage_dashboard_commands::usage_dashboard_rounds,
 orgtrack::usage_dashboard_commands::usage_dashboard_overview,
 orgtrack::usage_dashboard_commands::usage_dashboard_model_pricing,
+orgtrack::usage_dashboard_commands::usage_dashboard_daily_rollup,
 orgtrack::builder_profile_commands::builder_profile_overview,
 orgtrack::builder_profile_commands::builder_profile_extract,
 orgtrack::builder_profile_commands::builder_profile_exemplars,
@@ -701,6 +704,8 @@ perf_utils::get_memory_usage,
 perf_utils::get_system_memory,
 perf_utils::get_system_info,
 perf_utils::local_model_hardware::detect_local_model_hardware,
+// - Whole-machine runtime burst sample (member-runtime sharing)
+perf_utils::system_runtime::system_runtime_snapshot,
 perf_utils::get_memory_breakdown,
 perf_utils::get_app_memory_snapshot_v1,
 perf_utils::get_tool_process_memory_diagnostics_v1,
