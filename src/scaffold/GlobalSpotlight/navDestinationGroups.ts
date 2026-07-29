@@ -183,6 +183,16 @@ export const INTEGRATIONS: NavDestination[] = [
     }
   ),
   dest(
+    "nav-int-memory-semantic-models",
+    `${buildIntegrationsPath({ category: "rulesMemoryEvolution" })}?rulesTab=memory`,
+    "integrations",
+    {
+      labelKey: "integrations:semanticModels.title",
+      descriptionSuffixKey: "integrations:semanticModels.summary.description",
+      keywords: ["embedding", "rerank", "semantic models", "memory models"],
+    }
+  ),
+  dest(
     "nav-int-routines",
     buildIntegrationsPath({ category: "routines" }),
     "integrations",

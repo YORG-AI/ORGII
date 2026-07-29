@@ -9,7 +9,7 @@ mod auto;
 mod azure;
 mod openai;
 mod rerank;
-pub use rerank::LocalReranker;
+pub use rerank::ConfiguredReranker;
 
 // `AutoEmbeddingProvider` is the only provider type external callers reach
 // for — they construct it via `AutoEmbeddingProvider::resolve(...)`. The

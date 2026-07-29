@@ -37,6 +37,7 @@ import {
 import { InfoRow } from "../../shared/InfoRow";
 import type { DetailMode } from "../../types";
 import AgentEvolutionPanel from "../Evolution/AgentEvolutionPanel";
+import SessionMemoryEmbeddingPanel from "../Memory/SessionMemoryEmbeddingPanel";
 import WorkspaceMemoryBrowser from "../Memory/WorkspaceMemoryBrowser";
 import InlineExternalRulesImport from "./InlineExternalRulesImport";
 
@@ -53,6 +54,8 @@ interface RulesMemoryEvolutionTableProps {
   onAdd: () => void;
   cursorRepos?: CursorRepo[];
   onAfterImport?: () => void | Promise<void>;
+  activeTab?: RulesMemoryEvolutionPageTab;
+  onActiveTabChange?: (tab: RulesMemoryEvolutionPageTab) => void;
 }
 
 function getRuleKey(rule: PolicyInfo): string {
@@ -71,6 +74,8 @@ export const RulesMemoryEvolutionTable: React.FC<
   onAdd,
   cursorRepos,
   onAfterImport,
+  activeTab: activeTabProp,
+  onActiveTabChange,
 }) => {
   const { t } = useTranslation("integrations");
   const { t: tSettings } = useTranslation("settings");
@@ -78,8 +83,16 @@ export const RulesMemoryEvolutionTable: React.FC<
     if (!rule.path) return;
     openFileInWorkStation(rule.path, { defaultPreviewMode: true });
   }, []);
-  const [activeTab, setActiveTab] =
+  const [activeTabLocal, setActiveTabLocal] =
     useState<RulesMemoryEvolutionPageTab>("rules");
+  const activeTab = activeTabProp ?? activeTabLocal;
+  const setActiveTab = useCallback(
+    (tab: RulesMemoryEvolutionPageTab) => {
+      setActiveTabLocal(tab);
+      onActiveTabChange?.(tab);
+    },
+    [onActiveTabChange]
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [scopeFilter, setScopeFilter] = useState<RuleScopeFilterKey>("all");
   const [expandedRuleKeys, setExpandedRuleKeys] = useState<string[]>([]);
@@ -286,9 +299,9 @@ export const RulesMemoryEvolutionTable: React.FC<
 
   const tabs = useMemo<TabPillItem[]>(
     () => [
-      { key: "rules", label: t("rulesTabs.rules", "Rules") },
-      { key: "memory", label: t("rulesTabs.memory", "Memory") },
-      { key: "evolution", label: t("rulesTabs.evolution", "Evolution") },
+      { key: "rules", label: t("rulesTabs.rules") },
+      { key: "memory", label: t("rulesTabs.memory") },
+      { key: "evolution", label: t("rulesTabs.evolution") },
     ],
     [t]
   );
@@ -324,7 +337,10 @@ export const RulesMemoryEvolutionTable: React.FC<
       {activeTab === "memory" ? (
         <ScrollPreservation className={DETAIL_PANEL_TOKENS.scrollContentNoTop}>
           <div className={DETAIL_PANEL_TOKENS.contentWidthWithPaddingNoTop}>
-            <WorkspaceMemoryBrowser />
+            <div className="flex flex-col gap-3">
+              <SessionMemoryEmbeddingPanel />
+              <WorkspaceMemoryBrowser />
+            </div>
           </div>
         </ScrollPreservation>
       ) : activeTab === "evolution" ? (

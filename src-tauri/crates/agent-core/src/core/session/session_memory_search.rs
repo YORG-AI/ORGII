@@ -3,7 +3,7 @@
 //! Session Memory (SM) is per-session and independent. This module adds the
 //! cross-session lookup layer: every successful SM extraction is embedded into
 //! `session_memory_index`, then callers can embed a query, cosine-recall the
-//! nearest session summaries, and rerank them with the local Qwen3 reranker.
+//! nearest session summaries, and apply the configured exact rerank provider.
 
 use crate::memory::embeddings::{cosine_similarity, AutoEmbeddingProvider, EmbeddingProvider};
 use crate::session::persistence::{load_session_memory_index_rows, SessionMemoryIndexRow};
@@ -23,10 +23,11 @@ pub struct SessionMemorySearchHit {
 
 /// Search indexed session-memory summaries with embedding + rerank.
 ///
-/// Best-effort fallback contract:
-/// - query embedding failure => empty hits
+/// Residual retrieval behavior:
+/// - query embedding failure is returned by this search API
 /// - no compatible indexed embeddings => empty hits
-/// - reranker failure => cosine order
+/// - `disabled` rerank => cosine order
+/// - enabled rerank failure/malformed/empty => concrete error
 pub async fn search_session_memories(
     query: &str,
     top_k: usize,
@@ -69,19 +70,31 @@ pub async fn search_session_memories(
     }
 
     let docs: Vec<String> = scored.iter().map(|(row, _)| row.content.clone()).collect();
-    let reranker = crate::memory::embeddings::LocalReranker::new();
-    let reranked = reranker.rerank(query, &docs, top_k).await;
-
-    let hits = match reranked {
-        Ok(order) if !order.is_empty() => order
-            .into_iter()
-            .filter_map(|(idx, score)| scored.get(idx).map(|(row, _)| hit_from_row(row, score)))
-            .collect(),
-        _ => scored
+    let rerank_config = crate::state::integrations_store::integrations_store()
+        .snapshot()
+        .rerank;
+    let reranker = crate::memory::embeddings::ConfiguredReranker::from_config(rerank_config)
+        .map_err(|err| format!("session-memory rerank configuration failed: {err}"))?;
+    let hits = if reranker.is_disabled() {
+        scored
             .into_iter()
             .take(top_k)
             .map(|(row, score)| hit_from_row(&row, score))
-            .collect(),
+            .collect()
+    } else {
+        let order = reranker
+            .rerank(query, &docs, top_k)
+            .await
+            .map_err(|err| format!("session-memory rerank failed: {err}"))?;
+        order
+            .into_iter()
+            .map(|(idx, score)| {
+                scored
+                    .get(idx)
+                    .map(|(row, _)| hit_from_row(row, score))
+                    .ok_or_else(|| format!("session-memory rerank returned invalid index {idx}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?
     };
 
     Ok(hits)

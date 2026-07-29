@@ -31,6 +31,8 @@ export interface UseIntegrationsCategoryTablePropsParams {
   handleAddAction: (action: AddAction) => void;
   modelsActiveTab?: string;
   handleModelsTabChange: (tab: string) => void;
+  rulesActiveTab: "rules" | "memory" | "evolution";
+  handleRulesTabChange: (tab: "rules" | "memory" | "evolution") => void;
 }
 
 export interface UseIntegrationsCategoryTablePropsResult {
@@ -58,6 +60,8 @@ export function useIntegrationsCategoryTableProps(
     handleAddAction,
     modelsActiveTab,
     handleModelsTabChange,
+    rulesActiveTab,
+    handleRulesTabChange,
   } = params;
 
   // eslint-disable-next-line react-hooks/preserve-manual-memoization
@@ -75,6 +79,8 @@ export function useIntegrationsCategoryTableProps(
       refreshingAccountId: accountsHook.refreshingAccountId,
       modelsActiveTab: modelsActiveTab ?? extensions.modelsActiveTab,
       onModelsTabChange: handleModelsTabChange,
+      rulesActiveTab,
+      onRulesTabChange: handleRulesTabChange,
       onToggleModel: extensions.handleToggleModel,
       groupedChannels: channelState.groupedChannels,
       projectConnections: channelState.projectConnections,
@@ -151,6 +157,8 @@ export function useIntegrationsCategoryTableProps(
       handleAddAction,
       modelsActiveTab,
       handleModelsTabChange,
+      rulesActiveTab,
+      handleRulesTabChange,
     ]
   );
 

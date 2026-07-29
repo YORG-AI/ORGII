@@ -315,6 +315,50 @@ describe("Core session memory UI", () => {
     }
   });
 
+  it("discovers semantic models and renders rerank controls in canonical Memory", async () => {
+    unwrap(
+      await invokeE2E(
+        "navigateTo",
+        "/orgii/settings/integrations/models?modelsTab=embedding"
+      ),
+      "navigateTo(semantic models summary)"
+    );
+    await browser.waitUntil(
+      async () =>
+        execJS(js.exists('[data-testid="semantic-models-open-memory"]')),
+      {
+        timeout: MOUNT_TIMEOUT_MS,
+        timeoutMsg: "semantic models shortcut did not render",
+      }
+    );
+    expect(
+      await execJS(js.click('[data-testid="semantic-models-open-memory"]'))
+    ).toBe("clicked");
+    await browser.waitUntil(
+      async () =>
+        browser.executeScript(
+          `return window.location.search.includes("rulesTab=memory");`,
+          []
+        ),
+      {
+        timeout: MOUNT_TIMEOUT_MS,
+        timeoutMsg: "Memory deep link did not activate",
+      }
+    );
+    await browser.waitUntil(
+      async () =>
+        execJS(js.exists('[data-testid="session-memory-rerank-provider"]')),
+      {
+        timeout: MOUNT_TIMEOUT_MS,
+        timeoutMsg: "rerank provider control did not render",
+      }
+    );
+    expect(
+      await execJS(js.exists('[data-testid="session-memory-rerank-model"]'))
+    ).toBe(true);
+    expect(await execJS(js.bodyText)).toContain("qwen/qwen3-vl-rerank");
+  });
+
   it("renders session memory, agent memory, extract memory, and auto dream smoke state", async () => {
     if (!reuseAccount && !openaiApiKey) return;
 

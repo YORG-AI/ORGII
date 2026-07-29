@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use super::channels::config::ChannelsConfig;
 use super::config::{
-    EmbeddingConfig, IntegrationsConfig, NodesConfig, SmitheryConfig, WebSearchConfig,
+    EmbeddingConfig, IntegrationsConfig, NodesConfig, RerankConfig, SmitheryConfig, WebSearchConfig,
 };
 use crate::core::config::DatabasesConfig;
 
@@ -31,6 +31,9 @@ pub struct IntegrationsConfigPatch {
     /// chunk sizes). Wholesale replace — frontend must send the full
     /// `EmbeddingConfig` to avoid resetting siblings.
     pub embedding: Option<EmbeddingConfig>,
+    /// Semantic-memory reranker configuration. Wholesale replace, matching
+    /// `embedding`; the canonical editor is Memory.
+    pub rerank: Option<RerankConfig>,
     /// Globally excluded skills. Wholesale replace of the full list.
     /// Wire shape stays `disabledSkills` for FE compatibility.
     #[serde(rename = "disabledSkills")]
@@ -58,6 +61,9 @@ impl IntegrationsConfigPatch {
         }
         if let Some(v) = self.embedding {
             target.embedding = v;
+        }
+        if let Some(v) = self.rerank {
+            target.rerank = v;
         }
         if let Some(v) = self.excluded_skills {
             target.excluded_skills = v;
@@ -122,5 +128,33 @@ mod tests {
         let emb = patch.embedding.as_ref().unwrap();
         assert_eq!(emb.provider, "local");
         assert_eq!(emb.model.as_deref(), Some("bge-m3"));
+    }
+
+    #[test]
+    fn patch_replaces_rerank_wholesale() {
+        let mut target = IntegrationsConfig::default();
+        let patch: IntegrationsConfigPatch = serde_json::from_str(
+            r#"{"rerank":{"provider":"local","model":"local-reranker","baseUrl":"http://localhost:9877","requestTimeoutSecs":8}}"#,
+        )
+        .expect("rerank patch decodes");
+        patch.apply(&mut target);
+        assert_eq!(target.rerank.provider, "local");
+        assert_eq!(target.rerank.model.as_deref(), Some("local-reranker"));
+        assert_eq!(
+            target.rerank.base_url.as_deref(),
+            Some("http://localhost:9877")
+        );
+        assert_eq!(target.rerank.request_timeout_secs, 8);
+    }
+
+    #[test]
+    fn rerank_patch_deserialises_camel_case() {
+        let patch: IntegrationsConfigPatch = serde_json::from_str(
+            r#"{"rerank":{"provider":"zenmux_api","model":"qwen/qwen3-vl-rerank"}}"#,
+        )
+        .expect("camelCase decodes");
+        let rerank = patch.rerank.as_ref().unwrap();
+        assert_eq!(rerank.provider, "zenmux_api");
+        assert_eq!(rerank.model.as_deref(), Some("qwen/qwen3-vl-rerank"));
     }
 }

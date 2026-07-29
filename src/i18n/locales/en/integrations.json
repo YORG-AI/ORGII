@@ -51,11 +51,44 @@
       "description": "An enabled, verified embedding_api key is required for the Embedding API provider.",
       "verified": "Verified: {{name}}",
       "missing": "No verified ZenMux credential",
-      "add": "Add credential"
+      "add": "Add credential",
+      "invalid": "Not ready: {{error}}",
+      "stale": "Validation is stale ({{time}})"
     },
     "reembed": {
       "title": "Re-embedding needed",
       "description": "Existing session vectors use the previous fingerprint. They will be re-embedded as eligible sessions update."
+    }
+  },
+  "semanticModels": {
+    "title": "Session Memory Embedding & Rerank",
+    "rerank": {
+      "title": "Rerank Model",
+      "description": "Reorders cosine-retrieval candidates semantically. Disabled is cosine-only; enabled provider errors are surfaced.",
+      "providers": {
+        "zenmux": "ZenMux API",
+        "local": "Local API",
+        "disabled": "Disabled"
+      },
+      "provider": {
+        "label": "Rerank Provider",
+        "description": "ZenMux uses the verified ZenMux Key; no key is stored on this page."
+      },
+      "model": {
+        "label": "Rerank Model",
+        "description": "Defaults to qwen/qwen3-vl-rerank and is used only for memory retrieval reranking."
+      },
+      "baseUrl": {
+        "label": "Rerank Base URL",
+        "description": "Required only for a local API; leave empty for ZenMux to reuse the Key Vault endpoint."
+      },
+      "timeout": {
+        "label": "Rerank Timeout (seconds)"
+      }
+    },
+    "summary": {
+      "description": "Embedding and rerank are configured in the canonical Memory area. This tab summarizes readiness and links to the full editor.",
+      "openMemory": "Open Memory settings"
     }
   },
   "scopeLabels": {

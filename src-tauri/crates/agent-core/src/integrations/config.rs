@@ -99,6 +99,11 @@ pub struct IntegrationsConfig {
     #[serde(default)]
     pub embedding: EmbeddingConfig,
 
+    /// Semantic-memory reranking engine defaults. Enabled-provider failures
+    /// are surfaced; only `disabled` intentionally preserves cosine order.
+    #[serde(default)]
+    pub rerank: RerankConfig,
+
     /// Globally excluded skills (by name). App-level: a skill excluded in
     /// the Extensions hub is off for EVERY agent. Per-agent deltas live on
     /// `AgentDefinition.skills_config.exclude`. The effective excluded set
@@ -269,7 +274,7 @@ pub struct EmbeddingConfig {
     /// compatibility and resolves to a safe local provider only.
     #[serde(default = "default_embedding_provider")]
     pub provider: String,
-    #[serde(default)]
+    #[serde(default = "default_embedding_model")]
     pub model: Option<String>,
     /// OpenAI-compatible local endpoint (used by local_qwen).
     #[serde(default)]
@@ -294,6 +299,9 @@ pub struct EmbeddingConfig {
 fn default_embedding_provider() -> String {
     "embedding_api".to_string()
 }
+fn default_embedding_model() -> Option<String> {
+    Some("qwen/qwen3-vl-embedding".to_string())
+}
 fn default_embedding_min_token_delta() -> usize {
     5_000
 }
@@ -311,13 +319,52 @@ impl Default for EmbeddingConfig {
     fn default() -> Self {
         Self {
             provider: default_embedding_provider(),
-            model: None,
+            model: default_embedding_model(),
             local_base_url: None,
             dimensions: None,
             min_token_delta: default_embedding_min_token_delta(),
             min_interval_secs: default_embedding_min_interval_secs(),
             request_timeout_secs: default_embedding_timeout_secs(),
             max_input_chars: default_embedding_max_input_chars(),
+        }
+    }
+}
+
+/// Semantic-memory reranker configuration.
+///
+/// `zenmux_api` uses the validated ZenMux Key Vault entry and the OpenAI
+/// compatible rerank endpoint. `local` retains support for a local
+/// `/v1/rerank` service. `disabled` leaves cosine recall unchanged.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RerankConfig {
+    #[serde(default = "default_rerank_provider")]
+    pub provider: String,
+    #[serde(default = "default_rerank_model")]
+    pub model: Option<String>,
+    #[serde(default)]
+    pub base_url: Option<String>,
+    #[serde(default = "default_rerank_timeout_secs")]
+    pub request_timeout_secs: u64,
+}
+
+fn default_rerank_provider() -> String {
+    "zenmux_api".to_string()
+}
+fn default_rerank_model() -> Option<String> {
+    Some("qwen/qwen3-vl-rerank".to_string())
+}
+fn default_rerank_timeout_secs() -> u64 {
+    20
+}
+
+impl Default for RerankConfig {
+    fn default() -> Self {
+        Self {
+            provider: default_rerank_provider(),
+            model: default_rerank_model(),
+            base_url: None,
+            request_timeout_secs: default_rerank_timeout_secs(),
         }
     }
 }
@@ -344,14 +391,41 @@ mod tests {
     }
 
     #[test]
-    fn embedding_defaults_are_bounded_and_disabled() {
+    fn embedding_defaults_are_bounded_and_remote() {
         let cfg = EmbeddingConfig::default();
-        assert_eq!(cfg.provider, "disabled");
+        assert_eq!(cfg.provider, "embedding_api");
+        assert_eq!(cfg.model.as_deref(), Some("qwen/qwen3-vl-embedding"));
         assert_eq!(cfg.local_base_url, None);
         assert_eq!(cfg.dimensions, None);
         assert_eq!(cfg.request_timeout_secs, 20);
         assert!(cfg.max_input_chars <= 48_000);
         assert!(cfg.min_interval_secs >= 300);
+    }
+
+    #[test]
+    fn rerank_defaults_use_zenmux_qwen() {
+        let cfg = RerankConfig::default();
+        assert_eq!(cfg.provider, "zenmux_api");
+        assert_eq!(cfg.model.as_deref(), Some("qwen/qwen3-vl-rerank"));
+    }
+
+    #[test]
+    fn rerank_serde_round_trips_all_provider_semantics() {
+        for provider in ["zenmux_api", "local", "disabled"] {
+            let config = RerankConfig {
+                provider: provider.to_string(),
+                model: (provider != "disabled").then(|| "test-reranker".to_string()),
+                base_url: (provider == "local").then(|| "http://localhost:9877".to_string()),
+                request_timeout_secs: 9,
+            };
+            let json = serde_json::to_value(&config).expect("serialize rerank");
+            assert_eq!(json["provider"], provider);
+            assert_eq!(json["requestTimeoutSecs"], 9);
+            let decoded: RerankConfig = serde_json::from_value(json).expect("deserialize rerank");
+            assert_eq!(decoded.provider, provider);
+            assert_eq!(decoded.model, config.model);
+            assert_eq!(decoded.base_url, config.base_url);
+        }
     }
 
     #[test]

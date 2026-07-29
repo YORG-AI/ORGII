@@ -74,6 +74,12 @@ export function useIntegrationsPage() {
       : undefined;
   }, [modelsTabParam]);
 
+  const rulesTabParam = searchParams.get("rulesTab");
+  const initialRulesTab: "rules" | "memory" | "evolution" =
+    rulesTabParam === "memory" || rulesTabParam === "evolution"
+      ? rulesTabParam
+      : "rules";
+
   const devToolsTabParam = searchParams.get("devToolsTab");
   const initialDevToolsTab = devToolsTabParam as DevToolsTab | undefined;
 
@@ -391,6 +397,18 @@ export function useIntegrationsPage() {
     [databasesState]
   );
 
+  const handleRulesTabChange = useCallback(
+    (tab: "rules" | "memory" | "evolution") => {
+      setSearchParams((currentParams) => {
+        const nextParams = new URLSearchParams(currentParams);
+        if (tab === "rules") nextParams.delete("rulesTab");
+        else nextParams.set("rulesTab", tab);
+        return nextParams;
+      });
+    },
+    [setSearchParams]
+  );
+
   const handleModelsTabChange = useCallback(
     (tab: string) => {
       extensions.handleModelsTabChange(tab);
@@ -425,6 +443,8 @@ export function useIntegrationsPage() {
     handleAddAction,
     modelsActiveTab: initialModelsTab,
     handleModelsTabChange,
+    rulesActiveTab: initialRulesTab,
+    handleRulesTabChange,
   });
 
   const { t: tIntegrations } = useTranslation("integrations");

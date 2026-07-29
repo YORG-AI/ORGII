@@ -207,39 +207,44 @@ pub fn search_similar(
 /// can drop its `rusqlite::Connection` borrow before awaiting — `Connection`
 /// is `!Sync` and cannot be held across an `.await`.
 ///
-/// Best-effort: if the reranker is unreachable or errors, the cosine order
-/// (truncated to `top_k`) is returned. Retrieval never fails on rerank.
+/// `disabled` intentionally preserves cosine order. Enabled-provider failures,
+/// malformed responses, and empty responses are surfaced to the caller.
 pub async fn rerank_candidates(
     query_text: &str,
     coarse: Vec<(Learning, f32)>,
     top_k: usize,
-) -> Vec<(Learning, f32)> {
+) -> Result<Vec<(Learning, f32)>, String> {
     // Nothing to rerank, or so few hits the reranker can't improve order.
     if coarse.len() <= 1 {
         let mut out = coarse;
         out.truncate(top_k);
-        return out;
+        return Ok(out);
     }
 
     let documents: Vec<String> = coarse.iter().map(|(l, _)| l.content.clone()).collect();
-    let reranker = super::super::embeddings::LocalReranker::new();
-    match reranker.rerank(query_text, &documents, top_k).await {
-        Ok(ranked) if !ranked.is_empty() => ranked
-            .into_iter()
-            .filter_map(|(idx, score)| coarse.get(idx).map(|(l, _)| (l.clone(), score)))
-            .collect(),
-        Ok(_) => {
-            let mut out = coarse;
-            out.truncate(top_k);
-            out
-        }
-        Err(err) => {
-            tracing::warn!("[learnings] rerank failed ({err}); falling back to cosine order");
-            let mut out = coarse;
-            out.truncate(top_k);
-            out
-        }
+    let rerank_config = crate::state::integrations_store::integrations_store()
+        .snapshot()
+        .rerank;
+    let reranker = super::super::embeddings::ConfiguredReranker::from_config(rerank_config)?;
+    if reranker.is_disabled() {
+        let mut out = coarse;
+        out.truncate(top_k);
+        return Ok(out);
     }
+    let ranked = reranker.rerank(query_text, &documents, top_k).await?;
+    let reranked: Vec<(Learning, f32)> = ranked
+        .into_iter()
+        .map(|(idx, score)| {
+            coarse
+                .get(idx)
+                .map(|(learning, _)| (learning.clone(), score))
+                .ok_or_else(|| format!("rerank returned invalid candidate index {idx}"))
+        })
+        .collect::<Result<_, _>>()?;
+    if reranked.is_empty() {
+        return Err("rerank returned no candidates".to_string());
+    }
+    Ok(reranked)
 }
 
 /// Coarse-recall multiplier: cosine retrieves `top_k * RERANK_RECALL_MULT`

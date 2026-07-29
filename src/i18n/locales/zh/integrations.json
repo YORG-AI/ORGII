@@ -51,11 +51,44 @@
       "description": "Embedding API 提供商需要启用且已验证的 embedding_api 密钥。",
       "verified": "已验证：{{name}}",
       "missing": "没有已验证的 ZenMux 凭据",
-      "add": "添加凭据"
+      "add": "添加凭据",
+      "invalid": "未就绪：{{error}}",
+      "stale": "验证已过期（{{time}}）"
     },
     "reembed": {
       "title": "需要重新 Embedding",
       "description": "现有会话向量使用的是旧指纹；符合条件的会话更新时会自动重新生成。"
+    }
+  },
+  "semanticModels": {
+    "title": "会话记忆嵌入与重排",
+    "rerank": {
+      "title": "重排模型",
+      "description": "对余弦召回候选做语义重排。仅禁用状态使用纯余弦排序；启用后的提供商错误会明确显示。",
+      "providers": {
+        "zenmux": "ZenMux API",
+        "local": "本地 API",
+        "disabled": "禁用"
+      },
+      "provider": {
+        "label": "重排提供商",
+        "description": "ZenMux 使用已验证的 ZenMux Key；此页面不会保存密钥。"
+      },
+      "model": {
+        "label": "重排模型",
+        "description": "默认 qwen/qwen3-vl-rerank，仅用于记忆检索重排。"
+      },
+      "baseUrl": {
+        "label": "重排 Base URL",
+        "description": "仅本地 API 需要填写；ZenMux 留空以复用 Key Vault 的服务地址。"
+      },
+      "timeout": {
+        "label": "重排超时（秒）"
+      }
+    },
+    "summary": {
+      "description": "嵌入和重排统一在“记忆”区域配置。此标签仅汇总就绪状态并链接到完整编辑器。",
+      "openMemory": "打开记忆设置"
     }
   },
   "scopeLabels": {

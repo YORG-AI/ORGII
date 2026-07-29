@@ -8,6 +8,15 @@ export const SESSION_MEMORY_EMBEDDING_PROVIDERS = [
 export type SessionMemoryEmbeddingProvider =
   (typeof SESSION_MEMORY_EMBEDDING_PROVIDERS)[number];
 
+export const SESSION_MEMORY_RERANK_PROVIDERS = [
+  "disabled",
+  "zenmux_api",
+  "local",
+] as const;
+
+export type SessionMemoryRerankProvider =
+  (typeof SESSION_MEMORY_RERANK_PROVIDERS)[number];
+
 export interface SessionMemoryEmbeddingConfig {
   provider: SessionMemoryEmbeddingProvider;
   model?: string;
@@ -19,14 +28,28 @@ export interface SessionMemoryEmbeddingConfig {
   maxInputChars: number;
 }
 
-const DEFAULTS: Omit<SessionMemoryEmbeddingConfig, "provider"> = {
-  model: undefined,
+export interface SessionMemoryRerankConfig {
+  provider: SessionMemoryRerankProvider;
+  model?: string;
+  baseUrl?: string;
+  requestTimeoutSecs: number;
+}
+
+const EMBEDDING_DEFAULTS: Omit<SessionMemoryEmbeddingConfig, "provider"> = {
+  model: "qwen/qwen3-vl-embedding",
   localBaseUrl: undefined,
-  dimensions: undefined,
+  dimensions: 1024,
   minTokenDelta: 5_000,
   minIntervalSecs: 300,
   requestTimeoutSecs: 20,
   maxInputChars: 48_000,
+};
+
+const RERANK_DEFAULTS: SessionMemoryRerankConfig = {
+  provider: "zenmux_api",
+  model: "qwen/qwen3-vl-rerank",
+  baseUrl: undefined,
+  requestTimeoutSecs: 20,
 };
 
 function finitePositiveNumber(value: unknown, fallback: number): number {
@@ -60,24 +83,54 @@ export function readSessionMemoryEmbeddingConfig(
 
   return {
     provider,
-    model: optionalText(embedding.model),
+    model:
+      optionalText(embedding.model) ??
+      (provider === "embedding_api" ? EMBEDDING_DEFAULTS.model : undefined),
     localBaseUrl: optionalText(embedding.localBaseUrl),
-    dimensions: optionalPositiveNumber(embedding.dimensions),
+    dimensions:
+      optionalPositiveNumber(embedding.dimensions) ??
+      (provider === "embedding_api"
+        ? EMBEDDING_DEFAULTS.dimensions
+        : undefined),
     minTokenDelta: finitePositiveNumber(
       embedding.minTokenDelta,
-      DEFAULTS.minTokenDelta
+      EMBEDDING_DEFAULTS.minTokenDelta
     ),
     minIntervalSecs: finitePositiveNumber(
       embedding.minIntervalSecs,
-      DEFAULTS.minIntervalSecs
+      EMBEDDING_DEFAULTS.minIntervalSecs
     ),
     requestTimeoutSecs: finitePositiveNumber(
       embedding.requestTimeoutSecs,
-      DEFAULTS.requestTimeoutSecs
+      EMBEDDING_DEFAULTS.requestTimeoutSecs
     ),
     maxInputChars: finitePositiveNumber(
       embedding.maxInputChars,
-      DEFAULTS.maxInputChars
+      EMBEDDING_DEFAULTS.maxInputChars
+    ),
+  };
+}
+
+export function readSessionMemoryRerankConfig(
+  raw: unknown
+): SessionMemoryRerankConfig {
+  const value = raw && typeof raw === "object" ? raw : {};
+  const rerank = value as Record<string, unknown>;
+  const provider = SESSION_MEMORY_RERANK_PROVIDERS.includes(
+    rerank.provider as SessionMemoryRerankProvider
+  )
+    ? (rerank.provider as SessionMemoryRerankProvider)
+    : RERANK_DEFAULTS.provider;
+
+  return {
+    provider,
+    model:
+      optionalText(rerank.model) ??
+      (provider === "zenmux_api" ? RERANK_DEFAULTS.model : undefined),
+    baseUrl: optionalText(rerank.baseUrl),
+    requestTimeoutSecs: finitePositiveNumber(
+      rerank.requestTimeoutSecs,
+      RERANK_DEFAULTS.requestTimeoutSecs
     ),
   };
 }

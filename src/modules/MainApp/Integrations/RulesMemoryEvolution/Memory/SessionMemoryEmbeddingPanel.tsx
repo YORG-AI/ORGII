@@ -26,7 +26,10 @@ import {
   SESSION_MEMORY_EMBEDDING_PROVIDERS,
   type SessionMemoryEmbeddingConfig,
   type SessionMemoryEmbeddingProvider,
+  type SessionMemoryRerankConfig,
+  type SessionMemoryRerankProvider,
   readSessionMemoryEmbeddingConfig,
+  readSessionMemoryRerankConfig,
   sessionMemoryEmbeddingFingerprint,
 } from "./sessionMemoryEmbeddingConfig";
 
@@ -60,6 +63,9 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
   );
   const [savedConfig, setSavedConfig] =
     useState<SessionMemoryEmbeddingConfig | null>(null);
+  const [rerank, setRerank] = useState<SessionMemoryRerankConfig>(() =>
+    readSessionMemoryRerankConfig(undefined)
+  );
   const [keys, setKeys] = useState<KeyInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,8 +83,12 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
       const next = readSessionMemoryEmbeddingConfig(
         (integrations as Record<string, unknown>).embedding
       );
+      const nextRerank = readSessionMemoryRerankConfig(
+        (integrations as Record<string, unknown>).rerank
+      );
       setConfig(next);
       setSavedConfig(next);
+      setRerank(nextRerank);
       setKeys(listedKeys.filter((key) => key.agent_type === "zenmux_api"));
       setReembedRequired(false);
     } catch (err: unknown) {
@@ -109,6 +119,9 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
   const fingerprintChanged = fingerprint !== savedFingerprint;
   const credential = keys.find(isFreshVerifiedCredential) ?? null;
   const credentialReady = credential != null;
+  const latestCredential = [...keys].sort((left, right) =>
+    (right.last_validated_at ?? "").localeCompare(left.last_validated_at ?? "")
+  )[0];
 
   const updateOptionalNumber = useCallback((value: string) => {
     const number = Number(value);
@@ -141,7 +154,9 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
-      await rpc.integrations.updatePatch({ patch: { embedding: config } });
+      await rpc.integrations.updatePatch({
+        patch: { embedding: config, rerank },
+      });
       if (fingerprintChanged) setReembedRequired(true);
       setSavedConfig(config);
     } catch (err: unknown) {
@@ -150,7 +165,7 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  }, [config, fingerprintChanged]);
+  }, [config, fingerprintChanged, rerank]);
 
   const openKeyVault = useCallback(() => {
     navigate(
@@ -162,7 +177,7 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
   }, [navigate]);
 
   return (
-    <SectionContainer title={t("sessionMemoryEmbedding.title")}>
+    <SectionContainer title={t("semanticModels.title")}>
       <SectionRow label={t("sessionMemoryEmbedding.description")} align="start">
         <span className="text-xs text-text-3">
           {t("sessionMemoryEmbedding.autoRun")}
@@ -310,7 +325,15 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
                 ? t("sessionMemoryEmbedding.credential.verified", {
                     name: credential?.name ?? credential?.id,
                   })
-                : t("sessionMemoryEmbedding.credential.missing")}
+                : latestCredential?.last_validation_error
+                  ? t("sessionMemoryEmbedding.credential.invalid", {
+                      error: latestCredential.last_validation_error,
+                    })
+                  : latestCredential?.last_validated_at
+                    ? t("sessionMemoryEmbedding.credential.stale", {
+                        time: latestCredential.last_validated_at,
+                      })
+                    : t("sessionMemoryEmbedding.credential.missing")}
             </span>
             <Button
               size="small"
@@ -323,6 +346,95 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
           </div>
         </SectionRow>
       )}
+
+      <SectionRow label={t("semanticModels.rerank.title")} align="start">
+        <span className="text-xs text-text-3">
+          {t("semanticModels.rerank.description")}
+        </span>
+      </SectionRow>
+      <SectionRow
+        label={t("semanticModels.rerank.provider.label")}
+        description={t("semanticModels.rerank.provider.description")}
+      >
+        <Select
+          value={rerank.provider}
+          options={[
+            {
+              value: "zenmux_api",
+              label: t("semanticModels.rerank.providers.zenmux"),
+            },
+            {
+              value: "local",
+              label: t("semanticModels.rerank.providers.local"),
+            },
+            {
+              value: "disabled",
+              label: t("semanticModels.rerank.providers.disabled"),
+            },
+          ]}
+          onChange={(provider) =>
+            setRerank((previous) => ({
+              ...previous,
+              provider: provider as SessionMemoryRerankProvider,
+            }))
+          }
+          disabled={loading}
+          style={SECTION_CONTROL_STYLE}
+          dataTestId="session-memory-rerank-provider"
+        />
+      </SectionRow>
+      <SectionRow
+        label={t("semanticModels.rerank.model.label")}
+        description={t("semanticModels.rerank.model.description")}
+      >
+        <Input
+          value={rerank.model ?? ""}
+          data-testid="session-memory-rerank-model"
+          onChange={(model) =>
+            setRerank((previous) => ({
+              ...previous,
+              model: model || undefined,
+            }))
+          }
+          disabled={loading}
+          placeholder="qwen/qwen3-vl-rerank"
+          style={SECTION_CONTROL_STYLE}
+        />
+      </SectionRow>
+      <SectionRow
+        label={t("semanticModels.rerank.baseUrl.label")}
+        description={t("semanticModels.rerank.baseUrl.description")}
+      >
+        <Input
+          value={rerank.baseUrl ?? ""}
+          onChange={(baseUrl) =>
+            setRerank((previous) => ({
+              ...previous,
+              baseUrl: baseUrl || undefined,
+            }))
+          }
+          disabled={loading}
+          placeholder="http://localhost:9877"
+          style={SECTION_CONTROL_STYLE}
+        />
+      </SectionRow>
+      <SectionRow label={t("semanticModels.rerank.timeout.label")}>
+        <Input
+          type="number"
+          value={rerank.requestTimeoutSecs.toString()}
+          onChange={(value) => {
+            const timeout = Number(value);
+            if (Number.isFinite(timeout) && timeout > 0)
+              setRerank((previous) => ({
+                ...previous,
+                requestTimeoutSecs: timeout,
+              }));
+          }}
+          disabled={loading}
+          min={1}
+          style={SECTION_CONTROL_STYLE}
+        />
+      </SectionRow>
 
       {(fingerprintChanged || reembedRequired) && (
         <InlineAlert

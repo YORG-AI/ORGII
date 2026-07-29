@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -6,13 +7,16 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import { saveKey } from "@src/api/services/keyValidation";
 import { formatModelAgentType, isApiKeyProvider } from "@src/assets/providers";
+import Button from "@src/components/Button";
 import type { SelectOption } from "@src/components/Select";
 import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import type { AvailableAgent } from "@src/config/cliAgents";
+import { buildIntegrationsPath } from "@src/config/mainAppPaths";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import {
   DETAIL_PANEL_TOKENS,
@@ -26,7 +30,6 @@ import {
 } from "@src/scaffold/WizardSystem/variants/KeyVault/components/providerOptions";
 import { useProviderRegistry } from "@src/scaffold/WizardSystem/variants/KeyVault/config";
 
-import SessionMemoryEmbeddingPanel from "../../RulesMemoryEvolution/Memory/SessionMemoryEmbeddingPanel";
 import {
   KeyPrivacyDisclaimer,
   ModelWikiDisclaimer,
@@ -36,6 +39,29 @@ import type { DetailMode } from "../../types";
 import MyAccountsTableSection from "../Accounts/Table/MyAccountsTableSection";
 import ModelWikiTableSection from "../ModelWiki/ModelWikiTableSection";
 import ModelsTableSection from "../Models/Table/ModelsTableSection";
+
+const SemanticModelsSummary: React.FC = () => {
+  const { t } = useTranslation("integrations");
+  const navigate = useNavigate();
+  return (
+    <div className="flex flex-col gap-3" data-testid="semantic-models-summary">
+      <p>{t("semanticModels.summary.description")}</p>
+      <Button
+        variant="primary"
+        size="small"
+        icon={<ArrowRight size={14} />}
+        onClick={() =>
+          navigate(
+            `${buildIntegrationsPath({ category: "rulesMemoryEvolution" })}?rulesTab=memory`
+          )
+        }
+        data-testid="semantic-models-open-memory"
+      >
+        {t("semanticModels.summary.openMemory")}
+      </Button>
+    </div>
+  );
+};
 
 const ALL_FILTER = "all";
 const MODEL_SAVE_DEBOUNCE_MS = 120;
@@ -468,10 +494,10 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
 
   const tabs = useMemo(() => {
     return [
-      { key: "models", label: t("modelsTabs.models", "Models") },
-      { key: "embedding", label: t("modelsTabs.embedding", "Embedding") },
-      { key: "my-accounts", label: t("modelsTabs.myAccounts", "My Keys") },
-      { key: "model-wiki", label: t("modelsTabs.modelWiki", "Model Wiki") },
+      { key: "models", label: t("modelsTabs.models") },
+      { key: "embedding", label: t("modelsTabs.embedding") },
+      { key: "my-accounts", label: t("modelsTabs.myAccounts") },
+      { key: "model-wiki", label: t("modelsTabs.modelWiki") },
     ];
   }, [t]);
 
@@ -560,7 +586,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 t={t}
               />
             ) : activeTab === "embedding" ? (
-              <SessionMemoryEmbeddingPanel />
+              <SemanticModelsSummary />
             ) : activeTab === "model-wiki" ? (
               <ModelWikiTableSection />
             ) : (

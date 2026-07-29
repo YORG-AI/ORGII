@@ -331,10 +331,12 @@ pub fn inject_learnings_into_prompt(agent_scope: &str, query_embedding: Option<&
 /// 1. Embed `query_text` via the workspace `AutoEmbeddingProvider`
 ///    (provider/model from `IntegrationsConfig.embedding`).
 /// 2. Cosine coarse-recall + cross-encoder rerank (`search_similar_reranked`).
-/// 3. Fall back to salience ranking when embedding is unavailable or the
-///    semantic pass yields < 2 hits — identical degradation contract to the
-///    sync path, so callers never lose learnings injection.
-pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text: &str) -> String {
+/// 3. Fall back to salience ranking for embedding/query/recall absence.
+/// 4. Surface any enabled rerank failure so worker creation fails visibly.
+pub async fn inject_learnings_into_prompt_reranked(
+    agent_scope: &str,
+    query_text: &str,
+) -> Result<String, String> {
     use crate::specialization::memory::embeddings::{AutoEmbeddingProvider, EmbeddingProvider};
 
     const MIN_SEMANTIC_SIMILARITY: f32 = 0.30;
@@ -344,7 +346,7 @@ pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text
     // salience ranking (no point embedding an empty string).
     let trimmed = query_text.trim();
     if trimmed.is_empty() {
-        return inject_learnings_into_prompt(agent_scope, None);
+        return Ok(inject_learnings_into_prompt(agent_scope, None));
     }
 
     // Resolve the workspace embedding provider (same config the memory-search
@@ -358,7 +360,7 @@ pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text
         Ok(res) => (res.vector, Some(res.model)),
         Err(err) => {
             warn!("[learnings] query embed failed ({err}); falling back to salience ranking");
-            return inject_learnings_into_prompt(agent_scope, None);
+            return Ok(inject_learnings_into_prompt(agent_scope, None));
         }
     };
 
@@ -367,7 +369,7 @@ pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text
     // all DB work inside this block and let `conn` drop before awaiting.
     let coarse = {
         let Ok(conn) = crate::foundation::db_bridge::get_connection() else {
-            return String::new();
+            return Ok(String::new());
         };
         match super::ranking::search_similar(
             &conn,
@@ -380,29 +382,31 @@ pub async fn inject_learnings_into_prompt_reranked(agent_scope: &str, query_text
             Ok(pairs) => pairs,
             Err(err) => {
                 warn!("[learnings] cosine recall failed: {err}; salience fallback");
-                return inject_learnings_into_prompt(agent_scope, None);
+                return Ok(inject_learnings_into_prompt(agent_scope, None));
             }
         }
     };
 
     // Stage 2 (async, DB-free): cross-encoder rerank over the recalled pool.
-    let ranked_pairs = super::ranking::rerank_candidates(trimmed, coarse, SEMANTIC_TOP_K).await;
+    let ranked_pairs = super::ranking::rerank_candidates(trimmed, coarse, SEMANTIC_TOP_K)
+        .await
+        .map_err(|err| format!("semantic memory rerank failed: {err}"))?;
 
     let ranked: Vec<Learning> = if ranked_pairs.len() >= 2 {
         ranked_pairs.into_iter().map(|(l, _)| l).collect()
     } else {
         // Too few semantic hits — salience fallback (re-opens its own conn).
-        return inject_learnings_into_prompt(agent_scope, None);
+        return Ok(inject_learnings_into_prompt(agent_scope, None));
     };
 
     if ranked.is_empty() {
-        return String::new();
+        return Ok(String::new());
     }
 
     let ids: Vec<String> = ranked.iter().map(|l| l.id.clone()).collect();
     schedule_touch_recall(ids);
 
-    format_learnings_for_prompt(&ranked)
+    Ok(format_learnings_for_prompt(&ranked))
 }
 /// tokio runtime when one is available; otherwise falls back to a detached
 /// OS thread. Either way the caller returns immediately — the prompt
