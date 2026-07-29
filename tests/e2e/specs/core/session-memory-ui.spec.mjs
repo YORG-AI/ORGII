@@ -268,49 +268,41 @@ async function sendFollowUp(prompt, expectedText, sessionId) {
   const sendSelector = '[data-testid="chat-send-button"]';
 
   await ensureChatSurface(sessionId);
+  await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
+    timeout: 15_000,
+    timeoutMsg: "chat input not mounted",
+  });
+
+  // Chat InputActions prioritizes non-empty input over the working/stop
+  // indicator. If the previous turn left the button on data-state=stop with an
+  // empty composer, waiting for submit first deadlocks. Type first so the
+  // button flips to submit (queued send while working is supported).
+  const typed = await execJS(js.type(inputSelector, prompt));
+  if (typed !== "typed") {
+    throw new Error(`follow-up composer type failed: ${typed}`);
+  }
+  await browser.pause(400);
 
   let sendStateDiag = null;
   await browser.waitUntil(
     async () => {
       const state = await execJS(`
         const element = document.querySelector(${JSON.stringify(sendSelector)});
-        const mode = document.querySelector(".session-creator-chat-panel")
-          ? "creator"
-          : document.querySelector('[data-testid="chat-message-list"]')
-            ? "chat"
-            : "unknown";
-        const href = window.location.href;
+        const editor = document.querySelector(${JSON.stringify(inputSelector)});
         return JSON.stringify({
           state: element ? (element.getAttribute("data-state") || "") : "",
           disabled: element ? !!element.disabled : null,
-          mode,
-          href,
+          editorText: editor ? (editor.textContent || "").slice(0, 120) : null,
         });
       `);
       sendStateDiag = JSON.parse(state);
-      return sendStateDiag.state === "submit" || sendStateDiag.state === "retry";
+      if (sendStateDiag.state !== "submit" || sendStateDiag.disabled) return false;
+      return (await execJS(js.click(sendSelector))) === "clicked";
     },
     {
       timeout: 30_000,
-      timeoutMsg: `chat never returned to a sendable state: ${JSON.stringify(sendStateDiag)}`,
+      timeoutMsg: `follow-up send-button never reached clickable submit: ${JSON.stringify(sendStateDiag)}`,
     }
-  );
-  await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
-    timeout: 15_000,
-    timeoutMsg: "chat input not mounted",
-  });
-  await execJS(js.type(inputSelector, prompt));
-  await browser.pause(400);
-  await browser.waitUntil(
-    async () => {
-      const state = await execJS(`
-        const element = document.querySelector(${JSON.stringify(sendSelector)});
-        return element ? (element.getAttribute("data-state") || "") : "";
-      `);
-      if (state !== "submit") return false;
-      return (await execJS(js.click(sendSelector))) === "clicked";
-    },
-    { timeout: 15_000, timeoutMsg: "send-button never reached submit state" }
   );
   await browser.waitUntil(
     async () => {
