@@ -1,0 +1,36 @@
+import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
+
+export const FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS =
+  "pointer-events-none absolute right-0 top-0 h-full w-9 @[1100px]/focusedchat:relative @[1100px]/focusedchat:ml-auto @[1100px]/focusedchat:h-auto @[1100px]/focusedchat:min-h-0 @[1100px]/focusedchat:flex-1";
+
+export function resolveFocusedChatWorkstationSectionOrder(
+  hasOpenTabs: boolean
+): Array<"workspace" | "tabs"> {
+  return hasOpenTabs ? ["workspace", "tabs"] : ["workspace"];
+}
+
+interface FocusedChatWorkstationMountInput {
+  activeTabType: ChatPanelTab["type"] | null;
+  isChatFocus: boolean;
+  showSessionContent: boolean;
+}
+
+/**
+ * The environment rail owns a live working-tree subscription, so it only
+ * mounts while a maximized session is actually presenting session content.
+ */
+export function shouldMountFocusedChatWorkstationControls({
+  activeTabType,
+  isChatFocus,
+  showSessionContent,
+}: FocusedChatWorkstationMountInput): boolean {
+  return isChatFocus && activeTabType === "session" && showSessionContent;
+}
+
+export function resolveFocusedChatWorkstationRailTrackClass(
+  collapsed: boolean
+): string {
+  return collapsed
+    ? "w-0 @[1100px]/focusedchat:w-11 @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2"
+    : "w-0 @[1100px]/focusedchat:w-64 @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2";
+}

@@ -23,8 +23,8 @@ import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
-import { hasActiveSessionAtom } from "@src/store/session";
-import { stationModeAtom } from "@src/store/ui";
+import { hasActiveSessionAtom } from "@src/store/session/viewAtom";
+import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 
 import {
   LAUNCHPAD_ACTION_IDS,

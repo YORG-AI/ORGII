@@ -44,9 +44,8 @@
 | 14  | Two-round conversation               | Open a conversation with two rounds, including a sparse or headerless round. | Two closely spaced minimap handles render and both rounds remain navigable.                                   |
 | 15  | Multiple visible rounds              | Scroll until two or more rounds intersect the viewport.                      | Every corresponding sampled minimap handle uses `primary-6`; only one handle exposes `aria-current`.          |
 | 16  | Long agent message in an older round | Open a prior round containing an agent message taller than 20 lines.         | The message starts as a 20-line preview with an expand control; the latest round remains fully open.          |
-| 17  | Full-screen chat pane                | Expand a non-paginated chat pane beyond 640px.                               | The minimap sits in a transparent, edge-aligned 38px column matching the Workstation trailing strip.          |
-| 18  | Minimap hover navigation             | Hover or keyboard-focus a minimap handle.                                    | History appears above the rail; previous/next controls appear below and navigate every real round.            |
-| 19  | Non-pagination history list          | Click the minimap History control, then select a round.                      | The virtualized round list opens; selecting a row closes it and naturally scrolls to that round.              |
+| 17  | Full-screen chat pane                | Expand a non-paginated chat pane beyond 640px.                               | The minimap sits in a transparent, edge-aligned 36px column matching the Workstation trailing strip.          |
+| 18  | Minimap hover preview                | Hover or keyboard-focus a minimap handle.                                    | The round preview appears to the left; no auxiliary History or previous/next controls are rendered.           |
 | 20  | Narrow left-docked chat pane         | Narrow the chat pane below 640px and hover a minimap handle.                 | The preview opens to the handle's right; wide panes and right-docked chats continue opening it to the left.   |
 
 ## Error / Degraded States
@@ -65,7 +64,6 @@
 - [ ] User bubbles preserve keyboard access to copy/edit/restore controls in both pagination modes
 - [ ] Todo pill exposes its expanded state and closes with Escape or an outside click
 - [ ] Conversation minimap markers are keyboard-focusable, expose the selected turn with `aria-current`, and show previews on focus
-- [ ] Minimap History, previous-round, and next-round controls use labeled native buttons and preserve keyboard focus
 - [ ] Final-message Copy buttons are keyboard-focusable and have localized accessible labels
 - [ ] Focus trap not applicable (scrollable list, not a modal)
 
@@ -76,7 +74,6 @@
 - [ ] User messages are compact right-aligned bubbles in both pagination modes
 - [ ] Todo progress appears once in the composer row and not inside chat-history groups
 - [ ] Non-pagination conversations expose a percentage-sampled minimap with no more than 20 markers
-- [ ] The minimap History control opens the shared virtualized round list without enabling pagination
 - [ ] Auto-scroll follows agent when user is at bottom
 - [ ] Collapse-all collapses all tool-call blocks
 - [ ] Pagination controls navigate between pages correctly

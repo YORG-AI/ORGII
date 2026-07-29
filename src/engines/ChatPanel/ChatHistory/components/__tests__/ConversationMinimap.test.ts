@@ -2,14 +2,33 @@ import { describe, expect, it } from "vitest";
 
 import {
   findNearestConversationMarker,
-  getAdjacentConversationGroupIndex,
   getConversationMarkerWidthClass,
+  getConversationMinimapPlacementClasses,
   getConversationPreviewPositionClass,
   getNavigableConversationGroupIndices,
   resolveActiveConversationMarker,
   resolveHighlightedConversationMarkers,
   sampleConversationGroupIndices,
 } from "../ConversationMinimap";
+
+describe("getConversationMinimapPlacementClasses", () => {
+  it("centers the navigator in the workstation rail host", () => {
+    const classes = getConversationMinimapPlacementClasses(true);
+
+    expect(classes.nav).toContain("left-1/2");
+    expect(classes.nav).toContain("-translate-x-1/2");
+    expect(classes.nav).toContain("@[1100px]/focusedchat:top-2");
+    expect(classes.marker).toContain("w-9");
+    expect(classes.marker).toContain("justify-center");
+  });
+
+  it("keeps the standalone navigator anchored to the chat edge", () => {
+    const classes = getConversationMinimapPlacementClasses(false);
+
+    expect(classes.nav).toContain("right-3");
+    expect(classes.nav).not.toContain("left-1/2");
+  });
+});
 
 describe("getConversationPreviewPositionClass", () => {
   it("opens a left-docked chat preview into the chat interior (not outward)", () => {
@@ -25,26 +44,6 @@ describe("getConversationPreviewPositionClass", () => {
     expect(getConversationPreviewPositionClass("right")).toContain(
       "right-full"
     );
-  });
-});
-
-describe("getAdjacentConversationGroupIndex", () => {
-  it("moves through every navigable round instead of sampled markers", () => {
-    const groups = [0, 2, 5, 9];
-
-    expect(getAdjacentConversationGroupIndex(groups, 5, -1, false)).toBe(2);
-    expect(getAdjacentConversationGroupIndex(groups, 5, 1, false)).toBe(9);
-  });
-
-  it("uses the final round as the current round at the content bottom", () => {
-    expect(getAdjacentConversationGroupIndex([0, 4, 8], 4, -1, true)).toBe(4);
-    expect(getAdjacentConversationGroupIndex([0, 4, 8], 4, 1, true)).toBeNull();
-  });
-
-  it("disables controls at either boundary and for an empty history", () => {
-    expect(getAdjacentConversationGroupIndex([1, 3], 1, -1, false)).toBeNull();
-    expect(getAdjacentConversationGroupIndex([1, 3], 3, 1, false)).toBeNull();
-    expect(getAdjacentConversationGroupIndex([], 0, 1, false)).toBeNull();
   });
 });
 

@@ -24,6 +24,7 @@ import type { CreatedOrgResult } from "@src/features/TeamCollaboration/component
 import SessionForkHeaderExtras from "@src/features/TeamCollaboration/components/SessionForkHeaderExtras";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
+import { FocusedChatWorkstationRail } from "@src/modules/shared/layouts/FocusedChatWorkstationRail";
 import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
@@ -76,6 +77,8 @@ import {
   SessionHeaderViewControls,
   SessionRawToolbarActions,
 } from "./components/SessionViewSwitcher";
+import { shouldMountFocusedChatWorkstationControls } from "./focusedChatWorkstationLayout";
+import { FocusedChatWorkstationMinimapPortalContext } from "./focusedChatWorkstationMinimapPortal";
 import { useAiWorkItemCreator } from "./hooks/useAiWorkItemCreator";
 import { useChatPanelContentState } from "./hooks/useChatPanelContentState";
 import { useChatPanelCreateTarget } from "./hooks/useChatPanelCreateTarget";
@@ -261,6 +264,22 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     });
     const isStandaloneToolTabActive =
       activeTab?.type === "work-management" || activeTab?.type === "runtime";
+    const [focusedWorkstationMenuHost, setFocusedWorkstationMenuHost] =
+      useState<HTMLSpanElement | null>(null);
+    const focusedWorkstationMenuHostRef = useCallback(
+      (node: HTMLSpanElement | null) => {
+        setFocusedWorkstationMenuHost(node);
+      },
+      []
+    );
+    const [focusedWorkstationMinimapHost, setFocusedWorkstationMinimapHost] =
+      useState<HTMLDivElement | null>(null);
+    const focusedWorkstationMinimapHostRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        setFocusedWorkstationMinimapHost(node);
+      },
+      []
+    );
     const retargetChatPanelSession = useSetAtom(
       retargetChatPanelSessionTabAtom
     );
@@ -369,6 +388,12 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       selectedWorkItem,
       selectedWorkspace,
     });
+    const showFocusedWorkstationControls =
+      shouldMountFocusedChatWorkstationControls({
+        activeTabType: activeTab?.type ?? null,
+        isChatFocus,
+        showSessionContent: contentState.showSessionContent,
+      });
 
     const setSelectedProject = useSetAtom(chatPanelSelectedProjectAtom);
     const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
@@ -512,6 +537,11 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         isChatFocus={isChatFocus}
         isHeaderActionsOpen={isHeaderActionsOpen}
         isHeaderActionsPositioned={isHeaderActionsPositioned}
+        focusedWorkstationMenuHostRef={
+          showFocusedWorkstationControls
+            ? focusedWorkstationMenuHostRef
+            : undefined
+        }
         paginationEnabled={paginationEnabled}
         tokenUsageVisible={tokenUsageVisible}
         shouldOffsetHeaderForCollapsedSidebar={
@@ -587,25 +617,39 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     );
 
     return (
-      <ChatPanelShell
-        activeTab={activeTab}
-        borderClasses={borderClasses}
-        chatColumn={chatColumn}
-        chatPanelOpacityStyle={chatPanelOpacityStyle}
-        chatWidth={chatWidth}
-        chatWidthStyleValue={chatWidthStyleValue}
-        embedded={embedded}
-        headerSection={headerSection}
-        isDragging={isDragging}
-        isLeftPosition={isLeftPosition}
-        isTerminalTabActive={isTerminalTabActive}
-        onResizeMouseDown={handleMouseDown}
-        panelRef={panelRef}
-        sessionModals={sessionModals}
-        showResizeHandle={showResizeHandle}
-        terminalTabs={terminalTabs}
-        useExternalWidth={useExternalWidth}
-      />
+      <FocusedChatWorkstationMinimapPortalContext.Provider
+        value={
+          showFocusedWorkstationControls ? focusedWorkstationMinimapHost : null
+        }
+      >
+        <ChatPanelShell
+          activeTab={activeTab}
+          borderClasses={borderClasses}
+          chatColumn={chatColumn}
+          chatPanelOpacityStyle={chatPanelOpacityStyle}
+          chatWidth={chatWidth}
+          chatWidthStyleValue={chatWidthStyleValue}
+          embedded={embedded}
+          focusedWorkstationRail={
+            showFocusedWorkstationControls ? (
+              <FocusedChatWorkstationRail
+                compactMenuHost={focusedWorkstationMenuHost}
+                conversationMinimapHostRef={focusedWorkstationMinimapHostRef}
+              />
+            ) : null
+          }
+          headerSection={headerSection}
+          isDragging={isDragging}
+          isLeftPosition={isLeftPosition}
+          isTerminalTabActive={isTerminalTabActive}
+          onResizeMouseDown={handleMouseDown}
+          panelRef={panelRef}
+          sessionModals={sessionModals}
+          showResizeHandle={showResizeHandle}
+          terminalTabs={terminalTabs}
+          useExternalWidth={useExternalWidth}
+        />
+      </FocusedChatWorkstationMinimapPortalContext.Provider>
     );
   }
 );

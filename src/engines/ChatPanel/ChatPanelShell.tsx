@@ -17,6 +17,7 @@ interface ChatPanelShellProps {
   chatWidth: number;
   chatWidthStyleValue: string | number;
   embedded: boolean;
+  focusedWorkstationRail?: React.ReactNode;
   headerSection: React.ReactNode;
   isDragging: boolean;
   isLeftPosition: boolean;
@@ -37,6 +38,7 @@ export function ChatPanelShell({
   chatWidth,
   chatWidthStyleValue,
   embedded,
+  focusedWorkstationRail,
   headerSection,
   isDragging,
   isLeftPosition,
@@ -65,7 +67,7 @@ export function ChatPanelShell({
       data-chat-panel
       data-testid="chat-panel"
       data-guide-target={GUIDE_TARGETS.CHAT_PANEL}
-      className={`relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm ${
+      className={`relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm @container/focusedchat ${
         useExternalWidth ? "min-w-0 flex-1" : "flex-shrink-0"
       } ${borderClasses}`}
       style={{
@@ -81,12 +83,17 @@ export function ChatPanelShell({
       }}
     >
       {headerSection}
-      <UnifiedChatPanelTabContent
-        activeTab={activeTab}
-        chatColumn={chatColumn}
-        isTerminalTabActive={isTerminalTabActive}
-        terminalTabs={terminalTabs}
-      />
+      <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1">
+          <UnifiedChatPanelTabContent
+            activeTab={activeTab}
+            chatColumn={chatColumn}
+            isTerminalTabActive={isTerminalTabActive}
+            terminalTabs={terminalTabs}
+          />
+        </div>
+        {focusedWorkstationRail}
+      </div>
     </div>
   );
 
