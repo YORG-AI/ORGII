@@ -6,6 +6,7 @@ import {
   getActionSummaryCategory,
   getToolSimulatorApp,
   isBrowserEvent,
+  isEditFileEvent,
   isEventInSimulatorApp,
   isManageTodoEvent,
   isReadFileEvent,
@@ -88,6 +89,21 @@ describe("isReadFileEvent", () => {
     const event = makeSessionEvent({ function: "run_shell" });
     expect(isReadFileEvent(event)).toBe(false);
   });
+});
+
+describe("registry-backed CLI aliases", () => {
+  it('classifies the raw "Grep" alias as search', () => {
+    const event = makeSessionEvent({ function: "Grep", uiCanonical: "" });
+    expect(getActionSummaryCategory(event)).toBe("search");
+  });
+
+  it.each(["Edit", "Write"])(
+    'classifies the raw "%s" alias as edit',
+    (name) => {
+      const event = makeSessionEvent({ function: name, uiCanonical: "" });
+      expect(isEditFileEvent(event)).toBe(true);
+    }
+  );
 });
 
 describe("isBrowserEvent", () => {

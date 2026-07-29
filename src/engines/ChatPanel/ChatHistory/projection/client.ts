@@ -1,4 +1,5 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { getToolClassifierRegistrySnapshot } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 import { createLogger } from "@src/hooks/logger";
 
 import type {
@@ -100,6 +101,7 @@ export class ChatProjectionClient {
       requestId: ++this.nextRequestId,
       events: snapshot.events,
       options: snapshot.options,
+      toolRegistry: getToolClassifierRegistrySnapshot(),
     });
   }
 
