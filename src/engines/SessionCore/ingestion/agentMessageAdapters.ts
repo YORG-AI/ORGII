@@ -11,6 +11,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 import { rpc } from "@src/api/tauri/rpc";
 import { normalizeFunctionName } from "@src/lib/activityData/activityNormalizers";
+import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 import { parseJsonRecord, parseJsonStringArray } from "../core/schemas";
 import type {
@@ -369,23 +370,4 @@ export function parseActivityImages(
   }
 }
 
-/**
- * Convert Tauri asset:// display URLs back to absolute file paths that the
- * Rust backend can open directly.
- *
- * Tauri encodes on-disk paths as:
- *   macOS/Linux: `asset://localhost/<absolute-path>`
- *   Windows:     `https://asset.localhost/<absolute-path>`
- *
- * data: URLs and plain file paths are returned unchanged.
- */
-export function imageRefToRustPath(ref: string): string {
-  if (ref.startsWith("data:")) return ref;
-  const ASSET_PREFIXES = ["asset://localhost", "https://asset.localhost"];
-  for (const prefix of ASSET_PREFIXES) {
-    if (ref.startsWith(prefix)) {
-      return decodeURIComponent(ref.slice(prefix.length));
-    }
-  }
-  return ref;
-}
+export { imageRefToRustPath };

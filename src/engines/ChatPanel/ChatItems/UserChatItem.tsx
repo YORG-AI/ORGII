@@ -30,11 +30,11 @@ import {
   SessionLinkCard,
   type SessionLinkCardData,
 } from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
-import { imageRefToRustPath } from "@src/engines/SessionCore/ingestion/agentMessageAdapters";
 import {
   formatSmartDateTime,
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
+import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 import UserMessageContent from "../ChatHistory/components/UserMessageContent";
 import InputArea from "../InputArea";
@@ -223,12 +223,21 @@ const UserChatItem = ({
     return undefined;
   }, [event]);
 
+  const activityImages = useMemo((): string[] | undefined => {
+    const result = activityResult?.result as
+      | Record<string, unknown>
+      | undefined;
+    const images = result?.images;
+    if (!Array.isArray(images) || images.length === 0) return undefined;
+    return images.filter((image): image is string => typeof image === "string");
+  }, [activityResult]);
+
   const fullContent = useMemo(() => {
     // When display_text is present on the event it is the pill-format string
     // that the user originally typed (e.g. "create-rule [skill:/create-rule]").
     // Prefer it unconditionally — falling back to message.content would show the
     // expanded YAML/raw text instead of the pill badge.
-    if (editedText) return normalizeUserMessageText(editedText);
+    if (editedText) return normalizeUserMessageText(editedText, activityImages);
 
     // Legacy path: no display_text stored (old messages). Use message.content
     // stripped of any auto-expanded pill block.
@@ -237,10 +246,13 @@ const UserChatItem = ({
       | undefined;
     const content = message?.content;
     if (typeof content === "string") {
-      return normalizeUserMessageText(stripExpandedPillContent(content));
+      return normalizeUserMessageText(
+        stripExpandedPillContent(content),
+        activityImages
+      );
     }
     return "";
-  }, [activityResult, editedText]);
+  }, [activityImages, activityResult, editedText]);
 
   const isAgentOrgInboxTranscript = Boolean(
     event?.args?.agentOrgInboxTranscript === true ||
@@ -250,17 +262,7 @@ const UserChatItem = ({
   );
 
   // Extract images from activity result for display in chat history.
-  const messageImages = useMemo((): string[] | undefined => {
-    if (isAgentOrgInboxTranscript) return undefined;
-    const result = activityResult?.result as
-      | Record<string, unknown>
-      | undefined;
-    const images = result?.images;
-    if (Array.isArray(images) && images.length > 0) {
-      return images.filter((img): img is string => typeof img === "string");
-    }
-    return undefined;
-  }, [activityResult, isAgentOrgInboxTranscript]);
+  const messageImages = isAgentOrgInboxTranscript ? undefined : activityImages;
 
   const needsTruncation = useMemo(() => {
     const textToCheck = fullContent || editedText;

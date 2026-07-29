@@ -714,22 +714,23 @@ fn load_codex_turn_header(
         if parsed.payload.get("type").and_then(Value::as_str) != Some("user_message") {
             continue;
         }
-        let Some(message) = user_message_from_payload(&parsed.payload) else {
-            continue;
-        };
         let created_at = parsed
             .timestamp
             .as_deref()
             .map(imported_history::normalize_created_at)
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let sequence = codex_lazy_turn_sequence(byte_offset);
-        let user_chunk = imported_history::user_message_chunk(
-            session_id,
-            CODEX_PROVIDER_SLUG,
-            sequence,
-            &created_at,
-            &message,
-        );
+        let Some(user_chunk) =
+            user_message_chunk_from_payload(session_id, sequence, &created_at, &parsed.payload)
+        else {
+            continue;
+        };
+        let user_preview = user_chunk
+            .result
+            .pointer("/message/content")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
         let mut summary = project_activity_chunks(std::slice::from_ref(&user_chunk))
             .into_iter()
             .next()
@@ -739,7 +740,7 @@ fn load_codex_turn_header(
                 started_at: created_at.clone(),
                 ended_at: Some(created_at.clone()),
                 status: "completed".to_string(),
-                user_preview: message.clone(),
+                user_preview,
                 event_count: 1,
                 body_event_count: 0,
                 modified_files: Vec::new(),
@@ -1036,15 +1037,13 @@ fn load_codex_app_from_path_with_mode<'a>(
                 pending_task_turn_offset = Some(line_start_offset);
             }
             "user_message" => {
-                if let Some(message) = user_message_from_payload(&parsed.payload) {
+                if let Some(user_chunk) = user_message_chunk_from_payload(
+                    session_id,
+                    sequence,
+                    &created_at,
+                    &parsed.payload,
+                ) {
                     let user_sequence = sequence;
-                    let user_chunk = imported_history::user_message_chunk(
-                        session_id,
-                        CODEX_PROVIDER_SLUG,
-                        sequence,
-                        &created_at,
-                        &message,
-                    );
                     sequence += 1;
                     if collector.start_turn(user_chunk) {
                         break;
@@ -1855,6 +1854,45 @@ pub(crate) fn user_message_from_payload(payload: &Value) -> Option<String> {
         return None;
     }
     Some(stripped.to_string())
+}
+
+fn user_image_refs_from_payload(payload: &Value) -> Vec<String> {
+    let mut refs = Vec::new();
+    for field in ["local_images", "images"] {
+        let Some(values) = payload.get(field).and_then(Value::as_array) else {
+            continue;
+        };
+        for value in values {
+            let Some(image_ref) = value.as_str().map(str::trim) else {
+                continue;
+            };
+            if !image_ref.is_empty() && !refs.iter().any(|existing| existing == image_ref) {
+                refs.push(image_ref.to_string());
+            }
+        }
+    }
+    refs
+}
+
+fn user_message_chunk_from_payload(
+    session_id: &str,
+    sequence: usize,
+    created_at: &str,
+    payload: &Value,
+) -> Option<ActivityChunk> {
+    let message = user_message_from_payload(payload)?;
+    let mut chunk = imported_history::user_message_chunk(
+        session_id,
+        CODEX_PROVIDER_SLUG,
+        sequence,
+        created_at,
+        &message,
+    );
+    let images = user_image_refs_from_payload(payload);
+    if !images.is_empty() {
+        chunk.result["images"] = json!(images);
+    }
+    Some(chunk)
 }
 
 fn content_text_from_payload(payload: &Value) -> Option<String> {

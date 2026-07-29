@@ -171,6 +171,28 @@ fn parses_codex_jsonl_into_replay_chunks() {
 }
 
 #[test]
+fn preserves_codex_user_image_references_for_replay() {
+    let temp_dir =
+        std::env::temp_dir().join(format!("orgii-codex-images-test-{}", std::process::id()));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-images.jsonl");
+    let content = r#"{"timestamp":"2026-02-11T06:16:06.458Z","type":"event_msg","payload":{"type":"user_message","message":"inspect these","images":["data:image/png;base64,c21hbGw="],"local_images":["/tmp/screenshot.png","/tmp/screenshot.png"],"text_elements":[]}}
+"#;
+    std::fs::write(&path, content).expect("write fixture");
+
+    let chunks = load_codex_app_from_path("codexapp-rollout-images", &path).expect("parse");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(
+        chunks[0].result["images"],
+        json!(["/tmp/screenshot.png", "data:image/png;base64,c21hbGw="])
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
 fn codex_initial_window_catalogs_old_turns_and_loads_one_turn_on_demand() {
     let temp_dir =
         std::env::temp_dir().join(format!("orgii-codex-window-test-{}", std::process::id()));

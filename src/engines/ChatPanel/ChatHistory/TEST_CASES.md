@@ -26,27 +26,28 @@
 
 ## Edge Cases
 
-| #   | Scenario                             | Steps                                                                        | Expected Result                                                                                               |
-| --- | ------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 1   | Empty session                        | Session has zero events.                                                     | `ChatHistoryEmptyState` renders; no crash.                                                                    |
-| 2   | Single turn                          | Session has exactly one turn.                                                | Renders correctly; pagination controls hidden or disabled.                                                    |
-| 3   | Duplicate events from dedup pipeline | Events pipeline returns deduped list.                                        | Each event appears exactly once; no duplicates in DOM.                                                        |
-| 4   | Very long session (500+ turns)       | Open session with many turns.                                                | Virtuoso windowing ensures only visible turns are in DOM.                                                     |
-| 5   | Rapid new messages                   | 10 messages arrive in quick succession.                                      | All appended; auto-scroll behaves without jump/flicker.                                                       |
-| 6   | Active session has todos             | Todo state contains incomplete items.                                        | Composer row shows a todo icon plus completed/total pill; clicking it opens the checklist above the composer. |
-| 7   | Group chat mode                      | Session is an agent-org group chat.                                          | `isAgentOrgGroupChatUserMessage` path renders group-specific header.                                          |
-| 8   | Paginated page 2 with no turns       | Navigate to page 2 that has 0 visible turns.                                 | Empty state or "no turns on this page" message shown.                                                         |
-| 9   | Search query with no results         | Type a unique string that matches nothing.                                   | Empty result state shown in search mode.                                                                      |
-| 10  | Revert dialog cancelled              | Open revert dialog; click Cancel.                                            | Dialog closes; no state mutation.                                                                             |
-| 11  | Empty injected file section          | Message contains only the file-section title.                                | The heading-only user bubble is omitted.                                                                      |
-| 12  | More than 20 conversation turns      | Open a non-paginated conversation with 100 turns.                            | The minimap renders exactly 20 evenly distributed markers including the first and last turns.                 |
-| 13  | Narrow chat pane                     | Resize the non-paginated pane below 640px and scroll.                        | A compact floating minimap appears during scrolling, remains briefly for navigation, then clears.             |
-| 14  | Two-round conversation               | Open a conversation with two rounds, including a sparse or headerless round. | Two closely spaced minimap handles render and both rounds remain navigable.                                   |
-| 15  | Multiple visible rounds              | Scroll until two or more rounds intersect the viewport.                      | Every corresponding sampled minimap handle uses `primary-6`; only one handle exposes `aria-current`.          |
-| 16  | Long agent message in an older round | Open a prior round containing an agent message taller than 20 lines.         | The message starts as a 20-line preview with an expand control; the latest round remains fully open.          |
-| 17  | Full-screen chat pane                | Expand a non-paginated chat pane beyond 640px.                               | The minimap sits in a transparent, edge-aligned 36px column matching the Workstation trailing strip.          |
-| 18  | Minimap hover preview                | Hover or keyboard-focus a minimap handle.                                    | The round preview appears to the left; no auxiliary History or previous/next controls are rendered.           |
-| 20  | Narrow left-docked chat pane         | Narrow the chat pane below 640px and hover a minimap handle.                 | The preview opens to the handle's right; wide panes and right-docked chats continue opening it to the left.   |
+| #   | Scenario                             | Steps                                                                        | Expected Result                                                                                                                      |
+| --- | ------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Empty session                        | Session has zero events.                                                     | `ChatHistoryEmptyState` renders; no crash.                                                                                           |
+| 2   | Single turn                          | Session has exactly one turn.                                                | Renders correctly; pagination controls hidden or disabled.                                                                           |
+| 3   | Duplicate events from dedup pipeline | Events pipeline returns deduped list.                                        | Each event appears exactly once; no duplicates in DOM.                                                                               |
+| 4   | Very long session (500+ turns)       | Open session with many turns.                                                | Virtuoso windowing ensures only visible turns are in DOM.                                                                            |
+| 5   | Rapid new messages                   | 10 messages arrive in quick succession.                                      | All appended; auto-scroll behaves without jump/flicker.                                                                              |
+| 6   | Active session has todos             | Todo state contains incomplete items.                                        | Composer row shows a todo icon plus completed/total pill; clicking it opens the checklist above the composer.                        |
+| 7   | Group chat mode                      | Session is an agent-org group chat.                                          | `isAgentOrgGroupChatUserMessage` path renders group-specific header.                                                                 |
+| 8   | Paginated page 2 with no turns       | Navigate to page 2 that has 0 visible turns.                                 | Empty state or "no turns on this page" message shown.                                                                                |
+| 9   | Search query with no results         | Type a unique string that matches nothing.                                   | Empty result state shown in search mode.                                                                                             |
+| 10  | Revert dialog cancelled              | Open revert dialog; click Cancel.                                            | Dialog closes; no state mutation.                                                                                                    |
+| 11  | Empty injected file section          | Message contains only the file-section title.                                | The heading-only user bubble is omitted.                                                                                             |
+| 12  | More than 20 conversation turns      | Open a non-paginated conversation with 100 turns.                            | The minimap renders exactly 20 evenly distributed markers including the first and last turns.                                        |
+| 13  | Narrow chat pane                     | Resize the non-paginated pane below 640px and scroll.                        | A compact floating minimap appears during scrolling, remains briefly for navigation, then clears.                                    |
+| 14  | Two-round conversation               | Open a conversation with two rounds, including a sparse or headerless round. | Two closely spaced minimap handles render and both rounds remain navigable.                                                          |
+| 15  | Multiple visible rounds              | Scroll until two or more rounds intersect the viewport.                      | Every corresponding sampled minimap handle uses `primary-6`; only one handle exposes `aria-current`.                                 |
+| 16  | Long agent message in an older round | Open a prior round containing an agent message taller than 20 lines.         | The message starts as a 20-line preview with an expand control; the latest round remains fully open.                                 |
+| 17  | Full-screen chat pane                | Expand a non-paginated chat pane beyond 640px.                               | The minimap sits in a transparent, edge-aligned 36px column matching the Workstation trailing strip.                                 |
+| 18  | Minimap hover preview                | Hover or keyboard-focus a minimap handle.                                    | The round preview appears to the left; no auxiliary History or previous/next controls are rendered.                                  |
+| 19  | GitHub feature branch with open PR   | Open a focused chat for a Git repo whose current branch has an open PR.      | The Environment rail shows Compare branch plus the exact branch PR and its passed, running, failed, empty, or unavailable CI status. |
+| 20  | Narrow left-docked chat pane         | Narrow the chat pane below 640px and hover a minimap handle.                 | The preview opens to the handle's right; wide panes and right-docked chats continue opening it to the left.                          |
 
 ## Error / Degraded States
 
@@ -65,6 +66,7 @@
 - [ ] Todo pill exposes its expanded state and closes with Escape or an outside click
 - [ ] Conversation minimap markers are keyboard-focusable, expose the selected turn with `aria-current`, and show previews on focus
 - [ ] Final-message Copy buttons are keyboard-focusable and have localized accessible labels
+- [ ] Compare branch and linked-PR rows expose external-link actions; the collapsed PR icon includes its CI state in the accessible name
 - [ ] Focus trap not applicable (scrollable list, not a modal)
 
 ## Acceptance Criteria
@@ -81,5 +83,6 @@
 - [ ] Empty session shows empty state
 - [ ] Duplicate events are deduplicated by the pipeline
 - [ ] Every completed round exposes one final-message footer with a timestamp and Copy action
+- [ ] GitHub feature branches expose Compare branch; only an open PR matching the exact current branch exposes CI status
 - [ ] `pnpm test` passes with no new failures
 - [ ] No TypeScript errors (`pnpm typecheck`)
