@@ -6,20 +6,25 @@
  * user pick what to open — sharing its action list with the unified `+` menu
  * (TabBarPlusMenu) via `useWorkStationLaunchActions` so the two always match.
  *
- * Rendered as a compact quick-action list: label + keyboard hint, no icon.
+ * Rendered as a compact quick-action list: icon, label, and keyboard hint.
  */
-import { type LucideIcon } from "lucide-react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { Infinity as InfinityIcon, type LucideIcon } from "lucide-react";
 import React, { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
+import { hasActiveSessionAtom } from "@src/store/session";
+import { stationModeAtom } from "@src/store/ui";
 
 import {
   LAUNCHPAD_ACTION_IDS,
@@ -30,7 +35,7 @@ interface StartActionRowProps {
   icon: LucideIcon;
   label: string;
   shortcut?: string;
-  /** Working-tree diff totals shown as a trailing badge (Review row only). */
+  /** Working-tree diff totals shown beside the label (Review row only). */
   additions?: number;
   deletions?: number;
   onClick: () => void;
@@ -53,26 +58,22 @@ const StartActionRow = memo<StartActionRowProps>(
           <span className="truncate text-[14px] font-medium text-text-2">
             {label}
           </span>
+          {showDiff ? (
+            <DiffStatsBadge
+              additions={additions}
+              deletions={deletions}
+              variant="plain"
+              size="sm"
+              reserveValueWidth={false}
+              className="shrink-0"
+            />
+          ) : null}
         </span>
-        {showDiff || shortcut ? (
-          <span className="flex shrink-0 items-center gap-2">
-            {showDiff ? (
-              <DiffStatsBadge
-                additions={additions}
-                deletions={deletions}
-                variant="plain"
-                size="sm"
-                reserveValueWidth={false}
-                className="shrink-0"
-              />
-            ) : null}
-            {shortcut ? (
-              <KeyboardShortcut
-                shortcut={shortcut}
-                variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
-              />
-            ) : null}
-          </span>
+        {shortcut ? (
+          <KeyboardShortcut
+            shortcut={shortcut}
+            variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
+          />
         ) : null}
       </button>
     );
@@ -81,9 +82,12 @@ const StartActionRow = memo<StartActionRowProps>(
 StartActionRow.displayName = "StartActionRow";
 
 export const WorkStationStartPage: React.FC = memo(() => {
+  const { t } = useTranslation("common");
   const actions = useWorkStationLaunchActions();
   const { repoId, repoPath } = useActiveRepoRef();
   const { additions, deletions } = useWorkingTreeDiffTotals(repoId, repoPath);
+  const hasActiveSession = useAtomValue(hasActiveSessionAtom);
+  const setStationMode = useSetAtom(stationModeAtom);
 
   const visibleActions = useMemo(
     () => actions.filter((action) => LAUNCHPAD_ACTION_IDS.includes(action.id)),
@@ -96,6 +100,17 @@ export const WorkStationStartPage: React.FC = memo(() => {
     >
       <div className="w-full max-w-[420px]">
         <div className="flex flex-col gap-0.5">
+          {hasActiveSession ? (
+            <>
+              <StartActionRow
+                icon={InfinityIcon}
+                label={t("spotlightActions.openAgentStation")}
+                shortcut={getShortcutKeys("open_agent_station")}
+                onClick={() => setStationMode("agent-station")}
+              />
+              <div role="separator" className="mx-3 my-1 h-px bg-border-2" />
+            </>
+          ) : null}
           {visibleActions.map((action) => (
             <StartActionRow
               key={action.id}
