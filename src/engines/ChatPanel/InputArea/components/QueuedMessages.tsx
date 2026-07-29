@@ -34,7 +34,6 @@ import {
   CHAT_COMPOSER_STACK_BAR_SURFACE_BG_CLASS,
 } from "@src/config/composerStackTokens";
 import { useWebViewSensors } from "@src/lib/dndKit";
-import { messageQueueReorderActiveRef } from "@src/shared/dnd/dragSideChannel";
 import {
   type QueuedMessage,
   queueEditTargetAtom,
@@ -47,7 +46,7 @@ import QueuedMessageItem from "./QueuedMessageItem";
  * Module-level flag — set synchronously in onDragStart, cleared in onDragEnd.
  * Accessible by global drag detection to skip file drop overlay during reorder.
  */
-export const reorderActiveRef = messageQueueReorderActiveRef;
+export const reorderActiveRef = { current: false };
 
 export interface QueuedMessagesProps {
   messages: QueuedMessage[];
