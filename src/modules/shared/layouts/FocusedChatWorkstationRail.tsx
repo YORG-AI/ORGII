@@ -1,23 +1,30 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import {
+  ArrowUpRight,
+  CheckCircle2,
   ChevronsLeft,
   ChevronsRight,
+  CircleSlash,
   File,
   FileDiff,
   Folder,
   FolderGit2,
   GitBranch,
+  GitPullRequest,
   Globe,
   LayoutList,
+  LoaderCircle,
   type LucideIcon,
   SquareTerminal,
   X,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import GitHubIcon from "@src/assets/channelIcons/github.svg";
 import Button from "@src/components/Button";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import Dropdown from "@src/components/Dropdown";
@@ -36,9 +43,11 @@ import {
 } from "@src/engines/ChatPanel/focusedChatWorkstationLayout";
 import { getTerminalDisplayTitle } from "@src/engines/TerminalCore/types";
 import { useActiveRepoRef } from "@src/hooks/git/useActiveRepoRef";
+import { useBranchPullRequestStatus } from "@src/hooks/git/useBranchPullRequestStatus";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { useCloseTabWithGuard } from "@src/hooks/workStation/tabs/useCloseTabWithGuard";
+import type { BranchCiStatus } from "@src/services/git/branchPullRequestStatus";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
@@ -63,26 +72,38 @@ import {
   tabRegistryAtom,
 } from "@src/store/workstation/tabRegistry";
 import type { WorkStationTab } from "@src/store/workstation/tabs/types";
+import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 const FOCUSED_CHAT_RAIL_SECTIONS = {
-  tabs: { key: "tabs", label: "Open Tabs" },
+  tabs: { key: "tabs", label: null },
   workspace: { key: "workspace", label: null },
 } as const;
 const FOCUSED_CHAT_RAIL_COLLAPSED_KEY =
   "orgii:focusedChatWorkstationRailCollapsed";
 
+type FocusedChatRailIcon = React.JSXElementConstructor<
+  React.ComponentProps<LucideIcon>
+>;
+
 type FocusedChatRailItem = {
   key: string;
   label: string;
-  icon: LucideIcon;
+  icon: FocusedChatRailIcon;
   /** Keyboard hint shown in a tooltip (e.g. "⌘E"). */
   shortcut?: string;
   fileName?: string;
   onClick?: () => void;
   onClose?: () => void;
+  closeLabel?: string;
   /** Working-tree +/- shown after the label (the Review row). */
   additions?: number;
   deletions?: number;
+  external?: boolean;
+  status?: {
+    label: string;
+    state: BranchCiStatus;
+    title: string;
+  };
 };
 
 type FocusedChatRailSection = {
@@ -114,6 +135,13 @@ const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
 
 const RAIL_ICON_BUTTON_CLASS =
   "flex h-[26px] w-[26px] items-center justify-center rounded-lg text-text-1 transition-colors hover:bg-fill-2";
+
+const GitHubRailIcon = ({
+  size = 24,
+  ...props
+}: React.ComponentProps<LucideIcon>) => (
+  <GitHubIcon {...props} width={size} height={size} />
+);
 
 function getRailTabFileName(tab: WorkStationTab): string | undefined {
   switch (tab.type) {
@@ -229,6 +257,15 @@ function WorkstationItemRow({
           className="shrink-0"
         />
       ) : null}
+      {item.status ? <RailItemStatus status={item.status} /> : null}
+      {item.external ? (
+        <ArrowUpRight
+          aria-hidden
+          className="shrink-0 text-text-3"
+          size={13}
+          strokeWidth={1.75}
+        />
+      ) : null}
     </button>
   );
 
@@ -271,7 +308,7 @@ function WorkstationItemRow({
             event.stopPropagation();
             item.onClose?.();
           }}
-          aria-label={`Close ${item.label}`}
+          aria-label={item.closeLabel}
           role={compact ? "menuitem" : undefined}
         >
           <X size={12} />
@@ -279,6 +316,62 @@ function WorkstationItemRow({
       )}
     </div>
   );
+}
+
+function RailItemStatus({
+  status,
+}: {
+  status: NonNullable<FocusedChatRailItem["status"]>;
+}) {
+  const commonProps = {
+    "aria-hidden": true,
+    className: "shrink-0",
+    size: 12,
+    strokeWidth: 2,
+  } as const;
+  const icon =
+    status.state === "success" ? (
+      <CheckCircle2 {...commonProps} />
+    ) : status.state === "failure" ? (
+      <XCircle {...commonProps} />
+    ) : status.state === "checking" || status.state === "pending" ? (
+      <LoaderCircle {...commonProps} className="shrink-0 animate-spin" />
+    ) : (
+      <CircleSlash {...commonProps} />
+    );
+  const colorClass =
+    status.state === "success"
+      ? "text-success-6"
+      : status.state === "failure"
+        ? "text-danger-6"
+        : status.state === "checking" || status.state === "pending"
+          ? "text-warning-6"
+          : "text-text-3";
+
+  return (
+    <span
+      className={`flex shrink-0 items-center gap-1 text-[11px] ${colorClass}`}
+      title={status.title}
+      aria-label={status.title}
+    >
+      {icon}
+      <span>{status.label}</span>
+    </span>
+  );
+}
+
+function resolveRailStatusDotClass(state: BranchCiStatus): string {
+  switch (state) {
+    case "success":
+      return "bg-success-6";
+    case "failure":
+      return "bg-danger-6";
+    case "checking":
+    case "pending":
+      return "animate-pulse bg-warning-6";
+    default:
+      return "bg-fill-3";
+  }
 }
 
 function WorkstationSections({
@@ -356,6 +449,15 @@ export function FocusedChatWorkstationRail({
   const { repoId, repoPath: activeRepoPath } = useActiveRepoRef();
   const { additions: reviewAdditions, deletions: reviewDeletions } =
     useWorkingTreeDiffTotals(repoId, activeRepoPath);
+  const {
+    ciStatus: branchCiStatus,
+    compareUrl: branchCompareUrl,
+    pr: branchPullRequest,
+  } = useBranchPullRequestStatus({
+    branchName,
+    repoId,
+    repoPath: activeRepoPath,
+  });
 
   const tabEntries = useAtomValue(tabRegistryAtom);
   const terminalSessions = useAtomValue(terminalSessionsAtom);
@@ -428,6 +530,9 @@ export function FocusedChatWorkstationRail({
         key: `terminal-session:${session.id}`,
         label: getTerminalDisplayTitle(session),
         icon: SquareTerminal,
+        closeLabel: t("common:git.rail.closeItem", {
+          label: getTerminalDisplayTitle(session),
+        }),
         onClick: () => openTerminalSession(session.id),
         onClose: () => closePtySession(session.id),
       }));
@@ -446,6 +551,9 @@ export function FocusedChatWorkstationRail({
         label: tab.title,
         icon: tab.type === "browser-session" ? Globe : File,
         fileName: getRailTabFileName(tab),
+        closeLabel: t("common:git.rail.closeItem", {
+          label: tab.title,
+        }),
         onClick: () => openWorkstationTab(tab),
         onClose: () => void closeTab({ tabId: tab.id }),
       }));
@@ -458,12 +566,39 @@ export function FocusedChatWorkstationRail({
     openTabs,
     openTerminalSession,
     openWorkstationTab,
+    t,
     terminalSessions,
   ]);
 
   const browserTab = visibleTabs.find(
     ({ tab }) => tab.type === "browser-session"
   );
+
+  const branchPullRequestStatus = useMemo<
+    FocusedChatRailItem["status"] | undefined
+  >(() => {
+    if (!branchPullRequest || !branchCiStatus) return undefined;
+    const label =
+      branchCiStatus === "success"
+        ? t("common:git.pr.checks.passedShort")
+        : branchCiStatus === "failure"
+          ? t("common:git.pr.checks.failedShort")
+          : branchCiStatus === "pending"
+            ? t("common:git.pr.checks.runningShort")
+            : branchCiStatus === "checking"
+              ? t("common:git.pr.checks.checkingShort")
+              : branchCiStatus === "none"
+                ? t("common:git.pr.checks.noneShort")
+                : t("common:git.pr.checks.unavailableShort");
+    return {
+      label,
+      state: branchCiStatus,
+      title: t("common:git.pr.checks.branchStatus", {
+        number: branchPullRequest.number,
+        status: label,
+      }),
+    };
+  }, [branchCiStatus, branchPullRequest, t]);
 
   const workspaceItems = useMemo<FocusedChatRailItem[]>(
     () => [
@@ -476,6 +611,31 @@ export function FocusedChatWorkstationRail({
         deletions: reviewDeletions,
         onClick: () => void WorkStationViewService.openSourceControlTab(),
       },
+      ...(branchCompareUrl
+        ? [
+            {
+              key: "compare-branch",
+              label: t("common:git.actions.compareBranch"),
+              icon: GitHubRailIcon,
+              external: true,
+              onClick: () => void openExternalLink(branchCompareUrl),
+            },
+          ]
+        : []),
+      ...(branchPullRequest
+        ? [
+            {
+              key: `pull-request:${branchPullRequest.number}`,
+              label: t("common:git.pr.linkedBranch", {
+                number: branchPullRequest.number,
+              }),
+              icon: GitPullRequest,
+              external: true,
+              status: branchPullRequestStatus,
+              onClick: () => void openExternalLink(branchPullRequest.url),
+            },
+          ]
+        : []),
       {
         key: "terminal",
         label: t("common:tabs.terminal"),
@@ -510,6 +670,9 @@ export function FocusedChatWorkstationRail({
       requestNewBrowserSession,
       reviewAdditions,
       reviewDeletions,
+      branchCompareUrl,
+      branchPullRequest,
+      branchPullRequestStatus,
     ]
   );
 
@@ -518,10 +681,11 @@ export function FocusedChatWorkstationRail({
       resolveFocusedChatWorkstationSectionOrder(openTabItems.length > 0).map(
         (sectionKey) => ({
           ...FOCUSED_CHAT_RAIL_SECTIONS[sectionKey],
+          label: sectionKey === "tabs" ? t("common:git.rail.openTabs") : null,
           items: sectionKey === "tabs" ? openTabItems : workspaceItems,
         })
       ),
-    [openTabItems, workspaceItems]
+    [openTabItems, t, workspaceItems]
   );
 
   const environmentLabel = t("navigation:labels.environment");
@@ -610,13 +774,8 @@ export function FocusedChatWorkstationRail({
               onClick={toggleCollapsed}
               aria-label={t(
                 collapsed
-                  ? "common:actions.expandWorkstationInfo"
-                  : "common:actions.collapseWorkstationInfo",
-                {
-                  defaultValue: collapsed
-                    ? "Expand workstation info"
-                    : "Collapse workstation info",
-                }
+                  ? "common:git.rail.expand"
+                  : "common:git.rail.collapse"
               )}
               aria-expanded={!collapsed}
             >
@@ -635,11 +794,24 @@ export function FocusedChatWorkstationRail({
                   <button
                     key={item.key}
                     type="button"
-                    className={RAIL_ICON_BUTTON_CLASS}
+                    className={`${RAIL_ICON_BUTTON_CLASS} relative`}
                     onClick={item.onClick}
-                    aria-label={item.label}
+                    aria-label={
+                      item.status
+                        ? `${item.label}, ${item.status.label}`
+                        : item.label
+                    }
+                    title={item.status?.title ?? item.label}
                   >
                     <Icon size={16} strokeWidth={1.75} />
+                    {item.status ? (
+                      <span
+                        aria-hidden
+                        className={`absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full ring-1 ring-bg-1 ${resolveRailStatusDotClass(
+                          item.status.state
+                        )}`}
+                      />
+                    ) : null}
                   </button>
                 );
               })}

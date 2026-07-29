@@ -1191,7 +1191,26 @@
       "takeAction": "작업 수행",
       "sync": "동기화",
       "createPR": "PR 생성",
-      "stash": "스태시"
+      "stash": "스태시",
+      "compareBranch": "브랜치 비교"
+    },
+    "rail": {
+      "openTabs": "열린 탭",
+      "closeItem": "{{label}} 닫기",
+      "expand": "워크스테이션 정보 펼치기",
+      "collapse": "워크스테이션 정보 접기"
+    },
+    "pr": {
+      "linkedBranch": "풀 리퀘스트 #{{number}}",
+      "checks": {
+        "passedShort": "통과",
+        "failedShort": "실패",
+        "runningShort": "실행 중",
+        "checkingShort": "확인 중",
+        "noneShort": "CI 없음",
+        "unavailableShort": "CI를 사용할 수 없음",
+        "branchStatus": "풀 리퀘스트 #{{number}} CI: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",

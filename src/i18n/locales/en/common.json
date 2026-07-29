@@ -1220,7 +1220,14 @@
       "takeAction": "Take Action",
       "sync": "Sync",
       "createPR": "Create PR",
-      "stash": "Stash"
+      "stash": "Stash",
+      "compareBranch": "Compare branch"
+    },
+    "rail": {
+      "openTabs": "Open Tabs",
+      "closeItem": "Close {{label}}",
+      "expand": "Expand workstation info",
+      "collapse": "Collapse workstation info"
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",
@@ -1260,6 +1267,7 @@
     },
     "pr": {
       "title": "Pull Request",
+      "linkedBranch": "Pull request #{{number}}",
       "baseBranch": "base",
       "noDescription": "No description provided.",
       "loadingConversation": "Loading…",
@@ -1282,7 +1290,14 @@
         "noneHint": "No CI checks or statuses ran on this pull request's head commit.",
         "allPassed": "All checks passed",
         "someFailed": "Some checks failed",
-        "pending": "Checks in progress"
+        "pending": "Checks in progress",
+        "passedShort": "Passed",
+        "failedShort": "Failed",
+        "runningShort": "Running",
+        "checkingShort": "Checking",
+        "noneShort": "No CI",
+        "unavailableShort": "CI unavailable",
+        "branchStatus": "Pull request #{{number}} CI: {{status}}"
       },
       "commits": {
         "backToList": "All commits",

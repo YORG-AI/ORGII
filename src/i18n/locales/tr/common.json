@@ -1191,7 +1191,26 @@
       "takeAction": "İşlem Yap",
       "sync": "Senkronize",
       "createPR": "PR Oluştur",
-      "stash": "Sakla"
+      "stash": "Sakla",
+      "compareBranch": "Dalı karşılaştır"
+    },
+    "rail": {
+      "openTabs": "Açık sekmeler",
+      "closeItem": "{{label}} öğesini kapat",
+      "expand": "Çalışma alanı bilgilerini genişlet",
+      "collapse": "Çalışma alanı bilgilerini daralt"
+    },
+    "pr": {
+      "linkedBranch": "Pull request #{{number}}",
+      "checks": {
+        "passedShort": "Başarılı",
+        "failedShort": "Başarısız",
+        "runningShort": "Çalışıyor",
+        "checkingShort": "Kontrol ediliyor",
+        "noneShort": "CI yok",
+        "unavailableShort": "CI kullanılamıyor",
+        "branchStatus": "Pull request #{{number}} CI: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Push başarılı",

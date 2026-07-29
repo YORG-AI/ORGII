@@ -1208,7 +1208,26 @@
       "takeAction": "执行操作",
       "sync": "同步",
       "createPR": "创建 PR",
-      "stash": "暂存"
+      "stash": "暂存",
+      "compareBranch": "比较分支"
+    },
+    "rail": {
+      "openTabs": "打开的标签页",
+      "closeItem": "关闭 {{label}}",
+      "expand": "展开工作区信息",
+      "collapse": "折叠工作区信息"
+    },
+    "pr": {
+      "linkedBranch": "拉取请求 #{{number}}",
+      "checks": {
+        "passedShort": "已通过",
+        "failedShort": "失败",
+        "runningShort": "运行中",
+        "checkingShort": "检查中",
+        "noneShort": "无 CI",
+        "unavailableShort": "CI 不可用",
+        "branchStatus": "拉取请求 #{{number}} CI：{{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",

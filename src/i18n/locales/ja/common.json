@@ -1191,7 +1191,26 @@
       "takeAction": "アクションを実行",
       "sync": "同期",
       "createPR": "PR を作成",
-      "stash": "スタッシュ"
+      "stash": "スタッシュ",
+      "compareBranch": "ブランチを比較"
+    },
+    "rail": {
+      "openTabs": "開いているタブ",
+      "closeItem": "{{label}} を閉じる",
+      "expand": "ワークステーション情報を展開",
+      "collapse": "ワークステーション情報を折りたたむ"
+    },
+    "pr": {
+      "linkedBranch": "プルリクエスト #{{number}}",
+      "checks": {
+        "passedShort": "成功",
+        "failedShort": "失敗",
+        "runningShort": "実行中",
+        "checkingShort": "確認中",
+        "noneShort": "CI なし",
+        "unavailableShort": "CI を利用できません",
+        "branchStatus": "プルリクエスト #{{number}} CI：{{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",

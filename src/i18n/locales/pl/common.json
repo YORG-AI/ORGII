@@ -1190,7 +1190,26 @@
       "takeAction": "Podejmij działanie",
       "sync": "Synchronizuj",
       "createPR": "Utwórz PR",
-      "stash": "Stash"
+      "stash": "Stash",
+      "compareBranch": "Porównaj gałąź"
+    },
+    "rail": {
+      "openTabs": "Otwarte karty",
+      "closeItem": "Zamknij {{label}}",
+      "expand": "Rozwiń informacje o obszarze roboczym",
+      "collapse": "Zwiń informacje o obszarze roboczym"
+    },
+    "pr": {
+      "linkedBranch": "Pull request nr {{number}}",
+      "checks": {
+        "passedShort": "Zaliczone",
+        "failedShort": "Niepowodzenie",
+        "runningShort": "W toku",
+        "checkingShort": "Sprawdzanie",
+        "noneShort": "Brak CI",
+        "unavailableShort": "CI niedostępne",
+        "branchStatus": "CI pull requestu nr {{number}}: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Pomyślnie wypchnięto zmiany do zdalnego",

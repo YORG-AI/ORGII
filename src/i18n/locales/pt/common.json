@@ -1190,7 +1190,26 @@
       "takeAction": "Agir",
       "sync": "Sincronizar",
       "createPR": "Criar PR",
-      "stash": "Stash"
+      "stash": "Stash",
+      "compareBranch": "Comparar branch"
+    },
+    "rail": {
+      "openTabs": "Abas abertas",
+      "closeItem": "Fechar {{label}}",
+      "expand": "Expandir informações da área de trabalho",
+      "collapse": "Recolher informações da área de trabalho"
+    },
+    "pr": {
+      "linkedBranch": "Pull request nº {{number}}",
+      "checks": {
+        "passedShort": "Aprovado",
+        "failedShort": "Falhou",
+        "runningShort": "Em execução",
+        "checkingShort": "Verificando",
+        "noneShort": "Sem CI",
+        "unavailableShort": "CI indisponível",
+        "branchStatus": "CI do pull request nº {{number}}: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Alterações enviadas (push) ao remote com sucesso",

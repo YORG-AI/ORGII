@@ -1190,7 +1190,26 @@
       "takeAction": "Выполнить",
       "sync": "Синхронизация",
       "createPR": "Создать PR",
-      "stash": "Спрятать"
+      "stash": "Спрятать",
+      "compareBranch": "Сравнить ветку"
+    },
+    "rail": {
+      "openTabs": "Открытые вкладки",
+      "closeItem": "Закрыть {{label}}",
+      "expand": "Развернуть сведения о рабочей области",
+      "collapse": "Свернуть сведения о рабочей области"
+    },
+    "pr": {
+      "linkedBranch": "Pull request №{{number}}",
+      "checks": {
+        "passedShort": "Пройдено",
+        "failedShort": "Ошибка",
+        "runningShort": "Выполняется",
+        "checkingShort": "Проверка",
+        "noneShort": "Нет CI",
+        "unavailableShort": "CI недоступен",
+        "branchStatus": "CI для pull request №{{number}}: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Push выполнен успешно",

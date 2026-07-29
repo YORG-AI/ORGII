@@ -1203,7 +1203,26 @@
       "takeAction": "執行操作",
       "sync": "同步",
       "createPR": "創建 PR",
-      "stash": "暫存"
+      "stash": "暫存",
+      "compareBranch": "比較分支"
+    },
+    "rail": {
+      "openTabs": "開啟的分頁",
+      "closeItem": "關閉 {{label}}",
+      "expand": "展開工作區資訊",
+      "collapse": "收合工作區資訊"
+    },
+    "pr": {
+      "linkedBranch": "提取要求 #{{number}}",
+      "checks": {
+        "passedShort": "已通過",
+        "failedShort": "失敗",
+        "runningShort": "執行中",
+        "checkingShort": "檢查中",
+        "noneShort": "無 CI",
+        "unavailableShort": "CI 無法使用",
+        "branchStatus": "提取要求 #{{number}} CI：{{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",
