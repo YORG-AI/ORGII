@@ -60,138 +60,23 @@ impl MockTransportAdapter {
 #[async_trait]
 impl TransportAdapter for MockTransportAdapter {
     async fn emit_agent_event(&self, session_id: &str, event: AgentEvent) -> anyhow::Result<()> {
-        let (event_name, payload) = match event {
-            AgentEvent::SessionCreated {
-                session_id: sid,
-                session_name,
-                agent_type,
-                workspace_path,
-            } => (
-                "agent://session-created",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "sessionName": session_name,
-                    "agentType": agent_type,
-                    "workspacePath": workspace_path,
-                }),
-            ),
-            AgentEvent::SessionDeleted { session_id: sid } => (
-                "agent://session-deleted",
-                serde_json::json!({
-                    "sessionId": sid,
-                }),
-            ),
-            AgentEvent::DialogTurnStarted {
-                session_id: sid,
-                turn_id,
-                turn_index,
-                user_input,
-            } => (
-                "agent://dialog-turn-started",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "turnId": turn_id,
-                    "turnIndex": turn_index,
-                    "userInput": user_input,
-                }),
-            ),
-            AgentEvent::DialogTurnCompleted {
-                session_id: sid,
-                turn_id,
-            } => (
-                "agent://dialog-turn-completed",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "turnId": turn_id,
-                }),
-            ),
-            AgentEvent::DialogTurnCancelled {
-                session_id: sid,
-                turn_id,
-            } => (
-                "agent://dialog-turn-cancelled",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "turnId": turn_id,
-                }),
-            ),
-            AgentEvent::DialogTurnFailed {
-                session_id: sid,
-                turn_id,
-                error,
-            } => (
-                "agent://dialog-turn-failed",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "turnId": turn_id,
-                    "error": error,
-                }),
-            ),
-            AgentEvent::TokenUsageUpdated {
-                session_id: sid,
-                turn_id,
-                model_id,
-                input_tokens,
-                output_tokens,
-                total_tokens,
-            } => (
-                "agent://token-usage-updated",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "turnId": turn_id,
-                    "modelId": model_id,
-                    "inputTokens": input_tokens,
-                    "outputTokens": output_tokens,
-                    "totalTokens": total_tokens,
-                }),
-            ),
-            AgentEvent::SessionStateChanged {
-                session_id: sid,
-                new_state,
-            } => (
-                "agent://session-state-changed",
-                serde_json::json!({
-                    "sessionId": sid,
-                    "newState": new_state,
-                }),
-            ),
-        };
-
-        self.capture_event(event_name, payload, session_id).await;
+        // Mirror the Tauri adapter: serialize the typed event straight to the
+        // wire so the mock captures exactly what production emits.
+        let payload = serde_json::to_value(&event)?;
+        self.capture_event("agent://event", payload, session_id)
+            .await;
         Ok(())
     }
 
     async fn emit_text_chunk(&self, session_id: &str, chunk: TextChunk) -> anyhow::Result<()> {
-        let payload = serde_json::json!({
-            "sessionId": chunk.session_id,
-            "turnId": chunk.turn_id,
-            "roundId": chunk.round_id,
-            "text": chunk.text,
-            "timestamp": chunk.timestamp,
-            "contentType": chunk.content_type,
-            "isComplete": chunk.is_complete,
-        });
-
+        let payload = serde_json::to_value(&chunk)?;
         self.capture_event("agent://text-chunk", payload, session_id)
             .await;
         Ok(())
     }
 
     async fn emit_tool_event(&self, session_id: &str, event: ToolEvent) -> anyhow::Result<()> {
-        let payload = serde_json::json!({
-            "sessionId": event.session_id,
-            "turnId": event.turn_id,
-            "toolEvent": {
-                "tool_id": event.tool_id,
-                "tool_name": event.tool_name,
-                "event_type": event.event_type,
-                "params": event.params,
-                "result": event.result,
-                "error": event.error,
-                "duration_ms": event.duration_ms,
-            }
-        });
-
+        let payload = serde_json::to_value(&event)?;
         self.capture_event("agent://tool-event", payload, session_id)
             .await;
         Ok(())
