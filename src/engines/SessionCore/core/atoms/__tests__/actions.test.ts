@@ -15,6 +15,7 @@ import type {
   loadSessionAtom as LoadSessionAtomType,
 } from "../actions";
 import type { eventsAtom as EventsAtomType } from "../events";
+import type { transcriptReplaceEpochAtom as TranscriptReplaceEpochAtomType } from "../metadata";
 
 vi.mock("../../store/EventStoreProxy", () => ({
   eventStoreProxy: {
@@ -47,11 +48,13 @@ let appendEventsAtom: typeof AppendEventsAtomType;
 let clearSessionAtom: typeof ClearSessionAtomType;
 let loadSessionAtom: typeof LoadSessionAtomType;
 let eventsAtom: typeof EventsAtomType;
+let transcriptReplaceEpochAtom: typeof TranscriptReplaceEpochAtomType;
 
 beforeAll(async () => {
   ({ appendEventsAtom, clearSessionAtom, loadSessionAtom } =
     await import("../actions"));
   ({ eventsAtom } = await import("../events"));
+  ({ transcriptReplaceEpochAtom } = await import("../metadata"));
 });
 
 beforeEach(() => {
@@ -400,6 +403,47 @@ describe("loadSessionAtom", () => {
       store.get(eventsAtom),
       "session-1"
     );
+  });
+
+  it("replace: resets lazy-load accounting so demoted placeholder bodies refetch", () => {
+    const store = createStore();
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [makeMessageEvent("user-round-1", "session-1")],
+    });
+    const generation = captureLoadedTurnRegistryGeneration("session-1");
+    markTurnBodyLoaded("session-1", "turn-1", generation);
+    const epochBefore = store.get(transcriptReplaceEpochAtom);
+
+    // A plain same-session merge reload must not disturb the accounting.
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [makeMessageEvent("user-round-2", "session-1")],
+    });
+    expect(getLoadedTurnRegistryStats()).toMatchObject({ loadedTurns: 1 });
+    expect(store.get(transcriptReplaceEpochAtom)).toBe(epochBefore);
+
+    // A replace swaps the transcript wholesale: bodies loaded before it are
+    // placeholders again, so the registry resets and the epoch signals the
+    // pagination hook to drop its fired-key dedup and readiness gate.
+    store.set(loadSessionAtom, {
+      sessionId: "session-1",
+      events: [
+        makeReplayEvent(
+          "claudecodeapp-user-0",
+          "fresh window",
+          "user",
+          "2026-05-16T00:00:01.000Z"
+        ),
+      ],
+      replace: true,
+    });
+
+    expect(getLoadedTurnRegistryStats()).toMatchObject({
+      sessions: 0,
+      loadedTurns: 0,
+    });
+    expect(store.get(transcriptReplaceEpochAtom)).toBe(epochBefore + 1);
   });
 
   it("replace: still recovers the synthetic user event when the replay has no backend user message yet", () => {

@@ -1,11 +1,11 @@
-import { ChevronDown, ChevronUp, History } from "lucide-react";
-import React, { memo, useId, useMemo, useState } from "react";
+import React, { memo, useContext, useId, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { normalizeUserMessageText } from "@src/engines/ChatPanel/ChatItems/normalizeUserMessageText";
 import { stripExpandedPillContent } from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared";
+import { FocusedChatWorkstationMinimapPortalContext } from "@src/engines/ChatPanel/focusedChatWorkstationMinimapPortal";
 
 import { isAssistantMessageEvent } from "../chatItemPipeline/dedup";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
@@ -99,23 +99,6 @@ export function getNavigableConversationGroupIndices(
   );
 }
 
-export function getAdjacentConversationGroupIndex(
-  groupIndices: readonly number[],
-  activeGroupIndex: number,
-  direction: -1 | 1,
-  isAtBottom: boolean
-): number | null {
-  if (groupIndices.length === 0) return null;
-
-  const currentGroupIndex = isAtBottom
-    ? groupIndices[groupIndices.length - 1]
-    : findNearestConversationMarker(groupIndices, activeGroupIndex);
-  if (currentGroupIndex === null) return null;
-
-  const currentPosition = groupIndices.indexOf(currentGroupIndex);
-  return groupIndices[currentPosition + direction] ?? null;
-}
-
 export function getConversationMarkerWidthClass(
   markerIndex: number,
   previewMarkerIndex: number
@@ -126,6 +109,25 @@ export function getConversationMarkerWidthClass(
   if (distance === 1) return "w-4";
   if (distance === 2) return "w-3";
   return "w-2";
+}
+
+export function getConversationMinimapPlacementClasses(
+  inWorkstationRail: boolean
+) {
+  return inWorkstationRail
+    ? {
+        nav: "pointer-events-auto absolute left-1/2 top-1/2 z-40 w-9 -translate-x-1/2 -translate-y-1/2 flex-col items-center overflow-visible @[1100px]/focusedchat:top-2 @[1100px]/focusedchat:translate-y-0",
+        marker: "relative flex h-3 w-9 shrink-0 items-center justify-center",
+        markerButton:
+          "group flex h-3 w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30",
+      }
+    : {
+        nav: "pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity @[640px]/chatbody:right-0 @[640px]/chatbody:w-9 @[640px]/chatbody:items-center @[640px]/chatbody:rounded-none @[640px]/chatbody:border-0 @[640px]/chatbody:bg-transparent @[640px]/chatbody:p-0 @[640px]/chatbody:shadow-none @[640px]/chatbody:backdrop-blur-none motion-reduce:transition-none",
+        marker:
+          "relative flex h-3 w-2 shrink-0 items-center justify-end @[640px]/chatbody:w-9 @[640px]/chatbody:justify-center",
+        markerButton:
+          "group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 @[640px]/chatbody:w-9 @[640px]/chatbody:justify-center",
+      };
 }
 
 function getUserPreview(header: OptimizedChatItem | null): string {
@@ -168,7 +170,6 @@ interface ConversationMinimapProps {
   isScrolling: boolean;
   labelVariant?: "agent" | "agents";
   onNavigate: (groupIndex: number) => void;
-  onHistoryToggle: () => void;
 }
 
 const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
@@ -184,10 +185,12 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
     isScrolling,
     labelVariant = "agent",
     onNavigate,
-    onHistoryToggle,
   }) => {
     const { t } = useTranslation();
     const tooltipId = useId();
+    const workstationRailHost = useContext(
+      FocusedChatWorkstationMinimapPortalContext
+    );
     const [previewGroupIndex, setPreviewGroupIndex] = useState<number | null>(
       null
     );
@@ -266,31 +269,25 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
         : "";
     const showFloatingMinimap =
       isScrolling || isPointerOver || previewGroupIndex !== null;
+    const inWorkstationRail = workstationRailHost !== null;
+    const placementClasses =
+      getConversationMinimapPlacementClasses(inWorkstationRail);
+    const visibilityClass = showFloatingMinimap
+      ? "flex"
+      : inWorkstationRail
+        ? "hidden @[640px]/focusedchat:flex"
+        : "hidden @[640px]/chatbody:flex";
     const previewPositionClass =
       getConversationPreviewPositionClass(chatPanelPosition);
-    const showHoverControls = isPointerOver || previewGroupIndex !== null;
-    const previousGroupIndex = getAdjacentConversationGroupIndex(
-      navigableGroupIndices,
-      activeGroupIndex,
-      -1,
-      isAtBottom
-    );
-    const nextGroupIndex = getAdjacentConversationGroupIndex(
-      navigableGroupIndices,
-      activeGroupIndex,
-      1,
-      isAtBottom
-    );
-
     if (markerGroupIndices.length < 2) return null;
 
-    return (
+    const minimap = (
       <nav
         aria-label={t(
           "sessions:chat.conversationNavigator",
           "Conversation navigator"
         )}
-        className={`${showFloatingMinimap ? "flex" : "hidden"} pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity @[640px]/chatbody:right-0 @[640px]/chatbody:flex @[640px]/chatbody:w-[38px] @[640px]/chatbody:items-center @[640px]/chatbody:rounded-none @[640px]/chatbody:border-0 @[640px]/chatbody:bg-transparent @[640px]/chatbody:p-0 @[640px]/chatbody:shadow-none @[640px]/chatbody:backdrop-blur-none motion-reduce:transition-none`}
+        className={`${visibilityClass} ${placementClasses.nav}`}
         onMouseEnter={() => setIsPointerOver(true)}
         onMouseLeave={() => {
           setIsPointerOver(false);
@@ -304,43 +301,6 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
           }
         }}
       >
-        {showHoverControls && (
-          <>
-            <div className="absolute bottom-full right-0 flex w-7 justify-end pb-1 @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center">
-              <TabBarTrailingIconButton
-                title={t("common:labels.history")}
-                tooltipPosition="top"
-                onClick={onHistoryToggle}
-              >
-                <History size={14} strokeWidth={1.75} />
-              </TabBarTrailingIconButton>
-            </div>
-            <div className="absolute right-0 top-full flex w-7 flex-col items-end pt-1 @[640px]/chatbody:w-[38px] @[640px]/chatbody:items-center">
-              <TabBarTrailingIconButton
-                title={t("common:pagination.previousRound")}
-                tooltipPosition="bottom-end"
-                disabled={previousGroupIndex === null}
-                onClick={() => {
-                  if (previousGroupIndex !== null) {
-                    onNavigate(previousGroupIndex);
-                  }
-                }}
-              >
-                <ChevronUp size={14} strokeWidth={1.75} />
-              </TabBarTrailingIconButton>
-              <TabBarTrailingIconButton
-                title={t("common:pagination.nextRound")}
-                tooltipPosition="bottom-end"
-                disabled={nextGroupIndex === null}
-                onClick={() => {
-                  if (nextGroupIndex !== null) onNavigate(nextGroupIndex);
-                }}
-              >
-                <ChevronDown size={14} strokeWidth={1.75} />
-              </TabBarTrailingIconButton>
-            </div>
-          </>
-        )}
         {markerGroupIndices.map((groupIndex, markerIndex) => {
           const turnPosition = navigableGroupIndices.indexOf(groupIndex) + 1;
           const prompt = getUserPreview(groupHeaders[groupIndex]);
@@ -351,10 +311,7 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
             previewSampledMarkerIndex
           );
           return (
-            <div
-              key={groupIndex}
-              className="relative flex h-3 w-2 shrink-0 items-center justify-end @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center"
-            >
+            <div key={groupIndex} className={placementClasses.marker}>
               <button
                 type="button"
                 aria-current={isActive ? "step" : undefined}
@@ -370,7 +327,7 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
                     prompt ||
                     t("common:pagination.round", { current: turnPosition }),
                 })}
-                className="group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 @[640px]/chatbody:w-[38px] @[640px]/chatbody:justify-center"
+                className={placementClasses.markerButton}
                 onClick={() => onNavigate(groupIndex)}
                 onMouseEnter={() => setPreviewGroupIndex(groupIndex)}
                 onFocus={() => setPreviewGroupIndex(groupIndex)}
@@ -413,6 +370,10 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
         })}
       </nav>
     );
+
+    return workstationRailHost
+      ? createPortal(minimap, workstationRailHost)
+      : minimap;
   }
 );
 

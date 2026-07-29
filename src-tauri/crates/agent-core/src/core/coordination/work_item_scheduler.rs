@@ -522,6 +522,7 @@ mod tests {
             comments: vec![],
             history: vec![],
             delegations: vec![],
+            handoff: None,
             linked_sessions: vec![],
             proof_of_work: None,
             orchestrator_config: None,

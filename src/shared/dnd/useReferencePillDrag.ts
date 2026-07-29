@@ -39,6 +39,8 @@ export interface ReferencePillDragState {
   dragX: number;
   dragY: number;
   dragLabel: string;
+  /** Second line for the ghost, so it reads as the row being carried. */
+  dragSubtitle?: string;
 }
 
 interface ReferencePillDragOptions<TElement extends HTMLElement> {
@@ -121,6 +123,7 @@ export function useReferencePillDrag<TElement extends HTMLElement>({
             dragX: moveEvent.clientX,
             dragY: moveEvent.clientY,
             dragLabel: initialPayload.name ?? initialPayload.path,
+            dragSubtitle: initialPayload.dragSubtitle,
           });
           return;
         }

@@ -202,4 +202,36 @@ describe("GanttChart virtualization", () => {
     expect(disconnectCount).toBeGreaterThanOrEqual(1);
     expect(container.childElementCount).toBe(0);
   });
+
+  it("does not reapply the initial horizontal target after data refreshes", async () => {
+    const initialDate = new Date("2026-07-29T00:00:00");
+    const initialTarget = new Date("2026-07-29T12:00:00");
+    const renderChart = (target: Date) =>
+      createElement(GanttChart, {
+        tasks: [],
+        defaultViewScope: "1d" as const,
+        initialDate,
+        initialScrollTargetDate: target,
+        initialScrollTargetAlignment: "center" as const,
+        periodScrollMultiplier: 0,
+        minColumnWidth: 72,
+        hideToolbar: true,
+      });
+
+    await act(async () => {
+      root.render(renderChart(initialTarget));
+    });
+
+    const timelineBody = container.querySelector<HTMLElement>(
+      ".gantt-timeline__body"
+    );
+    expect(timelineBody).not.toBeNull();
+    timelineBody!.scrollLeft = 100;
+
+    await act(async () => {
+      root.render(renderChart(new Date(initialTarget.getTime() + 30_000)));
+    });
+
+    expect(timelineBody!.scrollLeft).toBe(100);
+  });
 });

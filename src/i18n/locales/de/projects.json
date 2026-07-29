@@ -368,6 +368,10 @@
     },
     "activity": {
       "title": "Aktivität",
+      "discussionTitle": "Diskussion",
+      "activityHistory": "Aktivitätsverlauf",
+      "activityHistoryCount": "{{count}} Ereignisse",
+      "noComments": "Noch keine Kommentare",
       "subscribe": "Abonnieren",
       "unsubscribe": "Abbestellen",
       "commentPlaceholder": "Kommentar hinterlassen...",
@@ -389,6 +393,16 @@
       "clearedField": "hat {{field}} gelöscht",
       "changedDescription": "hat die Beschreibung aktualisiert",
       "editedFields": "hat {{count}} Felder bearbeitet:",
+      "groupedChanges": "hat {{count}} Änderungen vorgenommen",
+      "groupedTodoChanges": "hat To-dos aktualisiert · {{count}} Aktionen",
+      "todoAdded": "hat „{{todo}}“ hinzugefügt",
+      "todoRemoved": "hat „{{todo}}“ entfernt",
+      "todoCompleted": "hat „{{todo}}“ abgeschlossen",
+      "todoReopened": "hat „{{todo}}“ wieder geöffnet",
+      "todoStarted": "hat „{{todo}}“ begonnen",
+      "todoMarkedPending": "hat „{{todo}}“ als ausstehend markiert",
+      "todoRenamed": "hat „{{from}}“ in „{{to}}“ umbenannt",
+      "todoUpdated": "hat „{{todo}}“ aktualisiert",
       "justNow": "gerade eben",
       "daysAgo": "vor {{count}}T",
       "hoursAgo": "vor {{count}}Std",
@@ -411,7 +425,8 @@
         "todos": "Aufgaben",
         "comments": "Kommentare",
         "schedule": "Zeitplan",
-        "orchestratorConfig": "Orchestrator-Konfiguration"
+        "orchestratorConfig": "Orchestrator-Konfiguration",
+        "handoff": "Übergabe"
       }
     },
     "todos": {

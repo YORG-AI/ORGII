@@ -1,7 +1,6 @@
 {
   "title": "Hồ sơ người xây dựng",
   "refresh": "Làm mới",
-  "summaryLine": "Đã phân tích {{sessions}} phiên",
   "tooFewSessions": "Dưới 25 phiên — kiểu chưa ổn định.",
   "noSessionsYet": "Chưa phân tích phiên nào — các chữ cái xuất hiện dần khi lịch sử được đọc.",
   "axisStats": "{{sessions}} phiên · {{consistency}}% đồng thuận",
@@ -46,6 +45,58 @@
     "moderate": "thiên hướng vừa",
     "clear": "thiên hướng rõ",
     "veryClear": "thiên hướng rất rõ"
+  },
+  "types": {
+    "title": "Kiểu người xây dựng",
+    "subtitle": "Khám phá 16 cách con người làm việc với tác tử lập trình.",
+    "howTitle": "Cách đọc mã",
+    "howBody": "Bốn xu hướng quan sát được tạo thành một kiểu người xây dựng. Các chữ cái mô tả cách làm việc, không phải bản sắc cố định — chúng có thể thay đổi theo thói quen và công cụ của bạn.",
+    "galleryTitle": "Đủ 16 kiểu",
+    "galleryHint": "Chọn một chân dung để xem hồ sơ đầy đủ và các mẹo thực tế khi cộng tác với tác tử.",
+    "knowMore": "Tìm hiểu thêm",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Lập bản đồ",
+        "description": "Xác định mục tiêu và ràng buộc trước khi bắt đầu triển khai",
+        "agentTip": "Gửi cho tác tử một bản mô tả bằng văn bản gồm tiêu chí thành công, giới hạn và điểm kiểm tra"
+      },
+      "E": {
+        "name": "Khám phá",
+        "description": "Giảm sự mơ hồ bằng thử nghiệm, quan sát và điều chỉnh hướng đi",
+        "agentTip": "Yêu cầu một thử nghiệm nhỏ hoặc cuộc khảo sát hữu ích trước khi chốt kế hoạch"
+      },
+      "D": {
+        "name": "Chỉ đạo",
+        "description": "Giữ việc chia nhỏ và sắp xếp công việc dưới quyền kiểm soát của con người",
+        "agentTip": "Giao các bước có phạm vi rõ ràng và xác nhận hướng đi giữa các mốc quan trọng"
+      },
+      "A": {
+        "name": "Ủy quyền",
+        "description": "Xác định kết quả rồi để tác tử chọn con đường thực hiện",
+        "agentTip": "Mô tả kết quả, chuẩn chất lượng và giới hạn; để tác tử lập kế hoạch và thực thi"
+      },
+      "F": {
+        "name": "Tập trung",
+        "description": "Ưu tiên chiều sâu và hoàn tất từng luồng công việc một",
+        "agentTip": "Chỉ giữ một bước tiếp theo rõ ràng đang hoạt động và hoàn tất trước khi mở việc mới"
+      },
+      "W": {
+        "name": "Bầy đàn",
+        "description": "Dùng nhiều luồng song song để tăng phạm vi và tốc độ",
+        "agentTip": "Tách các phần khảo sát hoặc triển khai độc lập rồi hợp nhất tại các điểm bàn giao rõ ràng"
+      },
+      "S": {
+        "name": "Hệ thống hóa",
+        "description": "Đầu tư vào quy trình lặp lại, công cụ và cải tiến bền vững",
+        "agentTip": "Yêu cầu tác tử lưu công việc lặp lại thành bài kiểm thử, tập lệnh, quy tắc hoặc mẫu"
+      },
+      "H": {
+        "name": "Phát hành",
+        "description": "Tối ưu cho kết quả đã được xác thực nhanh nhất và tiến bộ tức thì",
+        "agentTip": "Yêu cầu bản vá hoàn chỉnh nhỏ nhất, chạy các kiểm tra cần thiết rồi lặp lại dựa trên kết quả"
+      }
+    }
   },
   "cards": {
     "total_time": {

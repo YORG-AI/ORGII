@@ -174,14 +174,16 @@ describe("activity timeline", () => {
           actor: "Ada",
           action: "commented",
           timestamp,
+          timestampLabel: "20:00",
         })
       );
     });
 
     expect(container.textContent).toContain("Ada commented");
-    expect(container.querySelector("time")?.getAttribute("dateTime")).toBe(
-      timestamp
-    );
+    const time = container.querySelector("time");
+    expect(time?.getAttribute("dateTime")).toBe(timestamp);
+    expect(time?.textContent).toBe("20:00");
+    expect(time?.getAttribute("title")).not.toBe(timestamp);
   });
 
   it("uses the shared compact container treatment for timeline events", () => {

@@ -31,7 +31,7 @@ pub(super) fn open_cursor_db() -> Option<Connection> {
 /// Cursor's `User/globalStorage` directory for the current platform. Does not
 /// check existence — callers join a filename and test that.
 fn cursor_global_storage_dir() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
+    let home = app_paths::external_history_home_dir();
 
     #[cfg(target_os = "macos")]
     let dir = home

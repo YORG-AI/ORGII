@@ -17,11 +17,14 @@ import { messagesEventsAtom } from "@src/engines/SessionCore/derived/simulatorEv
 import { useSimulatorAppState } from "@src/engines/Simulator/apps/core/useSimulatorAppState";
 
 import { MESSAGES_APP_CONFIG } from "./config";
+import type { ReplayPrefetchEntry } from "./hooks/useReplayTurnPrefetch";
+import { useReplayTurnPrefetch } from "./hooks/useReplayTurnPrefetch";
 import type {
   MessageEntry,
   MessageViewMode,
   SimulatorMessagesState,
 } from "./types";
+import { getCommunicationUnloadedTurnMeta } from "./utils";
 
 export interface UseMessagesOptions {
   /** Override current event ID (for testing) */
@@ -98,6 +101,42 @@ export function useMessages(
     if (localSelectedId !== null) setLocalSelectedId(null);
     if (localViewMode !== null) setLocalViewMode(null);
   }
+
+  // Forward-prefetch unloaded turn bodies ahead of the replay cursor so
+  // continuous playback doesn't hit a "Loading message…" beat on every
+  // cold round (see useReplayTurnPrefetch for the full rationale).
+  //
+  // `messagesEventsAtom` is read directly here (not `baseState.chatMessages`)
+  // because the cursor bounds what `useSimulatorAppState` renders — the
+  // windowed `chatMessages` list never extends past `currentEventId`, so it
+  // can't tell us what's coming up next. The full per-session event list is
+  // already known once a session opens (only turn *bodies* are windowed),
+  // so scanning it ahead of the cursor doesn't reveal anything the replay
+  // wouldn't otherwise show, it just warms cache before the cursor gets
+  // there. Kept a lightweight `{ eventId, unloadedTurn }` projection rather
+  // than full `MessageEntry`s to skip `extractMessageContent`/
+  // `getMessageSender` string work over the whole (unwindowed) transcript.
+  const rawMessagesEvents = useAtomValue(messagesEventsAtom);
+  const replayPrefetchEntries = useMemo<ReplayPrefetchEntry[]>(
+    () =>
+      rawMessagesEvents.map((event) => ({
+        eventId: event.id,
+        unloadedTurn: getCommunicationUnloadedTurnMeta(event),
+      })),
+    [rawMessagesEvents]
+  );
+  const replayCursorIndex = useMemo(() => {
+    const currentEventId = baseState.currentEventId;
+    if (!currentEventId) return -1;
+    return replayPrefetchEntries.findIndex(
+      (entry) => entry.eventId === currentEventId
+    );
+  }, [replayPrefetchEntries, baseState.currentEventId]);
+  useReplayTurnPrefetch({
+    sessionId: activeSessionId,
+    entries: replayPrefetchEntries,
+    cursorIndex: replayCursorIndex,
+  });
 
   const viewMode = localViewMode ?? baseState.viewMode;
   const selectedMessage = useMemo(() => {

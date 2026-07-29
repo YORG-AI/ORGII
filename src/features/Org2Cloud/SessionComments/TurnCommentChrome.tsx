@@ -44,7 +44,8 @@ const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
   const handleAdd = useCallback(
     async (
       body: string,
-      parentId?: string
+      parentId?: string,
+      mentionedUserIds?: string[]
     ): Promise<CloudSessionComment | undefined> => {
       if (!addComment) return undefined;
       // Replies inherit the parent's anchor — never send both (0014
@@ -53,9 +54,10 @@ const TurnCommentChrome: React.FC<TurnCommentChromeProps> = ({
       // the SOURCE plane, so a fork/import's namespaced local id is stripped.
       return addComment(
         parentId
-          ? { body, parentId }
+          ? { body, parentId, mentionedUserIds }
           : {
               body,
+              mentionedUserIds,
               eventId: toSourceEventId
                 ? toSourceEventId(anchorEventId)
                 : anchorEventId,

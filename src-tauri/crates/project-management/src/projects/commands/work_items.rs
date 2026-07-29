@@ -19,7 +19,7 @@
 use super::super::io;
 use super::super::types::{
     BatchDeleteResult, BatchUpdateResult, EnrichedWorkItem, WorkItemData, WorkItemFrontmatter,
-    WorkItemPartialUpdate, WorkItemReadBucket, WorkItemsViewData,
+    WorkItemHandoffTransition, WorkItemPartialUpdate, WorkItemReadBucket, WorkItemsViewData,
 };
 
 // ---------------------------------------------------------------------
@@ -211,6 +211,22 @@ pub async fn project_update_work_item_partial(
 ) -> Result<EnrichedWorkItem, String> {
     tokio::task::spawn_blocking(move || {
         io::update_work_item_partial_enriched(&project_slug, &short_id, &updates)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Accept or return a pending human handoff using the Work Item's atomic
+/// mutation boundary. Read/unread is intentionally independent from this
+/// explicit response.
+#[tauri::command]
+pub async fn project_transition_work_item_handoff(
+    project_slug: String,
+    short_id: String,
+    transition: WorkItemHandoffTransition,
+) -> Result<WorkItemData, String> {
+    tokio::task::spawn_blocking(move || {
+        io::transition_work_item_handoff(&project_slug, &short_id, &transition)
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?

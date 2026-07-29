@@ -13,7 +13,7 @@ straight into CI, a cron, or a pre-commit check.
 
 ### Terminology (avoid a clash)
 
-`orgtrack_core::hook_adapter` already means *capture hooks* (session-provenance
+`orgtrack_core::hook_adapter` already means _capture hooks_ (session-provenance
 payloads from CLI agents). This feature is **triggers** (the rules) with
 optional exec **hooks** as the action side (phase 2) — kept distinct.
 
@@ -53,8 +53,8 @@ orgtrack check [--db PATH] [--triggers PATH] [--source id]... [--strict] [--form
 
 1. Scan (unless `--no-scan`) + project usage (same path as `usage`).
 2. Pull every session's usage row (`usage_dashboard::usage_sessions`, all-sources)
-   + a `session_id → repo_path` map (from `imported_history_session_cache`, for
-   `project` scope).
+   - a `session_id → repo_path` map (from `imported_history_session_cache`, for
+     `project` scope).
 3. Aggregate per scope, evaluate every trigger, collect **firings**
    `{ trigger_id, scope, scope_key, metric, actual, op, value, severity, message }`.
 4. **Compile** the firings into a report (table / json / md).
@@ -62,6 +62,7 @@ orgtrack check [--db PATH] [--triggers PATH] [--source id]... [--strict] [--form
    fired; else `0`. (CI fails the build; a cron mails the report.)
 
 Example report:
+
 ```
 SEVERITY  TRIGGER          SCOPE            ACTUAL     LIMIT    MESSAGE
 error     session-cap      session=abcd…    24.1M tok  > 20M    Session over 20M tokens
@@ -84,7 +85,7 @@ warn      daily-cost-cap   day=2026-07-19   $63.20     > $50    Daily spend over
    `examples/plugins/hook/`.
 3. **`usage` integration** — a `⚠ N triggers fired` footer on `orgtrack usage`,
    and a `scan --check` that evaluates after indexing.
-4. **Stateful / delta triggers** — "fire only when it *newly* crosses" by
+4. **Stateful / delta triggers** — "fire only when it _newly_ crosses" by
    recording the last evaluated value per trigger in the `--db`, so a cron
    doesn't re-alert every run.
 

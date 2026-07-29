@@ -106,7 +106,11 @@ export interface Highlight {
 
 export interface BuilderProfileOverview {
   profile: BuilderProfile;
+  /** Number of per-tool rows available; rows are omitted until requested. */
+  bySourceCount: number;
   bySource: SourceProfile[];
+  /** Number of rolling-window rows available; rows are omitted until requested. */
+  driftCount: number;
   drift: DriftPoint[];
   coverage: ProfileCoverage;
   /** Readable one-fact-per-card deck, families already interleaved. */
@@ -137,15 +141,21 @@ export interface ProfileScope {
   sinceMs?: number | null;
 }
 
+export interface BuilderProfileOverviewOptions {
+  includeBySource?: boolean;
+  includeDrift?: boolean;
+}
+
 /** Score the cached signal rows. Cheap — never parses a transcript. */
 export async function builderProfileOverview(
   scope: ProfileScope = {},
-  includeDrift = false
+  options: BuilderProfileOverviewOptions = {}
 ): Promise<BuilderProfileOverview> {
   return invoke<BuilderProfileOverview>("builder_profile_overview", {
     sources: scope.sources?.length ? scope.sources : null,
     sinceMs: scope.sinceMs ?? null,
-    includeDrift,
+    includeBySource: options.includeBySource ?? false,
+    includeDrift: options.includeDrift ?? false,
   });
 }
 

@@ -284,6 +284,7 @@ export function workItemDataToUI(
     subIssueCount: 0,
     todos: resolvedTodos,
     comments,
+    handoff: frontmatter.handoff,
     orchestratorConfig: frontmatter.orchestrator_config,
     orchestratorState: frontmatter.orchestrator_state,
     proofOfWork: frontmatter.proof_of_work,
@@ -335,6 +336,7 @@ export function standaloneWorkItemDataToEnriched(
     todos: frontmatter.todos ?? [],
     comments: frontmatter.comments ?? [],
     history: frontmatter.history ?? [],
+    handoff: frontmatter.handoff,
     linkedSessions: frontmatter.linked_sessions ?? [],
     proofOfWork: frontmatter.proof_of_work,
     orchestratorConfig: frontmatter.orchestrator_config,
@@ -401,6 +403,7 @@ export function uiWorkItemToFrontmatter(
     starred,
     todos: resolvedTodos,
     comments: resolvedComments,
+    handoff: existingFrontmatter?.handoff,
     orchestrator_config:
       workItem.orchestratorConfig ?? existingFrontmatter?.orchestrator_config,
     // Backend-managed fields preserved verbatim — the orchestrator
@@ -475,6 +478,7 @@ export function enrichedWorkItemToUI(item: EnrichedWorkItem): UIWorkItem {
     todos: item.todos,
     comments: item.comments,
     history: item.history,
+    handoff: item.handoff,
     orchestratorConfig: item.orchestratorConfig,
     orchestratorState: item.orchestratorState,
     proofOfWork: item.proofOfWork,

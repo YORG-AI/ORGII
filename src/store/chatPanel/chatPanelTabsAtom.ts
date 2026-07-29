@@ -30,6 +30,7 @@ export {
   openWorkManagementChatPanelTabAtom,
   openOrFocusChatPanelStartPageTabAtom,
   openRuntimeInChatPanelTabAtom,
+  openTeamInboxInChatPanelTabAtom,
   openOrFocusSessionInChatPanelTabAtom,
   openOrReplaceSessionInChatPanelTabAtom,
   openProjectInChatPanelTabAtom,
@@ -44,6 +45,7 @@ export {
   createLaunchpadTab,
   createRuntimeTab,
   createSessionTab,
+  createTeamInboxTab,
   createTerminalTab,
   createWorkManagementTab,
   createWorkspaceTab,
@@ -70,3 +72,10 @@ export {
   chatPanelTabCountAtom,
   chatPanelTabsAtom,
 } from "./chatPanelTabsState";
+export {
+  consumeChatPanelWorkItemActionAtom,
+  pendingChatPanelWorkItemActionAtom,
+  requestChatPanelWorkItemActionAtom,
+  type ChatPanelWorkItemAction,
+  type ChatPanelWorkItemActionRequest,
+} from "./chatPanelWorkItemActionAtoms";

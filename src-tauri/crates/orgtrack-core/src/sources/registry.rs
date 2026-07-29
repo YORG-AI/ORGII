@@ -27,7 +27,10 @@
 
 use rusqlite::Connection;
 
-use super::imported_history::{metadata, ImportedHistorySessionPage, ImportedHistorySessionRow};
+use super::imported_history::{
+    cache as imported_history_cache, metadata, ImportedHistorySessionPage,
+    ImportedHistorySessionRow,
+};
 use super::{
     claude_code, cline, codex, cursor_cli, cursor_ide, mimo_code, omp, opencode, qoder, qoder_cli,
     trae, warp, windsurf, workbuddy, zcode,
@@ -35,8 +38,8 @@ use super::{
 
 /// Signature every provider's paginated session loader shares. The `&mut
 /// Connection` is the source cache store the scan writes through; `limit` /
-/// `offset` page the returned rows (the full provider set is always synced to
-/// the cache regardless of the page window).
+/// `offset` page the returned rows. Page zero performs discovery/sync;
+/// continuation pages read the resulting cache snapshot directly.
 type ScanFn = fn(&mut Connection, usize, usize) -> Result<ImportedHistorySessionPage, String>;
 
 /// One registered provider: its stable `source` id (matches the
@@ -46,18 +49,33 @@ pub struct RegisteredSource {
     pub id: &'static str,
     pub label: &'static str,
     scan: ScanFn,
+    /// Cache-snapshot reader for continuation pages, for providers whose
+    /// page-zero loader filters beyond the generic cache predicate. Page-zero
+    /// offsets are positions in that filtered stream, so such providers must
+    /// re-apply the same filter on "Load more" or the page seam duplicates
+    /// and leaks rows. `None` means the generic cache page is already
+    /// consistent with page zero.
+    continuation: Option<ScanFn>,
 }
 
 impl RegisteredSource {
-    /// Discover this provider's sessions on disk, upsert them into `conn`'s
-    /// source cache tables, and read back `[offset, offset + limit)`.
+    /// Discover this provider on page zero, then read continuation pages from
+    /// the stable cache snapshot without repeating the scan.
     pub fn scan(
         &self,
         conn: &mut Connection,
         limit: usize,
         offset: usize,
     ) -> Result<ImportedHistorySessionPage, String> {
-        (self.scan)(conn, limit, offset)
+        if offset == 0 {
+            (self.scan)(conn, limit, offset)
+        } else if let Some(continuation) = self.continuation {
+            continuation(conn, limit, offset)
+        } else {
+            imported_history_cache::query_imported_session_page_from_conn(
+                conn, self.id, limit, offset,
+            )
+        }
     }
 }
 
@@ -71,76 +89,94 @@ static REGISTERED: &[RegisteredSource] = &[
         id: metadata::SOURCE_CLAUDE_CODE,
         label: "Claude Code",
         scan: claude_code::history::list_claude_code_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_CODEX_APP,
         label: "Codex",
         scan: codex::app::list_codex_app_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_CURSOR_CLI,
         label: "Cursor CLI",
         scan: cursor_cli::history::list_cursor_cli_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_CURSOR_IDE,
         label: "Cursor IDE",
         scan: scan_cursor_ide,
+        // Cursor's page zero filters to listable sessions (named, ≥1 user
+        // bubble); continuation pages must re-apply that filter over the
+        // cache snapshot to keep offsets aligned with page zero.
+        continuation: Some(scan_cursor_ide_cached),
     },
     RegisteredSource {
         id: metadata::SOURCE_OPENCODE,
         label: "OpenCode",
         scan: opencode::history::list_opencode_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_CLINE,
         label: "Cline",
         scan: cline::history::list_cline_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_WINDSURF,
         label: "Windsurf",
         scan: windsurf::history::list_windsurf_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_WARP,
         label: "Warp",
         scan: warp::history::list_warp_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_TRAE,
         label: "Trae",
         scan: trae::history::list_trae_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_ZCODE,
         label: "ZCode",
         scan: zcode::history::list_zcode_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_QODER,
         label: "Qoder",
         scan: qoder::history::list_qoder_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_QODER_CLI,
         label: "Qoder CLI",
         scan: qoder_cli::history::list_qoder_cli_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_MIMO_CODE,
         label: "Mimo Code",
         scan: mimo_code::history::list_mimo_code_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_OMP,
         label: "OMP",
         scan: omp::history::list_omp_history_sessions_paginated,
+        continuation: None,
     },
     RegisteredSource {
         id: metadata::SOURCE_WORKBUDDY,
         label: "WorkBuddy",
         scan: workbuddy::list_workbuddy_history_sessions_paginated,
+        continuation: None,
     },
 ];
 
@@ -152,7 +188,26 @@ fn scan_cursor_ide(
     limit: usize,
     offset: usize,
 ) -> Result<ImportedHistorySessionPage, String> {
-    let page = cursor_ide::history::list_cursor_ide_sessions_paginated(conn, limit, offset)?;
+    normalize_cursor_ide_page(cursor_ide::history::list_cursor_ide_sessions_paginated(
+        conn, limit, offset,
+    )?)
+}
+
+/// Continuation twin of [`scan_cursor_ide`]: same normalization over the
+/// filtered cache-snapshot reader (no discovery re-run).
+fn scan_cursor_ide_cached(
+    conn: &mut Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ImportedHistorySessionPage, String> {
+    normalize_cursor_ide_page(
+        cursor_ide::history::list_cursor_ide_sessions_paginated_cached(conn, limit, offset)?,
+    )
+}
+
+fn normalize_cursor_ide_page(
+    page: cursor_ide::history::CursorIdeSessionPage,
+) -> Result<ImportedHistorySessionPage, String> {
     Ok(ImportedHistorySessionPage {
         has_more: page.has_more,
         sessions: page
@@ -226,6 +281,14 @@ pub fn scan_source(
 mod tests {
     use super::*;
 
+    fn should_not_scan(
+        _conn: &mut Connection,
+        _limit: usize,
+        _offset: usize,
+    ) -> Result<ImportedHistorySessionPage, String> {
+        panic!("continuation page repeated provider scan")
+    }
+
     #[test]
     fn registry_ids_are_unique_and_nonempty() {
         let mut seen = std::collections::HashSet::new();
@@ -248,5 +311,54 @@ mod tests {
             0
         )
         .is_err());
+    }
+
+    #[test]
+    fn continuation_page_reads_cache_without_provider_scan() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::store::sqlite::SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("init source cache");
+        let source = RegisteredSource {
+            id: metadata::SOURCE_CLAUDE_CODE,
+            label: "test",
+            scan: should_not_scan,
+            continuation: None,
+        };
+
+        let page = source.scan(&mut conn, 20, 20).expect("cached page");
+
+        assert!(page.sessions.is_empty());
+        assert!(!page.has_more);
+    }
+
+    #[test]
+    fn continuation_override_handles_follow_up_pages_instead_of_generic_cache() {
+        fn filtered_continuation(
+            _conn: &mut Connection,
+            _limit: usize,
+            offset: usize,
+        ) -> Result<ImportedHistorySessionPage, String> {
+            assert!(offset > 0, "continuation override called for page zero");
+            Err("continuation override reached".to_string())
+        }
+
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::store::sqlite::SqliteRecordStore::init_source_cache_tables(&conn)
+            .expect("init source cache");
+        let source = RegisteredSource {
+            id: metadata::SOURCE_CURSOR_IDE,
+            label: "test",
+            scan: should_not_scan,
+            continuation: Some(filtered_continuation),
+        };
+
+        let err = source.scan(&mut conn, 20, 20).expect_err("override used");
+        assert!(err.contains("continuation override reached"));
+
+        // The registered Cursor IDE entry must carry a filtered continuation:
+        // its page zero filters to listable sessions, so the generic cache
+        // page would misalign the seam.
+        let cursor = find(metadata::SOURCE_CURSOR_IDE).expect("cursor registered");
+        assert!(cursor.continuation.is_some());
     }
 }

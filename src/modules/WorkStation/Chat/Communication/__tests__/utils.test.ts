@@ -8,7 +8,9 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { deriveMessagesState } from "../config";
 import { derivePlanTitle } from "../planDocUtils";
 import {
+  convertToMessageEntry,
   extractMessageContent,
+  getCommunicationUnloadedTurnMeta,
   getMessageSender,
   isChatEvent,
   isThinkEvent,
@@ -84,6 +86,65 @@ describe("extractMessageContent", () => {
   });
 });
 
+describe("getCommunicationUnloadedTurnMeta / convertToMessageEntry", () => {
+  // Guards the PR #561 lazy-replay invariant: the Communication ("Messages")
+  // app inside the Workstation replay panel must never surface the backend's
+  // raw "turn is not loaded yet" placeholder as if it were real chat content.
+  // Regression: that raw text used to render verbatim as a message bubble
+  // (bug from PR #561 review) because this module extracted
+  // `result.observation` without checking for the `unloadedTurn` tag the
+  // Codex/imported-history/Cursor IDE turn loaders stamp onto the
+  // placeholder chunk.
+  it("returns null for an ordinary assistant message", () => {
+    const event = minimalSessionEvent({
+      result: { observation: "Here is the real reply." },
+    });
+    expect(getCommunicationUnloadedTurnMeta(event)).toBeNull();
+    expect(convertToMessageEntry(event, "chat", false).unloadedTurn).toBeNull();
+  });
+
+  it("extracts the placeholder's turn metadata by the shared wire shape", () => {
+    const event = minimalSessionEvent({
+      result: {
+        observation: "Codex turn codex-user-42 is not loaded yet.",
+        unloadedTurn: {
+          turnId: "codex-user-42",
+          nextTurnId: "codex-user-43",
+          startedAt: "2026-07-01T00:00:00.000Z",
+          endedAt: "2026-07-01T00:00:05.000Z",
+          durationMs: 5000,
+          eventCount: 12,
+          bodyEventCount: 9,
+        },
+      },
+    });
+
+    expect(getCommunicationUnloadedTurnMeta(event)).toEqual({
+      turnId: "codex-user-42",
+      nextTurnId: "codex-user-43",
+      bodyEventCount: 9,
+    });
+
+    const message = convertToMessageEntry(event, "chat", false);
+    // `content` still carries the raw placeholder text — extraction is
+    // unaware of unloadedTurn by design — but every consumer must gate on
+    // `unloadedTurn` before rendering `content` as real chat text.
+    expect(message.content).toBe("Codex turn codex-user-42 is not loaded yet.");
+    expect(message.unloadedTurn).toEqual({
+      turnId: "codex-user-42",
+      nextTurnId: "codex-user-43",
+      bodyEventCount: 9,
+    });
+  });
+
+  it("ignores a malformed unloadedTurn payload missing turnId", () => {
+    const event = minimalSessionEvent({
+      result: { observation: "x", unloadedTurn: { nextTurnId: "y" } },
+    });
+    expect(getCommunicationUnloadedTurnMeta(event)).toBeNull();
+  });
+});
+
 describe("getMessageSender", () => {
   it("returns user for explicit user source", () => {
     expect(getMessageSender(minimalSessionEvent({ source: "user" }))).toBe(
@@ -150,6 +211,150 @@ describe("derivePlanTitle", () => {
 });
 
 describe("deriveMessagesState", () => {
+  it("tags an unloaded-turn placeholder chunk so bubble rendering can gate on it", () => {
+    const placeholderEvent = minimalSessionEvent({
+      id: "codex-unloaded-turn-codex-user-7",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Codex turn codex-user-7 is not loaded yet.",
+        role: "assistant",
+        unloadedTurn: { turnId: "codex-user-7" },
+      },
+    });
+
+    const state = deriveMessagesState([placeholderEvent], null);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0].unloadedTurn).toEqual({
+      turnId: "codex-user-7",
+      nextTurnId: null,
+      bodyEventCount: undefined,
+    });
+  });
+
+  it("drops a stale unloaded-turn placeholder once its turn's real body events are already in the stream", () => {
+    // Regression: for imported-history sessions, the placeholder chunk's
+    // shape (`imported-unloaded-turn-<turnId>`, function "assistant" — see
+    // `imported_history/window.rs::build_unloaded_turn_placeholder_chunk`)
+    // never matches Rust's `is_turn_placeholder()` (which only recognizes
+    // the own-db/Codex-app shape: `turn-placeholder-<turnId>` / function
+    // "turn_placeholder"). So `merge_round_window_events` never strips it
+    // from the EventStore once the real body merges in, and the stale
+    // placeholder sits in `messagesEvents` forever, right alongside the
+    // body it stood in for — the exact "8 tap-to-retry rows next to loaded
+    // bodies" bug. This surface must drop it itself instead of relying on
+    // Rust having removed it.
+    const header = minimalSessionEvent({
+      id: "turn-1",
+      functionName: "user_message",
+      source: "user",
+      displayText: "do the thing",
+      result: { message: { role: "user", content: "do the thing" } },
+    });
+    const stalePlaceholder = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-1 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-1", nextTurnId: null },
+      },
+    });
+    const body = minimalSessionEvent({
+      id: "turn-1-body-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: { observation: "Here is the real reply." },
+    });
+
+    // Placeholder sorted after the body it stands in for — the shape Rust's
+    // timeline sort produces once the body has merged but the placeholder
+    // (whose timestamp mirrors the turn's end time) wasn't removed.
+    const state = deriveMessagesState([header, body, stalePlaceholder], null);
+
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-1",
+      "turn-1-body-1",
+    ]);
+  });
+
+  it("keeps the placeholder while its turn's body has not merged in yet, even once the header is present", () => {
+    const header = minimalSessionEvent({
+      id: "turn-2",
+      functionName: "user_message",
+      source: "user",
+      displayText: "do another thing",
+      result: { message: { role: "user", content: "do another thing" } },
+    });
+    const placeholder = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-2",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-2 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-2", nextTurnId: null },
+      },
+    });
+
+    const state = deriveMessagesState([header, placeholder], null);
+
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-2",
+      "imported-unloaded-turn-turn-2",
+    ]);
+    expect(state.chatMessages[1].unloadedTurn).toEqual({
+      turnId: "turn-2",
+      nextTurnId: null,
+      bodyEventCount: undefined,
+    });
+  });
+
+  it("only treats events within [turnId, nextTurnId) as resolving evidence for a placeholder", () => {
+    const header1 = minimalSessionEvent({
+      id: "turn-1",
+      functionName: "user_message",
+      source: "user",
+      result: { message: { role: "user", content: "first" } },
+    });
+    const placeholder1 = minimalSessionEvent({
+      id: "imported-unloaded-turn-turn-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Imported turn turn-1 is not loaded yet.",
+        unloadedTurn: { turnId: "turn-1", nextTurnId: "turn-2" },
+      },
+    });
+    const header2 = minimalSessionEvent({
+      id: "turn-2",
+      functionName: "user_message",
+      source: "user",
+      result: { message: { role: "user", content: "second" } },
+    });
+    const body2 = minimalSessionEvent({
+      id: "turn-2-body-1",
+      functionName: "assistant",
+      source: "assistant",
+      result: { observation: "second reply" },
+    });
+
+    const state = deriveMessagesState(
+      [header1, placeholder1, header2, body2],
+      null
+    );
+
+    // turn-1's placeholder has nothing between it and turn-2's header (its
+    // declared `nextTurnId` boundary) — turn-2's own body must not count as
+    // evidence that turn-1's body loaded.
+    expect(state.chatMessages.map((message) => message.eventId)).toEqual([
+      "turn-1",
+      "imported-unloaded-turn-turn-1",
+      "turn-2",
+      "turn-2-body-1",
+    ]);
+  });
+
   it("keeps thinking events in the Messages view when they are current", () => {
     const thinkingEvent = minimalSessionEvent({
       id: "thinking-1",

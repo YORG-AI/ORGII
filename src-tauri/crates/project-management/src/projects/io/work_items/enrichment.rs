@@ -220,6 +220,7 @@ pub(super) fn enrich_work_item(
         todos: fm.todos.clone(),
         comments: fm.comments.clone(),
         history: fm.history.clone(),
+        handoff: fm.handoff.clone(),
 
         linked_sessions: fm.linked_sessions.clone(),
         proof_of_work: fm.proof_of_work.clone(),
@@ -340,6 +341,7 @@ mod tests {
             history: vec![],
             delegations: vec![],
             linked_sessions: vec![],
+            handoff: None,
             proof_of_work: None,
             orchestrator_config: None,
             orchestrator_state: None,

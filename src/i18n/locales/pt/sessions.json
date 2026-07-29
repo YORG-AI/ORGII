@@ -1198,6 +1198,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Chat",
+      "timeline": "Linha do tempo",
+      "changes": "Alterações",
+      "raw": "Bruto",
+      "timelineSummary_one": "{{count}} rodada em {{duration}}",
+      "timelineSummary_other": "{{count}} rodadas em {{duration}}",
+      "timelineEmpty": "Ainda não há rodadas para mostrar.",
+      "changesEmpty": "Esta sessão não gravou nenhum arquivo.",
+      "fileCount_one": "{{count}} arquivo",
+      "fileCount_other": "{{count}} arquivos",
+      "turnCount_one": "{{count}} rodada",
+      "turnCount_other": "{{count}} rodadas"
     }
   },
   "chatStatus": {

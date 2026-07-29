@@ -61,6 +61,8 @@ export interface AddCommentInput {
   body: string;
   eventId?: string;
   parentId?: string;
+  /** Active cloud-org members explicitly notified by this comment. */
+  mentionedUserIds?: string[];
 }
 
 export interface UseSessionCommentsResult {

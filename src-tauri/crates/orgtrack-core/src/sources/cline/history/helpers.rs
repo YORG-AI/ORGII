@@ -128,12 +128,12 @@ pub(super) fn resolve_cline_messages_path(
 }
 
 pub(super) fn cline_sessions_dirs() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     Ok(cline_sessions_dir_candidates(&home))
 }
 
 pub(super) fn cline_db_paths() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     Ok(cline_db_path_candidates(&home))
 }
 

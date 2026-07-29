@@ -1,18 +1,32 @@
-import { IMPORTED_HISTORY_SOURCE_DESCRIPTORS } from "@src/api/tauri/externalHistory";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
+import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 
-/** Icon identity already visible on the source row before local hydration. */
+type CloudSessionReplayIconInput = Partial<
+  Pick<
+    RemoteTeammateSessionMetadata,
+    | "sourceSessionId"
+    | "cliAgentType"
+    | "agentDisplayName"
+    | "agentDefinitionId"
+    | "model"
+    | "origin"
+  >
+>;
+
+/**
+ * Icon identity already visible on the source row before local hydration.
+ * Delegates to the canonical row projection so the placeholder shown while a
+ * replay imports is the exact mark the Team Sessions row carries — including
+ * the legacy `*_cli` wire aliases, which resolve to no registered icon on
+ * their own.
+ */
 export function resolveCloudSessionReplayIconId(
-  session: Pick<RemoteTeammateSessionMetadata, "origin" | "cliAgentType">
+  session: CloudSessionReplayIconInput
 ): string {
-  if (session.origin?.kind === "external_history") {
-    const sourceId = session.origin.source;
-    const descriptor = IMPORTED_HISTORY_SOURCE_DESCRIPTORS.find(
-      (source) => source.sourceId === sourceId
-    );
-    if (descriptor) return descriptor.iconId;
-  }
-  return session.cliAgentType || "orgii";
+  return resolveSessionDisplayMetadata({
+    kind: "remote",
+    session: { ...session, sourceSessionId: session.sourceSessionId ?? "" },
+  }).agentIconId;
 }
 
 /**

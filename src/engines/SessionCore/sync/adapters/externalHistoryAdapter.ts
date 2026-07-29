@@ -43,7 +43,7 @@ export function selectExternalHistoryInitialWindow(
   // for older turns. Slicing that response here would make those turns
   // unreachable even though their bodies are available through the turn
   // loader. Trust the source's bounded wire contract.
-  if (options.supportsWindowedReplay !== undefined) {
+  if (options.supportsWindowedReplay === true) {
     return chunks;
   }
 

@@ -166,7 +166,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     handleConversationHistoryClose,
     handleConversationHistorySelect,
     handleConversationHistorySortToggle,
-    handleConversationHistoryToggle,
     handleConversationMinimapNavigate,
     setAgentOrgOverviewOpen,
     showPinnedTurnHeader,
@@ -372,7 +371,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                   isScrolling={conversationMinimapScrolling}
                   labelVariant={groupChatEnabled ? "agents" : "agent"}
                   onNavigate={handleConversationMinimapNavigate}
-                  onHistoryToggle={handleConversationHistoryToggle}
                 />
               )}
 

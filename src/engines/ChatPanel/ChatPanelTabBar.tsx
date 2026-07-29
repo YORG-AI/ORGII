@@ -42,6 +42,7 @@ import {
   Columns3,
   Gauge,
   GitPullRequest,
+  Inbox,
   Info,
   LayoutGrid,
   MessageSquarePlus,
@@ -71,6 +72,7 @@ import SessionHoverCard from "@src/components/SessionHoverCard";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
+import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { TabLabelRowScrim } from "@src/modules/WorkStation/shared/TabBar/components/TabLabelRowScrim";
@@ -82,12 +84,14 @@ import {
 import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/modules/WorkStation/shared/TabBar/config";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
+  type SessionReferenceOpen,
   type SessionTabTransfer,
   dispatchSessionTabDragCancel,
   dispatchSessionTabDragEnd,
   dispatchSessionTabDragStart,
 } from "@src/shared/dnd/sessionTabDrag";
 import { useSessionTabDropTarget } from "@src/shared/dnd/useSessionTabDropTarget";
+import { openTeamInboxInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import {
   type ChatPanelTab,
   activateChatPanelTabAtom,
@@ -185,6 +189,7 @@ const TabPill = memo(function TabPill({
     launchpad: t("navigation:routes.launchpad"),
     runtime: t("sessions:chat.startPage.tabs.runtime"),
     organization: t("navigation:collaboration.manageOrg"),
+    teamInbox: t("navigation:labels.teamInbox", "Team Inbox"),
     workManagement: {
       kanban: t("sessions:simulator.tabs.kanban"),
       projects: t("navigation:labels.projects"),
@@ -221,6 +226,14 @@ const TabPill = memo(function TabPill({
   } else if (tab.type === "runtime") {
     icon = (
       <Gauge
+        size={16}
+        strokeWidth={1.75}
+        className={`shrink-0 ${iconColorClass}`}
+      />
+    );
+  } else if (tab.type === "team-inbox") {
+    icon = (
+      <Inbox
         size={16}
         strokeWidth={1.75}
         className={`shrink-0 ${iconColorClass}`}
@@ -504,12 +517,15 @@ export function ChatPanelPlusMenu({
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function ChatPanelTabBar(): React.ReactNode {
+  const { t } = useTranslation();
   const state = useAtomValue(chatPanelTabsAtom);
   const activateTab = useSetAtom(activateChatPanelTabAtom);
   const closeTab = useSetAtom(closeAndDestroyChatPanelTabAtom);
   const closeOtherTabs = useSetAtom(closeOtherChatPanelTabsAtom);
   const reorderTabs = useSetAtom(reorderChatPanelTabsAtom);
   const moveSessionTab = useSetAtom(moveSessionTabAtom);
+  const openTeamInbox = useSetAtom(openTeamInboxInChatPanelTabAtom);
+  const requestSessionHandoff = useSetAtom(requestTeamInboxSessionHandoffAtom);
   const barRef = useRef<HTMLDivElement>(null);
   const pointerPositionRef = useRef<{ x: number; y: number } | null>(null);
   const pointerTrackerRef = useRef<((event: PointerEvent) => void) | null>(
@@ -522,6 +538,7 @@ export function ChatPanelTabBar(): React.ReactNode {
   );
   const tabIds = state.tabs.map((tab) => tab.id);
   const draggingTab = state.tabs.find((tab) => tab.id === draggingTabId);
+  const contextMenuTab = state.tabs.find((tab) => tab.id === contextMenuTabId);
 
   const handleSessionTabDrop = useCallback(
     (transfer: SessionTabTransfer) => moveSessionTab(transfer),
@@ -637,6 +654,15 @@ export function ChatPanelTabBar(): React.ReactNode {
     () => setContextMenuTabId(null),
     []
   );
+  const handleCreateWorkItem = useCallback(
+    (reference: SessionReferenceOpen) => {
+      requestSessionHandoff(reference);
+      openTeamInbox(
+        t("navigation:labels.teamInbox", { defaultValue: "Team Inbox" })
+      );
+    },
+    [openTeamInbox, requestSessionHandoff, t]
+  );
 
   // Inline strip — no outer wrapper, fills the flex row in the header
   return (
@@ -722,6 +748,15 @@ export function ChatPanelTabBar(): React.ReactNode {
         <ChatPanelTabContextMenu
           key={contextMenuTabId}
           tabId={contextMenuTabId}
+          sessionReference={
+            contextMenuTab?.type === "session" && contextMenuTab.sessionId
+              ? {
+                  sessionId: contextMenuTab.sessionId,
+                  title: contextMenuTab.title,
+                }
+              : undefined
+          }
+          onCreateWorkItem={handleCreateWorkItem}
           onCloseTab={closeTab}
           onCloseOtherTabs={closeOtherTabs}
           onDismiss={handleDismissContextMenu}

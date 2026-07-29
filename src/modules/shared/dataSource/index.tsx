@@ -51,8 +51,8 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
     const { t } = useTranslation("sessions", {
       keyPrefix: "kanban.dataSource",
     });
-    const viewTabs = useMemo<TabPillItem[]>(
-      () => [
+    const viewTabs = useMemo<TabPillItem[]>(() => {
+      return [
         {
           key: "usage",
           label: t("views.usage"),
@@ -83,9 +83,8 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
           label: t("views.assets"),
           dataTestId: "data-source-view-assets",
         },
-      ],
-      [t]
-    );
+      ];
+    }, [t]);
 
     return (
       <TabPill

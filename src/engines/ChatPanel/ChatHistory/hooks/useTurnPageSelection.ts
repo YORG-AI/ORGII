@@ -6,6 +6,7 @@
  * so the state hook runs *before* `useChatTurnPagination` and the
  * navigation hook (which depends on its outputs) runs *after*.
  */
+import { useAtomValue } from "jotai";
 import {
   type Dispatch,
   type SetStateAction,
@@ -18,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
+import { transcriptReplaceEpochAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import {
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
@@ -159,16 +161,25 @@ export function useTurnPageNavigation({
   // away because the store never sees a `mergeEvents` call.
   const autoLoadedTurnKeysRef = useRef<Set<string>>(new Set());
   // Tracks turns we've finished loading (success path, even when 0 events).
-  // Tagged by sessionId so the readiness gate ignores entries from a
-  // previous session without needing an effect to clear them on switch.
+  // Tagged by sessionId AND replace-epoch so the readiness gate ignores
+  // entries from a previous session or from before a same-session `replace`
+  // reload — a replace demotes previously-fetched bodies back to
+  // placeholders, so pre-replace "loaded" entries are stale — without
+  // needing an effect to clear them.
   const [loadedTurnIds, setLoadedTurnIds] = useState<{
     sessionId: string | null;
+    epoch: number;
     turnIds: Set<string>;
-  }>({ sessionId: null, turnIds: new Set() });
+  }>({ sessionId: null, epoch: 0, turnIds: new Set() });
+
+  // Bumped by loadSessionAtom on every same-session replace reload; the
+  // fired-key dedup resets so the visible window refetches the bodies the
+  // replace just dropped.
+  const transcriptReplaceEpoch = useAtomValue(transcriptReplaceEpochAtom);
 
   useEffect(() => {
     autoLoadedTurnKeysRef.current.clear();
-  }, [activeId]);
+  }, [activeId, transcriptReplaceEpoch]);
 
   useEffect(() => {
     if (
@@ -219,6 +230,7 @@ export function useTurnPageNavigation({
         autoLoadedTurnKeysRef.current.add(loadKey);
 
         const startedForSession = activeId;
+        const startedForEpoch = transcriptReplaceEpoch;
 
         void loadSessionTurnBodyIntoStore({
           sessionId: startedForSession,
@@ -227,16 +239,33 @@ export function useTurnPageNavigation({
           .then(async () => {
             setLoadedTurnIds((prev) => {
               if (startedForSession !== activeId) return prev;
-              if (prev.sessionId !== startedForSession) {
+              const sameGeneration =
+                prev.sessionId === startedForSession &&
+                prev.epoch === startedForEpoch;
+              // A load that started before a replace reload resolves against
+              // a transcript that no longer holds its body — never let it
+              // mark into (or clobber) the post-replace generation.
+              if (
+                prev.sessionId === startedForSession &&
+                prev.epoch > startedForEpoch
+              ) {
+                return prev;
+              }
+              if (!sameGeneration) {
                 return {
                   sessionId: startedForSession,
+                  epoch: startedForEpoch,
                   turnIds: new Set([turnId]),
                 };
               }
               if (prev.turnIds.has(turnId)) return prev;
               const next = new Set(prev.turnIds);
               next.add(turnId);
-              return { sessionId: prev.sessionId, turnIds: next };
+              return {
+                sessionId: prev.sessionId,
+                epoch: prev.epoch,
+                turnIds: next,
+              };
             });
             await pruneLoadedTurnBodies(startedForSession, protectedTurnIds);
           })
@@ -257,6 +286,11 @@ export function useTurnPageNavigation({
     pages,
     requiresExplicitTurnLoad,
     sessionLoadStatus,
+    // The epoch bump and the replacing snapshot can land in different
+    // renders; re-running on the epoch guarantees the refetch fires even
+    // when the snapshot identity settled first (dedup keys make the
+    // double-run idempotent).
+    transcriptReplaceEpoch,
     turnPaginationEnabled,
   ]);
 
@@ -324,9 +358,12 @@ export function useTurnPageNavigation({
   const isTurnLoaded = useCallback(
     (turnId: string) => {
       if (loadedTurnIds.sessionId !== activeId) return false;
+      // Entries recorded before a replace reload describe bodies the replace
+      // dropped back to placeholders — stale by definition.
+      if (loadedTurnIds.epoch !== transcriptReplaceEpoch) return false;
       return loadedTurnIds.turnIds.has(turnId);
     },
-    [activeId, loadedTurnIds]
+    [activeId, loadedTurnIds, transcriptReplaceEpoch]
   );
 
   const currentPageHasUnloadedTurn =

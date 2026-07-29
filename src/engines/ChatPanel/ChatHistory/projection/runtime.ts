@@ -1,4 +1,5 @@
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { configureToolClassifierRegistry } from "@src/engines/SessionCore/rendering/registry/toolClassifierRegistry";
 
 import { projectChatHistory } from "./core";
 import {
@@ -44,6 +45,7 @@ export class ChatProjectionRuntime {
       return { ...this.envelope(request), type: "ready" };
     }
     if (request.type === "initSnapshot") {
+      configureToolClassifierRegistry(request.toolRegistry);
       const state: SessionProjectionState = {
         generation: request.generation,
         sourceVersion: request.sourceVersion,

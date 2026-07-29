@@ -2,10 +2,12 @@
 
 use super::*;
 use crate::projects::io::projects::write_project;
+use crate::projects::io::transition_work_item_handoff;
 use crate::projects::io::work_items::{read_standalone_work_item, read_work_item, write_work_item};
 use crate::projects::types::{
-    CommentEntry, ProjectMeta, TodoEntry, WorkItemHistoryAction, WorkItemPartialUpdate,
-    WorkItemSchedule,
+    CommentEntry, ProjectMeta, TodoEntry, WorkItemHandoff, WorkItemHandoffAction,
+    WorkItemHandoffStatus, WorkItemHandoffTransition, WorkItemHistoryAction, WorkItemMutationActor,
+    WorkItemPartialUpdate, WorkItemSchedule,
 };
 use test_helpers::test_env;
 
@@ -57,6 +59,7 @@ fn work_item_fixture(id: &str, short_id: &str, title: &str) -> WorkItemFrontmatt
         history: vec![],
         delegations: vec![],
         linked_sessions: vec![],
+        handoff: None,
         proof_of_work: None,
         orchestrator_config: None,
         orchestrator_state: None,
@@ -129,6 +132,8 @@ fn partial_update_records_property_and_body_history() {
         .changes
         .iter()
         .any(|change| change.field == "priority"));
+    assert_eq!(event.actor_id, None);
+    assert_eq!(event.actor_name, None);
 }
 
 #[test]
@@ -139,10 +144,14 @@ fn partial_update_records_comment_history_event() {
     let updates = WorkItemPartialUpdate {
         comments: Some(vec![CommentEntry {
             id: "c1".to_string(),
-            author: "Ada".to_string(),
+            author: "member-1".to_string(),
             content: "Looks good".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
         }]),
+        actor: Some(WorkItemMutationActor {
+            id: "member-1".to_string(),
+            name: "Ada".to_string(),
+        }),
         ..Default::default()
     };
     update_work_item_partial("demo", "AAA-0001", &updates).expect("update");
@@ -150,6 +159,8 @@ fn partial_update_records_comment_history_event() {
     let after = read_work_item("demo", "AAA-0001").expect("read");
     let event = after.frontmatter.history.last().expect("history event");
     assert_eq!(event.action, WorkItemHistoryAction::Commented);
+    assert_eq!(event.actor_id.as_deref(), Some("member-1"));
+    assert_eq!(event.actor_name.as_deref(), Some("Ada"));
     assert_eq!(event.changes.len(), 1);
     assert_eq!(event.changes[0].field, "comments");
 }
@@ -310,6 +321,154 @@ fn partial_clears_assignee_with_some_none() {
     clear.assignee = Some(None);
     let result = update_work_item_partial("demo", "AAA-0001", &clear).expect("clear");
     assert!(result.frontmatter.assignee.is_none(), "assignee cleared");
+}
+
+#[test]
+fn assignee_change_atomically_resets_team_inbox_receipts() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+
+    let mut assign_alice = WorkItemPartialUpdate::default();
+    assign_alice.assignee = Some(Some("member-alice".to_string()));
+    assign_alice.assignee_type = Some(Some("member".to_string()));
+    update_work_item_partial("demo", "AAA-0001", &assign_alice).expect("assign alice");
+
+    let connection = conn().expect("conn");
+    connection
+        .execute(
+            "INSERT INTO team_inbox_read_receipts
+                (viewer_member_id, source_kind, source_id, read_at)
+             VALUES (?1, 'work_item_assigned', 'w1', 42)",
+            ["member-alice"],
+        )
+        .expect("seed read receipt");
+    drop(connection);
+
+    let mut assign_bob = WorkItemPartialUpdate::default();
+    assign_bob.assignee = Some(Some("member-bob".to_string()));
+    update_work_item_partial("demo", "AAA-0001", &assign_bob).expect("assign bob");
+
+    let connection = conn().expect("conn");
+    let (assigned_human_id, receipt_count): (Option<String>, i64) = connection
+        .query_row(
+            "SELECT w.assigned_human_id,
+                    (SELECT COUNT(*) FROM team_inbox_read_receipts r
+                      WHERE r.source_kind = 'work_item_assigned'
+                        AND r.source_id = w.id)
+               FROM workitems w WHERE w.id = 'w1'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("assignment projection");
+    assert_eq!(assigned_human_id.as_deref(), Some("member-bob"));
+    assert_eq!(
+        receipt_count, 0,
+        "the old assignment episode must not stay read"
+    );
+}
+
+#[test]
+fn returned_handoff_atomically_reassigns_sender_and_resets_receipts() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+
+    update_work_item_atomic("demo", "AAA-0001", |frontmatter, _body| {
+        frontmatter.assignee = Some("member-recipient".to_string());
+        frontmatter.assignee_type = Some("member".to_string());
+        frontmatter.handoff = Some(WorkItemHandoff {
+            id: "handoff-1".to_string(),
+            status: WorkItemHandoffStatus::Pending,
+            sender_member_id: "member-sender".to_string(),
+            sender_name: "Ada".to_string(),
+            recipient_member_id: "member-recipient".to_string(),
+            recipient_name: "Lin".to_string(),
+            note: Some("Continue the investigation".to_string()),
+            requested_at: "2026-07-28T10:00:00Z".to_string(),
+            responded_at: None,
+            response_note: None,
+        });
+        Ok::<(), String>(())
+    })
+    .expect("seed handoff");
+
+    let connection = conn().expect("conn");
+    connection
+        .execute(
+            "INSERT INTO team_inbox_read_receipts
+                (viewer_member_id, source_kind, source_id, read_at)
+             VALUES ('member-recipient', 'work_item_assigned', 'w1', 42)",
+            [],
+        )
+        .expect("seed recipient receipt");
+    drop(connection);
+
+    let result = transition_work_item_handoff(
+        "demo",
+        "AAA-0001",
+        &WorkItemHandoffTransition {
+            handoff_id: "handoff-1".to_string(),
+            action: WorkItemHandoffAction::Return,
+            actor: WorkItemMutationActor {
+                id: "member-recipient".to_string(),
+                name: "Lin".to_string(),
+            },
+            note: Some("Please add reproduction steps".to_string()),
+        },
+    )
+    .expect("return handoff");
+
+    assert_eq!(
+        result.frontmatter.assignee.as_deref(),
+        Some("member-sender")
+    );
+    let handoff = result.frontmatter.handoff.expect("persisted handoff");
+    assert_eq!(handoff.status, WorkItemHandoffStatus::Returned);
+    assert_eq!(
+        handoff.response_note.as_deref(),
+        Some("Please add reproduction steps")
+    );
+    let history = result.frontmatter.history.last().expect("history event");
+    assert_eq!(history.actor_id.as_deref(), Some("member-recipient"));
+    assert!(history
+        .changes
+        .iter()
+        .any(|change| change.field == "handoff"));
+    assert!(history
+        .changes
+        .iter()
+        .any(|change| change.field == "assignee"));
+
+    let connection = conn().expect("conn");
+    let receipt_count: i64 = connection
+        .query_row(
+            "SELECT COUNT(*) FROM team_inbox_read_receipts
+              WHERE source_kind = 'work_item_assigned' AND source_id = 'w1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("receipt count");
+    assert_eq!(receipt_count, 0);
+}
+
+#[test]
+fn non_human_assignee_is_excluded_from_assigned_human_projection() {
+    let _sandbox = test_env::sandbox();
+    seed("demo", "p1");
+
+    let mut assign_agent = WorkItemPartialUpdate::default();
+    assign_agent.assignee = Some(Some("agent-1".to_string()));
+    assign_agent.assignee_type = Some(Some("agent".to_string()));
+    update_work_item_partial("demo", "AAA-0001", &assign_agent).expect("assign agent");
+
+    let connection = conn().expect("conn");
+    let assigned_human_id: Option<String> = connection
+        .query_row(
+            "SELECT assigned_human_id FROM workitems WHERE id = 'w1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("assigned_human_id");
+    assert_eq!(assigned_human_id, None);
 }
 
 #[test]

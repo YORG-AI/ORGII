@@ -13,23 +13,18 @@
  *   3. absolute path  — read directly via `readFile`
  */
 import { readFile } from "@tauri-apps/plugin-fs";
+import { ImageIcon, ImageOff } from "lucide-react";
 import React, { memo, useCallback, useEffect, useState } from "react";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
 import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
+import { imageRefToRustPath } from "@src/util/file/imageRefs";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 
 async function resolveImageSrc(ref: string): Promise<string> {
   if (ref.startsWith("data:")) return ref;
 
-  // Extract the filesystem path from a Tauri asset URL.
-  // macOS/Linux: https://asset.localhost/absolute/path/to/file
-  // Windows:     https://asset.localhost/C:/path/to/file
-  let filePath = ref;
-  const assetMatch = ref.match(/^https?:\/\/asset\.localhost(\/.*)/);
-  if (assetMatch) {
-    filePath = decodeURIComponent(assetMatch[1]);
-  }
+  const filePath = imageRefToRustPath(ref);
 
   const mimeType = getImageMimeType(filePath) ?? "image/png";
   const data = await readFile(filePath);
@@ -45,7 +40,7 @@ interface ChatImageThumbnailProps {
   sizeClassName?: string;
 }
 
-const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
+export const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
   ({ imageRef, alt, sizeClassName = "h-10 w-10" }) => {
     const [showOverlay, setShowOverlay] = useState(false);
     // For `data:` refs we use the ref itself directly — no state needed.
@@ -54,6 +49,7 @@ const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
     // which guarantees `asyncSrc` always starts fresh (no stale thumbnail).
     const isDataUrl = imageRef.startsWith("data:");
     const [asyncSrc, setAsyncSrc] = useState<string | null>(null);
+    const [loadFailed, setLoadFailed] = useState(false);
     const resolvedSrc = isDataUrl ? imageRef : asyncSrc;
 
     useEffect(() => {
@@ -64,7 +60,7 @@ const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
           if (!cancelled) setAsyncSrc(src);
         })
         .catch(() => {
-          // Leave asyncSrc null — thumbnail shows placeholder bg
+          if (!cancelled) setLoadFailed(true);
         });
       return () => {
         cancelled = true;
@@ -75,10 +71,13 @@ const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
     // handler for edit-mode in the main chat panel or jump-to-message in
     // the WorkStation chat) does not fire when the user clicks the
     // thumbnail to open the preview.
-    const handleClick = useCallback((event: React.MouseEvent) => {
-      event.stopPropagation();
-      setShowOverlay(true);
-    }, []);
+    const handleClick = useCallback(
+      (event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (resolvedSrc) setShowOverlay(true);
+      },
+      [resolvedSrc]
+    );
 
     const handleClose = useCallback(() => {
       setShowOverlay(false);
@@ -87,15 +86,27 @@ const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
     return (
       <>
         <div
-          className={`group relative inline-flex flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-border-2 bg-fill-1 ${sizeClassName}`}
+          className={`group relative inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-2 bg-fill-1 text-text-3 ${resolvedSrc ? "cursor-pointer" : "cursor-default"} ${sizeClassName}`}
           onClick={handleClick}
+          data-image-state={
+            resolvedSrc ? "ready" : loadFailed ? "unavailable" : "loading"
+          }
         >
-          {resolvedSrc && (
+          {resolvedSrc ? (
             <img
               src={resolvedSrc}
               alt={alt}
               className="h-full w-full object-cover"
               draggable={false}
+            />
+          ) : loadFailed ? (
+            <ImageOff size={16} strokeWidth={1.5} aria-label={alt} />
+          ) : (
+            <ImageIcon
+              size={16}
+              strokeWidth={1.5}
+              className="animate-pulse motion-reduce:animate-none"
+              aria-label={alt}
             />
           )}
         </div>

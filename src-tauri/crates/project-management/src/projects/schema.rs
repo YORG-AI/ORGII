@@ -38,6 +38,7 @@ use rusqlite::{Connection, Result as SqliteResult};
 /// connection pool. Safe to invoke against an existing DB.
 pub fn init_project_tables(conn: &Connection) -> SqliteResult<()> {
     init_local_tables(conn)?;
+    crate::team_inbox::schema::init_team_inbox_tables(conn)?;
     init_outbox_table(conn)?;
     init_webhook_secrets_table(conn)?;
     init_import_progress_table(conn)?;

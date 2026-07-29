@@ -76,3 +76,15 @@ Manual acceptance: switch between Personal and an organization from both the sid
 | Open Kanban without a saved range          | The initial activity window is 3 days                                            | `config.test.ts`           |
 
 Manual acceptance: use a column with at least 60 tasks, confirm the initial scrollbar represents 25 cards, scroll to the bottom twice, and confirm tasks 26–50 and then 51–60 appear without mounting the full history at once. Clear `orgii:kanbanTimeFilter` and reload to confirm the range starts at **3d**.
+
+## Team session preview
+
+| Case                                            | Expected result                                                                   | Coverage                                                        |
+| ----------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Click a replayable teammate card or List row    | The board's draggable preview window opens in place; no Chat Pane tab is created  | `TaskKanban` `openSurface` replay target                        |
+| The replay import is still running              | The preview renders the teammate card with the pending imported session id        | `cloudReplayPreview.test.ts`                                    |
+| The imported copy lands on the board            | The preview switches to the local imported task, whose cloud duplicate is dropped | `cloudReplayPreview.test.ts`                                    |
+| Navigate to another card while a replay is open | The other card previews normally; the stale replay target is ignored              | `cloudReplayPreview.test.ts`                                    |
+| Click a metadata-only teammate card             | Nothing opens (no published events to replay)                                     | `TaskKanban` `canOpen` guard; `cloudRemoteToKanbanTask.test.ts` |
+
+Manual acceptance: open **Work Management → Kanban** with an organization selected, click a teammate's session card, and confirm the floating preview window opens over the board (Work Management stays mounted, so the import is not aborted) and fills with the replayed transcript. Close it and confirm the board selection resets.

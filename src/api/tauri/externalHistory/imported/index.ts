@@ -28,6 +28,7 @@ import {
   type ImportedHistorySourceId,
 } from "./descriptors";
 import { importedHistoryStat } from "./stat";
+import { importedHistoryInitialWindow } from "./window";
 
 export type {
   ImportedHistoryListCategory,
@@ -35,6 +36,12 @@ export type {
   ImportedHistorySourceId,
 };
 export { IMPORTED_HISTORY_SOURCE_DESCRIPTORS };
+export {
+  importedHistoryInitialWindow,
+  importedHistoryTurnWindows,
+  type ImportedHistoryInitialWindow,
+  type ImportedHistoryTurnWindow,
+} from "./window";
 
 export type { ImportedTranscriptStat };
 
@@ -54,6 +61,18 @@ export interface ImportedHistorySource extends ImportedHistorySourceDescriptor {
 }
 
 const CURSOR_IDE_INITIAL_RECENT_BUBBLE_LIMIT = 100;
+const IMPORTED_HISTORY_INITIAL_RECENT_TURN_COUNT = 1;
+
+async function loadGenericPreviewChunks(
+  sessionId: string
+): Promise<ActivityChunk[]> {
+  return (
+    await importedHistoryInitialWindow({
+      sessionId,
+      recentTurnCount: IMPORTED_HISTORY_INITIAL_RECENT_TURN_COUNT,
+    })
+  ).chunks;
+}
 
 function descriptorFor(
   sourceId: ImportedHistorySourceId
@@ -86,7 +105,7 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     ...descriptorFor("cursor_cli"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("cursor_cli", sessionId),
-    loadPreviewChunks: cursorCliHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: cursorCliHistoryChunks,
   },
   {
@@ -101,7 +120,7 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
   {
     ...descriptorFor("claude_code"),
     dispatchCategory: "external_history",
-    loadPreviewChunks: claudeCodeHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: claudeCodeHistoryChunks,
     statTranscript: claudeCodeHistoryStat,
   },
@@ -109,77 +128,77 @@ export const IMPORTED_HISTORY_SOURCES: readonly ImportedHistorySource[] = [
     ...descriptorFor("opencode"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("opencode", sessionId),
-    loadPreviewChunks: opencodeHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: opencodeHistoryChunks,
   },
   {
     ...descriptorFor("windsurf"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("windsurf", sessionId),
-    loadPreviewChunks: windsurfHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: windsurfHistoryChunks,
   },
   {
     ...descriptorFor("workbuddy"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("workbuddy", sessionId),
-    loadPreviewChunks: workBuddyHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: workBuddyHistoryChunks,
   },
   {
     ...descriptorFor("trae"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("trae", sessionId),
-    loadPreviewChunks: traeHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: traeHistoryChunks,
   },
   {
     ...descriptorFor("cline"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("cline", sessionId),
-    loadPreviewChunks: clineHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: clineHistoryChunks,
   },
   {
     ...descriptorFor("warp"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("warp", sessionId),
-    loadPreviewChunks: warpHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: warpHistoryChunks,
   },
   {
     ...descriptorFor("zcode"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("zcode", sessionId),
-    loadPreviewChunks: zcodeHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: zcodeHistoryChunks,
   },
   {
     ...descriptorFor("qoder"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("qoder", sessionId),
-    loadPreviewChunks: qoderHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: qoderHistoryChunks,
   },
   {
     ...descriptorFor("mimo_code"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("mimo_code", sessionId),
-    loadPreviewChunks: mimoCodeHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: mimoCodeHistoryChunks,
   },
   {
     ...descriptorFor("omp"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("omp", sessionId),
-    loadPreviewChunks: ompHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: ompHistoryChunks,
   },
   {
     ...descriptorFor("qoder_cli"),
     dispatchCategory: "external_history",
     statTranscript: (sessionId) => importedHistoryStat("qoder_cli", sessionId),
-    loadPreviewChunks: qoderCliHistoryChunks,
+    loadPreviewChunks: loadGenericPreviewChunks,
     loadFullTranscriptChunks: qoderCliHistoryChunks,
   },
 ];

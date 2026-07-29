@@ -14,6 +14,8 @@ export interface PublishedHeaderSlots {
 
 interface PublishedHeaderSlotsViewProps {
   slots: PublishedHeaderSlots | null;
+  /** Left inset for host-specific chrome alignment. */
+  paddingLeftClassName?: string;
 }
 
 /**
@@ -21,9 +23,11 @@ interface PublishedHeaderSlotsViewProps {
  * Agent Station replay, and the chat pane share this exact slot layout.
  */
 export const PublishedHeaderSlotsView: React.FC<PublishedHeaderSlotsViewProps> =
-  memo(({ slots }) => {
+  memo(({ slots, paddingLeftClassName = "pl-2" }) => {
     return (
-      <div className="flex min-w-0 flex-1 items-center pl-2">
+      <div
+        className={`flex min-w-0 flex-1 items-center ${paddingLeftClassName}`}
+      >
         {slots?.leading && (
           <NoDragRegion className="flex shrink-0 items-center">
             {slots.leading}

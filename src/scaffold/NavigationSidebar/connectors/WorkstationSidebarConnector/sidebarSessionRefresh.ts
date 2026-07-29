@@ -4,7 +4,10 @@ import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
-import { loadSessionRoster } from "@src/store/session";
+import {
+  loadSessionRoster,
+  refreshRecentNativeSessions,
+} from "@src/store/session";
 import {
   dataSourceConfigAtom,
   dataSourceRosterSignaturesAtom,
@@ -12,6 +15,11 @@ import {
   getSourceConfig,
 } from "@src/store/session/dataSourceConfigAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+
+import {
+  SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS,
+  SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS,
+} from "../sidebarConnectorUtils";
 
 /** Rescan every enabled external source, then refresh the canonical roster. */
 export async function rescanSidebarSessions(): Promise<void> {
@@ -53,5 +61,50 @@ export async function rescanSidebarSessions(): Promise<void> {
 export function useSidebarSessionRefreshEffects(): void {
   useEffect(() => {
     void loadSessionRoster();
+  }, []);
+
+  useEffect(() => {
+    let sidebarIntervalId: number | null = null;
+
+    const getSidebarRefreshInterval = () =>
+      document.hasFocus()
+        ? SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS
+        : SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS;
+
+    const refreshRecentSidebarSessions = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshRecentNativeSessions();
+    };
+
+    const scheduleRefresh = () => {
+      if (sidebarIntervalId !== null) {
+        window.clearInterval(sidebarIntervalId);
+        sidebarIntervalId = null;
+      }
+      if (document.visibilityState !== "visible") return;
+      sidebarIntervalId = window.setInterval(
+        refreshRecentSidebarSessions,
+        getSidebarRefreshInterval()
+      );
+    };
+
+    const handleActivityStateChange = () => {
+      refreshRecentSidebarSessions();
+      scheduleRefresh();
+    };
+
+    scheduleRefresh();
+    document.addEventListener("visibilitychange", handleActivityStateChange);
+    window.addEventListener("focus", handleActivityStateChange);
+    window.addEventListener("blur", scheduleRefresh);
+    return () => {
+      if (sidebarIntervalId !== null) window.clearInterval(sidebarIntervalId);
+      document.removeEventListener(
+        "visibilitychange",
+        handleActivityStateChange
+      );
+      window.removeEventListener("focus", handleActivityStateChange);
+      window.removeEventListener("blur", scheduleRefresh);
+    };
   }, []);
 }

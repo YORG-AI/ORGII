@@ -87,6 +87,7 @@ pub(super) fn assemble_work_item(
         comments: extras.comments,
         history: extras.history,
         delegations: extras.delegations,
+        handoff: extras.handoff,
         linked_sessions: extras.linked_sessions,
         proof_of_work: extras.proof_of_work,
         orchestrator_config: extras.orchestrator_config,

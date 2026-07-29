@@ -8,7 +8,11 @@ import type { SessionCreatorDraft } from "@src/store/session";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Poll interval for Cursor IDE session list refresh. */
+// ORG2 channel sessions can be created from external surfaces (Feishu, etc.)
+// without any frontend action. Refresh the bounded recent-native window while
+// focused so `/newsession ...` appears without polling every imported source.
+export const SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS = 15_000;
+export const SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS = 60_000;
 
 export const NEW_SESSION_MENU_ITEM_ID = "new-session";
 export const PROJECTS_NEW_PROJECT_MENU_ITEM_ID = "projects-new-project";
@@ -18,6 +22,7 @@ export const PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID = "projects-new-work-item";
 export const WORK_ITEMS_MENU_ITEM_ID = "work-items";
 export const KANBAN_MENU_ITEM_ID = "kanban";
 export const RUNTIME_MENU_ITEM_ID = "runtime";
+export const TEAM_INBOX_MENU_ITEM_ID = "team-inbox";
 export const WORK_ITEMS_PROJECTS_MENU_ITEM_ID = "work-items:projects";
 export const WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID = "work-items:github-issues";
 export const WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID = "work-items:github-prs";

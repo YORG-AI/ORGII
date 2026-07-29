@@ -1190,7 +1190,26 @@
       "takeAction": "Agir",
       "sync": "Synchroniser",
       "createPR": "Créer PR",
-      "stash": "Remiser"
+      "stash": "Remiser",
+      "compareBranch": "Comparer la branche"
+    },
+    "rail": {
+      "openTabs": "Onglets ouverts",
+      "closeItem": "Fermer {{label}}",
+      "expand": "Développer les informations de l’espace de travail",
+      "collapse": "Réduire les informations de l’espace de travail"
+    },
+    "pr": {
+      "linkedBranch": "Pull request n°{{number}}",
+      "checks": {
+        "passedShort": "Réussi",
+        "failedShort": "Échec",
+        "runningShort": "En cours",
+        "checkingShort": "Vérification",
+        "noneShort": "Aucune CI",
+        "unavailableShort": "CI indisponible",
+        "branchStatus": "CI de la pull request n°{{number}} : {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Push réussi",

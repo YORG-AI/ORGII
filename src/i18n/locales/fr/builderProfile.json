@@ -1,7 +1,6 @@
 {
   "title": "Profil de créateur",
   "refresh": "Actualiser",
-  "summaryLine": "{{sessions}} sessions analysées",
   "tooFewSessions": "Moins de 25 sessions : le type n'est pas encore stabilisé.",
   "noSessionsYet": "Aucune session analysée pour l'instant — les lettres apparaissent à mesure que l'historique est lu.",
   "axisStats": "{{sessions}} sessions · {{consistency}} % concordent",
@@ -46,6 +45,58 @@
     "moderate": "préférence modérée",
     "clear": "préférence nette",
     "veryClear": "préférence très nette"
+  },
+  "types": {
+    "title": "Types de builder",
+    "subtitle": "Découvrez les 16 façons de travailler avec des agents de programmation.",
+    "howTitle": "Comment lire le code",
+    "howBody": "Quatre préférences observées composent un type de builder. Ces lettres décrivent un mode de travail, pas une identité figée : elles peuvent évoluer avec vos habitudes et vos outils.",
+    "galleryTitle": "Les 16 types",
+    "galleryHint": "Choisissez un portrait pour voir le profil complet et des conseils pratiques de collaboration avec les agents.",
+    "knowMore": "En savoir plus",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Cartographier",
+        "description": "Cadre la cible et les contraintes avant de commencer l’implémentation",
+        "agentTip": "Donnez à l’agent un brief écrit avec critères de réussite, limites et points de contrôle"
+      },
+      "E": {
+        "name": "Explorer",
+        "description": "Réduit l’incertitude par l’essai, l’observation et les corrections de trajectoire",
+        "agentTip": "Demandez une petite expérience ou une investigation utile avant d’arrêter un plan"
+      },
+      "D": {
+        "name": "Diriger",
+        "description": "Garde la décomposition et l’ordre du travail sous contrôle humain",
+        "agentTip": "Déléguez des étapes bien délimitées et validez la direction entre les jalons importants"
+      },
+      "A": {
+        "name": "Déléguer",
+        "description": "Définit le résultat et laisse l’agent choisir le chemin",
+        "agentTip": "Décrivez le résultat, le niveau de qualité et les limites, puis laissez l’agent planifier et exécuter"
+      },
+      "F": {
+        "name": "Se concentrer",
+        "description": "Privilégie la profondeur et l’achèvement d’un chantier à la fois",
+        "agentTip": "Gardez une seule prochaine étape active et terminez-la avant d’ouvrir un nouveau chantier"
+      },
+      "W": {
+        "name": "Essaimer",
+        "description": "Utilise plusieurs chantiers parallèles pour gagner en couverture et en vitesse",
+        "agentTip": "Répartissez les recherches ou implémentations indépendantes et réunissez-les à des points de passage clairs"
+      },
+      "S": {
+        "name": "Systématiser",
+        "description": "Investit dans des processus réutilisables, des outils et des améliorations durables",
+        "agentTip": "Demandez à l’agent de transformer le travail récurrent en tests, scripts, règles ou modèles"
+      },
+      "H": {
+        "name": "Livrer",
+        "description": "Optimise pour obtenir au plus vite un résultat validé et un progrès immédiat",
+        "agentTip": "Demandez le plus petit correctif complet, exécutez les contrôles pertinents puis itérez sur le résultat"
+      }
+    }
   },
   "cards": {
     "total_time": {

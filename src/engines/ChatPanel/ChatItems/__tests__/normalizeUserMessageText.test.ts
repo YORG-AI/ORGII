@@ -19,12 +19,62 @@ describe("normalizeUserMessageText", () => {
     ).toBe("");
   });
 
-  it("removes the heading and leading blank lines when content follows", () => {
+  it("removes the heading and preserves native pill tokens", () => {
     expect(
       normalizeUserMessageText(
         "# Files mentioned by the user:\n\nreport.pdf [file:/tmp/report.pdf]"
       )
     ).toBe("report.pdf [file:/tmp/report.pdf]");
+  });
+
+  it("converts Codex attachment entries to native file pills", () => {
+    expect(
+      normalizeUserMessageText(
+        [
+          "# Files mentioned by the user:",
+          "",
+          "## Screenshot 2026-07-29 at 6.56 PM.png: /tmp/Screenshot 2026-07-29.png",
+          "",
+          "## pasted output: C:\\Users\\me\\pasted-text.txt",
+          "",
+          "## My request for Codex:",
+          "Review these files.",
+        ].join("\n")
+      )
+    ).toBe(
+      [
+        "Screenshot-2026-07-29-at-6.56-PM.png [file:/tmp/Screenshot 2026-07-29.png]",
+        "",
+        "pasted-output [file:C:\\Users\\me\\pasted-text.txt]",
+        "",
+        "Review these files.",
+      ].join("\n")
+    );
+  });
+
+  it("uses a folder pill for a generated attachment path ending in a slash", () => {
+    expect(
+      normalizeUserMessageText(
+        "# Files mentioned by the user:\n\n## fixtures: /repo/fixtures/\n"
+      )
+    ).toBe("fixtures [folder:/repo/fixtures/]");
+  });
+
+  it("removes a generated image file entry when native image metadata exists", () => {
+    const imagePath = "/tmp/Screenshot 2026-07-29.png";
+    expect(
+      normalizeUserMessageText(
+        [
+          "# Files mentioned by the user:",
+          "",
+          `## Screenshot.png: ${imagePath}`,
+          "",
+          "## My request for Codex:",
+          "Inspect it.",
+        ].join("\n"),
+        [`https://asset.localhost${encodeURI(imagePath)}`]
+      )
+    ).toBe("Inspect it.");
   });
 
   it("leaves ordinary user text unchanged", () => {

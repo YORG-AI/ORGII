@@ -25,12 +25,7 @@ fn temp_tree(tag: &str) -> PathBuf {
     dir
 }
 
-type WalkResult = (
-    Vec<PathBuf>,
-    HashMap<String, DirScanSnapshot>,
-    usize,
-    usize,
-);
+type WalkResult = (Vec<PathBuf>, HashMap<String, DirScanSnapshot>, usize, usize);
 
 fn walk(previous: &HashMap<String, DirScanSnapshot>, root: &Path) -> WalkResult {
     let mut walker = SnapshotDirWalker::new(previous, "jsonl", "Test");
@@ -56,7 +51,10 @@ fn snapshot_rows_roundtrip_and_replace() {
     );
 
     write_dir_snapshots_from_conn(&conn, "claude_code", &snapshots).expect("write");
-    assert_eq!(read_dir_snapshots_from_conn(&conn, "claude_code"), snapshots);
+    assert_eq!(
+        read_dir_snapshots_from_conn(&conn, "claude_code"),
+        snapshots
+    );
     assert!(read_dir_snapshots_from_conn(&conn, "codex_app").is_empty());
 
     let mut replacement = HashMap::new();

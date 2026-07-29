@@ -36,6 +36,7 @@ import { kanbanReplayModeAtom } from "@src/store/ui/kanbanReplayAtom";
 import {
   kanbanAgentTypeFilterAtom,
   kanbanAutoArchiveTtlAtom,
+  kanbanCloudReplayTargetAtom,
   kanbanDetailPanelVisibleAtom,
   kanbanFileSearchQueryAtom,
   kanbanManualArchivedSessionIdsAtom,
@@ -58,6 +59,7 @@ import {
 import { useKanbanTasks } from "./hooks/useKanbanTasks";
 import { useTaskKanbanFilters } from "./hooks/useTaskKanbanFilters";
 import { useTaskKanbanHeader } from "./hooks/useTaskKanbanHeader";
+import { resolveKanbanPreviewTask } from "./utils/cloudReplayPreview";
 import {
   beginKanbanHorizontalScrollGuard,
   resetKanbanHorizontalScroll,
@@ -124,6 +126,9 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   );
   const [creatorVisible, setCreatorVisible] = useAtom(
     workManagementCreatorVisibleAtom
+  );
+  const [cloudReplayTarget, setCloudReplayTarget] = useAtom(
+    kanbanCloudReplayTargetAtom
   );
   const kanbanReplayMode = useAtomValue(kanbanReplayModeAtom);
   const selectedOrgId = useAtomValue(sidebarSelectedOrgIdAtom);
@@ -217,32 +222,58 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     }
   }, []);
 
-  const handleTaskClick = useCallback(
-    (task: KanbanTask) => {
-      const remoteSession = remoteSessionsByTaskId.get(task.id);
-      if (remoteSession) {
-        if (task.canOpen !== false) void replaySession(remoteSession);
-        return;
-      }
-      setSelectedTaskId(task.id);
+  const openTaskPreview = useCallback(
+    (taskId: string) => {
+      setSelectedTaskId(taskId);
       setDetailPanelVisible(true);
       setCreatorVisible(false);
       beginKanbanHorizontalScrollGuard();
     },
+    [setCreatorVisible, setDetailPanelVisible, setSelectedTaskId]
+  );
+
+  const handleTaskClick = useCallback(
+    (task: KanbanTask) => {
+      const remoteSession = remoteSessionsByTaskId.get(task.id);
+      if (remoteSession) {
+        if (task.canOpen === false) return;
+        // Team sessions replay into the board's own preview window. Handing
+        // them to a Chat Pane tab instead unmounts Work Management — and the
+        // replay's abort controller with it — so the import this click just
+        // started would be cancelled and the new tab would stay empty.
+        void replaySession(remoteSession, {
+          openSurface: ({ localSessionId }) => {
+            setCloudReplayTarget({
+              taskId: task.id,
+              sessionId: localSessionId,
+            });
+            openTaskPreview(task.id);
+          },
+        });
+        return;
+      }
+      setCloudReplayTarget(null);
+      openTaskPreview(task.id);
+    },
     [
+      openTaskPreview,
       remoteSessionsByTaskId,
       replaySession,
-      setCreatorVisible,
-      setDetailPanelVisible,
-      setSelectedTaskId,
+      setCloudReplayTarget,
     ]
   );
 
   const handleCloseDetailPanel = useCallback(() => {
     setDetailPanelVisible(false);
     setSelectedTaskId(null);
+    setCloudReplayTarget(null);
     resetKanbanHorizontalScroll();
-  }, [setDetailPanelVisible, setSelectedTaskId]);
+  }, [setCloudReplayTarget, setDetailPanelVisible, setSelectedTaskId]);
+
+  const detailTask = useMemo(
+    () => resolveKanbanPreviewTask(selectedTask, cloudReplayTarget, allTasks),
+    [allTasks, cloudReplayTarget, selectedTask]
+  );
 
   useEffect(() => {
     const previousOrgId = previousSelectedOrgIdRef.current;
@@ -393,7 +424,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
           >
             <TaskDetailPanel
               visible={detailPanelVisible}
-              task={selectedTask}
+              task={detailTask}
               onClose={handleCloseDetailPanel}
               onNavigate={handleNavigateTask}
               hasPrev={taskNavigation.hasPrev}

@@ -25,8 +25,15 @@ import React, { memo, useCallback, useMemo } from "react";
 import GitHubPillIcon from "@src/assets/modelIcons/github-pill.svg";
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
 import BasePill from "@src/components/ComposerInput/BasePill";
-import { isGitHubPillUrl } from "@src/components/ComposerInput/githubUrl";
-import { truncateVisiblePillLabel } from "@src/components/ComposerInput/utils";
+import {
+  isGitHubPillUrl,
+  parseGitHubPillUrl,
+} from "@src/components/ComposerInput/githubUrl";
+import { parseHttpUrlPill } from "@src/components/ComposerInput/httpUrl";
+import {
+  serializePillNode,
+  truncateVisiblePillLabel,
+} from "@src/components/ComposerInput/utils";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import {
   PILL_LINE_HEIGHT,
@@ -35,6 +42,7 @@ import {
   PILL_TYPE_LIST,
 } from "@src/config/pillTokens";
 import type { PillType } from "@src/config/pillTokens";
+import { normalizeUserMessageText } from "@src/engines/ChatPanel/ChatItems/normalizeUserMessageText";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
@@ -76,6 +84,136 @@ type Segment = PillSegment | TextSegment;
 // ============================================
 
 /**
+ * External clients commonly persist references as Markdown links instead of
+ * ORGII's serialized pill tokens. Normalize safe web links, local file links,
+ * and recognized native reference schemes while leaving images and escaped
+ * Markdown untouched.
+ */
+const MARKDOWN_REFERENCE_REGEX = /\[([^\]\r\n]+)\]\(([^)\r\n]+)\)/g;
+
+const NATIVE_SCHEME_PILL_TYPES: Readonly<Record<string, PillType>> = {
+  "branch://": "branch",
+  "browser://": "browser",
+  "dom-element://": "dom-element",
+  "folder://": "folder",
+  "issue://": "issue",
+  "paste://": "paste",
+  "pr://": "pr",
+  "project://": "project",
+  "repo://": "repo",
+  "session://": "session",
+  "skill://": "skill",
+  "terminal://": "terminal",
+  "workitem://": "workitem",
+};
+
+function decodePath(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+function filePathFromMarkdownDestination(destination: string): string | null {
+  if (destination.startsWith("file://")) {
+    try {
+      const parsed = new URL(destination);
+      if (parsed.protocol !== "file:") return null;
+      const decodedPath = decodePath(parsed.pathname);
+      if (!decodedPath) return null;
+
+      if (parsed.hostname && parsed.hostname !== "localhost") {
+        return `//${parsed.hostname}${decodedPath}`;
+      }
+      return /^\/[a-z]:\//i.test(decodedPath)
+        ? decodedPath.slice(1)
+        : decodedPath;
+    } catch {
+      return null;
+    }
+  }
+
+  if (
+    destination.startsWith("/") ||
+    destination.startsWith("./") ||
+    destination.startsWith("../") ||
+    /^[a-z]:[\\/]/i.test(destination) ||
+    destination.startsWith("\\\\")
+  ) {
+    return decodePath(destination);
+  }
+
+  return null;
+}
+
+function nativeSchemePillType(destination: string): PillType | null {
+  for (const [prefix, pillType] of Object.entries(NATIVE_SCHEME_PILL_TYPES)) {
+    if (destination.startsWith(prefix)) return pillType;
+  }
+  return null;
+}
+
+export function normalizeMarkdownReferencePills(text: string): string {
+  return text.replace(
+    MARKDOWN_REFERENCE_REGEX,
+    (match, rawLabel: string, rawDestination: string, offset: number) => {
+      if (
+        offset > 0 &&
+        (text[offset - 1] === "!" || text[offset - 1] === "\\")
+      ) {
+        return match;
+      }
+
+      const label = rawLabel.trim();
+      const destination = rawDestination.trim().replace(/^<|>$/g, "");
+
+      const githubReference = parseGitHubPillUrl(destination);
+      if (githubReference) {
+        return serializePillNode({
+          filePath: githubReference.url,
+          fileName: githubReference.displayName,
+          iconType: githubReference.iconType,
+        });
+      }
+
+      const httpReference = parseHttpUrlPill(destination);
+      if (httpReference) {
+        return serializePillNode({
+          filePath: httpReference.url,
+          fileName: httpReference.displayName,
+          iconType: "link",
+        });
+      }
+
+      const filePath = filePathFromMarkdownDestination(destination);
+      if (filePath) {
+        const isFolder = filePath.endsWith("/") || filePath.endsWith("\\");
+        return serializePillNode({
+          filePath,
+          fileName: label,
+          iconType: isFolder ? "folder" : "file",
+        });
+      }
+
+      const pillType = nativeSchemePillType(destination);
+      if (pillType) {
+        return serializePillNode({
+          filePath: destination,
+          fileName: label,
+          iconType: pillType,
+        });
+      }
+
+      return match;
+    }
+  );
+}
+
+/** Backward-compatible name for the first URL-only normalization pass. */
+export const normalizeMarkdownUrlPills = normalizeMarkdownReferencePills;
+
+/**
  * Extract the first fenced code block from text.
  * Returns the content between ``` markers, or undefined if none found.
  */
@@ -84,14 +222,14 @@ function extractCodeBlock(text: string): string | undefined {
   return match?.[1]?.trim() || undefined;
 }
 
-function parseUserMessage(text: string): Segment[] {
+function parseNormalizedUserMessage(normalizedText: string): Segment[] {
   const segments: Segment[] = [];
   let lastIndex = 0;
 
   // Pre-extract code block for terminal pills that lack embedded content
-  const codeBlockContent = extractCodeBlock(text);
+  const codeBlockContent = extractCodeBlock(normalizedText);
 
-  for (const match of text.matchAll(SINGLE_LINE_PILL_REGEX)) {
+  for (const match of normalizedText.matchAll(SINGLE_LINE_PILL_REGEX)) {
     const matchStart = match.index;
     if (matchStart === undefined) continue;
 
@@ -113,7 +251,10 @@ function parseUserMessage(text: string): Segment[] {
 
     // Text before this match
     if (matchStart > lastIndex) {
-      segments.push({ kind: "text", text: text.slice(lastIndex, matchStart) });
+      segments.push({
+        kind: "text",
+        text: normalizedText.slice(lastIndex, matchStart),
+      });
     }
     // Text on the same line that precedes the pill filename
     if (precedingText) {
@@ -180,8 +321,8 @@ function parseUserMessage(text: string): Segment[] {
   );
 
   // Strip trailing code blocks — they carry embedded context, not user text
-  if (lastIndex < text.length) {
-    let remaining = text.slice(lastIndex);
+  if (lastIndex < normalizedText.length) {
+    let remaining = normalizedText.slice(lastIndex);
     if (hasContextPill && codeBlockContent) {
       remaining = remaining.replace(/\n*```\n?[\s\S]*?```\s*$/, "");
     }
@@ -191,6 +332,12 @@ function parseUserMessage(text: string): Segment[] {
   }
 
   return segments;
+}
+
+export function parseUserMessage(text: string): Segment[] {
+  return parseNormalizedUserMessage(
+    normalizeMarkdownReferencePills(normalizeUserMessageText(text))
+  );
 }
 
 // ============================================
@@ -451,19 +598,27 @@ const TEXT_BASE_CLASS =
 
 const UserMessageContent: React.FC<UserMessageContentProps> = memo(
   ({ text, images }) => {
-    const segments = useMemo(() => parseUserMessage(text), [text]);
+    const normalizedText = useMemo(
+      () =>
+        normalizeMarkdownReferencePills(normalizeUserMessageText(text, images)),
+      [images, text]
+    );
+    const segments = useMemo(
+      () => parseNormalizedUserMessage(normalizedText),
+      [normalizedText]
+    );
     const hasImages = images && images.length > 0;
 
     // Fast path: no pills and no images, render plain text
     const hasPills = segments.some((s) => s.kind === "pill");
     if (!hasPills && !hasImages) {
-      return <span className={TEXT_BASE_CLASS}>{text}</span>;
+      return <span className={TEXT_BASE_CLASS}>{normalizedText}</span>;
     }
 
     return (
       <div className="flex flex-col gap-2">
         {hasImages && <ChatImageThumbnailRow images={images} />}
-        {text && text !== "(image)" && (
+        {normalizedText && normalizedText !== "(image)" && (
           <span
             className="whitespace-pre-wrap break-words text-[14px] text-text-1"
             style={{ lineHeight: PILL_LINE_HEIGHT }}

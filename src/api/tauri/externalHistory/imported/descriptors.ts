@@ -39,7 +39,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Cursor CLI",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "codex_app",
@@ -61,7 +61,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Claude App",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "opencode",
@@ -72,7 +72,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "OpenCode",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "windsurf",
@@ -83,7 +83,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Windsurf",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "workbuddy",
@@ -94,7 +94,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "WorkBuddy",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "trae",
@@ -105,7 +105,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Trae",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "cline",
@@ -116,7 +116,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Cline",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "warp",
@@ -127,7 +127,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Warp",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "zcode",
@@ -138,7 +138,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "ZCode",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "qoder",
@@ -149,7 +149,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Qoder",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "mimo_code",
@@ -160,7 +160,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Mimo Code",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "omp",
@@ -171,7 +171,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "OMP",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
     {
       sourceId: "qoder_cli",
@@ -182,6 +182,6 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       groupLabel: "Qoder CLI",
       listable: true,
       replayable: true,
-      supportsWindowedReplay: false,
+      supportsWindowedReplay: true,
     },
   ];

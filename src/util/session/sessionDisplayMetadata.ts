@@ -6,6 +6,7 @@ import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
 import {
   THEMEABLE_ICONS,
+  getIconProviderFromModelName,
   getIconProviderFromType,
 } from "@src/components/ModelIcon/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
@@ -143,6 +144,15 @@ function resolveExternalSource(
   );
 }
 
+/** Brand mark named by a model id (`claude-sonnet-5` → the Claude mark). */
+function resolveModelBrandIconId(
+  modelName: string | undefined
+): string | undefined {
+  if (!modelName) return undefined;
+  const provider = getIconProviderFromModelName(modelName);
+  return provider === "unknown" ? undefined : provider;
+}
+
 function resolveAgentIconId(
   input: NormalizedSessionDisplayInput,
   agentType: string | undefined,
@@ -167,12 +177,23 @@ function resolveAgentIconId(
     return "orgii";
   }
 
+  // ORG2-native sessions publish no `cliAgentType` — the Rust session
+  // categories store it as NULL — so a shared Claude or GPT session arrives
+  // with no agent identity at all and used to land on the generic ORG2 glyph.
+  // Its model names the provider actually behind the run, which is the mark
+  // the viewer recognizes. Only the ICON follows the model: `agentLabel` (and
+  // with it the Agent filter) keeps naming the runtime.
+  const modelBrandIconId = resolveModelBrandIconId(input.modelName);
+
   // Imported native ORGII replays used to carry `agentIconId: "archive"`,
   // which is not a registered agent icon and therefore fell through to Bot.
-  if (input.imported) return "orgii";
-  if (input.remoteNative) return "orgii";
+  if (input.imported || input.remoteNative) return modelBrandIconId ?? "orgii";
 
-  return input.agentIconId || resolveSessionIconId(input.sessionId);
+  return (
+    input.agentIconId ||
+    modelBrandIconId ||
+    resolveSessionIconId(input.sessionId)
+  );
 }
 
 function resolveCliAgentLabel(

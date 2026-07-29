@@ -1191,7 +1191,26 @@
       "takeAction": "Thực hiện",
       "sync": "Đồng bộ",
       "createPR": "Tạo PR",
-      "stash": "Lưu tạm"
+      "stash": "Lưu tạm",
+      "compareBranch": "So sánh nhánh"
+    },
+    "rail": {
+      "openTabs": "Các tab đang mở",
+      "closeItem": "Đóng {{label}}",
+      "expand": "Mở rộng thông tin không gian làm việc",
+      "collapse": "Thu gọn thông tin không gian làm việc"
+    },
+    "pr": {
+      "linkedBranch": "Pull request #{{number}}",
+      "checks": {
+        "passedShort": "Đạt",
+        "failedShort": "Thất bại",
+        "runningShort": "Đang chạy",
+        "checkingShort": "Đang kiểm tra",
+        "noneShort": "Không có CI",
+        "unavailableShort": "CI không khả dụng",
+        "branchStatus": "CI của pull request #{{number}}: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Push thành công",

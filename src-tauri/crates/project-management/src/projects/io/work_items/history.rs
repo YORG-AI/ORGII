@@ -3,7 +3,7 @@ use serde_json::Value as JsonValue;
 
 use crate::projects::types::{
     CommentEntry, WorkItemFrontmatter, WorkItemHistoryAction, WorkItemHistoryChange,
-    WorkItemHistoryEvent,
+    WorkItemHistoryEvent, WorkItemMutationActor,
 };
 
 pub(super) fn ensure_created_event(frontmatter: &mut WorkItemFrontmatter, timestamp: &str) {
@@ -34,8 +34,8 @@ pub(super) fn append_deleted_event(frontmatter: &mut WorkItemFrontmatter, timest
         id: history_event_id(frontmatter, WorkItemHistoryAction::Deleted, timestamp),
         action: WorkItemHistoryAction::Deleted,
         timestamp: timestamp.to_string(),
-        actor_id: frontmatter.created_by.clone(),
-        actor_name: frontmatter.created_by.clone(),
+        actor_id: None,
+        actor_name: None,
         changes: Vec::new(),
         summary: Some("Deleted item".to_string()),
     });
@@ -46,8 +46,8 @@ pub(super) fn append_restored_event(frontmatter: &mut WorkItemFrontmatter, times
         id: history_event_id(frontmatter, WorkItemHistoryAction::Restored, timestamp),
         action: WorkItemHistoryAction::Restored,
         timestamp: timestamp.to_string(),
-        actor_id: frontmatter.created_by.clone(),
-        actor_name: frontmatter.created_by.clone(),
+        actor_id: None,
+        actor_name: None,
         changes: Vec::new(),
         summary: Some("Restored item".to_string()),
     });
@@ -58,6 +58,7 @@ pub(super) fn append_mutation_event(
     frontmatter: &mut WorkItemFrontmatter,
     body: &str,
     timestamp: &str,
+    actor: Option<&WorkItemMutationActor>,
 ) {
     let mut changes = before.diff(frontmatter, body);
     if changes.is_empty() {
@@ -91,12 +92,21 @@ pub(super) fn append_mutation_event(
         | WorkItemHistoryAction::Restored => None,
     };
 
+    let actor_id = actor
+        .map(|value| value.id.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let actor_name = actor
+        .map(|value| value.name.trim())
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
     frontmatter.history.push(WorkItemHistoryEvent {
         id: history_event_id(frontmatter, action.clone(), timestamp),
         action,
         timestamp: timestamp.to_string(),
-        actor_id: frontmatter.created_by.clone(),
-        actor_name: frontmatter.created_by.clone(),
+        actor_id,
+        actor_name,
         changes,
         summary,
     });
@@ -117,6 +127,7 @@ pub(super) struct WorkItemHistorySnapshot {
     target_date: Option<String>,
     todos: Vec<crate::projects::types::TodoEntry>,
     comments: Vec<CommentEntry>,
+    handoff: Option<crate::projects::types::WorkItemHandoff>,
     schedule: Option<crate::projects::types::WorkItemSchedule>,
     orchestrator_config: Option<crate::projects::types::OrchestratorConfig>,
 }
@@ -137,6 +148,7 @@ impl WorkItemHistorySnapshot {
             target_date: frontmatter.target_date.clone(),
             todos: frontmatter.todos.clone(),
             comments: frontmatter.comments.clone(),
+            handoff: frontmatter.handoff.clone(),
             schedule: frontmatter.schedule.clone(),
             orchestrator_config: frontmatter.orchestrator_config.clone(),
         }
@@ -194,6 +206,7 @@ impl WorkItemHistorySnapshot {
             &self.comments,
             &frontmatter.comments,
         );
+        push_change(&mut changes, "handoff", &self.handoff, &frontmatter.handoff);
         push_change(
             &mut changes,
             "schedule",

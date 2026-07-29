@@ -15,6 +15,9 @@ const codexLoaders = vi.hoisted(() => ({
   preview: vi.fn(),
   full: vi.fn(),
 }));
+const genericLoaders = vi.hoisted(() => ({
+  preview: vi.fn(),
+}));
 
 vi.mock("../../cursorIde", () => ({
   cursorIdeInitialWindow: cursorLoaders.preview,
@@ -24,6 +27,10 @@ vi.mock("../../cursorIde", () => ({
 vi.mock("../../sources/codexApp", () => ({
   codexAppInitialWindow: codexLoaders.preview,
   codexAppChunks: codexLoaders.full,
+}));
+
+vi.mock("../window", () => ({
+  importedHistoryInitialWindow: genericLoaders.preview,
 }));
 
 describe("imported history source registry", () => {
@@ -58,6 +65,26 @@ describe("imported history source registry", () => {
     ).resolves.toEqual([{ id: "full" }]);
     expect(codexLoaders.preview).toHaveBeenCalledWith("codexapp-session-1");
     expect(codexLoaders.full).toHaveBeenCalledWith("codexapp-session-1");
+  });
+
+  it("uses the bounded generic window without changing full cloud replay", async () => {
+    genericLoaders.preview.mockResolvedValue({
+      chunks: [{ id: "preview" }],
+    });
+    const claude = getImportedHistorySourceBySessionId(
+      "claudecodeapp-session-1"
+    );
+
+    await expect(
+      claude?.loadPreviewChunks("claudecodeapp-session-1")
+    ).resolves.toEqual([{ id: "preview" }]);
+    expect(genericLoaders.preview).toHaveBeenCalledWith({
+      sessionId: "claudecodeapp-session-1",
+      recentTurnCount: 1,
+    });
+    expect(claude?.loadFullTranscriptChunks).not.toBe(
+      claude?.loadPreviewChunks
+    );
   });
 
   it("registers source-specific external history providers", () => {
@@ -100,6 +127,7 @@ describe("imported history source registry", () => {
     for (const source of IMPORTED_HISTORY_SOURCES) {
       expect(source.loadPreviewChunks).toBeTypeOf("function");
       expect(source.loadFullTranscriptChunks).toBeTypeOf("function");
+      expect(source.supportsWindowedReplay).toBe(true);
     }
   });
 

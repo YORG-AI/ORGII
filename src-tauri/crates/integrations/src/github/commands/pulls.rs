@@ -132,32 +132,20 @@ pub async fn github_find_pull_request(
             })
     };
 
-    let open_data = client
+    let data = client
         .get(&format!(
             "/repos/{repo_full_name}/pulls?state=open&head={owner}:{head_branch}&per_page=1"
         ))
         .await?;
-    if let Some(pr) = parse_pr(&open_data) {
+    let pr = parse_pr(&data);
+    if let Some(pr) = &pr {
         log::info!(
             "[GitHub][Cmd] find_pull_request found open PR #{}",
             pr.number
         );
-        return Ok(Some(pr));
+    } else {
+        log::info!("[GitHub][Cmd] find_pull_request not found");
     }
-
-    let all_data = client
-        .get(&format!(
-            "/repos/{repo_full_name}/pulls?state=all&head={owner}:{head_branch}&per_page=1"
-        ))
-        .await?;
-    let pr = parse_pr(&all_data);
-    log::info!(
-        "[GitHub][Cmd] find_pull_request {}",
-        match &pr {
-            Some(p) => format!("found {} PR #{}", p.state, p.number),
-            None => "not found".to_string(),
-        }
-    );
     Ok(pr)
 }
 

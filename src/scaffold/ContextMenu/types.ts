@@ -26,6 +26,14 @@ export interface SearchResultItem {
   iconType?:
     | "terminal"
     | "session"
+    /**
+     * A TEAMMATE's cloud session. Deliberately distinct from "session":
+     * that one's `path` is a bare local session id and is special-cased
+     * downstream (pill icon lookup, pill serialization, agent context) as
+     * such. A cloud row's path is a full `orgii://…` reference, which
+     * those paths would mangle.
+     */
+    | "cloudSession"
     | "repo"
     | "project"
     | "workitem"

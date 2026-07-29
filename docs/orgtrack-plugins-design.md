@@ -44,7 +44,7 @@ the lowest tier.
 `anthropic_jsonl` loader — they declare a source id, a session prefix, candidate
 root paths, and a parser version, and the generic loader does all parsing. Any
 tool that stores Claude/Anthropic-style JSONL transcripts (a large and growing
-class) needs *zero* code.
+class) needs _zero_ code.
 
 We expose that config as a manifest. A `plugin.toml` of `kind = "loader"`,
 `format = "anthropic-jsonl"`:
@@ -110,10 +110,15 @@ Contract (stdin/stdout JSON, one call per verb):
         "createdAtMs": 1752900000000,
         "updatedAtMs": 1752900450000,
         "model": "acme-large",
-        "inputTokens": 40210, "outputTokens": 8123,
-        "cacheReadTokens": 220000, "cacheWriteTokens": 15000,
-        "repoPath": "/Users/me/code/app", "branch": "feature/auth",
-        "filesChanged": 6, "linesAdded": 210, "linesRemoved": 45,
+        "inputTokens": 40210,
+        "outputTokens": 8123,
+        "cacheReadTokens": 220000,
+        "cacheWriteTokens": 15000,
+        "repoPath": "/Users/me/code/app",
+        "branch": "feature/auth",
+        "filesChanged": 6,
+        "linesAdded": 210,
+        "linesRemoved": 45,
         "touchedFiles": ["src/auth.ts", "src/db.ts"],
         "sourcePath": "/Users/me/.acme/agent/sessions/9f2c.json",
         "parentSessionId": null,
@@ -126,14 +131,26 @@ Contract (stdin/stdout JSON, one call per verb):
   `{ "verb": "load", "sourceSessionId": "9f2c…" }` and expects a stream of
   activity chunks:
   ```json
-  { "protocol": 1, "chunks": [
-    { "createdAt": "2026-07-19T09:44:20Z", "actionType": "raw",
-      "function": "user_message", "result": { "message": { "role": "user",
-      "content": "add rate limiting" } } },
-    { "createdAt": "2026-07-19T09:44:31Z", "actionType": "tool_call",
-      "function": "run_command_line", "args": { "cmd": "npm test" },
-      "result": { "observation": "…" } }
-  ] }
+  {
+    "protocol": 1,
+    "chunks": [
+      {
+        "createdAt": "2026-07-19T09:44:20Z",
+        "actionType": "raw",
+        "function": "user_message",
+        "result": {
+          "message": { "role": "user", "content": "add rate limiting" }
+        }
+      },
+      {
+        "createdAt": "2026-07-19T09:44:31Z",
+        "actionType": "tool_call",
+        "function": "run_command_line",
+        "args": { "cmd": "npm test" },
+        "result": { "observation": "…" }
+      }
+    ]
+  }
   ```
 
 The response session schema is **exactly the public projection of**
@@ -341,7 +358,7 @@ order, default `--format`, trusted ids).
 
 - **All-sources `usage`.** The `usage_dashboard` scopes the default view to four
   hardcoded buckets (`claude`/`codex`/`cursor`/`org2`); every other source —
-  long-tail built-ins *and* plugins — falls into an excluded `other` bucket. So
+  long-tail built-ins _and_ plugins — falls into an excluded `other` bucket. So
   plugin sessions index and appear in `list`/`search`/`show` but not in the
   default `usage`. A core addition (an "include other / all buckets" scope on
   `UsageFilter`) would let the CLI report usage for every source.

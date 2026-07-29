@@ -1190,7 +1190,26 @@
       "takeAction": "Aktion ausführen",
       "sync": "Synchronisieren",
       "createPR": "PR erstellen",
-      "stash": "Stash"
+      "stash": "Stash",
+      "compareBranch": "Branch vergleichen"
+    },
+    "rail": {
+      "openTabs": "Geöffnete Tabs",
+      "closeItem": "{{label}} schließen",
+      "expand": "Arbeitsbereichsinformationen erweitern",
+      "collapse": "Arbeitsbereichsinformationen einklappen"
+    },
+    "pr": {
+      "linkedBranch": "Pull Request #{{number}}",
+      "checks": {
+        "passedShort": "Bestanden",
+        "failedShort": "Fehlgeschlagen",
+        "runningShort": "Läuft",
+        "checkingShort": "Wird geprüft",
+        "noneShort": "Keine CI",
+        "unavailableShort": "CI nicht verfügbar",
+        "branchStatus": "CI für Pull Request #{{number}}: {{status}}"
+      }
     },
     "messages": {
       "pushSuccess": "Push erfolgreich",

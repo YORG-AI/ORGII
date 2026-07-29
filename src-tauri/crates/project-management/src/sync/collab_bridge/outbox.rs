@@ -606,6 +606,7 @@ fn work_item_wire(
         "todos": to_value(&frontmatter.todos),
         "comments": to_value(&frontmatter.comments),
         "history": to_value(&frontmatter.history),
+        "handoff": to_value(&frontmatter.handoff),
         "linkedSessions": to_value(&frontmatter.linked_sessions),
         "proofOfWork": to_value(&frontmatter.proof_of_work),
         "orchestratorConfig": to_value(&frontmatter.orchestrator_config),

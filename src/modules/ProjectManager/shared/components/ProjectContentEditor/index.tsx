@@ -68,8 +68,10 @@ export interface ProjectContentEditorProps {
   titleActions?: ReactNode;
   metaContent?: ReactNode;
   descriptionClassName?: string;
+  descriptionMinHeight?: number;
   descriptionMaxHeight?: number | string;
   descriptionDefaultMode?: RichMarkdownEditorMode;
+  descriptionShowTabs?: boolean;
   repoPath?: string | null;
   dataTestId?: string;
 }
@@ -140,8 +142,10 @@ const ProjectContentEditor = forwardRef<
       titleActions,
       metaContent,
       descriptionClassName = "",
+      descriptionMinHeight = 200,
       descriptionMaxHeight,
       descriptionDefaultMode,
+      descriptionShowTabs = true,
       repoPath,
       dataTestId,
     },
@@ -390,9 +394,10 @@ const ProjectContentEditor = forwardRef<
                 slashCommandKeyboardHandlerRef.current?.(event) ?? false
               }
               onImageInsert={editable ? onImageInsert : undefined}
-              minHeight={200}
+              minHeight={descriptionMinHeight}
               maxHeight={descriptionMaxHeight}
               defaultMode={descriptionDefaultMode}
+              showTabs={descriptionShowTabs}
               editable={editable}
               toolbarClassName="work-item-toolbar"
               className={`noDrag flex-1 cursor-text rounded-md text-[14px] text-text-1 ${descriptionClassName}`.trim()}

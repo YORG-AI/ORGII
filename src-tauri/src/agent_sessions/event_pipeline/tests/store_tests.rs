@@ -1472,6 +1472,31 @@ fn test_unload_turn_body_restores_placeholder_and_preserves_headers() {
 }
 
 #[test]
+fn test_unload_turn_body_missing_turn_is_noop() {
+    // The loaded-turn registry can legitimately hold ids the store no
+    // longer recognizes (windowed replace reloads, shifting imported
+    // turn ids, eager eviction races). Unloading an absent turn must be a
+    // safe no-op — not a panic or a mutation — so the RPC layer above it
+    // can treat "turn not found" as an already-satisfied goal state
+    // instead of an error.
+    let mut store = EventStore::new();
+    store.set_round_window(vec![
+        make_user_turn_header("turn-1", "2026-01-01T00:00:00Z"),
+        make_event("turn-1-body-1", "message"),
+    ]);
+
+    let removed = store.unload_turn_body(
+        "turn-does-not-exist",
+        make_turn_placeholder("turn-does-not-exist", None),
+    );
+
+    assert_eq!(removed, 0);
+    assert!(store.get_by_id("turn-1").is_some());
+    assert!(store.get_by_id("turn-1-body-1").is_some());
+    assert!(store.get_by_id("turn-placeholder-turn-does-not-exist").is_none());
+}
+
+#[test]
 fn test_unload_turn_body_preserves_final_reply_as_preview() {
     let mut final_reply = make_event("turn-1-final-reply", "assistant");
     final_reply.function_name = "assistant".to_string();

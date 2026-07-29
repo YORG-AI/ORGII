@@ -55,6 +55,7 @@ interface ChatPanelHeaderProps {
   isChatFocus: boolean;
   isHeaderActionsOpen: boolean;
   isHeaderActionsPositioned: boolean;
+  focusedWorkstationMenuHostRef?: React.RefCallback<HTMLSpanElement>;
   paginationEnabled: boolean;
   tokenUsageVisible: boolean;
   shouldOffsetHeaderForCollapsedSidebar: boolean;
@@ -103,6 +104,7 @@ export function ChatPanelHeader({
   isChatFocus,
   isHeaderActionsOpen,
   isHeaderActionsPositioned,
+  focusedWorkstationMenuHostRef,
   paginationEnabled,
   tokenUsageVisible,
   shouldOffsetHeaderForCollapsedSidebar,
@@ -180,6 +182,12 @@ export function ChatPanelHeader({
             title={visibleRegionNotice.title}
             body={<p className="m-0">{visibleRegionNotice.body}</p>}
             alertClassName="!border-border-2 !bg-chat-container !text-text-1 shadow-lg"
+          />
+        )}
+        {focusedWorkstationMenuHostRef && (
+          <span
+            ref={focusedWorkstationMenuHostRef}
+            className="inline-flex shrink-0 @[1100px]/focusedchat:hidden"
           />
         )}
         {showSessionContent && (

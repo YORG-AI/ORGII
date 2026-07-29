@@ -1,3 +1,8 @@
+import {
+  isAgentOrgGroupChatUserMessage,
+  isAgentOrgInboxTranscriptEvent,
+  isCoordinatorHumanUserEvent,
+} from "../GroupChatView/groupChatPredicates";
 import { isAgentErrorEvent } from "../chatItemPipeline/classifiers";
 import { isAssistantMessageEvent } from "../chatItemPipeline/dedup";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
@@ -103,55 +108,22 @@ function isUserMessageItem(item: OptimizedChatItem | undefined): boolean {
   return item?.event?.source === "user" && Boolean(item.event.displayText);
 }
 
-function isAgentOrgInboxTranscriptEvent(item: OptimizedChatItem): boolean {
-  const event = item.event;
-  return Boolean(
-    event?.args?.agentOrgInboxTranscript === true ||
-    event?.result?.agentOrgInboxTranscript === true
-  );
-}
-
 function isAgentOrgGroupMessage(item: OptimizedChatItem): boolean {
-  const event = item.event;
-  return Boolean(
-    event?.args?.agentOrgGroupChatMessage === true ||
-    event?.result?.agentOrgGroupChatMessage === true
-  );
+  return Boolean(item.event && isAgentOrgGroupChatUserMessage(item.event));
 }
 
-const USER_TURN_FUNCTION_NAMES = new Set([
-  "user_message",
-  "user",
-  "user_input",
-  "raw_event",
-  "raw",
-]);
-
-const COORDINATOR_AGENT_MESSAGE_FUNCTION_NAMES = new Set([
-  "org_send_message",
-  "send_message",
-  "send_to_inbox",
-]);
+function isAgentOrgInboxTranscriptItem(item: OptimizedChatItem): boolean {
+  return Boolean(item.event && isAgentOrgInboxTranscriptEvent(item.event));
+}
 
 function isCoordinatorTurnHeader(
   item: OptimizedChatItem,
   coordinatorSessionId: string
 ): boolean {
   const event = item.event;
-  if (!event || event.sessionId !== coordinatorSessionId) return false;
-  if (event.source !== "user" || !event.displayText.trim()) return false;
-  if (isAgentOrgInboxTranscriptEvent(item)) return false;
-  if (isAgentOrgGroupMessage(item)) return true;
-
-  const functionName = event.functionName.toLowerCase();
-  if (COORDINATOR_AGENT_MESSAGE_FUNCTION_NAMES.has(functionName)) return false;
-  if (USER_TURN_FUNCTION_NAMES.has(functionName)) return true;
-  if (functionName.includes("user_response")) return true;
-  if (functionName.includes("user_input")) return true;
-
-  const result = event.result as Record<string, unknown> | undefined;
-  const resultMessage = result?.message as { role?: string } | undefined;
-  return result?.type === "user" || resultMessage?.role === "user";
+  return Boolean(
+    event && isCoordinatorHumanUserEvent(event, coordinatorSessionId)
+  );
 }
 
 function resolveTurnPredicates(options: UseChatGroupsOptions): {
@@ -176,7 +148,7 @@ function resolveTurnPredicates(options: UseChatGroupsOptions): {
 
   return {
     isHeader: (item) =>
-      isUserMessageItem(item) && !isAgentOrgInboxTranscriptEvent(item),
+      isUserMessageItem(item) && !isAgentOrgInboxTranscriptItem(item),
     isBoundary: () => false,
   };
 }
@@ -219,7 +191,12 @@ export function isTurnCollapseEligible(
 ): boolean {
   if (!meta || meta.turnId === null) return false;
   const bodyItemCount = meta.unloadedTurn?.bodyEventCount ?? meta.itemCount;
-  if (bodyItemCount <= 1) return false;
+  // Loaded turns render their items inline, so a trivial (≤1 item) body has
+  // nothing to collapse. An UNLOADED turn renders nothing inline — the
+  // collapse bar is its only expand affordance (and, with turn pagination
+  // off, the only way to fetch the body at all), so any nonzero count must
+  // show it. Zero means the source measured a genuinely bodyless round.
+  if (meta.unloadedTurn ? bodyItemCount < 1 : bodyItemCount <= 1) return false;
   if (options.forceCollapseAllTurns === true) return true;
   if (groupIndex < groupCount - 1) return true;
   if (options.collapseTailWhenIdle !== true) return false;

@@ -11,6 +11,7 @@
  * • "default"  — session creator, standalone (bg-chat-input)
  * • "embedded" — chat panel embedded in conversation (bg-chat-input)
  * • "pill"     — compact single-row capsule (rounded-full, same padding)
+ * • "comment"  — compact avatar-adjacent comment input
  * • "edit"     — queued-message edit box (label strip + inner editor card)
  * • "historyEdit" — sent-message edit box (single layer, same token as normal input)
  */
@@ -22,6 +23,7 @@ export type ComposerShellVariant =
   | "default"
   | "embedded"
   | "pill"
+  | "comment"
   | "edit"
   | "historyEdit";
 
@@ -45,6 +47,7 @@ const VARIANT_CLASSES: Record<ComposerShellVariant, string> = {
   default: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
   embedded: `${INPUT_AREA.borderRadiusClass}  px-1.5 pt-2.5 pb-1.5 gap-2`,
   pill: "rounded-full                     p-1.5 gap-2",
+  comment: `${INPUT_AREA.borderRadiusClass} px-1.5 py-1.5 gap-1.5`,
   // `edit` is the OUTER label strip — the inner editor card is rendered as
   // a separately-styled child (see `InputArea`). The strip itself is just
   // a padded container that hosts the label row + the inner card.
@@ -56,6 +59,7 @@ const VARIANT_BG_CLASS: Record<ComposerShellVariant, string> = {
   default: INPUT_AREA.backgroundDefaultClass,
   embedded: INPUT_AREA.backgroundChatPanelClass,
   pill: INPUT_AREA.backgroundChatPanelClass,
+  comment: INPUT_AREA.backgroundChatPanelClass,
   // The outer edit strip sits on `bg-fill-2` so it reads as a distinct card
   // that wraps the header row + inner editor card (`bg-fill-1`).
   edit: "bg-fill-2",
@@ -69,6 +73,7 @@ const VARIANT_INTERACTION_CLASSES: Record<ComposerShellVariant, string> = {
   default: INPUT_AREA.shellInteractionClasses,
   embedded: INPUT_AREA.shellInteractionClasses,
   pill: INPUT_AREA.shellInteractionClasses,
+  comment: INPUT_AREA.shellInteractionClasses,
   edit: INPUT_AREA.borderClass,
   historyEdit: INPUT_AREA.shellEditInteractionClasses,
 };
@@ -92,7 +97,7 @@ const ComposerShell = forwardRef<HTMLDivElement, ComposerShellProps>(
     return (
       <div
         ref={ref}
-        className={`relative flex w-full flex-col transition-[padding] duration-200 ease-out ${VARIANT_INTERACTION_CLASSES[variant]} ${VARIANT_CLASSES[variant]} ${VARIANT_BG_CLASS[variant]} ${className}`}
+        className={`relative flex w-full ${variant === "comment" ? "flex-row items-end" : "flex-col"} transition-[padding] duration-200 ease-out ${VARIANT_INTERACTION_CLASSES[variant]} ${VARIANT_CLASSES[variant]} ${VARIANT_BG_CLASS[variant]} ${className}`}
         style={style}
         onKeyDown={onKeyDown}
         onDragOver={onDragOver}

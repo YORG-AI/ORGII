@@ -18,6 +18,13 @@ import WorkItemContent from "..";
 
 const mocks = vi.hoisted(() => ({
   handleDescriptionChange: vi.fn(),
+  transitionWorkItemHandoff: vi.fn(),
+}));
+
+vi.mock("@src/api/http/project", () => ({
+  projectApi: {
+    transitionWorkItemHandoff: mocks.transitionWorkItemHandoff,
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -38,7 +45,38 @@ vi.mock("@src/components/Avatar", () => ({
 }));
 
 vi.mock("@src/components/TabPill", () => ({
-  default: () => null,
+  default: ({
+    tabs,
+    activeTab,
+    onChange,
+  }: {
+    tabs: Array<{
+      key: string;
+      label: string;
+      badge?: React.ReactNode;
+      dataTestId?: string;
+    }>;
+    activeTab?: string;
+    onChange?: (key: string) => void;
+  }) =>
+    createElement(
+      "div",
+      { "data-testid": "mock-tab-pill", "data-active-tab": activeTab },
+      ...tabs.map((tab) =>
+        createElement(
+          "button",
+          {
+            key: tab.key,
+            type: "button",
+            "data-testid": tab.dataTestId,
+            "data-active": String(tab.key === activeTab),
+            onClick: () => onChange?.(tab.key),
+          },
+          tab.label,
+          tab.badge
+        )
+      )
+    ),
 }));
 
 vi.mock("@src/modules/ProjectManager/shared", () => ({
@@ -48,11 +86,13 @@ vi.mock("@src/modules/ProjectManager/shared", () => ({
       onDescriptionChange,
       editable,
       descriptionDefaultMode,
+      descriptionShowTabs,
     }: {
       initialDescription: string;
       onDescriptionChange?: (markdown: string, text: string) => void;
       editable?: boolean;
       descriptionDefaultMode?: string;
+      descriptionShowTabs?: boolean;
     },
     _ref
   ) {
@@ -61,6 +101,7 @@ vi.mock("@src/modules/ProjectManager/shared", () => ({
       readOnly: !editable,
       "data-testid": "description-editor",
       "data-default-mode": descriptionDefaultMode ?? "",
+      "data-show-tabs": String(descriptionShowTabs ?? true),
       onChange: (event: React.ChangeEvent<HTMLTextAreaElement>) =>
         onDescriptionChange?.(event.target.value, event.target.value),
     });
@@ -106,8 +147,11 @@ vi.mock("@src/modules/shared/components/ActivityTimeline", () => ({
   TimelineCard: ({
     children,
     footer,
-  }: React.PropsWithChildren<{ footer?: React.ReactNode }>) =>
-    createElement("div", null, children, footer),
+    actions,
+  }: React.PropsWithChildren<{
+    footer?: React.ReactNode;
+    actions?: React.ReactNode;
+  }>) => createElement("div", null, actions, children, footer),
 }));
 
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
@@ -127,6 +171,7 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
       label: string;
       onClick?: () => void;
       dataTestId?: string;
+      disabled?: boolean;
     };
   }) =>
     createElement(
@@ -151,6 +196,7 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
               type: "button",
               "data-testid": primaryAction.dataTestId,
               onClick: primaryAction.onClick,
+              disabled: primaryAction.disabled,
             },
             primaryAction.label
           )
@@ -158,18 +204,42 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     ),
 }));
 
-vi.mock("../../AgentWorkflow", () => ({ default: () => null }));
+vi.mock("../../AgentWorkflow", () => ({
+  default: () => createElement("div", { "data-testid": "mock-agent-workflow" }),
+}));
 vi.mock("../../TodoChecklist", () => ({ default: () => null }));
+vi.mock("../ThreadTodoChecklist", () => ({
+  default: () => createElement("div", { "data-testid": "mock-thread-todos" }),
+}));
 vi.mock("../../WorkItemContentStack", () => ({
   default: ({ descriptionContent }: { descriptionContent?: React.ReactNode }) =>
     createElement("div", null, descriptionContent),
 }));
-vi.mock("../HistoryTab", () => ({ default: () => null }));
-vi.mock("../OutputTab", () => ({ default: () => null }));
+vi.mock("../HistoryTab", () => ({
+  default: ({
+    canComment,
+    threadNavigation,
+  }: {
+    canComment?: boolean;
+    threadNavigation?: React.ReactNode;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-testid": "mock-activity",
+        "data-can-comment": String(canComment),
+      },
+      threadNavigation
+    ),
+}));
+vi.mock("../OutputTab", () => ({
+  default: () => createElement("div", { "data-testid": "mock-output" }),
+}));
 
 vi.mock("../hooks/useWorkItemContentState", () => ({
   useWorkItemContentState: ({ workItem }: { workItem: WorkItem }) => ({
     currentUser: { id: "user-1", name: "Ada" },
+    currentUserMemberIds: new Set(["user-1", "member-alias"]),
     activeSessionTab: "session",
     setActiveSessionTab: vi.fn(),
     commentText: "",
@@ -180,7 +250,15 @@ vi.mock("../hooks/useWorkItemContentState", () => ({
     sessionTabItems: [],
     resolvedDescription: workItem.spec,
     rawDescription: workItem.spec,
-    timelineEntries: [],
+    timelineEntries: [
+      {
+        id: "event-1",
+        timestamp: "2026-07-28T10:00:00.000Z",
+        type: "updated",
+        userName: "Ada",
+        descriptions: ["updated status"],
+      },
+    ],
     handleTitleChange: vi.fn(),
     handleDescriptionChange: mocks.handleDescriptionChange,
     handleTodosChange: vi.fn(),
@@ -224,6 +302,7 @@ describe("WorkItemContent description editing", () => {
 
   beforeEach(() => {
     mocks.handleDescriptionChange.mockReset();
+    mocks.transitionWorkItemHandoff.mockReset();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -267,6 +346,7 @@ describe("WorkItemContent description editing", () => {
     );
     expect(editor?.readOnly).toBe(false);
     expect(editor?.getAttribute("data-default-mode")).toBe("");
+    expect(editor?.getAttribute("data-show-tabs")).toBe("true");
     expect(
       container.querySelector("[data-testid='description-footer']")
     ).toBeNull();
@@ -344,5 +424,320 @@ describe("WorkItemContent description editing", () => {
     expect(
       container.querySelector("[data-testid='description-footer']")
     ).toBeNull();
+  });
+
+  it("accepts a pending handoff addressed to another current-user member alias", async () => {
+    const acceptedHandoff = {
+      id: "handoff-1",
+      status: "accepted" as const,
+      senderMemberId: "member-sender",
+      senderName: "Lin",
+      recipientMemberId: "member-alias",
+      recipientName: "Ada Team",
+      requestedAt: "2026-07-28T10:00:00.000Z",
+      respondedAt: "2026-07-28T11:00:00.000Z",
+    };
+    mocks.transitionWorkItemHandoff.mockResolvedValue({
+      frontmatter: { handoff: acceptedHandoff },
+    });
+    const onRefreshWorkflow = vi.fn();
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            handoff: { ...acceptedHandoff, status: "pending" },
+          },
+          projectSlug: "demo",
+          shortId: "DEM-0001",
+          onRefreshWorkflow,
+        })
+      );
+    });
+
+    const accept = [...container.querySelectorAll("button")].find(
+      (button) => button.textContent === "teamInbox.handoff.accept"
+    );
+    expect(accept).toBeDefined();
+    await act(async () => {
+      accept?.click();
+      await Promise.resolve();
+    });
+
+    expect(mocks.transitionWorkItemHandoff).toHaveBeenCalledWith(
+      "demo",
+      "DEM-0001",
+      {
+        handoffId: "handoff-1",
+        action: "accept",
+        actor: { id: "member-alias", name: "Ada Team" },
+        note: undefined,
+      }
+    );
+    expect(onRefreshWorkflow).toHaveBeenCalledOnce();
+    expect(container.textContent).toContain("teamInbox.handoff.acceptedTitle");
+  });
+
+  it("keeps the thread compact until Edit is explicitly requested", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: baseWorkItem,
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='description-editor']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+        ?.textContent
+    ).toBe(baseWorkItem.spec);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-edit']"
+        )
+        ?.click();
+    });
+
+    expect(
+      container.querySelector("[data-testid='description-editor']")
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector("[data-testid='description-editor']")
+        ?.getAttribute("data-show-tabs")
+    ).toBe("false");
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-testid='work-item-description-save']"
+      )?.disabled
+    ).toBe(true);
+
+    changeDescription("## Compact thread editor");
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-testid='work-item-description-save']"
+      )?.disabled
+    ).toBe(false);
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-save']"
+        )
+        ?.click();
+    });
+
+    expect(mocks.handleDescriptionChange).toHaveBeenCalledWith(
+      "## Compact thread editor"
+    );
+    expect(
+      container.querySelector("[data-testid='description-editor']")
+    ).toBeNull();
+  });
+
+  it("drills into Discussion and returns without mixing view content", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: baseWorkItem,
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+
+    const discussionAction = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-thread-open-discussion']"
+    );
+
+    expect(discussionAction).not.toBeNull();
+    expect(
+      discussionAction?.closest(
+        "[data-testid='work-item-thread-secondary-navigation']"
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='work-item-thread-back-overview']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='mock-thread-todos']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='mock-agent-workflow']")
+    ).not.toBeNull();
+    expect(container.querySelector("[data-testid='mock-activity']")).toBeNull();
+
+    act(() => discussionAction?.click());
+
+    const backAction = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-thread-back-overview']"
+    );
+    expect(backAction).not.toBeNull();
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-open-discussion']"
+      )
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='mock-activity']")
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='mock-thread-todos']")
+    ).toBeNull();
+    expect(
+      container.querySelector("[data-testid='mock-agent-workflow']")
+    ).toBeNull();
+
+    act(() => backAction?.click());
+
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+    ).not.toBeNull();
+    expect(container.querySelector("[data-testid='mock-activity']")).toBeNull();
+  });
+
+  it("keeps the current secondary view on refresh and resets on item switch", () => {
+    const renderThread = (workItem: WorkItem) =>
+      root.render(
+        createElement(WorkItemContent, {
+          workItem,
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+
+    act(() => renderThread(baseWorkItem));
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-thread-open-discussion']"
+        )
+        ?.click();
+    });
+
+    act(() =>
+      renderThread({
+        ...baseWorkItem,
+        updated_time: "2026-07-28T11:00:00.000Z",
+      })
+    );
+    expect(
+      container.querySelector("[data-testid='work-item-thread-back-overview']")
+    ).not.toBeNull();
+
+    act(() =>
+      renderThread({
+        ...baseWorkItem,
+        session_id: "work-item-2",
+        name: "Second item",
+      })
+    );
+    expect(
+      container.querySelector(
+        "[data-testid='work-item-thread-open-discussion']"
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector("[data-testid='work-item-thread-back-overview']")
+    ).toBeNull();
+    expect(container.querySelector("[data-testid='mock-activity']")).toBeNull();
+  });
+
+  it("keeps read-only Discussion visible without enabling comment mutation", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: baseWorkItem,
+          presentation: "thread",
+        })
+      );
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-thread-open-discussion']"
+        )
+        ?.click();
+    });
+
+    expect(
+      container
+        .querySelector("[data-testid='mock-activity']")
+        ?.getAttribute("data-can-comment")
+    ).toBe("false");
+  });
+
+  it("renders legacy escaped Markdown as real Markdown without rewriting it on view", () => {
+    const onUpdateWorkItem = vi.fn();
+    const legacyMarkdown =
+      "## 验收目标\\n- 打开 Team Inbox\\n- 验证 Sidebar 未读数";
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: { ...baseWorkItem, spec: legacyMarkdown },
+          presentation: "thread",
+          onUpdateWorkItem,
+        })
+      );
+    });
+
+    const rendered = container.querySelector(
+      "[data-testid='github-read-only-description']"
+    );
+    expect(rendered?.textContent).toBe(
+      "## 验收目标\n- 打开 Team Inbox\n- 验证 Sidebar 未读数"
+    );
+    expect(rendered?.textContent).not.toContain("\\n");
+    expect(onUpdateWorkItem).not.toHaveBeenCalled();
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>(
+          "[data-testid='work-item-description-edit']"
+        )
+        ?.click();
+    });
+
+    expect(
+      container.querySelector<HTMLTextAreaElement>(
+        "[data-testid='description-editor']"
+      )?.value
+    ).toBe("## 验收目标\n- 打开 Team Inbox\n- 验证 Sidebar 未读数");
+  });
+
+  it("preserves a single inline escaped newline in technical prose", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            spec: "Use `\\n` as the delimiter.",
+          },
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+
+    expect(
+      container.querySelector("[data-testid='github-read-only-description']")
+        ?.textContent
+    ).toBe("Use `\\n` as the delimiter.");
   });
 });
