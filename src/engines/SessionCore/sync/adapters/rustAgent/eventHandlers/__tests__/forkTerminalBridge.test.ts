@@ -72,7 +72,9 @@ describe("relay fork terminals are never swallowed by the subagent bridge", () =
       ctx
     );
 
-    expect(onStatusChange).toHaveBeenCalledWith("completed");
+    expect(onStatusChange).toHaveBeenCalledWith("completed", undefined, {
+      intermediate: true,
+    });
   });
 
   it("still dispatches normally when an untracked spawned id has no active parent call", async () => {
