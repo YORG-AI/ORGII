@@ -1,4 +1,5 @@
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { createLogger } from "@src/hooks/logger";
 import {
   isCodexAppSession,
   isCursorIdeSession,
@@ -8,6 +9,8 @@ import {
   MAX_LOADED_CODEX_HISTORICAL_TURN_BODIES,
   MAX_LOADED_HISTORICAL_TURN_BODIES,
 } from "./turnWindowConfig";
+
+const log = createLogger("LoadedTurnRegistry");
 
 const loadedTurnsBySession = new Map<string, Map<string, number>>();
 const pendingLoads = new Map<string, Promise<void>>();
@@ -48,11 +51,24 @@ export function trackPendingTurnLoad(
 ): Promise<void> {
   const key = loadKey(sessionId, turnId);
   pendingLoads.set(key, load);
-  void load.finally(() => {
-    if (pendingLoads.get(key) === load) {
-      pendingLoads.delete(key);
-    }
-  });
+  // `load` itself is returned to the caller below, so its rejection is
+  // theirs to handle. This `.finally` spins off a *separate* promise chain
+  // purely for bookkeeping (evicting the pending-load entry); nothing else
+  // observes it, so a rejection here becomes its own unhandled-rejection
+  // event distinct from the caller's. Swallow it with `.catch` once the
+  // bookkeeping has run — the caller's `load` promise still rejects normally.
+  void load
+    .finally(() => {
+      if (pendingLoads.get(key) === load) {
+        pendingLoads.delete(key);
+      }
+    })
+    .catch((error: unknown) => {
+      log.warn(
+        `Pending turn load bookkeeping observed a rejection for ${key}:`,
+        error
+      );
+    });
   return load;
 }
 
@@ -92,7 +108,17 @@ export async function pruneLoadedTurnBodies(
     if (!candidate) break;
     const [turnId] = candidate;
     loadedTurns.delete(turnId);
-    await eventStoreProxy.unloadTurnBody(sessionId, turnId);
+    try {
+      await eventStoreProxy.unloadTurnBody(sessionId, turnId);
+    } catch (error) {
+      // The registry can legitimately hold ids the backing store no longer
+      // recognizes (windowed replace reloads swap the snapshot, imported
+      // turn ids shift across reloads). The registry entry is already
+      // deleted above regardless of outcome — that's the goal state this
+      // function exists to converge on — so one failed unload must never
+      // abort the loop or reject this caller.
+      log.warn(`Failed to unload turn body ${turnId} for ${sessionId}:`, error);
+    }
   }
 }
 

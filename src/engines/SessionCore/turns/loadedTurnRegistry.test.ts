@@ -69,4 +69,36 @@ describe("loadedTurnRegistry lifecycle", () => {
       loadedTurns: 1,
     });
   });
+
+  it("continues past a rejecting unloadTurnBody and still evicts the entry", async () => {
+    // Mirrors the real-world "turn not found" RPC rejection: the registry
+    // can hold ids the backing store no longer recognizes (windowed
+    // replace reloads, shifting imported turn ids). One failed unload must
+    // never abort the sweep or reject the caller — that's what used to
+    // surface as a fatal, full-app crash from an unhandled RPC rejection.
+    const sessionId = "codexapp-large";
+    const generation = captureLoadedTurnRegistryGeneration(sessionId);
+    markTurnBodyLoaded(sessionId, "turn-1", generation);
+    markTurnBodyLoaded(sessionId, "turn-2", generation);
+    markTurnBodyLoaded(sessionId, "turn-3", generation);
+
+    unloadTurnBody.mockRejectedValueOnce(
+      new Error("[RPC:es_unload_turn_body] turn not found: turn-1")
+    );
+
+    await expect(
+      pruneLoadedTurnBodies(sessionId, ["turn-3"])
+    ).resolves.toBeUndefined();
+
+    expect(unloadTurnBody).toHaveBeenCalledTimes(2);
+    expect(unloadTurnBody).toHaveBeenNthCalledWith(1, sessionId, "turn-1");
+    expect(unloadTurnBody).toHaveBeenNthCalledWith(2, sessionId, "turn-2");
+    // Both candidates are evicted from the registry regardless of the
+    // rejection — the registry entry is the source of truth for "do we
+    // still think this is loaded", and the answer is no either way.
+    expect(getLoadedTurnRegistryStats()).toMatchObject({
+      sessions: 1,
+      loadedTurns: 1,
+    });
+  });
 });

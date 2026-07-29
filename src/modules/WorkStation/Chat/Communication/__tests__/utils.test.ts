@@ -8,7 +8,9 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { deriveMessagesState } from "../config";
 import { derivePlanTitle } from "../planDocUtils";
 import {
+  convertToMessageEntry,
   extractMessageContent,
+  getCommunicationUnloadedTurnMeta,
   getMessageSender,
   isChatEvent,
   isThinkEvent,
@@ -84,6 +86,65 @@ describe("extractMessageContent", () => {
   });
 });
 
+describe("getCommunicationUnloadedTurnMeta / convertToMessageEntry", () => {
+  // Guards the PR #561 lazy-replay invariant: the Communication ("Messages")
+  // app inside the Workstation replay panel must never surface the backend's
+  // raw "turn is not loaded yet" placeholder as if it were real chat content.
+  // Regression: that raw text used to render verbatim as a message bubble
+  // (bug from PR #561 review) because this module extracted
+  // `result.observation` without checking for the `unloadedTurn` tag the
+  // Codex/imported-history/Cursor IDE turn loaders stamp onto the
+  // placeholder chunk.
+  it("returns null for an ordinary assistant message", () => {
+    const event = minimalSessionEvent({
+      result: { observation: "Here is the real reply." },
+    });
+    expect(getCommunicationUnloadedTurnMeta(event)).toBeNull();
+    expect(convertToMessageEntry(event, "chat", false).unloadedTurn).toBeNull();
+  });
+
+  it("extracts the placeholder's turn metadata by the shared wire shape", () => {
+    const event = minimalSessionEvent({
+      result: {
+        observation: "Codex turn codex-user-42 is not loaded yet.",
+        unloadedTurn: {
+          turnId: "codex-user-42",
+          nextTurnId: "codex-user-43",
+          startedAt: "2026-07-01T00:00:00.000Z",
+          endedAt: "2026-07-01T00:00:05.000Z",
+          durationMs: 5000,
+          eventCount: 12,
+          bodyEventCount: 9,
+        },
+      },
+    });
+
+    expect(getCommunicationUnloadedTurnMeta(event)).toEqual({
+      turnId: "codex-user-42",
+      nextTurnId: "codex-user-43",
+      bodyEventCount: 9,
+    });
+
+    const message = convertToMessageEntry(event, "chat", false);
+    // `content` still carries the raw placeholder text — extraction is
+    // unaware of unloadedTurn by design — but every consumer must gate on
+    // `unloadedTurn` before rendering `content` as real chat text.
+    expect(message.content).toBe("Codex turn codex-user-42 is not loaded yet.");
+    expect(message.unloadedTurn).toEqual({
+      turnId: "codex-user-42",
+      nextTurnId: "codex-user-43",
+      bodyEventCount: 9,
+    });
+  });
+
+  it("ignores a malformed unloadedTurn payload missing turnId", () => {
+    const event = minimalSessionEvent({
+      result: { observation: "x", unloadedTurn: { nextTurnId: "y" } },
+    });
+    expect(getCommunicationUnloadedTurnMeta(event)).toBeNull();
+  });
+});
+
 describe("getMessageSender", () => {
   it("returns user for explicit user source", () => {
     expect(getMessageSender(minimalSessionEvent({ source: "user" }))).toBe(
@@ -150,6 +211,28 @@ describe("derivePlanTitle", () => {
 });
 
 describe("deriveMessagesState", () => {
+  it("tags an unloaded-turn placeholder chunk so bubble rendering can gate on it", () => {
+    const placeholderEvent = minimalSessionEvent({
+      id: "codex-unloaded-turn-codex-user-7",
+      functionName: "assistant",
+      source: "assistant",
+      result: {
+        observation: "Codex turn codex-user-7 is not loaded yet.",
+        role: "assistant",
+        unloadedTurn: { turnId: "codex-user-7" },
+      },
+    });
+
+    const state = deriveMessagesState([placeholderEvent], null);
+
+    expect(state.chatMessages).toHaveLength(1);
+    expect(state.chatMessages[0].unloadedTurn).toEqual({
+      turnId: "codex-user-7",
+      nextTurnId: null,
+      bodyEventCount: undefined,
+    });
+  });
+
   it("keeps thinking events in the Messages view when they are current", () => {
     const thinkingEvent = minimalSessionEvent({
       id: "thinking-1",

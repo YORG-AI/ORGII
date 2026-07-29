@@ -23,11 +23,14 @@ import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getTurnTimingLabels } from "@src/engines/ChatPanel/ChatHistory/utils/turnTimingFormatting";
+import { createLogger } from "@src/hooks/logger";
 import {
   collapseAllCommandAtom,
   setTurnCollapseOverrideAtom,
   turnCollapseOverrideAtom,
 } from "@src/store/ui/collapseStateAtom";
+
+const log = createLogger("TurnCollapsePinBar");
 
 export interface TurnCollapsePinBarProps {
   /** User-message event id at the head of this turn. */
@@ -85,6 +88,17 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
         setIsLoading(true);
         try {
           await onExpand();
+        } catch (error) {
+          // `onExpand` (GroupHeaderRenderer's handleExpandUnloadedTurn)
+          // already catches its own failures, but this handler is invoked
+          // via `void handleToggle()` from the onClick below — an
+          // uncaught rejection here would become an unhandled promise
+          // rejection that the app's GlobalErrorHandler escalates to the
+          // fatal, full-screen error page. Defense in depth: swallow it so
+          // one failed lazy-load never crashes the whole app, and leave
+          // the bar interactive (isLoading resets in `finally`) so the
+          // user can just click again.
+          log.warn(`Turn expand failed for ${turnId}:`, error);
         } finally {
           setIsLoading(false);
         }
