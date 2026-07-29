@@ -2304,5 +2304,19 @@
     "downloadedOfTotal": "{{downloaded}} / {{total}}",
     "preparingDownload": "正在准备下载…",
     "downloadingAndInstalling": "正在下载并安装更新 (v{{version}})…"
+  },
+  "sessionJourney": {
+    "title": "Session 旅程与数据血缘",
+    "stepCount": "{{count}} 个步骤",
+    "refresh": "刷新 Session 旅程",
+    "loading": "正在加载持久化旅程数据…",
+    "loadError": "无法加载 Session 旅程",
+    "empty": "尚无持久化步骤。第一轮完成后刷新即可看到旅程、数据血缘与分叉。",
+    "mainline": "Session 主线旅程",
+    "forkTree": "分叉树",
+    "showAll": "显示全部 {{count}} 个步骤",
+    "collapse": "收起较早步骤",
+    "dataLineage": "数据血缘",
+    "status": "状态"
   }
 }

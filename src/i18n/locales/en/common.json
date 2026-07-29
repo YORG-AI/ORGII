@@ -2417,5 +2417,19 @@
     "downloadedOfTotal": "{{downloaded}} of {{total}}",
     "preparingDownload": "Preparing download…",
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
+  },
+  "sessionJourney": {
+    "title": "Session journey & data lineage",
+    "stepCount": "{{count}} steps",
+    "refresh": "Refresh session journey",
+    "loading": "Loading persisted journey data…",
+    "loadError": "Unable to load session journey",
+    "empty": "No persisted steps yet. Refresh after the first round to see the journey, data lineage, and fork tree.",
+    "mainline": "Session mainline journey",
+    "forkTree": "Fork tree",
+    "showAll": "Show all {{count}} steps",
+    "collapse": "Collapse older steps",
+    "dataLineage": "Data lineage",
+    "status": "Status"
   }
 }
