@@ -468,6 +468,7 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         ref={(node) => {
           virtualScrollerRef.current = node;
         }}
+        data-testid="chat-history-scroll-container"
         className="h-full w-full overflow-y-auto overscroll-contain pt-2 scrollbar-hide"
         onScroll={(event) => {
           const element = event.currentTarget;

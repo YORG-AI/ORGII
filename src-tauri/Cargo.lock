@@ -5248,6 +5248,7 @@ dependencies = [
  "core_types",
  "dirs",
  "git2",
+ "memchr",
  "orgtrack_protocol",
  "orgtrack_sync",
  "prost",

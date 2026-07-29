@@ -367,25 +367,38 @@ fn invoke_content_signal(
     let candidates = ["file_path", "cwd", "path"]
         .iter()
         .filter_map(|key| args.get(*key).and_then(Value::as_str));
-    let our_cache_dir = format!("/cache/projects/{project_dir_name}/");
+    let our_cache_dir =
+        normalize_path_for_matching(&format!("/cache/projects/{project_dir_name}/"));
     let mut signal = ContentSignal::Silent;
     for path in candidates {
-        if path.contains(&our_cache_dir) {
+        let normalized_path = normalize_path_for_matching(path);
+        if normalized_path.contains(&our_cache_dir) {
             return ContentSignal::Ours;
         }
         if let Some(workspace) = workspace_path {
+            let workspace = normalize_path_for_matching(workspace);
             let workspace = workspace.trim_end_matches('/');
             if !workspace.is_empty()
-                && (path == workspace || path.starts_with(&format!("{workspace}/")))
+                && (normalized_path == workspace
+                    || normalized_path.starts_with(&format!("{workspace}/")))
             {
                 return ContentSignal::Ours;
             }
         }
-        if path.contains("/cache/projects/") {
+        if normalized_path.contains("/cache/projects/") {
             signal = ContentSignal::Theirs;
         }
     }
     signal
+}
+
+fn normalize_path_for_matching(path: &str) -> String {
+    let normalized = path.replace('\\', "/");
+    if cfg!(windows) {
+        normalized.to_ascii_lowercase()
+    } else {
+        normalized
+    }
 }
 
 /// Most recent ACP `tool_call` id preceding `ts_ms` within the pairing window.
@@ -448,7 +461,7 @@ fn spill_file_output(args: &Value) -> String {
     let Some(path) = args.get("file_path").and_then(Value::as_str) else {
         return String::new();
     };
-    if !path.contains("/agent-tools/") {
+    if !normalize_path_for_matching(path).contains("/agent-tools/") {
         return String::new();
     }
     let Ok(content) = fs::read_to_string(Path::new(path)) else {
@@ -717,13 +730,10 @@ fn edit_store_paths(
 
 /// `<data root>/Qoder/User/workspaceStorage` candidates.
 fn qoder_workspace_storage_dirs() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
-    }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
+    let mut roots = vec![
+        app_paths::external_history_data_dir(),
+        app_paths::external_history_config_dir(),
+    ];
     roots.sort();
     roots.dedup();
     roots
@@ -832,13 +842,10 @@ fn substring_after<'a>(line: &'a str, marker: &str) -> Option<&'a str> {
 /// `<data>/Qoder/logs/<ts>/questWindow/agent.log` and
 /// `<data>/Qoder/logs/<ts>/questWindow/exthost/output_logging_*/1-Qoder.log`.
 fn qoder_launch_log_paths() -> Vec<PathBuf> {
-    let mut roots = Vec::new();
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data);
-    }
-    if let Some(config) = dirs::config_dir() {
-        roots.push(config);
-    }
+    let mut roots = vec![
+        app_paths::external_history_data_dir(),
+        app_paths::external_history_config_dir(),
+    ];
     roots.sort();
     roots.dedup();
 

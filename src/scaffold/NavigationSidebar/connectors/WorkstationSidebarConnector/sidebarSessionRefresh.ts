@@ -4,7 +4,10 @@ import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
   externalHistoryRescanSources,
 } from "@src/api/tauri/externalHistory";
-import { loadSessionRoster } from "@src/store/session";
+import {
+  loadSessionRoster,
+  refreshRecentNativeSessions,
+} from "@src/store/session";
 import {
   dataSourceConfigAtom,
   dataSourceRosterSignaturesAtom,
@@ -68,9 +71,9 @@ export function useSidebarSessionRefreshEffects(): void {
         ? SIDEBAR_SESSION_ACTIVE_REFRESH_INTERVAL_MS
         : SIDEBAR_SESSION_IDLE_REFRESH_INTERVAL_MS;
 
-    const refreshAllSidebarSessions = () => {
+    const refreshRecentSidebarSessions = () => {
       if (document.visibilityState !== "visible") return;
-      void loadSessionRoster({ forceRefresh: true });
+      void refreshRecentNativeSessions();
     };
 
     const scheduleRefresh = () => {
@@ -80,13 +83,13 @@ export function useSidebarSessionRefreshEffects(): void {
       }
       if (document.visibilityState !== "visible") return;
       sidebarIntervalId = window.setInterval(
-        refreshAllSidebarSessions,
+        refreshRecentSidebarSessions,
         getSidebarRefreshInterval()
       );
     };
 
     const handleActivityStateChange = () => {
-      refreshAllSidebarSessions();
+      refreshRecentSidebarSessions();
       scheduleRefresh();
     };
 

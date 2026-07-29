@@ -95,6 +95,30 @@ fn discovers_official_cross_platform_database_paths() {
 }
 
 #[test]
+fn candidate_paths_include_explicit_xdg_state_home_root() {
+    // `dirs::state_dir()` is `None` on macOS/Windows even when the user
+    // exports `$XDG_STATE_HOME` for an XDG-aware Warp install — the explicit
+    // env probe must appear as its own candidate. Restore the var afterwards
+    // so parallel tests on XDG-configured machines keep their environment.
+    let key = "XDG_STATE_HOME";
+    let original = std::env::var_os(key);
+    std::env::set_var(key, "/orgii-test-xdg/state-home");
+
+    let paths = warp_history_candidate_paths();
+
+    match original {
+        Some(value) => std::env::set_var(key, value),
+        None => std::env::remove_var(key),
+    }
+
+    assert!(paths.contains(
+        &PathBuf::from("/orgii-test-xdg/state-home")
+            .join("warp-terminal")
+            .join(WARP_DB_FILENAME)
+    ));
+}
+
+#[test]
 fn session_prefix_round_trips() {
     assert_eq!(
         warp_conversation_id_from_session_id("warpapp-conversation-1").unwrap(),

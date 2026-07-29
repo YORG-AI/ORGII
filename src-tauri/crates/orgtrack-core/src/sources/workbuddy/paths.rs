@@ -108,7 +108,7 @@ pub(super) fn is_uuid_like(value: &str) -> bool {
 }
 
 pub(super) fn workbuddy_history_roots() -> Result<Vec<PathBuf>, String> {
-    let home = dirs::home_dir().ok_or_else(|| "Home directory not found".to_string())?;
+    let home = app_paths::external_history_home_dir();
     Ok(workbuddy_history_root_candidates(&home))
 }
 

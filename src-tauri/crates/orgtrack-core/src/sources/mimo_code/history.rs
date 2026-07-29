@@ -392,16 +392,10 @@ fn open_mimo_code_db_at(path: &Path) -> Result<Connection, String> {
 }
 
 pub fn mimo_code_history_candidate_paths() -> Vec<PathBuf> {
-    let Some(home) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home = app_paths::external_history_home_dir();
     let mut roots = vec![home.join(".local").join("share").join("mimocode")];
-    if let Some(data_local) = dirs::data_local_dir() {
-        roots.push(data_local.join("mimocode"));
-    }
-    if let Some(data) = dirs::data_dir() {
-        roots.push(data.join("mimocode"));
-    }
+    roots.push(app_paths::external_history_data_local_dir().join("mimocode"));
+    roots.push(app_paths::external_history_data_dir().join("mimocode"));
     #[cfg(target_os = "macos")]
     roots.push(home.join("Library/Application Support/mimocode"));
     #[cfg(target_os = "windows")]

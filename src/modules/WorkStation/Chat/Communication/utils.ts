@@ -11,7 +11,11 @@ import { ASK_QUESTION_FUNCTIONS } from "@src/engines/ChatPanel/InputArea/AskQues
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { getAppSubtool } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 
-import type { MessageEntry, MessageViewMode } from "./types";
+import type {
+  CommunicationUnloadedTurnMeta,
+  MessageEntry,
+  MessageViewMode,
+} from "./types";
 
 // ============================================
 // Event Type Checking (all delegate to Rust)
@@ -171,6 +175,38 @@ export function getMessageSender(event: SessionEvent): "agent" | "user" {
 }
 
 /**
+ * Detect the `unloadedTurn` placeholder payload the Rust import projectors
+ * (Codex app / imported-history / Cursor IDE) attach to a turn's stand-in
+ * chunk when its body was windowed out of the initial load (PR #561).
+ *
+ * Mirrors `getUnloadedTurnMeta` in
+ * `ChatHistory/hooks/useChatGroupsProjection.ts` (same wire shape, kept
+ * independent here since this module reads `SessionEvent` directly rather
+ * than `OptimizedChatItem`).
+ */
+export function getCommunicationUnloadedTurnMeta(
+  event: SessionEvent
+): CommunicationUnloadedTurnMeta | null {
+  const result = event.result as Record<string, unknown> | undefined;
+  const raw = result?.unloadedTurn;
+  if (!raw || typeof raw !== "object") return null;
+
+  const shared = raw as Record<string, unknown>;
+  const turnId = shared.turnId;
+  if (typeof turnId !== "string" || !turnId) return null;
+
+  return {
+    turnId,
+    nextTurnId:
+      typeof shared.nextTurnId === "string" ? shared.nextTurnId : null,
+    bodyEventCount:
+      typeof shared.bodyEventCount === "number"
+        ? shared.bodyEventCount
+        : undefined,
+  };
+}
+
+/**
  * Convert event to MessageEntry.
  * Always returns a MessageEntry, even if content is empty.
  */
@@ -191,6 +227,7 @@ export function convertToMessageEntry(
     timestamp: event.createdAt,
     order,
     isCurrent,
+    unloadedTurn: getCommunicationUnloadedTurnMeta(event),
   };
 }
 

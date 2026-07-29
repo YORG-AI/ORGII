@@ -25,7 +25,11 @@ import { AppType } from "@src/engines/Simulator/types/appTypes";
 
 import { isEmailBubbleEvent } from "./EmailMessageBubble";
 import type { MessageEntry, SimulatorMessagesState } from "./types";
-import { convertToMessageEntry, isAskQuestionEvent } from "./utils";
+import {
+  convertToMessageEntry,
+  getCommunicationUnloadedTurnMeta,
+  isAskQuestionEvent,
+} from "./utils";
 
 // ============================================
 // State Derivation
@@ -103,6 +107,81 @@ function isUserRawEvent(event: SessionEvent): boolean {
 }
 
 /**
+ * Detect `unloadedTurn` placeholder events whose real body has already
+ * merged into the stream, and return the set of their event ids so
+ * `buildMessageLists` can drop them.
+ *
+ * Why this is needed: the placeholder is supposed to disappear once its
+ * turn's body loads — the chat panel gets this for free because
+ * `projectChatGroups` (`ChatHistory/hooks/useChatGroupsProjection.ts`)
+ * groups items by turn and nulls out a group's `unloadedTurn` the moment any
+ * non-placeholder item shares that group (see `hasLoadedBodyItem` there).
+ * The Rust `EventStore` is *also* supposed to strip the placeholder from its
+ * own event list on merge (`merge_round_window_events` →
+ * `remove_turn_placeholders_for_turns`), but that removal keys off
+ * `is_turn_placeholder()`, which only recognizes the own-db/Codex-app
+ * placeholder shape (`function_name === "turn_placeholder"` / id prefix
+ * `turn-placeholder-`). Imported-history placeholders
+ * (`imported_history/window.rs::build_unloaded_turn_placeholder_chunk`) use
+ * a different shape (`function_name: "assistant"`, id
+ * `imported-unloaded-turn-<turnId>`) that never matches, so for imported
+ * sessions the placeholder silently survives the merge and stays visible in
+ * `messages_events` forever, right alongside the body that loaded to
+ * replace it.
+ *
+ * This surface has no turn-group projection of its own — it builds a flat
+ * list straight from events — so it needs its own equivalent check: a
+ * placeholder is "resolved" once a real (non-placeholder) event exists
+ * between its turn's header event (`unloadedTurn.turnId`, which is also
+ * that header event's own id — see `project_activity_chunks` /
+ * `cache_load_session_turn_body`) and the next turn's header
+ * (`unloadedTurn.nextTurnId`, or the end of the window when absent).
+ */
+function findResolvedUnloadedTurnPlaceholderIds(
+  events: SessionEvent[]
+): ReadonlySet<string> {
+  let indexById: Map<string, number> | null = null;
+  const resolved = new Set<string>();
+
+  for (let i = 0; i < events.length; i++) {
+    const meta = getCommunicationUnloadedTurnMeta(events[i]);
+    if (!meta) continue;
+
+    // Built lazily — most windows have zero placeholders, so most calls
+    // never pay for the id index.
+    if (!indexById) {
+      indexById = new Map();
+      for (let j = 0; j < events.length; j++) {
+        indexById.set(events[j].id, j);
+      }
+    }
+
+    const turnHeaderIndex = indexById.get(meta.turnId);
+    // The turn's own header isn't in this (possibly windowed) event list —
+    // there's nothing to anchor a body-range search to, so leave the
+    // placeholder as-is rather than guess.
+    if (turnHeaderIndex === undefined) continue;
+
+    const nextTurnHeaderIndex = meta.nextTurnId
+      ? indexById.get(meta.nextTurnId)
+      : undefined;
+    const rangeEnd = nextTurnHeaderIndex ?? events.length;
+    const lo = Math.min(turnHeaderIndex, rangeEnd);
+    const hi = Math.max(turnHeaderIndex, rangeEnd);
+
+    for (let j = lo + 1; j < hi; j++) {
+      if (j === i) continue;
+      // Another placeholder isn't a loaded body event.
+      if (getCommunicationUnloadedTurnMeta(events[j])) continue;
+      resolved.add(events[i].id);
+      break;
+    }
+  }
+
+  return resolved;
+}
+
+/**
  * Build categorized message lists from events.
  *
  * Pure getAppSubtool() routing — same pattern as CODE_EDITOR:
@@ -129,8 +208,17 @@ function buildMessageLists(events: SessionEvent[]) {
   const interactionMessages: MessageEntry[] = [];
   const messageIndex = new Map<string, MessageEntry>();
   const pendingOptimisticUserMessages = new Map<string, MessageEntry>();
+  const resolvedUnloadedTurnPlaceholderIds =
+    findResolvedUnloadedTurnPlaceholderIds(events);
 
   for (const [eventIndex, event] of events.entries()) {
+    // The placeholder's own turn body already merged into the stream (see
+    // `findResolvedUnloadedTurnPlaceholderIds`) — drop it outright instead
+    // of rendering it next to the content it stood in for. This lets
+    // `UnloadedTurnBubble` unmount the same way it would if the Rust
+    // EventStore had actually removed the placeholder on merge.
+    if (resolvedUnloadedTurnPlaceholderIds.has(event.id)) continue;
+
     const subtool = getAppSubtool(event.functionName);
     const isPlanDoc = isPlanDisplayEvent(event);
     // User turns belong in the chat tab even if the tool registry does not

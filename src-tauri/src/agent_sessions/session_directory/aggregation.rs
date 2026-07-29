@@ -59,6 +59,15 @@ enum ExternalHistoryPage {
 struct ExternalHistorySourceLoader {
     source: &'static str,
     load_page: fn(&mut rusqlite::Connection, usize, usize) -> Result<ExternalHistoryPage, String>,
+    /// Filtered cache-snapshot reader for continuation pages. Sources whose
+    /// page-zero loader filters beyond the generic cache predicate (Cursor
+    /// IDE's listable-session check) must re-apply that filter on "Load
+    /// more", or offsets computed against page zero's filtered stream
+    /// misalign — duplicating rows already shown and surfacing rows page
+    /// zero hides. `None` = the generic cache page matches page zero.
+    load_continuation_page: Option<
+        fn(&mut rusqlite::Connection, usize, usize) -> Result<ExternalHistoryPage, String>,
+    >,
 }
 
 fn load_claude_code_external_history_page(
@@ -85,6 +94,15 @@ fn load_cursor_ide_external_history_page(
     offset: usize,
 ) -> Result<ExternalHistoryPage, String> {
     cursor_ide_history::list_cursor_ide_sessions_paginated(conn, limit, offset)
+        .map(ExternalHistoryPage::CursorIde)
+}
+
+fn load_cursor_ide_external_history_continuation_page(
+    conn: &mut rusqlite::Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<ExternalHistoryPage, String> {
+    cursor_ide_history::list_cursor_ide_sessions_paginated_cached(conn, limit, offset)
         .map(ExternalHistoryPage::CursorIde)
 }
 
@@ -200,62 +218,77 @@ const EXTERNAL_HISTORY_SOURCE_LOADERS: &[ExternalHistorySourceLoader] = &[
     ExternalHistorySourceLoader {
         source: SOURCE_CLAUDE_CODE,
         load_page: load_claude_code_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_CODEX_APP,
         load_page: load_codex_app_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_CURSOR_IDE,
         load_page: load_cursor_ide_external_history_page,
+        load_continuation_page: Some(load_cursor_ide_external_history_continuation_page),
     },
     ExternalHistorySourceLoader {
         source: SOURCE_CURSOR_CLI,
         load_page: load_cursor_cli_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_OPENCODE,
         load_page: load_opencode_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_WINDSURF,
         load_page: load_windsurf_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_WORKBUDDY,
         load_page: load_workbuddy_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_TRAE,
         load_page: load_trae_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_CLINE,
         load_page: load_cline_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_WARP,
         load_page: load_warp_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_ZCODE,
         load_page: load_zcode_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_QODER,
         load_page: load_qoder_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_MIMO_CODE,
         load_page: load_mimo_code_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_OMP,
         load_page: load_omp_external_history_page,
+        load_continuation_page: None,
     },
     ExternalHistorySourceLoader {
         source: SOURCE_QODER_CLI,
         load_page: load_qoder_cli_external_history_page,
+        load_continuation_page: None,
     },
 ];
 
@@ -401,7 +434,25 @@ fn load_imported_history_sessions(
         if disabled_sources.contains(loader.source) {
             continue;
         }
-        let page = (loader.load_page)(&mut conn, page_limit, page_offset)?;
+        // Page zero is the explicit freshness boundary: it discovers the
+        // provider and incrementally updates its cache. Follow-up "Load more"
+        // pages read that stable cache snapshot directly. Re-running a full
+        // provider scan for every offset made pagination multiply filesystem
+        // and SQLite work without improving freshness.
+        let page = if page_offset == 0 {
+            (loader.load_page)(&mut conn, page_limit, page_offset)?
+        } else if let Some(load_continuation_page) = loader.load_continuation_page {
+            load_continuation_page(&mut conn, page_limit, page_offset)?
+        } else {
+            ExternalHistoryPage::Imported(
+                imported_history_cache::query_imported_session_page_from_conn(
+                    &conn,
+                    loader.source,
+                    page_limit,
+                    page_offset,
+                )?,
+            )
+        };
         append_external_history_page(&mut records, loader.source, page);
     }
 

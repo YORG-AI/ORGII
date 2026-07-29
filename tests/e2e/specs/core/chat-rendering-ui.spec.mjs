@@ -7,7 +7,7 @@
  * tool sentinel appears in ChatHistory. Tools are checked in small batches so
  * virtualization does not hide off-screen rows from the assertion.
  */
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -15,6 +15,12 @@ import { e2eUrl } from "../../support/core/e2eBaseUrl.mjs";
 
 const MOUNT_TIMEOUT_MS = 60_000;
 const RENDER_TIMEOUT_MS = 12_000;
+// externalHistoryAutoRefresh polls at the default 5s cadence and requires a
+// changed transcript signature to survive one extra settle cycle before it
+// trusts it (MIN_TRANSCRIPT_SETTLE_MS / shouldWaitForStableTranscript in
+// src/engines/SessionCore/sync/externalHistoryAutoRefresh.ts), so a
+// replace-driven refetch can take ~2 polling cycles plus parse/merge time.
+const EXTERNAL_HISTORY_REFRESH_TIMEOUT_MS = 45_000;
 const RUN_ID = Date.now();
 const BATCH_SIZE = 6;
 const E2E_REPO_PATH =
@@ -1997,6 +2003,485 @@ async function assertEarlyCancelStopNavigatesToPreviousTurnPage() {
   );
 }
 
+async function assertOneHundredRoundSkeletonRemainsNavigable() {
+  const sessionId = `sdeagent-e2e-hundred-round-skeleton-${RUN_ID}`;
+  const baseTime = Date.now() - 100_000;
+  const events = [];
+  for (let index = 0; index < 100; index++) {
+    const turnId = `round-user-${index}`;
+    events.push({
+      id: turnId,
+      chunk_id: turnId,
+      sessionId,
+      createdAt: new Date(baseTime + index * 1_000).toISOString(),
+      functionName: "user_message",
+      uiCanonical: "user_message",
+      actionType: "raw",
+      args: {},
+      result: {
+        type: "user",
+        message: `Round ${index + 1} prompt`,
+        is_delta: false,
+      },
+      source: "user",
+      displayText: `Round ${index + 1} prompt`,
+      displayStatus: "completed",
+      displayVariant: "message",
+      activityStatus: "processed",
+      isDelta: false,
+    });
+    if (index < 99) {
+      events.push({
+        id: `round-placeholder-${index}`,
+        chunk_id: `round-placeholder-${index}`,
+        sessionId,
+        createdAt: new Date(baseTime + index * 1_000 + 500).toISOString(),
+        functionName: "turn_placeholder",
+        uiCanonical: "turn_placeholder",
+        actionType: "turn_placeholder",
+        args: {},
+        result: {
+          observation: `Round ${index + 1} is not loaded yet`,
+          unloadedTurn: {
+            turnId,
+            nextTurnId: `round-user-${index + 1}`,
+            startedAt: new Date(baseTime + index * 1_000).toISOString(),
+            endedAt: new Date(baseTime + (index + 1) * 1_000).toISOString(),
+            durationMs: 1_000,
+            eventCount: 2,
+            bodyEventCount: 1,
+          },
+        },
+        source: "assistant",
+        displayText: `Round ${index + 1} is not loaded yet`,
+        displayStatus: "completed",
+        displayVariant: "message",
+        activityStatus: "processed",
+        isDelta: false,
+      });
+    } else {
+      events.push({
+        ...makeAssistantEvent(sessionId, "hundred-round-skeleton"),
+        id: "round-assistant-99",
+        chunk_id: "round-assistant-99",
+        createdAt: new Date(baseTime + index * 1_000 + 500).toISOString(),
+        displayText: "Round 100 answer",
+        result: {
+          type: "assistant",
+          message: "Round 100 answer",
+          is_delta: false,
+        },
+      });
+    }
+  }
+
+  const seed = await invokeE2E("seedChatEvents", sessionId, events, {
+    chatPanelMaximized: true,
+    stationMode: "my-station",
+    runtimeStatus: "completed",
+  });
+  if (!seed || seed.ok !== true) {
+    throw new Error(
+      `seedChatEvents failed for 100-round skeleton: ${seed?.error ?? "unknown"}`
+    );
+  }
+
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return current && /latest/i.test(current.textContent || '') && !current.disabled;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "100-round skeleton did not open on Latest Round",
+    }
+  );
+  await execJS(`
+    document.querySelector('[data-testid="turn-pagination-current-round"]')?.click();
+  `);
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const list = document.querySelector('[data-testid="turn-page-list"]');
+        if (!list) return false;
+        list.scrollTop = 50 * 36;
+        list.dispatchEvent(new Event('scroll', { bubbles: true }));
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "100-round selector list did not open",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const item = document.querySelector(
+          '[data-testid="turn-page-list-item"][data-page-index="49"]'
+        );
+        if (!item) return false;
+        item.click();
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "virtualized round selector never exposed round 50",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return current && /round\\s+50/i.test(current.textContent || '');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "round 50 was not selectable from the 100-round skeleton",
+    }
+  );
+
+  const setPaginationEnabled = async (enabled) => {
+    await execJS(`
+      document.querySelector('[data-testid="chat-panel-header-more-button"]')?.click();
+    `);
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          const toggle = Array.from(document.querySelectorAll('[role="switch"]'))
+            .find((node) => /pagination/i.test(node.getAttribute('aria-label') || ''));
+          if (!toggle) return false;
+          const checked = toggle.getAttribute('aria-checked') === 'true';
+          if (checked !== ${enabled}) toggle.click();
+          return true;
+        `),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        timeoutMsg: `pagination toggle did not become available for enabled=${enabled}`,
+      }
+    );
+    await execJS(`
+      const menu = document.querySelector('[data-testid="chat-panel-header-more-button"]');
+      if (menu?.getAttribute('aria-expanded') === 'true') menu.click();
+    `);
+  };
+
+  await setPaginationEnabled(false);
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        if (document.querySelector('[data-testid="turn-pagination-current-round"]')) {
+          return false;
+        }
+        const scroller = document.querySelector('[data-testid="chat-history-scroll-container"]');
+        if (!scroller) return false;
+        scroller.scrollTop = 0;
+        scroller.dispatchEvent(new Event('scroll', { bubbles: true }));
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "non-paginated timeline did not render",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const first = document.querySelector('[data-chat-group-index="0"]');
+        return !!first && (first.textContent || '').includes('Round 1 prompt');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "non-paginated timeline never exposed collapsed round 1",
+    }
+  );
+  await setPaginationEnabled(true);
+}
+
+/**
+ * PR #561 follow-up: the 100-round skeleton scenario above seeds
+ * `sdeagent-` ids through `seedChatEvents`, which never routes through
+ * `importedHistoryTurnLoader` (see
+ * src/engines/SessionCore/turns/importedHistoryTurnLoader.ts -- it only
+ * fires for `isExternalHistorySession` ids, excluding codex/cursor-ide).
+ * This scenario exercises the REAL imported Claude Code lazy-replay
+ * pipeline end to end against an on-disk transcript:
+ *
+ *   sidebar discovery -> click -> windowed initial load (newest round body
+ *   only) -> round-selector navigation -> placeholder ->
+ *   importedHistoryTurnWindows fetch -> EventStore merge, and then the
+ *   externalHistoryAutoRefresh replace-reload regression guarded by
+ *   transcriptReplaceEpochAtom (src/engines/SessionCore/core/atoms/actions.ts).
+ *
+ * The fixture transcript is written to
+ * `<ORGII_EXTERNAL_HISTORY_HOME>/.claude/projects/.../<uuid>.jsonl` by
+ * `tests/e2e/wdio.conf.mjs` (`ensureClaudeCodeImportFixtureTranscript`)
+ * BEFORE the app process launches, so the app's own startup
+ * `useDataSourceAutoScan` pass discovers and caches it without any debug
+ * seed/mutation endpoint. This function only performs real rendered
+ * sidebar clicks/round-selector clicks and a direct on-disk file append
+ * (the equivalent of the user's Claude Code CLI writing another round).
+ */
+async function assertImportedClaudeHistoryLazyReplayAndAutoRefresh() {
+  const fixtureSessionId = process.env.E2E_CLAUDE_IMPORT_FIXTURE_SESSION_ID;
+  const fixturePath = process.env.E2E_CLAUDE_IMPORT_FIXTURE_PATH;
+  const roundCount = Number.parseInt(
+    process.env.E2E_CLAUDE_IMPORT_FIXTURE_ROUND_COUNT ?? "0",
+    10
+  );
+  const fixtureCwd = process.env.E2E_CLAUDE_IMPORT_FIXTURE_CWD;
+  if (!fixtureSessionId || !fixturePath || !roundCount || !fixtureCwd) {
+    throw new Error(
+      "Claude Code import fixture env vars are missing " +
+        "(E2E_CLAUDE_IMPORT_FIXTURE_SESSION_ID/_PATH/_ROUND_COUNT/_CWD). " +
+        "wdio.conf.mjs must seed the on-disk transcript before the app " +
+        "process launches -- see ensureClaudeCodeImportFixtureTranscript."
+    );
+  }
+  const fixtureUuid = fixtureSessionId.replace(/^claudecodeapp-/, "");
+  const newestRoundText = `round-${roundCount} answer body`;
+  const round2Text = "round-2 answer body";
+
+  // Step 1: open the sidebar's imported Claude Code ("Claude App") section
+  // and click the fixture session through the real sidebar row -- the same
+  // production click path used by openRenderedSidebarSession /
+  // clickSidebarSessionRow elsewhere in this suite, inlined here since this
+  // spec file does not import those support modules.
+  const sidebarSelector = `[data-testid="sidebar-session-item-${fixtureSessionId}"]`;
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector(${JSON.stringify(sidebarSelector)});`
+      ),
+    {
+      timeout: MOUNT_TIMEOUT_MS,
+      timeoutMsg: `Claude Code import fixture session ${fixtureSessionId} never appeared in the sidebar (external-history auto-scan did not discover it)`,
+    }
+  );
+
+  // Confirm the fixture session specifically becomes active (not just "some
+  // chat surface is showing") -- this is a shared app instance across every
+  // scenario in this file, so a prior test can already have another session's
+  // chat panel open with the same round-selector element present.
+  // `getActiveSessionId` is a read-only inspection helper (asserts the
+  // result of the real click; it does not perform the click itself).
+  let opened = false;
+  for (let attempt = 1; attempt <= 6 && !opened; attempt++) {
+    await execJS(`
+      const row = document.querySelector(${JSON.stringify(sidebarSelector)});
+      if (row) {
+        row.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, view: window, button: 0 }));
+        row.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, view: window, button: 0 }));
+        row.click();
+      }
+    `);
+    try {
+      await browser.waitUntil(
+        async () => {
+          const active = await invokeE2E("getActiveSessionId");
+          return active?.ok === true && active.sessionId === fixtureSessionId;
+        },
+        { timeout: 3_000 }
+      );
+      opened = true;
+    } catch {
+      await browser.pause(500);
+    }
+  }
+  if (!opened) {
+    throw new Error(
+      `Clicking the Claude Code import fixture sidebar row never activated it (${fixtureSessionId})`
+    );
+  }
+
+  // Step 2a: the session opens on Latest Round and the initial windowed
+  // load (IMPORTED_HISTORY_INITIAL_RECENT_TURN_COUNT = 1) has fetched only
+  // the newest round's body.
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return !!current && /latest/i.test(current.textContent || '') && !current.disabled;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "Claude Code import fixture did not open on Latest Round",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return (document.body.innerText || '').includes(${JSON.stringify(newestRoundText)});`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: `newest round body "${newestRoundText}" never rendered after opening the imported Claude Code session`,
+    }
+  );
+
+  // Step 2b: round 2's body must NOT already be in the DOM. Asserting this
+  // BEFORE navigating is the only thing that keeps this scenario from
+  // silently passing on a full-eager-load regression -- without it, a bug
+  // that loads every round up front would also satisfy the "round 2 body
+  // visible after navigating" assertion below.
+  const round2PresentBeforeNav = await execJS(
+    `return (document.body.innerText || '').includes(${JSON.stringify(round2Text)});`
+  );
+  if (round2PresentBeforeNav) {
+    throw new Error(
+      "round-2 answer body was already rendered before navigating to round 2; " +
+        "the initial imported-history window is not lazily loading older " +
+        "rounds, so this scenario cannot prove the placeholder -> " +
+        "importedHistoryTurnWindows fetch path."
+    );
+  }
+
+  // Step 2c: navigate to round 2 via the real round selector (open dropdown,
+  // click round 2's row -- same idiom as assertOneHundredRoundSkeletonRemainsNavigable).
+  await execJS(`
+    document.querySelector('[data-testid="turn-pagination-current-round"]')?.click();
+  `);
+  await browser.waitUntil(
+    async () =>
+      execJS(`return !!document.querySelector('[data-testid="turn-page-list"]');`),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "round selector list did not open for the Claude Code import fixture",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const item = document.querySelector(
+          '[data-testid="turn-page-list-item"][data-page-index="1"]'
+        );
+        if (!item) return false;
+        item.click();
+        return true;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "round selector never exposed round 2 for the Claude Code import fixture",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return !!current && /round\\s+2/i.test(current.textContent || '');
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: "round 2 was not selectable from the imported Claude Code round selector",
+    }
+  );
+
+  // Step 2d: selecting round 2 must trigger loadSessionTurnBodyIntoStore ->
+  // importedHistoryTurnLoader -> importedHistoryTurnWindows ->
+  // eventStoreProxy.mergeRoundWindowEvents, rendering the real body.
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return (document.body.innerText || '').includes(${JSON.stringify(round2Text)});`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg: `round-2 body never loaded after selecting round 2 (importedHistoryTurnLoader did not fetch it)`,
+    }
+  );
+
+  // Step 3: replace-reload regression. Append one complete new round to the
+  // on-disk transcript from the WDIO Node process (not browser.execute)
+  // while round 2 is still on screen, mirroring the user's Claude Code CLI
+  // writing another round to the same file.
+  const appendedRound = roundCount + 1;
+  // Real "now" timestamps, not a fixed calendar date: the sidebar/session
+  // list buckets rows by age and only eager-loads a bounded page per bucket
+  // (src/util/session/sessionDateBuckets.ts), so the appended round must
+  // land in the same "today" bucket as the rest of the fixture.
+  const appendedUserAt = new Date().toISOString();
+  const appendedAssistantAt = new Date(Date.now() + 1_000).toISOString();
+  const appendedLines = [
+    JSON.stringify({
+      type: "user",
+      sessionId: fixtureUuid,
+      cwd: fixtureCwd,
+      gitBranch: "main",
+      timestamp: appendedUserAt,
+      message: { role: "user", content: `round-${appendedRound} prompt` },
+    }),
+    JSON.stringify({
+      type: "assistant",
+      sessionId: fixtureUuid,
+      cwd: fixtureCwd,
+      gitBranch: "main",
+      timestamp: appendedAssistantAt,
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4",
+        content: [
+          { type: "text", text: `round-${appendedRound} answer body` },
+        ],
+        usage: { input_tokens: 10, output_tokens: 20 },
+      },
+    }),
+  ];
+  await appendFile(fixturePath, `${appendedLines.join("\n")}\n`, "utf8");
+
+  // Claude Code sources `supportsWindowedReplay`, so
+  // refreshImportedHistorySession dispatches `replace: true`: the windowed
+  // snapshot comes back with only the (new) latest round's body loaded and
+  // every other round -- including the still-visible round 2 -- demoted
+  // back to an `unloadedTurn` placeholder. `useTurnPageSelection`'s
+  // `turnPaginationReady` is derived as
+  // `!currentPageHasUnloadedTurn` for the page actually on screen
+  // (src/engines/ChatPanel/ChatHistory/hooks/useTurnPageSelection.ts,
+  // ~line 369-380), and `TurnPaginationControls` disables the round-select
+  // trigger button and swaps its chevron for a spinner exactly when that
+  // flips false (~line 386, 395-407). Waiting for the button to go
+  // `disabled` first -- rather than only waiting for round-2's body text to
+  // reappear -- proves the replace actually demoted the visible page,
+  // instead of the later wait trivially passing because the text was
+  // already on screen from step 2d and never left.
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        return !!current && current.disabled === true;
+      `),
+    {
+      timeout: EXTERNAL_HISTORY_REFRESH_TIMEOUT_MS,
+      timeoutMsg:
+        "round 2 never fell back to an unloaded-turn placeholder (round " +
+        "selector never went disabled) after appending a new round; the " +
+        "externalHistoryAutoRefresh windowed replace reload never fired " +
+        "for the Claude Code import fixture",
+    }
+  );
+
+  // The replace demoted round 2 back to a placeholder while it is still the
+  // visible page; useTurnPageNavigation's prefetch effect keys off
+  // transcriptReplaceEpochAtom and must auto-refetch the current page
+  // without any further navigation -- the selector re-enables and round 2's
+  // real body renders again.
+  await browser.waitUntil(
+    async () =>
+      execJS(`
+        const current = document.querySelector('[data-testid="turn-pagination-current-round"]');
+        const ready = !!current && current.disabled === false;
+        const bodyVisible = (document.body.innerText || '').includes(${JSON.stringify(round2Text)});
+        return ready && bodyVisible;
+      `),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      timeoutMsg:
+        "round-2 body did not reappear after the windowed replace reload -- " +
+        "transcriptReplaceEpochAtom auto-refetch regression " +
+        "(src/engines/SessionCore/core/atoms/actions.ts)",
+    }
+  );
+}
+
 async function assertMultiRepoReadPathRendered() {
   const sessionId = `e2e-render-multirepo-read-${Date.now()}`;
   const baseTime = Date.now();
@@ -2752,6 +3237,24 @@ describe("Core chat rendering UI", () => {
     }
 
     await assertEarlyCancelStopNavigatesToPreviousTurnPage();
+  });
+
+  it("keeps a 100-round lazy skeleton navigable to the middle", async function () {
+    if (!shouldRunScenario("hundred-round-skeleton")) {
+      this.skip();
+      return;
+    }
+
+    await assertOneHundredRoundSkeletonRemainsNavigable();
+  });
+
+  it("lazily loads an imported Claude Code round body and auto-refetches it after a replace reload", async function () {
+    if (!shouldRunScenario("claude-imported-lazy-replay")) {
+      this.skip();
+      return;
+    }
+
+    await assertImportedClaudeHistoryLazyReplayAndAutoRefresh();
   });
 
   it("renders multi-repo read file targets as paths instead of generic file labels", async function () {

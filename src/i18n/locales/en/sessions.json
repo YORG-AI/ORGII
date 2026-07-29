@@ -680,8 +680,13 @@
             "requestedInput": "{{subject}} requested input",
             "sentTo": "{{subject}} sent a message to {{recipient}}",
             "sentBroadcast": "{{subject}} sent a message to multiple agents",
-            "sentMessage": "{{subject}} sent a message"
+            "sentMessage": "{{subject}} sent a message",
+            "turnLoading": "{{subject}}'s message is loading…"
           }
+        },
+        "unloadedTurn": {
+          "loadingBody": "Loading message…",
+          "retryBody": "Message didn't load — tap to retry"
         },
         "divider": {
           "newMessage": "New message",

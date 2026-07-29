@@ -136,6 +136,7 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
             )}
             <div
               ref={scrollParentRef}
+              data-testid="turn-page-list"
               className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide"
             >
               <div
@@ -159,6 +160,8 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                     >
                       <button
                         type="button"
+                        data-testid="turn-page-list-item"
+                        data-page-index={pageIndex}
                         className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left ${
                           isCurrent
                             ? DROPDOWN_CLASSES.itemSelected

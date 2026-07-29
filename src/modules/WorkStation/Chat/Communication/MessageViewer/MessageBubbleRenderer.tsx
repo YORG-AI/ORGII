@@ -8,7 +8,7 @@ import {
   OrgTaskEventBubble,
   isOrgTaskEvent,
 } from "../AgentEventBubbles";
-import { ChatBubble, TodoBubble } from "../ChatBubble";
+import { ChatBubble, TodoBubble, UnloadedTurnBubble } from "../ChatBubble";
 import { EmailMessageBubble, isEmailBubbleEvent } from "../EmailMessageBubble";
 import { ThinkBubble } from "../ThinkBubble";
 import type { MessageEntry, MessageViewMode } from "../types";
@@ -97,6 +97,24 @@ export const BubbleWrapper: React.FC<{
           />
         );
       case "chat":
+        // Lazy-load placeholder for a turn whose body was windowed out of
+        // the initial load (PR #561). `message.content` is the backend's
+        // raw "turn is not loaded yet" observation text here — never
+        // render it as if it were the agent's real reply. Renders a
+        // compact loading row and kicks off the same
+        // `loadSessionTurnBodyIntoStore` fetch the chat panel's collapse
+        // bar uses; once the body lands, `derivedSnapshotAtom` recomputes
+        // and this message re-derives without `unloadedTurn` set.
+        if (message.unloadedTurn) {
+          return (
+            <UnloadedTurnBubble
+              message={message}
+              unloadedTurn={message.unloadedTurn}
+              onClick={stableClick}
+              orgMembers={orgMembers}
+            />
+          );
+        }
         if (message.type === "think") {
           return (
             <ThinkBubble

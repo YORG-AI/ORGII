@@ -139,7 +139,7 @@ fn includes_opencode_candidate_db_paths() {
     let paths = opencode_db_candidate_paths_for_home(home);
     let rendered = paths
         .iter()
-        .map(|path| path.to_string_lossy().to_string())
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
 
     assert!(rendered

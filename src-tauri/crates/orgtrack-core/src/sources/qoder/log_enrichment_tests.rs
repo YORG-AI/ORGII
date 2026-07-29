@@ -349,11 +349,11 @@ fn spill_file_reads_attach_their_content_as_output() {
     let spill_path = spill_dir.join("cd.txt");
     std::fs::write(&spill_path, "fetched doc body").expect("write spill");
 
+    let spill_args = serde_json::json!({ "file_path": spill_path }).to_string();
     let log = [
         r#"2026-07-16 19:42:04.351 [info] [ChatSessionService] ACP progress: task-aaa.session.execution, rid=undefined, type=current_model_update"#.to_string(),
         format!(
-            r#"2026-07-16 19:42:05.000 [info] [ToolInvokeHandlerContribution] Tool invoke request: rid-1, read_file, {{"file_path":"{}"}}"#,
-            spill_path.display()
+            "2026-07-16 19:42:05.000 [info] [ToolInvokeHandlerContribution] Tool invoke request: rid-1, read_file, {spill_args}"
         ),
     ]
     .join("\n");

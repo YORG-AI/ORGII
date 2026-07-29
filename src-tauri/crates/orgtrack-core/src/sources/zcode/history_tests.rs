@@ -153,7 +153,7 @@ fn includes_zcode_cli_db_path() {
     let home = std::path::Path::new("/Users/example");
     let rendered = zcode_history_candidate_paths_for_home(home)
         .iter()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
         .collect::<Vec<_>>();
     assert!(rendered
         .iter()

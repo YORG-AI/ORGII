@@ -25,7 +25,7 @@ export const cursorIdeTurnLoader: SessionTurnLoader = {
         if (!Array.isArray(chunks) || chunks.length === 0) return;
         const events = await processChunksRust(chunks, sessionId);
         if (events.length === 0) return;
-        await eventStoreProxy.mergeEvents(events, sessionId);
+        await eventStoreProxy.mergeRoundWindowEvents(events, sessionId);
       } finally {
         inFlightTurnLoads.delete(loadKey);
       }

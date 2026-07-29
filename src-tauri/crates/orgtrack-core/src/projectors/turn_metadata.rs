@@ -339,12 +339,33 @@ pub fn project_activity_chunks(chunks: &[ActivityChunk]) -> Vec<ProjectedTurnMet
 }
 
 fn activity_chunk_text(chunk: &ActivityChunk) -> String {
-    ["content", "message", "prompt", "text", "query"]
+    const PREVIEW_MAX_BYTES: usize = 512;
+
+    let text = ["content", "message", "prompt", "text", "query"]
         .into_iter()
         .find_map(|field| chunk.args.get(field).and_then(Value::as_str))
         .or_else(|| chunk.args.as_str())
-        .unwrap_or_default()
-        .to_string()
+        .or_else(|| {
+            ["content", "prompt", "text", "query"]
+                .into_iter()
+                .find_map(|field| chunk.result.get(field).and_then(Value::as_str))
+        })
+        .or_else(|| {
+            chunk
+                .result
+                .get("message")
+                .and_then(|message| message.get("content"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or_default();
+    if text.len() <= PREVIEW_MAX_BYTES {
+        return text.to_string();
+    }
+    let mut cut = PREVIEW_MAX_BYTES;
+    while !text.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!("{}…", &text[..cut])
 }
 
 /// Provider-neutral modification predicate used by tests and host adapters.
@@ -896,6 +917,25 @@ mod tests {
             ResourceAction::Read
         );
         assert_eq!(rounds[1].modified_files[0].path, "src/lib.rs");
+    }
+
+    #[test]
+    fn imported_user_preview_reads_canonical_result_and_is_bounded() {
+        let mut user = ActivityChunk::new("session-1", "raw", "user_message");
+        user.chunk_id = "user-1".to_string();
+        user.result = serde_json::json!({
+            "type": "user",
+            "message": {
+                "content": "🙂".repeat(400),
+                "role": "user",
+            },
+        });
+
+        let rounds = project_activity_chunks(&[user]);
+
+        assert_eq!(rounds.len(), 1);
+        assert!(rounds[0].user_preview.ends_with('…'));
+        assert!(rounds[0].user_preview.len() <= 515);
     }
 
     #[test]

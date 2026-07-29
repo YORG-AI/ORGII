@@ -27,10 +27,16 @@ pub(super) fn open_opencode_db() -> Result<Option<(Connection, PathBuf)>, String
 }
 
 fn opencode_db_candidate_paths() -> Vec<PathBuf> {
-    let Some(home_dir) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home_dir = app_paths::external_history_home_dir();
     let mut paths = opencode_db_candidate_paths_for_home(&home_dir);
+    paths.extend(
+        [
+            app_paths::external_history_data_local_dir(),
+            app_paths::external_history_data_dir(),
+        ]
+        .into_iter()
+        .map(|root| root.join("opencode").join(OPENCODE_DB_FILENAME)),
+    );
     // ORGII-managed OpenCode runs override HOME/XDG into per-account profile
     // dirs whose data lands under `<profile>/.local/share/opencode`.
     paths.extend(
@@ -41,19 +47,14 @@ fn opencode_db_candidate_paths() -> Vec<PathBuf> {
         .into_iter()
         .map(|dir| dir.join(OPENCODE_DB_FILENAME)),
     );
+    let mut seen = HashSet::new();
+    paths.retain(|path| seen.insert(path.clone()));
     paths
 }
 
 pub(super) fn opencode_db_candidate_paths_for_home(home_dir: &Path) -> Vec<PathBuf> {
     let mut roots = Vec::new();
     roots.push(home_dir.join(".local").join("share").join("opencode"));
-
-    if let Some(data_local_dir) = dirs::data_local_dir() {
-        roots.push(data_local_dir.join("opencode"));
-    }
-    if let Some(data_dir) = dirs::data_dir() {
-        roots.push(data_dir.join("opencode"));
-    }
 
     #[cfg(target_os = "macos")]
     {

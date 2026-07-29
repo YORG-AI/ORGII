@@ -17,7 +17,11 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import { useChatGroups } from "../useChatGroups";
-import { projectChatGroups } from "../useChatGroupsProjection";
+import {
+  type ChatGroupMeta,
+  isTurnCollapseEligible,
+  projectChatGroups,
+} from "../useChatGroupsProjection";
 
 vi.mock("react", () => ({
   useMemo: <Value>(factory: () => Value) => factory(),
@@ -397,5 +401,43 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const texts = flatTexts(result.flatItems);
     expect(texts).toContain("Error: rate limit exceeded");
     expect(texts.filter((text) => text === "run_shell")).toHaveLength(1);
+  });
+});
+
+describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
+  function meta(overrides: Partial<ChatGroupMeta>): ChatGroupMeta {
+    return {
+      turnId: "turn-1",
+      durationMs: 0,
+      itemCount: 0,
+      previewText: "",
+      startMs: null,
+      endMs: null,
+      unloadedTurn: null,
+      ...overrides,
+    };
+  }
+
+  it("keeps trivial loaded turns non-collapsible", () => {
+    expect(isTurnCollapseEligible(meta({ itemCount: 1 }), 0, 3, {})).toBe(
+      false
+    );
+    expect(isTurnCollapseEligible(meta({ itemCount: 2 }), 0, 3, {})).toBe(true);
+  });
+
+  it("shows the bar for any unloaded turn with a nonzero body surrogate", () => {
+    // With turn pagination off, the collapse bar is the ONLY affordance that
+    // can fetch an unloaded body — a 1-line body must still render it.
+    const unloaded = meta({
+      unloadedTurn: { turnId: "turn-1", bodyEventCount: 1 },
+    });
+    expect(isTurnCollapseEligible(unloaded, 0, 3, {})).toBe(true);
+  });
+
+  it("hides the bar only for measured-empty unloaded turns", () => {
+    const empty = meta({
+      unloadedTurn: { turnId: "turn-1", bodyEventCount: 0 },
+    });
+    expect(isTurnCollapseEligible(empty, 0, 3, {})).toBe(false);
   });
 });

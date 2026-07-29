@@ -54,6 +54,7 @@ import {
   pendingSyntheticEventAtom,
   sessionIdAtom,
   specsAtom,
+  transcriptReplaceEpochAtom,
 } from "./metadata";
 import {
   currentEventIdAtom,
@@ -231,6 +232,14 @@ export const loadSessionAtom = atom(
     // next to the existing in-memory events (whose ids never match, so the
     // id-based merge would duplicate every replayed user/assistant turn).
     const replaceForSession = replace && currentSessionId === sessionId;
+    if (replaceForSession) {
+      // A windowed replace snapshot carries only the newest turn body;
+      // previously-fetched older bodies come back as placeholders. Stale
+      // "already loaded" accounting would suppress their refetch and leave
+      // the round the user is viewing collapsed to a placeholder forever.
+      clearLoadedTurnRegistry(sessionId);
+      set(transcriptReplaceEpochAtom, get(transcriptReplaceEpochAtom) + 1);
+    }
     const baseEvents =
       !replaceForSession &&
       currentSessionId === sessionId &&

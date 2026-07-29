@@ -294,14 +294,37 @@ pub async fn es_unload_turn_body(
             .find(|summary| summary.turn_id == lookup_turn_id);
     let turn = match persisted_turn {
         Some(turn) => turn,
-        None => crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
-            session_id.clone(),
-            Some(vec![turn_id.clone()]),
-        )
-        .await?
-        .into_iter()
-        .next()
-        .ok_or_else(|| format!("turn not found: {turn_id}"))?,
+        None => {
+            let orgtrack_turn = crate::orgtrack::history_commands::orgtrack_session_turn_metadata_index(
+                session_id.clone(),
+                Some(vec![turn_id.clone()]),
+            )
+            .await?
+            .into_iter()
+            .next();
+            match orgtrack_turn {
+                Some(turn) => turn,
+                None => {
+                    // No turn metadata anywhere (persisted cache or the
+                    // provider's own history index) means there is nothing
+                    // to build a placeholder from. The registry can
+                    // legitimately hold ids the store no longer recognizes —
+                    // windowed replace reloads swap the snapshot, imported
+                    // (e.g. Codex) turn ids embed byte offsets that shift
+                    // across reloads, and eager eviction can race a second
+                    // unload for the same id. In every case the *goal*
+                    // state — "this turn's body is not resident" — already
+                    // holds, so unloading a turn we can't find is treated
+                    // as an idempotent no-op rather than an RPC error (an
+                    // error here previously escalated to the app's fatal
+                    // error screen; see `es_unload_turn_body` callers).
+                    log::info!(
+                        "es_unload_turn_body: turn {turn_id} not found for session {session_id}; treating as already-unloaded no-op"
+                    );
+                    return Ok(0);
+                }
+            }
+        }
     };
 
     let placeholder = make_turn_placeholder_event(&session_id, &turn);

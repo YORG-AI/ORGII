@@ -46,9 +46,7 @@ pub fn load_omp_history_for_session(
 }
 
 pub fn omp_history_candidate_paths() -> Vec<PathBuf> {
-    let Some(home) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home = app_paths::external_history_home_dir();
     vec![
         home.join(".omp/agent/sessions"),
         home.join(".oh-omp/agent/sessions"),

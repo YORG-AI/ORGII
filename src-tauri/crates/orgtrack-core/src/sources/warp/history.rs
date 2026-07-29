@@ -7,7 +7,6 @@
 //! imported-history cache and `ActivityChunk` replay format.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
@@ -804,19 +803,27 @@ fn open_warp_db() -> Result<Option<(Connection, PathBuf)>, String> {
 
 /// Candidate `warp.sqlite` locations used by both import and source detection.
 pub fn warp_history_candidate_paths() -> Vec<PathBuf> {
-    let Some(home) = dirs::home_dir() else {
-        return Vec::new();
-    };
+    let home = app_paths::external_history_home_dir();
     let mut candidates = warp_db_candidate_paths_for_home(&home);
-    if let Some(xdg_state_home) = env::var_os("XDG_STATE_HOME") {
-        candidates.push(PathBuf::from(xdg_state_home).join("warp-terminal/warp.sqlite"));
+    candidates.push(
+        app_paths::external_history_state_dir()
+            .join("warp-terminal")
+            .join(WARP_DB_FILENAME),
+    );
+    // `dirs::state_dir()` is `None` on macOS/Windows even when the user
+    // exports `$XDG_STATE_HOME` for XDG-aware Warp installs, so probe the
+    // env-derived root explicitly. `None` under identity isolation; overlaps
+    // with the state-dir candidate on Linux, which dedupe below collapses.
+    if let Some(xdg_state) = app_paths::external_history_xdg_state_dir() {
+        candidates.push(xdg_state.join("warp-terminal").join(WARP_DB_FILENAME));
     }
-    if let Some(local_app_data) = env::var_os("LOCALAPPDATA") {
-        candidates.push(PathBuf::from(local_app_data).join("warp/Warp/data/warp.sqlite"));
-    }
-    if let Some(data_local) = dirs::data_local_dir() {
-        candidates.push(data_local.join("warp/Warp/data/warp.sqlite"));
-    }
+    candidates.push(
+        app_paths::external_history_data_local_dir()
+            .join("warp")
+            .join("Warp")
+            .join("data")
+            .join(WARP_DB_FILENAME),
+    );
     dedupe_paths(candidates)
 }
 

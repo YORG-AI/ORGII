@@ -32,12 +32,22 @@ mod sync;
 
 use sync::delta_sync;
 #[cfg(test)]
-use sync::{build_inputs_from_index, discover_from_index};
+use sync::{build_inputs_from_index, discover_from_headers, discover_from_index, discover_sessions};
 
+// v9: modern `composer.composerHeaders` subagents stay attached to their
+// parent even when the parent's composer blob omits `subagentComposerIds`.
+//
+// v8: Cursor header discovery skips unsaved draft sentinels. Those rows have
+// no transcript and never appeared in Cursor's sidebar.
+//
+// v7: Cursor builds without `conversation-search.db` discover sessions from
+// the single lightweight `composer.composerHeaders` row in `state.vscdb`.
+//
 // v6: top-level index rows now bring their `subagentComposerIds` into the cache
 // as child sessions with `parent_session_id`, allowing the shared sidebar
 // parent/child collapse flow to render Cursor subagents.
-const CURSOR_IDE_METADATA_PARSER_VERSION: i64 = 6;
+const CURSOR_IDE_METADATA_PARSER_VERSION: i64 = 9;
+const COMPOSER_HEADERS_KEY: &str = "composer.composerHeaders";
 const COMPOSER_KEY_PREFIX: &str = "composerData:";
 const BUBBLE_KEY_PREFIX: &str = "bubbleId:";
 const SOURCE_RECORD_KEY_PREFIX: &str = "cursorDiskKV:";
@@ -109,6 +119,36 @@ struct ModelConfig {
     model_name: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawComposerHeaders {
+    #[serde(default)]
+    all_composers: Vec<RawComposerHeader>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RawComposerHeader {
+    #[serde(default, rename = "type")]
+    row_type: String,
+    #[serde(default)]
+    composer_id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    created_at: i64,
+    #[serde(default)]
+    last_updated_at: i64,
+    #[serde(default)]
+    conversation_checkpoint_last_updated_at: i64,
+    #[serde(default)]
+    is_archived: bool,
+    #[serde(default)]
+    is_draft: bool,
+    #[serde(default)]
+    subagent_info: Option<super::models::RawCursorSubagentInfo>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 struct CursorCacheMetadata {
@@ -117,8 +157,9 @@ struct CursorCacheMetadata {
     mode: String,
 }
 
-/// One row of Cursor's `conversation-search.db` `conversations` table — the
-/// cheap discovery signal that replaces scanning every `composerData` blob.
+/// One lightweight Cursor conversation header, sourced either from
+/// `conversation-search.db` or `composer.composerHeaders`. Both routes replace
+/// scanning every `composerData` blob.
 #[derive(Debug, Clone)]
 struct CursorIndexRow {
     id: String,
@@ -126,6 +167,14 @@ struct CursorIndexRow {
     updated_at_ms: i64,
     is_archived: bool,
     root_fingerprint: String,
+    children: Vec<CursorIndexChild>,
+}
+
+#[derive(Debug, Clone)]
+struct CursorIndexChild {
+    id: String,
+    title: String,
+    updated_at_ms: i64,
 }
 
 struct CursorParentBuild {
@@ -223,13 +272,29 @@ pub fn list_for_sidebar_filtered<F>(
     cache_conn: &mut Connection,
     limit: usize,
     offset: usize,
-    mut include: F,
+    include: F,
 ) -> Result<(Vec<CursorSession>, bool), String>
 where
     F: FnMut(&CursorSession) -> Result<bool, String>,
 {
     delta_sync(cache_conn)?;
+    list_for_sidebar_filtered_cached(cache_conn, limit, offset, include)
+}
 
+/// Continuation-page variant: reads the existing cache snapshot without
+/// re-running discovery. It must apply the SAME filter page zero used —
+/// offsets are computed over the filtered stream, so an unfiltered cache
+/// read would both duplicate rows already shown and surface composers page
+/// zero hides.
+pub fn list_for_sidebar_filtered_cached<F>(
+    cache_conn: &Connection,
+    limit: usize,
+    offset: usize,
+    mut include: F,
+) -> Result<(Vec<CursorSession>, bool), String>
+where
+    F: FnMut(&CursorSession) -> Result<bool, String>,
+{
     let rows =
         source_cache::query_cached_sessions_for_source_from_conn(cache_conn, SOURCE_CURSOR_IDE)?;
     let mut matched = Vec::with_capacity(limit.saturating_add(1));

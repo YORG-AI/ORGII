@@ -182,7 +182,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
           data={keyedSections}
           computeItemKey={(_index, item) => item.renderKey}
           overscan={600}
-          components={hideBottomPadding ? undefined : DIFF_LIST_COMPONENTS}
+          {...(hideBottomPadding ? {} : { components: DIFF_LIST_COMPONENTS })}
           itemContent={(_index, { section, renderKey }) => {
             const isFocused = focusedPath === section.file.path;
             const expansionSignal =

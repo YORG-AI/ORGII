@@ -78,6 +78,20 @@ describe("useChatTurnPagination — default paging", () => {
     // Last page is the user-only group — blank agent content.
     expect(result.displayFlatItems).toHaveLength(0);
   });
+
+  it("keeps one hundred discovered turns directly addressable", () => {
+    const result = paginate(
+      Array.from({ length: 100 }, () => ({
+        agentItems: 0,
+        userHeader: true,
+      })),
+      { activePageIndex: 49 }
+    );
+
+    expect(result.pageCount).toBe(100);
+    expect(result.currentPageIndex).toBe(49);
+    expect(result.displayGroupHeaders).toHaveLength(1);
+  });
 });
 
 describe("useChatTurnPagination — mergeUserOnlyPages", () => {

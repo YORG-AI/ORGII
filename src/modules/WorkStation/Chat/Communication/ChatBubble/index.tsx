@@ -37,6 +37,7 @@ export {
   PlanBubble,
   TodoBubble,
 } from "./agentBubbleVariants";
+export { UnloadedTurnBubble } from "./UnloadedTurnBubble";
 
 const AVATAR_ICON_SIZE = COMMUNICATION_AVATAR_ICON_SIZE;
 
