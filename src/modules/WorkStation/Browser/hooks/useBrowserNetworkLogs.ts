@@ -194,12 +194,12 @@ export function useBrowserNetworkLogs(
         );
         if (!context.isCurrent()) return;
 
-      if (
-        generation === pollGenerationRef.current &&
-        rustEntries &&
-        rustEntries.length > 0
-      ) {
-        const cache = getSessionCache(sessionId);
+        if (
+          generation === pollGenerationRef.current &&
+          rustEntries &&
+          rustEntries.length > 0
+        ) {
+          const cache = getSessionCache(sessionId);
 
           // Transform entries
           const newEntries: NetworkEntry[] = rustEntries.map((entry) => ({
