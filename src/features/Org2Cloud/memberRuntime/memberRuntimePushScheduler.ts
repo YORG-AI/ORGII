@@ -35,7 +35,7 @@ import { builderProfileOverview } from "@src/api/tauri/builderProfile";
 import type { BuilderProfileOverview } from "@src/api/tauri/builderProfile";
 import { externalCliSourcesDetect } from "@src/api/tauri/externalHistory/detection";
 import { usageDashboardDailyRollup } from "@src/api/tauri/usageDashboard";
-import type { DailyRollupRow } from "@src/api/tauri/usageDashboard";
+import type { DailyRollupResult } from "@src/api/tauri/usageDashboard";
 import { createLogger } from "@src/hooks/logger";
 import { settingAtom } from "@src/store/settings/settingsAtom";
 import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
@@ -112,7 +112,10 @@ export interface MemberRuntimeSchedulerDeps {
   random(): number;
   getMachine: typeof getMemberRuntimeMachineCached;
   getSample: typeof collectMemberRuntimeSample;
-  getDailyRollup: (startMs: number, endMs: number) => Promise<DailyRollupRow[]>;
+  getDailyRollup: (
+    startMs: number,
+    endMs: number
+  ) => Promise<DailyRollupResult>;
   /** CACHE READ ONLY — scores already-extracted signal rows; extraction is
    * never triggered here. */
   getProfileOverview: () => Promise<BuilderProfileOverview>;
@@ -424,11 +427,12 @@ export class MemberRuntimePushScheduler {
     const sample = await this.deps.getSample(nowMs);
 
     // Usage: recompute the rolling UTC-day window, delta-push changed rows.
+    // The same scan carries the lifetime session census for status.stats.
     const windowStartMs =
       utcDayFloorMs(nowMs) - (MEMBER_USAGE_ROLLUP_WINDOW_DAYS - 1) * UTC_DAY_MS;
-    const rollupRows = await this.deps.getDailyRollup(windowStartMs, nowMs);
+    const rollup = await this.deps.getDailyRollup(windowStartMs, nowMs);
     const usagePlan = planUsageDaysPush(
-      mapRollupRowsToMemberUsageDays(rollupRows),
+      mapRollupRowsToMemberUsageDays(rollup.days),
       state.usageFingerprint
     );
 
@@ -469,7 +473,11 @@ export class MemberRuntimePushScheduler {
     }
 
     const input: UpsertMemberRuntimeInput = {
-      status: { machine, sample },
+      status: {
+        machine,
+        sample,
+        stats: { totalSessions: rollup.totalSessions },
+      },
       ...(usagePlan.days.length > 0 ? { usageDays: usagePlan.days } : {}),
       ...(profilePart ? { profile: profilePart } : {}),
     };

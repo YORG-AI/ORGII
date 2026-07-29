@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Today",
     "week": "7d",
-    "asOf": "as of {{time}}",
+    "sessions": "Sessions",
+    "lastSynced": "Last synced {{time}}",
     "neverReported": "No report yet"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Memory",
     "unified": "unified",
     "gpu": "GPU",
-    "appVersion": "ORGII version"
+    "appVersion": "ORGII version",
+    "totalSessions": "Total sessions",
+    "lastSynced": "Last synced"
   },
   "selfService": {
     "hint": "Your own runtime is shared with this organization while sharing is on.",

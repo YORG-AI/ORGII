@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "오늘",
     "week": "7일",
-    "asOf": "마지막 보고: {{time}}",
+    "sessions": "세션",
+    "lastSynced": "마지막 동기화 {{time}}",
     "neverReported": "아직 보고 없음"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "메모리",
     "unified": "통합 메모리",
     "gpu": "GPU",
-    "appVersion": "ORGII 버전"
+    "appVersion": "ORGII 버전",
+    "totalSessions": "총 세션 수",
+    "lastSynced": "마지막 동기화"
   },
   "selfService": {
     "hint": "공유가 켜져 있는 동안 내 런타임이 이 조직과 공유됩니다.",

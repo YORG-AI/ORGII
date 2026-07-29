@@ -48,6 +48,11 @@ pub struct DailyRollupRow {
 pub struct DailyRollup {
     /// Rows sorted by (`day_start_ms`, `bucket`); all-zero cells omitted.
     pub days: Vec<DailyRollupRow>,
+    /// LIFETIME mirror-deduped session count (independent of the window):
+    /// every projected session except hidden mirror twins. The cloud only
+    /// retains the windowed daily rows, so the lifetime figure has to ride
+    /// along from the client.
+    pub total_sessions: i64,
 }
 
 #[derive(Default)]
@@ -60,6 +65,20 @@ struct RollupCell {
     cost_usd: f64,
     requests: i64,
     session_ids: HashSet<String>,
+}
+
+/// Lifetime session count with the same mirror exclusion as every dashboard
+/// read: rows in the usage projection minus `listable = 0` imported twins.
+fn total_session_count(conn: &Connection) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM orgtrack_core_session_usage u
+         WHERE u.session_id NOT IN (
+           SELECT session_id FROM imported_history_session_cache WHERE listable = 0
+         )",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(|e| format!("total_session_count: {e}"))
 }
 
 /// Aggregate the `[start_ms, end_ms]` window (inclusive, epoch ms) into
@@ -121,5 +140,8 @@ pub fn usage_daily_rollup(
         })
         .collect();
 
-    Ok(DailyRollup { days })
+    Ok(DailyRollup {
+        days,
+        total_sessions: total_session_count(conn)?,
+    })
 }

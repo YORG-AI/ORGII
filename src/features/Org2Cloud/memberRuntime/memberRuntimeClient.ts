@@ -214,6 +214,7 @@ const MemberRuntimeListEntryWireSchema = z.object({
   reportedAt: z.string().nullish().catch(undefined),
   machine: MemberRuntimeMachineWireSchema.nullish().catch(undefined),
   sample: MemberRuntimeSampleWireSchema.nullish().catch(undefined),
+  stats: z.object({ totalSessions: z.number() }).nullish().catch(undefined),
   builderTypeCode: z.string().nullish().catch(undefined),
   profile: MemberBuilderProfileWireSchema.nullish().catch(undefined),
   installedAgents: z
@@ -251,6 +252,7 @@ function toListEntry(
     reportedAt: entry.reportedAt ?? null,
     machine: entry.machine ?? null,
     sample: entry.sample ?? null,
+    stats: entry.stats ?? null,
     builderTypeCode: entry.builderTypeCode ?? null,
     profile: entry.profile ?? null,
     installedAgents: entry.installedAgents,

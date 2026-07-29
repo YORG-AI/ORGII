@@ -698,6 +698,10 @@ fn daily_rollup_buckets_days_and_excludes_mirror() {
     assert_eq!(day18_codex.input_tokens, 400_000);
     assert_eq!(day18_codex.sessions, 1);
     assert_eq!(day18_codex.requests, 1);
+
+    // Lifetime census: cli-claude + agent-1 + ext-codex; the listable=0
+    // mirror twin must not inflate the count.
+    assert_eq!(rollup.total_sessions, 3);
 }
 
 #[test]
@@ -802,7 +806,12 @@ fn daily_rollup_serializes_camel_case() {
         sessions: 1,
         requests: 2,
     };
-    let json = serde_json::to_value(DailyRollup { days: vec![row] }).expect("serialize rollup");
+    let json = serde_json::to_value(DailyRollup {
+        days: vec![row],
+        total_sessions: 42,
+    })
+    .expect("serialize rollup");
+    assert_eq!(json["totalSessions"], 42);
     let row = &json["days"][0];
     assert_eq!(row["dayStartMs"], 1_784_332_800_000_i64);
     assert_eq!(row["bucket"], "claude");

@@ -298,21 +298,27 @@ export interface DailyRollupRow {
   requests: number;
 }
 
+export interface DailyRollupResult {
+  days: DailyRollupRow[];
+  /** Lifetime mirror-deduped session count — independent of the window. */
+  totalSessions: number;
+}
+
 /**
  * Per-UTC-day, per-bucket rollup over `[startMs, endMs]` for the
  * member-runtime push (registered behind the same 1-permit semaphore as the
  * other dashboard scans, so a plain wrapper is enough — concurrent callers
- * queue in the backend).
+ * queue in the backend). Also carries the lifetime session census the push
+ * shares as `stats.totalSessions`.
  */
 export async function usageDashboardDailyRollup(
   startMs: number,
   endMs: number
-): Promise<DailyRollupRow[]> {
-  const result = await invoke<{ days: DailyRollupRow[] }>(
-    "usage_dashboard_daily_rollup",
-    { startMs, endMs }
-  );
-  return result.days;
+): Promise<DailyRollupResult> {
+  return invoke<DailyRollupResult>("usage_dashboard_daily_rollup", {
+    startMs,
+    endMs,
+  });
 }
 
 export async function usageDashboardSessions(

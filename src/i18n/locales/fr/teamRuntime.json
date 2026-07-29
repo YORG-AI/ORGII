@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Aujourd'hui",
     "week": "7 j",
-    "asOf": "dernier rapport {{time}}",
+    "sessions": "Sessions",
+    "lastSynced": "Dernière synchro {{time}}",
     "neverReported": "Aucun rapport pour l'instant"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Mémoire",
     "unified": "unifiée",
     "gpu": "GPU",
-    "appVersion": "Version d'ORGII"
+    "appVersion": "Version d'ORGII",
+    "totalSessions": "Sessions au total",
+    "lastSynced": "Dernière synchro"
   },
   "selfService": {
     "hint": "Votre propre runtime est partagé avec cette organisation tant que le partage est activé.",

@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Bugün",
     "week": "7 g",
-    "asOf": "son rapor: {{time}}",
+    "sessions": "Oturumlar",
+    "lastSynced": "Son eşitleme {{time}}",
     "neverReported": "Henüz rapor yok"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Bellek",
     "unified": "birleşik bellek",
     "gpu": "GPU",
-    "appVersion": "ORGII sürümü"
+    "appVersion": "ORGII sürümü",
+    "totalSessions": "Toplam oturum",
+    "lastSynced": "Son eşitleme"
   },
   "selfService": {
     "hint": "Paylaşım açıkken kendi çalışma zamanınız bu organizasyonla paylaşılır.",

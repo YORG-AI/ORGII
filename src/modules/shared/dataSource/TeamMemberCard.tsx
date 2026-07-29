@@ -24,7 +24,7 @@ import {
   isInstalledAgentPresent,
   isRuntimeStale,
 } from "./teamRuntimeData";
-import { formatTokensShort, formatUsd } from "./usageFormat";
+import { formatInt, formatTokensShort, formatUsd } from "./usageFormat";
 
 /** Display metadata resolved from the local detection catalog. */
 export interface AgentCatalogEntry {
@@ -206,6 +206,14 @@ const TeamMemberCard = memo(function TeamMemberCard({
             {formatTokensShort(headline.weekTokens)}
           </span>
         </span>
+        {entry.stats ? (
+          <span data-testid={`team-member-sessions-${entry.userId}`}>
+            <span className="text-text-3">{t("card.sessions")} </span>
+            <span className="font-medium text-text-1">
+              {formatInt(entry.stats.totalSessions)}
+            </span>
+          </span>
+        ) : null}
       </div>
 
       {agents.length > 0 ? (
@@ -216,9 +224,12 @@ const TeamMemberCard = memo(function TeamMemberCard({
         </div>
       ) : null}
 
-      <div className="text-[11px] text-text-3">
+      <div
+        className="text-[11px] text-text-3"
+        data-testid={`team-member-synced-${entry.userId}`}
+      >
         {entry.reportedAt
-          ? t("card.asOf", {
+          ? t("card.lastSynced", {
               time: formatRelativeTime(entry.reportedAt, "long"),
             })
           : t("card.neverReported")}

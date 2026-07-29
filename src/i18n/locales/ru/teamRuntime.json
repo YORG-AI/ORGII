@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Сегодня",
     "week": "7 дн",
-    "asOf": "последний отчёт: {{time}}",
+    "sessions": "Сессии",
+    "lastSynced": "Последняя синхронизация {{time}}",
     "neverReported": "Отчётов пока нет"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Память",
     "unified": "унифицированная",
     "gpu": "GPU",
-    "appVersion": "Версия ORGII"
+    "appVersion": "Версия ORGII",
+    "totalSessions": "Всего сессий",
+    "lastSynced": "Последняя синхронизация"
   },
   "selfService": {
     "hint": "Пока обмен включён, ваш собственный рантайм передаётся этой организации.",

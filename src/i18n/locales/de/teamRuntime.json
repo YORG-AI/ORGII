@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Heute",
     "week": "7 T",
-    "asOf": "letzter Bericht {{time}}",
+    "sessions": "Sitzungen",
+    "lastSynced": "Zuletzt synchronisiert {{time}}",
     "neverReported": "Noch kein Bericht"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Arbeitsspeicher",
     "unified": "unified",
     "gpu": "GPU",
-    "appVersion": "ORGII-Version"
+    "appVersion": "ORGII-Version",
+    "totalSessions": "Sitzungen gesamt",
+    "lastSynced": "Zuletzt synchronisiert"
   },
   "selfService": {
     "hint": "Solange die Freigabe aktiv ist, wird deine eigene Runtime mit dieser Organisation geteilt.",

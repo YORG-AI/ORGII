@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Dziś",
     "week": "7 dni",
-    "asOf": "ostatni raport: {{time}}",
+    "sessions": "Sesje",
+    "lastSynced": "Ostatnia synchronizacja {{time}}",
     "neverReported": "Brak raportu"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Pamięć",
     "unified": "zunifikowana",
     "gpu": "GPU",
-    "appVersion": "Wersja ORGII"
+    "appVersion": "Wersja ORGII",
+    "totalSessions": "Łącznie sesji",
+    "lastSynced": "Ostatnia synchronizacja"
   },
   "selfService": {
     "hint": "Gdy udostępnianie jest włączone, Twój własny runtime jest udostępniany tej organizacji.",

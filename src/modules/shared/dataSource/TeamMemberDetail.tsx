@@ -30,6 +30,7 @@ import {
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import AxisMeter from "./AxisMeter";
 import BuilderTypeAvatar from "./BuilderTypeAvatar";
@@ -44,6 +45,7 @@ import {
   utcDayStartMs,
 } from "./teamRuntimeData";
 import { bucketLabelKey } from "./usageBuckets";
+import { formatInt } from "./usageFormat";
 
 const SOURCE_ALL = "all";
 const UsageTrendChart = lazy(() => import("./UsageTrendChart"));
@@ -352,46 +354,72 @@ export default function TeamMemberDetail({
         </>
       ) : null}
 
-      {machine ? (
+      {machine || entry.reportedAt || entry.stats ? (
         <>
           <h3 className={SECTION_SUBHEADING_CLASSES}>
             {t("detail.machineTitle")}
           </h3>
           <SectionContainer>
-            <SectionRow label={t("detail.machineLabel")}>
-              <span className="text-xs text-text-2">
-                {machine.machineLabel}
-              </span>
-            </SectionRow>
-            <SectionRow label={t("detail.os")}>
-              <span className="text-xs text-text-2">
-                {machine.osName} {machine.osVersion}
-              </span>
-            </SectionRow>
-            <SectionRow label={t("detail.chip")}>
-              <span className="text-xs text-text-2">
-                {machine.chipType}
-                {machine.cpuCores ? ` · ${machine.cpuCores}c` : ""}
-              </span>
-            </SectionRow>
-            {machine.totalRamGb ? (
-              <SectionRow label={t("detail.memory")}>
-                <span className="text-xs text-text-2">
-                  {machine.totalRamGb} GB
-                  {machine.unifiedMemory ? ` · ${t("detail.unified")}` : ""}
+            {machine ? (
+              <>
+                <SectionRow label={t("detail.machineLabel")}>
+                  <span className="text-xs text-text-2">
+                    {machine.machineLabel}
+                  </span>
+                </SectionRow>
+                <SectionRow label={t("detail.os")}>
+                  <span className="text-xs text-text-2">
+                    {machine.osName} {machine.osVersion}
+                  </span>
+                </SectionRow>
+                <SectionRow label={t("detail.chip")}>
+                  <span className="text-xs text-text-2">
+                    {machine.chipType}
+                    {machine.cpuCores ? ` · ${machine.cpuCores}c` : ""}
+                  </span>
+                </SectionRow>
+                {machine.totalRamGb ? (
+                  <SectionRow label={t("detail.memory")}>
+                    <span className="text-xs text-text-2">
+                      {machine.totalRamGb} GB
+                      {machine.unifiedMemory ? ` · ${t("detail.unified")}` : ""}
+                    </span>
+                  </SectionRow>
+                ) : null}
+                {machine.gpuName ? (
+                  <SectionRow label={t("detail.gpu")}>
+                    <span className="text-xs text-text-2">
+                      {machine.gpuName}
+                      {machine.gpuVramGb ? ` · ${machine.gpuVramGb} GB` : ""}
+                    </span>
+                  </SectionRow>
+                ) : null}
+                <SectionRow label={t("detail.appVersion")}>
+                  <span className="text-xs text-text-2">
+                    {machine.appVersion}
+                  </span>
+                </SectionRow>
+              </>
+            ) : null}
+            {entry.stats ? (
+              <SectionRow label={t("detail.totalSessions")}>
+                <span
+                  className="text-xs text-text-2"
+                  data-testid="team-detail-total-sessions"
+                >
+                  {formatInt(entry.stats.totalSessions)}
                 </span>
               </SectionRow>
             ) : null}
-            {machine.gpuName ? (
-              <SectionRow label={t("detail.gpu")}>
-                <span className="text-xs text-text-2">
-                  {machine.gpuName}
-                  {machine.gpuVramGb ? ` · ${machine.gpuVramGb} GB` : ""}
-                </span>
-              </SectionRow>
-            ) : null}
-            <SectionRow label={t("detail.appVersion")}>
-              <span className="text-xs text-text-2">{machine.appVersion}</span>
+            <SectionRow label={t("detail.lastSynced")}>
+              <span
+                className="text-xs text-text-2"
+                data-testid="team-detail-last-synced"
+              >
+                {entry.reportedAt
+                  ? formatRelativeTime(entry.reportedAt, "long")
+                  : t("card.neverReported")}
+              </span>
             </SectionRow>
           </SectionContainer>
         </>

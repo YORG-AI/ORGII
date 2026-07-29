@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "今天",
     "week": "7 天",
-    "asOf": "上次回報：{{time}}",
+    "sessions": "工作階段",
+    "lastSynced": "最後同步 {{time}}",
     "neverReported": "尚未回報"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "記憶體",
     "unified": "統一記憶體",
     "gpu": "GPU",
-    "appVersion": "ORGII 版本"
+    "appVersion": "ORGII 版本",
+    "totalSessions": "工作階段總數",
+    "lastSynced": "最後同步"
   },
   "selfService": {
     "hint": "共享開啟期間，你自己的執行狀態會共享給此組織。",

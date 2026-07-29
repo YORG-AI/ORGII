@@ -88,6 +88,13 @@ export interface MemberRuntimeSample {
   sampledAtMs: number;
 }
 
+/** Lifetime local-machine session totals, pushed with every status update
+ * (the cloud only holds the retention-windowed daily rows, so a lifetime
+ * count must come from the client). Mirror-deduped like the dashboard. */
+export interface MemberRuntimeStats {
+  totalSessions: number;
+}
+
 /** One (UTC day, bucket) usage rollup row. */
 export interface MemberUsageDay {
   day: UtcDay;
@@ -126,6 +133,7 @@ export interface UpsertMemberRuntimeInput {
   status?: {
     machine: MemberRuntimeMachine;
     sample: MemberRuntimeSample;
+    stats?: MemberRuntimeStats;
   };
   usageDays?: MemberUsageDay[];
   profile?: MemberProfilePayload;
@@ -141,6 +149,7 @@ export interface MemberRuntimeListEntry {
   reportedAt: string | null;
   machine: MemberRuntimeMachine | null;
   sample: MemberRuntimeSample | null;
+  stats: MemberRuntimeStats | null;
   builderTypeCode: string | null;
   profile: MemberBuilderProfile | null;
   installedAgents: MemberInstalledAgent[];
@@ -177,10 +186,12 @@ export const MEMBER_RUNTIME_SIGNAL_KIND = "member_runtime" as const;
 export const MEMBER_RUNTIME_COMMANDS = {
   /** → `{ cpuPercent, memUsedMb, memTotalMb, gpuPercent, sampledOverMs }` */
   systemRuntimeSnapshot: "system_runtime_snapshot",
-  /** args `{ startMs, endMs }` → `{ days: DailyRollupRow[] }` where a row is
-   * `{ dayStartMs, bucket, inputTokens, outputTokens, cacheReadTokens,
-   *    cacheWriteTokens, totalTokens, costUsd, sessions, requests }`
-   * with UTC day floors and `all_sources: true` (includes `other`). */
+  /** args `{ startMs, endMs }` → `{ days: DailyRollupRow[], totalSessions }`
+   * where a row is `{ dayStartMs, bucket, inputTokens, outputTokens,
+   * cacheReadTokens, cacheWriteTokens, totalTokens, costUsd, sessions,
+   * requests }` with UTC day floors and `all_sources: true` (includes
+   * `other`); `totalSessions` is the LIFETIME mirror-deduped session count,
+   * independent of the window. */
   usageDailyRollup: "usage_dashboard_daily_rollup",
   /** → `{ deviceId, machineLabel }`, persisted at `~/.orgii/cloud_device_id`. */
   cloudDeviceIdentity: "cloud_device_identity",

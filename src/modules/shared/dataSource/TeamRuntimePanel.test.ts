@@ -339,6 +339,7 @@ function member(
       sampledOverMs: 1500,
       sampledAtMs: Date.now(),
     },
+    stats: { totalSessions: 128 },
     builderTypeCode: "EAWH",
     profile: null,
     installedAgents: [
@@ -553,6 +554,15 @@ describe("TeamRuntimePanel roster", () => {
       card?.querySelector('[data-testid="team-agent-mystery-cli"]')?.textContent
     ).toBe("mystery-cli");
     expect(card?.querySelector('[data-testid="team-agent-codex"]')).toBeNull();
+    // Lifetime session census + explicit last-synced line.
+    expect(
+      card?.querySelector('[data-testid="team-member-sessions-user-a"]')
+        ?.textContent
+    ).toContain("128");
+    expect(
+      card?.querySelector('[data-testid="team-member-synced-user-a"]')
+        ?.textContent
+    ).toContain("card.lastSynced");
   });
 });
 

@@ -31,7 +31,8 @@
     "gpu": "GPU",
     "today": "Hôm nay",
     "week": "7 ngày",
-    "asOf": "báo cáo gần nhất: {{time}}",
+    "sessions": "Phiên",
+    "lastSynced": "Đồng bộ lần cuối {{time}}",
     "neverReported": "Chưa có báo cáo"
   },
   "detail": {
@@ -53,7 +54,9 @@
     "memory": "Bộ nhớ",
     "unified": "bộ nhớ hợp nhất",
     "gpu": "GPU",
-    "appVersion": "Phiên bản ORGII"
+    "appVersion": "Phiên bản ORGII",
+    "totalSessions": "Tổng số phiên",
+    "lastSynced": "Đồng bộ lần cuối"
   },
   "selfService": {
     "hint": "Khi chia sẻ đang bật, runtime của chính bạn được chia sẻ với tổ chức này.",
