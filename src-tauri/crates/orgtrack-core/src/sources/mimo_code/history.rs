@@ -2,9 +2,10 @@
 //!
 //! Mimo persists sessions in `mimocode.db`. Its `message` and `part` tables use
 //! the same normalized JSON shapes as OpenCode, while its `session` table has a
-//! smaller metadata surface. This module owns Mimo discovery/cache metadata and
-//! delegates part-to-activity conversion to the shared OpenCode-compatible
-//! parser.
+//! smaller metadata surface. Pure mirrors recorded in Mimo's external-import
+//! provenance tables are excluded; sessions continued natively in Mimo remain.
+//! This module owns Mimo discovery/cache metadata and delegates part-to-activity
+//! conversion to the shared OpenCode-compatible parser.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -26,7 +27,8 @@ use crate::sources::opencode::history::load_opencode_compatible_history_from_con
 pub const MIMO_CODE_SESSION_PREFIX: &str = "mimocodeapp-";
 const MIMO_CODE_PROVIDER_SLUG: &str = "mimo_code";
 const MIMO_CODE_DB_FILENAME: &str = "mimocode.db";
-const MIMO_CODE_METADATA_PARSER_VERSION: i64 = 1;
+const MIMO_CODE_METADATA_PARSER_VERSION: i64 = 2;
+const MIMO_IMPORT_PROVENANCE_TABLES: &[&str] = &["external_import", "claude_import"];
 
 pub type MimoCodeHistorySessionRow = ImportedHistorySessionRow;
 pub type MimoCodeHistorySessionPage = ImportedHistorySessionPage;
@@ -144,6 +146,7 @@ fn list_session_meta_from_conn(
     source_mtime_ms: i64,
     source_size_bytes: i64,
 ) -> Result<Vec<MimoCodeSessionMeta>, String> {
+    let pure_imported_session_ids = pure_imported_session_ids(conn)?;
     let mut stmt = conn
         .prepare(
             "SELECT s.id, s.title, s.directory, s.time_created, s.time_updated, s.parent_id, \
@@ -194,6 +197,9 @@ fn list_session_meta_from_conn(
         if meta.source_session_id.trim().is_empty() {
             continue;
         }
+        if pure_imported_session_ids.contains(&meta.source_session_id) {
+            continue;
+        }
         meta.source_fingerprint = [
             meta.source_session_id.as_str(),
             meta.title.as_str(),
@@ -210,6 +216,94 @@ fn list_session_meta_from_conn(
         metas.push(meta);
     }
     Ok(metas)
+}
+
+/// Return sessions whose current messages are all listed by Mimo as imported.
+///
+/// Current Mimo versions use `external_import` for Claude Code, Codex, and
+/// OpenCode provenance. Older versions used `claude_import`. A missing table,
+/// missing legacy `message_ids` column, null list, or malformed list is treated
+/// conservatively as unknown provenance so ORGII does not hide a native session.
+fn pure_imported_session_ids(conn: &Connection) -> Result<HashSet<String>, String> {
+    let mut session_ids = HashSet::new();
+    for table_name in MIMO_IMPORT_PROVENANCE_TABLES {
+        if !sqlite_table_exists(conn, table_name)?
+            || !sqlite_table_has_column(conn, table_name, "message_ids")?
+        {
+            continue;
+        }
+        extend_pure_imported_session_ids(conn, table_name, &mut session_ids)?;
+    }
+    Ok(session_ids)
+}
+
+fn extend_pure_imported_session_ids(
+    conn: &Connection,
+    table_name: &str,
+    session_ids: &mut HashSet<String>,
+) -> Result<(), String> {
+    // `table_name` comes exclusively from MIMO_IMPORT_PROVENANCE_TABLES.
+    let sql = format!(
+        "SELECT imported.session_id \
+         FROM \"{table_name}\" imported \
+         JOIN session imported_session \
+           ON imported_session.id = imported.session_id \
+          AND imported_session.time_archived IS NULL \
+         LEFT JOIN json_each( \
+             CASE WHEN json_valid(imported.message_ids) \
+                  THEN imported.message_ids ELSE '[]' END \
+         ) imported_id ON TRUE \
+         LEFT JOIN message imported_message \
+           ON imported_message.session_id = imported.session_id \
+          AND imported_message.id = imported_id.value \
+         WHERE imported.message_ids IS NOT NULL \
+           AND json_valid(imported.message_ids) \
+         GROUP BY imported.session_id \
+         HAVING COUNT(DISTINCT imported_message.id) = ( \
+             SELECT COUNT(*) FROM message session_message \
+             WHERE session_message.session_id = imported.session_id \
+         )"
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|err| {
+        format!("Failed to prepare Mimo Code {table_name} provenance query: {err}")
+    })?;
+    let rows = stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .map_err(|err| format!("Failed to query Mimo Code {table_name} provenance: {err}"))?;
+    for row in rows {
+        let session_id =
+            row.map_err(|err| format!("Failed to read Mimo Code {table_name} provenance: {err}"))?;
+        if !session_id.trim().is_empty() {
+            session_ids.insert(session_id);
+        }
+    }
+    Ok(())
+}
+
+fn sqlite_table_exists(conn: &Connection, table_name: &str) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS( \
+             SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1 \
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
+    .map_err(|err| format!("Failed to inspect Mimo Code table {table_name}: {err}"))
+}
+
+fn sqlite_table_has_column(
+    conn: &Connection,
+    table_name: &str,
+    column_name: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS( \
+             SELECT 1 FROM pragma_table_info(?1) WHERE name = ?2 \
+         )",
+        [table_name, column_name],
+        |row| row.get(0),
+    )
+    .map_err(|err| format!("Failed to inspect Mimo Code column {table_name}.{column_name}: {err}"))
 }
 
 fn meta_signature(meta: &MimoCodeSessionMeta) -> ImportedHistoryRecordSignature {
@@ -388,5 +482,99 @@ mod tests {
         )
         .expect("chunks");
         assert_eq!(chunks.len(), 2);
+    }
+
+    #[test]
+    fn filters_only_sessions_composed_entirely_of_external_import_messages() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE session (
+                id TEXT PRIMARY KEY, title TEXT, directory TEXT, time_created INTEGER,
+                time_updated INTEGER, parent_id TEXT, time_archived INTEGER
+             );
+             CREATE TABLE message (
+                id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT
+             );
+             CREATE TABLE external_import (
+                source TEXT NOT NULL, source_key TEXT NOT NULL, session_id TEXT NOT NULL,
+                source_path TEXT NOT NULL, source_mtime INTEGER NOT NULL,
+                time_imported INTEGER NOT NULL, message_ids TEXT,
+                PRIMARY KEY (source, source_key)
+             );
+             INSERT INTO session VALUES
+                ('ses_native', 'Native', '/repo', 1000, 2000, NULL, NULL),
+                ('ses_claude_mirror', 'Claude mirror', '/repo', 1000, 2000, NULL, NULL),
+                ('ses_codex_mirror', 'Codex mirror', '/repo', 1000, 2000, NULL, NULL),
+                ('ses_continued', 'Continued in Mimo', '/repo', 1000, 3000, NULL, NULL),
+                ('ses_legacy_unknown', 'Unknown import extent', '/repo', 1000, 2000, NULL, NULL);
+             INSERT INTO message VALUES
+                ('msg_native', 'ses_native', 1000, '{\"role\":\"user\"}'),
+                ('msg_claude_1', 'ses_claude_mirror', 1000, '{\"role\":\"user\"}'),
+                ('msg_claude_2', 'ses_claude_mirror', 1500, '{\"role\":\"assistant\"}'),
+                ('msg_codex', 'ses_codex_mirror', 1000, '{\"role\":\"user\"}'),
+                ('msg_imported', 'ses_continued', 1000, '{\"role\":\"user\"}'),
+                ('msg_mimo_native', 'ses_continued', 2500, '{\"role\":\"assistant\"}'),
+                ('msg_unknown', 'ses_legacy_unknown', 1000, '{\"role\":\"user\"}');
+             INSERT INTO external_import VALUES
+                ('cc', 'claude-source', 'ses_claude_mirror', '/claude/session.jsonl', 1, 2,
+                 '[\"msg_claude_1\",\"msg_claude_2\"]'),
+                ('codex', 'codex-source', 'ses_codex_mirror', '/codex/session.jsonl', 1, 2,
+                 '[\"msg_codex\"]'),
+                ('cc', 'continued-source', 'ses_continued', '/claude/continued.jsonl', 1, 2,
+                 '[\"msg_imported\"]'),
+                ('cc', 'legacy-source', 'ses_legacy_unknown', '/claude/legacy.jsonl', 1, 2,
+                 NULL);",
+        )
+        .unwrap();
+
+        let metas =
+            list_session_meta_from_conn(&conn, Path::new("mimocode.db"), 10, 20).expect("metadata");
+        let source_ids = metas
+            .into_iter()
+            .map(|meta| meta.source_session_id)
+            .collect::<HashSet<_>>();
+
+        assert_eq!(
+            source_ids,
+            HashSet::from([
+                "ses_native".to_string(),
+                "ses_continued".to_string(),
+                "ses_legacy_unknown".to_string(),
+            ])
+        );
+    }
+
+    #[test]
+    fn filters_legacy_claude_import_mirrors() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE session (
+                id TEXT PRIMARY KEY, title TEXT, directory TEXT, time_created INTEGER,
+                time_updated INTEGER, parent_id TEXT, time_archived INTEGER
+             );
+             CREATE TABLE message (
+                id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT
+             );
+             CREATE TABLE claude_import (
+                source_uuid TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+                source_path TEXT NOT NULL, source_mtime INTEGER NOT NULL,
+                time_imported INTEGER NOT NULL, message_ids TEXT
+             );
+             INSERT INTO session VALUES (
+                'ses_legacy_mirror', 'Legacy mirror', '/repo', 1000, 2000, NULL, NULL
+             );
+             INSERT INTO message VALUES (
+                'msg_legacy', 'ses_legacy_mirror', 1000, '{\"role\":\"user\"}'
+             );
+             INSERT INTO claude_import VALUES (
+                'legacy-source', 'ses_legacy_mirror', '/claude/session.jsonl', 1, 2,
+                '[\"msg_legacy\"]'
+             );",
+        )
+        .unwrap();
+
+        let metas =
+            list_session_meta_from_conn(&conn, Path::new("mimocode.db"), 10, 20).expect("metadata");
+        assert!(metas.is_empty());
     }
 }

@@ -331,9 +331,7 @@ pub(crate) fn parse_codex_session_meta_with_title(
         record.source_size_bytes,
         state_json,
     );
-    let meta = tail_state
-        .unwrap_or(state)
-        .finish(record, external_title);
+    let meta = tail_state.unwrap_or(state).finish(record, external_title);
     Ok(CodexSessionMetaParse {
         meta,
         watermark: next_watermark,

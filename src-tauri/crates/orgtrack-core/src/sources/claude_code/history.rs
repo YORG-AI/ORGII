@@ -214,8 +214,7 @@ pub fn stat_claude_code_history_for_session(
 }
 
 fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
-    let previous_snapshots =
-        scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CLAUDE_CODE);
+    let previous_snapshots = scan_snapshot::read_dir_snapshots_from_conn(conn, SOURCE_CLAUDE_CODE);
     let mut walker = scan_snapshot::SnapshotDirWalker::new(&previous_snapshots, "jsonl", "Claude");
     let discovery = discover_claude_code_history_records(&claude_projects_dirs()?, &mut walker)?;
     let next_snapshots = walker.into_snapshots();
@@ -266,8 +265,11 @@ fn sync_claude_code_history_cache(conn: &mut Connection) -> Result<(), String> {
             .get(&record.source_session_id)
             .cloned()
             .unwrap_or_default();
-        let parse =
-            parse_claude_session_meta_with_title(record, stored_watermark.as_ref(), external_title)?;
+        let parse = parse_claude_session_meta_with_title(
+            record,
+            stored_watermark.as_ref(),
+            external_title,
+        )?;
         imported_history::watermark::write_parse_watermark_from_conn(
             conn,
             SOURCE_CLAUDE_CODE,

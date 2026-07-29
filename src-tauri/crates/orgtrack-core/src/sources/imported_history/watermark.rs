@@ -191,9 +191,8 @@ impl WatermarkedTranscriptReader {
             }
             if resume_state_json.is_none() {
                 hasher = PrefixHasher::default();
-                file.seek(SeekFrom::Start(0)).map_err(|err| {
-                    format!("Failed to rewind {error_label} history: {err}")
-                })?;
+                file.seek(SeekFrom::Start(0))
+                    .map_err(|err| format!("Failed to rewind {error_label} history: {err}"))?;
             }
         }
 
@@ -237,12 +236,7 @@ impl WatermarkedTranscriptReader {
         let read = self
             .reader
             .read_until(b'\n', &mut self.buf)
-            .map_err(|err| {
-                format!(
-                    "Failed to read {} history line: {err}",
-                    self.error_label
-                )
-            })?;
+            .map_err(|err| format!("Failed to read {} history line: {err}", self.error_label))?;
         if read == 0 {
             return Ok(None);
         }
@@ -259,12 +253,7 @@ impl WatermarkedTranscriptReader {
             }
         }
         let text = std::str::from_utf8(&self.buf[..end])
-            .map_err(|err| {
-                format!(
-                    "Failed to read {} history line: {err}",
-                    self.error_label
-                )
-            })?
+            .map_err(|err| format!("Failed to read {} history line: {err}", self.error_label))?
             .to_string();
         Ok(Some(TranscriptLine { text, terminated }))
     }

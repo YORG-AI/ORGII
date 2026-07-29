@@ -836,8 +836,7 @@ fn query_cached_session_by_session_id_impl(
     let Some(session) = sessions.into_iter().next() else {
         return Ok(None);
     };
-    if !include_continuation_superseded
-        && has_newer_continuation_sibling(conn, &source, &session)?
+    if !include_continuation_superseded && has_newer_continuation_sibling(conn, &source, &session)?
     {
         return Ok(None);
     }
