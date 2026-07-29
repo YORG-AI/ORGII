@@ -25,31 +25,11 @@ pub(super) fn delta_sync(cache_conn: &mut Connection) -> Result<(), String> {
     // Content lives in `state.vscdb`; open it once and only parse the changed
     // few. Its path is the session's store path even when we can't open it.
     let cursor_conn = open_cursor_db();
-    let discovered = if let Some(index_conn) = open_cursor_conversation_index_db() {
-        match discover_from_index(&index_conn) {
-            Ok(rows) => rows,
-            Err(_) => {
-                let Some(rows) = cursor_conn
-                    .as_ref()
-                    .and_then(|conn| discover_from_headers(conn).ok().flatten())
-                else {
-                    // Neither discovery source is authoritative right now.
-                    // Retain the last good cache instead of pruning it.
-                    return Ok(());
-                };
-                rows
-            }
-        }
-    } else {
-        let Some(rows) = cursor_conn
-            .as_ref()
-            .and_then(|conn| discover_from_headers(conn).ok().flatten())
-        else {
-            // A missing or temporarily malformed header row is not an
-            // authoritative empty result.
-            return Ok(());
-        };
-        rows
+    let index_conn = open_cursor_conversation_index_db();
+    let Some(discovered) = discover_sessions(index_conn.as_ref(), cursor_conn.as_ref()) else {
+        // Neither discovery source is authoritative right now. Retain the
+        // last good cache instead of pruning it.
+        return Ok(());
     };
     let source_path = cursor_db_path()
         .or_else(cursor_conversation_index_path)
@@ -162,6 +142,32 @@ pub(super) fn discover_from_index(index_conn: &Connection) -> Result<Vec<CursorI
     Ok(out)
 }
 
+/// Resolve the authoritative discovery row set, or `None` when no source is
+/// authoritative right now (the caller retains the last good cache).
+///
+/// Priority: a healthy `conversation-search.db` read wins; the bounded
+/// `composer.composerHeaders` registry covers builds without the index. An
+/// EMPTY index read is only trusted when the headers registry has nothing
+/// either — newer Cursor builds may stop maintaining
+/// `conversation-search.db` but leave the stale file on disk, and trusting
+/// its emptiness would prune every cached session that headers still see.
+pub(super) fn discover_sessions(
+    index_conn: Option<&Connection>,
+    cursor_conn: Option<&Connection>,
+) -> Option<Vec<CursorIndexRow>> {
+    let headers = || cursor_conn.and_then(|conn| discover_from_headers(conn).ok().flatten());
+    match index_conn.map(discover_from_index) {
+        Some(Ok(rows)) if rows.is_empty() => match headers() {
+            Some(header_rows) if !header_rows.is_empty() => Some(header_rows),
+            // Headers agree (authoritative empty) or are unavailable: the
+            // empty index stands, as it did before headers discovery existed.
+            _ => Some(rows),
+        },
+        Some(Ok(rows)) => Some(rows),
+        Some(Err(_)) | None => headers(),
+    }
+}
+
 /// Discover top-level conversations from Cursor's compact header registry.
 ///
 /// This performs one primary-key lookup in `ItemTable`. It intentionally does
@@ -188,6 +194,15 @@ pub(super) fn discover_from_headers(
     };
 
     let all_headers = headers.all_composers;
+    // Rows whose `type` we do not recognize (today: "" and "head"). If a
+    // future Cursor renames the value, every row lands here and the root
+    // filter below yields an empty set — that is schema drift, not proof the
+    // user deleted all sessions, and must not become an authoritative empty
+    // that prunes the whole cache.
+    let unrecognized_type_count = all_headers
+        .iter()
+        .filter(|header| !(header.row_type.is_empty() || header.row_type == "head"))
+        .count();
     let mut children_by_parent = HashMap::<String, Vec<CursorIndexChild>>::new();
     for header in &all_headers {
         let Some(parent_id) = header
@@ -256,7 +271,12 @@ pub(super) fn discover_from_headers(
                 children,
             })
         })
-        .collect();
+        .collect::<Vec<_>>();
+    if rows.is_empty() && unrecognized_type_count > 0 {
+        // Every candidate was dropped by an unrecognized `type` value.
+        // Retain the last good cache until the new shape is supported.
+        return Ok(None);
+    }
     Ok(Some(rows))
 }
 

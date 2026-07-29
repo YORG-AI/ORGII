@@ -31,6 +31,16 @@ loadErrorAtom.debugLabel = "session/loadError";
 export const sessionReloadEpochMapAtom = atom<Map<string, number>>(new Map());
 sessionReloadEpochMapAtom.debugLabel = "session/reloadEpochMap";
 
+/**
+ * Bumped whenever the on-screen session's transcript is swapped wholesale by
+ * a `replace` reload (windowed imported refresh, native-transcript
+ * reconcile). A replace demotes lazily-fetched turn bodies back to
+ * `unloadedTurn` placeholders, so any component-level "already loaded"
+ * accounting must reset and refetch the visible window when this changes.
+ */
+export const transcriptReplaceEpochAtom = atom(0);
+transcriptReplaceEpochAtom.debugLabel = "session/transcriptReplaceEpoch";
+
 export const triggerSessionReloadAtom = atom(
   null,
   (get, set, sessionId: string) => {

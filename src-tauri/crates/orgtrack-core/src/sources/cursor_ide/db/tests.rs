@@ -504,3 +504,153 @@ fn header_child_stays_collapsed_when_parent_blob_omits_child_ids() {
         Some("cursoride-parent-1")
     );
 }
+
+#[test]
+fn cached_list_applies_filter_before_offset_like_page_zero() {
+    let mut cache_conn = Connection::open_in_memory().expect("open cache");
+    crate::store::sqlite::SqliteRecordStore::init_tables(&cache_conn).expect("init core tables");
+    crate::store::sqlite::SqliteRecordStore::init_source_cache_tables(&cache_conn)
+        .expect("init source cache");
+
+    // Newest-first cache order: A (4000), hidden (3000), B (2000), C (1000).
+    let mut inputs = Vec::new();
+    for (id, title, updated) in [
+        ("a", "Visible A", 4000),
+        ("x", "hidden", 3000),
+        ("b", "Visible B", 2000),
+        ("c", "Visible C", 1000),
+    ] {
+        let row = CursorIndexRow {
+            id: id.into(),
+            title: title.into(),
+            updated_at_ms: updated,
+            is_archived: false,
+            root_fingerprint: "fp".into(),
+            children: Vec::new(),
+        };
+        let built = build_inputs_from_index(None, &row, "/store/state.vscdb").expect("build");
+        inputs.extend(built.inputs);
+    }
+    source_cache::upsert_imported_session_cache_from_conn(&mut cache_conn, &inputs)
+        .expect("seed cache");
+
+    // Page zero filters, THEN applies limit/offset, so continuation offsets
+    // are positions in the filtered stream. The cached continuation reader
+    // must apply the same filter, or offset 2 would land on "Visible B"
+    // again (raw index 2) — a duplicate — instead of "Visible C".
+    let include = |row: &CursorSession| Ok(row.name != "hidden");
+    let (page_zero, has_more) =
+        list_for_sidebar_filtered_cached(&cache_conn, 2, 0, include).expect("page zero");
+    assert_eq!(
+        page_zero
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Visible A", "Visible B"]
+    );
+    assert!(has_more);
+
+    let (continuation, has_more) =
+        list_for_sidebar_filtered_cached(&cache_conn, 2, 2, include).expect("continuation");
+    assert_eq!(
+        continuation
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Visible C"]
+    );
+    assert!(!has_more);
+}
+
+#[test]
+fn unrecognized_header_types_filtering_to_empty_are_not_authoritative() {
+    // A future Cursor renaming `type: "head"` must not read as "the user
+    // deleted every session" — that would prune the whole cache.
+    let conn = cursor_db_with_headers(serde_json::json!({
+        "allComposers": [
+            {"type": "future-head", "composerId": "c1", "name": "One", "lastUpdatedAt": 1000},
+            {"type": "future-head", "composerId": "c2", "name": "Two", "lastUpdatedAt": 2000}
+        ]
+    }));
+
+    assert!(discover_from_headers(&conn)
+        .expect("discover")
+        .is_none());
+}
+
+#[test]
+fn draft_only_headers_are_an_authoritative_empty() {
+    // All-draft registries are a real state (fresh Cursor with only the New
+    // Agent screen open) and stay authoritative: no roots exist.
+    let conn = cursor_db_with_headers(serde_json::json!({
+        "allComposers": [
+            {"type": "head", "composerId": "empty-state-draft", "isDraft": true}
+        ]
+    }));
+
+    let rows = discover_from_headers(&conn)
+        .expect("discover")
+        .expect("authoritative");
+    assert!(rows.is_empty());
+}
+
+fn empty_index_db() -> Connection {
+    let conn = Connection::open_in_memory().expect("open index db");
+    conn.execute(
+        "CREATE TABLE conversations (id TEXT, title TEXT, updated_at INTEGER, \
+         is_archived INTEGER, root_fingerprint TEXT, source TEXT)",
+        [],
+    )
+    .expect("create conversations");
+    conn
+}
+
+#[test]
+fn empty_index_defers_to_nonempty_headers() {
+    // A readable-but-empty conversation-search.db (e.g. a Cursor build that
+    // stopped maintaining it but left the file behind) must not shadow a
+    // headers registry that still sees sessions.
+    let index = empty_index_db();
+    let cursor = cursor_db_with_headers(serde_json::json!({
+        "allComposers": [
+            {"type": "head", "composerId": "current", "name": "Repo exploration",
+             "createdAt": 1000, "lastUpdatedAt": 2000}
+        ]
+    }));
+
+    let rows = discover_sessions(Some(&index), Some(&cursor)).expect("authoritative");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, "current");
+}
+
+#[test]
+fn empty_index_stands_when_headers_agree_or_are_unavailable() {
+    let index = empty_index_db();
+
+    // Headers unavailable (no cursor conn): the empty index is authoritative,
+    // as it was before headers discovery existed.
+    let rows = discover_sessions(Some(&index), None).expect("authoritative");
+    assert!(rows.is_empty());
+
+    // Headers present and also empty: both sources agree.
+    let cursor = cursor_db_with_headers(serde_json::json!({ "allComposers": [] }));
+    let rows = discover_sessions(Some(&index), Some(&cursor)).expect("authoritative");
+    assert!(rows.is_empty());
+
+    // Index unreadable and headers unavailable: nothing authoritative.
+    assert!(discover_sessions(None, None).is_none());
+}
+
+#[test]
+fn nonempty_index_wins_over_headers() {
+    let index = index_db_with_rows();
+    let cursor = cursor_db_with_headers(serde_json::json!({
+        "allComposers": [
+            {"type": "head", "composerId": "header-only", "name": "H", "lastUpdatedAt": 1}
+        ]
+    }));
+
+    let rows = discover_sessions(Some(&index), Some(&cursor)).expect("authoritative");
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row.id != "header-only"));
+}

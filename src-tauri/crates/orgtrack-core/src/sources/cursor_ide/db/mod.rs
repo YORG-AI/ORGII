@@ -32,7 +32,7 @@ mod sync;
 
 use sync::delta_sync;
 #[cfg(test)]
-use sync::{build_inputs_from_index, discover_from_headers, discover_from_index};
+use sync::{build_inputs_from_index, discover_from_headers, discover_from_index, discover_sessions};
 
 // v9: modern `composer.composerHeaders` subagents stay attached to their
 // parent even when the parent's composer blob omits `subagentComposerIds`.
@@ -272,13 +272,29 @@ pub fn list_for_sidebar_filtered<F>(
     cache_conn: &mut Connection,
     limit: usize,
     offset: usize,
-    mut include: F,
+    include: F,
 ) -> Result<(Vec<CursorSession>, bool), String>
 where
     F: FnMut(&CursorSession) -> Result<bool, String>,
 {
     delta_sync(cache_conn)?;
+    list_for_sidebar_filtered_cached(cache_conn, limit, offset, include)
+}
 
+/// Continuation-page variant: reads the existing cache snapshot without
+/// re-running discovery. It must apply the SAME filter page zero used —
+/// offsets are computed over the filtered stream, so an unfiltered cache
+/// read would both duplicate rows already shown and surface composers page
+/// zero hides.
+pub fn list_for_sidebar_filtered_cached<F>(
+    cache_conn: &Connection,
+    limit: usize,
+    offset: usize,
+    mut include: F,
+) -> Result<(Vec<CursorSession>, bool), String>
+where
+    F: FnMut(&CursorSession) -> Result<bool, String>,
+{
     let rows =
         source_cache::query_cached_sessions_for_source_from_conn(cache_conn, SOURCE_CURSOR_IDE)?;
     let mut matched = Vec::with_capacity(limit.saturating_add(1));

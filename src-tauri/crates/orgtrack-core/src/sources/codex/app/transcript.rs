@@ -815,7 +815,7 @@ fn merge_codex_turn_catalog(
         by_offset.insert(entry.byte_offset, entry);
     }
     let mut entries = by_offset.into_values().collect::<Vec<_>>();
-    entries.sort_unstable_by(|left, right| right.byte_offset.cmp(&left.byte_offset));
+    entries.sort_unstable_by_key(|entry| std::cmp::Reverse(entry.byte_offset));
     entries.truncate(CODEX_INITIAL_TURN_LIMIT);
     entries
 }

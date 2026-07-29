@@ -48,10 +48,25 @@ const IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION: usize = 4_096;
 const CODEX_INITIAL_RECENT_TURN_COUNT: usize = 1;
 const IMPORTED_INITIAL_RECENT_TURN_COUNT: usize = 1;
 
+/// Fidelity of a projection entering the cache. Window pre-warms are built
+/// without parsing every round body (empty `modified_files`, fabricated
+/// statuses, placeholder counts) — `Reduced`. Projections computed from the
+/// complete chunk stream are `Full`. The ordering matters: a `Reduced`
+/// pre-warm must never replace a `Full` entry, and readers that need full
+/// fidelity treat `Reduced` hits as misses — otherwise per-round metadata
+/// quality would depend on whether the replay opened before or after the
+/// metadata index was read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ProjectionQuality {
+    Reduced,
+    Full,
+}
+
 #[derive(Debug)]
 struct ImportedTurnProjectionCacheEntry {
     session_id: String,
     signature: (i64, u64),
+    quality: ProjectionQuality,
     projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
 }
 
@@ -65,6 +80,7 @@ impl ImportedTurnProjectionCache {
         &mut self,
         session_id: &str,
         signature: (i64, u64),
+        min_quality: ProjectionQuality,
     ) -> Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>> {
         let index = self
             .entries
@@ -72,6 +88,12 @@ impl ImportedTurnProjectionCache {
             .position(|entry| entry.session_id == session_id)?;
         let entry = self.entries.remove(index)?;
         if entry.signature != signature {
+            return None;
+        }
+        if entry.quality < min_quality {
+            // Keep the entry (a lower-fidelity reader may still use it); the
+            // caller recomputes at full fidelity and its insert upgrades us.
+            self.entries.push_back(entry);
             return None;
         }
         let projected = entry.projected.clone();
@@ -83,6 +105,7 @@ impl ImportedTurnProjectionCache {
         &mut self,
         session_id: String,
         signature: (i64, u64),
+        quality: ProjectionQuality,
         projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
     ) {
         if let Some(index) = self
@@ -90,6 +113,14 @@ impl ImportedTurnProjectionCache {
             .iter()
             .position(|entry| entry.session_id == session_id)
         {
+            let existing = &self.entries[index];
+            if existing.signature == signature && existing.quality > quality {
+                // Never downgrade: a Reduced window pre-warm must not
+                // replace the Full projection for the same transcript state.
+                let existing = self.entries.remove(index).expect("indexed entry");
+                self.entries.push_back(existing);
+                return;
+            }
             self.entries.remove(index);
         }
         let projected = if projected.len() > IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION {
@@ -107,6 +138,7 @@ impl ImportedTurnProjectionCache {
         self.entries.push_back(ImportedTurnProjectionCacheEntry {
             session_id,
             signature,
+            quality,
             projected,
         });
         while self.entries.len() > IMPORTED_TURN_PROJECTION_CACHE_CAPACITY {
@@ -188,6 +220,7 @@ fn remember_imported_turn_projection(
     session_id: &str,
     signature_before: Option<(i64, u64)>,
     signature_after: Option<(i64, u64)>,
+    quality: ProjectionQuality,
     projected: Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>,
 ) {
     let (Some(before), Some(after)) = (signature_before, signature_after) else {
@@ -202,25 +235,35 @@ fn remember_imported_turn_projection(
     imported_turn_projection_cache()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .insert(session_id.to_string(), after, projected);
+        .insert(session_id.to_string(), after, quality, projected);
 }
 
 fn load_projected_turn_metadata(
     conn: &rusqlite::Connection,
     session_id: &str,
 ) -> Result<Option<Vec<orgtrack_core::projectors::turn_metadata::ProjectedTurnMetadata>>, String> {
+    // Claude's index pass deliberately projects user rows only (no full-body
+    // parse), so Reduced is its native fidelity; every other source computes
+    // from the complete chunk stream and must not serve a window pre-warm.
+    let is_claude_code =
+        session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX);
+    let required_quality = if is_claude_code {
+        ProjectionQuality::Reduced
+    } else {
+        ProjectionQuality::Full
+    };
     let signature_before = imported_transcript_signature(conn, session_id)?;
     if let Some(signature) = signature_before {
         if let Some(projected) = imported_turn_projection_cache()
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .get(session_id, signature)
+            .get(session_id, signature, required_quality)
         {
             return Ok(Some(projected));
         }
     }
 
-    if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+    if is_claude_code {
         let projected =
             claude_code_history::load_claude_code_turn_index_for_session(conn, session_id)?;
         let signature_after = imported_transcript_signature(conn, session_id)?;
@@ -228,6 +271,7 @@ fn load_projected_turn_metadata(
             session_id,
             signature_before,
             signature_after,
+            ProjectionQuality::Reduced,
             projected.clone(),
         );
         return Ok(Some(projected));
@@ -242,6 +286,7 @@ fn load_projected_turn_metadata(
         session_id,
         signature_before,
         signature_after,
+        ProjectionQuality::Full,
         projected.clone(),
     );
     Ok(Some(projected))
@@ -545,10 +590,13 @@ pub async fn cursor_ide_initial_window(
             recent_limit,
         )?;
         let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        // Fabricated rows (empty modified_files, hardcoded status): pre-warm
+        // only — must not displace a Full projection for this transcript.
         remember_imported_turn_projection(
             &session_id,
             signature_before,
             signature_after,
+            ProjectionQuality::Reduced,
             cursor_turns_to_projected(&window.turns),
         );
         Ok(window)
@@ -599,26 +647,35 @@ pub async fn imported_history_initial_window(
         }
         let conn = open_cache_conn()?;
         let signature_before = imported_transcript_signature(&conn, &session_id)?;
-        let window = if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX)
-        {
-            claude_code_history::load_claude_code_initial_window_for_session(
-                &conn,
-                &session_id,
-                recent_turn_count,
-            )?
-        } else {
-            imported_history::window::load_initial_window_for_session(
-                &conn,
-                &session_id,
-                recent_turn_count,
-            )?
-            .ok_or_else(|| format!("Unknown imported history session: {session_id}"))?
-        };
+        // Claude windows come from the reduced user-row index; the generic
+        // path projects the complete chunk stream before windowing it.
+        let (window, projection_quality) =
+            if session_id.starts_with(orgtrack_core::sources::claude_code::SESSION_PREFIX) {
+                (
+                    claude_code_history::load_claude_code_initial_window_for_session(
+                        &conn,
+                        &session_id,
+                        recent_turn_count,
+                    )?,
+                    ProjectionQuality::Reduced,
+                )
+            } else {
+                (
+                    imported_history::window::load_initial_window_for_session(
+                        &conn,
+                        &session_id,
+                        recent_turn_count,
+                    )?
+                    .ok_or_else(|| format!("Unknown imported history session: {session_id}"))?,
+                    ProjectionQuality::Full,
+                )
+            };
         let signature_after = imported_transcript_signature(&conn, &session_id)?;
         remember_imported_turn_projection(
             &session_id,
             signature_before,
             signature_after,
+            projection_quality,
             window.turns.clone(),
         );
         Ok(window)
@@ -681,6 +738,7 @@ pub async fn codex_app_chunks(
             &session_id,
             signature_before,
             signature_after,
+            ProjectionQuality::Full,
             projected,
         );
         Ok(chunks)
@@ -702,10 +760,13 @@ pub async fn codex_app_initial_window(
             CODEX_INITIAL_RECENT_TURN_COUNT,
         )?;
         let signature_after = imported_transcript_signature(&conn, &session_id)?;
+        // Catalog-derived rows (previews + line counts, no body parse):
+        // pre-warm only — must not displace a Full projection.
         remember_imported_turn_projection(
             &session_id,
             signature_before,
             signature_after,
+            ProjectionQuality::Reduced,
             window.turns.clone(),
         );
         Ok(window)
@@ -1292,14 +1353,21 @@ mod tests {
             cache.insert(
                 format!("codexapp-{index}"),
                 (index as i64, index as u64),
+                ProjectionQuality::Full,
                 vec![projected(&format!("user-{index}"), index as i64)],
             );
         }
 
         assert_eq!(cache.entries.len(), IMPORTED_TURN_PROJECTION_CACHE_CAPACITY);
-        assert!(cache.get("codexapp-0", (0, 0)).is_none());
-        assert!(cache.get("codexapp-1", (999, 999)).is_none());
-        assert!(cache.get("codexapp-2", (2, 2)).is_some());
+        assert!(cache
+            .get("codexapp-0", (0, 0), ProjectionQuality::Full)
+            .is_none());
+        assert!(cache
+            .get("codexapp-1", (999, 999), ProjectionQuality::Full)
+            .is_none());
+        assert!(cache
+            .get("codexapp-2", (2, 2), ProjectionQuality::Full)
+            .is_some());
     }
 
     #[test]
@@ -1308,18 +1376,81 @@ mod tests {
         cache.insert(
             "codexapp-large".to_string(),
             (1, 2),
+            ProjectionQuality::Full,
             (0..=IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION)
                 .map(|index| projected(&format!("user-{index}"), index as i64))
                 .collect(),
         );
 
         let projected = cache
-            .get("codexapp-large", (1, 2))
+            .get("codexapp-large", (1, 2), ProjectionQuality::Full)
             .expect("cached projection");
         assert_eq!(projected.len(), IMPORTED_TURN_PROJECTION_LIMIT_PER_SESSION);
         assert_eq!(
             projected.first().map(|turn| turn.turn_id.as_str()),
             Some("user-1")
         );
+    }
+
+    #[test]
+    fn reduced_prewarm_never_displaces_full_projection_and_is_invisible_to_full_readers() {
+        let mut cache = ImportedTurnProjectionCache::default();
+        let full = vec![projected("user-full", 0)];
+        let mut reduced_turn = projected("user-full", 0);
+        reduced_turn.body_event_count = 0;
+        let reduced = vec![reduced_turn];
+
+        // A Reduced pre-warm alone: served to Reduced readers (Claude's
+        // native fidelity), treated as a miss by Full readers, and NOT
+        // evicted by that miss.
+        cache.insert(
+            "cursoride-a".to_string(),
+            (1, 1),
+            ProjectionQuality::Reduced,
+            reduced.clone(),
+        );
+        assert!(cache
+            .get("cursoride-a", (1, 1), ProjectionQuality::Full)
+            .is_none());
+        assert!(cache
+            .get("cursoride-a", (1, 1), ProjectionQuality::Reduced)
+            .is_some());
+
+        // The Full recompute upgrades the entry in place…
+        cache.insert(
+            "cursoride-a".to_string(),
+            (1, 1),
+            ProjectionQuality::Full,
+            full.clone(),
+        );
+        // …and a later Reduced pre-warm for the SAME signature (replay
+        // opened after the metadata index ran) cannot downgrade it.
+        cache.insert(
+            "cursoride-a".to_string(),
+            (1, 1),
+            ProjectionQuality::Reduced,
+            reduced,
+        );
+        let served = cache
+            .get("cursoride-a", (1, 1), ProjectionQuality::Full)
+            .expect("full projection retained");
+        assert_eq!(served[0].body_event_count, 1);
+
+        // A NEW signature always wins regardless of quality — staleness
+        // beats fidelity.
+        let mut newer_reduced = projected("user-newer", 5);
+        newer_reduced.body_event_count = 0;
+        cache.insert(
+            "cursoride-a".to_string(),
+            (2, 2),
+            ProjectionQuality::Reduced,
+            vec![newer_reduced],
+        );
+        assert!(cache
+            .get("cursoride-a", (1, 1), ProjectionQuality::Reduced)
+            .is_none());
+        assert!(cache
+            .get("cursoride-a", (2, 2), ProjectionQuality::Reduced)
+            .is_some());
     }
 }

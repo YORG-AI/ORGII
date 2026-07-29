@@ -184,6 +184,34 @@ pub fn list_cursor_ide_sessions_paginated(
         cursor_db::list_for_sidebar_filtered(cache_conn, limit, offset, |row| {
             is_listable_cursor_session(row, cursor_conn.as_ref())
         })?;
+    cached_rows_to_session_page(cache_conn, rows, has_more)
+}
+
+/// Continuation-page ("Load more") variant of
+/// [`list_cursor_ide_sessions_paginated`]: reads the stable cache snapshot
+/// without re-running discovery, but applies the same
+/// `is_listable_cursor_session` filter. Page-zero offsets are positions in
+/// the *filtered* stream, so the generic unfiltered cache page would
+/// misalign the seam — duplicating rows already shown and surfacing
+/// composers page zero hides.
+pub fn list_cursor_ide_sessions_paginated_cached(
+    cache_conn: &mut Connection,
+    limit: usize,
+    offset: usize,
+) -> Result<CursorIdeSessionPage, String> {
+    let cursor_conn = open_cursor_db();
+    let (rows, has_more) =
+        cursor_db::list_for_sidebar_filtered_cached(cache_conn, limit, offset, |row| {
+            is_listable_cursor_session(row, cursor_conn.as_ref())
+        })?;
+    cached_rows_to_session_page(cache_conn, rows, has_more)
+}
+
+fn cached_rows_to_session_page(
+    #[cfg_attr(not(feature = "git"), allow(unused_variables))] cache_conn: &Connection,
+    rows: Vec<cursor_db::CursorSession>,
+    has_more: bool,
+) -> Result<CursorIdeSessionPage, String> {
     let mut sessions = rows
         .into_iter()
         .map(cache_row_to_session_row)
