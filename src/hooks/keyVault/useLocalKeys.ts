@@ -82,6 +82,30 @@ function updateSharedAllKeys(updater: (prev: KeyInfo[]) => KeyInfo[]) {
   return next;
 }
 
+/**
+ * E2E / out-of-band writers (e.g. window.__e2e.configure → rpc.validation.saveKey)
+ * bypass useLocalKeys.saveKey. Call these helpers so creator validation sees the
+ * new account immediately instead of waiting for a later refreshAgents().
+ */
+export function syncSharedLocalKeys(keys: KeyInfo[]): void {
+  publishAllKeys(keys);
+  replaceModelAliasesFromKeys(keys);
+}
+
+export function upsertSharedLocalKey(key: KeyInfo): void {
+  updateSharedAllKeys((prev) => {
+    const idx = prev.findIndex((entry) => entry.id === key.id);
+    const next = [...prev];
+    if (idx >= 0) {
+      next[idx] = key;
+    } else {
+      next.push(key);
+    }
+    replaceModelAliasesFromKeys(next);
+    return next;
+  });
+}
+
 // ============================================
 // Hook Implementation
 // ============================================

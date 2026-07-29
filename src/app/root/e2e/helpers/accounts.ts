@@ -5,6 +5,10 @@ import {
   type ModelType,
 } from "@src/api/tauri/rpc/schemas/validation";
 import { createLogger } from "@src/hooks/logger";
+import {
+  syncSharedLocalKeys,
+  upsertSharedLocalKey,
+} from "@src/hooks/keyVault/useLocalKeys";
 
 import { asError } from "../result";
 import type {
@@ -49,6 +53,7 @@ export async function addAccount(
         enabled_models: [opts.model],
       },
     });
+    upsertSharedLocalKey(account);
     logger.info(`addAccount ok: ${account.id}`);
     return { ok: true, account };
   } catch (err) {
@@ -85,6 +90,7 @@ export async function addCursorNativeAccount(
         enabled_models: opts.enabledModels ?? [],
       },
     });
+    upsertSharedLocalKey(account);
     return { ok: true, account };
   } catch (err) {
     return asError(err);
@@ -124,6 +130,7 @@ export async function addClaudeCodeAccount(
           : undefined,
       },
     });
+    upsertSharedLocalKey(account);
     return { ok: true, account };
   } catch (err) {
     return asError(err);
@@ -163,6 +170,7 @@ export async function addCodexAccount(
         env_vars: Object.keys(envVars).length > 0 ? envVars : undefined,
       },
     });
+    upsertSharedLocalKey(account);
     return { ok: true, account };
   } catch (err) {
     return asError(err);
@@ -213,6 +221,7 @@ export async function cloneCursorNativeAccountWithoutApiKey(
         enabled_models: source.enabled_models,
       },
     });
+    upsertSharedLocalKey(account);
     return { ok: true, account };
   } catch (err) {
     return asError(err);
@@ -222,6 +231,7 @@ export async function cloneCursorNativeAccountWithoutApiKey(
 export async function listAccounts(): Promise<Result<{ accounts: KeyInfo[] }>> {
   try {
     const accounts = await rpc.validation.listKeys();
+    syncSharedLocalKeys(accounts);
     return { ok: true, accounts };
   } catch (err) {
     return asError(err);

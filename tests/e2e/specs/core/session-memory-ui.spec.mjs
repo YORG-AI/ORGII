@@ -148,7 +148,33 @@ async function ensureActiveSession(
     });
   }
   unwrap(configured, "configure memory smoke session");
+  // Force key-vault shared cache reload so useValidatedLastPair can see the
+  // account just written via rpc.validation.saveKey (bypasses useLocalKeys.saveKey).
+  unwrap(await invokeE2E("listAccounts"), "listAccounts after configure");
   await browser.pause(800);
+
+  // configure()/pinSession write creatorDefaultModelSelectionAtom, but
+  // useValidatedLastPair also requires the account to be present in the
+  // shared key-vault cache. Wait until the creator actually accepts the
+  // pinned model/account (and repo) before typing+send.
+  let selectionDiag = null;
+  await browser.waitUntil(
+    async () => {
+      const inspected = await invokeE2E("inspectCreatorSelection");
+      selectionDiag = inspected;
+      if (!inspected || inspected.ok !== true) return false;
+      const modelSelection = inspected.modelSelection ?? null;
+      const creator = inspected.creator ?? null;
+      const hasModel =
+        !!(modelSelection && (modelSelection.model || modelSelection.selectedAccountId));
+      const hasRepo = !!(creator && creator.source && creator.source.repoId);
+      return hasModel && hasRepo;
+    },
+    {
+      timeout: 20_000,
+      timeoutMsg: `creator model/repo selection never became valid after configure: ${JSON.stringify(selectionDiag)}`,
+    }
+  );
 
   const prompt = "Reply with the single word OK.";
   const inputSelector = '[data-testid="chat-input"] [contenteditable="true"]';
@@ -161,6 +187,7 @@ async function ensureActiveSession(
     throw new Error(`composer type failed: ${typed}`);
   }
   await browser.pause(400);
+  let sendDiag = null;
   await browser.waitUntil(
     async () => {
       const state = await execJS(`
@@ -180,6 +207,7 @@ async function ensureActiveSession(
         });
       `);
       const parsed = JSON.parse(state);
+      sendDiag = parsed;
       if (parsed?.btn && !parsed.btn.disabled) {
         const click = await execJS(js.click('[data-testid="chat-send-button"]'));
         if (click === "clicked") return true;
@@ -188,7 +216,7 @@ async function ensureActiveSession(
     },
     {
       timeout: 20_000,
-      timeoutMsg: "send-button never clickable",
+      timeoutMsg: `send-button never clickable: ${JSON.stringify(sendDiag)}`,
     }
   );
   await browser.waitUntil(async () => (await execJS(js.mode)) === "chat", {
