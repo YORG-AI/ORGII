@@ -723,6 +723,10 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_seed_stale_worker_run),
         )
         .route(
+            "/test/agent-org/session-delete/snapshot",
+            post(test::agent_org::test_agent_org_session_delete_snapshot),
+        )
+        .route(
             "/test/agent-org/stale-workers/seed-cli-member",
             post(test::agent_org::test_agent_org_seed_cli_member_run),
         )

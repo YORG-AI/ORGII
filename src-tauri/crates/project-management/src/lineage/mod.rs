@@ -23,7 +23,7 @@ pub mod provenance;
 pub mod schema;
 
 use database::db::get_connection;
-use rusqlite::Result as SqliteResult;
+use rusqlite::{Connection, Result as SqliteResult};
 
 /// Drop every lineage row tied to `session_id`.
 ///
@@ -35,6 +35,17 @@ use rusqlite::Result as SqliteResult;
 /// rows after the owning session is gone.
 pub fn delete_session_lineage(session_id: &str) -> SqliteResult<()> {
     let conn = get_connection()?;
+    delete_session_lineage_with_connection(&conn, session_id)
+}
+
+/// Transaction-aware form of [`delete_session_lineage`].
+///
+/// Agent Org hierarchy deletion uses this to keep lineage removal inside the
+/// same SQLite transaction as the owning Rust sessions and run state.
+pub fn delete_session_lineage_with_connection(
+    conn: &Connection,
+    session_id: &str,
+) -> SqliteResult<()> {
     conn.execute(
         "DELETE FROM commit_lineage
          WHERE provenance_id IN (

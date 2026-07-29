@@ -8,6 +8,7 @@ import { benchmarkApi } from "@src/api/tauri/benchmark";
 import { deleteHumanSession } from "@src/api/tauri/humanSession";
 import { rpc } from "@src/api/tauri/rpc";
 import Message from "@src/components/Message";
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import {
   commitRefreshedAuth,
   org2CloudAuthAtom,
@@ -67,6 +68,7 @@ import {
   isChatPanelTuiSessionId,
 } from "@src/util/ui/terminal/chatPanelTuiSessionId";
 
+import { applyRustSessionDeleteReceipt } from "./rustSessionDeleteReceipt";
 import {
   NEW_SESSION_MENU_ITEM_ID,
   getDraftIdFromMenuItemId,
@@ -157,6 +159,7 @@ export function useWorkstationSidebarHandlers({
           return;
         }
         const session = sessionMap.get(sessionId);
+        let deletedActiveRustSession = false;
         const forkedFrom = session ? getSessionForkedFrom(session) : undefined;
         // Cloud retraction targets, mirroring the engine's publish targets:
         // a fork publishes only to its source org; an ordinary session
@@ -201,7 +204,29 @@ export function useWorkstationSidebarHandlers({
         } else if (isHumanSession(sessionId)) {
           await deleteHumanSession(sessionId);
         } else {
-          await deleteSession(sessionId);
+          const receipt = await deleteSession(sessionId);
+          deletedActiveRustSession = await applyRustSessionDeleteReceipt({
+            requestedSessionId: sessionId,
+            activeSessionId,
+            isAgentOrgRoot: Boolean(session?.agentOrgId),
+            receipt,
+            cleanup: {
+              removeSession,
+              removeForkRelayEntry,
+              disposeWorkstationWorkspace,
+              clearPendingFileOpens: clearPendingFileOpensForSession,
+              clearPendingCodeEditorTab: clearPendingCodeEditorTabForSession,
+              evictEventStore: (deletedSessionId) =>
+                eventStoreProxy
+                  .evictSession(deletedSessionId)
+                  .catch((error) =>
+                    log.warn(
+                      "[WorkstationSidebar] Failed to evict deleted Agent Org session:",
+                      { deletedSessionId, error }
+                    )
+                  ),
+            },
+          });
         }
         removeSession(sessionId);
         removeForkRelayEntry(sessionId);
@@ -209,7 +234,7 @@ export function useWorkstationSidebarHandlers({
         clearPendingFileOpensForSession(sessionId);
         clearPendingCodeEditorTabForSession(sessionId);
 
-        if (sessionId === activeSessionId) {
+        if (sessionId === activeSessionId || deletedActiveRustSession) {
           goToNewSession();
         }
       } catch (error) {

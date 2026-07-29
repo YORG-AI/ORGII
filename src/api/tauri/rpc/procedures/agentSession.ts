@@ -56,6 +56,7 @@ export const agentSession = {
     .build(),
   deleteSession: defineProcedure("agent_delete_session")
     .input(schemas.agentSession.SessionIdInput)
+    .output(schemas.agentSession.DeleteSessionReceiptSchema)
     .build(),
   clearMessages: defineProcedure("agent_clear_messages")
     .input(schemas.agentSession.SessionIdInput)

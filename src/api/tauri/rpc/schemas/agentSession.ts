@@ -3,6 +3,7 @@ import { z } from "zod/v4";
 import type {
   AgentExecModeConfig,
   AgentStatusInfo,
+  DeleteSessionReceipt,
   FileResolution,
   HousekeeperContextCompactionState,
   ManualCompactResult,
@@ -21,6 +22,10 @@ const JsonRecordSchema = z.record(z.string(), z.unknown());
 export const SessionIdInput = z.object({
   sessionId: z.string(),
 });
+
+export const DeleteSessionReceiptSchema = z.object({
+  deletedSessionIds: z.array(z.string()),
+}) as z.ZodType<DeleteSessionReceipt, DeleteSessionReceipt>;
 
 /**
  * Input for `agent_session_manual_compact` — optional free-form user

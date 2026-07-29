@@ -201,6 +201,10 @@ export interface SessionMeta {
   errorMessage?: string | null;
 }
 
+export interface DeleteSessionReceipt {
+  deletedSessionIds: string[];
+}
+
 export interface SnapshotRecord {
   sessionId: string;
   toolCallId: string;

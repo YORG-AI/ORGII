@@ -7,6 +7,7 @@ pub enum CancelReason {
     UserStop,
     ForceSend,
     OrgPause,
+    AgentOrgDelete,
     ProgrammaticShutdown,
     SessionEviction,
     ModeSwitchAbort,
@@ -38,7 +39,7 @@ impl CancelReason {
     /// enumerates durable member rows, including lazy members that have never
     /// started, so absence is normal for `OrgPause` and must not corrupt them.
     pub const fn repairs_missing_session_as_failed(self) -> bool {
-        !matches!(self, Self::OrgPause)
+        !matches!(self, Self::OrgPause | Self::AgentOrgDelete)
     }
 
     pub fn boundary_effect(self) -> TurnBoundaryEffect {
@@ -67,6 +68,18 @@ impl CancelReason {
                 discard_queued_messages: false,
                 cancel_background_workers: true,
             },
+            Self::AgentOrgDelete => TurnBoundaryEffect {
+                // The delete fence can land after the scheduler has claimed a
+                // job but before that job registers `active_turn`. Keep the
+                // signal across that narrow boundary so the claimed turn
+                // cannot outlive deletion.
+                keep_pre_turn_cancel_when_idle: true,
+                clear_pending_approvals: true,
+                persist_cancel_marker: false,
+                allow_crash_repair_on_next_turn: false,
+                discard_queued_messages: true,
+                cancel_background_workers: true,
+            },
             Self::ProgrammaticShutdown | Self::SessionEviction | Self::ModeSwitchAbort => {
                 TurnBoundaryEffect {
                     keep_pre_turn_cancel_when_idle: false,
@@ -85,6 +98,7 @@ impl CancelReason {
             Self::UserStop => "user_stop",
             Self::ForceSend => "force_send",
             Self::OrgPause => "org_pause",
+            Self::AgentOrgDelete => "agent_org_delete",
             Self::ProgrammaticShutdown => "programmatic_shutdown",
             Self::SessionEviction => "session_eviction",
             Self::ModeSwitchAbort => "mode_switch_abort",
@@ -99,6 +113,12 @@ mod tests {
     #[test]
     fn org_pause_does_not_fail_lazy_persisted_sessions() {
         assert!(!CancelReason::OrgPause.repairs_missing_session_as_failed());
+        assert!(!CancelReason::AgentOrgDelete.repairs_missing_session_as_failed());
+        assert!(
+            CancelReason::AgentOrgDelete
+                .boundary_effect()
+                .keep_pre_turn_cancel_when_idle
+        );
         assert!(CancelReason::UserStop.repairs_missing_session_as_failed());
         assert!(CancelReason::ProgrammaticShutdown.repairs_missing_session_as_failed());
     }

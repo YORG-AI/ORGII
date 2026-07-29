@@ -13,6 +13,19 @@ use database::db::{get_connection, with_sessions_writer};
 use super::super::super::types::{SessionListFilter, SessionStatus};
 use super::record::{row_to_record, session_type, UnifiedSessionRecord, UNIFIED_SESSION_SELECT};
 
+const SESSION_DELETE_TABLES: &[&str] = &[
+    "agent_messages",
+    "agent_todos",
+    "agent_snapshots",
+    "agent_file_resolutions",
+    "session_token_usage",
+    "session_llm_usage_spans",
+    "session_tool_usage",
+    "events",
+    "pending_plan_approvals",
+    "agent_sessions",
+];
+
 /// Process-global mirror hook, registered once at app startup (see
 /// `lib.rs` setup). Fired after a successful write to any column the
 /// orgtrack canonical session store carries (name, status, model,
@@ -727,6 +740,47 @@ pub fn backfill_agent_definition_id(session_id: &str, definition_id: &str) -> Re
 /// run_deferred_cleanup` instead, which can delete DB rows without
 /// racing the runtime because the cache rehydrates from DB at startup.
 pub fn delete_session(session_id: &str) -> SqliteResult<()> {
+    prepare_session_delete(session_id)?;
+    shared::delete_session_cascade(session_id, SESSION_DELETE_TABLES)?;
+    notify_session_delete_mirror(session_id);
+
+    // Lineage tables can't ride the generic cascade: `commit_lineage` is keyed
+    // by `provenance_id` (FK into `node_provenance`), not `session_id`, so the
+    // generic `DELETE FROM commit_lineage WHERE session_id = ?1` fails at
+    // prepare time. Walk the join explicitly and drop both tables here.
+    if let Err(err) = project_management::lineage::delete_session_lineage(session_id) {
+        warn!(
+            "Failed to delete lineage rows for session {}: {}",
+            session_id, err
+        );
+    }
+
+    // Soft-unlink learnings produced by this session: keep the learning
+    // itself (it is a knowledge artefact, not session transient state) but
+    // null the back-pointer so it no longer dangles to a deleted session.
+    let unlink_result = with_sessions_writer(|| -> SqliteResult<()> {
+        let conn = get_connection()?;
+        conn.execute(
+            "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
+            [session_id],
+        )?;
+        Ok(())
+    });
+    if let Err(err) = unlink_result {
+        warn!(
+            "Failed to null learnings.source_session_id for deleted session {}: {}",
+            session_id, err
+        );
+    }
+
+    cleanup_session_derived_resources(session_id);
+    Ok(())
+}
+
+/// Validate and perform the existing pre-database resource cleanup for a
+/// session. Agent Org hierarchy deletion calls this for every Rust session
+/// before opening its shared SQLite transaction.
+pub(crate) fn prepare_session_delete(session_id: &str) -> SqliteResult<()> {
     if let Err(error) =
         crate::tools::impls::coding::exec::shell_replay::ensure_session_replays_deletable(
             session_id,
@@ -776,53 +830,42 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
             ));
         }
     }
+    Ok(())
+}
 
-    shared::delete_session_cascade(
-        session_id,
-        &[
-            "agent_messages",
-            "agent_todos",
-            "agent_snapshots",
-            "agent_file_resolutions",
-            "session_token_usage",
-            "session_llm_usage_spans",
-            "session_tool_usage",
-            "events",
-            "pending_plan_approvals",
-            "agent_sessions",
-        ],
+/// Delete the SQLite-owned data for one session through a caller-owned
+/// transaction. Unlike ordinary SDE deletion, hierarchy deletion treats
+/// lineage and learning unlink failures as transaction failures so no subset
+/// of the Agent Org tree can commit.
+pub(crate) fn delete_session_with_connection(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> SqliteResult<()> {
+    let exists = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM agent_sessions WHERE session_id=?1)",
+        [session_id],
+        |row| row.get::<_, bool>(0),
     )?;
+    if !exists {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    shared::delete_session_cascade_with_connection(conn, session_id, SESSION_DELETE_TABLES)?;
+    project_management::lineage::delete_session_lineage_with_connection(conn, session_id)?;
+    conn.execute(
+        "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
+        [session_id],
+    )?;
+    Ok(())
+}
+
+/// Run post-commit mirrors and derived filesystem cleanup for one deleted
+/// session.
+pub(crate) fn finish_session_delete(session_id: &str) {
     notify_session_delete_mirror(session_id);
+    cleanup_session_derived_resources(session_id);
+}
 
-    // Lineage tables can't ride the generic cascade: `commit_lineage` is keyed
-    // by `provenance_id` (FK into `node_provenance`), not `session_id`, so the
-    // generic `DELETE FROM commit_lineage WHERE session_id = ?1` fails at
-    // prepare time. Walk the join explicitly and drop both tables here.
-    if let Err(err) = project_management::lineage::delete_session_lineage(session_id) {
-        warn!(
-            "Failed to delete lineage rows for session {}: {}",
-            session_id, err
-        );
-    }
-
-    // Soft-unlink learnings produced by this session: keep the learning
-    // itself (it is a knowledge artefact, not session transient state) but
-    // null the back-pointer so it no longer dangles to a deleted session.
-    let unlink_result = with_sessions_writer(|| -> SqliteResult<()> {
-        let conn = get_connection()?;
-        conn.execute(
-            "UPDATE learnings SET source_session_id = NULL WHERE source_session_id = ?1",
-            [session_id],
-        )?;
-        Ok(())
-    });
-    if let Err(err) = unlink_result {
-        warn!(
-            "Failed to null learnings.source_session_id for deleted session {}: {}",
-            session_id, err
-        );
-    }
-
+fn cleanup_session_derived_resources(session_id: &str) {
     // Per-session file-history is addressed by session_id alone, so drop the
     // whole directory regardless of workspace_path. Other sessions on the same
     // project are untouched.
@@ -843,7 +886,6 @@ pub fn delete_session(session_id: &str) -> SqliteResult<()> {
             session_id, err
         );
     }
-    Ok(())
 }
 
 /// Get all child sessions for a given parent session.

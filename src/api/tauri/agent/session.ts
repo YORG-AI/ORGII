@@ -14,6 +14,7 @@ import type { SessionStatus } from "@src/types/session/session";
 import type {
   AgentExecModeConfig,
   AgentStatusInfo,
+  DeleteSessionReceipt,
   FileResolution,
   FileResolutionValue,
   HousekeeperContextCompactionState,
@@ -119,7 +120,9 @@ export async function listAllSessions(): Promise<SessionMeta[]> {
   return rpc.agentSession.listAllSessions();
 }
 
-export async function deleteSession(sessionId: string): Promise<void> {
+export async function deleteSession(
+  sessionId: string
+): Promise<DeleteSessionReceipt> {
   return rpc.agentSession.deleteSession({ sessionId });
 }
 

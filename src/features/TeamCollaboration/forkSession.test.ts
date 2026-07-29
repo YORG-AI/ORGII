@@ -175,7 +175,9 @@ beforeEach(() => {
   resolveScopeKeysMock.mockResolvedValue([]);
   existsMock.mockResolvedValue(true);
   saveSessionMock.mockResolvedValue(undefined);
-  deleteSessionMock.mockResolvedValue(undefined);
+  deleteSessionMock.mockResolvedValue({
+    deletedSessionIds: ["agentsession-fork-1"],
+  });
   eventStoreMock.clear.mockResolvedValue(undefined);
   eventStoreMock.getPersistedEvents.mockResolvedValue([]);
   store.set(sessionsAtom, []);

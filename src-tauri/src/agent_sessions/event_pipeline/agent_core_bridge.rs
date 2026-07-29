@@ -280,6 +280,22 @@ fn unpin_session_adapter(handle: &AppHandle, session_id: &str) {
     }
 }
 
+fn evict_session_adapter(handle: &AppHandle, session_id: &str) {
+    let state = handle.state::<EventStoreState>();
+    {
+        let mut manager = state
+            .session_manager
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        manager.evict(session_id);
+    }
+    state
+        .stores
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .remove(session_id);
+}
+
 fn read_session_events_adapter(handle: &AppHandle, session_id: &str) -> Vec<SessionEvent> {
     let state = handle.state::<EventStoreState>();
     state
@@ -620,6 +636,7 @@ pub fn register() {
         remove_events_by_ids_adapter,
         pin_session_adapter,
         unpin_session_adapter,
+        evict_session_adapter,
         read_session_events_adapter,
         finalize_plan_revision_events_adapter,
         persist_events_adapter,
