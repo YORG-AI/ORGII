@@ -19,6 +19,7 @@ import { useEffect, useRef } from "react";
 
 import { transcriptReplaceEpochAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import {
+  getMountedTurnPlaceholderIds,
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
 } from "@src/engines/SessionCore/turns";
@@ -178,7 +179,20 @@ export function useReplayTurnPrefetch({
 
       void loadSessionTurnBodyIntoStore({ sessionId: activeSessionId, turnId })
         .then(async () => {
-          await pruneLoadedTurnBodies(activeSessionId, protectedTurnIds);
+          // Union the prefetch-radius protection with every placeholder
+          // that's actually mounted on screen right now (read fresh at
+          // prune time, not captured when this effect ran — mounts/unmounts
+          // can happen while this fetch is in flight). Otherwise this
+          // prefetch's prune call can evict a body an `UnloadedTurnBubble`
+          // is currently relying on purely because it's older by load
+          // timestamp. See mountedTurnPlaceholders.ts.
+          const protectedIds = new Set(protectedTurnIds);
+          for (const mountedTurnId of getMountedTurnPlaceholderIds(
+            activeSessionId
+          )) {
+            protectedIds.add(mountedTurnId);
+          }
+          await pruneLoadedTurnBodies(activeSessionId, protectedIds);
         })
         .catch((error: unknown) => {
           // Fire-and-forget: a failed forward-prefetch must never surface as

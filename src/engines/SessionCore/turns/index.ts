@@ -3,6 +3,12 @@ export {
   pruneLoadedTurnBodies,
 } from "./loadedTurnRegistry";
 export {
+  clearMountedTurnPlaceholders,
+  getMountedTurnPlaceholderIds,
+  registerMountedTurnPlaceholder,
+  unregisterMountedTurnPlaceholder,
+} from "./mountedTurnPlaceholders";
+export {
   getSessionTurnLoader,
   loadSessionTurnBodyIntoStore,
 } from "./turnLoaderRegistry";

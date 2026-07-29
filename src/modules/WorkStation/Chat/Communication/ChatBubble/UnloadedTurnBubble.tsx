@@ -21,9 +21,19 @@
  * window (bounded by `MAX_APP_HYDRATION_WINDOW` / `MESSAGE_INITIAL_
  * RENDERED_MESSAGE_COUNT`, so this never re-materializes the full
  * transcript — only the handful of turns currently on screen).
+ *
+ * Eviction-aware retry: many placeholders can mount at once (e.g.
+ * "communication-load-more-messages" reveals a dozen rounds in one go).
+ * `MAX_LOADED_HISTORICAL_TURN_BODIES` bounds how many turn bodies stay
+ * resident, so a sibling placeholder's own load can evict this one's body
+ * moments after it lands, before this bubble ever gets to render it — see
+ * `mountedTurnPlaceholders.ts`. `UnloadedTurnBubbleContent` below detects
+ * that ("still mounted a beat after our own load resolved") and retries a
+ * bounded number of times before falling back to a manual "tap to retry"
+ * affordance instead of spinning forever.
  */
-import { Loader2 } from "lucide-react";
-import React, { useEffect } from "react";
+import { Loader2, RotateCw } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
@@ -35,8 +45,11 @@ import {
 } from "@src/components/ChatBubble";
 import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives/config";
 import {
+  getMountedTurnPlaceholderIds,
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
+  registerMountedTurnPlaceholder,
+  unregisterMountedTurnPlaceholder,
 } from "@src/engines/SessionCore/turns";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -46,6 +59,10 @@ import {
 
 import { useCommunicationAgentIdentity } from "../communicationAgentIdentity";
 import type { CommunicationUnloadedTurnMeta, MessageEntry } from "../types";
+import {
+  UNLOADED_TURN_RETRY_DELAY_MS,
+  decideUnloadedTurnRetry,
+} from "./unloadedTurnRetry";
 
 const log = createLogger("UnloadedTurnBubble");
 
@@ -56,27 +73,79 @@ interface UnloadedTurnBubbleProps {
   orgMembers?: ReadonlyArray<AgentOrgRunMemberView>;
 }
 
-export const UnloadedTurnBubble: React.FC<UnloadedTurnBubbleProps> = ({
+interface UnloadedTurnBubbleContentProps extends UnloadedTurnBubbleProps {
+  sessionId: string | null | undefined;
+  turnId: string;
+}
+
+/**
+ * Owns the fetch/retry lifecycle for a single `sessionId:turnId`. Split out
+ * from `UnloadedTurnBubble` and given a `key` scoped to that pair (see the
+ * default export below) so a turnId change on an otherwise-still-mounted
+ * placeholder gets a genuinely fresh mount — React resets all local
+ * state/refs for free, which sidesteps hand-rolled reset logic (and the
+ * lint rules against mutating refs or synchronously calling setState during
+ * render/effects to fake that reset).
+ */
+const UnloadedTurnBubbleContent: React.FC<UnloadedTurnBubbleContentProps> = ({
   message,
-  unloadedTurn,
   onClick,
   orgMembers,
+  sessionId,
+  turnId,
 }) => {
   const { t, i18n } = useTranslation(["common", "sessions"]);
   const { rawAgentName, agentIcon } = useCommunicationAgentIdentity(
     message.event,
     orgMembers
   );
-  const sessionId = message.event.sessionId;
-  const turnId = unloadedTurn.turnId;
+
+  // `retryToken` forces the fetch effect below to re-run on demand
+  // (automatic retry or the manual "tap to retry" affordance);
+  // `retryAttemptRef` tracks how many automatic retries have already fired
+  // so `decideUnloadedTurnRetry` can cap them.
+  const [retryToken, setRetryToken] = useState(0);
+  const [showRetryAffordance, setShowRetryAffordance] = useState(false);
+  const retryAttemptRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId || !turnId) return;
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    registerMountedTurnPlaceholder(sessionId, turnId);
+
     void loadSessionTurnBodyIntoStore({ sessionId, turnId })
       .then(async () => {
         if (cancelled) return;
-        await pruneLoadedTurnBodies(sessionId, [turnId]);
+        // Protect every placeholder currently mounted for this session (not
+        // just our own turnId) — otherwise a concurrent sibling's prune call
+        // can evict a body the instant it lands, and that sibling never
+        // refetches on its own. See mountedTurnPlaceholders.ts.
+        const protectedTurnIds = new Set(
+          getMountedTurnPlaceholderIds(sessionId)
+        );
+        protectedTurnIds.add(turnId);
+        await pruneLoadedTurnBodies(sessionId, protectedTurnIds);
+        if (cancelled) return;
+
+        // If we're still mounted a beat after our own load resolved, this
+        // placeholder's body never actually landed — it was evicted by a
+        // concurrent prune before we ever rendered it (or the fetch
+        // returned an empty body). `UnloadedTurnBubble` only renders while
+        // the store still holds the placeholder, so "still mounted" is the
+        // observable signal here. Retry a bounded number of times before
+        // giving up on the automatic path.
+        retryTimer = setTimeout(() => {
+          if (cancelled) return;
+          const decision = decideUnloadedTurnRetry(retryAttemptRef.current);
+          if (!decision.shouldRetry) {
+            setShowRetryAffordance(true);
+            return;
+          }
+          retryAttemptRef.current = decision.nextAttempt;
+          setRetryToken((token) => token + 1);
+        }, UNLOADED_TURN_RETRY_DELAY_MS);
       })
       .catch((error) => {
         // Fire-and-forget: a failed lazy load must never surface as an
@@ -87,8 +156,17 @@ export const UnloadedTurnBubble: React.FC<UnloadedTurnBubbleProps> = ({
       });
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      unregisterMountedTurnPlaceholder(sessionId, turnId);
     };
-  }, [sessionId, turnId]);
+  }, [sessionId, turnId, retryToken]);
+
+  const handleManualRetry = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    setShowRetryAffordance(false);
+    retryAttemptRef.current = 0;
+    setRetryToken((token) => token + 1);
+  };
 
   const senderName = t(
     "simulator.replay.messages.bubble.senderTitle.turnLoading",
@@ -101,6 +179,10 @@ export const UnloadedTurnBubble: React.FC<UnloadedTurnBubbleProps> = ({
   const loadingBody = t("simulator.replay.messages.unloadedTurn.loadingBody", {
     ns: "sessions",
     defaultValue: "Loading message…",
+  });
+  const retryBody = t("simulator.replay.messages.unloadedTurn.retryBody", {
+    ns: "sessions",
+    defaultValue: "Message didn't load — tap to retry",
   });
 
   return (
@@ -125,18 +207,49 @@ export const UnloadedTurnBubble: React.FC<UnloadedTurnBubbleProps> = ({
       <div
         className={`${CHAT_BUBBLE_WIDTH_TOKENS.body} rounded-lg bg-fill-1 p-3 text-left text-text-1`}
       >
-        <div
-          className={`flex items-center gap-2 italic text-text-3 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
-        >
-          <Loader2
-            size={13}
-            strokeWidth={2}
-            className="shrink-0 animate-spin"
-          />
-          {loadingBody}
-        </div>
+        {showRetryAffordance ? (
+          <button
+            type="button"
+            onClick={handleManualRetry}
+            data-testid="communication-unloaded-turn-retry"
+            className={`flex w-full items-center gap-2 rounded border-0 bg-transparent p-0 text-left italic text-text-3 transition-colors hover:text-text-1 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
+          >
+            <RotateCw size={13} strokeWidth={2} className="shrink-0" />
+            {retryBody}
+          </button>
+        ) : (
+          <div
+            className={`flex items-center gap-2 italic text-text-3 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
+          >
+            <Loader2
+              size={13}
+              strokeWidth={2}
+              className="shrink-0 animate-spin"
+            />
+            {loadingBody}
+          </div>
+        )}
       </div>
     </ChatBubbleLayout>
+  );
+};
+UnloadedTurnBubbleContent.displayName = "UnloadedTurnBubbleContent";
+
+export const UnloadedTurnBubble: React.FC<UnloadedTurnBubbleProps> = (
+  props
+) => {
+  const sessionId = props.message.event.sessionId;
+  const turnId = props.unloadedTurn.turnId;
+  return (
+    <UnloadedTurnBubbleContent
+      // Scoping the key to session+turn means a turnId change (rare, but
+      // possible across a windowed replace reload) gets a clean remount
+      // instead of carrying stale retry state from a different turn.
+      key={`${sessionId ?? ""}:${turnId}`}
+      {...props}
+      sessionId={sessionId}
+      turnId={turnId}
+    />
   );
 };
 

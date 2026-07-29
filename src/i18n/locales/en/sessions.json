@@ -685,7 +685,8 @@
           }
         },
         "unloadedTurn": {
-          "loadingBody": "Loading message…"
+          "loadingBody": "Loading message…",
+          "retryBody": "Message didn't load — tap to retry"
         },
         "divider": {
           "newMessage": "New message",
