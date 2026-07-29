@@ -111,7 +111,6 @@ const DiaryPanel: React.FC<DiaryPanelProps> = ({
                 <SessionHoverCard
                   sessionId={task.sessionId}
                   position="right-start"
-                  mouseEnterDelay={0}
                 >
                   {children}
                 </SessionHoverCard>

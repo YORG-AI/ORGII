@@ -208,6 +208,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const timelineBodyRef = useRef<HTMLDivElement>(null);
   const sidebarContentRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
+  const hasAppliedInitialScrollRef = useRef(false);
 
   const config = DEFAULT_GANTT_CONFIG;
   const scopeConfig = VIEW_SCOPE_CONFIGS[viewScope];
@@ -279,12 +280,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const totalRowCount = markerRows.length + tasks.length;
   // The timeline body is the single scroll authority. Both panes consume this
   // exact row window, which keeps their absolute row offsets synchronized.
+  // Fixed sizing plus overscan lets scroll-driven renders stay asynchronous;
+  // forcing React to flush inside the native scroll event stalls the WebView.
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
   const rowVirtualizer = useVirtualizer({
     count: totalRowCount,
     getScrollElement: () => timelineBodyRef.current,
     estimateSize: () => config.rowHeight,
     overscan: 6,
+    useFlushSync: false,
     getItemKey: (index) => {
       if (index < markerRows.length) {
         return `marker:${markerRows[index]?.id ?? index}`;
@@ -299,10 +303,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
     getScrollElement: () => timelineBodyRef.current,
     estimateSize: () => columnWidth,
     overscan: 3,
+    useFlushSync: false,
     getItemKey: (index) => periods[index]?.date.getTime() ?? index,
   });
   const virtualRows = rowVirtualizer.getVirtualItems();
   const virtualPeriods = periodVirtualizer.getVirtualItems();
+  const isVirtualizerScrolling =
+    rowVirtualizer.isScrolling || periodVirtualizer.isScrolling;
 
   // Column widths change with zoom and container resizing. Clear the horizontal
   // size cache so visible-period offsets stay exact after either transition.
@@ -332,13 +339,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
   ]);
 
   useEffect(() => {
-    if (timelineBodyRef.current) {
-      timelineBodyRef.current.scrollLeft = initialScrollOffset;
-    }
+    if (hasAppliedInitialScrollRef.current || containerWidth <= 0) return;
+    if (!timelineBodyRef.current) return;
+
+    timelineBodyRef.current.scrollLeft = initialScrollOffset;
     if (headerScrollRef.current) {
       headerScrollRef.current.scrollLeft = initialScrollOffset;
     }
-  }, [initialScrollOffset]);
+    hasAppliedInitialScrollRef.current = true;
+  }, [containerWidth, initialScrollOffset]);
 
   // Hooks
   const { handleTimelineScroll, handleSidebarScroll } = useGanttScroll({
@@ -485,9 +494,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
           ghostPreview={ghostPreview}
           onTaskResizeStart={handleTaskResizeStart}
           onTaskMoveStart={handleTaskMoveStart}
-          showTooltips={showTooltips}
+          showTooltips={showTooltips && !isVirtualizerScrolling}
           renderTooltipWrapper={renderTooltipWrapper}
-          renderMarkerTooltipWrapper={renderMarkerTooltipWrapper}
+          renderMarkerTooltipWrapper={
+            isVirtualizerScrolling ? undefined : renderMarkerTooltipWrapper
+          }
           hideDateHeader={hideTimelineDateHeader}
           hideScrollbars={hideScrollbars}
           transparentSurface={transparentTimelineSurface}
