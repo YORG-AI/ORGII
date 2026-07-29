@@ -201,4 +201,71 @@ describe("RichMarkdownEditor", () => {
       { separateFromAdjacentText: true }
     );
   });
+
+  it("switches Preview to Raw before inserting a drop that lands while Preview is active, dropping the now-meaningless drop coordinates", () => {
+    const ref = React.createRef<React.ElementRef<typeof RichMarkdownEditor>>();
+    act(() => {
+      root.render(
+        React.createElement(RichMarkdownEditor, {
+          ref,
+          value: "",
+          defaultMode: "preview",
+        })
+      );
+    });
+
+    // Preview is active and the raw editor is hidden — same as when a drop
+    // lands on the composer while the Preview tab is showing.
+    expect(container.querySelector("[data-rich-markdown-raw]")?.className).toBe(
+      "hidden"
+    );
+
+    act(() => {
+      ref.current?.insertText("orgii://cloud/session/ref?v=1", {
+        separateFromAdjacentText: true,
+        clientX: 123,
+        clientY: 456,
+      });
+    });
+
+    // The drop coordinates were resolved against a hidden, unlaid-out
+    // editor and mean nothing there, so they must not reach the real
+    // editor's insertText — only the fallback (selection collapsed to its
+    // end) applies.
+    expect(editorMocks.insertText).toHaveBeenCalledWith(
+      "orgii://cloud/session/ref?v=1",
+      { separateFromAdjacentText: true }
+    );
+
+    // The Raw tab is now visible so the user can see the result land.
+    expect(
+      container.querySelector("[data-rich-markdown-raw]")?.className
+    ).toContain("block");
+    expect(container.querySelector("[data-rich-markdown-preview]")).toBeNull();
+  });
+
+  it("passes drop coordinates through unchanged when already on the Raw tab", () => {
+    const ref = React.createRef<React.ElementRef<typeof RichMarkdownEditor>>();
+    act(() => {
+      root.render(
+        React.createElement(RichMarkdownEditor, {
+          ref,
+          value: "",
+        })
+      );
+    });
+
+    act(() => {
+      ref.current?.insertText("orgii://cloud/session/ref?v=1", {
+        separateFromAdjacentText: true,
+        clientX: 123,
+        clientY: 456,
+      });
+    });
+
+    expect(editorMocks.insertText).toHaveBeenCalledWith(
+      "orgii://cloud/session/ref?v=1",
+      { separateFromAdjacentText: true, clientX: 123, clientY: 456 }
+    );
+  });
 });

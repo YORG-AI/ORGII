@@ -151,11 +151,16 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const [draft, setDraft] = useState("");
   const editorRef = useRef<RichMarkdownEditorRef>(null);
   const dropTargetRef = useRef<HTMLDivElement>(null);
-  const insertDroppedReference = useCallback((text: string) => {
-    editorRef.current?.insertText(text, {
-      separateFromAdjacentText: true,
-    });
-  }, []);
+  const insertDroppedReference = useCallback(
+    (text: string, dropPoint?: { clientX: number; clientY: number }) => {
+      editorRef.current?.insertText(text, {
+        separateFromAdjacentText: true,
+        clientX: dropPoint?.clientX,
+        clientY: dropPoint?.clientY,
+      });
+    },
+    []
+  );
   const { isDragOver } = useSessionReferenceDropTarget({
     elementRef: dropTargetRef,
     onInsertText: insertDroppedReference,

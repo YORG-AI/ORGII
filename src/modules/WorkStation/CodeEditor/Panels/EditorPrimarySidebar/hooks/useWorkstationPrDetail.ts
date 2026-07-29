@@ -58,6 +58,18 @@ function upsertById<T extends { id: number }>(items: T[], item: T): T[] {
   return next;
 }
 
+/**
+ * Per-PR request-id counters, keyed by `prDetailKey(repoFullName, prNumber)`.
+ * Scoping the guard per PR (instead of one counter per hook instance) means
+ * switching PR A -> B -> A only supersedes in-flight work for the PR that
+ * actually changed; an unrelated in-flight load for A keeps its result.
+ */
+function bumpRequestId(counters: Map<string, number>, key: string): number {
+  const next = (counters.get(key) ?? 0) + 1;
+  counters.set(key, next);
+  return next;
+}
+
 function readString(
   source: Record<string, unknown> | null,
   path: string[]
@@ -117,13 +129,29 @@ async function fetchPrDetailBundle(
 
 const inFlight = new Map<string, Promise<PrDetailBundle>>();
 
+/**
+ * Fetch a PR detail bundle, de-duplicating concurrent callers for the same
+ * PR onto a single in-flight request.
+ *
+ * `bypassDedup` starts a genuinely fresh request even if one is already in
+ * flight, and installs it as the new in-flight entry (future callers coalesce
+ * onto it instead). This is used by post-mutation reconciliation: an
+ * already-in-flight fetch may have been dispatched *before* the mutation
+ * landed server-side, so reusing it would silently apply pre-mutation data.
+ * The superseded promise still resolves for its original caller — it just no
+ * longer owns the `inFlight` slot, so it won't be handed to new callers and
+ * its `finally` no-ops instead of deleting the fresher entry.
+ */
 function loadBundleDeduped(
   repoFullName: string,
-  prNumber: number
+  prNumber: number,
+  opts?: { bypassDedup?: boolean }
 ): Promise<PrDetailBundle> {
   const key = prDetailKey(repoFullName, prNumber);
-  const existing = inFlight.get(key);
-  if (existing) return existing;
+  if (!opts?.bypassDedup) {
+    const existing = inFlight.get(key);
+    if (existing) return existing;
+  }
   const promise = fetchPrDetailBundle(repoFullName, prNumber).finally(() => {
     if (inFlight.get(key) === promise) inFlight.delete(key);
   });
@@ -187,7 +215,9 @@ export function useWorkstationPrDetail({
     };
   }, [repoPath, repoId]);
 
-  const requestIdRef = useRef(0);
+  // Per-PR request-id counters — see `bumpRequestId` above for why this is a
+  // Map keyed by PR rather than a single instance-wide counter.
+  const requestIdsRef = useRef(new Map<string, number>());
 
   const applyBundle = useCallback(
     (identity: PrIdentity, bundle: PrDetailBundle) => {
@@ -213,30 +243,54 @@ export function useWorkstationPrDetail({
   );
 
   const loadDetail = useCallback(
-    (identity: PrIdentity, opts?: { force?: boolean }) => {
+    (
+      identity: PrIdentity,
+      opts?: {
+        force?: boolean;
+        /**
+         * Post-mutation reconciliation: a successful mutation already
+         * applied its own optimistic patch, so this always uses the
+         * lightweight `refreshing` indicator (never the full-page loading
+         * skeleton) and always issues a fresh network request — an
+         * in-flight fetch that might be de-duped onto could have been
+         * dispatched before the mutation landed server-side.
+         */
+        reconcile?: boolean;
+      }
+    ) => {
       if (!repoFullName) return;
-      const requestId = ++requestIdRef.current;
-      const isCurrent = () => requestId === requestIdRef.current;
       const key = prDetailKey(repoFullName, identity.number);
-      const cached = getCachedPrDetail(key);
+      const requestId = bumpRequestId(requestIdsRef.current, key);
+      const isCurrent = () => requestIdsRef.current.get(key) === requestId;
 
-      if (cached && !opts?.force) {
-        applyBundle(identity, cached);
-        if (!isPrDetailStale(key)) return;
+      if (opts?.reconcile) {
         setSelectedPr((prev) => ({ ...prev, refreshing: true }));
       } else {
-        setSelectedPr((prev) => ({
-          ...prev,
-          ...initialSelectedPrState,
-          identity,
-          baseRef: identity.baseBranch ?? null,
-          loading: true,
-        }));
+        const cached = getCachedPrDetail(key);
+        if (cached && !opts?.force) {
+          applyBundle(identity, cached);
+          if (!isPrDetailStale(key)) return;
+          setSelectedPr((prev) => ({ ...prev, refreshing: true }));
+        } else {
+          setSelectedPr((prev) => ({
+            ...prev,
+            ...initialSelectedPrState,
+            identity,
+            baseRef: identity.baseBranch ?? null,
+            loading: true,
+          }));
+        }
       }
 
       void (async () => {
         try {
-          const bundle = await loadBundleDeduped(repoFullName, identity.number);
+          const bundle = await loadBundleDeduped(
+            repoFullName,
+            identity.number,
+            {
+              bypassDedup: opts?.reconcile,
+            }
+          );
           if (!mountedRef.current || !isCurrent()) return;
           setCachedPrDetail(key, bundle);
           applyBundle(identity, bundle);
@@ -265,7 +319,8 @@ export function useWorkstationPrDetail({
   const addComment = useCallback(
     async (body: string) => {
       if (!repoFullName || !pr) return;
-      ++requestIdRef.current;
+      const key = prDetailKey(repoFullName, pr.number);
+      bumpRequestId(requestIdsRef.current, key);
       setSelectedPr((prev) => ({
         ...prev,
         refreshing: false,
@@ -277,7 +332,6 @@ export function useWorkstationPrDetail({
           pr.number,
           body
         );
-        const key = prDetailKey(repoFullName, pr.number);
         updateCachedPrDetail(key, (cached) => ({
           conversation: upsertById(cached.conversation, comment),
         }));
@@ -287,19 +341,25 @@ export function useWorkstationPrDetail({
           conversation: upsertById(prev.conversation, comment),
           submittingComment: false,
         }));
+        // Reconcile in the background: the server response now reflects
+        // this comment, so refetching restores every other field
+        // (commits/files/checks/headSha) that would otherwise stay stale
+        // until the next explicit refresh.
+        loadDetail(pr, { reconcile: true });
       } catch {
         if (mountedRef.current) {
           setSelectedPr((prev) => ({ ...prev, submittingComment: false }));
         }
       }
     },
-    [repoFullName, pr, setSelectedPr]
+    [repoFullName, pr, setSelectedPr, loadDetail]
   );
 
   const submitReview = useCallback(
     async (event: PrReviewEvent, body: string) => {
       if (!repoFullName || !pr) return;
-      ++requestIdRef.current;
+      const key = prDetailKey(repoFullName, pr.number);
+      bumpRequestId(requestIdsRef.current, key);
       setSelectedPr((prev) => ({
         ...prev,
         refreshing: false,
@@ -312,7 +372,6 @@ export function useWorkstationPrDetail({
           event,
           body || undefined
         );
-        const key = prDetailKey(repoFullName, pr.number);
         updateCachedPrDetail(key, (cached) => ({
           reviews: upsertById(cached.reviews, review),
         }));
@@ -322,13 +381,14 @@ export function useWorkstationPrDetail({
           reviews: upsertById(prev.reviews, review),
           submittingReview: false,
         }));
+        loadDetail(pr, { reconcile: true });
       } catch {
         if (mountedRef.current) {
           setSelectedPr((prev) => ({ ...prev, submittingReview: false }));
         }
       }
     },
-    [repoFullName, pr, setSelectedPr]
+    [repoFullName, pr, setSelectedPr, loadDetail]
   );
 
   const addInlineComment = useCallback(
@@ -341,50 +401,84 @@ export function useWorkstationPrDetail({
       startSide?: "LEFT" | "RIGHT";
     }) => {
       if (!repoFullName || !pr) return;
-      ++requestIdRef.current;
-      setSelectedPr((prev) => ({ ...prev, refreshing: false }));
-      const commitId = latestHeadShaRef.current;
-      if (!commitId) return;
-      const comment = await createPrReviewCommentLocal(
-        repoFullName,
-        pr.number,
-        { ...params, commitId }
-      );
       const key = prDetailKey(repoFullName, pr.number);
-      updateCachedPrDetail(key, (cached) => ({
-        reviewComments: upsertById(cached.reviewComments, comment),
-      }));
-      if (!mountedRef.current) return;
+      bumpRequestId(requestIdsRef.current, key);
       setSelectedPr((prev) => ({
         ...prev,
-        reviewComments: upsertById(prev.reviewComments, comment),
+        refreshing: false,
+        submittingInlineComment: true,
       }));
+      try {
+        const commitId = latestHeadShaRef.current;
+        if (!commitId) {
+          throw new Error("Missing PR head commit SHA for inline comment.");
+        }
+        const comment = await createPrReviewCommentLocal(
+          repoFullName,
+          pr.number,
+          { ...params, commitId }
+        );
+        updateCachedPrDetail(key, (cached) => ({
+          reviewComments: upsertById(cached.reviewComments, comment),
+        }));
+        if (!mountedRef.current) return;
+        setSelectedPr((prev) => ({
+          ...prev,
+          reviewComments: upsertById(prev.reviewComments, comment),
+          submittingInlineComment: false,
+        }));
+        loadDetail(pr, { reconcile: true });
+      } catch (err) {
+        if (mountedRef.current) {
+          setSelectedPr((prev) => ({
+            ...prev,
+            submittingInlineComment: false,
+            error: err instanceof Error ? err.message : String(err),
+          }));
+        }
+      }
     },
-    [repoFullName, pr, setSelectedPr]
+    [repoFullName, pr, setSelectedPr, loadDetail]
   );
 
   const replyInlineComment = useCallback(
     async (commentId: number, body: string) => {
       if (!repoFullName || !pr) return;
-      ++requestIdRef.current;
-      setSelectedPr((prev) => ({ ...prev, refreshing: false }));
-      const comment = await replyPrReviewCommentLocal(
-        repoFullName,
-        pr.number,
-        commentId,
-        body
-      );
       const key = prDetailKey(repoFullName, pr.number);
-      updateCachedPrDetail(key, (cached) => ({
-        reviewComments: upsertById(cached.reviewComments, comment),
-      }));
-      if (!mountedRef.current) return;
+      bumpRequestId(requestIdsRef.current, key);
       setSelectedPr((prev) => ({
         ...prev,
-        reviewComments: upsertById(prev.reviewComments, comment),
+        refreshing: false,
+        submittingInlineComment: true,
       }));
+      try {
+        const comment = await replyPrReviewCommentLocal(
+          repoFullName,
+          pr.number,
+          commentId,
+          body
+        );
+        updateCachedPrDetail(key, (cached) => ({
+          reviewComments: upsertById(cached.reviewComments, comment),
+        }));
+        if (!mountedRef.current) return;
+        setSelectedPr((prev) => ({
+          ...prev,
+          reviewComments: upsertById(prev.reviewComments, comment),
+          submittingInlineComment: false,
+        }));
+        loadDetail(pr, { reconcile: true });
+      } catch (err) {
+        if (mountedRef.current) {
+          setSelectedPr((prev) => ({
+            ...prev,
+            submittingInlineComment: false,
+            error: err instanceof Error ? err.message : String(err),
+          }));
+        }
+      }
     },
-    [repoFullName, pr, setSelectedPr]
+    [repoFullName, pr, setSelectedPr, loadDetail]
   );
 
   const refresh = useCallback(() => {

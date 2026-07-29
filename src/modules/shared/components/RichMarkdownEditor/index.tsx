@@ -132,8 +132,22 @@ const RichMarkdownEditor = forwardRef<
         ),
       removeFilePill: (filePath) => editorRef.current?.removeFilePill(filePath),
       getFilePills: () => editorRef.current?.getFilePills() ?? [],
-      insertText: (text, options) =>
-        editorRef.current?.insertText(text, options),
+      insertText: (text, options) => {
+        // The raw tiptap editor stays mounted (just hidden) while Preview is
+        // active, so a drop that lands on the Preview tab still hits it —
+        // but the drop's viewport coordinates were resolved against a
+        // hidden, unlaid-out editor and mean nothing there. Switch to Raw
+        // first so the insert is visible, and drop the coordinates in favor
+        // of `insertText`'s own fallback (selection collapsed to its end).
+        const wasPreview = currentMode === "preview";
+        if (wasPreview) setMode("raw");
+        editorRef.current?.insertText(
+          text,
+          wasPreview
+            ? { separateFromAdjacentText: options?.separateFromAdjacentText }
+            : options
+        );
+      },
       triggerAtMention: () => {
         setMode("raw");
         editorRef.current?.triggerAtMention();
@@ -143,7 +157,7 @@ const RichMarkdownEditor = forwardRef<
         editorRef.current?.triggerSlashContext();
       },
     }),
-    [setMode]
+    [currentMode, setMode]
   );
 
   const contentStyle: CSSProperties = {

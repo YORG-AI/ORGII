@@ -73,6 +73,9 @@ export interface WorkstationSelectedPrState {
   error: string | null;
   submittingComment: boolean;
   submittingReview: boolean;
+  /** Covers both `addInlineComment` and `replyInlineComment` — the two
+   * inline-review-comment mutations never run concurrently in practice. */
+  submittingInlineComment: boolean;
 }
 
 export const initialSelectedPrState: WorkstationSelectedPrState = {
@@ -91,6 +94,7 @@ export const initialSelectedPrState: WorkstationSelectedPrState = {
   error: null,
   submittingComment: false,
   submittingReview: false,
+  submittingInlineComment: false,
 };
 
 export const workstationSelectedPrAtomFamily = atomFamily(

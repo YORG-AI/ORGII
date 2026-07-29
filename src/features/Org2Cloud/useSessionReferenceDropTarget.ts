@@ -101,7 +101,17 @@ interface TextareaSessionReferenceDropTargetParams {
 
 interface CustomSessionReferenceDropTargetParams {
   elementRef: RefObject<HTMLElement | null>;
-  onInsertText: (text: string) => void;
+  /**
+   * `dropPoint` carries the pointer's viewport coordinates at release, so
+   * the caller can resolve an insertion position at the drop point instead
+   * of wherever the caret/selection happened to be (see
+   * `useRichTextEditor.insertText`'s `clientX`/`clientY` options). Absent
+   * only if the drag ended without a known pointer position.
+   */
+  onInsertText: (
+    text: string,
+    dropPoint?: { clientX: number; clientY: number }
+  ) => void;
   value?: never;
   onChange?: never;
   enabled?: boolean;
@@ -180,7 +190,9 @@ export function useSessionReferenceDropTarget({
       const dragged = draggedSession(detail);
       if (!dragged) return;
       const element = elementRef.current;
-      if (!isPointInside(element, detail.pointerX, detail.pointerY)) return;
+      const { pointerX, pointerY } = detail;
+      if (pointerX == null || pointerY == null) return;
+      if (!isPointInside(element, pointerX, pointerY)) return;
 
       const reference =
         dragged.kind === "reference"
@@ -189,7 +201,7 @@ export function useSessionReferenceDropTarget({
       if (!reference || !element) return;
       const insertText = referenceInsertText(reference);
       if (onInsertText) {
-        onInsertText(insertText);
+        onInsertText(insertText, { clientX: pointerX, clientY: pointerY });
         return;
       }
       if (!(element instanceof HTMLTextAreaElement) || value === undefined) {

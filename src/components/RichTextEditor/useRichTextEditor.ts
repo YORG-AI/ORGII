@@ -17,6 +17,114 @@ function markdownFromEditor(editor: Editor): string {
   return storage?.getMarkdown?.() ?? editor.getText();
 }
 
+/**
+ * Where a programmatic `insertText` should land: the drop point, resolved
+ * through `editor.view.posAtCoords`, when one is supplied and maps to a real
+ * document position; otherwise the current selection collapsed to its END.
+ *
+ * Collapsing to the end (never the start) is deliberate: with an active
+ * range selection and no drop point to go on, treating the insert as "type
+ * over the selection" would silently delete whatever the user had selected.
+ * Landing after it instead never destroys content.
+ */
+/** Horizontal step for the walk-left retry below. */
+const POS_AT_COORDS_RETRY_STEP_PX = 48;
+
+export function insertionPositionFor(
+  editor: {
+    view: {
+      posAtCoords: Editor["view"]["posAtCoords"];
+      dom?: { getBoundingClientRect(): { left: number } };
+    };
+  },
+  selectionEnd: number,
+  dropPoint?: { clientX?: number; clientY?: number }
+): number {
+  if (dropPoint?.clientX == null || dropPoint?.clientY == null) {
+    return selectionEnd;
+  }
+  let coords = editor.view.posAtCoords({
+    left: dropPoint.clientX,
+    top: dropPoint.clientY,
+  });
+  // Chromium's caret probing returns null for points in the empty region to
+  // the RIGHT of a short line, even though the point is inside the editor
+  // (verified live: same x resolves once the line grows past it). Walk the
+  // probe left toward the text until it lands, so "drop after the line"
+  // means end-of-that-line instead of silently falling back to the caret.
+  if (!coords && editor.view.dom) {
+    const leftEdge = editor.view.dom.getBoundingClientRect().left;
+    for (
+      let x = dropPoint.clientX - POS_AT_COORDS_RETRY_STEP_PX;
+      !coords && x > leftEdge;
+      x -= POS_AT_COORDS_RETRY_STEP_PX
+    ) {
+      coords = editor.view.posAtCoords({ left: x, top: dropPoint.clientY });
+    }
+  }
+  return coords?.pos ?? selectionEnd;
+}
+
+export interface InsertTextOptions {
+  separateFromAdjacentText?: boolean;
+  /** Viewport coordinates of a drop point — see `insertionPositionFor`. */
+  clientX?: number;
+  clientY?: number;
+}
+
+/**
+ * Insert `text` as plain, unmarked content, positioned at a drop point when
+ * one resolves, and otherwise at the current selection collapsed to its end
+ * (an active range is never replaced).
+ *
+ * Exported standalone — independent of the `useRichTextEditor` React hook —
+ * so it can be exercised directly against a real tiptap `Editor` instance in
+ * tests, the same way `markdownRoundTrip.test.ts` does.
+ */
+export function insertReferenceText(
+  editor: Editor,
+  text: string,
+  options?: InsertTextOptions
+): void {
+  if (!text) return;
+  const { to: selectionEnd } = editor.state.selection;
+
+  // Resolve where the text lands. A drop point wins when it maps to a real
+  // document position; otherwise fall back to the current selection
+  // COLLAPSED to its end — insertion must never replace an active range.
+  const insertAt = insertionPositionFor(editor, selectionEnd, options);
+
+  const docEnd = editor.state.doc.content.size;
+  const before =
+    options?.separateFromAdjacentText && insertAt > 1
+      ? editor.state.doc.textBetween(insertAt - 1, insertAt, "\n", "\n")
+      : "";
+  const after =
+    options?.separateFromAdjacentText && insertAt < docEnd
+      ? editor.state.doc.textBetween(insertAt, insertAt + 1, "\n", "\n")
+      : "";
+  const leadingSpace = before.length > 0 && !/\s$/u.test(before) ? " " : "";
+  const trailingSpace = after.length > 0 && !/^\s/u.test(after) ? " " : "";
+  const insertedString = `${leadingSpace}${text}${trailingSpace}`;
+  const insertedEnd = insertAt + insertedString.length;
+
+  editor
+    .chain()
+    .focus()
+    .setTextSelection(insertAt)
+    .insertContent({ type: "text", text: insertedString })
+    // The text node above carries no marks, which makes tiptap fold it into
+    // a plain `tr.insertText` — and that call inherits whatever bold/link
+    // marks are active at the insertion point, same as typing would.
+    // Explicitly clearing marks on the just-inserted range (not
+    // storedMarks — the actual marks the insert picked up) is what actually
+    // keeps the reference plain text.
+    .setTextSelection({ from: insertAt, to: insertedEnd })
+    .unsetAllMarks()
+    .setTextSelection(insertedEnd)
+    .run();
+}
+
 export function useRichTextEditor({
   placeholder = "Type something...",
   initialContent = "",
@@ -359,28 +467,9 @@ export function useRichTextEditor({
   }, [editor]);
 
   const insertText = useCallback(
-    (text: string, options?: { separateFromAdjacentText?: boolean }) => {
-      if (!editor || !text) return;
-      const { from, to } = editor.state.selection;
-      const docEnd = editor.state.doc.content.size;
-      const before =
-        options?.separateFromAdjacentText && from > 1
-          ? editor.state.doc.textBetween(from - 1, from, "\n", "\n")
-          : "";
-      const after =
-        options?.separateFromAdjacentText && to < docEnd
-          ? editor.state.doc.textBetween(to, to + 1, "\n", "\n")
-          : "";
-      const leadingSpace = before.length > 0 && !/\s$/u.test(before) ? " " : "";
-      const trailingSpace = after.length > 0 && !/^\s/u.test(after) ? " " : "";
-      editor
-        .chain()
-        .focus()
-        .insertContent({
-          type: "text",
-          text: `${leadingSpace}${text}${trailingSpace}`,
-        })
-        .run();
+    (text: string, options?: InsertTextOptions) => {
+      if (!editor) return;
+      insertReferenceText(editor, text, options);
     },
     [editor]
   );

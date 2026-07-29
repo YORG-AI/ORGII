@@ -15,12 +15,32 @@ import {
 } from "vitest";
 
 import {
+  getCachedPrDetail,
+  prDetailKey,
+} from "@src/services/git/githubListCache";
+import {
+  type PrIdentity,
   workstationPrDetailCallbackAtomFamily,
   workstationPrScopeKey,
   workstationSelectedPrAtomFamily,
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 import { useWorkstationPrDetail } from "./useWorkstationPrDetail";
+
+/** A promise plus its resolve/reject, for controlling settle timing in tests. */
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 const apiMocks = vi.hoisted(() => ({
   createIssueCommentLocal: vi.fn(),
@@ -75,21 +95,28 @@ const COMMENT = {
   html_url: `${PR.url}#issuecomment-42`,
 };
 const SCOPE_KEY = workstationPrScopeKey(REPO_ID, REPO_PATH, PR_NUMBER);
+/** Matches the "origin" remote mocked in `beforeEach` below. */
+const REPO_FULL_NAME = "org/repo";
 type Store = ReturnType<typeof createStore>;
 
-function Harness() {
+interface HarnessProps {
+  pr?: PrIdentity;
+}
+
+const Harness: React.FC<HarnessProps> = ({ pr = PR }) => {
   useWorkstationPrDetail({
     repoPath: REPO_PATH,
     repoId: REPO_ID,
-    pr: PR,
+    pr,
   });
-  const state = useAtomValue(workstationSelectedPrAtomFamily(SCOPE_KEY));
+  const scopeKey = workstationPrScopeKey(REPO_ID, REPO_PATH, pr.number);
+  const state = useAtomValue(workstationSelectedPrAtomFamily(scopeKey));
   return React.createElement(
     "div",
     { "data-testid": "conversation" },
     state.conversation.map((comment) => comment.body).join("\n")
   );
-}
+};
 
 async function waitForStore(
   store: Store,
@@ -135,6 +162,12 @@ describe("useWorkstationPrDetail cache mutations", () => {
     apiMocks.listPRCommitsLocal.mockResolvedValue([]);
     apiMocks.listPRFilesLocal.mockResolvedValue([]);
     apiMocks.createIssueCommentLocal.mockResolvedValue(COMMENT);
+    // Only invoked when a bundle's headSha is truthy — most tests here use
+    // the null-headSha default and never touch this, but any test opting
+    // into a real headSha needs it to resolve (a bare `vi.fn()` returns
+    // `undefined`, and `fetchPrDetailBundle` immediately calls `.catch()`
+    // on the result).
+    apiMocks.getChecksLocal.mockResolvedValue(null);
 
     store = createStore();
     container = document.createElement("div");
@@ -169,6 +202,12 @@ describe("useWorkstationPrDetail cache mutations", () => {
           .addComment !== null
     );
 
+    // The post-mutation reconciliation this fix adds means a successful
+    // `addComment` now issues a second `listIssueCommentsLocal` call — mimic
+    // GitHub's read-after-write consistency by having it reflect the new
+    // comment too.
+    apiMocks.listIssueCommentsLocal.mockResolvedValueOnce([COMMENT]);
+
     await act(async () => {
       await store
         .get(workstationPrDetailCallbackAtomFamily(SCOPE_KEY))
@@ -177,6 +216,12 @@ describe("useWorkstationPrDetail cache mutations", () => {
     expect(
       store.get(workstationSelectedPrAtomFamily(SCOPE_KEY)).conversation
     ).toEqual([COMMENT]);
+    // Wait for the background reconciliation to actually land before
+    // unmounting, so its cache write isn't racing the remount below.
+    await waitForStore(
+      store,
+      () => apiMocks.listIssueCommentsLocal.mock.calls.length >= 2
+    );
 
     act(() => root?.unmount());
     root = createRoot(container);
@@ -195,6 +240,266 @@ describe("useWorkstationPrDetail cache mutations", () => {
     expect(
       store.get(workstationSelectedPrAtomFamily(SCOPE_KEY)).conversation
     ).toEqual([COMMENT]);
-    expect(apiMocks.listIssueCommentsLocal).toHaveBeenCalledTimes(1);
+    // One call for the initial load, one for the post-mutation
+    // reconciliation — the remount reads the still-fresh cache and does not
+    // trigger a third.
+    expect(apiMocks.listIssueCommentsLocal).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not let a stale in-flight refresh clobber a mutation, and lands the post-mutation reconciliation", async () => {
+    // A dedicated PR/scope avoids any cache left warm by other tests in this
+    // file (the module-level PR-detail cache persists across `it` blocks).
+    const PR_RACE: PrIdentity = { ...PR, number: 111_201 };
+    const scopeKey = workstationPrScopeKey(REPO_ID, REPO_PATH, PR_RACE.number);
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: PR_RACE })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(scopeKey)).loading === false
+    );
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationPrDetailCallbackAtomFamily(scopeKey)).refresh !==
+        null
+    );
+    expect(apiMocks.listPRCommitsLocal).toHaveBeenCalledTimes(1);
+
+    // Call #2 (a manual background refresh) hangs on `listPRCommitsLocal`.
+    // Call #3 (the post-mutation reconciliation) resolves immediately with
+    // fresh data that already reflects the mutation — simulating that the
+    // mutation landed on the server strictly after call #2 was dispatched.
+    const staleCommitsFetch = deferred<Record<string, unknown>[]>();
+    apiMocks.listPRCommitsLocal.mockImplementationOnce(
+      () => staleCommitsFetch.promise
+    );
+    apiMocks.listIssueCommentsLocal.mockResolvedValueOnce([]); // call #2: pre-mutation snapshot
+    apiMocks.listIssueCommentsLocal.mockResolvedValueOnce([COMMENT]); // call #3: server truth
+    const FINAL_COMMITS = [{ sha: "final-commit" }];
+    apiMocks.listPRCommitsLocal.mockResolvedValueOnce(FINAL_COMMITS); // call #3
+
+    // Kick off the background refresh; it hangs.
+    act(() => {
+      store.get(workstationPrDetailCallbackAtomFamily(scopeKey)).refresh?.();
+    });
+    expect(apiMocks.listPRCommitsLocal).toHaveBeenCalledTimes(2);
+
+    // Mutate while the refresh is still hanging.
+    await act(async () => {
+      await store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .addComment?.(COMMENT.body);
+    });
+
+    // The reconciliation fetch (call #3) is a genuinely fresh request — it
+    // must not be satisfied by the still-pending call #2 promise.
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(scopeKey)).commits.length > 0
+    );
+    expect(apiMocks.listPRCommitsLocal).toHaveBeenCalledTimes(3);
+    expect(apiMocks.listIssueCommentsLocal).toHaveBeenCalledTimes(3);
+
+    let state = store.get(workstationSelectedPrAtomFamily(scopeKey));
+    expect(state.conversation).toEqual([COMMENT]);
+    expect(state.commits).toEqual(FINAL_COMMITS);
+    expect(
+      getCachedPrDetail(prDetailKey(REPO_FULL_NAME, PR_RACE.number))?.commits
+    ).toEqual(FINAL_COMMITS);
+
+    // Now let the stale, interrupted refresh resolve. Its pre-mutation data
+    // must not clobber what the reconciliation already applied.
+    await act(async () => {
+      staleCommitsFetch.resolve([{ sha: "stale-commit" }]);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    state = store.get(workstationSelectedPrAtomFamily(scopeKey));
+    expect(state.conversation).toEqual([COMMENT]);
+    expect(state.commits).toEqual(FINAL_COMMITS);
+    expect(
+      getCachedPrDetail(prDetailKey(REPO_FULL_NAME, PR_RACE.number))?.commits
+    ).toEqual(FINAL_COMMITS);
+  });
+
+  it("keeps PR A's in-flight bundle cached when the panel switches to PR B before it resolves", async () => {
+    const PR_A: PrIdentity = { ...PR, number: 111_101 };
+    const PR_B: PrIdentity = { ...PR, number: 111_102, title: "Other PR" };
+    const bScopeKey = workstationPrScopeKey(REPO_ID, REPO_PATH, PR_B.number);
+
+    const aCommitsFetch = deferred<Record<string, unknown>[]>();
+    apiMocks.listPRCommitsLocal.mockImplementationOnce(
+      () => aCommitsFetch.promise
+    );
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: PR_A })
+        )
+      );
+    });
+    // Flush one tick so `repoFullName` resolves and A's initial load starts
+    // (and hangs on `listPRCommitsLocal`).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(apiMocks.listPRCommitsLocal).toHaveBeenCalledTimes(1);
+
+    // Switch to PR B before A's fetch resolves. The hook instance is not
+    // remounted (mirrors production: `PrDetailPanel` isn't keyed by PR).
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: PR_B })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(bScopeKey)).loading === false
+    );
+
+    // Now resolve A's hanging fetch.
+    const aCommits = [{ sha: "a-commit" }];
+    await act(async () => {
+      aCommitsFetch.resolve(aCommits);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    // Per-PR request-id scoping means B superseding A never invalidated A's
+    // own in-flight request — its result still lands in the shared cache.
+    expect(
+      getCachedPrDetail(prDetailKey(REPO_FULL_NAME, PR_A.number))?.commits
+    ).toEqual(aCommits);
+  });
+
+  it("surfaces a failed inline comment as state.error, resets the submitting flag, and leaves the cache untouched", async () => {
+    const PR_C: PrIdentity = { ...PR, number: 111_103 };
+    const scopeKey = workstationPrScopeKey(REPO_ID, REPO_PATH, PR_C.number);
+    apiMocks.getPRLocal.mockResolvedValue({
+      head: { sha: "sha-c" },
+      base: { ref: "develop" },
+    });
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: PR_C })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(scopeKey)).loading === false
+    );
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationPrDetailCallbackAtomFamily(scopeKey))
+          .addInlineComment !== null
+    );
+
+    const key = prDetailKey(REPO_FULL_NAME, PR_C.number);
+    const cacheBefore = getCachedPrDetail(key);
+
+    apiMocks.createPrReviewCommentLocal.mockRejectedValueOnce(
+      new Error("network down")
+    );
+
+    await act(async () => {
+      await store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .addInlineComment?.({ body: "nope", path: "a.ts", line: 1 });
+    });
+
+    const state = store.get(workstationSelectedPrAtomFamily(scopeKey));
+    expect(state.error).toBe("network down");
+    expect(state.submittingInlineComment).toBe(false);
+    expect(getCachedPrDetail(key)).toEqual(cacheBefore);
+    expect(apiMocks.createPrReviewCommentLocal).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates a new head SHA from the post-mutation reconciliation into the next inline comment", async () => {
+    const PR_D: PrIdentity = { ...PR, number: 111_104 };
+    const scopeKey = workstationPrScopeKey(REPO_ID, REPO_PATH, PR_D.number);
+    apiMocks.getPRLocal.mockResolvedValueOnce({
+      head: { sha: "sha-old" },
+      base: { ref: "develop" },
+    });
+    apiMocks.getPRLocal.mockResolvedValue({
+      head: { sha: "sha-new" },
+      base: { ref: "develop" },
+    });
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: PR_D })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(scopeKey)).loading === false
+    );
+    expect(store.get(workstationSelectedPrAtomFamily(scopeKey)).headSha).toBe(
+      "sha-old"
+    );
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationPrDetailCallbackAtomFamily(scopeKey))
+          .addComment !== null
+    );
+
+    await act(async () => {
+      await store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .addComment?.(COMMENT.body);
+    });
+
+    // The post-mutation reconciliation fetch lands the new head SHA.
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationSelectedPrAtomFamily(scopeKey)).headSha ===
+        "sha-new"
+    );
+
+    await act(async () => {
+      await store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .addInlineComment?.({ body: "inline", path: "a.ts", line: 2 });
+    });
+
+    expect(apiMocks.createPrReviewCommentLocal).toHaveBeenCalledWith(
+      REPO_FULL_NAME,
+      PR_D.number,
+      expect.objectContaining({ commitId: "sha-new" })
+    );
   });
 });
