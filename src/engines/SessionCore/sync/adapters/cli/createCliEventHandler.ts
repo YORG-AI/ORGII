@@ -67,6 +67,7 @@ export function createCliEventHandler(
   let thinkStreamId = "";
   let thinkStartedAt = "";
   let observedTerminalStatus: CliSessionStatus | undefined;
+  let finalAssistantSettleTimer: ReturnType<typeof setTimeout> | undefined;
   const finalizedStreamEventIds = new Set<string>();
   const toolCallDeltaBuffers = new Map<
     number,
