@@ -22,7 +22,9 @@ function useOpenWorkStationTab() {
         const exists = prev.tabs.some((item) => item.id === tab.id);
         const tabs = exists
           ? prev.tabs.map((item) =>
-              item.id === tab.id ? { ...item, ...tab, data: { ...item.data, ...tab.data } } : item
+              item.id === tab.id
+                ? { ...item, ...tab, data: { ...item.data, ...tab.data } }
+                : item
             )
           : [...prev.tabs, tab];
         return { ...prev, tabs, activeTabId: tab.id };

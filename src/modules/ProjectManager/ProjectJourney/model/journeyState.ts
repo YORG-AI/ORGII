@@ -1,7 +1,6 @@
 /**
  * Persist journey narrative state (pins / prunes) in localStorage.
  */
-
 import {
   JOURNEY_STATE_KEY_PREFIX,
   JOURNEY_STATE_VERSION,

@@ -1,4 +1,3 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   GitFork,
   Pin,
@@ -7,8 +6,12 @@ import {
   Scissors,
   Sparkles,
 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { loadProjectTreeBundle } from "./loadProjectTree";
 import {
+  DEMO_PROJECT,
+  DEMO_WORK_ITEMS,
   type JourneyFileCategory,
   type JourneyNode,
   type ProjectJourneyGraph,
@@ -16,17 +19,12 @@ import {
   type ProjectLike,
   type WorkItemLike,
   buildProjectJourneyGraph,
-  emptyJourneyState,
   filterFiles,
   loadJourneyState,
   nodesTouchedByFile,
-  saveJourneyState,
   togglePinNode,
   togglePruneNode,
-  DEMO_PROJECT,
-  DEMO_WORK_ITEMS,
 } from "./model";
-import { loadProjectTreeBundle } from "./loadProjectTree";
 
 export interface ProjectJourneyPageProps {
   projectId?: string;
@@ -93,13 +91,19 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
         const match =
           projects.find((p) => p.id === projectId) ||
           projects.find((p) => p.slug === projectSlug) ||
-          projects.find((p) => p.id === DEMO_PROJECT.id) ||
-          projects[0] ||
-          DEMO_PROJECT;
+          projects[0];
+        if (!match) {
+          setProject(null);
+          setWorkItems([]);
+          setState(null);
+          setGraph(null);
+          if (bundle.error) setError(bundle.error);
+          return;
+        }
         const items =
           bundle.workItemsByProject[match.id] ||
           bundle.workItemsByProject[match.slug ?? ""] ||
-          (match.id === DEMO_PROJECT.id ? DEMO_WORK_ITEMS : []);
+          [];
         const st = loadJourneyState(match.id);
         setProject(match);
         setWorkItems(items);
@@ -107,11 +111,11 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
         if (bundle.error) setError(bundle.error);
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
-        const st = loadJourneyState(DEMO_PROJECT.id);
-        setProject(DEMO_PROJECT);
-        setWorkItems(DEMO_WORK_ITEMS);
-        setUsedDemo(true);
-        rebuild(DEMO_PROJECT, DEMO_WORK_ITEMS, st);
+        setProject(null);
+        setWorkItems([]);
+        setState(null);
+        setGraph(null);
+        setUsedDemo(false);
       } finally {
         setLoading(false);
       }
@@ -166,9 +170,7 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-text-1">
             Project Journey
-            {project || projectName
-              ? ` · ${project?.name ?? projectName}`
-              : ""}
+            {project || projectName ? ` · ${project?.name ?? projectName}` : ""}
           </div>
           <div className="text-[11px] text-text-3">
             Mainline pin + work-product suggestions · file blink · soft prune
@@ -203,6 +205,13 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
       )}
       {loading && (
         <div className="p-4 text-xs text-text-3">Loading journey…</div>
+      )}
+
+      {!loading && !graph && (
+        <div className="p-4 text-xs text-text-3">
+          No project data yet. Refresh after creating a project, or choose Demo
+          explicitly to preview the journey view.
+        </div>
       )}
 
       {!loading && graph && (
@@ -275,7 +284,9 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
 
             {selectedNode && (
               <div className="mt-4 rounded-lg border border-border-2 bg-fill-1 p-3 text-xs">
-                <div className="font-medium text-text-1">{selectedNode.title}</div>
+                <div className="font-medium text-text-1">
+                  {selectedNode.title}
+                </div>
                 <div className="mt-1 text-text-3">{selectedNode.summary}</div>
                 <div className="mt-2 text-text-2">
                   sessions: {selectedNode.sessionIds.join(", ") || "—"}
@@ -326,7 +337,7 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
                     type="button"
                     className={`mb-1 w-full rounded-md border px-2 py-1.5 text-left text-[11px] ${
                       active
-                        ? "border-primary-6 bg-primary-1 animate-pulse"
+                        ? "animate-pulse border-primary-6 bg-primary-1"
                         : "border-border-2 bg-fill-1 hover:bg-fill-2"
                     }`}
                     onClick={() =>
@@ -348,7 +359,9 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
                 );
               })}
               {files.length === 0 && (
-                <div className="p-2 text-xs text-text-3">No files in filter</div>
+                <div className="p-2 text-xs text-text-3">
+                  No files in filter
+                </div>
               )}
             </div>
           </div>
@@ -432,9 +445,5 @@ function NodeCard({
     </div>
   );
 }
-
-// silence unused import if tree shaker complains in some builds
-void saveJourneyState;
-void emptyJourneyState;
 
 export default ProjectJourneyPage;

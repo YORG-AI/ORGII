@@ -36,14 +36,14 @@ import {
   STORY_PERSONAL_ORG_NAME,
   createChatSessionTab,
   createProjectDashboardTab,
+  createProjectJourneyTab,
   createProjectLinearProjectsTab,
   createProjectLinearWorkItemsTab,
   createProjectOrgTab,
   createProjectSettingsTab,
+  createProjectTreeTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
-  createProjectTreeTab,
-  createProjectJourneyTab,
   createWorkItemDetailTab,
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
@@ -260,7 +260,6 @@ export function useProjectTabActions({
           projectId,
           projectSlug,
           projectName,
-          forceDemo: !projectId && !projectSlug,
         })
       );
     },

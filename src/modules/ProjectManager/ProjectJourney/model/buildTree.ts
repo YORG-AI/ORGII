@@ -1,12 +1,7 @@
 /**
  * Build Workspace → Project → WorkItem → Session/Todo tree.
  */
-
-import type {
-  ProjectLike,
-  ProjectTreeNode,
-  WorkItemLike,
-} from "./types";
+import type { ProjectLike, ProjectTreeNode, WorkItemLike } from "./types";
 
 export interface BuildTreeInput {
   workspaceName?: string;
@@ -156,9 +151,7 @@ export function flattenTree(root: ProjectTreeNode): ProjectTreeNode[] {
   return out;
 }
 
-export function countByKind(
-  root: ProjectTreeNode
-): Record<string, number> {
+export function countByKind(root: ProjectTreeNode): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const node of flattenTree(root)) {
     counts[node.kind] = (counts[node.kind] ?? 0) + 1;

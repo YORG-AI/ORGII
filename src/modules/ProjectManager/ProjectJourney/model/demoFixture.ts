@@ -1,7 +1,6 @@
 /**
  * Demo fixture so Journey/Tree are usable even when local DB has sparse links.
  */
-
 import type { ProjectLike, WorkItemLike } from "./types";
 
 export const DEMO_PROJECT: ProjectLike = {

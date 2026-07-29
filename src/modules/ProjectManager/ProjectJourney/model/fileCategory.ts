@@ -1,7 +1,6 @@
 /**
  * Classify journey files into produced results vs production-source touches.
  */
-
 import type { JourneyFileCategory, WorkProductLike } from "./types";
 
 const PRODUCED_EXT = new Set([
@@ -25,8 +24,7 @@ const PRODUCED_EXT = new Set([
 const PRODUCED_PATH_RE =
   /(^|\/)(dist|build|out|output|reports?|artifacts?|release|screenshots?|preview)(\/|$)/i;
 
-const PRODUCED_NAME_RE =
-  /(report|artifact|screenshot|preview|结果|报告|交付)/i;
+const PRODUCED_NAME_RE = /(report|artifact|screenshot|preview|结果|报告|交付)/i;
 
 const TOUCHED_EXT = new Set([
   ".ts",
@@ -104,7 +102,8 @@ export function classifyWorkProduct(
   const type = (product.productType ?? product.type ?? "").toLowerCase();
   if (PRODUCED_PRODUCT_TYPES.has(type)) return "produced";
   if (TOUCHED_PRODUCT_TYPES.has(type)) return "touched_production";
-  const path = product.path ?? product.uri ?? product.url ?? product.title ?? "";
+  const path =
+    product.path ?? product.uri ?? product.url ?? product.title ?? "";
   if (path) return classifyPath(path);
   return "other";
 }

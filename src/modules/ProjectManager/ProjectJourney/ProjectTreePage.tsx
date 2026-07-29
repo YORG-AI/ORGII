@@ -1,20 +1,24 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Box,
   ChevronDown,
   ChevronRight,
+  CircleDot,
   FolderTree,
   GitBranch,
   ListTodo,
   RefreshCw,
-  Box,
-  CircleDot,
 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import type { ProjectTreeNode } from "./model";
 import { loadProjectTreeBundle } from "./loadProjectTree";
+import type { ProjectTreeNode } from "./model";
 
 export interface ProjectTreePageProps {
-  onOpenJourney?: (projectId: string, projectSlug?: string, projectName?: string) => void;
+  onOpenJourney?: (
+    projectId: string,
+    projectSlug?: string,
+    projectName?: string
+  ) => void;
   onOpenWorkItem?: (workItemId: string, projectSlug?: string) => void;
   publishToWorkstationHeader?: boolean;
 }

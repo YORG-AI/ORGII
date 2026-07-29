@@ -1,7 +1,6 @@
 /**
  * Build project journey graph from work items + optional narrative state.
  */
-
 import {
   classifyPath,
   classifyWorkProduct,
@@ -55,7 +54,8 @@ function wiStatus(wi: WorkItemLike): JourneyNodeStatus {
 function sessionNodeStatus(raw?: string): JourneyNodeStatus {
   const s = (raw ?? "").toLowerCase();
   if (s === "completed" || s === "done" || s === "success") return "done";
-  if (s === "failed" || s === "cancelled" || s === "canceled") return "abandoned";
+  if (s === "failed" || s === "cancelled" || s === "canceled")
+    return "abandoned";
   if (s === "running" || s === "in_progress" || s === "active") return "doing";
   return "todo";
 }
@@ -74,7 +74,11 @@ function summarizeWorkItem(wi: WorkItemLike): string {
   ].filter(Boolean);
   const spec = (wi.spec ?? "").trim();
   if (spec) {
-    const one = spec.split("\n").find((l) => l.trim())?.trim() ?? "";
+    const one =
+      spec
+        .split("\n")
+        .find((l) => l.trim())
+        ?.trim() ?? "";
     if (one) parts.unshift(one.slice(0, 80));
   }
   return parts.join(" · ") || "No sessions yet";
@@ -190,9 +194,7 @@ function collectFiles(
 function hasWorkProduct(wi: WorkItemLike): boolean {
   if ((wi.workProducts?.length ?? 0) > 0) return true;
   const files =
-    wi.proofOfWork?.diff_stats?.files ??
-    wi.proofOfWork?.diffStats?.files ??
-    [];
+    wi.proofOfWork?.diff_stats?.files ?? wi.proofOfWork?.diffStats?.files ?? [];
   return files.length > 0;
 }
 
@@ -274,8 +276,7 @@ export function buildProjectJourneyGraph(
   for (const wi of sorted) {
     const wiNodeId = `wi:${wi.session_id}`;
     const suggested = suggestedWiIds.has(wi.session_id);
-    const isMainline =
-      pinned.size > 0 ? pinned.has(wiNodeId) : suggested;
+    const isMainline = pinned.size > 0 ? pinned.has(wiNodeId) : suggested;
 
     const sessionIds = (wi.linkedSessions ?? []).map((s) => s.session_id);
     const wiFiles = files.filter(
@@ -332,10 +333,7 @@ export function buildProjectJourneyGraph(
 
       nodes.push({
         id: nodeId,
-        title:
-          ls.sub_agent_name ||
-          ls.agent_role ||
-          sid.slice(0, 10),
+        title: ls.sub_agent_name || ls.agent_role || sid.slice(0, 10),
         summary: buildSessionSummary(ls, sFiles.length),
         status: sessionNodeStatus(ls.status),
         workItemIds: [wi.session_id],
@@ -344,10 +342,10 @@ export function buildProjectJourneyGraph(
         isMainline: sessionMain && isMainline,
         suggestedMainline: !isFork,
         parentNodeId: ls.parent_session_id
-          ? sessionNodeIds.get(ls.parent_session_id) ?? wiNodeId
+          ? (sessionNodeIds.get(ls.parent_session_id) ?? wiNodeId)
           : wiNodeId,
         branchOf: isFork
-          ? sessionNodeIds.get(ls.parent_session_id ?? "") ?? wiNodeId
+          ? (sessionNodeIds.get(ls.parent_session_id ?? "") ?? wiNodeId)
           : wiNodeId,
         redundancyScore: 0,
         pruned: prunedNodes.has(nodeId),
@@ -394,23 +392,22 @@ export function buildProjectJourneyGraph(
     mainlineProgress,
     stats: {
       workItemCount: workItems.length,
-      sessionCount: nodes.filter((n) => n.kind === "session" || n.kind === "fork")
-        .length,
+      sessionCount: nodes.filter(
+        (n) => n.kind === "session" || n.kind === "fork"
+      ).length,
       producedFileCount: files.filter((f) => f.category === "produced").length,
       touchedProductionFileCount: files.filter(
         (f) => f.category === "touched_production"
       ).length,
-      redundantNodeCount: nodes.filter((n) => n.redundancyScore > 0 && !n.pruned)
-        .length,
+      redundantNodeCount: nodes.filter(
+        (n) => n.redundancyScore > 0 && !n.pruned
+      ).length,
       prunedNodeCount: nodes.filter((n) => n.pruned).length,
     },
   };
 }
 
-function buildSessionSummary(
-  ls: LinkedSessionLike,
-  fileCount: number
-): string {
+function buildSessionSummary(ls: LinkedSessionLike, fileCount: number): string {
   const parts = [
     ls.status ?? "unknown",
     ls.session_type,

@@ -2,15 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildProjectJourneyGraph,
-  nodesTouchedByFile,
   filterFiles,
+  nodesTouchedByFile,
 } from "../model/buildJourney";
-import {
-  buildWorkspaceProjectTree,
-  countByKind,
-} from "../model/buildTree";
-import { classifyPath } from "../model/fileCategory";
+import { buildWorkspaceProjectTree, countByKind } from "../model/buildTree";
 import { DEMO_PROJECT, DEMO_WORK_ITEMS } from "../model/demoFixture";
+import { classifyPath } from "../model/fileCategory";
 import {
   emptyJourneyState,
   loadJourneyState,
@@ -92,9 +89,9 @@ describe("buildProjectJourneyGraph", () => {
       workItems: DEMO_WORK_ITEMS,
       state,
     });
-    expect(
-      graph.nodes.find((n) => n.id === "wi:WI-DEMO-2")?.isMainline
-    ).toBe(true);
+    expect(graph.nodes.find((n) => n.id === "wi:WI-DEMO-2")?.isMainline).toBe(
+      true
+    );
     expect(
       graph.nodes.find((n) => n.id === "session:sess-fork-dead")?.pruned
     ).toBe(true);

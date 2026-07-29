@@ -28,10 +28,7 @@ export interface ProjectTreeNode {
 
 export type JourneyNodeStatus = "todo" | "doing" | "done" | "abandoned";
 
-export type JourneyFileCategory =
-  | "produced"
-  | "touched_production"
-  | "other";
+export type JourneyFileCategory = "produced" | "touched_production" | "other";
 
 export interface JourneyFileRef {
   path: string;
