@@ -21,7 +21,7 @@ use key_vault::key_store::{KeyService, ModelType, KEY_SERVICE};
 
 use super::super::launch_profile_store::resolve_cli_launch_profile;
 use super::super::persistence;
-use super::super::types::{KeySource, SessionStatus};
+use super::super::types::KeySource;
 use super::command::{
     build_command_with_launch_profile, launch_profile_env, CliCommandBuildRequest,
 };

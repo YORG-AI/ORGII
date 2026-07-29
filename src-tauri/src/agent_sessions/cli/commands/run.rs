@@ -38,11 +38,9 @@ fn inject_ide_context_into_prompt(user_input: &str, ide_context: Option<&IdeCont
 /// tab close). Non-TUI sessions and already-terminal rows are left alone.
 #[tauri::command]
 pub async fn cli_agent_tui_release(session_id: String) -> Result<bool, String> {
-    tokio::task::spawn_blocking(move || {
-        super::super::tui_bridge::release_tui_session(&session_id)
-    })
-    .await
-    .map_err(|e| format!("Task error: {}", e))?
+    tokio::task::spawn_blocking(move || super::super::tui_bridge::release_tui_session(&session_id))
+        .await
+        .map_err(|e| format!("Task error: {}", e))?
 }
 
 /// Run a code session (spawn CLI agent in background).
@@ -192,8 +190,7 @@ async fn cli_agent_run_internal(
                 "status": "failed",
                 "error_message": e,
             });
-            failed_msg["turn_intent_id"] =
-                serde_json::Value::String(runner_turn_intent_id.clone());
+            failed_msg["turn_intent_id"] = serde_json::Value::String(runner_turn_intent_id.clone());
             crate::api::websocket_handler::broadcast(failed_msg.to_string());
         }
         // Remove finished entry from RUNNING_SESSIONS to prevent unbounded growth
@@ -320,15 +317,15 @@ pub async fn cli_agent_message(
     .await
     .map_err(|err| format!("Task error: {err}"))??;
     let cli_resume_id = account_scoped_resume_id.or_else(|| {
-            if account_id
-                .as_deref()
-                .is_some_and(|new_account_id| session.account_id.as_deref() != Some(new_account_id))
-            {
-                None
-            } else {
-                fresh_cli_session_id
-            }
-        });
+        if account_id
+            .as_deref()
+            .is_some_and(|new_account_id| session.account_id.as_deref() != Some(new_account_id))
+        {
+            None
+        } else {
+            fresh_cli_session_id
+        }
+    });
 
     tracing::info!(
         session_id = %session_id,

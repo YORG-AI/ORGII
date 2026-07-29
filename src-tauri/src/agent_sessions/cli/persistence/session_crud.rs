@@ -289,6 +289,7 @@ pub fn accept_cli_turn(
         session_id,
         turn_intent_id,
         Some(client_message_id),
+        None,
         session_persistence::turn_intents::TurnIntentSource::UserSubmit,
         session_persistence::turn_intents::TurnIntentStatus::Queued,
     )
