@@ -246,19 +246,54 @@ async function ensureActiveSession(
   return sessionId;
 }
 
-async function sendFollowUp(prompt, expectedText) {
+async function ensureChatSurface(sessionId) {
+  if (sessionId) {
+    unwrap(
+      await invokeE2E("navigateTo", "/orgii/workstation/code"),
+      "navigateTo(workstation before chat follow-up)"
+    );
+    unwrap(await invokeE2E("openSession", sessionId), "openSession(follow-up)");
+  }
+  await browser.waitUntil(
+    async () => (await execJS(js.mode)) === "chat",
+    {
+      timeout: 30_000,
+      timeoutMsg: "chat surface never mounted for follow-up",
+    }
+  );
+}
+
+async function sendFollowUp(prompt, expectedText, sessionId) {
   const inputSelector = '[data-testid="chat-input"] [contenteditable="true"]';
   const sendSelector = '[data-testid="chat-send-button"]';
 
+  await ensureChatSurface(sessionId);
+
+  let sendStateDiag = null;
   await browser.waitUntil(
     async () => {
       const state = await execJS(`
         const element = document.querySelector(${JSON.stringify(sendSelector)});
-        return element ? (element.getAttribute("data-state") || "") : "";
+        const mode = document.querySelector(".session-creator-chat-panel")
+          ? "creator"
+          : document.querySelector('[data-testid="chat-message-list"]')
+            ? "chat"
+            : "unknown";
+        const href = window.location.href;
+        return JSON.stringify({
+          state: element ? (element.getAttribute("data-state") || "") : "",
+          disabled: element ? !!element.disabled : null,
+          mode,
+          href,
+        });
       `);
-      return state === "submit" || state === "retry";
+      sendStateDiag = JSON.parse(state);
+      return sendStateDiag.state === "submit" || sendStateDiag.state === "retry";
     },
-    { timeout: 30_000, timeoutMsg: "chat never returned to a sendable state" }
+    {
+      timeout: 30_000,
+      timeoutMsg: `chat never returned to a sendable state: ${JSON.stringify(sendStateDiag)}`,
+    }
   );
   await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
     timeout: 15_000,
@@ -459,7 +494,8 @@ describe("Core session memory UI", () => {
 
     const reply = await sendFollowUp(
       "Reply with exactly ORGII_MEMORY_RENDERED_SMOKE_READY and no other words.",
-      "ORGII_MEMORY_RENDERED_SMOKE_READY"
+      "ORGII_MEMORY_RENDERED_SMOKE_READY",
+      activeSessionId
     );
     expect(reply).toContain("ORGII_MEMORY_RENDERED_SMOKE_READY");
     expect(await execJS(js.bodyText)).toContain(
