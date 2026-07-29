@@ -8,3 +8,15 @@ export const TURN_WINDOW_RECENT_BODY_COUNT = 1;
 export const TURN_PAGE_PREFETCH_RADIUS = 1;
 export const MAX_LOADED_HISTORICAL_TURN_BODIES = 8;
 export const MAX_LOADED_CODEX_HISTORICAL_TURN_BODIES = 1;
+
+/**
+ * Forward-prefetch radius (in distinct turns) for the Workstation
+ * Communication ("Messages") replay surface. As the playback cursor
+ * advances through an imported history, each newly-revealed unloaded turn
+ * would otherwise show a "Loading message…" beat (`UnloadedTurnBubble`)
+ * until its body round-trips. Warming the next `REPLAY_TURN_PREFETCH_AHEAD`
+ * distinct turns *before* the cursor reaches them keeps continuous
+ * playback beat-free. See `useReplayTurnPrefetch`
+ * (src/modules/WorkStation/Chat/Communication/hooks/useReplayTurnPrefetch.ts).
+ */
+export const REPLAY_TURN_PREFETCH_AHEAD = 2;
