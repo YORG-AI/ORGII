@@ -296,8 +296,20 @@ pub fn upsert_initial(
     )
 }
 
-/// Connection-scoped variant for callers that atomically update adjacent
-/// session lifecycle state in the same SQLite transaction.
+/// Connection-scoped variant, for callers that already hold a connection and
+/// want this write to land alongside adjacent session lifecycle state.
+///
+/// Connection-scoped in the same sense as
+/// [`reconcile_in_flight_after_restart`]: it never opens its own connection, so
+/// it is safe to call from inside a database hook or an in-progress write.
+///
+/// Atomicity is the caller's responsibility. On the `INSERT OR IGNORE`-collision
+/// path this runs up to three statements (backfill `UPDATE`, then a read-back),
+/// which are only atomic if `conn` is a `BEGIN IMMEDIATE` transaction —
+/// `rusqlite::Transaction` derefs to `Connection`, so pass `&tx` from
+/// `begin_immediate`, ideally inside `with_sessions_writer`. Handed a bare
+/// `get_connection()` — as the [`upsert_initial`] wrapper does — each statement
+/// commits on its own, matching the historical behavior.
 pub fn upsert_initial_on(
     conn: &Connection,
     session_id: &str,
@@ -345,7 +357,7 @@ pub fn upsert_initial_on(
             params![session_id, turn_intent_id, org_run_id],
         )?;
     }
-    let existing = get_intent(&conn, session_id, turn_intent_id)?
+    let existing = get_intent(conn, session_id, turn_intent_id)?
         .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
     if let (Some(existing_org_run_id), Some(requested_org_run_id)) =
         (existing.org_run_id.as_deref(), org_run_id)
@@ -373,7 +385,21 @@ pub fn update_status(
     update_status_on(&conn, session_id, turn_intent_id, new_status)
 }
 
-/// Connection-scoped variant for atomic session + turn-intent transitions.
+/// Connection-scoped variant, for callers driving a session state change and
+/// this transition together.
+///
+/// Never opens its own connection, so it composes with a caller-owned write —
+/// same contract as [`upsert_initial_on`].
+///
+/// The transition guard is read-check-write: it reads the current row, tests
+/// the `transition_allowed` whitelist, then `UPDATE`s. That guard only holds
+/// while the caller owns the write lock — pass `&tx` from `begin_immediate`, or
+/// call inside `with_sessions_writer`. On a bare connection two concurrent
+/// transitions can both observe the pre-state and both pass the whitelist, so
+/// the later write wins and one transition is lost with no error. The
+/// [`update_status`] wrapper takes a bare connection and so keeps that
+/// pre-existing race; callers that need the guard actually enforced should use
+/// this variant under a transaction rather than the wrapper.
 pub fn update_status_on(
     conn: &Connection,
     session_id: &str,
@@ -476,10 +502,21 @@ pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
     Ok(rows)
 }
 
-/// Latest lifecycle row for each requested session, read through one
-/// connection so reconnect/focus reconciliation does not fan out into one
-/// SQLite task per session.
+/// Latest lifecycle row for each requested session, for reconnect/focus
+/// reconciliation.
+///
+/// The saving is one connection and one prepared statement for the whole set,
+/// instead of reconciliation fanning out into a SQLite task per session. It is
+/// still one row lookup per id rather than a single set-based query — fine at
+/// the sizes reconciliation asks for, and worth revisiting against a real
+/// caller's numbers before reaching for a window function.
+///
+/// Sessions with no intent row are absent from the map rather than mapped to a
+/// placeholder, so callers can distinguish "never submitted" from a live status.
 pub fn latest_for_sessions(session_ids: &[String]) -> SqliteResult<HashMap<String, TurnIntentRow>> {
+    if session_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
     let conn = get_connection()?;
     let mut stmt = conn.prepare_cached(
         "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
@@ -491,6 +528,10 @@ pub fn latest_for_sessions(session_ids: &[String]) -> SqliteResult<HashMap<Strin
     )?;
     let mut latest = HashMap::with_capacity(session_ids.len());
     for session_id in session_ids {
+        // A repeated id would re-run the same lookup and overwrite its own entry.
+        if latest.contains_key(session_id) {
+            continue;
+        }
         if let Some(row) = stmt.query_row([session_id], row_from_sql).optional()? {
             latest.insert(session_id.clone(), row);
         }
