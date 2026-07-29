@@ -888,7 +888,8 @@
     "installedClis": "CLI 客户端",
     "myRoles": "我的角色",
     "modelWiki": "模型百科",
-    "localModels": "On prem"
+    "localModels": "On prem",
+    "embedding": "嵌入与重排"
   },
   "modelWiki": {
     "description": "{{count}} 个公开模型的参考目录，包含 Context 大小、输出上限与能力。",

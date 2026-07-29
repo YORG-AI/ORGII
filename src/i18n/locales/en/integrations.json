@@ -886,7 +886,8 @@
     "installedClis": "CLI Clients",
     "myRoles": "My roles",
     "modelWiki": "Model Wiki",
-    "localModels": "On prem"
+    "localModels": "On prem",
+    "embedding": "Embedding & Rerank"
   },
   "modelWiki": {
     "description": "Reference catalog of {{count}} public models with context size, output limits, and capabilities.",

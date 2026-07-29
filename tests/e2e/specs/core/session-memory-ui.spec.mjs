@@ -319,7 +319,7 @@ describe("Core session memory UI", () => {
     unwrap(
       await invokeE2E(
         "navigateTo",
-        "/orgii/settings/integrations/models?modelsTab=embedding"
+        "/orgii/app/settings/integrations/models?modelsTab=embedding"
       ),
       "navigateTo(semantic models summary)"
     );
