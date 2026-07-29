@@ -37,6 +37,7 @@ import {
   isPrDetailStale,
   prDetailKey,
   setCachedPrDetail,
+  updateCachedPrDetail,
 } from "@src/services/git/githubListCache";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
 import {
@@ -48,6 +49,14 @@ import {
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 type PrDetailBundle = Omit<CachedPrDetail, "cachedAt">;
+
+function upsertById<T extends { id: number }>(items: T[], item: T): T[] {
+  const index = items.findIndex((candidate) => candidate.id === item.id);
+  if (index === -1) return [...items, item];
+  const next = [...items];
+  next[index] = item;
+  return next;
+}
 
 function readString(
   source: Record<string, unknown> | null,
@@ -62,8 +71,9 @@ function readString(
 }
 
 /**
- * Fetch every detail source for a PR in parallel and write the snapshot to the
- * cache. `getPRLocal` is not individually caught — a hard failure there (auth /
+ * Fetch every detail source for a PR in parallel. The caller writes the
+ * snapshot only after confirming this request still owns the visible panel.
+ * `getPRLocal` is not individually caught — a hard failure there (auth /
  * network) rejects the whole bundle so callers surface an error; the softer
  * sources degrade to empty on their own errors.
  */
@@ -100,7 +110,6 @@ async function fetchPrDetailBundle(
     files,
     checks,
   };
-  setCachedPrDetail(prDetailKey(repoFullName, prNumber), bundle);
   return bundle;
 }
 
@@ -229,6 +238,7 @@ export function useWorkstationPrDetail({
         try {
           const bundle = await loadBundleDeduped(repoFullName, identity.number);
           if (!mountedRef.current || !isCurrent()) return;
+          setCachedPrDetail(key, bundle);
           applyBundle(identity, bundle);
         } catch (err) {
           if (!mountedRef.current || !isCurrent()) return;
@@ -255,17 +265,26 @@ export function useWorkstationPrDetail({
   const addComment = useCallback(
     async (body: string) => {
       if (!repoFullName || !pr) return;
-      setSelectedPr((prev) => ({ ...prev, submittingComment: true }));
+      ++requestIdRef.current;
+      setSelectedPr((prev) => ({
+        ...prev,
+        refreshing: false,
+        submittingComment: true,
+      }));
       try {
         const comment = await createIssueCommentLocal(
           repoFullName,
           pr.number,
           body
         );
+        const key = prDetailKey(repoFullName, pr.number);
+        updateCachedPrDetail(key, (cached) => ({
+          conversation: upsertById(cached.conversation, comment),
+        }));
         if (!mountedRef.current) return;
         setSelectedPr((prev) => ({
           ...prev,
-          conversation: [...prev.conversation, comment],
+          conversation: upsertById(prev.conversation, comment),
           submittingComment: false,
         }));
       } catch {
@@ -280,7 +299,12 @@ export function useWorkstationPrDetail({
   const submitReview = useCallback(
     async (event: PrReviewEvent, body: string) => {
       if (!repoFullName || !pr) return;
-      setSelectedPr((prev) => ({ ...prev, submittingReview: true }));
+      ++requestIdRef.current;
+      setSelectedPr((prev) => ({
+        ...prev,
+        refreshing: false,
+        submittingReview: true,
+      }));
       try {
         const review = await createPrReviewLocal(
           repoFullName,
@@ -288,10 +312,14 @@ export function useWorkstationPrDetail({
           event,
           body || undefined
         );
+        const key = prDetailKey(repoFullName, pr.number);
+        updateCachedPrDetail(key, (cached) => ({
+          reviews: upsertById(cached.reviews, review),
+        }));
         if (!mountedRef.current) return;
         setSelectedPr((prev) => ({
           ...prev,
-          reviews: [...prev.reviews, review],
+          reviews: upsertById(prev.reviews, review),
           submittingReview: false,
         }));
       } catch {
@@ -313,6 +341,8 @@ export function useWorkstationPrDetail({
       startSide?: "LEFT" | "RIGHT";
     }) => {
       if (!repoFullName || !pr) return;
+      ++requestIdRef.current;
+      setSelectedPr((prev) => ({ ...prev, refreshing: false }));
       const commitId = latestHeadShaRef.current;
       if (!commitId) return;
       const comment = await createPrReviewCommentLocal(
@@ -320,10 +350,14 @@ export function useWorkstationPrDetail({
         pr.number,
         { ...params, commitId }
       );
+      const key = prDetailKey(repoFullName, pr.number);
+      updateCachedPrDetail(key, (cached) => ({
+        reviewComments: upsertById(cached.reviewComments, comment),
+      }));
       if (!mountedRef.current) return;
       setSelectedPr((prev) => ({
         ...prev,
-        reviewComments: [...prev.reviewComments, comment],
+        reviewComments: upsertById(prev.reviewComments, comment),
       }));
     },
     [repoFullName, pr, setSelectedPr]
@@ -332,16 +366,22 @@ export function useWorkstationPrDetail({
   const replyInlineComment = useCallback(
     async (commentId: number, body: string) => {
       if (!repoFullName || !pr) return;
+      ++requestIdRef.current;
+      setSelectedPr((prev) => ({ ...prev, refreshing: false }));
       const comment = await replyPrReviewCommentLocal(
         repoFullName,
         pr.number,
         commentId,
         body
       );
+      const key = prDetailKey(repoFullName, pr.number);
+      updateCachedPrDetail(key, (cached) => ({
+        reviewComments: upsertById(cached.reviewComments, comment),
+      }));
       if (!mountedRef.current) return;
       setSelectedPr((prev) => ({
         ...prev,
-        reviewComments: [...prev.reviewComments, comment],
+        reviewComments: upsertById(prev.reviewComments, comment),
       }));
     },
     [repoFullName, pr, setSelectedPr]

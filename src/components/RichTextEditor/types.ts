@@ -20,6 +20,10 @@ export interface RichTextEditorRef {
   ) => void;
   removeFilePill: (filePath: string) => void;
   getFilePills: () => Array<{ filePath: string; fileName: string }>;
+  insertText: (
+    text: string,
+    options?: { separateFromAdjacentText?: boolean }
+  ) => void;
   triggerAtMention: () => void;
   triggerSlashContext: () => void;
 }

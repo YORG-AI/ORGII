@@ -46,6 +46,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       insertFilePill,
       removeFilePill,
       getFilePills,
+      insertText,
       triggerAtMention,
       triggerSlashContext,
     } = useRichTextEditor({ ...hookProps, onImageInsert });
@@ -63,6 +64,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       insertFilePill,
       removeFilePill,
       getFilePills,
+      insertText,
       triggerAtMention,
       triggerSlashContext,
     }));

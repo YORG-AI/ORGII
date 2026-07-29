@@ -14,6 +14,10 @@ import {
 
 import RichMarkdownEditor from ".";
 
+const editorMocks = vi.hoisted(() => ({
+  insertText: vi.fn(),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -46,6 +50,7 @@ vi.mock("@src/components/RichTextEditor", async () => {
         insertFilePill: () => undefined,
         removeFilePill: () => undefined,
         getFilePills: () => [],
+        insertText: editorMocks.insertText,
         triggerAtMention: () => undefined,
         triggerSlashContext: () => undefined,
       }));
@@ -108,6 +113,7 @@ describe("RichMarkdownEditor", () => {
   });
 
   beforeEach(() => {
+    editorMocks.insertText.mockReset();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -171,5 +177,28 @@ describe("RichMarkdownEditor", () => {
     expect(
       container.querySelector("[data-rich-markdown-preview]")?.textContent
     ).toBe("**Hello**");
+  });
+
+  it("forwards plain-text insertion to the rich editor selection", () => {
+    const ref = React.createRef<React.ElementRef<typeof RichMarkdownEditor>>();
+    act(() => {
+      root.render(
+        React.createElement(RichMarkdownEditor, {
+          ref,
+          value: "",
+        })
+      );
+    });
+
+    act(() => {
+      ref.current?.insertText("orgii://cloud/session/ref?v=1", {
+        separateFromAdjacentText: true,
+      });
+    });
+
+    expect(editorMocks.insertText).toHaveBeenCalledWith(
+      "orgii://cloud/session/ref?v=1",
+      { separateFromAdjacentText: true }
+    );
   });
 });

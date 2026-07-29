@@ -132,6 +132,8 @@ const RichMarkdownEditor = forwardRef<
         ),
       removeFilePill: (filePath) => editorRef.current?.removeFilePill(filePath),
       getFilePills: () => editorRef.current?.getFilePills() ?? [],
+      insertText: (text, options) =>
+        editorRef.current?.insertText(text, options),
       triggerAtMention: () => {
         setMode("raw");
         editorRef.current?.triggerAtMention();

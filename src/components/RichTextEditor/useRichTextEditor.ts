@@ -358,6 +358,33 @@ export function useRichTextEditor({
     return pills;
   }, [editor]);
 
+  const insertText = useCallback(
+    (text: string, options?: { separateFromAdjacentText?: boolean }) => {
+      if (!editor || !text) return;
+      const { from, to } = editor.state.selection;
+      const docEnd = editor.state.doc.content.size;
+      const before =
+        options?.separateFromAdjacentText && from > 1
+          ? editor.state.doc.textBetween(from - 1, from, "\n", "\n")
+          : "";
+      const after =
+        options?.separateFromAdjacentText && to < docEnd
+          ? editor.state.doc.textBetween(to, to + 1, "\n", "\n")
+          : "";
+      const leadingSpace = before.length > 0 && !/\s$/u.test(before) ? " " : "";
+      const trailingSpace = after.length > 0 && !/^\s/u.test(after) ? " " : "";
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: "text",
+          text: `${leadingSpace}${text}${trailingSpace}`,
+        })
+        .run();
+    },
+    [editor]
+  );
+
   const triggerAtMention = useCallback(() => {
     if (!editor) return;
     editor.commands.focus();
@@ -393,6 +420,7 @@ export function useRichTextEditor({
     insertFilePill,
     removeFilePill,
     getFilePills,
+    insertText,
     triggerAtMention,
     triggerSlashContext,
   };

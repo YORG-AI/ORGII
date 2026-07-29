@@ -70,4 +70,22 @@ describe("RichTextEditor markdown persistence", () => {
     expect(markdown).toContain("example.ts");
     expect(markdown).toContain("/repo/src/example.ts");
   });
+
+  it("inserts URI text without HTML-escaping query separators", () => {
+    editor = new Editor({
+      element: document.createElement("div"),
+      extensions: createEditorExtensions("Write a description"),
+      content: "",
+    });
+    const reference =
+      "orgii://cloud/session/ref?v=1&org=org-id&owner=owner-id&session=session-id";
+
+    editor.commands.insertContent({
+      type: "text",
+      text: reference,
+    });
+
+    expect(getMarkdown(editor)).toBe(reference);
+    expect(getMarkdown(editor)).not.toContain("&amp;");
+  });
 });

@@ -10,7 +10,7 @@
  * detail view.
  */
 import { CheckCircle2, FileDiff, XCircle } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
@@ -22,6 +22,8 @@ import type {
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
+import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
@@ -30,6 +32,7 @@ import {
   TimelineStack,
 } from "@src/modules/shared/components/ActivityTimeline";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
+import type { RichMarkdownEditorRef } from "@src/modules/shared/components/RichMarkdownEditor";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
@@ -146,6 +149,17 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
 }) => {
   const { t } = useTranslation("common");
   const [draft, setDraft] = useState("");
+  const editorRef = useRef<RichMarkdownEditorRef>(null);
+  const dropTargetRef = useRef<HTMLDivElement>(null);
+  const insertDroppedReference = useCallback((text: string) => {
+    editorRef.current?.insertText(text, {
+      separateFromAdjacentText: true,
+    });
+  }, []);
+  const { isDragOver } = useSessionReferenceDropTarget({
+    elementRef: dropTargetRef,
+    onInsertText: insertDroppedReference,
+  });
 
   const author = readAuthor(detail);
   const body = readString(detail, "body");
@@ -312,16 +326,26 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
         <div
           className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-2`}
         >
-          <RichMarkdownEditor
-            value={draft}
-            onChange={(markdown) => setDraft(markdown)}
-            placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
-            minHeight={64}
-            maxHeight={180}
-            appearance="outlined"
-            onSubmit={() => void handleComment()}
-            dataTestId="pr-comment-editor"
-          />
+          <div
+            ref={dropTargetRef}
+            className={`rounded-md ${
+              isDragOver ? "ring-2 ring-primary-6" : ""
+            }`.trim()}
+            data-testid="pr-comment-drop-target"
+          >
+            <RichMarkdownEditor
+              ref={editorRef}
+              value={draft}
+              onChange={(markdown) => setDraft(markdown)}
+              placeholder={t("git.pr.commentPlaceholder", "Leave a comment…")}
+              minHeight={64}
+              maxHeight={180}
+              appearance="outlined"
+              onSubmit={() => void handleComment()}
+              dataTestId="pr-comment-editor"
+            />
+          </div>
+          <CloudSessionReferencePreview text={draft} />
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Button
