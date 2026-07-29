@@ -22,7 +22,10 @@ import {
   loadSidebarSessionsByIds,
   refreshRecentNativeSessions,
 } from "../loaders";
-import { sessionPaginationAtom } from "../paginationAtoms";
+import {
+  BASE_SESSION_LIST_CATEGORIES,
+  sessionPaginationAtom,
+} from "../paginationAtoms";
 
 const mocks = vi.hoisted(() => ({
   externalHistorySidebarList: vi.fn(),
@@ -257,7 +260,9 @@ describe("loadSidebarSessions", () => {
     const secondLoad = loadSidebarSessions({ forceRefresh: true });
     const thirdLoad = loadSidebarSessions();
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+      BASE_SESSION_LIST_CATEGORIES.length
+    );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
 
     releaseExternalHistory();
@@ -290,7 +295,9 @@ describe("loadSidebarSessions", () => {
     const forcedLoad = loadSidebarSessions({ forceRefresh: true });
     await Promise.all([cachedLoad, forcedLoad]);
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(2);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+      BASE_SESSION_LIST_CATEGORIES.length
+    );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(1);
   });
 
@@ -411,7 +418,9 @@ describe("loadSidebarSessions", () => {
     releaseFirstLoad();
     await Promise.all([firstLoad, changedScopeLoad]);
 
-    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(4);
+    expect(mocks.sessionAggregateList).toHaveBeenCalledTimes(
+      BASE_SESSION_LIST_CATEGORIES.length * 2
+    );
     expect(mocks.externalHistorySidebarList).toHaveBeenCalledTimes(2);
     const trailingSources =
       mocks.externalHistorySidebarList.mock.calls[1][0].requests.map(

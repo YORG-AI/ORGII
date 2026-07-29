@@ -205,10 +205,10 @@ function replaceExternalHistorySourceFirstPage(
 }
 
 function setPaginationFor(
+  store: SessionStore,
   category: SessionListCategory,
   patch: Partial<SessionPaginationMap[SessionListCategory]>
 ) {
-  const store = getStore();
   store.set(sessionPaginationAtom, (prev) => ({
     ...prev,
     [category]: { ...prev[category], ...patch },
@@ -581,10 +581,14 @@ function replaceFirstPageForCategory(
 interface SidebarLoadOptions {
   pageSize?: number;
   forceRefresh?: boolean;
+  /** Internal data-source identity used to serialize scope changes. */
+  scopeKey?: string;
 }
 
-const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
-  const store = getStore();
+const performSidebarSessionLoad = async (
+  store: SessionStore,
+  options?: SidebarLoadOptions
+) => {
   const pageSize = options?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   const { forceRefresh = false } = options ?? {};
 
@@ -615,7 +619,7 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
   };
 
   for (const category of SESSION_LIST_CATEGORIES) {
-    setPaginationFor(category, { loading: true });
+    setPaginationFor(store, category, { loading: true });
   }
 
   const enabledCategories = SESSION_LIST_CATEGORIES.filter((category) => {
@@ -623,7 +627,7 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     store.set(sessionsAtom, (prev) =>
       replaceFirstPageForCategory(category, prev, [], false)
     );
-    setPaginationFor(category, {
+    setPaginationFor(store, category, {
       loaded: 0,
       hasMore: false,
       loading: false,
@@ -638,7 +642,7 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     store.set(sessionsAtom, (prev) =>
       replaceFirstPageForCategory(category, prev, sessions)
     );
-    setPaginationFor(category, {
+    setPaginationFor(store, category, {
       loaded: sessions.length,
       hasMore,
       loading: false,
@@ -654,7 +658,7 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
         applyInitialPage(category, result);
       } catch (error) {
         log.warn(`[SessionAtom] ${category} initial page failed:`, error);
-        setPaginationFor(category, { loading: false });
+        setPaginationFor(store, category, { loading: false });
       }
     });
 
@@ -682,7 +686,7 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
     } catch (error) {
       log.warn("[SessionAtom] external history initial pages failed:", error);
       for (const { category } of importedCategories) {
-        setPaginationFor(category, { loading: false });
+        setPaginationFor(store, category, { loading: false });
       }
     }
   })();
@@ -699,6 +703,7 @@ function mergeSidebarLoadOptions(
   current: SidebarLoadOptions | null,
   requested: SidebarLoadOptions
 ): SidebarLoadOptions {
+  const scopeKey = requested.scopeKey ?? current?.scopeKey;
   return {
     pageSize: Math.max(
       current?.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE,
@@ -706,6 +711,7 @@ function mergeSidebarLoadOptions(
     ),
     forceRefresh:
       (current?.forceRefresh ?? false) || (requested.forceRefresh ?? false),
+    ...(scopeKey === undefined ? {} : { scopeKey }),
   };
 }
 
@@ -717,6 +723,7 @@ function sidebarLoadCovers(
   const activePageSize = active.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   const requestedPageSize = requested.pageSize ?? SESSION_SIDEBAR_PAGE_SIZE;
   return (
+    active.scopeKey === requested.scopeKey &&
     activePageSize >= requestedPageSize &&
     ((active.forceRefresh ?? false) || !(requested.forceRefresh ?? false))
   );
@@ -758,13 +765,56 @@ function createSidebarLoadCoordinator(
 }
 
 /**
- * One process-wide session-roster loader. Overlapping mounts/refreshes join the
- * active read; a stronger request (forced or larger page) is merged into one
- * follow-up pass instead of starting a parallel category fan-out.
+ * One session-roster loader per Jotai store. Overlapping mounts/refreshes join
+ * the active read; a stronger request (forced, larger, or a changed data-source
+ * scope) is merged into one follow-up pass instead of starting a parallel
+ * category fan-out. WeakMap ownership prevents cross-window/store leakage.
  */
-export const loadSessionRoster = createSidebarLoadCoordinator(
-  performSidebarSessionLoad
-);
+const sidebarLoadCoordinatorByStore = new WeakMap<
+  SessionStore,
+  ReturnType<typeof createSidebarLoadCoordinator>
+>();
+const sidebarLoadScopeByStore = new WeakMap<SessionStore, string>();
+
+function getSidebarLoadScopeKey(store: SessionStore): string {
+  const disabledSources = Object.entries(store.get(dataSourceConfigAtom))
+    .filter(([, config]) => config?.enabled === false)
+    .map(([sourceId]) => sourceId)
+    .sort();
+  return JSON.stringify([
+    store.get(externalSessionsEnabledAtom),
+    disabledSources,
+  ]);
+}
+
+function sidebarLoadCoordinatorForStore(
+  store: SessionStore
+): ReturnType<typeof createSidebarLoadCoordinator> {
+  let coordinator = sidebarLoadCoordinatorByStore.get(store);
+  if (!coordinator) {
+    coordinator = createSidebarLoadCoordinator((options) =>
+      performSidebarSessionLoad(store, options)
+    );
+    sidebarLoadCoordinatorByStore.set(store, coordinator);
+  }
+  return coordinator;
+}
+
+export const loadSessionRoster = (
+  options: SidebarLoadOptions = {}
+): Promise<void> => {
+  const store = getStore();
+  const scopeKey = getSidebarLoadScopeKey(store);
+  const previousScopeKey = sidebarLoadScopeByStore.get(store);
+  const scopeChanged =
+    previousScopeKey !== undefined && previousScopeKey !== scopeKey;
+  sidebarLoadScopeByStore.set(store, scopeKey);
+  return sidebarLoadCoordinatorForStore(store)({
+    ...options,
+    forceRefresh: (options.forceRefresh ?? false) || scopeChanged,
+    scopeKey,
+  });
+};
 
 /**
  * Compatibility alias for callers outside the roster surfaces. New Sidebar
@@ -886,7 +936,7 @@ export const loadMoreCategory = async (
   const current = store.get(sessionPaginationAtom)[category];
   if (current.loading || !current.hasMore) return;
 
-  setPaginationFor(category, { loading: true });
+  setPaginationFor(store, category, { loading: true });
 
   try {
     const { sessions, hasMore, dateBuckets } = await loadCategoryPage(
@@ -897,7 +947,7 @@ export const loadMoreCategory = async (
     );
     const primarySessions = sessions.filter(isPrimarySessionListSession);
     store.set(sessionsAtom, (prev) => mergeSessions(prev, primarySessions));
-    setPaginationFor(category, {
+    setPaginationFor(store, category, {
       loaded: current.loaded + sessions.length,
       hasMore,
       loading: false,
@@ -906,7 +956,7 @@ export const loadMoreCategory = async (
     persistSessions(store.get(sessionsAtom));
   } catch (error) {
     log.warn(`[SessionAtom] loadMoreCategory(${category}) failed:`, error);
-    setPaginationFor(category, { loading: false });
+    setPaginationFor(store, category, { loading: false });
   }
 };
 

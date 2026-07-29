@@ -37,6 +37,7 @@ import WorkItemSection from "@src/modules/ProjectManager/WorkItems/components/Wo
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import { getProjectStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
+import VirtualizedGroupedList from "@src/modules/ProjectManager/shared/components/VirtualizedGroupedList";
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import {
   WORKSPACE_SOURCE,
@@ -479,6 +480,21 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     );
   }, [orgSurfaceControls, sourceModeSwitch]);
 
+  const virtualProjectGroups = useMemo(
+    () =>
+      groupedProjects.map((group) => ({
+        key: group.key,
+        group,
+        items: group.projects,
+      })),
+    [groupedProjects]
+  );
+
+  const defaultProjectGroupExpanded = useCallback(
+    () => collapseAllSignal === 0,
+    [collapseAllSignal]
+  );
+
   useProjectManagerWorkItemsTabBarRegistration({
     workStationTabId,
     enabled: publishToWorkstationHeader,
@@ -562,10 +578,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
                 fillParentHeight
               />
             ) : (
-              <div className="flex flex-col pb-3">
-                {groupedProjects.map((group) => (
+              <VirtualizedGroupedList
+                key={collapseAllSignal}
+                className="pb-3"
+                testId="projects-virtual-list"
+                groups={virtualProjectGroups}
+                defaultExpanded={defaultProjectGroupExpanded}
+                getItemKey={(project) => project.id}
+                renderGroupHeader={(group, expanded, onExpandedChange) => (
                   <WorkItemSection
-                    key={`${group.key}:${collapseAllSignal}`}
                     status={group.key}
                     statusConfig={{
                       ...SECTION_BASE_CONFIG,
@@ -575,27 +596,29 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
                     }}
                     label={group.label}
                     count={group.projects.length}
-                    defaultExpanded={collapseAllSignal === 0}
-                  >
-                    {group.projects.map((project) => (
-                      <ProjectRow
-                        key={project.id}
-                        project={project}
-                        isSelected={false}
-                        isChecked={selectedProjectIds.has(project.id)}
-                        showCheckboxes={showCheckboxesOnAllRows}
-                        onSelect={handleProjectClick}
-                        onCheckedChange={handleProjectCheckedChange}
-                        onDelete={
-                          isProjectDeletable(project)
-                            ? handleDeleteProject
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </WorkItemSection>
-                ))}
-              </div>
+                    expanded={expanded}
+                    onExpandedChange={onExpandedChange}
+                    virtualizedHeader
+                  />
+                )}
+                renderItem={(project, _group, isLastInGroup) => (
+                  <div className={`px-2 ${isLastInGroup ? "pb-3" : "pb-1"}`}>
+                    <ProjectRow
+                      project={project}
+                      isSelected={false}
+                      isChecked={selectedProjectIds.has(project.id)}
+                      showCheckboxes={showCheckboxesOnAllRows}
+                      onSelect={handleProjectClick}
+                      onCheckedChange={handleProjectCheckedChange}
+                      onDelete={
+                        isProjectDeletable(project)
+                          ? handleDeleteProject
+                          : undefined
+                      }
+                    />
+                  </div>
+                )}
+              />
             )}
           </div>
         </div>
