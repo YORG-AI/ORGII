@@ -212,6 +212,7 @@ search::file::search_files_fuzzy,
 search::file::index_project_files,
 search::file::prewarm_file_index,
 search::file::clear_file_index_cache,
+search::file::invalidate_file_index_cache,
 search::file::find_files_by_extension,
 // Code search commands
 search::code::commands::search_code_regex,
