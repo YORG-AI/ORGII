@@ -76,7 +76,14 @@ const js = {
     if (!element) return "missing";
     element.focus();
     const ok = document.execCommand("insertText", false, ${JSON.stringify(text)});
-    return ok ? "typed" : "insert-failed";
+    element.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType: "insertText",
+      data: ${JSON.stringify(text)},
+    }));
+    return ok || (element.textContent || "").includes(${JSON.stringify(text)})
+      ? "typed"
+      : "insert-failed";
   `,
   click: (selector) => `
     const element = document.querySelector(${JSON.stringify(selector)});
