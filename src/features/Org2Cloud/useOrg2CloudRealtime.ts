@@ -597,6 +597,8 @@ export function useOrg2CloudRealtime(): void {
 
     const unsubscribes: Array<() => void> = [];
     const orgId = activeRealtimeOrgId;
+    const orgTeardownAt = orgTeardownAtRef.current;
+    const planeSignalTrailingTimers = planeSignalTrailingTimersRef.current;
     if (!broadcastSignals) {
       unsubscribes.push(
         connection.subscribe({
@@ -642,17 +644,17 @@ export function useOrg2CloudRealtime(): void {
 
     return () => {
       for (const unsub of unsubscribes) unsub();
-      orgTeardownAtRef.current.set(orgId, Date.now());
+      orgTeardownAt.set(orgId, Date.now());
       setRosterRealtimeConnected((current) => {
         if (!(orgId in current)) return current;
         const next = { ...current };
         delete next[orgId];
         return next;
       });
-      for (const timer of planeSignalTrailingTimersRef.current.values()) {
+      for (const timer of planeSignalTrailingTimers.values()) {
         clearTimeout(timer);
       }
-      planeSignalTrailingTimersRef.current.clear();
+      planeSignalTrailingTimers.clear();
       if (coarseSafetyNetTimerRef.current) {
         clearTimeout(coarseSafetyNetTimerRef.current);
         coarseSafetyNetTimerRef.current = null;
