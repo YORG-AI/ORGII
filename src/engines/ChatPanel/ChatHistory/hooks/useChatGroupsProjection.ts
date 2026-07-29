@@ -219,7 +219,12 @@ export function isTurnCollapseEligible(
 ): boolean {
   if (!meta || meta.turnId === null) return false;
   const bodyItemCount = meta.unloadedTurn?.bodyEventCount ?? meta.itemCount;
-  if (bodyItemCount <= 1) return false;
+  // Loaded turns render their items inline, so a trivial (≤1 item) body has
+  // nothing to collapse. An UNLOADED turn renders nothing inline — the
+  // collapse bar is its only expand affordance (and, with turn pagination
+  // off, the only way to fetch the body at all), so any nonzero count must
+  // show it. Zero means the source measured a genuinely bodyless round.
+  if (meta.unloadedTurn ? bodyItemCount < 1 : bodyItemCount <= 1) return false;
   if (options.forceCollapseAllTurns === true) return true;
   if (groupIndex < groupCount - 1) return true;
   if (options.collapseTailWhenIdle !== true) return false;

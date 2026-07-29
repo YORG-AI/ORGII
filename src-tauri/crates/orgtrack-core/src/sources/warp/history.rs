@@ -810,6 +810,13 @@ pub fn warp_history_candidate_paths() -> Vec<PathBuf> {
             .join("warp-terminal")
             .join(WARP_DB_FILENAME),
     );
+    // `dirs::state_dir()` is `None` on macOS/Windows even when the user
+    // exports `$XDG_STATE_HOME` for XDG-aware Warp installs, so probe the
+    // env-derived root explicitly. `None` under identity isolation; overlaps
+    // with the state-dir candidate on Linux, which dedupe below collapses.
+    if let Some(xdg_state) = app_paths::external_history_xdg_state_dir() {
+        candidates.push(xdg_state.join("warp-terminal").join(WARP_DB_FILENAME));
+    }
     candidates.push(
         app_paths::external_history_data_local_dir()
             .join("warp")

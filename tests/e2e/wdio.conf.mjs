@@ -274,6 +274,108 @@ if (orgiiHome) {
   resetDerivedProjectDatabaseForIsolatedRun(orgiiHome);
   process.env.ORGII_HOME = orgiiHome;
 }
+
+// External-history discovery (Claude Code / Codex / Cursor local transcript
+// scanning) falls back to the real OS user home whenever this is unset. A
+// managed WDIO run must never let that scan hit the developer's actual
+// ~/.claude, ~/.codex, etc., and specs that want the app to discover a
+// synthetic imported-history transcript need a known, writable root. Every
+// managed run therefore gets an isolated external-history home, mirroring
+// the `orgiiHome` isolation above.
+const externalHistoryHome =
+  process.env.ORGII_EXTERNAL_HISTORY_HOME ??
+  mkdtempSync(join(tmpdir(), "orgii-e2e-external-history-"));
+process.env.ORGII_EXTERNAL_HISTORY_HOME = externalHistoryHome;
+
+// Claude Code imported-history fixture consumed by the
+// "claude-imported-lazy-replay" scenario in chat-rendering-ui.spec.mjs. It
+// must exist on disk before the app process launches so the app's own
+// startup external-history auto-scan (`useDataSourceAutoScan`) discovers it
+// without the spec needing a debug seed/mutation endpoint. Written here
+// (mirroring `ensureE2EWorkspaceRepo`/`ensureBenchmarkDockerFixtureRepo`)
+// rather than in the spec so it is guaranteed to land before
+// `startTauriWebDriver()` runs below.
+const CLAUDE_IMPORT_FIXTURE_UUID = "e2ec0de0-c0de-4000-8000-000000000001";
+const CLAUDE_IMPORT_FIXTURE_SESSION_ID = `claudecodeapp-${CLAUDE_IMPORT_FIXTURE_UUID}`;
+const CLAUDE_IMPORT_FIXTURE_ROUND_COUNT = 10;
+const CLAUDE_IMPORT_FIXTURE_CWD = "/tmp/orgii-e2e-claude-import-fixture";
+
+function claudeCodeImportFixtureTranscriptPath(home) {
+  return join(
+    home,
+    ".claude",
+    "projects",
+    "e2e-claude-imported-lazy-replay",
+    `${CLAUDE_IMPORT_FIXTURE_UUID}.jsonl`
+  );
+}
+
+// Row shapes copied verbatim (field-for-field) from the fixtures in
+// src-tauri/crates/orgtrack-core/src/sources/claude_code/history_tests.rs so
+// the real Claude Code JSONL parser accepts this transcript unmodified.
+//
+// Timestamps are anchored to `baseMs` (real "now" at fixture-write time),
+// not a fixed calendar date: the sidebar session list buckets rows by
+// age (today/yesterday/thisWeek/older -- src/util/session/sessionDateBuckets.ts)
+// and only eager-loads a bounded page per bucket. Keeping every round inside
+// the "today" bucket avoids depending on that pagination/bucket-limit
+// behavior just to make the fixture session visible.
+function claudeCodeImportFixtureRoundLines(startRound, roundCount, baseMs) {
+  const lines = [];
+  for (let round = startRound; round < startRound + roundCount; round++) {
+    const userAt = new Date(baseMs + round * 2_000).toISOString();
+    const assistantAt = new Date(baseMs + round * 2_000 + 1_000).toISOString();
+    lines.push(
+      JSON.stringify({
+        type: "user",
+        sessionId: CLAUDE_IMPORT_FIXTURE_UUID,
+        cwd: CLAUDE_IMPORT_FIXTURE_CWD,
+        gitBranch: "main",
+        timestamp: userAt,
+        message: { role: "user", content: `round-${round} prompt` },
+      })
+    );
+    lines.push(
+      JSON.stringify({
+        type: "assistant",
+        sessionId: CLAUDE_IMPORT_FIXTURE_UUID,
+        cwd: CLAUDE_IMPORT_FIXTURE_CWD,
+        gitBranch: "main",
+        timestamp: assistantAt,
+        message: {
+          role: "assistant",
+          model: "claude-sonnet-4",
+          content: [{ type: "text", text: `round-${round} answer body` }],
+          usage: { input_tokens: 10, output_tokens: 20 },
+        },
+      })
+    );
+  }
+  return lines;
+}
+
+function ensureClaudeCodeImportFixtureTranscript() {
+  const fixturePath = claudeCodeImportFixtureTranscriptPath(externalHistoryHome);
+  mkdirSync(dirname(fixturePath), { recursive: true });
+  // A few minutes in the past so every seeded round timestamp is safely
+  // before "now" once the app actually reads this file.
+  const baseMs = Date.now() - 5 * 60_000;
+  const lines = claudeCodeImportFixtureRoundLines(
+    1,
+    CLAUDE_IMPORT_FIXTURE_ROUND_COUNT,
+    baseMs
+  );
+  writeFileSync(fixturePath, `${lines.join("\n")}\n`, "utf8");
+  process.env.E2E_CLAUDE_IMPORT_FIXTURE_SESSION_ID =
+    CLAUDE_IMPORT_FIXTURE_SESSION_ID;
+  process.env.E2E_CLAUDE_IMPORT_FIXTURE_PATH = fixturePath;
+  process.env.E2E_CLAUDE_IMPORT_FIXTURE_ROUND_COUNT = String(
+    CLAUDE_IMPORT_FIXTURE_ROUND_COUNT
+  );
+  process.env.E2E_CLAUDE_IMPORT_FIXTURE_CWD = CLAUDE_IMPORT_FIXTURE_CWD;
+  return fixturePath;
+}
+
 function ensureBenchmarkDockerFixtureRepo() {
   if (process.env.ORGII_SWE_BENCH_PRO_REPO_PATH) return;
   const fixtureRoot = join(tmpdir(), "orgii-e2e-swe-bench-pro-fixture");
@@ -332,6 +434,7 @@ process.env.E2E_BASE_URL =
   process.env.E2E_BASE_URL ?? `http://127.0.0.1:${ideServerPort}`;
 ensureE2EWorkspaceRepo();
 ensureBenchmarkDockerFixtureRepo();
+ensureClaudeCodeImportFixtureTranscript();
 
 const WDIO_PRE_FLIGHT_PORTS = [webDriverPort, frontendPort, ideServerPort];
 const WDIO_PRE_FLIGHT_PROCESS_PATTERNS = [

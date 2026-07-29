@@ -850,11 +850,19 @@ pub async fn claude_code_history_chunks(
 }
 
 /// Freshness snapshot of one imported transcript's source file.
+///
+/// `(mtime_ms, size_bytes)` is the change-detection signature and is compared
+/// for equality only. For shared-SQLite session-local sources the second
+/// component is a fold/hash, not bytes — `store_size_bytes` carries the real
+/// on-disk footprint for size-tiered reload cooldowns there; `None` means
+/// `size_bytes` already is a real byte count.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportedTranscriptStat {
     pub mtime_ms: i64,
     pub size_bytes: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub store_size_bytes: Option<u64>,
 }
 
 /// Cheap freshness probe for the replay auto-refresh: returns the transcript
@@ -872,6 +880,7 @@ pub async fn claude_code_history_stat(
                 |(mtime_ms, size_bytes)| ImportedTranscriptStat {
                     mtime_ms,
                     size_bytes,
+                    store_size_bytes: None,
                 },
             ),
         )
@@ -911,9 +920,22 @@ pub async fn imported_history_stat(
             &cached,
             &session_id,
         )?;
+        // Session-local signatures use a fold/hash as their second component;
+        // give the cooldown tiering the store's real on-disk footprint.
+        let store_size_bytes = match source_id.as_str() {
+            imported_history::metadata::SOURCE_OPENCODE
+            | imported_history::metadata::SOURCE_ZCODE
+            | imported_history::metadata::SOURCE_MIMO_CODE
+            | imported_history::metadata::SOURCE_WINDSURF
+            | imported_history::metadata::SOURCE_CURSOR_IDE => {
+                imported_history::paths::sqlite_store_size_bytes(Path::new(&cached.source_path))
+            }
+            _ => None,
+        };
         Ok(signature.map(|(mtime_ms, size_bytes)| ImportedTranscriptStat {
             mtime_ms,
             size_bytes,
+            store_size_bytes,
         }))
     })
     .await
@@ -958,6 +980,7 @@ pub async fn cursor_cli_history_stat(
                 |(mtime_ms, size_bytes)| ImportedTranscriptStat {
                     mtime_ms,
                     size_bytes,
+                    store_size_bytes: None,
                 },
             ),
         )

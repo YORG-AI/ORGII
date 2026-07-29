@@ -248,7 +248,9 @@ async function transcriptChanged(
     return {
       changed: getTranscriptSignature(sessionId) !== signature,
       signature,
-      sizeBytes: stat.sizeBytes,
+      // Session-local SQLite signatures fold row aggregates into sizeBytes;
+      // the cooldown tiering needs the store's real footprint instead.
+      sizeBytes: stat.storeSizeBytes ?? stat.sizeBytes,
     };
   } catch {
     return { changed: true, signature: null, sizeBytes: null };

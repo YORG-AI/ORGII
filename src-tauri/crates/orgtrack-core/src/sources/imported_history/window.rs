@@ -95,6 +95,20 @@ pub fn build_initial_window(
     recent_turn_count: usize,
 ) -> ImportedHistoryInitialWindow {
     let turns = project_activity_chunks(&chunks);
+    build_initial_window_from_turns(session_id, chunks, recent_turn_count, turns)
+}
+
+/// [`build_initial_window`] with caller-supplied turn projections, for
+/// sources whose reduced streams under-report unloaded-round metadata (the
+/// Claude index overlays its cheap body-line counts so placeholders always
+/// advertise a fetchable body). `turns[i]` must correspond to the i-th user
+/// chunk of `chunks` in stream order.
+pub fn build_initial_window_from_turns(
+    session_id: &str,
+    chunks: Vec<ActivityChunk>,
+    recent_turn_count: usize,
+    turns: Vec<ProjectedTurnMetadata>,
+) -> ImportedHistoryInitialWindow {
     let total_turn_count = turns.len();
     if total_turn_count == 0 {
         let chunks = if chunks.len() > ORPHAN_INITIAL_CHUNK_LIMIT {

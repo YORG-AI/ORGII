@@ -195,6 +195,12 @@ const CLAUDE_WINDOW_TURN_ID_PREFIX: &str = "claude-window-turn-";
 struct ClaudeIndexedTurn {
     start_offset: u64,
     user_chunk: ActivityChunk,
+    /// Non-empty transcript lines between this user row and the next one —
+    /// the same cheap body-size surrogate Codex's catalog keeps. Placeholder
+    /// rounds surface it as `bodyEventCount`; without it the flat-view
+    /// collapse bar (the only expand affordance when turn pagination is off)
+    /// never renders and unloaded bodies become unreachable.
+    following_line_count: usize,
 }
 
 fn claude_window_turn_id(start_offset: u64) -> String {
@@ -282,13 +288,25 @@ fn index_claude_user_turns(
         }
         let current_offset = start_offset;
         start_offset = start_offset.saturating_add(bytes_read as u64);
+        // Any line that does not become a turn header counts toward the
+        // previous turn's body-size surrogate.
+        let mut count_toward_previous_turn = |turns: &mut Vec<ClaudeIndexedTurn>| {
+            if line.iter().any(|byte| !byte.is_ascii_whitespace()) {
+                if let Some(previous) = turns.last_mut() {
+                    previous.following_line_count += 1;
+                }
+            }
+        };
         if !line_might_be_claude_user(&line) || line_is_obvious_tool_result(&line) {
+            count_toward_previous_turn(&mut turns);
             continue;
         }
         let Ok(parsed) = serde_json::from_slice::<ClaudeJsonlLine>(&line) else {
+            count_toward_previous_turn(&mut turns);
             continue;
         };
         if parsed.r#type != "user" {
+            count_toward_previous_turn(&mut turns);
             continue;
         }
         let created_at = parsed
@@ -297,16 +315,20 @@ fn index_claude_user_turns(
             .map(imported_history::normalize_created_at)
             .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
         let Some(message) = parsed.message else {
+            count_toward_previous_turn(&mut turns);
             continue;
         };
         if claude_tool_result_text(&message.content).is_some() {
+            count_toward_previous_turn(&mut turns);
             continue;
         }
         let Some(text) = claude_content_text(&message.content) else {
+            count_toward_previous_turn(&mut turns);
             continue;
         };
         let text = imported_history::strip_orgii_exec_mode_bridge(&text);
         if text.trim().is_empty() {
+            count_toward_previous_turn(&mut turns);
             continue;
         }
         let sequence = usize::try_from(current_offset).unwrap_or(usize::MAX);
@@ -321,9 +343,31 @@ fn index_claude_user_turns(
         turns.push(ClaudeIndexedTurn {
             start_offset: current_offset,
             user_chunk,
+            following_line_count: 0,
         });
     }
     Ok(turns)
+}
+
+/// Overlay the index's cheap body-size surrogate onto reduced-stream
+/// projections. `projected[i]` must correspond to `indexed[i]` (both are
+/// emitted in transcript order); only rounds the reduced stream reports as
+/// bodyless are overwritten, so ranges projected from real bodies keep their
+/// exact counts. `.max(1)` mirrors Codex: a placeholder must always advertise
+/// a fetchable body, or the flat view renders no expand affordance for it.
+fn overlay_indexed_body_counts(
+    projected: &mut [ProjectedTurnMetadata],
+    indexed: &[ClaudeIndexedTurn],
+) {
+    for (turn, index_entry) in projected.iter_mut().zip(indexed) {
+        if turn.body_event_count > 0 {
+            continue;
+        }
+        let body_event_count =
+            i64::try_from(index_entry.following_line_count.max(1)).unwrap_or(i64::MAX);
+        turn.body_event_count = body_event_count;
+        turn.event_count = body_event_count.saturating_add(1);
+    }
 }
 
 fn load_claude_turn_range(
@@ -389,10 +433,13 @@ pub fn load_claude_code_initial_window_for_session(
         }
         chunks.append(&mut body);
     }
-    Ok(imported_history::window::build_initial_window(
+    let mut projected = project_activity_chunks(&chunks);
+    overlay_indexed_body_counts(&mut projected, &indexed);
+    Ok(imported_history::window::build_initial_window_from_turns(
         session_id,
         chunks,
         recent_turn_count,
+        projected,
     ))
 }
 
@@ -453,11 +500,14 @@ pub fn load_claude_code_turn_index_for_session(
 ) -> Result<Vec<ProjectedTurnMetadata>, String> {
     let file_stem = claude_file_stem_from_session_id(session_id)?;
     let path = resolve_claude_session_path(conn, file_stem)?;
-    let chunks = index_claude_user_turns(session_id, &path)?
-        .into_iter()
-        .map(|turn| turn.user_chunk)
+    let indexed = index_claude_user_turns(session_id, &path)?;
+    let chunks = indexed
+        .iter()
+        .map(|turn| turn.user_chunk.clone())
         .collect::<Vec<_>>();
-    Ok(project_activity_chunks(&chunks))
+    let mut projected = project_activity_chunks(&chunks);
+    overlay_indexed_body_counts(&mut projected, &indexed);
+    Ok(projected)
 }
 
 /// Cheap freshness probe for one session's transcript: `(mtime_ms, size_bytes)`.

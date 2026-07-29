@@ -367,6 +367,30 @@ fn candidate_paths_include_home_chats_root() {
 }
 
 #[test]
+fn candidate_paths_include_explicit_xdg_config_chats_root() {
+    // cursor-agent honors `$XDG_CONFIG_HOME/cursor` even on macOS, where
+    // `dirs::config_dir()` ignores XDG — the explicit env probe must appear
+    // as its own candidate. Restore the var afterwards so parallel tests on
+    // XDG-configured machines keep their real environment.
+    let key = "XDG_CONFIG_HOME";
+    let original = std::env::var_os(key);
+    std::env::set_var(key, "/orgii-test-xdg/config-home");
+
+    let paths = cursor_cli_history_candidate_paths();
+
+    match original {
+        Some(value) => std::env::set_var(key, value),
+        None => std::env::remove_var(key),
+    }
+
+    assert!(paths.contains(
+        &PathBuf::from("/orgii-test-xdg/config-home")
+            .join("cursor")
+            .join("chats")
+    ));
+}
+
+#[test]
 fn decodes_file_uris_with_percent_escapes() {
     assert_eq!(
         file_uri_to_path("file:///Users/dev/my%20repo").as_deref(),

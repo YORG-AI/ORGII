@@ -180,6 +180,13 @@ pub fn cursor_cli_history_candidate_paths() -> Vec<PathBuf> {
             .join("cursor")
             .join("chats"),
     ];
+    // `dirs::config_dir()` only honors XDG on Linux, but cursor-agent honors
+    // an exported `$XDG_CONFIG_HOME` on macOS too (resolution order above),
+    // so probe it explicitly. `None` under identity isolation; overlaps with
+    // the config-dir candidate on Linux, which dedupe below collapses.
+    if let Some(xdg_config) = app_paths::external_history_xdg_config_dir() {
+        roots.push(xdg_config.join("cursor").join("chats"));
+    }
     // ORGII-managed cursor-agent runs redirect CURSOR_CONFIG_DIR (not HOME):
     // own-key sessions into per-account profile dirs, hosted-key sessions
     // into per-session config dirs. Chats land directly under

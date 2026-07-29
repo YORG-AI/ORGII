@@ -1,9 +1,8 @@
 use super::*;
 
-#[test]
-fn session_signature_ignores_unrelated_composer_writes() {
+fn signature_fixture_db(label: &str) -> (std::path::PathBuf, Connection) {
     let path = std::env::temp_dir().join(format!(
-        "orgii-windsurf-signature-{}-{}.sqlite",
+        "orgii-windsurf-{label}-{}-{}.sqlite",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -21,9 +20,21 @@ fn session_signature_ignores_unrelated_composer_writes() {
            INSERT INTO cursorDiskKV VALUES (
              'composerData:b',
              '{"composerId":"b","createdAt":10,"lastUpdatedAt":20,"fullConversationHeadersOnly":[]}'
+           );
+           INSERT INTO cursorDiskKV VALUES (
+             'bubbleId:a:u1', '{"type":1,"bubbleId":"u1","text":"hello"}'
+           );
+           INSERT INTO cursorDiskKV VALUES (
+             'bubbleId:b:u1', '{"type":1,"bubbleId":"u1","text":"hello"}'
            );"#,
     )
     .expect("seed fixture");
+    (path, conn)
+}
+
+#[test]
+fn session_signature_ignores_unrelated_composer_writes() {
+    let (path, conn) = signature_fixture_db("signature");
 
     let before =
         windsurf_session_activity_signature(&path, "a").expect("signature before unrelated write");
@@ -32,6 +43,16 @@ fn session_signature_ignores_unrelated_composer_writes() {
         [r#"{"composerId":"b","createdAt":10,"lastUpdatedAt":30,"fullConversationHeadersOnly":[]}"#],
     )
     .expect("update unrelated composer");
+    conn.execute(
+        "UPDATE cursorDiskKV SET value = ?1 WHERE key = 'bubbleId:b:u1'",
+        [r#"{"type":1,"bubbleId":"u1","text":"hello with a streamed in-place tail"}"#],
+    )
+    .expect("in-place update of unrelated bubble");
+    conn.execute(
+        "INSERT INTO cursorDiskKV VALUES ('bubbleId:b:a1', ?1)",
+        [r#"{"type":2,"bubbleId":"a1","text":"other session reply"}"#],
+    )
+    .expect("insert unrelated bubble");
     let unrelated =
         windsurf_session_activity_signature(&path, "a").expect("signature after unrelated write");
     assert_eq!(unrelated, before);
@@ -44,6 +65,69 @@ fn session_signature_ignores_unrelated_composer_writes() {
     let changed =
         windsurf_session_activity_signature(&path, "a").expect("signature after selected write");
     assert_ne!(changed, before);
+
+    drop(conn);
+    std::fs::remove_file(path).ok();
+}
+
+#[test]
+fn session_signature_tracks_in_place_bubble_updates() {
+    let (path, conn) = signature_fixture_db("bubbles");
+
+    let before =
+        windsurf_session_activity_signature(&path, "a").expect("signature before bubble write");
+    // A streaming turn grows the current bubble row in place; the composer
+    // row (lastUpdatedAt / byte length) is untouched.
+    conn.execute(
+        "UPDATE cursorDiskKV SET value = ?1 WHERE key = 'bubbleId:a:u1'",
+        [r#"{"type":1,"bubbleId":"u1","text":"hello with a streamed in-place tail"}"#],
+    )
+    .expect("in-place update of open session bubble");
+    let grown =
+        windsurf_session_activity_signature(&path, "a").expect("signature after in-place growth");
+    assert_ne!(grown, before);
+
+    conn.execute(
+        "INSERT INTO cursorDiskKV VALUES ('bubbleId:a:a1', ?1)",
+        [r#"{"type":2,"bubbleId":"a1","text":"reply"}"#],
+    )
+    .expect("insert open session bubble");
+    let inserted =
+        windsurf_session_activity_signature(&path, "a").expect("signature after bubble insert");
+    assert_ne!(inserted, grown);
+
+    drop(conn);
+    std::fs::remove_file(path).ok();
+}
+
+#[test]
+fn session_signature_tolerates_null_blobs() {
+    let (path, conn) = signature_fixture_db("null");
+
+    let before =
+        windsurf_session_activity_signature(&path, "a").expect("signature before NULL writes");
+    // A NULL bubble value must not error: SUM skips it while COUNT(*) still
+    // registers the new row.
+    conn.execute(
+        "INSERT INTO cursorDiskKV VALUES ('bubbleId:a:n1', NULL)",
+        [],
+    )
+    .expect("insert NULL bubble");
+    let with_null_bubble = windsurf_session_activity_signature(&path, "a")
+        .expect("signature with NULL bubble value");
+    assert_ne!(with_null_bubble, before);
+    assert!(with_null_bubble.is_some());
+
+    // A NULL composer value must not error either (length/json_extract all
+    // COALESCE to 0) — the probe degrades instead of failing the refresh.
+    conn.execute(
+        "UPDATE cursorDiskKV SET value = NULL WHERE key = 'composerData:a'",
+        [],
+    )
+    .expect("null out composer value");
+    let with_null_composer = windsurf_session_activity_signature(&path, "a")
+        .expect("signature with NULL composer value");
+    assert!(with_null_composer.is_some());
 
     drop(conn);
     std::fs::remove_file(path).ok();

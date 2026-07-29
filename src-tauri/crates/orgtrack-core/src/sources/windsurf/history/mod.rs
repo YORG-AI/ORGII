@@ -176,6 +176,13 @@ pub fn load_windsurf_history_for_session(session_id: &str) -> Result<Vec<Activit
 
 /// Session-local freshness signal for a composer in Windsurf's shared
 /// `state.vscdb`. Unrelated composer writes leave this signature unchanged.
+///
+/// The composer row alone is not enough: while a turn streams, Windsurf
+/// UPDATEs the session's `bubbleId:{composerId}:{bubbleId}` rows in place and
+/// may not touch `composerData:{composerId}` until a bubble is inserted, so a
+/// composer-only probe stalls an open replay mid-turn. A bounded aggregate
+/// over exactly this composer's bubble key range is folded into the size
+/// component so in-flight transcript growth changes the signature.
 pub fn windsurf_session_activity_signature(
     db_path: &Path,
     composer_id: &str,
@@ -191,12 +198,12 @@ pub fn windsurf_session_activity_signature(
         )
     })?;
     let key = format!("composerData:{composer_id}");
-    let signature = conn
+    let composer = conn
         .query_row(
             "SELECT
                 COALESCE(CAST(json_extract(value, '$.lastUpdatedAt') AS INTEGER), 0),
                 COALESCE(CAST(json_extract(value, '$.createdAt') AS INTEGER), 0),
-                length(CAST(value AS BLOB))
+                COALESCE(length(CAST(value AS BLOB)), 0)
              FROM cursorDiskKV
              WHERE key = ?1",
             [key],
@@ -204,16 +211,40 @@ pub fn windsurf_session_activity_signature(
                 Ok((
                     row.get::<_, i64>(0)?,
                     row.get::<_, i64>(1)?,
-                    row.get::<_, i64>(2)?.max(0) as u64,
+                    row.get::<_, i64>(2)?,
                 ))
             },
         )
         .optional()
         .map_err(|err| format!("Failed to read Windsurf composer {composer_id}: {err}"))?;
-    let Some((last_updated_at, created_at, byte_len)) = signature else {
+    let Some((last_updated_at, created_at, composer_bytes)) = composer else {
         return Ok(None);
     };
-    Ok(Some((last_updated_at.max(created_at), byte_len)))
+    // `;` is the ASCII successor of `:`, so the half-open range covers exactly
+    // the `bubbleId:{composer_id}:*` keys — an indexed range scan on the
+    // primary key, bounded by this session's bubble count. `SUM` skips NULL
+    // values (COUNT(*) still sees those rows) and COALESCE covers the
+    // zero-bubble case, matching the NULL tolerance of the composer probe.
+    let (bubble_count, bubble_bytes) = conn
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(length(CAST(value AS BLOB))), 0)
+             FROM cursorDiskKV
+             WHERE key >= ?1 AND key < ?2",
+            [
+                format!("bubbleId:{composer_id}:"),
+                format!("bubbleId:{composer_id};"),
+            ],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )
+        .map_err(|err| format!("Failed to read Windsurf bubbles for {composer_id}: {err}"))?;
+    Ok(Some((
+        last_updated_at.max(created_at),
+        imported_paths::fold_activity_signature_components(&[
+            composer_bytes,
+            bubble_count,
+            bubble_bytes,
+        ]),
+    )))
 }
 
 #[cfg(test)]

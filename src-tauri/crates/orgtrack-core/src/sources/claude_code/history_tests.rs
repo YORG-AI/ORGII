@@ -133,6 +133,103 @@ fn byte_index_discovers_rounds_without_parsing_tool_result_bodies() {
     assert!(!rendered.contains("third"));
     assert!(!rendered.contains(&large_output));
 
+    // Body-size surrogate: round 1 is followed by tool_use + tool_result +
+    // text (3 lines); rounds 2 and 3 by one assistant line each. Placeholder
+    // rounds surface these as bodyEventCount — without them the flat-view
+    // collapse bar (the only expand affordance when pagination is off) never
+    // renders and unloaded bodies are unreachable.
+    assert_eq!(
+        indexed
+            .iter()
+            .map(|turn| turn.following_line_count)
+            .collect::<Vec<_>>(),
+        vec![3, 1, 1]
+    );
+
+    let user_chunks = indexed
+        .iter()
+        .map(|turn| turn.user_chunk.clone())
+        .collect::<Vec<_>>();
+    let mut projected = project_activity_chunks(&user_chunks);
+    assert!(projected.iter().all(|turn| turn.body_event_count == 0));
+    overlay_indexed_body_counts(&mut projected, &indexed);
+    assert_eq!(
+        projected
+            .iter()
+            .map(|turn| (turn.body_event_count, turn.event_count))
+            .collect::<Vec<_>>(),
+        vec![(3, 4), (1, 2), (1, 2)]
+    );
+
+    std::fs::remove_file(&path).expect("remove fixture");
+    std::fs::remove_dir(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn claude_initial_window_placeholders_advertise_fetchable_bodies() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-window-counts-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-window-counts.jsonl");
+    let mut content = String::new();
+    for round in 1..=3 {
+        content.push_str(&format!(
+            "{{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:0{round}:00Z\",\"message\":{{\"role\":\"user\",\"content\":\"round {round}\"}}}}\n\
+             {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:0{round}:01Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"tool_use\",\"id\":\"toolu_{round}\",\"name\":\"Bash\",\"input\":{{\"command\":\"go\"}}}}]}}}}\n\
+             {{\"type\":\"user\",\"timestamp\":\"2026-04-01T07:0{round}:02Z\",\"message\":{{\"role\":\"user\",\"content\":[{{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_{round}\",\"content\":\"ok\"}}]}}}}\n\
+             {{\"type\":\"assistant\",\"timestamp\":\"2026-04-01T07:0{round}:03Z\",\"message\":{{\"role\":\"assistant\",\"content\":[{{\"type\":\"text\",\"text\":\"round {round} done\"}}]}}}}\n",
+        ));
+    }
+    std::fs::write(&path, content).expect("write fixture");
+
+    let indexed =
+        index_claude_user_turns("claudecodeapp-counts", &path).expect("index user turns");
+    let file_len = std::fs::metadata(&path).expect("stat fixture").len();
+    let mut file = std::fs::File::open(&path).expect("open fixture");
+    let mut chunks = Vec::new();
+    for (index, turn) in indexed.iter().enumerate() {
+        if index + 1 < indexed.len() {
+            chunks.push(turn.user_chunk.clone());
+            continue;
+        }
+        let mut body = load_claude_turn_range(
+            &mut file,
+            "claudecodeapp-counts",
+            turn.start_offset,
+            file_len,
+            &turn.user_chunk.chunk_id,
+        )
+        .expect("load newest body");
+        chunks.append(&mut body);
+    }
+    let mut projected = project_activity_chunks(&chunks);
+    overlay_indexed_body_counts(&mut projected, &indexed);
+    let window = imported_history::window::build_initial_window_from_turns(
+        "claudecodeapp-counts",
+        chunks,
+        1,
+        projected,
+    );
+
+    assert_eq!(window.total_turn_count, 3);
+    assert_eq!(window.loaded_turn_count, 1);
+    let placeholders = window
+        .chunks
+        .iter()
+        .filter(|chunk| chunk.chunk_id.starts_with("imported-unloaded-turn-"))
+        .collect::<Vec<_>>();
+    assert_eq!(placeholders.len(), 2);
+    for placeholder in placeholders {
+        let body_event_count = placeholder.result["unloadedTurn"]["bodyEventCount"]
+            .as_i64()
+            .expect("bodyEventCount");
+        assert_eq!(body_event_count, 3);
+    }
+    // The loaded newest round keeps its exact projected counts (no overlay).
+    assert_eq!(window.turns[2].body_event_count, 2);
+
     std::fs::remove_file(&path).expect("remove fixture");
     std::fs::remove_dir(&temp_dir).expect("remove temp dir");
 }

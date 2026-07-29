@@ -26,6 +26,12 @@ export async function claudeCodeHistoryChunks(
 export interface ImportedTranscriptStat {
   mtimeMs: number;
   sizeBytes: number;
+  /**
+   * Real on-disk footprint when `sizeBytes` is a change-detection surrogate
+   * (session-local SQLite signatures fold row aggregates into it). Use this
+   * for size-tiered cooldowns; absent when `sizeBytes` is already real.
+   */
+  storeSizeBytes?: number;
 }
 
 /**
