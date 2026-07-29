@@ -21,7 +21,7 @@ import {
 
 describe("classifyPath", () => {
   it("classifies produced vs production sources", () => {
-    expect(classifyPath("docs/org2-patch/PRD.md")).toBe("produced");
+    expect(classifyPath("docs/project-journey/PRD.md")).toBe("produced");
     expect(classifyPath("reports/a/report.html")).toBe("produced");
     expect(
       classifyPath(
