@@ -880,19 +880,16 @@ fn current_windows_account_for_acl() -> Option<String> {
     cmd.stdin(Stdio::null()).stderr(Stdio::null());
     // Suppress console window on Windows.
     app_platform::hide_console(&mut cmd);
-    let whoami = cmd
-        .output()
-        .ok()
-        .and_then(|output| {
-            if output.status.success() {
-                String::from_utf8(output.stdout)
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty())
-            } else {
-                None
-            }
-        });
+    let whoami = cmd.output().ok().and_then(|output| {
+        if output.status.success() {
+            String::from_utf8(output.stdout)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        } else {
+            None
+        }
+    });
     if whoami.is_some() {
         return whoami;
     }

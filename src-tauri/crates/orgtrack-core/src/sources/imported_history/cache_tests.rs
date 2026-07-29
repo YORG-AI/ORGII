@@ -423,8 +423,7 @@ fn canonical_lookup_skips_continuation_superseded_siblings() {
     let mut subagent = input(SOURCE_CODEX_APP, "child", 300);
     subagent.source_metadata_json = group;
     subagent.parent_session_id = Some("codex_app-gen2".to_string());
-    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, subagent])
-        .expect("upsert");
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, subagent]).expect("upsert");
 
     // The superseded sibling resolves to None whether or not the election ran.
     assert!(
@@ -462,12 +461,10 @@ fn including_superseded_lookup_resolves_demoted_continuation_siblings() {
     // The vanished-session sweep's existence check must see the demoted
     // sibling: it still exists locally and its shared cloud row must survive
     // a context-window continuation.
-    let (_, demoted) = query_cached_session_by_session_id_including_superseded_from_conn(
-        &conn,
-        "codex_app-gen1",
-    )
-    .expect("query gen1 including superseded")
-    .expect("demoted sibling resolves");
+    let (_, demoted) =
+        query_cached_session_by_session_id_including_superseded_from_conn(&conn, "codex_app-gen1")
+            .expect("query gen1 including superseded")
+            .expect("demoted sibling resolves");
     assert_eq!(demoted.source_session_id, "gen1");
     assert!(
         query_cached_session_by_session_id_from_conn(&conn, "codex_app-gen1")
@@ -494,8 +491,7 @@ fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
     let mut newest = input(SOURCE_CODEX_APP, "gen2", 200);
     newest.source_metadata_json = group;
     let keyless = input(SOURCE_CODEX_APP, "journal", 300);
-    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, keyless])
-        .expect("upsert");
+    upsert_imported_session_cache_from_conn(&mut conn, &[older, newest, keyless]).expect("upsert");
     conn.execute(
         "UPDATE imported_history_session_cache SET source_metadata_json = 'not-json' \
          WHERE source = ?1 AND source_session_id = 'journal'",
@@ -525,10 +521,9 @@ fn canonical_lookup_tolerates_legacy_non_json_metadata_rows() {
         .expect("winner lookup succeeds despite corrupt sibling rows")
         .expect("winner resolves");
     assert_eq!(winner.source_session_id, "gen2");
-    let (_, keyless_row) =
-        query_cached_session_by_session_id_from_conn(&conn, "codex_app-journal")
-            .expect("corrupt-metadata row still resolves by id")
-            .expect("corrupt-metadata row present");
+    let (_, keyless_row) = query_cached_session_by_session_id_from_conn(&conn, "codex_app-journal")
+        .expect("corrupt-metadata row still resolves by id")
+        .expect("corrupt-metadata row present");
     assert_eq!(keyless_row.source_session_id, "journal");
 }
 
@@ -587,8 +582,7 @@ fn source_cache_signature_tracks_upserts_demotions_and_prunes() {
         .expect("signature after demotion");
     assert_ne!(after_second, after_demotion);
 
-    prune_missing_records_from_conn(&conn, SOURCE_CODEX_APP, &["gen2".to_string()])
-        .expect("prune");
+    prune_missing_records_from_conn(&conn, SOURCE_CODEX_APP, &["gen2".to_string()]).expect("prune");
     let after_prune = query_source_cache_signature_from_conn(&conn, SOURCE_CODEX_APP)
         .expect("signature after prune");
     assert_ne!(after_demotion, after_prune);

@@ -67,7 +67,6 @@ export function createCliEventHandler(
   let thinkStreamId = "";
   let thinkStartedAt = "";
   let observedTerminalStatus: CliSessionStatus | undefined;
-  let finalAssistantSettleTimer: ReturnType<typeof setTimeout> | undefined;
   const finalizedStreamEventIds = new Set<string>();
   const toolCallDeltaBuffers = new Map<
     number,
@@ -95,12 +94,6 @@ export function createCliEventHandler(
 
   function clearToolCallDeltaBuffers(): void {
     toolCallDeltaBuffers.clear();
-  }
-
-  function clearFinalAssistantSettleTimer(): void {
-    if (!finalAssistantSettleTimer) return;
-    clearTimeout(finalAssistantSettleTimer);
-    finalAssistantSettleTimer = undefined;
   }
 
   function rememberFinalizedStreamEvent(eventId: string): void {

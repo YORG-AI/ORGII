@@ -266,12 +266,12 @@ export function useBrowserConsole(
         );
         if (!context.isCurrent()) return;
 
-      if (
-        generation === pollGenerationRef.current &&
-        rustEntries &&
-        rustEntries.length > 0
-      ) {
-        const cache = getSessionCache(sessionId);
+        if (
+          generation === pollGenerationRef.current &&
+          rustEntries &&
+          rustEntries.length > 0
+        ) {
+          const cache = getSessionCache(sessionId);
 
           // Rate limit: only process up to maxEntriesPerPoll
           const limitedEntries = rustEntries.slice(0, maxEntriesPerPoll);

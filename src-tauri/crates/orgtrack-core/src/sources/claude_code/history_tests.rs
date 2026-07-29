@@ -717,7 +717,10 @@ fn resumes_claude_meta_parse_from_watermark() {
     assert_eq!(resumed_meta.input_tokens, 21 + 55);
     assert_eq!(resumed_meta.input_tokens, scratch_meta.input_tokens);
     assert_eq!(resumed_meta.output_tokens, scratch_meta.output_tokens);
-    assert_eq!(resumed_meta.cache_read_tokens, scratch_meta.cache_read_tokens);
+    assert_eq!(
+        resumed_meta.cache_read_tokens,
+        scratch_meta.cache_read_tokens
+    );
     assert_eq!(
         resumed_meta.cache_write_tokens,
         scratch_meta.cache_write_tokens
@@ -749,10 +752,8 @@ fn resumes_claude_meta_parse_from_watermark() {
 }
 
 fn journal_filter_fixture(tag: &str) -> std::path::PathBuf {
-    let temp_dir = std::env::temp_dir().join(format!(
-        "orgii-claude-journal-{tag}-{}",
-        std::process::id()
-    ));
+    let temp_dir =
+        std::env::temp_dir().join(format!("orgii-claude-journal-{tag}-{}", std::process::id()));
     std::fs::remove_dir_all(&temp_dir).ok();
     let projects_dir = temp_dir.join("projects");
     let project = projects_dir.join("-Users-example-proj");
@@ -762,14 +763,14 @@ fn journal_filter_fixture(tag: &str) -> std::path::PathBuf {
     let line = r#"{"type":"user","sessionId":"s","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"hello"}}
 "#;
     std::fs::write(project.join(format!("{session}.jsonl")), line).expect("write session");
-    std::fs::write(workflow_dir.join("journal.jsonl"), "{\"type\":\"started\"}\n")
-        .expect("write journal");
-    std::fs::write(workflow_dir.join("agent-a1.jsonl"), line).expect("write workflow agent");
     std::fs::write(
-        project.join(session).join("subagents/agent-a2.jsonl"),
-        line,
+        workflow_dir.join("journal.jsonl"),
+        "{\"type\":\"started\"}\n",
     )
-    .expect("write subagent");
+    .expect("write journal");
+    std::fs::write(workflow_dir.join("agent-a1.jsonl"), line).expect("write workflow agent");
+    std::fs::write(project.join(session).join("subagents/agent-a2.jsonl"), line)
+        .expect("write subagent");
     temp_dir
 }
 
@@ -790,14 +791,11 @@ fn excludes_workflow_journal_files_from_discovery_and_collect() {
     assert!(stems.contains(&"agent-a2"));
 
     let previous = HashMap::new();
-    let mut walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &previous, "jsonl", "Claude",
-    );
-    let discovery = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut walker,
-    )
-    .expect("discover");
+    let mut walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+    let discovery =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover");
     let ids = discovery
         .records
         .iter()
@@ -852,14 +850,11 @@ fn prunes_stale_journal_cache_row_after_discovery_filter() {
     .expect("seed journal watermark");
 
     let previous = HashMap::new();
-    let mut walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &previous, "jsonl", "Claude",
-    );
-    let discovery = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut walker,
-    )
-    .expect("discover");
+    let mut walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&previous, "jsonl", "Claude");
+    let discovery =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut walker)
+            .expect("discover");
     let signatures = discovery
         .records
         .iter()
@@ -909,14 +904,11 @@ fn snapshot_reuse_keeps_fresh_file_signatures() {
     std::thread::sleep(std::time::Duration::from_millis(5));
 
     let empty = HashMap::new();
-    let mut cold_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &empty, "jsonl", "Claude",
-    );
-    let cold = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut cold_walker,
-    )
-    .expect("cold discover");
+    let mut cold_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&empty, "jsonl", "Claude");
+    let cold =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut cold_walker)
+            .expect("cold discover");
     assert_eq!(cold.records.len(), 1);
     let cold_size = cold.records[0].source_size_bytes;
     assert!(cold_walker.dirs_enumerated >= 2);
@@ -928,14 +920,11 @@ fn snapshot_reuse_keeps_fresh_file_signatures() {
         .and_then(|mut file| std::io::Write::write_all(&mut file, b"{\"type\":\"assistant\"}\n"))
         .expect("append to session");
 
-    let mut warm_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &snapshots, "jsonl", "Claude",
-    );
-    let warm = discover_claude_code_history_records(
-        std::slice::from_ref(&projects_dir),
-        &mut warm_walker,
-    )
-    .expect("warm discover");
+    let mut warm_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&snapshots, "jsonl", "Claude");
+    let warm =
+        discover_claude_code_history_records(std::slice::from_ref(&projects_dir), &mut warm_walker)
+            .expect("warm discover");
     assert_eq!(warm_walker.dirs_enumerated, 0);
     assert_eq!(warm_walker.dirs_reused, 2);
     assert_eq!(warm.records.len(), 1);
@@ -952,9 +941,8 @@ fn bench_real_home_claude_discovery_cold_vs_warm() {
     let empty = HashMap::new();
 
     let started = std::time::Instant::now();
-    let mut cold_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &empty, "jsonl", "Claude",
-    );
+    let mut cold_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&empty, "jsonl", "Claude");
     let cold =
         discover_claude_code_history_records(&projects_dirs, &mut cold_walker).expect("cold");
     let cold_elapsed = started.elapsed();
@@ -962,9 +950,8 @@ fn bench_real_home_claude_discovery_cold_vs_warm() {
     let snapshots = cold_walker.into_snapshots();
 
     let started = std::time::Instant::now();
-    let mut warm_walker = imported_history::scan_snapshot::SnapshotDirWalker::new(
-        &snapshots, "jsonl", "Claude",
-    );
+    let mut warm_walker =
+        imported_history::scan_snapshot::SnapshotDirWalker::new(&snapshots, "jsonl", "Claude");
     let warm =
         discover_claude_code_history_records(&projects_dirs, &mut warm_walker).expect("warm");
     let warm_elapsed = started.elapsed();

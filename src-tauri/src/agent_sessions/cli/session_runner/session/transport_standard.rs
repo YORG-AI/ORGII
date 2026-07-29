@@ -13,8 +13,13 @@ use tokio::sync::Mutex;
 use crate::api::websocket_handler;
 use key_vault::key_store::ModelType;
 
+use super::super::super::persistence;
+use super::super::super::persistence::CodeSession;
+use super::super::super::types::SessionStatus;
 use super::super::command::create_parser;
-use super::super::helpers::{clear_live_status, emit_chunk, flush_and_broadcast, snapshot_cli_file_edit};
+use super::super::helpers::{
+    clear_live_status, emit_chunk, flush_and_broadcast, snapshot_cli_file_edit,
+};
 use super::super::oauth_setup::{
     is_cli_chunk_replay_unsafe, is_cli_oauth_failure_message, is_cli_oauth_stderr_retry_candidate,
     is_retryable_cli_oauth_failure_chunk, is_retryable_overloaded_chunk,
@@ -23,9 +28,6 @@ use super::super::plan_approval::{
     create_plan_content_from_chunk, is_successful_mode_tool, plan_candidate_path_from_chunk,
     register_cli_plan_approval, register_synthetic_cli_plan_approval,
 };
-use super::super::super::persistence;
-use super::super::super::persistence::CodeSession;
-use super::super::super::types::SessionStatus;
 
 const CLI_PLAN_GATE_NATURAL_EXIT_GRACE_SECS: u64 = 45;
 
@@ -164,7 +166,8 @@ pub(super) async fn run_standard_branch(
                                 snap_id,
                                 &chunk,
                                 &snapshot_working_dir,
-                            );
+                            )
+                            .await;
                         }
                         if is_successful_mode_tool(&chunk, "enter_plan_mode") {
                             cli_plan_active = true;
@@ -188,7 +191,7 @@ pub(super) async fn run_standard_branch(
                                 .await
                                 {
                                     Ok(plan_chunk) => {
-                                        emit_chunk(&plan_chunk, &session_id, sequence);
+                                        emit_chunk(&plan_chunk, &session_id, sequence).await;
                                         cli_plan_registered_this_turn = true;
                                         cli_plan_approval_gate_triggered = true;
                                     }
@@ -217,7 +220,7 @@ pub(super) async fn run_standard_branch(
                                 .await
                                 {
                                     Ok(plan_chunk) => {
-                                        emit_chunk(&plan_chunk, &session_id, sequence);
+                                        emit_chunk(&plan_chunk, &session_id, sequence).await;
                                         cli_plan_registered_this_turn = true;
                                         cli_plan_approval_gate_triggered = true;
                                     }
@@ -242,7 +245,7 @@ pub(super) async fn run_standard_branch(
                                     .await
                                     {
                                         Ok(plan_chunk) => {
-                                            emit_chunk(&plan_chunk, &session_id, sequence);
+                                            emit_chunk(&plan_chunk, &session_id, sequence).await;
                                             cli_plan_registered_this_turn = true;
                                             cli_plan_approval_gate_triggered = true;
                                         }
@@ -263,7 +266,7 @@ pub(super) async fn run_standard_branch(
                             }
                             cli_plan_active = false;
                         }
-                        emit_chunk(&chunk, &session_id, sequence);
+                        emit_chunk(&chunk, &session_id, sequence).await;
                         if cli_plan_approval_gate_triggered && !cli_plan_gate_announced {
                             cli_plan_gate_announced = true;
                             tracing::info!(
@@ -275,7 +278,7 @@ pub(super) async fn run_standard_branch(
                             // instead of holding Stop for up to the 45s drain window
                             // while the child process winds down. The final
                             // status_changed after child exit is idempotent.
-                            flush_and_broadcast(&session_id);
+                            flush_and_broadcast(&session_id).await;
                             // The plan card supersedes any hook-derived
                             // waiting/working entry for this turn.
                             clear_live_status(
@@ -416,9 +419,9 @@ pub(super) async fn run_standard_branch(
                 break;
             }
             if let Some(snap_id) = &pre_message_snapshot_id {
-                snapshot_cli_file_edit(&session_id, snap_id, chunk, &snapshot_working_dir);
+                snapshot_cli_file_edit(&session_id, snap_id, chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(chunk, &session_id, sequence);
+            emit_chunk(chunk, &session_id, sequence).await;
         }
     }
 

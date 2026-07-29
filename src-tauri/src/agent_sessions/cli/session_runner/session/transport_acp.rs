@@ -93,9 +93,9 @@ pub(super) async fn run_acp_branch(
     let timeout_result = tokio::time::timeout(session_timeout, async {
         while let Some(chunk) = chunk_rx.recv().await {
             if let Some(snap_id) = &pre_message_snapshot_id {
-                snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir);
+                snapshot_cli_file_edit(&session_id, snap_id, &chunk, &snapshot_working_dir).await;
             }
-            emit_chunk(&chunk, &session_id, sequence);
+            emit_chunk(&chunk, &session_id, sequence).await;
         }
     })
     .await;
