@@ -1,5 +1,5 @@
 /**
- * Project Journey / Tree — shared types (ORG2-patch MVP)
+ * Project Journey / Tree — shared types
  *
  * Narrative layer only. Does NOT own project/session membership truth.
  * Truth remains: Project → WorkItem → linkedSessions (+ todos as fine tasks).

@@ -4,9 +4,9 @@
 import type { ProjectLike, WorkItemLike } from "./types";
 
 export const DEMO_PROJECT: ProjectLike = {
-  id: "proj-org2-patch-demo",
-  name: "ORG2 Patch Demo",
-  slug: "org2-patch-demo",
+  id: "proj-project-journey-demo",
+  name: "ORG2 Project Journey Demo",
+  slug: "project-journey-demo",
   status: "in_progress",
   description: "Synthetic project for journey/tree smoke demo",
 };
@@ -39,7 +39,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
       {
         id: "wp1",
         productType: "document",
-        path: "docs/org2-patch/PRD.md",
+        path: "docs/project-journey/PRD.md",
         sessionId: "sess-main-tree",
       },
       {
@@ -58,7 +58,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
             deletions: 0,
           },
           {
-            path: "docs/org2-patch/PRD.md",
+            path: "docs/project-journey/PRD.md",
             additions: 200,
             deletions: 0,
           },
@@ -118,7 +118,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
       {
         id: "wp4",
         productType: "screenshot",
-        path: "reports/org2-patch/journey-preview.png",
+        path: "reports/project-journey/journey-preview.png",
         sessionId: "sess-main-journey",
       },
       {
@@ -137,7 +137,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
             deletions: 12,
           },
           {
-            path: "reports/org2-patch/journey-preview.png",
+            path: "reports/project-journey/journey-preview.png",
             additions: 1,
             deletions: 0,
           },

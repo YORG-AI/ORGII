@@ -1,5 +1,5 @@
 /**
- * Renderer for `project-journey` tabs (ORG2-patch).
+ * Renderer for `project-journey` tabs.
  */
 import React, { memo } from "react";
 

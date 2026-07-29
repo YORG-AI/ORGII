@@ -1,5 +1,5 @@
 /**
- * Renderer for `project-tree` tabs (ORG2-patch).
+ * Renderer for `project-tree` tabs.
  */
 import { useSetAtom } from "jotai";
 import React, { memo, useCallback } from "react";

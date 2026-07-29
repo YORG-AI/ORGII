@@ -519,7 +519,7 @@ export function createWorkItemDetailTab(
 }
 
 // ============================================
-// ORG2-patch: Project Tree + Journey
+// Project Tree + Journey
 // ============================================
 
 export interface ProjectJourneyTabData {
