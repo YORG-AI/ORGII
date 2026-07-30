@@ -4,7 +4,16 @@ This file orients Codex / orgii agents working in this repo. It tells you **whic
 
 > Cursor IDE users: live UI-feature delivery rules live in `.cursor/rules/ui-feature-workflow.mdc`. This file does **not** replace those — it's about skill routing for AI agents, not unit-test gates.
 
-This is **advisory**, not a hard contract. Use judgment based on PR size and risk.
+Except for requirements explicitly marked as hard requirements, this file is **advisory**, not a hard contract. Use judgment based on PR size and risk.
+
+---
+
+## GitHub Identity (Hard Requirement)
+
+- Perform every GitHub operation for this repository as the GitHub account `ShiboSheng`. This includes pushes, issue and PR creation or updates, reviews, comments, labels, merges, releases, and other GitHub writes.
+- Before the first GitHub write in a task, verify the authenticated identity with `gh api user --jq .login`. Continue only when the result is exactly `ShiboSheng`.
+- Do not use another GitHub connector, browser session, CLI account, or credential as a fallback. If `ShiboSheng` is unavailable or authentication has expired, stop and ask the user to reconnect it.
+- Keep local Git commits authored as `Shibo Sheng <shiboshengs2@gmail.com>` unless the user explicitly requests a different identity.
 
 ---
 
