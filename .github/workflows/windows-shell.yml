@@ -35,14 +35,6 @@ jobs:
           workspaces: "./src-tauri -> target"
           shared-key: "ci-windows-agent-core-shell"
 
-      # The full agent_core test executable currently fails before main() on
-      # hosted Windows runners with STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139).
-      # `cargo check --tests` still compiles every cfg(windows) production and
-      # test path without depending on that unrelated test-host loader.
-      - name: Compile Windows shell and test paths
-        working-directory: src-tauri
-        run: cargo check -p agent_core --tests
-
       - name: PowerShell 5.1 encoded-command host smoke
         shell: powershell
         run: |
@@ -70,9 +62,20 @@ jobs:
           '@
             $wrapper = $wrapper.Replace("__SOURCE_PAYLOAD__", $sourcePayload)
             $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($wrapper))
-            $output = & $powershellPath -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded
+            # A nested powershell.exe serializes progress records to stderr
+            # when its streams are redirected. Rust captures that stream as
+            # bytes; suppress it in this PowerShell-hosted smoke so it is not
+            # promoted to a terminating NativeCommandError by the parent.
+            $previousErrorActionPreference = $ErrorActionPreference
+            $ErrorActionPreference = "Continue"
+            try {
+              $output = & $powershellPath -NoLogo -NoProfile -NonInteractive -EncodedCommand $encoded 2>$null
+              $exitCode = $LASTEXITCODE
+            } finally {
+              $ErrorActionPreference = $previousErrorActionPreference
+            }
             [PSCustomObject]@{
-              ExitCode = $LASTEXITCODE
+              ExitCode = $exitCode
               Output = $output -join "`n"
             }
           }
@@ -109,3 +112,12 @@ jobs:
 
           $nonzero = Invoke-OrgiiEncodedCommand "exit 7"
           if ($nonzero.ExitCode -ne 7) { throw "Expected exit code 7, got $($nonzero.ExitCode)" }
+          $global:LASTEXITCODE = 0
+
+      # The full agent_core test executable currently fails before main() on
+      # hosted Windows runners with STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139).
+      # `cargo check --tests` still compiles every cfg(windows) production and
+      # test path without depending on that unrelated test-host loader.
+      - name: Compile Windows shell and test paths
+        working-directory: src-tauri
+        run: cargo check -p agent_core --tests
