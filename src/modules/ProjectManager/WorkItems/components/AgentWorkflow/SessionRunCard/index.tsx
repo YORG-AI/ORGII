@@ -1,8 +1,16 @@
-import { ChevronDown, ChevronRight, ExternalLink, Files } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  Files,
+  GitFork,
+} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { LinkedSession } from "@src/api/http/project";
+import { useWorkStationTabs } from "@src/hooks/workStation/tabs/useWorkStationTabs";
+import { createSessionJourneyTab } from "@src/store/workstation/tabs";
 
 import SessionOutputPreview from "../SessionOutputPreview";
 import { useSessionFiles } from "../hooks/useSessionFiles";
@@ -41,6 +49,7 @@ const SessionRunCard: React.FC<SessionRunCardProps> = ({
   filesCache,
 }) => {
   const { t } = useTranslation("projects");
+  const { openTab } = useWorkStationTabs();
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const [showFiles, setShowFiles] = useState(false);
   const delayedRefreshRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -50,6 +59,15 @@ const SessionRunCard: React.FC<SessionRunCardProps> = ({
       if (delayedRefreshRef.current) clearTimeout(delayedRefreshRef.current);
     };
   }, []);
+
+  const handleOpenSessionJourney = useCallback(() => {
+    openTab(
+      createSessionJourneyTab({
+        sessionId,
+        sessionName: `${roleLabel} #${runNumber}`,
+      })
+    );
+  }, [openTab, roleLabel, runNumber, sessionId]);
 
   const handleSessionComplete = useCallback(() => {
     onSessionComplete?.();
@@ -116,6 +134,14 @@ const SessionRunCard: React.FC<SessionRunCardProps> = ({
               )}
             </button>
           )}
+          <button
+            className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+            onClick={handleOpenSessionJourney}
+            title={t("workItems.agentWorkflow.viewSessionJourney")}
+          >
+            <GitFork size={12} />
+            <span>{t("workItems.agentWorkflow.viewSessionJourney")}</span>
+          </button>
           {onOpenSession && (
             <button
               className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"

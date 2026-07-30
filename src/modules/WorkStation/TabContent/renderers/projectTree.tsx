@@ -19,15 +19,18 @@ function useOpenWorkStationTab() {
   return useCallback(
     (tab: WorkStationTab) => {
       setLayout((prev) => {
-        const exists = prev.tabs.some((item) => item.id === tab.id);
+        const exists = prev.mainPane.tabs.some((item) => item.id === tab.id);
         const tabs = exists
-          ? prev.tabs.map((item) =>
+          ? prev.mainPane.tabs.map((item) =>
               item.id === tab.id
                 ? { ...item, ...tab, data: { ...item.data, ...tab.data } }
                 : item
             )
-          : [...prev.tabs, tab];
-        return { ...prev, tabs, activeTabId: tab.id };
+          : [...prev.mainPane.tabs, tab];
+        return {
+          ...prev,
+          mainPane: { ...prev.mainPane, tabs, activeTabId: tab.id },
+        };
       });
     },
     [setLayout]

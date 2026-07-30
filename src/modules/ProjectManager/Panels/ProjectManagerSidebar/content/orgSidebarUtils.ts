@@ -14,6 +14,8 @@ export interface WorkspaceTreeNode extends TreeRowNode {
   kind:
     | "workspace-projects"
     | "workspace-work-items"
+    | "workspace-project-tree"
+    | "workspace-project-journey"
     | "workspace-views"
     | "workspace-more";
 }

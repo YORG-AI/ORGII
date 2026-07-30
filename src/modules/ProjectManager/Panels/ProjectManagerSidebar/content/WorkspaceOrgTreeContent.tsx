@@ -6,7 +6,14 @@
  *
  * Extracted from OrgSidebarTreeContent.tsx to reduce file size.
  */
-import { Box, Layers, ListChecks, MoreHorizontal } from "lucide-react";
+import {
+  Box,
+  Layers,
+  ListChecks,
+  Map,
+  MoreHorizontal,
+  Network,
+} from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { VirtuosoHandle } from "react-virtuoso";
@@ -27,9 +34,13 @@ import {
 interface WorkspaceOrgTreeContentProps {
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree?: () => void;
+  onOpenProjectJourney?: () => void;
   activeRepoView:
     | "projects"
     | "work-items"
+    | "project-tree"
+    | "project-journey"
     | "linear-projects"
     | "linear-work-items"
     | "settings"
@@ -39,7 +50,14 @@ interface WorkspaceOrgTreeContentProps {
 
 export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
   memo(
-    ({ onOpenProjects, onOpenWorkItems, activeRepoView, activeOrgScope }) => {
+    ({
+      onOpenProjects,
+      onOpenWorkItems,
+      onOpenProjectTree,
+      onOpenProjectJourney,
+      activeRepoView,
+      activeOrgScope,
+    }) => {
       const { t } = useTranslation("projects");
       const virtuosoRef = useRef<VirtuosoHandle>(null);
 
@@ -70,6 +88,30 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
               type: "file",
               icon: <Box size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
               kind: "workspace-projects",
+            },
+          },
+          {
+            depth: 0,
+            node: {
+              id: "project-sidebar:workspace:project-tree",
+              name: t("workspace.projectTree"),
+              path: "project-sidebar:workspace:project-tree",
+              type: "file",
+              icon: (
+                <Network size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+              ),
+              kind: "workspace-project-tree",
+            },
+          },
+          {
+            depth: 0,
+            node: {
+              id: "project-sidebar:workspace:project-journey",
+              name: t("workspace.projectJourney"),
+              path: "project-sidebar:workspace:project-journey",
+              type: "file",
+              icon: <Map size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
+              kind: "workspace-project-journey",
             },
           },
           {
@@ -117,16 +159,27 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
               isWorkspaceScope) ||
             (node.kind === "workspace-work-items" &&
               activeRepoView === "work-items" &&
-              isWorkspaceScope);
+              isWorkspaceScope) ||
+            (node.kind === "workspace-project-tree" &&
+              activeRepoView === "project-tree") ||
+            (node.kind === "workspace-project-journey" &&
+              activeRepoView === "project-journey");
           const isActionable =
             node.kind === "workspace-projects" ||
-            node.kind === "workspace-work-items";
+            node.kind === "workspace-work-items" ||
+            (node.kind === "workspace-project-tree" && !!onOpenProjectTree) ||
+            (node.kind === "workspace-project-journey" &&
+              !!onOpenProjectJourney);
           const handleClick =
             node.kind === "workspace-projects"
               ? onOpenProjects
               : node.kind === "workspace-work-items"
                 ? onOpenWorkItems
-                : undefined;
+                : node.kind === "workspace-project-tree"
+                  ? onOpenProjectTree
+                  : node.kind === "workspace-project-journey"
+                    ? onOpenProjectJourney
+                    : undefined;
 
           return (
             <TreeRowBase
@@ -139,7 +192,14 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
             />
           );
         },
-        [activeOrgScope, activeRepoView, onOpenProjects, onOpenWorkItems]
+        [
+          activeOrgScope,
+          activeRepoView,
+          onOpenProjects,
+          onOpenWorkItems,
+          onOpenProjectTree,
+          onOpenProjectJourney,
+        ]
       );
 
       return (
