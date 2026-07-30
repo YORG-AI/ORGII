@@ -25,6 +25,8 @@ import { getLanguageFromPath } from "@src/config/languageMap";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import ChatCodeBlock from "@src/engines/ChatPanel/blocks/CodeBlock";
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
+import { CloudSessionReferenceChip } from "@src/features/Org2Cloud/CloudSessionReferenceChip";
+import { parseCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import { useCopyCheck } from "@src/hooks/ui";
 import { themesAtom } from "@src/store";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
@@ -34,6 +36,7 @@ import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 import LinkHoverCard from "./LinkHoverCard";
 import MermaidBlock from "./MermaidBlock";
 import "./index.scss";
+import { markdownUrlTransform } from "./markdownUrlTransform";
 import {
   detectCodeType,
   normalizeCopyableMarkdownDocumentFence,
@@ -42,6 +45,7 @@ import {
   preprocessTextContent,
   renderChildren,
 } from "./markdownUtils";
+import { remarkCloudSessionReferences } from "./remarkCloudSessionReferences";
 
 const SyntaxHighlighter =
   SyntaxHighlighterPrism as unknown as React.ComponentType<
@@ -334,10 +338,14 @@ function resolveCurrentRepoFilePath(
 // Markdown render primitives
 // ============================================
 
+type MarkdownRemarkPlugins = React.ComponentProps<
+  typeof ReactMarkdown
+>["remarkPlugins"];
+
 interface MarkdownRendererProps {
   content: string;
   components: Components;
-  plugins: (typeof remarkGfm)[];
+  plugins: MarkdownRemarkPlugins;
 }
 
 const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
@@ -348,6 +356,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   <ReactMarkdown
     className="chat-markdown-body"
     remarkPlugins={plugins}
+    urlTransform={markdownUrlTransform}
     components={components}
   >
     {content}
@@ -594,6 +603,10 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
       },
       a({ children, href, ...props }) {
         const url = href ?? "";
+        const sessionReference = parseCloudSessionReference(url);
+        if (sessionReference) {
+          return <CloudSessionReferenceChip reference={sessionReference} />;
+        }
         return (
           <LinkHoverCard url={url}>
             <a
@@ -640,7 +653,7 @@ const MarkdownComponent: React.FC<MarkdownProps> = ({
   ]);
 
   // Memoize plugins array to prevent recreation
-  const plugins = useMemo(() => [remarkGfm], []);
+  const plugins = useMemo(() => [remarkGfm, remarkCloudSessionReferences], []);
 
   // Preprocess text content to auto-detect and format code.
   // Skip the expensive regex pass when the caller guarantees the content is

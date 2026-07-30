@@ -731,6 +731,14 @@
     "signedInAs": "Signed in as {{name}}",
     "renameDisplayName": "Edit display name",
     "renameSaved": "Display name updated",
-    "renameFailed": "Failed to update display name"
+    "renameFailed": "Failed to update display name",
+    "sessionRef": {
+      "chipLabel": "Team session",
+      "notMember": "You are not a member of the organization that owns this session.",
+      "signInRequired": "Sign in to ORG2 Cloud to open this session.",
+      "sessionNotFound": "That session is not in this organization.",
+      "notPublished": "Share this session to an organization before copying a reference.",
+      "chooseOrg": "This session is in several organizations. Switch to the one you want to reference, then copy again."
+    }
   }
 }

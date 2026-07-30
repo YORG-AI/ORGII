@@ -8,6 +8,8 @@ export interface TabDragPillPayload {
   isFolder?: boolean;
   tabType?: WorkStationTabType;
   contextText?: string;
+  /** Second line for the drag ghost — owner, repo, whatever identifies it. */
+  dragSubtitle?: string;
 }
 
 export interface TabDragEventDetail {

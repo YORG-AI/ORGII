@@ -162,6 +162,16 @@ export function useCloudSessionRowItemBuilder({
       };
       if (!disabled) {
         item.showMoreActions = true;
+        // Teammate rows carry the whole (org, owner, session) tuple, so a
+        // drag onto a text surface can insert the reference verbatim — no
+        // local push marker exists for someone else's session to resolve
+        // an org from.
+        item.dragPayload = {
+          path: buildCloudSessionReference(row),
+          name: displayTitle,
+          iconType: "session",
+          dragSubtitle: row.ownerDisplayName,
+        };
       }
       if (!disabled) {
         // Remote rows open/replay on plain click. Hover adds Fork plus the

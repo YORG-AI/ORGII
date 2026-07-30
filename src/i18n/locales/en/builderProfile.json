@@ -1,0 +1,204 @@
+{
+  "title": "Builder profile",
+  "refresh": "Refresh",
+  "tooFewSessions": "Fewer than 25 sessions — the type is not settled yet.",
+  "noSessionsYet": "No sessions analysed yet — the letters appear as your history is read.",
+  "axisStats": "{{sessions}} sessions · {{consistency}}% agree",
+  "anchorFlip": "neutral point would have to move {{factor}}×",
+  "anchorNeverFlips": "verdict holds at any neutral point",
+  "evidenceHint": "Your median for each signal, against the neutral value it was compared to.",
+  "secondary": "Measured, but not letter-worthy",
+  "secondaryNote": "— most verification leaves no trace in a transcript, so this is low confidence.",
+  "fanout": "{{percent}}% of your sessions fan out to subagents.",
+  "byTool": "By tool",
+  "byToolHint": "Same neutral points everywhere, so these rows are comparable. A letter that only holds in one tool is worth doubting.",
+  "sessionCount": "{{count}} sessions",
+  "overTime": "Over time",
+  "overTimeHint": "Rolling windows, most recent first.",
+  "status": "Status",
+  "coverage": "Sessions read",
+  "coverageReading": "Still reading your history — the profile sharpens as this fills.",
+  "coverageComplete": "Every session on this machine has been read.",
+  "confidence": "Confidence",
+  "confidenceHint": "How strongly your sessions agree with the letters above.",
+  "axesTitle": "Axes",
+  "evidenceCol": {
+    "signal": "Signal",
+    "yours": "Yours",
+    "neutral": "Neutral"
+  },
+  "byToolCol": {
+    "tool": "Tool",
+    "code": "Type",
+    "sessions": "Sessions"
+  },
+  "overTimeCol": {
+    "window": "Window ends",
+    "code": "Type"
+  },
+  "fanoutLabel": "Subagent fan-out",
+  "fanoutHint": "Share of sessions that branch into subagents. Kept separate from Focused/Swarm: it is the other level of parallelism and points the other way.",
+  "highlights": "Highlights",
+  "caveat": "held loosely: {{reason}}",
+  "clarity": {
+    "slight": "slight preference",
+    "moderate": "moderate preference",
+    "clear": "clear preference",
+    "veryClear": "very clear preference"
+  },
+  "types": {
+    "title": "Builder types",
+    "subtitle": "Explore the 16 ways people work with coding agents.",
+    "howTitle": "How to read the code",
+    "howBody": "Four observed preferences combine into a builder type. The letters describe a working pattern, not a fixed identity — each can shift as your habits and tools change.",
+    "galleryTitle": "All 16 types",
+    "galleryHint": "Choose a portrait to see how its four preferences shape the way it builds.",
+    "knowMore": "Know more",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Map",
+        "description": "Frames the target, constraints, and route before moving",
+        "agentTip": "Give the agent a written brief and explicit acceptance criteria"
+      },
+      "E": {
+        "name": "Explore",
+        "description": "Reduces ambiguity by making progress and learning from what moves",
+        "agentTip": "Start with a useful probe, then tighten the brief from what you learn"
+      },
+      "D": {
+        "name": "Direct",
+        "description": "Stays close to the process and shapes the path step by step",
+        "agentTip": "Ask for visible checkpoints and intervene when the path drifts"
+      },
+      "A": {
+        "name": "Delegate",
+        "description": "Defines the boundary, then lets the agent choose the path",
+        "agentTip": "State outcomes and constraints clearly, then leave room for autonomy"
+      },
+      "F": {
+        "name": "Focused",
+        "description": "Gives one active agent or thread full attention",
+        "agentTip": "Keep one goal in flight and make the next handoff unambiguous"
+      },
+      "W": {
+        "name": "Swarm",
+        "description": "Keeps several agents or threads moving in parallel",
+        "agentTip": "Split work by clear ownership and create deliberate convergence points"
+      },
+      "S": {
+        "name": "Systemize",
+        "description": "Invests in tools, rules, and infrastructure that improve future work",
+        "agentTip": "Let the agent capture reusable automation and durable operating knowledge"
+      },
+      "H": {
+        "name": "Ship",
+        "description": "Optimizes for completing and delivering the product in front of you",
+        "agentTip": "Keep the finish line visible and require a concrete delivered outcome"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "How much time did you put in?",
+      "headline": "{{hours}} hours",
+      "detail": "Across {{sessions}} sessions"
+    },
+    "lines": {
+      "question": "How much did you ship?",
+      "headline": "{{added}} lines",
+      "detail": "Added across {{sessions}} sessions, with {{removed}} removed"
+    },
+    "tool_calls": {
+      "question": "How much did the agent do?",
+      "headline": "{{total}} tool calls",
+      "detail": "About {{perSession}} per session"
+    },
+    "longest_session": {
+      "question": "Your longest single session?",
+      "headline": "{{duration}}",
+      "detail": "Your deepest uninterrupted stretch with an agent"
+    },
+    "longest_run": {
+      "question": "How far does the agent get on its own?",
+      "headline": "{{steps}} steps",
+      "detail": "Its longest run without a word from you"
+    },
+    "parallel_peak": {
+      "question": "How often is more than one agent running?",
+      "headline": "{{percent}}% of your time",
+      "detail": "In your most parallel session, that share of it had company"
+    },
+    "streak": {
+      "question": "What's your longest streak?",
+      "headline": "{{days}} days straight",
+      "detail": "Consecutive days you worked with an agent"
+    },
+    "peak_hour": {
+      "question": "When do you work?",
+      "headline": "{{hour}}",
+      "detail": "You started {{sessions}} sessions in that hour"
+    },
+    "deep_sessions": {
+      "question": "How do you work?",
+      "headline": "{{count}} deep sessions",
+      "detail": "Averaging {{duration}} of unbroken focus"
+    },
+    "busiest_day": {
+      "question": "Your busiest day?",
+      "headline": "{{sessions}} sessions",
+      "detail": "All on {{date}}"
+    },
+    "prompt_length": {
+      "question": "How long are your prompts?",
+      "headline": "{{words}} words on average",
+      "detail": "Short and conversational"
+    },
+    "prompt_length_long": {
+      "detail": "You brief in paragraphs, not one-liners"
+    },
+    "prompts_per_session": {
+      "question": "How much do you talk to your agent?",
+      "headline": "{{prompts}} prompts a session",
+      "detail": "How often you step in over a session"
+    },
+    "longest_prompt": {
+      "question": "Your longest single prompt?",
+      "headline": "{{words}} words",
+      "detail": "One message, everything in it"
+    },
+    "redirects": {
+      "question": "How often do you change course?",
+      "headline": "{{percent}}% of messages",
+      "detail": "Where you stop and point the agent somewhere else"
+    },
+    "interrupts": {
+      "question": "Do you let it finish?",
+      "headline": "{{percent}}% of the time",
+      "detail": "You interrupt the other {{rest}}%"
+    },
+    "interrupts_never": {
+      "detail": "You almost never cut a run short"
+    },
+    "plan_first": {
+      "question": "How often do you plan first?",
+      "headline": "{{percent}}% of build sessions",
+      "detail": "{{planned}} of {{builders}} sessions that changed code started from a plan"
+    },
+    "harness": {
+      "question": "Do you sharpen your own tools?",
+      "headline": "{{percent}}% of edits",
+      "detail": "Changes to your agent's own instructions — CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "Do you fan out to subagents?",
+      "headline": "{{percent}}% of sessions",
+      "detail": "Where one agent spawned others to work in parallel"
+    },
+    "tool_spread": {
+      "question": "How many agents do you keep?",
+      "headline": "{{tools}} different tools",
+      "detail": "Your work is spread across all of them"
+    }
+  }
+}

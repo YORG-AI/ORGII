@@ -13,8 +13,8 @@ import {
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 
+import { CreateIssueModal } from "./CreateIssueModal";
 import {
-  CreateIssueModal,
   IssuePersonalFilterDropdown,
   ManagedIssueRow,
   ManagedPrRow,

@@ -6,8 +6,7 @@ use super::*;
 use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::coordination::agent_org_runs::{AgentOrgContextMember, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_tasks::{
-    new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskStatus,
-    TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
 };
 use crate::definitions::orgs::HierarchyMode;
 use std::sync::Mutex;
@@ -253,16 +252,13 @@ fn llm_description_recipient_hints_follow_strict_hierarchy_mode() {
 
 #[test]
 fn llm_description_restricts_kind_by_sender_role() {
-    let coordinator_tool =
-        OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string());
+    let coordinator_tool = OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string());
     let member_tool = OrgSendMessageTool::new(context(), "builder".to_string());
 
     assert!(coordinator_tool
         .llm_description()
         .expect("description")
-        .contains(
-            "kind enum for this sender: [plain, shutdown_request, plan_approval_response]"
-        ));
+        .contains("kind enum for this sender: [plain, shutdown_request, plan_approval_response]"));
     assert!(member_tool
         .llm_description()
         .expect("description")

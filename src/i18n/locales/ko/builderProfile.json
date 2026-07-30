@@ -1,0 +1,204 @@
+{
+  "title": "빌더 프로필",
+  "refresh": "새로 고침",
+  "tooFewSessions": "세션이 25개 미만이라 유형이 아직 확정되지 않았습니다.",
+  "noSessionsYet": "아직 분석된 세션이 없습니다. 기록을 읽어 나가면서 글자가 나타납니다.",
+  "axisStats": "세션 {{sessions}}개 · {{consistency}}% 일치",
+  "anchorFlip": "중립점을 {{factor}}배 옮겨야 뒤집힙니다",
+  "anchorNeverFlips": "중립점을 어디에 두어도 결론이 유지됩니다",
+  "evidenceHint": "각 신호의 중앙값과 비교 기준인 중립값입니다.",
+  "secondary": "측정했지만 글자를 차지할 만큼은 아닙니다",
+  "secondaryNote": "— 검증 대부분은 기록에 흔적을 남기지 않아 신뢰도가 낮습니다.",
+  "fanout": "세션의 {{percent}}%가 서브에이전트로 분기합니다.",
+  "byTool": "도구별",
+  "byToolHint": "중립점이 모두 같아 이 행들은 서로 비교할 수 있습니다. 한 도구에서만 성립하는 글자는 의심해 볼 만합니다.",
+  "sessionCount": "세션 {{count}}개",
+  "overTime": "시간에 따른 변화",
+  "overTimeHint": "이동 구간, 최신순입니다.",
+  "status": "상태",
+  "coverage": "읽은 세션",
+  "coverageReading": "기록을 계속 읽는 중입니다. 진행될수록 프로필이 또렷해집니다.",
+  "coverageComplete": "이 컴퓨터의 모든 세션을 읽었습니다.",
+  "confidence": "신뢰도",
+  "confidenceHint": "세션들이 위 글자들과 얼마나 일치하는지입니다.",
+  "axesTitle": "축",
+  "evidenceCol": {
+    "signal": "신호",
+    "yours": "내 값",
+    "neutral": "중립"
+  },
+  "byToolCol": {
+    "tool": "도구",
+    "code": "유형",
+    "sessions": "세션"
+  },
+  "overTimeCol": {
+    "window": "구간 종료",
+    "code": "유형"
+  },
+  "fanoutLabel": "서브에이전트 분기",
+  "fanoutHint": "서브에이전트로 분기한 세션 비율. '집중/군집'과 분리해 둡니다. 병렬성의 다른 층이고 방향이 반대이기 때문입니다.",
+  "highlights": "하이라이트",
+  "caveat": "느슨하게 잡힌 값입니다: {{reason}}",
+  "clarity": {
+    "slight": "약한 선호",
+    "moderate": "보통 선호",
+    "clear": "뚜렷한 선호",
+    "veryClear": "매우 뚜렷한 선호"
+  },
+  "types": {
+    "title": "빌더 유형",
+    "subtitle": "사람들이 코딩 에이전트와 일하는 16가지 방식을 알아보세요.",
+    "howTitle": "코드 읽는 법",
+    "howBody": "관찰된 네 가지 선호가 하나의 빌더 유형을 만듭니다. 글자는 고정된 정체성이 아니라 작업 패턴을 뜻하며, 습관과 도구에 따라 달라질 수 있습니다.",
+    "galleryTitle": "16가지 유형",
+    "galleryHint": "초상화를 선택하면 전체 프로필과 에이전트 협업을 위한 실용적인 팁을 볼 수 있습니다.",
+    "knowMore": "더 알아보기",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "설계",
+        "description": "구현을 시작하기 전에 목표와 제약을 정리합니다",
+        "agentTip": "성공 기준, 경계, 확인 지점을 담은 서면 브리프를 에이전트에게 주세요"
+      },
+      "E": {
+        "name": "탐색",
+        "description": "실험, 관찰, 방향 수정을 통해 불확실성을 줄입니다",
+        "agentTip": "계획을 확정하기 전에 작은 실험이나 유용한 조사를 요청하세요"
+      },
+      "D": {
+        "name": "지휘",
+        "description": "작업 분해와 순서를 사람이 직접 통제합니다",
+        "agentTip": "경계가 분명한 단계를 맡기고 주요 이정표마다 방향을 확인하세요"
+      },
+      "A": {
+        "name": "위임",
+        "description": "결과를 정의하고 그 길은 에이전트가 선택하게 합니다",
+        "agentTip": "결과, 품질 기준, 제약을 설명하고 계획과 실행은 에이전트에게 맡기세요"
+      },
+      "F": {
+        "name": "집중",
+        "description": "한 번에 하나의 작업 흐름에 깊이 몰입해 끝내는 것을 선호합니다",
+        "agentTip": "명확한 다음 단계 하나만 진행하고 완료한 뒤 새 작업을 여세요"
+      },
+      "W": {
+        "name": "군집",
+        "description": "여러 흐름을 병렬로 사용해 범위와 속도를 높입니다",
+        "agentTip": "독립적인 조사나 구현을 나누고 명확한 합류 지점에서 통합하세요"
+      },
+      "S": {
+        "name": "시스템화",
+        "description": "반복 가능한 흐름, 도구, 지속적인 개선에 투자합니다",
+        "agentTip": "반복 작업을 테스트, 스크립트, 규칙 또는 템플릿으로 남겨 달라고 요청하세요"
+      },
+      "H": {
+        "name": "출시",
+        "description": "검증된 결과를 가장 빠르게 얻어 즉시 진전하는 데 최적화합니다",
+        "agentTip": "가장 작은 완성 패치를 요청하고 관련 검증을 실행한 뒤 결과를 바탕으로 반복하세요"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "얼마나 많은 시간을 들였나요?",
+      "headline": "{{hours}}시간",
+      "detail": "세션 {{sessions}}개에 걸쳐서"
+    },
+    "lines": {
+      "question": "얼마나 만들어 냈나요?",
+      "headline": "{{added}}줄",
+      "detail": "세션 {{sessions}}개에서 추가했고, {{removed}}줄을 삭제했습니다"
+    },
+    "tool_calls": {
+      "question": "에이전트는 얼마나 일했나요?",
+      "headline": "도구 호출 {{total}}회",
+      "detail": "세션당 약 {{perSession}}회"
+    },
+    "longest_session": {
+      "question": "가장 길었던 세션은?",
+      "headline": "{{duration}}",
+      "detail": "에이전트와 끊김 없이 이어 간 가장 깊은 시간"
+    },
+    "longest_run": {
+      "question": "에이전트는 혼자서 어디까지 가나요?",
+      "headline": "{{steps}}단계",
+      "detail": "당신이 아무 말도 하지 않은 동안 가장 길게 이어 간 실행"
+    },
+    "parallel_peak": {
+      "question": "에이전트가 둘 이상 돌아가는 때는 얼마나 되나요?",
+      "headline": "시간의 {{percent}}%",
+      "detail": "가장 병렬적이었던 세션에서 그만큼의 시간은 혼자가 아니었습니다"
+    },
+    "streak": {
+      "question": "가장 긴 연속 기록은?",
+      "headline": "{{days}}일 연속",
+      "detail": "에이전트와 함께 작업한 연속 일수"
+    },
+    "peak_hour": {
+      "question": "언제 일하나요?",
+      "headline": "{{hour}}",
+      "detail": "그 시간대에 세션 {{sessions}}개를 시작했습니다"
+    },
+    "deep_sessions": {
+      "question": "어떻게 일하나요?",
+      "headline": "깊은 세션 {{count}}개",
+      "detail": "평균 {{duration}} 동안 끊김 없이 집중했습니다"
+    },
+    "busiest_day": {
+      "question": "가장 바빴던 날은?",
+      "headline": "세션 {{sessions}}개",
+      "detail": "모두 {{date}}에"
+    },
+    "prompt_length": {
+      "question": "프롬프트는 얼마나 긴가요?",
+      "headline": "평균 {{words}}단어",
+      "detail": "짧고 대화하듯 씁니다"
+    },
+    "prompt_length_long": {
+      "detail": "한 줄이 아니라 문단으로 지시합니다"
+    },
+    "prompts_per_session": {
+      "question": "에이전트와 얼마나 이야기하나요?",
+      "headline": "세션당 프롬프트 {{prompts}}개",
+      "detail": "한 세션에서 당신이 끼어드는 빈도입니다"
+    },
+    "longest_prompt": {
+      "question": "가장 길었던 프롬프트는?",
+      "headline": "{{words}}단어",
+      "detail": "메시지 하나에 전부 담았습니다"
+    },
+    "redirects": {
+      "question": "얼마나 자주 방향을 바꾸나요?",
+      "headline": "메시지의 {{percent}}%",
+      "detail": "하던 일을 멈추게 하고 에이전트를 다른 쪽으로 돌린 경우입니다"
+    },
+    "interrupts": {
+      "question": "끝까지 두나요?",
+      "headline": "{{percent}}%의 경우",
+      "detail": "나머지 {{rest}}%는 중간에 끊습니다"
+    },
+    "interrupts_never": {
+      "detail": "실행을 중간에 끊는 일이 거의 없습니다"
+    },
+    "plan_first": {
+      "question": "얼마나 자주 먼저 계획하나요?",
+      "headline": "빌드 세션의 {{percent}}%",
+      "detail": "코드를 바꾼 세션 {{builders}}개 중 {{planned}}개가 계획에서 출발했습니다"
+    },
+    "harness": {
+      "question": "자기 도구를 다듬나요?",
+      "headline": "편집의 {{percent}}%",
+      "detail": "에이전트 자체 지시문에 대한 변경 — CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "서브에이전트로 분기하나요?",
+      "headline": "세션의 {{percent}}%",
+      "detail": "한 에이전트가 다른 에이전트를 만들어 병렬로 일한 경우입니다"
+    },
+    "tool_spread": {
+      "question": "몇 개의 에이전트를 쓰나요?",
+      "headline": "서로 다른 도구 {{tools}}개",
+      "detail": "작업이 그 모두에 걸쳐 있습니다"
+    }
+  }
+}

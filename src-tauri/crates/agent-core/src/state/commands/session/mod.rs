@@ -213,6 +213,7 @@ pub async fn agent_send_message(
         clientMessageId,
         turnIntentId,
         None,
+        None,
         source,
     )
     .await

@@ -27,12 +27,13 @@
  * live in a sibling `cloudSessionsSection.*` module (see those files' own
  * header comments).
  */
-import { useAtom, useAtomValue, useStore } from "jotai";
+import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { deleteSession as deleteLocalSession } from "@src/api/tauri/agent";
 import { deleteOrgtrackCollaborationSession } from "@src/api/tauri/lineage";
+import Message from "@src/components/Message";
 import {
   buildCloudRemoteItemId,
   includeRevealedCloudRow,
@@ -50,17 +51,24 @@ import {
   org2CloudPushCursorsAtom,
   org2CloudPushedMetadataAtom,
 } from "@src/features/Org2Cloud/org2CloudSyncAtoms";
+import { REFUSAL_MESSAGE_DURATION_MS } from "@src/features/Org2Cloud/referenceRefusalMessage";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
-import { removeSession } from "@src/store/session";
+import { loadSidebarSessionById, removeSession } from "@src/store/session";
 
 import {
   CLOUD_SESSION_SECTION_PAGE_SIZE,
   CLOUD_TEAM_SESSIONS_LOAD_MORE_ID,
 } from "./cloudScopedMenuItems";
 import { useCloudMemberFilterDropdown } from "./cloudSessionsSection.MemberFilterDropdown";
+import {
+  type CloudAutoReplaySkipReason,
+  useCloudSessionAutoReplayReveal,
+} from "./cloudSessionsSection.autoReplayReveal";
 import {
   HIDDEN_REMOTE_SESSIONS_STORAGE_KEY,
   hiddenRemoteSessionKey,
@@ -90,7 +98,7 @@ export function useCloudSessionsSection({
   const { t } = useTranslation("navigation");
   const { t: tCommon } = useTranslation("common");
   const store = useStore();
-  const { rows, state, documentVisible, refresh } =
+  const { rows, state, fetchedAt, documentVisible, refresh } =
     useCloudOrgRemoteSessions(orgId);
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(
@@ -247,6 +255,67 @@ export function useCloudSessionsSection({
     },
     [forkSession]
   );
+
+  const { openSession } = useSessionView();
+  const openOrReplaceSessionTab = useSetAtom(
+    openOrReplaceSessionInChatPanelTabAtom
+  );
+  // The chip's contract is "take me to this transcript". For the viewer's
+  // own session that means opening the live local original — the bare
+  // sidebar reveal alone highlights nothing unless the session is already
+  // active, which read as a dead click.
+  //
+  // The reveal-local decision trusts persisted push markers, which can
+  // outlive the local session (deleted locally while the cloud row and
+  // marker survive until the vanished sweep). Confirm the session actually
+  // exists — demand-hydrating one that is merely unloaded — before
+  // repointing any tab at it; a stale marker earns the same refusal a
+  // missing cloud row would.
+  const handleRevealLocal = useCallback(
+    (sessionId: string) => {
+      void loadSidebarSessionById(sessionId).then((local) => {
+        if (!local) {
+          Message.error(t("cloud.sessionRef.sessionNotFound"), {
+            duration: REFUSAL_MESSAGE_DURATION_MS,
+            closable: true,
+          });
+          return;
+        }
+        const sessionName = local.name ?? sessionId;
+        openOrReplaceSessionTab({ sessionId, sessionName });
+        openSession(sessionId, sessionName);
+      });
+    },
+    [openOrReplaceSessionTab, openSession, t]
+  );
+
+  const handleAutoReplaySkip = useCallback(
+    (reason: CloudAutoReplaySkipReason) => {
+      // Same rationale as the admission refusal toast: this skip is the ONLY
+      // visible outcome of the click, and the 1s default reads as a dead chip.
+      Message.error(
+        reason === "not-found"
+          ? t("cloud.sessionRef.sessionNotFound")
+          : t("cloud.sidebar.notPublished"),
+        { duration: REFUSAL_MESSAGE_DURATION_MS, closable: true }
+      );
+    },
+    [t]
+  );
+
+  useCloudSessionAutoReplayReveal({
+    orgId,
+    rows,
+    state,
+    fetchedAt,
+    busySessionRowId,
+    selfUserId,
+    localOwnSessionIds,
+    refresh,
+    runReplay,
+    onRevealLocal: handleRevealLocal,
+    onSkip: handleAutoReplaySkip,
+  });
 
   const handleCloudSessionItemClick = useCallback(
     (item: NavigationMenuItem): boolean => {

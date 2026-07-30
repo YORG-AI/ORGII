@@ -1,0 +1,204 @@
+{
+  "title": "ビルダープロファイル",
+  "refresh": "更新",
+  "tooFewSessions": "セッションが 25 件未満のため、タイプはまだ定まっていません。",
+  "noSessionsYet": "まだ分析されたセッションがありません。履歴の読み込みが進むと文字が現れます。",
+  "axisStats": "{{sessions}} セッション · {{consistency}}% が一致",
+  "anchorFlip": "中立点を {{factor}} 倍動かすと反転します",
+  "anchorNeverFlips": "中立点をどこに置いても結論は変わりません",
+  "evidenceHint": "各シグナルのあなたの中央値と、比較対象の中立値。",
+  "secondary": "計測済み。ただし文字にするには足りません",
+  "secondaryNote": "— 検証の多くは記録に痕跡を残さないため、確度は低めです。",
+  "fanout": "{{percent}}% のセッションがサブエージェントに展開します。",
+  "byTool": "ツール別",
+  "byToolHint": "中立点はどこでも同じなので、この行同士は比較できます。一つのツールでしか成り立たない文字は疑う価値があります。",
+  "sessionCount": "{{count}} セッション",
+  "overTime": "時系列",
+  "overTimeHint": "移動ウィンドウ、新しい順。",
+  "status": "ステータス",
+  "coverage": "読み込んだセッション",
+  "coverageReading": "履歴を読み込み中です。進むほどプロファイルが鮮明になります。",
+  "coverageComplete": "このマシン上のすべてのセッションを読み込みました。",
+  "confidence": "確度",
+  "confidenceHint": "あなたのセッションが上の文字とどれだけ一致しているか。",
+  "axesTitle": "軸",
+  "evidenceCol": {
+    "signal": "シグナル",
+    "yours": "あなた",
+    "neutral": "中立"
+  },
+  "byToolCol": {
+    "tool": "ツール",
+    "code": "タイプ",
+    "sessions": "セッション"
+  },
+  "overTimeCol": {
+    "window": "期間の終わり",
+    "code": "タイプ"
+  },
+  "fanoutLabel": "サブエージェント展開",
+  "fanoutHint": "サブエージェントに分岐したセッションの割合。「集中／群れ」とは別扱いです。並列性のもう一つの層であり、向きが逆になります。",
+  "highlights": "ハイライト",
+  "caveat": "確度は低めです：{{reason}}",
+  "clarity": {
+    "slight": "わずかな傾向",
+    "moderate": "中程度の傾向",
+    "clear": "明確な傾向",
+    "veryClear": "非常に明確な傾向"
+  },
+  "types": {
+    "title": "ビルダータイプ",
+    "subtitle": "コーディングエージェントと働く16通りのスタイルを紹介します。",
+    "howTitle": "コードの読み方",
+    "howBody": "観測された4つの傾向からビルダータイプが決まります。文字は固定された人格ではなく仕事のパターンを表し、習慣やツールによって変化します。",
+    "galleryTitle": "16タイプ一覧",
+    "galleryHint": "ポートレートを選ぶと、詳しいプロフィールとエージェント活用のヒントを確認できます。",
+    "knowMore": "詳しく見る",
+    "family": "{{first}}・{{second}}",
+    "letters": {
+      "M": {
+        "name": "設計",
+        "description": "実装を始める前に、目標と制約を整理します",
+        "agentTip": "成功条件、境界、確認ポイントを含む書面のブリーフをエージェントに渡しましょう"
+      },
+      "E": {
+        "name": "探索",
+        "description": "試行、観察、軌道修正を通じて不確実性を減らします",
+        "agentTip": "計画を確定する前に、小さな実験や価値のある調査を依頼しましょう"
+      },
+      "D": {
+        "name": "指揮",
+        "description": "作業の分解と順序を人が主導します",
+        "agentTip": "境界が明確なステップを任せ、重要な節目ごとに方向を確認しましょう"
+      },
+      "A": {
+        "name": "委任",
+        "description": "成果を定義し、そこへ至る方法はエージェントに任せます",
+        "agentTip": "成果、品質基準、制約を伝え、計画と実行はエージェントに任せましょう"
+      },
+      "F": {
+        "name": "集中",
+        "description": "一度に一つの作業へ深く取り組み、完了させることを好みます",
+        "agentTip": "次の一手を一つだけ進行中にし、終えてから新しい作業を始めましょう"
+      },
+      "W": {
+        "name": "群働",
+        "description": "複数の作業を並行させ、範囲と速度を高めます",
+        "agentTip": "独立した調査や実装を分け、明確な合流点でまとめましょう"
+      },
+      "S": {
+        "name": "仕組み化",
+        "description": "再利用できる工程、ツール、継続的な改善に投資します",
+        "agentTip": "繰り返す作業をテスト、スクリプト、ルール、テンプレートとして残すよう依頼しましょう"
+      },
+      "H": {
+        "name": "出荷",
+        "description": "検証済みの成果を最短で得て、すぐ前進することを重視します",
+        "agentTip": "最小の完成パッチを依頼し、必要な検証を実行して結果から反復しましょう"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "どれだけ時間を注ぎましたか？",
+      "headline": "{{hours}} 時間",
+      "detail": "{{sessions}} 件のセッションにわたって"
+    },
+    "lines": {
+      "question": "どれだけ書き上げましたか？",
+      "headline": "{{added}} 行",
+      "detail": "{{sessions}} 件のセッションで追加し、{{removed}} 行を削除しました"
+    },
+    "tool_calls": {
+      "question": "エージェントはどれだけ動きましたか？",
+      "headline": "{{total}} 回のツール呼び出し",
+      "detail": "1 セッションあたり約 {{perSession}} 回"
+    },
+    "longest_session": {
+      "question": "いちばん長かったセッションは？",
+      "headline": "{{duration}}",
+      "detail": "エージェントと途切れずに向き合った最長の時間"
+    },
+    "longest_run": {
+      "question": "エージェントは独力でどこまで進みますか？",
+      "headline": "{{steps}} ステップ",
+      "detail": "あなたが何も言わずにいた間の、最長の連続実行"
+    },
+    "parallel_peak": {
+      "question": "複数のエージェントが同時に動くのはどれくらい？",
+      "headline": "時間の {{percent}}%",
+      "detail": "最も並列だったセッションで、その割合の時間は一人ではありませんでした"
+    },
+    "streak": {
+      "question": "いちばん長い連続記録は？",
+      "headline": "{{days}} 日連続",
+      "detail": "エージェントと作業した連続日数"
+    },
+    "peak_hour": {
+      "question": "いつ働いていますか？",
+      "headline": "{{hour}}",
+      "detail": "その時間帯に {{sessions}} 件のセッションを始めています"
+    },
+    "deep_sessions": {
+      "question": "どう働いていますか？",
+      "headline": "{{count}} 件の深いセッション",
+      "detail": "平均 {{duration}} 途切れずに集中しています"
+    },
+    "busiest_day": {
+      "question": "いちばん忙しかった日は？",
+      "headline": "{{sessions}} セッション",
+      "detail": "すべて {{date}} に"
+    },
+    "prompt_length": {
+      "question": "プロンプトはどれくらいの長さですか？",
+      "headline": "平均 {{words}} 語",
+      "detail": "短く、会話のように"
+    },
+    "prompt_length_long": {
+      "detail": "一行ではなく、段落で指示を出します"
+    },
+    "prompts_per_session": {
+      "question": "エージェントとどれだけ話しますか？",
+      "headline": "1 セッション {{prompts}} 回のプロンプト",
+      "detail": "1 セッションで口を挟む頻度"
+    },
+    "longest_prompt": {
+      "question": "いちばん長かったプロンプトは？",
+      "headline": "{{words}} 語",
+      "detail": "1 通のメッセージに、すべてを詰め込んで"
+    },
+    "redirects": {
+      "question": "どれくらいの頻度で方針を変えますか？",
+      "headline": "メッセージの {{percent}}%",
+      "detail": "手を止めさせて、別の方向を指し示したもの"
+    },
+    "interrupts": {
+      "question": "最後までやらせますか？",
+      "headline": "{{percent}}% の場合",
+      "detail": "残りの {{rest}}% は途中で止めています"
+    },
+    "interrupts_never": {
+      "detail": "実行を途中で止めることはほとんどありません"
+    },
+    "plan_first": {
+      "question": "どれくらいの頻度で先に計画しますか？",
+      "headline": "開発セッションの {{percent}}%",
+      "detail": "コードを変更した {{builders}} 件のセッションのうち、{{planned}} 件が計画から始まりました"
+    },
+    "harness": {
+      "question": "自分の道具を研いでいますか？",
+      "headline": "編集の {{percent}}%",
+      "detail": "エージェント自身の指示への変更 — CLAUDE.md、rules、skills"
+    },
+    "fanout": {
+      "question": "サブエージェントに展開しますか？",
+      "headline": "セッションの {{percent}}%",
+      "detail": "1 つのエージェントが他を生み出し、並列で動かした場合"
+    },
+    "tool_spread": {
+      "question": "いくつのエージェントを使っていますか？",
+      "headline": "{{tools}} 種類のツール",
+      "detail": "作業はそのすべてに分散しています"
+    }
+  }
+}

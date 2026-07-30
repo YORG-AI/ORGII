@@ -23,34 +23,34 @@ self-contained — no system libsqlite required.
 
 ## Commands
 
-| Command                     | What it does                                                        |
-| --------------------------- | ------------------------------------------------------------------- |
-| `orgtrack sources`          | List every tool orgtrack can read (15 today)                        |
-| `orgtrack scan`             | Discover sessions from disk and index them into SQLite              |
-| `orgtrack list` (`ls`)      | List indexed sessions                                               |
-| `orgtrack search <query>`   | Search by name/repo/file/model — add `--content` for full-text search *inside* conversations (FTS5) |
-| `orgtrack usage` (`stats`)  | Token & cost analytics (headline + per-session + daily trend)       |
-| `orgtrack check`            | Evaluate usage/behavior **triggers**; exit non-zero on error (CI/cron) |
-| `orgtrack show <id>`        | Print a session's conversation / activity stream                    |
-| `orgtrack plugins list`     | Show discovered loader plugins (and any that failed to load)        |
+| Command                    | What it does                                                                                        |
+| -------------------------- | --------------------------------------------------------------------------------------------------- |
+| `orgtrack sources`         | List every tool orgtrack can read (15 today)                                                        |
+| `orgtrack scan`            | Discover sessions from disk and index them into SQLite                                              |
+| `orgtrack list` (`ls`)     | List indexed sessions                                                                               |
+| `orgtrack search <query>`  | Search by name/repo/file/model — add `--content` for full-text search _inside_ conversations (FTS5) |
+| `orgtrack usage` (`stats`) | Token & cost analytics (headline + per-session + daily trend)                                       |
+| `orgtrack check`           | Evaluate usage/behavior **triggers**; exit non-zero on error (CI/cron)                              |
+| `orgtrack show <id>`       | Print a session's conversation / activity stream                                                    |
+| `orgtrack plugins list`    | Show discovered loader plugins (and any that failed to load)                                        |
 
 ### Options
 
-| Option                | Meaning                                                                |
-| --------------------- | ---------------------------------------------------------------------- |
-| `--source <id>`       | Restrict to one tool (repeatable). Default: all built-ins + plugins.   |
-| `--db <path>`         | SQLite index file. Default: a temp file, fresh each run.               |
-| `--limit <n>`         | Max rows to display (`list`/`search`/`usage`). Default 50.             |
-| `--sort <recent\|cost\|tokens>` | Sort for `usage`. Default `recent`.                          |
-| `--timeout <secs>`    | Per-tool scan budget before it's skipped. Default 30.                  |
-| `--content`           | Make `search` full-text over conversations (FTS5 index in `--db`).     |
-| `--project <query>`   | Filter to a project by its git-remote slug/id (stable across machines).|
-| `--triggers <path>`   | Trigger rules for `check` (default `~/.orgtrack/triggers.toml`).        |
-| `--strict`            | `check` also exits non-zero on `warn`, not just `error`.               |
-| `--no-scan`           | Skip the disk scan; read an existing `--db` index as-is.               |
-| `--no-plugins`        | Ignore discovered loader plugins.                                      |
-| `--format <fmt>`      | `table` (default), `json`, `md`, `csv`. Applies to `list`/`usage`/`show`. |
-| `--json`              | Shorthand for `--format json` (stdout stays clean; progress → stderr). |
+| Option                          | Meaning                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| `--source <id>`                 | Restrict to one tool (repeatable). Default: all built-ins + plugins.      |
+| `--db <path>`                   | SQLite index file. Default: a temp file, fresh each run.                  |
+| `--limit <n>`                   | Max rows to display (`list`/`search`/`usage`). Default 50.                |
+| `--sort <recent\|cost\|tokens>` | Sort for `usage`. Default `recent`.                                       |
+| `--timeout <secs>`              | Per-tool scan budget before it's skipped. Default 30.                     |
+| `--content`                     | Make `search` full-text over conversations (FTS5 index in `--db`).        |
+| `--project <query>`             | Filter to a project by its git-remote slug/id (stable across machines).   |
+| `--triggers <path>`             | Trigger rules for `check` (default `~/.orgtrack/triggers.toml`).          |
+| `--strict`                      | `check` also exits non-zero on `warn`, not just `error`.                  |
+| `--no-scan`                     | Skip the disk scan; read an existing `--db` index as-is.                  |
+| `--no-plugins`                  | Ignore discovered loader plugins.                                         |
+| `--format <fmt>`                | `table` (default), `json`, `md`, `csv`. Applies to `list`/`usage`/`show`. |
+| `--json`                        | Shorthand for `--format json` (stdout stays clean; progress → stderr).    |
 
 ### Formats & export
 
@@ -124,7 +124,7 @@ scope = ["*"]          # source ids, or "*" for all
   the conversation.
 
 Processors chain in discovery order; a failing or untrusted one is a no-op that
-keeps your data. A chunk processor scoped to a specific *built-in* source won't
+keeps your data. A chunk processor scoped to a specific _built-in_ source won't
 match (built-in prefixes aren't exposed) — use `"*"`. See
 `examples/plugins/processor/` for a reference redactor.
 
@@ -165,7 +165,7 @@ reference template.
   touching disk.
 - **Scanning is best-effort per provider.** A tool you don't have installed (or
   whose store is missing/locked) is skipped with a stderr note; you get a
-  partial index over the tools you *do* use. Cursor IDE and Warp re-read large
+  partial index over the tools you _do_ use. Cursor IDE and Warp re-read large
   local databases and can take several seconds — per-source progress streams to
   stderr so a scan is never mistaken for a hang.
 - **A bare index is first-class.** `orgtrack_core`'s loaders and the usage

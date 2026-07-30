@@ -99,8 +99,25 @@ export const getOpenedTabMentionOption = (
 };
 
 function getMentionOptionTargetKey(option: CustomMentionOption): string {
-  return `${option.selectType}:${option.selectValue}`;
+  return option.selectType && option.selectValue
+    ? `target:${option.selectType}:${option.selectValue}`
+    : `custom:${option.id}`;
 }
+
+export const mergeCustomMentionOptions = (
+  primaryOptions: ReadonlyArray<CustomMentionOption>,
+  secondaryOptions: ReadonlyArray<CustomMentionOption> = []
+): CustomMentionOption[] => {
+  const merged: CustomMentionOption[] = [];
+  const seenTargets = new Set<string>();
+  for (const option of [...primaryOptions, ...secondaryOptions]) {
+    const targetKey = getMentionOptionTargetKey(option);
+    if (seenTargets.has(targetKey)) continue;
+    seenTargets.add(targetKey);
+    merged.push(option);
+  }
+  return merged;
+};
 
 export const getOpenedTabMentionOptions = (
   workstationTabs: ReadonlyArray<WorkStationTab>

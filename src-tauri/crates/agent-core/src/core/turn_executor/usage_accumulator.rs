@@ -89,3 +89,31 @@ impl UsageTotals {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalized_openai_compat_usage_preserves_context_and_hit_rate() {
+        let usage = HashMap::from([
+            (usage_key::PROMPT_TOKENS.to_string(), 400),
+            (usage_key::COMPLETION_TOKENS.to_string(), 300),
+            (usage_key::TOTAL_TOKENS.to_string(), 1500),
+            (usage_key::CACHE_READ_TOKENS.to_string(), 800),
+        ]);
+        let mut totals = UsageTotals::default();
+
+        totals.accumulate(&usage, "openai-compat-test");
+
+        assert_eq!(totals.prompt, 400);
+        assert_eq!(totals.completion, 300);
+        assert_eq!(totals.total, 1500);
+        assert_eq!(totals.last_prompt, 1200);
+        assert_eq!(totals.cache_read, 800);
+        assert_eq!(totals.cache_write, 0);
+        assert!(
+            (cache_hit_rate(totals.cache_read, totals.prompt) - (2.0 / 3.0)).abs() < f64::EPSILON
+        );
+    }
+}

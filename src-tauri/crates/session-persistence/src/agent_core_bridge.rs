@@ -118,6 +118,7 @@ fn upsert_turn_intent_adapter(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: session_bridge::TurnIntentBridgeSource,
     status: session_bridge::TurnIntentBridgeStatus,
 ) {
@@ -125,6 +126,7 @@ fn upsert_turn_intent_adapter(
         session_id,
         turn_intent_id,
         client_message_id,
+        org_run_id,
         map_bridge_source(source),
         map_bridge_status(status),
     ) {

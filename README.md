@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>The system of record for software built with agents.<br />Run your coding agents — replay any session, review as a team, and trace every line back to the decision behind it.</strong></p>
+  <p><strong>The system of record for how agents build software.<br />Run your coding agents — replay any session, review as a team, and trace every line back to the decision behind it.</strong></p>
 </div>
 
 ---
@@ -191,7 +191,7 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
 
 ## Download
 
-Current build version: v1.2.2 (2026-07-25)
+Current build version: v1.2.3 (2026-07-28)
 
 Download the latest ORGII desktop app with one click:
 

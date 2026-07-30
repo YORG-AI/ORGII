@@ -342,6 +342,59 @@ fn caused_inbox_insert_coalesces_only_the_same_recipient_member() {
 }
 
 #[test]
+fn preview_and_assignment_scan_tolerate_corrupt_historical_payloads() {
+    let _sandbox = sandbox_with_inbox_schema();
+    let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let conn = get_connection().expect("test database");
+    for (kind, payload) in [
+        ("plain", "{not valid json"),
+        ("task_assigned", "also-not-json"),
+    ] {
+        conn.execute(
+            "INSERT INTO agent_inbox (
+                 recipient_agent_id, recipient_member_id, sender_agent_id,
+                 org_run_id, payload_kind, payload_json, created_at
+             ) VALUES ('worker', 'member-worker', 'sender', ?1, ?2, ?3, ?4)",
+            params![&run_id, kind, payload, chrono::Utc::now().to_rfc3339()],
+        )
+        .expect("seed corrupt historical inbox row");
+    }
+    conn.execute_batch("DROP INDEX idx_agent_inbox_run_task_assignment_v4")
+        .expect("drop assignment index to simulate upgrade");
+    init_schema(&conn).expect("schema upgrade tolerates corrupt historical payloads");
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "worker".into(),
+        recipient_member_id: Some("member-worker".into()),
+        sender_agent_id: "sender".into(),
+        sender_member_id: None,
+        org_run_id: Some(run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "valid-task".into(),
+            subject: "Valid assignment".into(),
+            description: String::new(),
+            assigned_by: "Coordinator".into(),
+            dependency_outputs: Vec::new(),
+            execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+        },
+    })
+    .expect("insert valid assignment");
+
+    let previews = AgentInboxStore::list_recent_previews_by_run(&run_id, 10)
+        .expect("corrupt rows degrade to empty previews");
+    assert_eq!(previews.len(), 3);
+    assert!(previews[0].display_preview.is_none());
+    assert!(previews[1].display_preview.is_none());
+    assert_eq!(
+        previews[2].display_preview.as_deref(),
+        Some("Valid assignment")
+    );
+
+    let assigned = AgentInboxStore::task_assignment_ids_by_run(&run_id)
+        .expect("corrupt assignment payload is skipped");
+    assert_eq!(assigned, HashSet::from(["valid-task".to_string()]));
+}
+
+#[test]
 fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
     let _sandbox = sandbox_with_inbox_schema();
     let conn = get_connection().expect("test database");

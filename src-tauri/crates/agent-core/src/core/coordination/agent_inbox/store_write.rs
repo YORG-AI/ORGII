@@ -6,7 +6,6 @@ use rusqlite::{params, Connection};
 use crate::coordination::agent_org_payload_limits as limits;
 use database::db::{get_connection, with_sessions_writer};
 
-use super::message::validate_non_empty_identifier;
 use super::record::row_to_record;
 use super::{AgentInboxRecord, AgentInboxStore, InsertInboxParams};
 
@@ -99,15 +98,30 @@ impl AgentInboxStore {
         params: InsertInboxParams,
         causation_inbox_id: Option<i64>,
     ) -> Result<(AgentInboxRecord, bool), String> {
-        validate_non_empty_identifier("recipient_agent_id", &params.recipient_agent_id)?;
-        validate_non_empty_identifier("sender_agent_id", &params.sender_agent_id)?;
+        limits::validate_required_text(
+            "recipient_agent_id",
+            &params.recipient_agent_id,
+            limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+            limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+        )?;
+        limits::validate_required_text(
+            "sender_agent_id",
+            &params.sender_agent_id,
+            limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+            limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+        )?;
         for (field, value) in [
             ("recipient_member_id", params.recipient_member_id.as_deref()),
             ("sender_member_id", params.sender_member_id.as_deref()),
             ("org_run_id", params.org_run_id.as_deref()),
         ] {
             if let Some(value) = value {
-                validate_non_empty_identifier(field, value)?;
+                limits::validate_required_text(
+                    field,
+                    value,
+                    limits::MESSAGE_IDENTIFIER_MAX_CHARS,
+                    limits::MESSAGE_IDENTIFIER_MAX_BYTES,
+                )?;
             }
         }
         if params.org_run_id.is_some() && params.recipient_member_id.is_none() {

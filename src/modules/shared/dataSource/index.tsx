@@ -10,9 +10,16 @@ import {
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 
-type RuntimeSection = "usage" | "quota" | "scanning" | "hooks" | "assets";
+type RuntimeSection =
+  | "usage"
+  | "profile"
+  | "quota"
+  | "scanning"
+  | "hooks"
+  | "assets";
 
 const SessionUsagePanel = lazy(() => import("./SessionUsagePanel"));
+const BuilderProfilePanel = lazy(() => import("./BuilderProfilePanel"));
 const RuntimeScanningPanel = lazy(() => import("./RuntimeScanningPanel"));
 const SessionProvenanceHooksPanel = lazy(
   () => import("./SessionProvenanceHooksPanel")
@@ -26,6 +33,14 @@ const WorkspaceDashboardPanelView = lazy(
   () => import("@src/engines/ChatPanel/panels/WorkspaceDashboardPanelView")
 );
 
+/**
+ * Sections that lay themselves out inside the full pane height instead of
+ * flowing through the shared padded wrapper. That wrapper ends in a `pb-[50vh]`
+ * scroll affordance, which is right for long content but leaves a
+ * placeholder-only section unable to fill — and centred in the top half.
+ */
+const SELF_MANAGED = new Set<RuntimeSection>(["assets", "profile"]);
+
 interface RuntimeSectionTabsProps {
   activeView: RuntimeSection;
   onChange: (view: RuntimeSection) => void;
@@ -36,12 +51,17 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
     const { t } = useTranslation("sessions", {
       keyPrefix: "kanban.dataSource",
     });
-    const viewTabs = useMemo<TabPillItem[]>(
-      () => [
+    const viewTabs = useMemo<TabPillItem[]>(() => {
+      return [
         {
           key: "usage",
           label: t("views.usage"),
           dataTestId: "data-source-view-usage",
+        },
+        {
+          key: "profile",
+          label: t("views.profile"),
+          dataTestId: "data-source-view-profile",
         },
         {
           key: "quota",
@@ -63,9 +83,8 @@ const RuntimeSectionTabs: React.FC<RuntimeSectionTabsProps> = memo(
           label: t("views.assets"),
           dataTestId: "data-source-view-assets",
         },
-      ],
-      [t]
-    );
+      ];
+    }, [t]);
 
     return (
       <TabPill
@@ -90,6 +109,8 @@ function RuntimeSectionContent({
   switch (activeView) {
     case "usage":
       return <SessionUsagePanel />;
+    case "profile":
+      return <BuilderProfilePanel />;
     case "quota":
       return <StartPageQuotaGrid />;
     case "scanning":
@@ -104,7 +125,7 @@ function RuntimeSectionContent({
 const RuntimeDataSourcePanel: React.FC = () => {
   const [panelView, setPanelView] = useState<RuntimeSection>("usage");
   const loadingFallback = (
-    <Placeholder variant="loading" placement="detail-panel" />
+    <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
   );
 
   return (
@@ -126,12 +147,12 @@ const RuntimeDataSourcePanel: React.FC = () => {
       <ScrollPreservation
         data-testid="data-source-scroll-region"
         className={
-          panelView === "assets"
+          SELF_MANAGED.has(panelView)
             ? "min-h-0 flex-1 overflow-hidden scrollbar-hide"
             : "min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container"
         }
       >
-        {panelView === "assets" ? (
+        {SELF_MANAGED.has(panelView) ? (
           <Suspense key={panelView} fallback={loadingFallback}>
             <RuntimeSectionContent activeView={panelView} />
           </Suspense>

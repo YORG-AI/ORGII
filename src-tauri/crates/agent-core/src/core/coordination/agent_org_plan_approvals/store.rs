@@ -16,7 +16,8 @@ use crate::definitions::orgs::PlanApprovalPolicy;
 
 use super::artifact::{
     expected_plan_root_with_connection, finish_committed_artifact, install_staged_plan_artifact,
-    plan_artifact_install_lock, resolve_owned_plan_target,
+    list_distinct_plan_paths_after, plan_artifact_install_lock,
+    repair_latest_plan_artifact_for_path, resolve_owned_plan_target,
     stage_plan_artifact_for_existing_revision_with_connection, stage_plan_artifact_with_connection,
     sync_parent_directory, validate_owned_plan_path_with_connection, validate_plan_file_name,
 };
@@ -32,6 +33,13 @@ use super::{
 };
 
 pub struct AgentOrgPlanApprovalStore;
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AgentOrgPlanArtifactRepairReport {
+    pub inspected: usize,
+    pub repaired: usize,
+    pub failed: usize,
+}
 
 impl AgentOrgPlanApprovalStore {
     /// Resolve a filename under the exact Plan root owned by a persisted
@@ -342,8 +350,8 @@ impl AgentOrgPlanApprovalStore {
         // SQLite is the durable source of truth. Prepare and fsync the slow
         // file bytes before taking the sessions writer, commit SQLite first,
         // then perform only the same-directory rename while writes remain
-        // serialized. SQLite remains authoritative if the derived artifact
-        // cannot be installed after the commit.
+        // serialized. A process crash in the tiny commit -> rename window is
+        // healed from `plan_content` on startup or the next detail read.
         let canonical_content = edited_content
             .clone()
             .unwrap_or_else(|| current.plan_content.clone());
@@ -511,34 +519,105 @@ impl AgentOrgPlanApprovalStore {
         query_record(&conn, "WHERE approval_id=?1", params![approval_id])
     }
 
-    /// Read one immutable plan revision. The durable database content is the
-    /// source of truth for approval detail views.
+    /// Read one immutable plan revision and best-effort reconcile the shared
+    /// plan artifact to the latest revision stored for that path.
+    ///
+    /// Historical rows remain immutable and are returned exactly as stored;
+    /// only the derived filesystem artifact is repaired. A repair failure is
+    /// logged rather than turning an otherwise valid detail read into a false
+    /// user-visible failure.
     pub fn get_revision(
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
-        query_record(
+        let record = query_record(
             &conn,
             "WHERE approval_id=?1 AND plan_revision_id=?2",
             params![approval_id, plan_revision_id],
-        )
+        )?;
+        drop(conn);
+        if let Some(record) = record.as_ref() {
+            if let Err(err) = repair_latest_plan_artifact_for_path(&record.plan_path) {
+                tracing::warn!(
+                    approval_id,
+                    plan_revision_id,
+                    plan_path = %record.plan_path,
+                    error = %err,
+                    "failed to reconcile Agent Org plan artifact during detail read"
+                );
+            }
+        }
+        Ok(record)
     }
 
     /// Run-scoped detail lookup for user-facing/API callers. The ownership
     /// predicate is part of the SQLite query, so an approval from another Run
-    /// cannot be exposed to the caller.
+    /// cannot trigger even the best-effort filesystem repair performed after
+    /// an authorized detail read.
     pub fn get_revision_for_run(
         org_run_id: &str,
         approval_id: &str,
         plan_revision_id: &str,
     ) -> Result<Option<AgentOrgPlanApproval>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
-        query_record(
+        let record = query_record(
             &conn,
             "WHERE org_run_id=?1 AND approval_id=?2 AND plan_revision_id=?3",
             params![org_run_id, approval_id, plan_revision_id],
-        )
+        )?;
+        drop(conn);
+        if let Some(record) = record.as_ref() {
+            if let Err(err) = repair_latest_plan_artifact_for_path(&record.plan_path) {
+                tracing::warn!(
+                    org_run_id,
+                    approval_id,
+                    plan_revision_id,
+                    plan_path = %record.plan_path,
+                    error = %err,
+                    "failed to reconcile Agent Org plan artifact during run-scoped detail read"
+                );
+            }
+        }
+        Ok(record)
+    }
+
+    /// Reconcile every physical plan artifact from the latest durable SQLite
+    /// revision for its path. The query is paged so retained approval history
+    /// cannot create one unbounded allocation. Individual corrupt/unwritable
+    /// paths are isolated and reported without preventing other plans from
+    /// being repaired.
+    pub fn repair_latest_plan_artifacts() -> Result<AgentOrgPlanArtifactRepairReport, String> {
+        const PAGE_SIZE: usize = 64;
+
+        let mut report = AgentOrgPlanArtifactRepairReport::default();
+        let mut after_path: Option<String> = None;
+        loop {
+            let paths = list_distinct_plan_paths_after(after_path.as_deref(), PAGE_SIZE)?;
+            if paths.is_empty() {
+                break;
+            }
+            for path in &paths {
+                report.inspected += 1;
+                match repair_latest_plan_artifact_for_path(path) {
+                    Ok(true) => report.repaired += 1,
+                    Ok(false) => {}
+                    Err(err) => {
+                        report.failed += 1;
+                        tracing::warn!(
+                            plan_path = %path,
+                            error = %err,
+                            "failed to reconcile one Agent Org plan artifact"
+                        );
+                    }
+                }
+            }
+            after_path = paths.last().cloned();
+            if paths.len() < PAGE_SIZE {
+                break;
+            }
+        }
+        Ok(report)
     }
 
     /// Cancel approvals whose parent run is gone or terminal. A paused run is

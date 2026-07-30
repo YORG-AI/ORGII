@@ -1,0 +1,204 @@
+{
+  "title": "Builder-Profil",
+  "refresh": "Aktualisieren",
+  "tooFewSessions": "Weniger als 25 Sitzungen – der Typ steht noch nicht fest.",
+  "noSessionsYet": "Noch keine Sitzungen ausgewertet – die Buchstaben erscheinen, während der Verlauf gelesen wird.",
+  "axisStats": "{{sessions}} Sitzungen · {{consistency}} % stimmen überein",
+  "anchorFlip": "der Neutralpunkt müsste sich um das {{factor}}-fache verschieben",
+  "anchorNeverFlips": "gilt unabhängig vom Neutralpunkt",
+  "evidenceHint": "Ihr Median je Signal, gegenüber dem Neutralwert, mit dem verglichen wurde.",
+  "secondary": "Gemessen, aber nicht buchstabenwürdig",
+  "secondaryNote": "– die meisten Prüfungen hinterlassen keine Spur, daher geringe Konfidenz.",
+  "fanout": "{{percent}} % Ihrer Sitzungen verzweigen sich in Subagenten.",
+  "byTool": "Nach Werkzeug",
+  "byToolHint": "Überall dieselben Neutralpunkte, daher sind diese Zeilen vergleichbar. Ein Buchstabe, der nur in einem Werkzeug gilt, ist zweifelhaft.",
+  "sessionCount": "{{count}} Sitzungen",
+  "overTime": "Im Zeitverlauf",
+  "overTimeHint": "Gleitende Fenster, neueste zuerst.",
+  "status": "Status",
+  "coverage": "Gelesene Sitzungen",
+  "coverageReading": "Ihr Verlauf wird noch gelesen – das Profil wird dabei schärfer.",
+  "coverageComplete": "Alle Sitzungen auf diesem Rechner wurden gelesen.",
+  "confidence": "Konfidenz",
+  "confidenceHint": "Wie stark Ihre Sitzungen mit den Buchstaben oben übereinstimmen.",
+  "axesTitle": "Achsen",
+  "evidenceCol": {
+    "signal": "Signal",
+    "yours": "Sie",
+    "neutral": "Neutral"
+  },
+  "byToolCol": {
+    "tool": "Werkzeug",
+    "code": "Typ",
+    "sessions": "Sitzungen"
+  },
+  "overTimeCol": {
+    "window": "Fenster endet",
+    "code": "Typ"
+  },
+  "fanoutLabel": "Subagenten-Verzweigung",
+  "fanoutHint": "Anteil der Sitzungen, die sich in Subagenten verzweigen. Getrennt von Fokussiert/Schwarm gehalten: das ist die andere Ebene der Parallelität und zeigt in die andere Richtung.",
+  "highlights": "Höhepunkte",
+  "caveat": "nur schwach gestützt: {{reason}}",
+  "clarity": {
+    "slight": "leichte Präferenz",
+    "moderate": "mäßige Präferenz",
+    "clear": "klare Präferenz",
+    "veryClear": "sehr klare Präferenz"
+  },
+  "types": {
+    "title": "Builder-Typen",
+    "subtitle": "Entdecke die 16 Arten, wie Menschen mit Coding-Agenten arbeiten.",
+    "howTitle": "So liest du den Code",
+    "howBody": "Vier beobachtete Präferenzen ergeben einen Builder-Typ. Die Buchstaben beschreiben ein Arbeitsmuster, keine feste Identität – sie können sich mit deinen Gewohnheiten und Werkzeugen verändern.",
+    "galleryTitle": "Alle 16 Typen",
+    "galleryHint": "Wähle ein Porträt, um das vollständige Profil und praktische Tipps für die Zusammenarbeit mit Agenten zu sehen.",
+    "knowMore": "Mehr erfahren",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Planen",
+        "description": "Steckt Ziel und Einschränkungen ab, bevor die Umsetzung beginnt",
+        "agentTip": "Gib dem Agenten ein schriftliches Briefing mit Erfolgskriterien, Grenzen und Prüfpunkten"
+      },
+      "E": {
+        "name": "Erkunden",
+        "description": "Baut Klarheit durch Versuche, Beobachtungen und Kurskorrekturen auf",
+        "agentTip": "Bitte um einen kleinen Versuch oder eine nützliche Untersuchung, bevor du dich auf einen Plan festlegst"
+      },
+      "D": {
+        "name": "Steuern",
+        "description": "Behält Zerlegung und Reihenfolge der Arbeit selbst in der Hand",
+        "agentTip": "Übergib klar abgegrenzte Schritte und bestätige die Richtung zwischen wichtigen Etappen"
+      },
+      "A": {
+        "name": "Delegieren",
+        "description": "Definiert das Ergebnis und überlässt dem Agenten die Wahl des Weges",
+        "agentTip": "Beschreibe Ergebnis, Qualitätsmaßstab und Grenzen; lass den Agenten Planung und Ausführung übernehmen"
+      },
+      "F": {
+        "name": "Fokussiert",
+        "description": "Bevorzugt Tiefe und Abschluss in einem Arbeitsstrang nach dem anderen",
+        "agentTip": "Halte einen klaren nächsten Schritt aktiv und schließe ihn ab, bevor du neue Arbeit öffnest"
+      },
+      "W": {
+        "name": "Schwarm",
+        "description": "Nutzt mehrere parallele Stränge, um mehr Fläche und Tempo zu gewinnen",
+        "agentTip": "Teile unabhängige Untersuchungen oder Umsetzungen auf und führe sie an klaren Übergabepunkten zusammen"
+      },
+      "S": {
+        "name": "Systematisieren",
+        "description": "Investiert in wiederholbare Abläufe, Werkzeuge und dauerhafte Verbesserungen",
+        "agentTip": "Bitte den Agenten, wiederkehrende Arbeit als Tests, Skripte, Regeln oder Vorlagen festzuhalten"
+      },
+      "H": {
+        "name": "Ausliefern",
+        "description": "Optimiert auf das schnellste validierte Ergebnis und unmittelbaren Fortschritt",
+        "agentTip": "Bitte um den kleinsten vollständigen Patch, führe die relevanten Prüfungen aus und iteriere anhand des Ergebnisses"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "Wie viel Zeit haben Sie investiert?",
+      "headline": "{{hours}} Stunden",
+      "detail": "Über {{sessions}} Sitzungen hinweg"
+    },
+    "lines": {
+      "question": "Wie viel haben Sie ausgeliefert?",
+      "headline": "{{added}} Zeilen",
+      "detail": "Hinzugefügt über {{sessions}} Sitzungen, {{removed}} entfernt"
+    },
+    "tool_calls": {
+      "question": "Wie viel hat der Agent erledigt?",
+      "headline": "{{total}} Werkzeugaufrufe",
+      "detail": "Etwa {{perSession}} pro Sitzung"
+    },
+    "longest_session": {
+      "question": "Ihre längste einzelne Sitzung?",
+      "headline": "{{duration}}",
+      "detail": "Ihre längste ununterbrochene Strecke mit einem Agenten"
+    },
+    "longest_run": {
+      "question": "Wie weit kommt der Agent allein?",
+      "headline": "{{steps}} Schritte",
+      "detail": "Sein längster Lauf ohne ein Wort von Ihnen"
+    },
+    "parallel_peak": {
+      "question": "Wie oft läuft mehr als ein Agent?",
+      "headline": "{{percent}} % Ihrer Zeit",
+      "detail": "In Ihrer parallelsten Sitzung lief dieser Anteil in Gesellschaft"
+    },
+    "streak": {
+      "question": "Ihre längste Serie?",
+      "headline": "{{days}} Tage am Stück",
+      "detail": "Aufeinanderfolgende Tage, an denen Sie mit einem Agenten gearbeitet haben"
+    },
+    "peak_hour": {
+      "question": "Wann arbeiten Sie?",
+      "headline": "{{hour}}",
+      "detail": "Sie haben {{sessions}} Sitzungen in dieser Stunde begonnen"
+    },
+    "deep_sessions": {
+      "question": "Wie arbeiten Sie?",
+      "headline": "{{count}} tiefe Sitzungen",
+      "detail": "Im Schnitt {{duration}} ununterbrochene Konzentration"
+    },
+    "busiest_day": {
+      "question": "Ihr vollster Tag?",
+      "headline": "{{sessions}} Sitzungen",
+      "detail": "Alle am {{date}}"
+    },
+    "prompt_length": {
+      "question": "Wie lang sind Ihre Prompts?",
+      "headline": "{{words}} Wörter im Schnitt",
+      "detail": "Kurz und im Gesprächston"
+    },
+    "prompt_length_long": {
+      "detail": "Sie briefen in Absätzen, nicht in Einzeilern"
+    },
+    "prompts_per_session": {
+      "question": "Wie viel reden Sie mit Ihrem Agenten?",
+      "headline": "{{prompts}} Prompts pro Sitzung",
+      "detail": "Wie oft Sie im Lauf einer Sitzung eingreifen"
+    },
+    "longest_prompt": {
+      "question": "Ihr längster einzelner Prompt?",
+      "headline": "{{words}} Wörter",
+      "detail": "Eine Nachricht, alles darin"
+    },
+    "redirects": {
+      "question": "Wie oft ändern Sie den Kurs?",
+      "headline": "{{percent}} % der Nachrichten",
+      "detail": "Wo Sie stoppen und den Agenten woandershin lenken"
+    },
+    "interrupts": {
+      "question": "Lassen Sie ihn zu Ende arbeiten?",
+      "headline": "{{percent}} % der Zeit",
+      "detail": "Die übrigen {{rest}} % brechen Sie ab"
+    },
+    "interrupts_never": {
+      "detail": "Sie brechen fast nie einen Lauf ab"
+    },
+    "plan_first": {
+      "question": "Wie oft planen Sie zuerst?",
+      "headline": "{{percent}} % der Bau-Sitzungen",
+      "detail": "{{planned}} von {{builders}} Sitzungen mit Codeänderungen begannen mit einem Plan"
+    },
+    "harness": {
+      "question": "Schärfen Sie Ihr eigenes Werkzeug?",
+      "headline": "{{percent}} % der Änderungen",
+      "detail": "Änderungen an den Anweisungen Ihres Agenten – CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "Verzweigen Sie in Subagenten?",
+      "headline": "{{percent}} % der Sitzungen",
+      "detail": "Wo ein Agent andere gestartet hat, um parallel zu arbeiten"
+    },
+    "tool_spread": {
+      "question": "Wie viele Agenten nutzen Sie?",
+      "headline": "{{tools}} verschiedene Werkzeuge",
+      "detail": "Ihre Arbeit verteilt sich auf alle"
+    }
+  }
+}

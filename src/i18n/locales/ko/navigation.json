@@ -698,6 +698,17 @@
     "billing": {
       "openFailed": "Couldn't open billing. Please try again."
     },
-    "signedInAs": "로그인 계정: {{name}}"
+    "signedInAs": "로그인 계정: {{name}}",
+    "sessionRef": {
+      "chipLabel": "팀 세션",
+      "notMember": "이 세션을 소유한 조직의 멤버가 아닙니다.",
+      "signInRequired": "이 세션을 열려면 ORG2 Cloud에 로그인하세요.",
+      "sessionNotFound": "해당 세션은 이 조직에 없습니다.",
+      "notPublished": "참조를 복사하려면 먼저 이 세션을 조직과 공유하세요.",
+      "chooseOrg": "이 세션은 여러 조직에 속해 있습니다. 참조할 조직으로 전환한 후 다시 복사하세요."
+    },
+    "renameDisplayName": "표시 이름 수정",
+    "renameSaved": "표시 이름이 변경되었습니다",
+    "renameFailed": "표시 이름을 업데이트하지 못했습니다"
   }
 }

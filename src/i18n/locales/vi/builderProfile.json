@@ -1,0 +1,204 @@
+{
+  "title": "Hồ sơ người xây dựng",
+  "refresh": "Làm mới",
+  "tooFewSessions": "Dưới 25 phiên — kiểu chưa ổn định.",
+  "noSessionsYet": "Chưa phân tích phiên nào — các chữ cái xuất hiện dần khi lịch sử được đọc.",
+  "axisStats": "{{sessions}} phiên · {{consistency}}% đồng thuận",
+  "anchorFlip": "điểm trung tính phải dịch {{factor}}×",
+  "anchorNeverFlips": "kết luận giữ nguyên ở mọi điểm trung tính",
+  "evidenceHint": "Trung vị của bạn cho mỗi tín hiệu, so với giá trị trung tính dùng để đối chiếu.",
+  "secondary": "Đã đo, nhưng chưa đủ để thành một chữ cái",
+  "secondaryNote": "— phần lớn việc kiểm chứng không để lại dấu vết, nên độ tin cậy thấp.",
+  "fanout": "{{percent}}% số phiên của bạn phân nhánh thành tác tử con.",
+  "byTool": "Theo công cụ",
+  "byToolHint": "Điểm trung tính giống nhau ở mọi nơi nên các hàng này so sánh được. Một chữ cái chỉ đúng trong một công cụ thì đáng ngờ.",
+  "sessionCount": "{{count}} phiên",
+  "overTime": "Theo thời gian",
+  "overTimeHint": "Cửa sổ trượt, mới nhất trước.",
+  "status": "Trạng thái",
+  "coverage": "Phiên đã đọc",
+  "coverageReading": "Vẫn đang đọc lịch sử của bạn — hồ sơ sắc nét dần theo tiến độ.",
+  "coverageComplete": "Đã đọc mọi phiên trên máy này.",
+  "confidence": "Độ tin cậy",
+  "confidenceHint": "Mức độ các phiên của bạn đồng thuận với những chữ cái ở trên.",
+  "axesTitle": "Các trục",
+  "evidenceCol": {
+    "signal": "Tín hiệu",
+    "yours": "Của bạn",
+    "neutral": "Trung tính"
+  },
+  "byToolCol": {
+    "tool": "Công cụ",
+    "code": "Kiểu",
+    "sessions": "Phiên"
+  },
+  "overTimeCol": {
+    "window": "Kết thúc cửa sổ",
+    "code": "Kiểu"
+  },
+  "fanoutLabel": "Phân nhánh tác tử con",
+  "fanoutHint": "Tỷ lệ phiên phân nhánh thành tác tử con. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
+  "highlights": "Điểm nổi bật",
+  "caveat": "chưa chắc: {{reason}}",
+  "clarity": {
+    "slight": "thiên hướng nhẹ",
+    "moderate": "thiên hướng vừa",
+    "clear": "thiên hướng rõ",
+    "veryClear": "thiên hướng rất rõ"
+  },
+  "types": {
+    "title": "Kiểu người xây dựng",
+    "subtitle": "Khám phá 16 cách con người làm việc với tác tử lập trình.",
+    "howTitle": "Cách đọc mã",
+    "howBody": "Bốn xu hướng quan sát được tạo thành một kiểu người xây dựng. Các chữ cái mô tả cách làm việc, không phải bản sắc cố định — chúng có thể thay đổi theo thói quen và công cụ của bạn.",
+    "galleryTitle": "Đủ 16 kiểu",
+    "galleryHint": "Chọn một chân dung để xem hồ sơ đầy đủ và các mẹo thực tế khi cộng tác với tác tử.",
+    "knowMore": "Tìm hiểu thêm",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Lập bản đồ",
+        "description": "Xác định mục tiêu và ràng buộc trước khi bắt đầu triển khai",
+        "agentTip": "Gửi cho tác tử một bản mô tả bằng văn bản gồm tiêu chí thành công, giới hạn và điểm kiểm tra"
+      },
+      "E": {
+        "name": "Khám phá",
+        "description": "Giảm sự mơ hồ bằng thử nghiệm, quan sát và điều chỉnh hướng đi",
+        "agentTip": "Yêu cầu một thử nghiệm nhỏ hoặc cuộc khảo sát hữu ích trước khi chốt kế hoạch"
+      },
+      "D": {
+        "name": "Chỉ đạo",
+        "description": "Giữ việc chia nhỏ và sắp xếp công việc dưới quyền kiểm soát của con người",
+        "agentTip": "Giao các bước có phạm vi rõ ràng và xác nhận hướng đi giữa các mốc quan trọng"
+      },
+      "A": {
+        "name": "Ủy quyền",
+        "description": "Xác định kết quả rồi để tác tử chọn con đường thực hiện",
+        "agentTip": "Mô tả kết quả, chuẩn chất lượng và giới hạn; để tác tử lập kế hoạch và thực thi"
+      },
+      "F": {
+        "name": "Tập trung",
+        "description": "Ưu tiên chiều sâu và hoàn tất từng luồng công việc một",
+        "agentTip": "Chỉ giữ một bước tiếp theo rõ ràng đang hoạt động và hoàn tất trước khi mở việc mới"
+      },
+      "W": {
+        "name": "Bầy đàn",
+        "description": "Dùng nhiều luồng song song để tăng phạm vi và tốc độ",
+        "agentTip": "Tách các phần khảo sát hoặc triển khai độc lập rồi hợp nhất tại các điểm bàn giao rõ ràng"
+      },
+      "S": {
+        "name": "Hệ thống hóa",
+        "description": "Đầu tư vào quy trình lặp lại, công cụ và cải tiến bền vững",
+        "agentTip": "Yêu cầu tác tử lưu công việc lặp lại thành bài kiểm thử, tập lệnh, quy tắc hoặc mẫu"
+      },
+      "H": {
+        "name": "Phát hành",
+        "description": "Tối ưu cho kết quả đã được xác thực nhanh nhất và tiến bộ tức thì",
+        "agentTip": "Yêu cầu bản vá hoàn chỉnh nhỏ nhất, chạy các kiểm tra cần thiết rồi lặp lại dựa trên kết quả"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "Bạn đã bỏ ra bao nhiêu thời gian?",
+      "headline": "{{hours}} giờ",
+      "detail": "Trải trên {{sessions}} phiên"
+    },
+    "lines": {
+      "question": "Bạn đã làm ra bao nhiêu?",
+      "headline": "{{added}} dòng",
+      "detail": "Được thêm qua {{sessions}} phiên, và {{removed}} dòng bị xóa"
+    },
+    "tool_calls": {
+      "question": "Tác tử đã làm bao nhiêu?",
+      "headline": "{{total}} lượt gọi công cụ",
+      "detail": "Khoảng {{perSession}} mỗi phiên"
+    },
+    "longest_session": {
+      "question": "Phiên đơn dài nhất của bạn?",
+      "headline": "{{duration}}",
+      "detail": "Quãng làm việc liền mạch sâu nhất của bạn với tác tử"
+    },
+    "longest_run": {
+      "question": "Tác tử tự đi được bao xa?",
+      "headline": "{{steps}} bước",
+      "detail": "Lượt chạy dài nhất mà bạn không nói một lời"
+    },
+    "parallel_peak": {
+      "question": "Bao lâu thì có hơn một tác tử cùng chạy?",
+      "headline": "{{percent}}% thời gian của bạn",
+      "detail": "Trong phiên song song nhất, đó là phần thời gian tác tử không đơn độc"
+    },
+    "streak": {
+      "question": "Chuỗi ngày dài nhất của bạn?",
+      "headline": "{{days}} ngày liên tiếp",
+      "detail": "Số ngày liên tiếp bạn làm việc cùng tác tử"
+    },
+    "peak_hour": {
+      "question": "Bạn làm việc lúc nào?",
+      "headline": "{{hour}}",
+      "detail": "Bạn đã mở {{sessions}} phiên vào giờ đó"
+    },
+    "deep_sessions": {
+      "question": "Bạn làm việc thế nào?",
+      "headline": "{{count}} phiên chuyên sâu",
+      "detail": "Trung bình {{duration}} tập trung không đứt quãng"
+    },
+    "busiest_day": {
+      "question": "Ngày bận nhất của bạn?",
+      "headline": "{{sessions}} phiên",
+      "detail": "Tất cả trong ngày {{date}}"
+    },
+    "prompt_length": {
+      "question": "Câu lệnh của bạn dài bao nhiêu?",
+      "headline": "Trung bình {{words}} từ",
+      "detail": "Ngắn và như trò chuyện"
+    },
+    "prompt_length_long": {
+      "detail": "Bạn giao việc bằng đoạn văn, không phải một dòng"
+    },
+    "prompts_per_session": {
+      "question": "Bạn nói chuyện với tác tử nhiều đến đâu?",
+      "headline": "{{prompts}} câu lệnh mỗi phiên",
+      "detail": "Mức độ bạn xen vào trong một phiên"
+    },
+    "longest_prompt": {
+      "question": "Câu lệnh đơn dài nhất của bạn?",
+      "headline": "{{words}} từ",
+      "detail": "Một tin nhắn, chứa tất cả"
+    },
+    "redirects": {
+      "question": "Bạn đổi hướng thường xuyên đến đâu?",
+      "headline": "{{percent}}% số tin nhắn",
+      "detail": "Những lúc bạn dừng lại và chỉ tác tử sang hướng khác"
+    },
+    "interrupts": {
+      "question": "Bạn có để nó làm xong không?",
+      "headline": "{{percent}}% số lần",
+      "detail": "{{rest}}% còn lại bạn cắt ngang"
+    },
+    "interrupts_never": {
+      "detail": "Bạn gần như không bao giờ cắt ngang một lượt chạy"
+    },
+    "plan_first": {
+      "question": "Bạn lập kế hoạch trước thường xuyên đến đâu?",
+      "headline": "{{percent}}% phiên có sửa code",
+      "detail": "{{planned}} trong {{builders}} phiên có thay đổi code bắt đầu từ một kế hoạch"
+    },
+    "harness": {
+      "question": "Bạn có mài giũa công cụ của mình không?",
+      "headline": "{{percent}}% số chỉnh sửa",
+      "detail": "Thay đổi trong chính hướng dẫn của tác tử — CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "Bạn có phân nhánh thành tác tử con không?",
+      "headline": "{{percent}}% số phiên",
+      "detail": "Những lúc một tác tử sinh ra các tác tử khác để chạy song song"
+    },
+    "tool_spread": {
+      "question": "Bạn dùng bao nhiêu tác tử?",
+      "headline": "{{tools}} công cụ khác nhau",
+      "detail": "Công việc của bạn trải đều trên tất cả"
+    }
+  }
+}

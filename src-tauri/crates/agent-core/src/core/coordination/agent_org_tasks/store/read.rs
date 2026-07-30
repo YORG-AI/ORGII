@@ -20,6 +20,7 @@ use super::super::{
     Task, TaskExecutionMode, TaskGraphIndex, TaskOutputSummary, TaskStatus, TaskSummary,
     TaskSummaryPage, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
 };
+use super::validation::ensure_task_rows_safe_for_operational_projection;
 use super::AgentOrgTaskStore;
 
 fn decode_summary_array(raw: String, column: usize) -> rusqlite::Result<Vec<String>> {
@@ -29,9 +30,24 @@ fn decode_summary_array(raw: String, column: usize) -> rusqlite::Result<Vec<Stri
 }
 
 fn task_summary_scalar_predicate_sql(alias: &str) -> String {
+    use crate::coordination::agent_org_payload_limits as limits;
+
     format!(
         "{alias}.status IN ('pending','in_progress','completed')
-         AND trim({alias}.id)<>''"
+         AND trim({alias}.id)<>''
+         AND {alias}.id=trim({alias}.id)
+         AND length({alias}.id)<={}
+         AND length(CAST({alias}.id AS BLOB))<={}
+         AND length({alias}.created_at)<={}
+         AND length(CAST({alias}.created_at AS BLOB))<={}
+         AND length({alias}.updated_at)<={}
+         AND length(CAST({alias}.updated_at AS BLOB))<={}",
+        limits::TASK_IDENTIFIER_MAX_CHARS,
+        limits::TASK_IDENTIFIER_MAX_BYTES,
+        limits::RFC3339_TIMESTAMP_MAX_CHARS,
+        limits::RFC3339_TIMESTAMP_MAX_BYTES,
+        limits::RFC3339_TIMESTAMP_MAX_CHARS,
+        limits::RFC3339_TIMESTAMP_MAX_BYTES,
     )
 }
 
@@ -72,6 +88,7 @@ impl AgentOrgTaskStore {
         conn: &rusqlite::Connection,
         org_run_id: &str,
     ) -> Result<Vec<Task>, String> {
+        ensure_task_rows_safe_for_operational_projection(conn, org_run_id)?;
         Self::list_operational_after_validated_with_connection(conn, org_run_id)
     }
 
@@ -99,38 +116,58 @@ impl AgentOrgTaskStore {
                              ELSE '[]' END,
                         task.created_at,
                         task.updated_at
-                 FROM agent_org_tasks task
+                 FROM (
+                     SELECT id, org_run_id, subject, description, active_form,
+                            owner, status, created_at, updated_at,
+                            CASE WHEN length(CAST(blocks_json AS BLOB))<=?2
+                                 THEN blocks_json ELSE '!' END AS blocks_json,
+                            CASE WHEN length(CAST(blocked_by_json AS BLOB))<=?2
+                                 THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                            CASE WHEN metadata_json IS NULL
+                                      OR length(CAST(metadata_json AS BLOB))<=?3
+                                 THEN metadata_json ELSE '!' END AS metadata_json
+                     FROM agent_org_tasks
+                 ) task
                  WHERE task.org_run_id=?1
                  ORDER BY task.created_at ASC, task.id ASC",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![org_run_id], |row| {
-                let status_raw: String = row.get(4)?;
-                let eligible = decode_summary_array(row.get(7)?, 7)?;
-                let metadata = (!eligible.is_empty())
-                    .then(|| serde_json::json!({ (TASK_METADATA_ELIGIBLE_MEMBER_IDS): eligible }));
-                Ok(Task {
-                    id: row.get(0)?,
-                    org_run_id: row.get(1)?,
-                    subject: row.get(2)?,
-                    description: String::new(),
-                    active_form: None,
-                    owner: row.get(3)?,
-                    status: TaskStatus::from_wire(&status_raw).map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            4,
-                            rusqlite::types::Type::Text,
-                            error.into(),
-                        )
-                    })?,
-                    blocks: decode_summary_array(row.get(5)?, 5)?,
-                    blocked_by: decode_summary_array(row.get(6)?, 6)?,
-                    metadata,
-                    created_at: row.get(8)?,
-                    updated_at: row.get(9)?,
-                })
-            })
+            .query_map(
+                params![
+                    org_run_id,
+                    crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES
+                        as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES as i64,
+                ],
+                |row| {
+                    let status_raw: String = row.get(4)?;
+                    let eligible = decode_summary_array(row.get(7)?, 7)?;
+                    let metadata = (!eligible.is_empty()).then(
+                        || serde_json::json!({ (TASK_METADATA_ELIGIBLE_MEMBER_IDS): eligible }),
+                    );
+                    Ok(Task {
+                        id: row.get(0)?,
+                        org_run_id: row.get(1)?,
+                        subject: row.get(2)?,
+                        description: String::new(),
+                        active_form: None,
+                        owner: row.get(3)?,
+                        status: TaskStatus::from_wire(&status_raw).map_err(|error| {
+                            rusqlite::Error::FromSqlConversionFailure(
+                                4,
+                                rusqlite::types::Type::Text,
+                                error.into(),
+                            )
+                        })?,
+                        blocks: decode_summary_array(row.get(5)?, 5)?,
+                        blocked_by: decode_summary_array(row.get(6)?, 6)?,
+                        metadata,
+                        created_at: row.get(8)?,
+                        updated_at: row.get(9)?,
+                    })
+                },
+            )
             .map_err(|err| err.to_string())?;
         let mut tasks = rows
             .map(|row| row.map_err(|err| err.to_string()))
@@ -173,14 +210,30 @@ impl AgentOrgTaskStore {
             .map(|task_id| {
                 conn.query_row(
                     "SELECT created_at, id FROM agent_org_tasks
-                     WHERE org_run_id=?1 AND id=?2",
-                    params![org_run_id, task_id],
+                     WHERE org_run_id=?1 AND id=?2
+                       AND length(id)<=?3 AND length(CAST(id AS BLOB))<=?4
+                       AND length(created_at)<=?5
+                       AND length(CAST(created_at AS BLOB))<=?6",
+                    params![
+                        org_run_id,
+                        task_id,
+                        crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_CHARS
+                            as i64,
+                        crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_BYTES
+                            as i64,
+                    ],
                     |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
                 )
                 .optional()
                 .map_err(|err| err.to_string())?
                 .ok_or_else(|| {
-                    format!("task_list after_task_id '{task_id}' does not exist in this run")
+                    format!(
+                        "task_list after_task_id '{task_id}' does not exist or is corrupt in this run"
+                    )
                 })
             })
             .transpose()?;
@@ -297,7 +350,23 @@ impl AgentOrgTaskStore {
                                AND json_type(task.metadata_json, '$.output.artifactIds')='array'
                           THEN (SELECT COUNT(*) FROM json_each(task.metadata_json, '$.output.artifactIds') WHERE type='text')
                           ELSE 0 END
-                 FROM agent_org_tasks task
+                 FROM (
+                     SELECT id, org_run_id, subject, description, active_form,
+                            CASE WHEN owner IS NULL THEN NULL
+                                 WHEN trim(owner)<>''
+                                      AND length(owner)<={id_chars}
+                                      AND length(CAST(owner AS BLOB))<={id_bytes}
+                                 THEN owner ELSE NULL END AS owner,
+                            status, created_at, updated_at,
+                            CASE WHEN length(CAST(blocks_json AS BLOB))<=?11
+                                 THEN blocks_json ELSE '!' END AS blocks_json,
+                            CASE WHEN length(CAST(blocked_by_json AS BLOB))<=?11
+                                 THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                            CASE WHEN metadata_json IS NULL
+                                      OR length(CAST(metadata_json AS BLOB))<=?12
+                                 THEN metadata_json ELSE '!' END AS metadata_json
+                     FROM agent_org_tasks
+                 ) task
                  WHERE task.org_run_id=?1
                    AND {summary_scalar_predicate}
                    AND (?2 IS NULL OR task.status=?2)
@@ -309,6 +378,10 @@ impl AgentOrgTaskStore {
                    )
                  ORDER BY task.created_at ASC, task.id ASC
                  LIMIT ?7"
+            .replace("{id_chars}", &crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS.to_string())
+            .replace("{id_bytes}", &crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES.to_string())
+            .replace("{timestamp_chars}", &crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_CHARS.to_string())
+            .replace("{timestamp_bytes}", &crate::coordination::agent_org_payload_limits::RFC3339_TIMESTAMP_MAX_BYTES.to_string())
             .replace("{summary_scalar_predicate}", &summary_scalar_predicate);
         let mut stmt = conn.prepare(&summary_sql).map_err(|err| err.to_string())?;
         let rows = stmt
@@ -324,6 +397,9 @@ impl AgentOrgTaskStore {
                     TASK_SUMMARY_DEPENDENCY_PREVIEW_MAX_COUNT as i64,
                     TASK_SUMMARY_ELIGIBILITY_PREVIEW_MAX_COUNT as i64,
                     TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES
+                        as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES as i64,
                 ],
                 |row| {
                     let status_raw: String = row.get(6)?;
@@ -433,14 +509,22 @@ impl AgentOrgTaskStore {
                 "SELECT id FROM agent_org_tasks
                  WHERE org_run_id=?1 AND status<>'completed'
                    AND trim(id)<>''
+                   AND length(id)<=?3
+                   AND length(CAST(id AS BLOB))<=?4
                  ORDER BY created_at ASC, id ASC
                  LIMIT ?2",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
-            .query_map(params![org_run_id, (bounded_limit + 1) as i64], |row| {
-                row.get::<_, String>(0)
-            })
+            .query_map(
+                params![
+                    org_run_id,
+                    (bounded_limit + 1) as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS as i64,
+                    crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_BYTES as i64,
+                ],
+                |row| row.get::<_, String>(0),
+            )
             .map_err(|err| err.to_string())?;
         let mut ids = Vec::new();
         let mut bytes = 2usize; // surrounding JSON array

@@ -23,11 +23,11 @@ use super::stream_normalizer::{NormalizedStreamEvent, TurnStreamNormalizer};
 use crate::model_context::microcompact;
 
 use super::backoff::{MAX_CONTEXT_RESCUE_ATTEMPTS, MAX_REPEAT_STREAK};
-use super::continuation::{
-    should_auto_continue, should_inject_todo_reminder, ANTI_RUSH_MIN_PERCENT,
-    ANTI_RUSH_MIN_WINDOW, MAX_AUTO_CONTINUATIONS,
-};
 use super::context_accounting::ContextUsageSnapshot;
+use super::continuation::{
+    should_auto_continue, should_inject_todo_reminder, ANTI_RUSH_MIN_PERCENT, ANTI_RUSH_MIN_WINDOW,
+    MAX_AUTO_CONTINUATIONS,
+};
 use super::file_tracker;
 use super::helpers::{add_assistant_message, add_tool_result};
 use super::length_recovery::{maybe_recover_from_length, LengthRecoveryOutcome};
@@ -748,6 +748,8 @@ pub async fn execute_turn(
                 tools,
                 policy,
                 session_id,
+                &config.turn_intent_id,
+                &config.projected_inbox_ids,
                 handler,
                 permission_provider,
                 cancel_flag,

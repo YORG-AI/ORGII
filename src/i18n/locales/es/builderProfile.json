@@ -1,0 +1,204 @@
+{
+  "title": "Perfil de creador",
+  "refresh": "Actualizar",
+  "tooFewSessions": "Menos de 25 sesiones: el tipo aún no está asentado.",
+  "noSessionsYet": "Aún no hay sesiones analizadas: las letras aparecen a medida que se lee tu historial.",
+  "axisStats": "{{sessions}} sesiones · {{consistency}} % coinciden",
+  "anchorFlip": "el punto neutro tendría que moverse {{factor}}×",
+  "anchorNeverFlips": "el veredicto se mantiene con cualquier punto neutro",
+  "evidenceHint": "Tu mediana por señal, frente al valor neutro con el que se comparó.",
+  "secondary": "Medido, pero no merece una letra",
+  "secondaryNote": "— la mayoría de las verificaciones no deja rastro, así que la confianza es baja.",
+  "fanout": "El {{percent}} % de tus sesiones se ramifica en subagentes.",
+  "byTool": "Por herramienta",
+  "byToolHint": "Los puntos neutros son iguales en todas partes, así que estas filas son comparables. Una letra que solo se sostiene en una herramienta merece dudas.",
+  "sessionCount": "{{count}} sesiones",
+  "overTime": "A lo largo del tiempo",
+  "overTimeHint": "Ventanas móviles, las más recientes primero.",
+  "status": "Estado",
+  "coverage": "Sesiones leídas",
+  "coverageReading": "Aún leyendo tu historial: el perfil se afina a medida que avanza.",
+  "coverageComplete": "Se han leído todas las sesiones de este equipo.",
+  "confidence": "Confianza",
+  "confidenceHint": "Cuánto concuerdan tus sesiones con las letras de arriba.",
+  "axesTitle": "Ejes",
+  "evidenceCol": {
+    "signal": "Señal",
+    "yours": "Tú",
+    "neutral": "Neutro"
+  },
+  "byToolCol": {
+    "tool": "Herramienta",
+    "code": "Tipo",
+    "sessions": "Sesiones"
+  },
+  "overTimeCol": {
+    "window": "Fin de ventana",
+    "code": "Tipo"
+  },
+  "fanoutLabel": "Ramificación en subagentes",
+  "fanoutHint": "Proporción de sesiones que se ramifican en subagentes. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
+  "highlights": "Destacados",
+  "caveat": "poco firme: {{reason}}",
+  "clarity": {
+    "slight": "preferencia leve",
+    "moderate": "preferencia moderada",
+    "clear": "preferencia clara",
+    "veryClear": "preferencia muy clara"
+  },
+  "types": {
+    "title": "Tipos de creador",
+    "subtitle": "Conoce las 16 formas en que las personas trabajan con agentes de programación.",
+    "howTitle": "Cómo leer el código",
+    "howBody": "Cuatro preferencias observadas forman un tipo de creador. Las letras describen un patrón de trabajo, no una identidad fija; pueden cambiar con tus hábitos y herramientas.",
+    "galleryTitle": "Los 16 tipos",
+    "galleryHint": "Elige un retrato para ver el perfil completo y consejos prácticos para colaborar con agentes.",
+    "knowMore": "Saber más",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Mapear",
+        "description": "Define el objetivo y las restricciones antes de empezar a implementar",
+        "agentTip": "Da al agente un brief escrito con criterios de éxito, límites y puntos de control"
+      },
+      "E": {
+        "name": "Explorar",
+        "description": "Reduce la incertidumbre mediante pruebas, observación y correcciones de rumbo",
+        "agentTip": "Pide un experimento pequeño o una investigación útil antes de comprometerte con un plan"
+      },
+      "D": {
+        "name": "Dirigir",
+        "description": "Mantiene el control humano sobre la división y la secuencia del trabajo",
+        "agentTip": "Delega pasos bien delimitados y confirma la dirección entre hitos importantes"
+      },
+      "A": {
+        "name": "Delegar",
+        "description": "Define el resultado y deja que el agente elija el camino",
+        "agentTip": "Explica el resultado, el nivel de calidad y los límites; deja que el agente planifique y ejecute"
+      },
+      "F": {
+        "name": "Enfocar",
+        "description": "Prefiere profundidad y cierre en una línea de trabajo cada vez",
+        "agentTip": "Mantén activo un único paso siguiente y termínalo antes de abrir trabajo nuevo"
+      },
+      "W": {
+        "name": "Enjambre",
+        "description": "Usa varias líneas en paralelo para ganar cobertura y velocidad",
+        "agentTip": "Divide investigaciones o implementaciones independientes y reúnelas en puntos de entrega claros"
+      },
+      "S": {
+        "name": "Sistematizar",
+        "description": "Invierte en flujos repetibles, herramientas y mejoras duraderas",
+        "agentTip": "Pide al agente que convierta el trabajo recurrente en pruebas, scripts, reglas o plantillas"
+      },
+      "H": {
+        "name": "Entregar",
+        "description": "Optimiza para obtener cuanto antes un resultado validado y progreso inmediato",
+        "agentTip": "Pide el parche completo más pequeño, ejecuta las comprobaciones relevantes e itera con el resultado"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "¿Cuánto tiempo le dedicaste?",
+      "headline": "{{hours}} horas",
+      "detail": "A lo largo de {{sessions}} sesiones"
+    },
+    "lines": {
+      "question": "¿Cuánto entregaste?",
+      "headline": "{{added}} líneas",
+      "detail": "Añadidas en {{sessions}} sesiones, con {{removed}} eliminadas"
+    },
+    "tool_calls": {
+      "question": "¿Cuánto hizo el agente?",
+      "headline": "{{total}} llamadas a herramientas",
+      "detail": "Unas {{perSession}} por sesión"
+    },
+    "longest_session": {
+      "question": "¿Tu sesión más larga?",
+      "headline": "{{duration}}",
+      "detail": "Tu tramo más largo sin interrupciones con un agente"
+    },
+    "longest_run": {
+      "question": "¿Hasta dónde llega el agente solo?",
+      "headline": "{{steps}} pasos",
+      "detail": "Su racha más larga sin una palabra tuya"
+    },
+    "parallel_peak": {
+      "question": "¿Con qué frecuencia corre más de un agente?",
+      "headline": "El {{percent}} % de tu tiempo",
+      "detail": "En tu sesión más paralela, esa parte tuvo compañía"
+    },
+    "streak": {
+      "question": "¿Tu racha más larga?",
+      "headline": "{{days}} días seguidos",
+      "detail": "Días consecutivos trabajando con un agente"
+    },
+    "peak_hour": {
+      "question": "¿Cuándo trabajas?",
+      "headline": "{{hour}}",
+      "detail": "Iniciaste {{sessions}} sesiones en esa hora"
+    },
+    "deep_sessions": {
+      "question": "¿Cómo trabajas?",
+      "headline": "{{count}} sesiones profundas",
+      "detail": "Con {{duration}} de concentración sin cortes de media"
+    },
+    "busiest_day": {
+      "question": "¿Tu día más intenso?",
+      "headline": "{{sessions}} sesiones",
+      "detail": "Todas el {{date}}"
+    },
+    "prompt_length": {
+      "question": "¿Cuánto miden tus prompts?",
+      "headline": "{{words}} palabras de media",
+      "detail": "Cortos y conversacionales"
+    },
+    "prompt_length_long": {
+      "detail": "Explicas en párrafos, no en una línea"
+    },
+    "prompts_per_session": {
+      "question": "¿Cuánto hablas con tu agente?",
+      "headline": "{{prompts}} prompts por sesión",
+      "detail": "Cada cuánto intervienes a lo largo de una sesión"
+    },
+    "longest_prompt": {
+      "question": "¿Tu prompt más largo?",
+      "headline": "{{words}} palabras",
+      "detail": "Un solo mensaje, con todo dentro"
+    },
+    "redirects": {
+      "question": "¿Con qué frecuencia cambias de rumbo?",
+      "headline": "El {{percent}} % de los mensajes",
+      "detail": "Donde paras y rediriges al agente"
+    },
+    "interrupts": {
+      "question": "¿Lo dejas terminar?",
+      "headline": "El {{percent}} % de las veces",
+      "detail": "Interrumpes el {{rest}} % restante"
+    },
+    "interrupts_never": {
+      "detail": "Casi nunca cortas una ejecución"
+    },
+    "plan_first": {
+      "question": "¿Con qué frecuencia planificas primero?",
+      "headline": "El {{percent}} % de las sesiones de código",
+      "detail": "{{planned}} de {{builders}} sesiones que cambiaron código empezaron con un plan"
+    },
+    "harness": {
+      "question": "¿Afilas tus propias herramientas?",
+      "headline": "El {{percent}} % de las ediciones",
+      "detail": "Cambios en las instrucciones de tu agente: CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "¿Te ramificas en subagentes?",
+      "headline": "El {{percent}} % de las sesiones",
+      "detail": "Donde un agente lanzó otros para trabajar en paralelo"
+    },
+    "tool_spread": {
+      "question": "¿Cuántos agentes usas?",
+      "headline": "{{tools}} herramientas distintas",
+      "detail": "Tu trabajo se reparte entre todas"
+    }
+  }
+}

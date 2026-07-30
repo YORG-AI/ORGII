@@ -1,6 +1,6 @@
 <div align="center">
   <h1>ORG-2</h1>
-  <p><strong>面向 Agent 构建软件的记录系统（System of Record）。<br />运行你的编程 Agent——回放任意会话、与团队一起审查，并把每一行代码追溯到它背后的决策。</strong></p>
+  <p><strong>记录 Agent 如何构建软件的系统（System of Record）。<br />运行你的编程 Agent——回放任意会话、与团队一起审查，并把每一行代码追溯到它背后的决策。</strong></p>
   <p>基于 Rust 和 Tauri 构建，面向 local-first 执行，磁盘占用低于 100MB。支持 Agent 轨迹直播和回放，易于跟踪和审查。</p>
 </div>
 

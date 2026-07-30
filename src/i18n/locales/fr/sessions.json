@@ -145,7 +145,8 @@
         "hooks": "Hooks",
         "usage": "Utilisation",
         "quota": "Quota",
-        "assets": "Ressources"
+        "assets": "Ressources",
+        "profile": "Profil"
       },
       "usage": {
         "title": "Utilisation et coût",
@@ -1198,6 +1199,20 @@
         "filters": "Filters",
         "openInGitHub": "Open in GitHub"
       }
+    },
+    "sessionViews": {
+      "gui": "Chat",
+      "timeline": "Chronologie",
+      "changes": "Modifications",
+      "raw": "Brut",
+      "timelineSummary_one": "{{count}} tour sur {{duration}}",
+      "timelineSummary_other": "{{count}} tours sur {{duration}}",
+      "timelineEmpty": "Aucun tour à afficher pour le moment.",
+      "changesEmpty": "Cette session n'a écrit aucun fichier.",
+      "fileCount_one": "{{count}} fichier",
+      "fileCount_other": "{{count}} fichiers",
+      "turnCount_one": "{{count}} tour",
+      "turnCount_other": "{{count}} tours"
     }
   },
   "chatStatus": {

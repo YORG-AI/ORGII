@@ -13,6 +13,7 @@ import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { AgentInfo, ProviderInfo } from "@src/api/http/config";
+import { loadAvailableAgents } from "@src/api/services/availableAgents";
 import { rpc } from "@src/api/tauri/rpc";
 import type {
   AvailableAgent,
@@ -167,7 +168,7 @@ function loadSessionDiscovery(force: boolean): Promise<SessionDiscoveryData> {
 
   const promise = Promise.all([
     rpc.validation.getAvailableApiProviders(),
-    rpc.validation.getAvailableAgents(),
+    loadAvailableAgents(),
     loadSharedLocalKeys(force),
   ]).then(([apiProviders, rawAgents, allKeys]) => ({
     apiProviders,

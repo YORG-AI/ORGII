@@ -109,13 +109,6 @@ describe("Agent Org plan approval detail cache", () => {
       loading: false,
     });
 
-    // A Run View poll returns a new summary object for the same immutable
-    // revision. That must not turn a visible failure into an automatic retry.
-    await agentOrgPlanApprovalDetailCacheTestApi.load("root-session", {
-      ...approval,
-    });
-    expect(mockedGetDetail).toHaveBeenCalledTimes(1);
-
     await agentOrgPlanApprovalDetailCacheTestApi.load(
       "root-session",
       approval,

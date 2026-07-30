@@ -34,16 +34,48 @@ pub(super) fn render_inbox_attachment(
 
 pub(super) fn render_inbox_transcript(rows: &[AgentInboxRecord]) -> String {
     rows.iter()
-        .filter_map(|row| match row.decode_payload() {
+        .map(|row| match row.decode_payload() {
             Ok(message) => {
                 let body = render_payload_for_transcript(&message);
                 let trimmed = body.trim();
-                (!trimmed.is_empty()).then(|| trimmed.to_string())
+                if trimmed.is_empty() {
+                    render_transcript_fallback(row, "decoded payload rendered empty")
+                } else {
+                    render_transcript_entry(row, trimmed)
+                }
             }
-            Err(_) => None,
+            Err(err) => render_transcript_fallback(row, &err),
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+/// Every Inbox source row needs a durable transcript representation before
+/// it can ever be acknowledged. Historical/manual DB corruption therefore
+/// degrades to a bounded diagnostic instead of being filtered out (which
+/// would leave an unread row spinning forever without a receipt).
+fn render_transcript_fallback(row: &AgentInboxRecord, reason: &str) -> String {
+    const MAX_RAW_PREVIEW_CHARS: usize = 4_096;
+    let raw = crate::utils::safe_truncate_chars_to_string(&row.payload_json, MAX_RAW_PREVIEW_CHARS);
+    render_transcript_entry(
+        row,
+        &format!("Undecodable payload: {reason}\nRaw payload: {raw}"),
+    )
+}
+
+fn render_transcript_entry(row: &AgentInboxRecord, body: &str) -> String {
+    let sender = row.sender_member_id.as_deref().unwrap_or_else(|| {
+        if row.sender_agent_id == USER_SENDER_ID {
+            "user"
+        } else {
+            "system"
+        }
+    });
+    let request_id = row.request_id.as_deref().unwrap_or("none");
+    format!(
+        "[Agent Org inbox message id={} from_member_id={} kind={} request_id={} created_at={}]\n{}",
+        row.id, sender, row.payload_kind, request_id, row.created_at, body
+    )
 }
 
 fn render_one_row(row: &AgentInboxRecord) -> String {
@@ -54,11 +86,20 @@ fn render_one_row(row: &AgentInboxRecord) -> String {
 
     let body = match row.decode_payload() {
         Ok(msg) => render_payload(&msg),
-        Err(err) => format!(
-            "<raw decode_error=\"{}\">{}</raw>",
-            xml_escape(&err),
-            xml_escape(&row.payload_json)
-        ),
+        Err(err) => {
+            const MAX_RAW_PREVIEW_CHARS: usize = 4_096;
+            let raw = crate::utils::safe_truncate_chars_to_string(
+                &row.payload_json,
+                MAX_RAW_PREVIEW_CHARS,
+            );
+            let truncated = raw.len() < row.payload_json.len();
+            format!(
+                "<raw decode_error=\"{}\" truncated=\"{}\">{}</raw>",
+                xml_escape(&err),
+                truncated,
+                xml_escape(&raw)
+            )
+        }
     };
 
     let sender_label = row.sender_member_id.as_deref().unwrap_or_else(|| {

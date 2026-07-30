@@ -18,6 +18,7 @@ describe("requestSessionSidebarRevealAtom", () => {
       sessionId: "child-session",
       parentSessionId: "root-session",
       requestId: 1,
+      issuedAt: expect.any(Number),
     });
 
     store.set(requestSessionSidebarRevealAtom, {
@@ -49,6 +50,7 @@ describe("requestSessionSidebarRevealAtom", () => {
       sidebarItemId: "cloudremote-org-1|org-1:user-1:source-1",
       cloudOrgId: "org-1",
       requestId: 1,
+      issuedAt: expect.any(Number),
     });
   });
 

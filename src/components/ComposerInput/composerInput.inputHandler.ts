@@ -12,6 +12,7 @@
  * `keyboard.ts`.
  */
 import { type MentionState, canStartSlashCommand } from "./keyboard";
+import { getInlineMentionQuery } from "./mentionQuery";
 import { caretTextOffset, rangeInsideHost } from "./selection";
 import { PILL_DATA_ATTR, extractPlainText } from "./utils";
 
@@ -122,9 +123,11 @@ export function createInputHandler(ctx: InputHandlerContext) {
             ctx.getOnAtMentionClose()?.();
           }
         } else {
-          const query = text
-            .slice(ctx.getAtMention().startOffset, caretOffset)
-            .replace(/\u200B/g, "");
+          const query = getInlineMentionQuery(
+            text,
+            caretOffset,
+            ctx.getAtMention()
+          );
           if (/\s/.test(query)) {
             if (!openedRecently) {
               ctx.setAtMention({ active: false, startOffset: 0 });

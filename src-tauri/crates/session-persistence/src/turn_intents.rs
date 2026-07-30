@@ -178,6 +178,7 @@ pub struct TurnIntentRow {
     pub session_id: String,
     pub turn_intent_id: String,
     pub client_message_id: Option<String>,
+    pub org_run_id: Option<String>,
     pub source: TurnIntentSource,
     pub status: TurnIntentStatus,
     pub created_at: String,
@@ -197,6 +198,15 @@ pub enum IntentError {
     NotFound(String, String),
     #[error("invalid stored status {0:?} for turn intent {1}")]
     InvalidStoredStatus(String, String),
+    #[error(
+        "turn intent {turn_intent_id} for session {session_id} already belongs to Agent Org run {existing_org_run_id}, not {requested_org_run_id}"
+    )]
+    OrgRunMismatch {
+        session_id: String,
+        turn_intent_id: String,
+        existing_org_run_id: String,
+        requested_org_run_id: String,
+    },
 }
 
 /// Whitelist of state transitions. Anything outside this list is rejected.
@@ -232,18 +242,18 @@ fn transition_allowed(from: TurnIntentStatus, to: TurnIntentStatus) -> bool {
 // ============================================
 
 fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
-    let source_str: String = row.get(3)?;
-    let status_str: String = row.get(4)?;
+    let source_str: String = row.get(4)?;
+    let status_str: String = row.get(5)?;
     let source = TurnIntentSource::parse(&source_str).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
-            3,
+            4,
             rusqlite::types::Type::Text,
             format!("unknown turn_intents.source value: {source_str}").into(),
         )
     })?;
     let status = TurnIntentStatus::parse(&status_str).ok_or_else(|| {
         rusqlite::Error::FromSqlConversionFailure(
-            4,
+            5,
             rusqlite::types::Type::Text,
             format!("unknown turn_intents.status value: {status_str}").into(),
         )
@@ -252,10 +262,11 @@ fn row_from_sql(row: &rusqlite::Row<'_>) -> SqliteResult<TurnIntentRow> {
         session_id: row.get(0)?,
         turn_intent_id: row.get(1)?,
         client_message_id: row.get(2)?,
+        org_run_id: row.get(3)?,
         source,
         status,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
     })
 }
 
@@ -269,6 +280,7 @@ pub fn upsert_initial(
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentSource,
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
@@ -278,31 +290,46 @@ pub fn upsert_initial(
         session_id,
         turn_intent_id,
         client_message_id,
+        org_run_id,
         source,
         status,
     )
 }
 
-/// Connection-scoped variant for callers that atomically update adjacent
-/// session lifecycle state in the same SQLite transaction.
+/// Connection-scoped variant, for callers that already hold a connection and
+/// want this write to land alongside adjacent session lifecycle state.
+///
+/// Connection-scoped in the same sense as
+/// [`reconcile_in_flight_after_restart`]: it never opens its own connection, so
+/// it is safe to call from inside a database hook or an in-progress write.
+///
+/// Atomicity is the caller's responsibility. On the `INSERT OR IGNORE`-collision
+/// path this runs up to three statements (backfill `UPDATE`, then a read-back),
+/// which are only atomic if `conn` is a `BEGIN IMMEDIATE` transaction —
+/// `rusqlite::Transaction` derefs to `Connection`, so pass `&tx` from
+/// `begin_immediate`, ideally inside `with_sessions_writer`. Handed a bare
+/// `get_connection()` — as the [`upsert_initial`] wrapper does — each statement
+/// commits on its own, matching the historical behavior.
 pub fn upsert_initial_on(
     conn: &Connection,
     session_id: &str,
     turn_intent_id: &str,
     client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
     source: TurnIntentSource,
     status: TurnIntentStatus,
 ) -> Result<TurnIntentRow, IntentError> {
     let now = Utc::now().to_rfc3339();
     let inserted = conn.execute(
         "INSERT OR IGNORE INTO session_turn_intents
-            (session_id, turn_intent_id, client_message_id, source, status,
-             created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
+            (session_id, turn_intent_id, client_message_id, org_run_id,
+             source, status, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
         params![
             session_id,
             turn_intent_id,
             client_message_id,
+            org_run_id,
             source.as_str(),
             status.as_str(),
             now,
@@ -313,14 +340,38 @@ pub fn upsert_initial_on(
             session_id: session_id.to_string(),
             turn_intent_id: turn_intent_id.to_string(),
             client_message_id: client_message_id.map(str::to_string),
+            org_run_id: org_run_id.map(str::to_string),
             source,
             status,
             created_at: now.clone(),
             updated_at: now,
         });
     }
-    get_intent(conn, session_id, turn_intent_id)?
-        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))
+    // A row may have been created by an earlier bridge stage or by an older
+    // app version before explicit run ownership existed. Backfill only NULL;
+    // never overwrite a different durable run id.
+    if let Some(org_run_id) = org_run_id {
+        conn.execute(
+            "UPDATE session_turn_intents SET org_run_id=?3
+             WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id IS NULL",
+            params![session_id, turn_intent_id, org_run_id],
+        )?;
+    }
+    let existing = get_intent(conn, session_id, turn_intent_id)?
+        .ok_or_else(|| IntentError::NotFound(turn_intent_id.to_string(), session_id.to_string()))?;
+    if let (Some(existing_org_run_id), Some(requested_org_run_id)) =
+        (existing.org_run_id.as_deref(), org_run_id)
+    {
+        if existing_org_run_id != requested_org_run_id {
+            return Err(IntentError::OrgRunMismatch {
+                session_id: session_id.to_string(),
+                turn_intent_id: turn_intent_id.to_string(),
+                existing_org_run_id: existing_org_run_id.to_string(),
+                requested_org_run_id: requested_org_run_id.to_string(),
+            });
+        }
+    }
+    Ok(existing)
 }
 
 /// Patch the status of an existing intent. Transition must be in the
@@ -334,7 +385,21 @@ pub fn update_status(
     update_status_on(&conn, session_id, turn_intent_id, new_status)
 }
 
-/// Connection-scoped variant for atomic session + turn-intent transitions.
+/// Connection-scoped variant, for callers driving a session state change and
+/// this transition together.
+///
+/// Never opens its own connection, so it composes with a caller-owned write —
+/// same contract as [`upsert_initial_on`].
+///
+/// The transition guard is read-check-write: it reads the current row, tests
+/// the `transition_allowed` whitelist, then `UPDATE`s. That guard only holds
+/// while the caller owns the write lock — pass `&tx` from `begin_immediate`, or
+/// call inside `with_sessions_writer`. On a bare connection two concurrent
+/// transitions can both observe the pre-state and both pass the whitelist, so
+/// the later write wins and one transition is lost with no error. The
+/// [`update_status`] wrapper takes a bare connection and so keeps that
+/// pre-existing race; callers that need the guard actually enforced should use
+/// this variant under a transaction rather than the wrapper.
 pub fn update_status_on(
     conn: &Connection,
     session_id: &str,
@@ -411,8 +476,8 @@ pub fn get_intent(
     turn_intent_id: &str,
 ) -> SqliteResult<Option<TurnIntentRow>> {
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, turn_intent_id, client_message_id, source, status,
-                created_at, updated_at
+        "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
+                source, status, created_at, updated_at
            FROM session_turn_intents
           WHERE session_id = ?1 AND turn_intent_id = ?2",
     )?;
@@ -425,8 +490,8 @@ pub fn get_intent(
 pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
     let conn = get_connection()?;
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, turn_intent_id, client_message_id, source, status,
-                created_at, updated_at
+        "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
+                source, status, created_at, updated_at
            FROM session_turn_intents
           WHERE session_id = ?1
           ORDER BY created_at ASC, turn_intent_id ASC",
@@ -437,14 +502,25 @@ pub fn list_for_session(session_id: &str) -> SqliteResult<Vec<TurnIntentRow>> {
     Ok(rows)
 }
 
-/// Latest lifecycle row for each requested session, read through one
-/// connection so reconnect/focus reconciliation does not fan out into one
-/// SQLite task per session.
+/// Latest lifecycle row for each requested session, for reconnect/focus
+/// reconciliation.
+///
+/// The saving is one connection and one prepared statement for the whole set,
+/// instead of reconciliation fanning out into a SQLite task per session. It is
+/// still one row lookup per id rather than a single set-based query — fine at
+/// the sizes reconciliation asks for, and worth revisiting against a real
+/// caller's numbers before reaching for a window function.
+///
+/// Sessions with no intent row are absent from the map rather than mapped to a
+/// placeholder, so callers can distinguish "never submitted" from a live status.
 pub fn latest_for_sessions(session_ids: &[String]) -> SqliteResult<HashMap<String, TurnIntentRow>> {
+    if session_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
     let conn = get_connection()?;
     let mut stmt = conn.prepare_cached(
-        "SELECT session_id, turn_intent_id, client_message_id, source, status,
-                created_at, updated_at
+        "SELECT session_id, turn_intent_id, client_message_id, org_run_id,
+                source, status, created_at, updated_at
            FROM session_turn_intents
           WHERE session_id = ?1
           ORDER BY updated_at DESC, created_at DESC
@@ -452,6 +528,10 @@ pub fn latest_for_sessions(session_ids: &[String]) -> SqliteResult<HashMap<Strin
     )?;
     let mut latest = HashMap::with_capacity(session_ids.len());
     for session_id in session_ids {
+        // A repeated id would re-run the same lookup and overwrite its own entry.
+        if latest.contains_key(session_id) {
+            continue;
+        }
         if let Some(row) = stmt.query_row([session_id], row_from_sql).optional()? {
             latest.insert(session_id.clone(), row);
         }
@@ -497,6 +577,7 @@ mod tests {
             session,
             intent,
             Some("client-1"),
+            None,
             TurnIntentSource::UserSubmit,
             TurnIntentStatus::Queued,
         )
@@ -541,6 +622,7 @@ mod tests {
                 session,
                 intent,
                 Some("client-2"),
+                None,
                 TurnIntentSource::Queue,
                 TurnIntentStatus::Running,
             )
@@ -548,6 +630,59 @@ mod tests {
             assert_eq!(again.status, TurnIntentStatus::Queued);
             assert_eq!(again.client_message_id.as_deref(), Some("client-1"));
             assert_eq!(again.source, TurnIntentSource::UserSubmit);
+        });
+    }
+
+    #[test]
+    fn retry_can_backfill_missing_org_run_but_cannot_reassign_it() {
+        with_temp_orgii_home(|| {
+            let session = "test-session-org-run-ownership";
+            let intent = "intent-org-run-ownership";
+            let original = upsert_initial(
+                session,
+                intent,
+                None,
+                None,
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect("legacy-style upsert succeeds");
+            assert_eq!(original.org_run_id, None);
+
+            let backfilled = upsert_initial(
+                session,
+                intent,
+                None,
+                Some("run-a"),
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect("retry may fill a previously unknown run owner");
+            assert_eq!(backfilled.org_run_id.as_deref(), Some("run-a"));
+
+            let error = upsert_initial(
+                session,
+                intent,
+                None,
+                Some("run-b"),
+                TurnIntentSource::AgentOrg,
+                TurnIntentStatus::Queued,
+            )
+            .expect_err("a durable intent must never move between runs");
+            assert!(matches!(
+                error,
+                IntentError::OrgRunMismatch {
+                    existing_org_run_id,
+                    requested_org_run_id,
+                    ..
+                } if existing_org_run_id == "run-a" && requested_org_run_id == "run-b"
+            ));
+
+            let conn = get_connection().expect("open sessions DB");
+            let stored = get_intent(&conn, session, intent)
+                .expect("read intent")
+                .expect("intent exists");
+            assert_eq!(stored.org_run_id.as_deref(), Some("run-a"));
         });
     }
 
@@ -652,6 +787,7 @@ mod tests {
                 session,
                 "pending-a",
                 None,
+                None,
                 TurnIntentSource::UserSubmit,
                 TurnIntentStatus::Queued,
             )
@@ -660,6 +796,7 @@ mod tests {
                 session,
                 "pending-b",
                 None,
+                None,
                 TurnIntentSource::Queue,
                 TurnIntentStatus::Optimistic,
             )
@@ -667,6 +804,7 @@ mod tests {
             let _ = upsert_initial(
                 session,
                 "running-c",
+                None,
                 None,
                 TurnIntentSource::UserSubmit,
                 TurnIntentStatus::Queued,
@@ -694,13 +832,10 @@ mod tests {
             let first_session = "test-session-batch-a";
             let second_session = "test-session-batch-b";
             let _ = fresh_intent(first_session, "intent-a-old");
-            let _ =
-                update_status(first_session, "intent-a-old", TurnIntentStatus::Running).unwrap();
-            let _ =
-                update_status(first_session, "intent-a-old", TurnIntentStatus::Completed).unwrap();
+            update_status(first_session, "intent-a-old", TurnIntentStatus::Running).unwrap();
+            update_status(first_session, "intent-a-old", TurnIntentStatus::Completed).unwrap();
             let _ = fresh_intent(first_session, "intent-a-current");
-            let _ = update_status(first_session, "intent-a-current", TurnIntentStatus::Running)
-                .unwrap();
+            update_status(first_session, "intent-a-current", TurnIntentStatus::Running).unwrap();
             let _ = fresh_intent(second_session, "intent-b-current");
 
             let rows = latest_for_sessions(&[
@@ -708,12 +843,16 @@ mod tests {
                 second_session.to_string(),
                 "missing-session".to_string(),
             ])
-            .unwrap();
+            .expect("batch lifecycle lookup succeeds");
 
             assert_eq!(rows.len(), 2);
             assert_eq!(rows[first_session].turn_intent_id, "intent-a-current");
             assert_eq!(rows[first_session].status, TurnIntentStatus::Running);
             assert_eq!(rows[second_session].turn_intent_id, "intent-b-current");
+            assert_eq!(
+                rows[second_session].org_run_id, None,
+                "batch projection must preserve the complete row shape"
+            );
         });
     }
 
@@ -730,6 +869,7 @@ mod tests {
                 let _ = upsert_initial(
                     session,
                     intent,
+                    None,
                     None,
                     TurnIntentSource::AgentOrg,
                     TurnIntentStatus::Queued,

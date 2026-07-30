@@ -12,7 +12,10 @@ import {
   sendAgentOrgGroupChatMessage,
 } from "@src/api/tauri/agent";
 import { useGroupChatMergedEvents } from "@src/engines/ChatPanel/ChatHistory/GroupChatView/useGroupChatMergedEvents";
-import { useAgentOrgGroupChatHistory } from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatHistory";
+import {
+  isGroupChatPendingDeliverySettled,
+  useAgentOrgGroupChatHistory,
+} from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatHistory";
 import type {
   CustomMentionOption,
   SubmitOverrideInput,
@@ -51,10 +54,6 @@ function normalizeMentionToken(value: string): string {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "");
-}
-
-function isInboxRowRead(row: { readAt?: string | null } | undefined): boolean {
-  return Boolean(row?.readAt && row.readAt.trim());
 }
 
 function timestampMs(value: string | null | undefined): number | null {
@@ -222,7 +221,9 @@ export function useAgentOrgGroupChatController({
     const rows = agentOrgRunView?.inbox ?? [];
     return rows
       .filter((row) => row.senderAgentId === AGENT_ORG_USER_SENDER_ID)
-      .map((row) => `${row.id}:${row.readAt ?? ""}`)
+      .map(
+        (row) => `${row.id}:${row.readAt ?? ""}:${row.deliveryResolution ?? ""}`
+      )
       .join("|");
   }, [agentOrgRunView?.inbox]);
   const {
@@ -256,6 +257,7 @@ export function useAgentOrgGroupChatController({
         displayText: groupChatPendingMessage.displayText,
         createdAt: groupChatPendingMessage.createdAt,
         readAt: null,
+        deliveryResolution: null,
       },
     ].sort((left, right) => left.inboxId - right.inboxId);
   }, [durableGroupChatHistoryRows, groupChatPendingMessage]);
@@ -292,7 +294,13 @@ export function useAgentOrgGroupChatController({
     const pendingRow = agentOrgRunView.inbox.find(
       (row) => row.id === groupChatPendingMessage.rowId
     );
-    if (isInboxRowRead(pendingRow)) {
+    if (
+      isGroupChatPendingDeliverySettled(
+        groupChatPendingMessage.rowId,
+        pendingRow,
+        durableGroupChatHistoryRows
+      )
+    ) {
       setGroupChatPendingMessage(null);
       return;
     }
@@ -321,6 +329,7 @@ export function useAgentOrgGroupChatController({
     }
   }, [
     agentOrgRunView,
+    durableGroupChatHistoryRows,
     groupChatMergedEvents,
     groupChatPendingMessage,
     sessionId,

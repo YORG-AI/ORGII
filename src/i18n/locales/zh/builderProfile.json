@@ -1,0 +1,204 @@
+{
+  "title": "构建者画像",
+  "refresh": "刷新",
+  "tooFewSessions": "不足 25 个会话，类型尚未稳定。",
+  "noSessionsYet": "尚未分析任何会话——随着历史被读取，字母会逐步出现。",
+  "axisStats": "{{sessions}} 个会话 · {{consistency}}% 一致",
+  "anchorFlip": "中性点需移动 {{factor}}× 才会翻转",
+  "anchorNeverFlips": "无论中性点定在哪都不翻转",
+  "evidenceHint": "每项信号你的中位数，与它所对照的中性值。",
+  "secondary": "已测量，但不足以占一个字母",
+  "secondaryNote": "——大部分验证不会在记录里留下痕迹，所以置信度低。",
+  "fanout": "{{percent}}% 的会话会派生子代理。",
+  "byTool": "按工具",
+  "byToolHint": "各处中性点相同，所以这些行可以横向比较。只在一个工具里成立的字母值得怀疑。",
+  "sessionCount": "{{count}} 个会话",
+  "overTime": "随时间变化",
+  "overTimeHint": "滚动窗口，最新在前。",
+  "status": "状态",
+  "coverage": "已读取的会话",
+  "coverageReading": "仍在读取你的历史——随着进度推进，画像会越来越准。",
+  "coverageComplete": "本机上的所有会话都已读取。",
+  "confidence": "置信度",
+  "confidenceHint": "你的会话与上面这些字母的一致程度。",
+  "axesTitle": "维度",
+  "evidenceCol": {
+    "signal": "信号",
+    "yours": "你的",
+    "neutral": "中性值"
+  },
+  "byToolCol": {
+    "tool": "工具",
+    "code": "类型",
+    "sessions": "会话数"
+  },
+  "overTimeCol": {
+    "window": "窗口结束于",
+    "code": "类型"
+  },
+  "fanoutLabel": "子代理分叉",
+  "fanoutHint": "分叉出子代理的会话占比。与「专注／集群」分开计：那是另一层并行，而且方向相反。",
+  "highlights": "亮点",
+  "caveat": "把握不牢：{{reason}}",
+  "clarity": {
+    "slight": "轻微倾向",
+    "moderate": "中等倾向",
+    "clear": "明确倾向",
+    "veryClear": "非常明确的倾向"
+  },
+  "types": {
+    "title": "构建者类型",
+    "subtitle": "探索人们与编程智能体协作的 16 种方式。",
+    "howTitle": "如何解读类型代码",
+    "howBody": "四种可观察的偏好组合成一个构建者类型。这些字母描述的是工作模式，而不是固定身份；随着习惯和工具变化，类型也可能改变。",
+    "galleryTitle": "全部 16 种类型",
+    "galleryHint": "选择一个头像，了解四种偏好如何塑造它的构建方式。",
+    "knowMore": "了解更多",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "规划",
+        "description": "先明确目标、约束和路线，再开始行动",
+        "agentTip": "给智能体一份书面任务说明和明确的验收标准"
+      },
+      "E": {
+        "name": "探索",
+        "description": "通过推进和观察反馈来逐步消除不确定性",
+        "agentTip": "先做一个有价值的试探，再根据结果收紧任务说明"
+      },
+      "D": {
+        "name": "指导",
+        "description": "贴近执行过程，一步步塑造路径",
+        "agentTip": "要求可见的检查点，并在路径偏离时及时介入"
+      },
+      "A": {
+        "name": "委派",
+        "description": "定义边界，然后让智能体自行选择路径",
+        "agentTip": "清楚说明结果和约束，同时为自主执行留出空间"
+      },
+      "F": {
+        "name": "专注",
+        "description": "把全部注意力交给一个活跃的智能体或工作线程",
+        "agentTip": "一次只推进一个目标，并让下一次交接清晰无歧义"
+      },
+      "W": {
+        "name": "群协",
+        "description": "让多个智能体或工作线程并行推进",
+        "agentTip": "按清晰的所有权拆分工作，并设置明确的汇合点"
+      },
+      "S": {
+        "name": "系统化",
+        "description": "投资于能改善未来工作的工具、规则和基础设施",
+        "agentTip": "让智能体沉淀可复用的自动化和持久的操作知识"
+      },
+      "H": {
+        "name": "交付",
+        "description": "以完成并交付眼前的产品为优化目标",
+        "agentTip": "始终让终点可见，并要求一个具体的交付结果"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "你投入了多少时间？",
+      "headline": "{{hours}} 小时",
+      "detail": "分布在 {{sessions}} 个会话中"
+    },
+    "lines": {
+      "question": "你交付了多少？",
+      "headline": "{{added}} 行",
+      "detail": "在 {{sessions}} 个会话中新增，同时删除了 {{removed}} 行"
+    },
+    "tool_calls": {
+      "question": "代理做了多少事？",
+      "headline": "{{total}} 次工具调用",
+      "detail": "每个会话约 {{perSession}} 次"
+    },
+    "longest_session": {
+      "question": "你最长的一次会话？",
+      "headline": "{{duration}}",
+      "detail": "你与代理不间断相处最久的一段"
+    },
+    "longest_run": {
+      "question": "代理自己能走多远？",
+      "headline": "{{steps}} 步",
+      "detail": "在你一言不发时，它跑得最久的一次"
+    },
+    "parallel_peak": {
+      "question": "有多少时候不止一个代理在跑？",
+      "headline": "{{percent}}% 的时间",
+      "detail": "在你并行度最高的那个会话里，这么大比例的时间不止一个代理"
+    },
+    "streak": {
+      "question": "你最长的连续记录是多久？",
+      "headline": "连续 {{days}} 天",
+      "detail": "你连续与代理协作的天数"
+    },
+    "peak_hour": {
+      "question": "你什么时候工作？",
+      "headline": "{{hour}}",
+      "detail": "你在这个时段开启了 {{sessions}} 个会话"
+    },
+    "deep_sessions": {
+      "question": "你怎么工作？",
+      "headline": "{{count}} 个深度会话",
+      "detail": "平均每次不间断专注 {{duration}}"
+    },
+    "busiest_day": {
+      "question": "你最忙的一天？",
+      "headline": "{{sessions}} 个会话",
+      "detail": "全部在 {{date}}"
+    },
+    "prompt_length": {
+      "question": "你的提示词有多长？",
+      "headline": "平均 {{words}} 个词",
+      "detail": "简短，像对话"
+    },
+    "prompt_length_long": {
+      "detail": "你用整段来交代，而不是一句话"
+    },
+    "prompts_per_session": {
+      "question": "你和代理说多少话？",
+      "headline": "每个会话 {{prompts}} 条提示词",
+      "detail": "你在一个会话中介入的频率"
+    },
+    "longest_prompt": {
+      "question": "你最长的一条提示词？",
+      "headline": "{{words}} 个词",
+      "detail": "一条消息，把话都说完"
+    },
+    "redirects": {
+      "question": "你多久改一次方向？",
+      "headline": "{{percent}}% 的消息",
+      "detail": "你叫停并把代理指向别处的那些消息"
+    },
+    "interrupts": {
+      "question": "你会让它跑完吗？",
+      "headline": "{{percent}}% 的时候",
+      "detail": "另外 {{rest}}% 你会打断"
+    },
+    "interrupts_never": {
+      "detail": "你几乎从不中途叫停"
+    },
+    "plan_first": {
+      "question": "你多久会先做计划？",
+      "headline": "{{percent}}% 的开发会话",
+      "detail": "改动过代码的 {{builders}} 个会话中，有 {{planned}} 个是从计划开始的"
+    },
+    "harness": {
+      "question": "你会打磨自己的工具吗？",
+      "headline": "{{percent}}% 的编辑",
+      "detail": "对代理自身指令的改动——CLAUDE.md、rules、skills"
+    },
+    "fanout": {
+      "question": "你会分叉出子代理吗？",
+      "headline": "{{percent}}% 的会话",
+      "detail": "一个代理派生出其他代理并行工作的那些会话"
+    },
+    "tool_spread": {
+      "question": "你手上有多少个代理？",
+      "headline": "{{tools}} 种不同工具",
+      "detail": "你的工作分散在这些工具上"
+    }
+  }
+}

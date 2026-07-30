@@ -1,0 +1,204 @@
+{
+  "title": "建構者輪廓",
+  "refresh": "重新整理",
+  "tooFewSessions": "不足 25 個工作階段，類型尚未穩定。",
+  "noSessionsYet": "尚未分析任何工作階段——隨著歷史被讀取，字母會逐步出現。",
+  "axisStats": "{{sessions}} 個工作階段 · {{consistency}}% 一致",
+  "anchorFlip": "中性點需移動 {{factor}}× 才會翻轉",
+  "anchorNeverFlips": "無論中性點定在哪都不翻轉",
+  "evidenceHint": "每項訊號你的中位數，與它所對照的中性值。",
+  "secondary": "已測量，但不足以佔一個字母",
+  "secondaryNote": "——大部分驗證不會在紀錄裡留下痕跡，所以信賴度低。",
+  "fanout": "{{percent}}% 的工作階段會派生子代理。",
+  "byTool": "依工具",
+  "byToolHint": "各處中性點相同，所以這些列可以橫向比較。只在一個工具裡成立的字母值得懷疑。",
+  "sessionCount": "{{count}} 個工作階段",
+  "overTime": "隨時間變化",
+  "overTimeHint": "滾動視窗，最新在前。",
+  "status": "狀態",
+  "coverage": "已讀取的工作階段",
+  "coverageReading": "仍在讀取你的歷史——隨著進度推進，輪廓會越來越準。",
+  "coverageComplete": "本機上的所有工作階段都已讀取。",
+  "confidence": "信賴度",
+  "confidenceHint": "你的工作階段與上面這些字母的一致程度。",
+  "axesTitle": "維度",
+  "evidenceCol": {
+    "signal": "訊號",
+    "yours": "你的",
+    "neutral": "中性值"
+  },
+  "byToolCol": {
+    "tool": "工具",
+    "code": "類型",
+    "sessions": "工作階段數"
+  },
+  "overTimeCol": {
+    "window": "視窗結束於",
+    "code": "類型"
+  },
+  "fanoutLabel": "子代理分叉",
+  "fanoutHint": "分叉出子代理的工作階段占比。與「專注／叢集」分開計：那是另一層並行，而且方向相反。",
+  "highlights": "亮點",
+  "caveat": "把握不牢：{{reason}}",
+  "clarity": {
+    "slight": "輕微傾向",
+    "moderate": "中等傾向",
+    "clear": "明確傾向",
+    "veryClear": "非常明確的傾向"
+  },
+  "types": {
+    "title": "建構者類型",
+    "subtitle": "探索人們與程式設計代理協作的 16 種方式。",
+    "howTitle": "如何解讀類型代碼",
+    "howBody": "四種可觀察的偏好組合成一個建構者類型。這些字母描述的是工作模式，而不是固定身分；隨著習慣和工具改變，類型也可能變化。",
+    "galleryTitle": "全部 16 種類型",
+    "galleryHint": "選擇一個頭像，瞭解四種偏好如何塑造它的建構方式。",
+    "knowMore": "進一步了解",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "規劃",
+        "description": "先釐清目標、限制和路線，再開始行動",
+        "agentTip": "給代理一份書面任務說明和明確的驗收標準"
+      },
+      "E": {
+        "name": "探索",
+        "description": "透過推進和觀察回饋來逐步消除不確定性",
+        "agentTip": "先做一個有價值的試探，再依結果收緊任務說明"
+      },
+      "D": {
+        "name": "指導",
+        "description": "貼近執行過程，一步步塑造路徑",
+        "agentTip": "要求可見的檢查點，並在路徑偏離時及時介入"
+      },
+      "A": {
+        "name": "委派",
+        "description": "定義邊界，然後讓代理自行選擇路徑",
+        "agentTip": "清楚說明成果和限制，同時為自主執行留出空間"
+      },
+      "F": {
+        "name": "專注",
+        "description": "把全部注意力交給一個活躍的代理或工作執行緒",
+        "agentTip": "一次只推進一個目標，並讓下一次交接清楚無歧義"
+      },
+      "W": {
+        "name": "群協",
+        "description": "讓多個代理或工作執行緒平行推進",
+        "agentTip": "按清楚的所有權拆分工作，並設定明確的匯合點"
+      },
+      "S": {
+        "name": "系統化",
+        "description": "投資於能改善未來工作的工具、規則和基礎設施",
+        "agentTip": "讓代理沉澱可重用的自動化和持久的操作知識"
+      },
+      "H": {
+        "name": "交付",
+        "description": "以完成並交付眼前的產品為最佳化目標",
+        "agentTip": "始終讓終點可見，並要求一個具體的交付成果"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "你投入了多少時間？",
+      "headline": "{{hours}} 小時",
+      "detail": "分布在 {{sessions}} 個工作階段中"
+    },
+    "lines": {
+      "question": "你交付了多少？",
+      "headline": "{{added}} 行",
+      "detail": "在 {{sessions}} 個工作階段中新增，同時刪除了 {{removed}} 行"
+    },
+    "tool_calls": {
+      "question": "代理做了多少事？",
+      "headline": "{{total}} 次工具呼叫",
+      "detail": "每個工作階段約 {{perSession}} 次"
+    },
+    "longest_session": {
+      "question": "你最長的一次工作階段？",
+      "headline": "{{duration}}",
+      "detail": "你與代理不間斷相處最久的一段"
+    },
+    "longest_run": {
+      "question": "代理自己能走多遠？",
+      "headline": "{{steps}} 步",
+      "detail": "在你一言不發時，它跑得最久的一次"
+    },
+    "parallel_peak": {
+      "question": "有多少時候不只一個代理在跑？",
+      "headline": "{{percent}}% 的時間",
+      "detail": "在你並行度最高的那個工作階段裡，這麼大比例的時間不只一個代理"
+    },
+    "streak": {
+      "question": "你最長的連續紀錄是多久？",
+      "headline": "連續 {{days}} 天",
+      "detail": "你連續與代理協作的天數"
+    },
+    "peak_hour": {
+      "question": "你什麼時候工作？",
+      "headline": "{{hour}}",
+      "detail": "你在這個時段開啟了 {{sessions}} 個工作階段"
+    },
+    "deep_sessions": {
+      "question": "你怎麼工作？",
+      "headline": "{{count}} 個深度工作階段",
+      "detail": "平均每次不間斷專注 {{duration}}"
+    },
+    "busiest_day": {
+      "question": "你最忙的一天？",
+      "headline": "{{sessions}} 個工作階段",
+      "detail": "全部在 {{date}}"
+    },
+    "prompt_length": {
+      "question": "你的提示詞有多長？",
+      "headline": "平均 {{words}} 個詞",
+      "detail": "簡短，像對話"
+    },
+    "prompt_length_long": {
+      "detail": "你用整段來交代，而不是一句話"
+    },
+    "prompts_per_session": {
+      "question": "你和代理說多少話？",
+      "headline": "每個工作階段 {{prompts}} 則提示詞",
+      "detail": "你在一個工作階段中介入的頻率"
+    },
+    "longest_prompt": {
+      "question": "你最長的一則提示詞？",
+      "headline": "{{words}} 個詞",
+      "detail": "一則訊息，把話都說完"
+    },
+    "redirects": {
+      "question": "你多久改一次方向？",
+      "headline": "{{percent}}% 的訊息",
+      "detail": "你叫停並把代理指向別處的那些訊息"
+    },
+    "interrupts": {
+      "question": "你會讓它跑完嗎？",
+      "headline": "{{percent}}% 的時候",
+      "detail": "另外 {{rest}}% 你會打斷"
+    },
+    "interrupts_never": {
+      "detail": "你幾乎從不中途叫停"
+    },
+    "plan_first": {
+      "question": "你多久會先做計畫？",
+      "headline": "{{percent}}% 的開發工作階段",
+      "detail": "改動過程式碼的 {{builders}} 個工作階段中，有 {{planned}} 個是從計畫開始的"
+    },
+    "harness": {
+      "question": "你會打磨自己的工具嗎？",
+      "headline": "{{percent}}% 的編輯",
+      "detail": "對代理自身指令的改動——CLAUDE.md、rules、skills"
+    },
+    "fanout": {
+      "question": "你會分叉出子代理嗎？",
+      "headline": "{{percent}}% 的工作階段",
+      "detail": "一個代理派生出其他代理並行工作的那些工作階段"
+    },
+    "tool_spread": {
+      "question": "你手上有多少個代理？",
+      "headline": "{{tools}} 種不同工具",
+      "detail": "你的工作分散在這些工具上"
+    }
+  }
+}

@@ -31,6 +31,7 @@ pub struct AgentOrgFinalityFacts {
     pub worker_sessions: Vec<AgentOrgFinalitySessionFact>,
     pub task_count: usize,
     pub unresolved_task_count: usize,
+    pub corrupt_task_count: usize,
     pub pending_task_count: usize,
     pub in_progress_task_count: usize,
     pub completed_task_count: usize,
@@ -86,6 +87,9 @@ pub enum AgentOrgFinalityBlocker {
     OpenTasks {
         count: usize,
     },
+    CorruptTaskData {
+        count: usize,
+    },
     EmptyTaskBoardRequiresCompletionIntent,
     StaleCompletionIntent {
         requested_work_revision: Option<i64>,
@@ -117,6 +121,7 @@ pub enum AgentOrgFinalityBlocker {
         root_session_missing: bool,
         active_session_count: usize,
         open_task_count: usize,
+        corrupt_task_count: usize,
         unread_inbox_count: usize,
         active_intervention_count: usize,
         in_flight_turn_intent_count: usize,
@@ -130,6 +135,177 @@ pub struct AgentOrgFinalityAssessment {
     pub facts: AgentOrgFinalityFacts,
     pub decision: AgentOrgFinalityDecision,
     pub blockers: Vec<AgentOrgFinalityBlocker>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgFinalityProjection {
+    pub decision: AgentOrgFinalityDecision,
+    pub blockers: Vec<AgentOrgFinalityBlocker>,
+}
+
+/// Exact effects that the currently executing coordinator turn will commit
+/// if (and only if) that turn succeeds.  These counts are not caller hints:
+/// they are revalidated from durable intent/materialization rows inside the
+/// same read transaction as the finality snapshot.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AgentOrgGuaranteedTurnEffects {
+    pub current_coordinator_turn: bool,
+    pub in_flight_turn_intents: usize,
+    pub unread_inbox_rows: usize,
+}
+
+impl AgentOrgFinalityAssessment {
+    /// Canonical prospective certificate used by the coordinator inside its
+    /// current turn. It answers one narrow question: "if this coordinator
+    /// turn succeeds now, will the strict reconciler be able to complete?"
+    ///
+    /// Only effects guaranteed by successful turn finalization are projected:
+    /// the root session becomes quiescent, and the revision staged into this
+    /// prompt becomes observed. Every worker, task, inbox, approval,
+    /// intervention, corruption, and turn-intent blocker remains unchanged.
+    pub fn after_successful_coordinator_turn(&self) -> AgentOrgFinalityProjection {
+        self.after_successful_coordinator_turn_with_effects(AgentOrgGuaranteedTurnEffects {
+            current_coordinator_turn: true,
+            ..AgentOrgGuaranteedTurnEffects::default()
+        })
+    }
+
+    pub fn after_successful_coordinator_turn_with_effects(
+        &self,
+        effects: AgentOrgGuaranteedTurnEffects,
+    ) -> AgentOrgFinalityProjection {
+        if self.facts.run_status != Some(AgentOrgRunStatus::Running)
+            || !effects.current_coordinator_turn
+        {
+            return AgentOrgFinalityProjection {
+                decision: self.decision,
+                blockers: self.blockers.clone(),
+            };
+        }
+        let root_session_id = self.facts.root_session_id.as_deref();
+        let presented_current_revision = self.facts.progress.as_ref().is_some_and(|progress| {
+            progress.coordinator_presented_work_revision == Some(progress.work_revision)
+        });
+        let mut blockers = Vec::new();
+        for blocker in &self.blockers {
+            match blocker {
+                AgentOrgFinalityBlocker::SessionsActive { session_ids } => {
+                    let remaining = session_ids
+                        .iter()
+                        .filter(|session_id| Some(session_id.as_str()) != root_session_id)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    if !remaining.is_empty() {
+                        blockers.push(AgentOrgFinalityBlocker::SessionsActive {
+                            session_ids: remaining,
+                        });
+                    }
+                }
+                AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork { .. }
+                    if presented_current_revision => {}
+                AgentOrgFinalityBlocker::UnreadInbox { count } => {
+                    let remaining = count.saturating_sub(effects.unread_inbox_rows);
+                    if remaining > 0 {
+                        blockers.push(AgentOrgFinalityBlocker::UnreadInbox { count: remaining });
+                    }
+                }
+                AgentOrgFinalityBlocker::InFlightTurnIntents { count } => {
+                    let remaining = count.saturating_sub(effects.in_flight_turn_intents);
+                    if remaining > 0 {
+                        blockers.push(AgentOrgFinalityBlocker::InFlightTurnIntents {
+                            count: remaining,
+                        });
+                    }
+                }
+                other => blockers.push(other.clone()),
+            }
+        }
+        AgentOrgFinalityProjection {
+            decision: if blockers.is_empty() {
+                AgentOrgFinalityDecision::Complete
+            } else {
+                AgentOrgFinalityDecision::KeepRunning
+            },
+            blockers,
+        }
+    }
+}
+
+pub(crate) fn guaranteed_current_turn_effects_with_connection(
+    conn: &Connection,
+    run_id: &str,
+    root_session_id: Option<&str>,
+    dispatching_session_id: &str,
+    turn_intent_id: &str,
+    projected_inbox_ids: &[i64],
+) -> Result<AgentOrgGuaranteedTurnEffects, String> {
+    if root_session_id != Some(dispatching_session_id)
+        || dispatching_session_id.trim().is_empty()
+        || turn_intent_id.trim().is_empty()
+    {
+        return Ok(AgentOrgGuaranteedTurnEffects::default());
+    }
+
+    let in_flight_turn_intents: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM session_turn_intents
+                 WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
+                   AND status IN (?4, ?5, ?6)
+             )",
+            params![
+                dispatching_session_id,
+                turn_intent_id,
+                run_id,
+                IN_FLIGHT_TURN_INTENT_STATUSES[0],
+                IN_FLIGHT_TURN_INTENT_STATUSES[1],
+                IN_FLIGHT_TURN_INTENT_STATUSES[2],
+            ],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+
+    // The production drain batch is bounded. Deduplicate the typed ids and
+    // validate each exact row/receipt pair instead of interpolating an IN
+    // list or counting every receipt ever owned by this Session.
+    let mut unique_ids = projected_inbox_ids
+        .iter()
+        .copied()
+        .filter(|id| *id > 0)
+        .collect::<Vec<_>>();
+    unique_ids.sort_unstable();
+    unique_ids.dedup();
+    let mut unread_inbox_rows = 0usize;
+    let mut stmt = conn
+        .prepare(
+            "SELECT EXISTS(
+                 SELECT 1
+                 FROM agent_inbox inbox
+                 JOIN agent_inbox_materializations receipt
+                   ON receipt.inbox_id=inbox.id AND receipt.session_id=?2
+                 WHERE inbox.id=?1 AND inbox.org_run_id=?3 AND inbox.read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=inbox.id
+                   )
+             )",
+        )
+        .map_err(|err| err.to_string())?;
+    for inbox_id in unique_ids {
+        let is_guaranteed: bool = stmt
+            .query_row(params![inbox_id, dispatching_session_id, run_id], |row| {
+                row.get(0)
+            })
+            .map_err(|err| err.to_string())?;
+        unread_inbox_rows += usize::from(is_guaranteed);
+    }
+
+    Ok(AgentOrgGuaranteedTurnEffects {
+        current_coordinator_turn: in_flight_turn_intents,
+        in_flight_turn_intents: usize::from(in_flight_turn_intents),
+        unread_inbox_rows,
+    })
 }
 
 pub(super) fn load_and_assess(
@@ -152,6 +328,7 @@ pub(super) fn load_and_assess(
             worker_sessions: Vec::new(),
             task_count: 0,
             unresolved_task_count: 0,
+            corrupt_task_count: 0,
             pending_task_count: 0,
             in_progress_task_count: 0,
             completed_task_count: 0,
@@ -196,26 +373,64 @@ pub(super) fn load_and_assess(
             })
             .collect();
 
-    let task_counts_sql = "SELECT COUNT(*),
+    let corrupt_task_predicate =
+        crate::coordination::agent_org_tasks::corrupt_task_row_predicate_sql();
+    let persisted_task_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_tasks WHERE org_run_id=?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    let corruption_projection = if persisted_task_count
+        > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS as i64
+    {
+        // A historical board above the supported cap is one run-level
+        // corruption. Do not parse every legacy JSON row merely to enumerate
+        // extra violations.
+        "1".to_string()
+    } else {
+        format!("COALESCE(SUM(CASE WHEN {corrupt_task_predicate} THEN 1 ELSE 0 END), 0)")
+    };
+    let dependency_json_max =
+        crate::coordination::agent_org_payload_limits::TASK_DEPENDENCY_JSON_MAX_BYTES;
+    let metadata_max = crate::coordination::agent_org_payload_limits::TASK_METADATA_MAX_BYTES;
+    let task_counts_sql = format!(
+        "SELECT COUNT(*),
                 COALESCE(SUM(CASE WHEN status <> 'completed' THEN 1 ELSE 0 END), 0),
+                {corruption_projection},
                 COALESCE(SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN status='in_progress' THEN 1 ELSE 0 END), 0),
                 COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END), 0)
-         FROM agent_org_tasks WHERE org_run_id=?1";
+         FROM (
+             SELECT id, subject, description, active_form, owner, status,
+                    created_at, updated_at,
+                    CASE WHEN length(CAST(blocks_json AS BLOB))<={dependency_json_max}
+                         THEN blocks_json ELSE '!' END AS blocks_json,
+                    CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
+                         THEN blocked_by_json ELSE '!' END AS blocked_by_json,
+                    CASE WHEN metadata_json IS NULL
+                              OR length(CAST(metadata_json AS BLOB))<={metadata_max}
+                         THEN metadata_json ELSE '!' END AS metadata_json
+             FROM agent_org_tasks WHERE org_run_id=?1
+         ) AS bounded_tasks"
+    );
     let (
         task_count,
         unresolved_task_count,
+        corrupt_task_count,
         pending_task_count,
         in_progress_task_count,
         completed_task_count,
-    ): (i64, i64, i64, i64, i64) = conn
-        .query_row(task_counts_sql, params![run_id], |row| {
+    ): (i64, i64, i64, i64, i64, i64) = conn
+        .query_row(&task_counts_sql, params![run_id], |row| {
             Ok((
                 row.get(0)?,
                 row.get(1)?,
                 row.get(2)?,
                 row.get(3)?,
                 row.get(4)?,
+                row.get(5)?,
             ))
         })
         .map_err(|err| err.to_string())?;
@@ -223,7 +438,11 @@ pub(super) fn load_and_assess(
         .query_row(
             "SELECT COUNT(*)
              FROM agent_inbox
-             WHERE org_run_id=?1 AND read_at IS NULL",
+             WHERE org_run_id=?1 AND read_at IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=agent_inbox.id
+               )",
             params![run_id],
             |row| row.get(0),
         )
@@ -248,16 +467,8 @@ pub(super) fn load_and_assess(
     };
     let in_flight_turn_intent_count: i64 = conn
         .query_row(
-            "WITH RECURSIVE org_sessions(session_id) AS (
-                 SELECT root_session_id FROM agent_org_runs WHERE id=?1
-                 UNION ALL
-                 SELECT session.session_id
-                 FROM agent_sessions session
-                 JOIN org_sessions parent ON session.parent_session_id=parent.session_id
-             )
-             SELECT COUNT(*) FROM session_turn_intents intent
-             WHERE intent.session_id IN (SELECT session_id FROM org_sessions)
-               AND intent.status IN (?2, ?3, ?4)",
+            "SELECT COUNT(*) FROM session_turn_intents
+             WHERE org_run_id=?1 AND status IN (?2, ?3, ?4)",
             params![
                 run_id,
                 IN_FLIGHT_TURN_INTENT_STATUSES[0],
@@ -283,6 +494,7 @@ pub(super) fn load_and_assess(
         worker_sessions,
         task_count: count_to_usize("task", task_count)?,
         unresolved_task_count: count_to_usize("unresolved task", unresolved_task_count)?,
+        corrupt_task_count: count_to_usize("corrupt task", corrupt_task_count)?,
         pending_task_count: count_to_usize("pending task", pending_task_count)?,
         in_progress_task_count: count_to_usize("in-progress task", in_progress_task_count)?,
         completed_task_count: count_to_usize("completed task", completed_task_count)?,
@@ -363,6 +575,11 @@ pub(super) fn assess(facts: AgentOrgFinalityFacts) -> AgentOrgFinalityAssessment
     if facts.unresolved_task_count > 0 {
         blockers.push(AgentOrgFinalityBlocker::OpenTasks {
             count: facts.unresolved_task_count,
+        });
+    }
+    if facts.corrupt_task_count > 0 {
+        blockers.push(AgentOrgFinalityBlocker::CorruptTaskData {
+            count: facts.corrupt_task_count,
         });
     }
     if facts.unread_inbox_count > 0 {
@@ -451,6 +668,7 @@ fn terminal_state_inconsistency(
     let inconsistent = root_session_missing
         || active_session_count > 0
         || facts.unresolved_task_count > 0
+        || facts.corrupt_task_count > 0
         || facts.unread_inbox_count > 0
         || !facts.active_intervention_member_ids.is_empty()
         || facts.in_flight_turn_intent_count > 0
@@ -460,6 +678,7 @@ fn terminal_state_inconsistency(
         root_session_missing,
         active_session_count,
         open_task_count: facts.unresolved_task_count,
+        corrupt_task_count: facts.corrupt_task_count,
         unread_inbox_count: facts.unread_inbox_count,
         active_intervention_count: facts.active_intervention_member_ids.len(),
         in_flight_turn_intent_count: facts.in_flight_turn_intent_count,
@@ -503,6 +722,7 @@ mod tests {
             }],
             task_count: 1,
             unresolved_task_count: 0,
+            corrupt_task_count: 0,
             pending_task_count: 0,
             in_progress_task_count: 0,
             completed_task_count: 1,
@@ -525,11 +745,44 @@ mod tests {
     }
 
     #[test]
+    fn prospective_certificate_allows_current_coordinator_turn_only() {
+        let assessment = assess(completed_board_facts(Some(2), SessionStatus::Idle));
+        assert_eq!(assessment.decision, AgentOrgFinalityDecision::KeepRunning);
+        let prospective = assessment.after_successful_coordinator_turn();
+        assert_eq!(prospective.decision, AgentOrgFinalityDecision::Complete);
+        assert!(prospective.blockers.is_empty());
+    }
+
+    #[test]
+    fn prospective_certificate_rejects_stale_presented_revision() {
+        let assessment = assess(completed_board_facts(Some(1), SessionStatus::Idle));
+        let prospective = assessment.after_successful_coordinator_turn();
+        assert_eq!(prospective.decision, AgentOrgFinalityDecision::KeepRunning);
+        assert!(prospective.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork { .. }
+        )));
+    }
+
+    #[test]
+    fn prospective_certificate_never_hides_active_worker() {
+        let assessment = assess(completed_board_facts(Some(2), SessionStatus::Running));
+        let prospective = assessment.after_successful_coordinator_turn();
+        assert_eq!(prospective.decision, AgentOrgFinalityDecision::KeepRunning);
+        assert!(prospective.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgFinalityBlocker::SessionsActive { session_ids }
+                if session_ids == &["worker".to_string()]
+        )));
+    }
+
+    #[test]
     fn completed_run_stays_terminal_but_reports_inconsistent_retained_facts() {
         let mut facts = completed_board_facts(Some(2), SessionStatus::Idle);
         facts.run_status = Some(AgentOrgRunStatus::Completed);
         facts.root_status = Some(SessionStatus::Idle);
         facts.unresolved_task_count = 1;
+        facts.corrupt_task_count = 1;
         facts.unread_inbox_count = 2;
 
         let assessment = assess(facts);
@@ -539,6 +792,7 @@ mod tests {
             [AgentOrgFinalityBlocker::TerminalStateInconsistent {
                 status: AgentOrgRunStatus::Completed,
                 open_task_count: 1,
+                corrupt_task_count: 1,
                 unread_inbox_count: 2,
                 ..
             }]

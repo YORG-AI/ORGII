@@ -1,0 +1,204 @@
+{
+  "title": "Geliştirici profili",
+  "refresh": "Yenile",
+  "tooFewSessions": "25 oturumdan az — tip henüz oturmadı.",
+  "noSessionsYet": "Henüz incelenen oturum yok — geçmiş okundukça harfler belirir.",
+  "axisStats": "{{sessions}} oturum · %{{consistency}} aynı yönde",
+  "anchorFlip": "nötr noktanın {{factor}}× kayması gerekirdi",
+  "anchorNeverFlips": "nötr nokta neresi olursa olsun sonuç değişmiyor",
+  "evidenceHint": "Her sinyal için medyanınız ve karşılaştırıldığı nötr değer.",
+  "secondary": "Ölçüldü, ama bir harfi hak edecek kadar değil",
+  "secondaryNote": "— doğrulamaların çoğu kayıtta iz bırakmaz, bu yüzden güven düşük.",
+  "fanout": "Oturumlarınızın %{{percent}} kadarı alt ajanlara dallanıyor.",
+  "byTool": "Araca göre",
+  "byToolHint": "Nötr noktalar her yerde aynı, dolayısıyla bu satırlar karşılaştırılabilir. Yalnızca tek araçta geçerli olan bir harf şüphelidir.",
+  "sessionCount": "{{count}} oturum",
+  "overTime": "Zaman içinde",
+  "overTimeHint": "Kayan pencereler, en yeniden başlayarak.",
+  "status": "Durum",
+  "coverage": "Okunan oturumlar",
+  "coverageReading": "Geçmişiniz hâlâ okunuyor — doldukça profil keskinleşiyor.",
+  "coverageComplete": "Bu makinedeki tüm oturumlar okundu.",
+  "confidence": "Güven",
+  "confidenceHint": "Oturumlarınızın yukarıdaki harflerle ne kadar uyuştuğu.",
+  "axesTitle": "Eksenler",
+  "evidenceCol": {
+    "signal": "Sinyal",
+    "yours": "Sizinki",
+    "neutral": "Nötr"
+  },
+  "byToolCol": {
+    "tool": "Araç",
+    "code": "Tip",
+    "sessions": "Oturumlar"
+  },
+  "overTimeCol": {
+    "window": "Pencere bitişi",
+    "code": "Tip"
+  },
+  "fanoutLabel": "Alt ajana dallanma",
+  "fanoutHint": "Alt ajanlara dallanan oturumların payı. Odaklı/Sürü ekseninden ayrı tutuluyor: bu, paralelliğin diğer katmanı ve ters yönü işaret ediyor.",
+  "highlights": "Öne çıkanlar",
+  "caveat": "zayıf tutuluyor: {{reason}}",
+  "clarity": {
+    "slight": "hafif eğilim",
+    "moderate": "orta eğilim",
+    "clear": "belirgin eğilim",
+    "veryClear": "çok belirgin eğilim"
+  },
+  "types": {
+    "title": "Geliştirici türleri",
+    "subtitle": "İnsanların kodlama ajanlarıyla çalıştığı 16 yolu keşfedin.",
+    "howTitle": "Kod nasıl okunur",
+    "howBody": "Gözlemlenen dört tercih bir geliştirici türü oluşturur. Harfler sabit bir kimliği değil çalışma düzenini anlatır; alışkanlıklarınız ve araçlarınızla birlikte değişebilir.",
+    "galleryTitle": "16 türün tamamı",
+    "galleryHint": "Tam profili ve ajanlarla iş birliğine yönelik pratik ipuçlarını görmek için bir portre seçin.",
+    "knowMore": "Daha fazla bilgi",
+    "family": "{{first}} · {{second}}",
+    "letters": {
+      "M": {
+        "name": "Haritala",
+        "description": "Uygulama başlamadan önce hedefi ve kısıtları çerçeveler",
+        "agentTip": "Ajana başarı ölçütleri, sınırlar ve kontrol noktaları içeren yazılı bir özet verin"
+      },
+      "E": {
+        "name": "Keşfet",
+        "description": "Deneme, gözlem ve yön düzeltmeyle belirsizliği azaltır",
+        "agentTip": "Bir plana bağlanmadan önce küçük bir deney veya yararlı bir inceleme isteyin"
+      },
+      "D": {
+        "name": "Yönlendir",
+        "description": "İşin bölünmesini ve sırasını insan denetiminde tutar",
+        "agentTip": "Sınırları net adımlar devredin ve önemli kilometre taşları arasında yönü doğrulayın"
+      },
+      "A": {
+        "name": "Devret",
+        "description": "Sonucu tanımlar ve yolu ajanın seçmesine izin verir",
+        "agentTip": "Sonucu, kalite çıtasını ve sınırları anlatın; planlama ile uygulamayı ajana bırakın"
+      },
+      "F": {
+        "name": "Odaklan",
+        "description": "Her seferinde tek bir iş akışında derinliği ve tamamlamayı tercih eder",
+        "agentTip": "Tek ve net bir sonraki adımı aktif tutun; yeni iş açmadan önce onu bitirin"
+      },
+      "W": {
+        "name": "Sürü",
+        "description": "Kapsam ve hız kazanmak için birden fazla paralel akış kullanır",
+        "agentTip": "Bağımsız inceleme veya uygulamaları bölün ve net teslim noktalarında birleştirin"
+      },
+      "S": {
+        "name": "Sistemleştir",
+        "description": "Tekrarlanabilir akışlara, araçlara ve kalıcı iyileştirmelere yatırım yapar",
+        "agentTip": "Ajandan tekrarlanan işleri test, betik, kural veya şablon olarak kalıcılaştırmasını isteyin"
+      },
+      "H": {
+        "name": "Yayınla",
+        "description": "En hızlı doğrulanmış sonuç ve anında ilerleme için çalışır",
+        "agentTip": "En küçük eksiksiz yamayı isteyin, ilgili kontrolleri çalıştırın ve sonuca göre yineleyin"
+      }
+    }
+  },
+  "cards": {
+    "total_time": {
+      "question": "Ne kadar zaman ayırdınız?",
+      "headline": "{{hours}} saat",
+      "detail": "{{sessions}} oturum boyunca"
+    },
+    "lines": {
+      "question": "Ne kadar iş çıkardınız?",
+      "headline": "{{added}} satır",
+      "detail": "{{sessions}} oturumda eklendi, {{removed}} satır silindi"
+    },
+    "tool_calls": {
+      "question": "Ajan ne kadar iş yaptı?",
+      "headline": "{{total}} araç çağrısı",
+      "detail": "Oturum başına yaklaşık {{perSession}}"
+    },
+    "longest_session": {
+      "question": "En uzun tek oturumunuz?",
+      "headline": "{{duration}}",
+      "detail": "Bir ajanla geçirdiğiniz en derin kesintisiz süre"
+    },
+    "longest_run": {
+      "question": "Ajan kendi başına ne kadar ilerliyor?",
+      "headline": "{{steps}} adım",
+      "detail": "Sizden tek kelime almadan yaptığı en uzun koşu"
+    },
+    "parallel_peak": {
+      "question": "Ne sıklıkla birden fazla ajan çalışıyor?",
+      "headline": "Zamanınızın %{{percent}} kadarı",
+      "detail": "En paralel oturumunuzda sürenin bu kadarında ajan yalnız değildi"
+    },
+    "streak": {
+      "question": "En uzun seriniz ne kadar?",
+      "headline": "{{days}} gün üst üste",
+      "detail": "Bir ajanla çalıştığınız ardışık günler"
+    },
+    "peak_hour": {
+      "question": "Ne zaman çalışıyorsunuz?",
+      "headline": "{{hour}}",
+      "detail": "Bu saatte {{sessions}} oturum başlattınız"
+    },
+    "deep_sessions": {
+      "question": "Nasıl çalışıyorsunuz?",
+      "headline": "{{count}} derin oturum",
+      "detail": "Ortalama {{duration}} kesintisiz odak"
+    },
+    "busiest_day": {
+      "question": "En yoğun gününüz?",
+      "headline": "{{sessions}} oturum",
+      "detail": "Hepsi {{date}} tarihinde"
+    },
+    "prompt_length": {
+      "question": "İstemleriniz ne kadar uzun?",
+      "headline": "Ortalama {{words}} kelime",
+      "detail": "Kısa ve sohbet eder gibi"
+    },
+    "prompt_length_long": {
+      "detail": "Tek satırla değil, paragraflarla brifing veriyorsunuz"
+    },
+    "prompts_per_session": {
+      "question": "Ajanınızla ne kadar konuşuyorsunuz?",
+      "headline": "Oturum başına {{prompts}} istem",
+      "detail": "Bir oturum boyunca ne sıklıkla devreye girdiğiniz"
+    },
+    "longest_prompt": {
+      "question": "En uzun tek isteminiz?",
+      "headline": "{{words}} kelime",
+      "detail": "Tek mesaj, her şey içinde"
+    },
+    "redirects": {
+      "question": "Ne sıklıkla rota değiştiriyorsunuz?",
+      "headline": "Mesajların %{{percent}} kadarı",
+      "detail": "Durup ajanı başka yöne çevirdiğiniz yerler"
+    },
+    "interrupts": {
+      "question": "Bitirmesine izin veriyor musunuz?",
+      "headline": "Zamanın %{{percent}} kadarı",
+      "detail": "Kalan %{{rest}} kadarında sözünü kesiyorsunuz"
+    },
+    "interrupts_never": {
+      "detail": "Bir koşuyu neredeyse hiç yarıda kesmiyorsunuz"
+    },
+    "plan_first": {
+      "question": "Ne sıklıkla önce plan yapıyorsunuz?",
+      "headline": "Kod oturumlarının %{{percent}} kadarı",
+      "detail": "Kodu değiştiren {{builders}} oturumun {{planned}} tanesi bir planla başladı"
+    },
+    "harness": {
+      "question": "Kendi aletlerinizi biler misiniz?",
+      "headline": "Düzenlemelerin %{{percent}} kadarı",
+      "detail": "Ajanınızın kendi talimatlarındaki değişiklikler — CLAUDE.md, rules, skills"
+    },
+    "fanout": {
+      "question": "Alt ajanlara dallanıyor musunuz?",
+      "headline": "Oturumların %{{percent}} kadarı",
+      "detail": "Bir ajanın paralel çalışmak için başkalarını başlattığı yerler"
+    },
+    "tool_spread": {
+      "question": "Kaç ajan kullanıyorsunuz?",
+      "headline": "{{tools}} farklı araç",
+      "detail": "İşiniz hepsine yayılmış durumda"
+    }
+  }
+}
