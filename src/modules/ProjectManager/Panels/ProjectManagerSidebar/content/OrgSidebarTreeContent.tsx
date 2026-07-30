@@ -50,6 +50,8 @@ export { WorkspaceOrgTreeContent } from "./WorkspaceOrgTreeContent";
 interface ProjectSidebarTreeContentProps {
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree?: () => void;
+  onOpenProjectJourney?: () => void;
   onOpenPersonalOrg: (view?: ProjectOrgSurfaceView) => void;
   onOpenProjectOrg: (org: ProjectOrg, view?: ProjectOrgSurfaceView) => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;

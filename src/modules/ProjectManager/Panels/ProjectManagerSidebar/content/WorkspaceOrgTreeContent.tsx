@@ -7,12 +7,12 @@
  * Extracted from OrgSidebarTreeContent.tsx to reduce file size.
  */
 import {
-  BookOpen,
   Box,
-  GitBranch,
   Layers,
   ListChecks,
+  Map,
   MoreHorizontal,
+  Network,
 } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,32 +66,6 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
           {
             depth: 0,
             node: {
-              id: "project-sidebar:workspace:project-tree",
-              name: t("workspace.projectTree"),
-              path: "project-sidebar:workspace:project-tree",
-              type: "file",
-              icon: (
-                <BookOpen size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
-              ),
-              kind: "workspace-project-tree",
-            },
-          },
-          {
-            depth: 0,
-            node: {
-              id: "project-sidebar:workspace:project-journey",
-              name: t("workspace.projectJourney"),
-              path: "project-sidebar:workspace:project-journey",
-              type: "file",
-              icon: (
-                <GitBranch size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
-              ),
-              kind: "workspace-project-journey",
-            },
-          },
-          {
-            depth: 0,
-            node: {
               id: "project-sidebar:workspace:work-items",
               name: t("workspace.workItems"),
               path: "project-sidebar:workspace:work-items",
@@ -114,6 +88,30 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
               type: "file",
               icon: <Box size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
               kind: "workspace-projects",
+            },
+          },
+          {
+            depth: 0,
+            node: {
+              id: "project-sidebar:workspace:project-tree",
+              name: t("workspace.projectTree"),
+              path: "project-sidebar:workspace:project-tree",
+              type: "file",
+              icon: (
+                <Network size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />
+              ),
+              kind: "workspace-project-tree",
+            },
+          },
+          {
+            depth: 0,
+            node: {
+              id: "project-sidebar:workspace:project-journey",
+              name: t("workspace.projectJourney"),
+              path: "project-sidebar:workspace:project-journey",
+              type: "file",
+              icon: <Map size={ROW_ICON_SIZE} strokeWidth={ROW_ICON_STROKE} />,
+              kind: "workspace-project-journey",
             },
           },
           {
@@ -169,8 +167,9 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
           const isActionable =
             node.kind === "workspace-projects" ||
             node.kind === "workspace-work-items" ||
-            node.kind === "workspace-project-tree" ||
-            node.kind === "workspace-project-journey";
+            (node.kind === "workspace-project-tree" && !!onOpenProjectTree) ||
+            (node.kind === "workspace-project-journey" &&
+              !!onOpenProjectJourney);
           const handleClick =
             node.kind === "workspace-projects"
               ? onOpenProjects
@@ -196,10 +195,10 @@ export const WorkspaceOrgTreeContent: React.FC<WorkspaceOrgTreeContentProps> =
         [
           activeOrgScope,
           activeRepoView,
-          onOpenProjectJourney,
-          onOpenProjectTree,
           onOpenProjects,
           onOpenWorkItems,
+          onOpenProjectTree,
+          onOpenProjectJourney,
         ]
       );
 

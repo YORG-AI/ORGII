@@ -514,6 +514,7 @@
       "openSession": "Open Session",
       "viewLiveChat": "View Live Chat",
       "viewConversation": "View Conversation",
+      "viewSessionJourney": "Session Journey",
       "noWorkflowRun": "No agent workflow has been run yet",
       "confirmStart": "Start the SDE agent on this work item?",
       "sdePhase": "SDE Development",
