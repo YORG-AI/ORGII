@@ -2,6 +2,7 @@ import { ClipboardList, ExternalLink } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
@@ -33,6 +34,9 @@ interface AssignedWorkItemThreadProps {
   issueMessage: string | null;
   issueTone: "warning" | "error" | null;
   updateWorkItem: (updates: Partial<WorkItem>) => void;
+  transitionHandoff: (
+    transition: WorkItemHandoffTransition
+  ) => Promise<WorkItem>;
   refreshWorkItem: () => void;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
 }
@@ -46,10 +50,10 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
   issueMessage,
   issueTone,
   updateWorkItem,
+  transitionHandoff,
   refreshWorkItem,
   onNavigate,
 }) => {
-  const canUpdate = Boolean(item.target.projectId);
   const isGitHubIssue = isGitHubIssueStatus(item.payload.status);
 
   return (
@@ -70,25 +74,20 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
         <div className="min-h-0 flex-1 overflow-hidden">
           <WorkItemThreadSurface
             workItem={workItem}
-            propertyProps={
-              canUpdate
-                ? {
-                    onUpdate: updateWorkItem,
-                    availableProjects: workItem.project
-                      ? [workItem.project]
-                      : [],
-                    availableMilestones: workItem.milestone
-                      ? [workItem.milestone]
-                      : [],
-                    availableLabels: workItem.labels ?? [],
-                    availableMembers: members,
-                    projectIconType: isGitHubIssue ? "github" : undefined,
-                    projectReadonly: true,
-                  }
-                : undefined
-            }
-            onUpdateWorkItem={canUpdate ? updateWorkItem : undefined}
-            onUpdateWorkItemImmediate={canUpdate ? updateWorkItem : undefined}
+            propertyProps={{
+              onUpdate: updateWorkItem,
+              availableProjects: workItem.project ? [workItem.project] : [],
+              availableMilestones: workItem.milestone
+                ? [workItem.milestone]
+                : [],
+              availableLabels: workItem.labels ?? [],
+              availableMembers: members,
+              projectIconType: isGitHubIssue ? "github" : undefined,
+              projectReadonly: true,
+            }}
+            onUpdateWorkItem={updateWorkItem}
+            onUpdateWorkItemImmediate={updateWorkItem}
+            onTransitionHandoff={transitionHandoff}
             teamMembers={members}
             currentUser={currentUser ?? undefined}
             repoPath={repoPath}
@@ -99,6 +98,7 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
                 ? () =>
                     onNavigate({
                       kind: "open_work_item",
+                      orgId: item.target.orgId,
                       projectId: item.target.projectId,
                       workItemId: item.target.workItemId,
                       action: "start_agent",
@@ -138,8 +138,13 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
     members,
     currentUser,
     updateWorkItem,
+    transitionHandoff,
     refreshWorkItem,
-  } = useTeamInboxWorkItem(item.target, onWorkItemUpdated);
+  } = useTeamInboxWorkItem(
+    item.target,
+    onWorkItemUpdated,
+    item.payload.updatedAt
+  );
   const issueMessage = ((): string | null => {
     const keyByIssue: Record<TeamInboxWorkItemIssue, string> = {
       context_unavailable: "teamInbox.errors.workItemContext",
@@ -168,6 +173,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
           ? () =>
               onNavigate({
                 kind: "open_work_item",
+                orgId: item.target.orgId,
                 projectId: item.target.projectId,
                 workItemId: item.target.workItemId,
               })
@@ -192,6 +198,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
             issue === "context_unavailable" ? "warning" : issue ? "error" : null
           }
           updateWorkItem={updateWorkItem}
+          transitionHandoff={transitionHandoff}
           refreshWorkItem={refreshWorkItem}
           onNavigate={onNavigate}
         />

@@ -54,9 +54,14 @@ pub use work_items::{
     read_sync_metadata, read_work_item, read_work_item_by_row_id, read_work_item_enriched,
     read_work_item_enriched_scoped, read_work_item_scoped, read_work_items_view_data,
     read_work_items_view_data_scoped, release_execution_lock, restore_work_item,
-    transition_work_item_handoff, update_work_item_atomic, update_work_item_atomic_with_revisions,
-    update_work_item_partial, update_work_item_partial_enriched,
-    update_work_item_partial_with_revisions, write_standalone_work_item, write_work_item,
-    FieldRevision, SyncMetadata, REVISION_SOURCE_LOCAL,
+    transition_standalone_work_item_handoff, transition_work_item_handoff,
+    update_standalone_work_item_partial, update_work_item_atomic,
+    update_work_item_atomic_with_revisions, update_work_item_partial,
+    update_work_item_partial_enriched, update_work_item_partial_with_revisions,
+    write_standalone_work_item, write_work_item, FieldRevision, SyncMetadata,
+    REVISION_SOURCE_LOCAL,
 };
 pub(crate) use work_items::{purge_work_item, write_work_item_remote};
+pub(crate) use work_items::{
+    read_standalone_sync_metadata, update_standalone_work_item_partial_with_revisions,
+};

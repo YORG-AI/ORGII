@@ -78,7 +78,9 @@ export function selectTeamInboxItems(
 function searchableText(item: TeamInboxItem): string[] {
   if (item.kind === "comment_mention") {
     return [
-      item.target.sessionTitle,
+      item.target.kind === "session_comment"
+        ? item.target.sessionTitle
+        : item.target.workItemTitle,
       item.payload.commentBody,
       item.payload.context ?? "",
       item.actor.displayName,
@@ -241,6 +243,7 @@ export function toTeamInboxNavigationIntent(
 
   return {
     kind: "open_work_item",
+    orgId: item.target.orgId,
     projectId: item.target.projectId,
     workItemId: item.target.workItemId,
   };

@@ -4,7 +4,9 @@ import type { MemberEntry, ProjectData } from "@src/api/http/project";
 
 import {
   eligibleSessionHandoffProjects,
+  handoffCloudOrgFromRoster,
   handoffProjectFromRoster,
+  teamInboxViewerMemberIds,
 } from "../sessionHandoffProjects";
 
 function project(slug: string, name: string, orgId = "org-1"): ProjectData {
@@ -47,7 +49,7 @@ describe("Session handoff project resolution", () => {
     );
 
     expect(resolved).toMatchObject({
-      slug: "alpha",
+      projectSlug: "alpha",
       sender: { id: "me-work", isCurrentUser: true },
       recipients: [
         { id: "me-work", isCurrentUser: true },
@@ -79,10 +81,65 @@ describe("Session handoff project resolution", () => {
       ["me"]
     );
 
-    expect(projects.map((candidate) => candidate.slug)).toEqual([
+    expect(projects.map((candidate) => candidate.projectSlug)).toEqual([
       "alpha",
       "beta",
       "other-org",
     ]);
+  });
+
+  it("uses active cloud membership identities instead of local project aliases", () => {
+    const resolved = handoffCloudOrgFromRoster(
+      { orgId: "cloud-org-1", name: "Shared Org" },
+      [
+        {
+          userId: "account-1106510024",
+          displayName: "1106510024",
+          status: "active",
+        },
+        {
+          userId: "account-ahanafish",
+          displayName: "ahanafish",
+          status: "active",
+        },
+        {
+          userId: "removed",
+          displayName: "Former member",
+          status: "removed",
+        },
+      ],
+      "account-1106510024"
+    );
+
+    expect(resolved).toMatchObject({
+      kind: "cloud_org",
+      key: "cloud-org:cloud-org-1",
+      sender: {
+        id: "account-1106510024",
+        name: "1106510024",
+        isCurrentUser: true,
+      },
+      recipients: [
+        {
+          id: "account-1106510024",
+          name: "1106510024",
+          isCurrentUser: true,
+        },
+        {
+          id: "account-ahanafish",
+          name: "ahanafish",
+          isCurrentUser: false,
+        },
+      ],
+    });
+  });
+
+  it("queries assignments for the cloud account id and exact local aliases", () => {
+    expect(
+      teamInboxViewerMemberIds(
+        new Set(["local-git-alias", "cloud-account-1"]),
+        "cloud-account-1"
+      )
+    ).toEqual(["cloud-account-1", "local-git-alias"]);
   });
 });

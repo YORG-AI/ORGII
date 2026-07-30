@@ -53,9 +53,11 @@ pub mod sync_metadata;
 mod views;
 
 pub use atomic::{
-    update_work_item_atomic, update_work_item_atomic_as, update_work_item_atomic_with_revisions,
-    update_work_item_partial, update_work_item_partial_with_revisions,
+    update_standalone_work_item_partial, update_work_item_atomic, update_work_item_atomic_as,
+    update_work_item_atomic_with_revisions, update_work_item_partial,
+    update_work_item_partial_with_revisions,
 };
+pub(crate) use atomic::update_standalone_work_item_partial_with_revisions;
 pub use batch::{batch_delete_work_items, batch_update_work_items};
 pub(crate) use crud::purge_work_item;
 pub(crate) use crud::write_work_item_remote;
@@ -73,9 +75,10 @@ pub use enrichment::{
     read_work_item_enriched_scoped, update_work_item_partial_enriched,
 };
 pub use execution_lock::{acquire_execution_lock, release_execution_lock};
-pub use handoff::transition_work_item_handoff;
+pub use handoff::{transition_standalone_work_item_handoff, transition_work_item_handoff};
 pub use sync_metadata::{
     apply_remote_merge, find_by_external_ref, read_sync_metadata, FieldRevision, SyncMetadata,
     REVISION_SOURCE_LOCAL,
 };
+pub(crate) use sync_metadata::read_standalone_sync_metadata;
 pub use views::{read_work_items_view_data, read_work_items_view_data_scoped};

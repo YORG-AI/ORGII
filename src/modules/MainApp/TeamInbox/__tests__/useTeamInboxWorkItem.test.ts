@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Provider, createStore } from "jotai";
 import { act, createElement, useEffect } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -12,6 +13,7 @@ import {
   vi,
 } from "vitest";
 
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 
 import {
@@ -24,7 +26,11 @@ const mocks = vi.hoisted(() => ({
   readProject: vi.fn(),
   readMembers: vi.fn(),
   readStandaloneWorkItem: vi.fn(),
+  updateStandaloneWorkItemPartial: vi.fn(),
+  transitionStandaloneWorkItemHandoff: vi.fn(),
+  transitionWorkItemHandoff: vi.fn(),
   updateWorkItemPartial: vi.fn(),
+  loadCloudOrgMembers: vi.fn(),
 }));
 
 vi.mock("@src/api/http/project", () => ({
@@ -33,6 +39,10 @@ vi.mock("@src/api/http/project", () => ({
     readProject: mocks.readProject,
     readMembers: mocks.readMembers,
     readStandaloneWorkItem: mocks.readStandaloneWorkItem,
+    updateStandaloneWorkItemPartial: mocks.updateStandaloneWorkItemPartial,
+    transitionStandaloneWorkItemHandoff:
+      mocks.transitionStandaloneWorkItemHandoff,
+    transitionWorkItemHandoff: mocks.transitionWorkItemHandoff,
     updateWorkItemPartial: mocks.updateWorkItemPartial,
   },
   standaloneWorkItemDataToEnriched: (value: unknown) => value,
@@ -41,6 +51,10 @@ vi.mock("@src/api/http/project", () => ({
 
 vi.mock("@src/hooks/project/useCurrentUserMemberId", () => ({
   useCurrentUserMemberIds: () => ({ currentUser: null }),
+}));
+
+vi.mock("@src/features/Org2Cloud/org2CloudMembersCoordinator", () => ({
+  loadCloudOrgMembers: mocks.loadCloudOrgMembers,
 }));
 
 vi.mock("@src/hooks/logger", () => ({
@@ -70,10 +84,27 @@ const WORK_ITEM: WorkItem = {
 
 let latestState: TeamInboxWorkItemState | null = null;
 
-function Probe() {
+function Probe({ observedUpdatedAt }: { observedUpdatedAt?: string }) {
+  const state = useTeamInboxWorkItem(
+    {
+      kind: "work_item",
+      projectId: "demo",
+      workItemId: "AAA-0001",
+    },
+    undefined,
+    observedUpdatedAt
+  );
+  useEffect(() => {
+    latestState = state;
+  }, [state]);
+  return null;
+}
+
+function StandaloneProbe() {
   const state = useTeamInboxWorkItem({
     kind: "work_item",
-    projectId: "demo",
+    orgId: "cloud-org-1",
+    projectId: "",
     workItemId: "AAA-0001",
   });
   useEffect(() => {
@@ -110,6 +141,9 @@ describe("useTeamInboxWorkItem", () => {
       meta: { name: "Demo", linked_repos: [] },
     });
     mocks.readMembers.mockResolvedValue({ members: [] });
+    mocks.updateStandaloneWorkItemPartial.mockResolvedValue(WORK_ITEM);
+    mocks.transitionStandaloneWorkItemHandoff.mockResolvedValue(WORK_ITEM);
+    mocks.loadCloudOrgMembers.mockResolvedValue(null);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -202,5 +236,159 @@ describe("useTeamInboxWorkItem", () => {
       workItemStatus: "in_review",
       priority: "high",
     });
+  });
+
+  it("reloads the selected detail when collaboration sync advances its row version", async () => {
+    const remoteUpdate = {
+      ...WORK_ITEM,
+      status: "in_progress",
+      workItemStatus: "in_progress",
+      priority: "high",
+      updated_time: "2026-07-29T09:01:00.000Z",
+    };
+    mocks.readWorkItem
+      .mockResolvedValueOnce(WORK_ITEM)
+      .mockResolvedValueOnce(remoteUpdate);
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          observedUpdatedAt: "2026-07-29T09:00:00.000Z",
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(mocks.readWorkItem).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          observedUpdatedAt: "2026-07-29T09:01:00.000Z",
+        })
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.readWorkItem).toHaveBeenCalledTimes(2);
+    expect(latestState?.workItem).toMatchObject({
+      workItemStatus: "in_progress",
+      priority: "high",
+    });
+  });
+
+  it("keeps standalone updates inside the owning cloud org", async () => {
+    const stored = {
+      filename: "AAA-0001.md",
+      body: "Body",
+      frontmatter: {
+        id: "AAA-0001",
+        short_id: "AAA-0001",
+        title: "Inbox item",
+        status: "planned",
+        priority: "medium",
+        labels: [],
+        created_at: "2026-07-28T00:00:00.000Z",
+        updated_at: "2026-07-28T00:00:00.000Z",
+        starred: false,
+        todos: [],
+      },
+    };
+    mocks.readStandaloneWorkItem.mockResolvedValue(stored);
+
+    await act(async () => {
+      root.render(createElement(StandaloneProbe));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    act(() => {
+      latestState?.updateWorkItem({ workItemStatus: "in_review" });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(mocks.readStandaloneWorkItem).toHaveBeenCalledWith("AAA-0001", {
+      orgId: "cloud-org-1",
+    });
+    expect(mocks.updateStandaloneWorkItemPartial).toHaveBeenCalledWith(
+      "AAA-0001",
+      expect.objectContaining({ workItemStatus: "in_review" }),
+      { orgId: "cloud-org-1" }
+    );
+    expect(mocks.updateWorkItemPartial).not.toHaveBeenCalled();
+  });
+
+  it("keeps standalone read, update, and handoff identities aligned with the cloud roster", async () => {
+    const assigneeId = "f8d2d0c4-ad42-4f02-b000-000000000001";
+    const creatorId = "6c6a39b1-4ca5-4c48-89b4-74d1565c258d";
+    const stored: WorkItem = {
+      ...WORK_ITEM,
+      user_id: creatorId,
+      assignee: { id: assigneeId, name: assigneeId },
+      createdBy: { id: creatorId, name: creatorId },
+    };
+    mocks.readStandaloneWorkItem.mockResolvedValue(stored);
+    mocks.updateStandaloneWorkItemPartial.mockResolvedValue(stored);
+    mocks.transitionStandaloneWorkItemHandoff.mockResolvedValue(stored);
+    mocks.loadCloudOrgMembers.mockResolvedValue({
+      auth: {},
+      members: [
+        {
+          userId: assigneeId,
+          displayName: "ahanafish",
+          role: "member",
+          status: "active",
+        },
+        {
+          userId: creatorId,
+          displayName: "1106510024",
+          role: "member",
+          status: "active",
+        },
+      ],
+    });
+    const store = createStore();
+    store.set(org2CloudAuthAtom, {
+      kind: "org2_cloud",
+      supabaseUrl: "https://cloud.example.test",
+      supabaseAnonKey: "anon",
+      userId: creatorId,
+      accessToken: "access",
+      refreshToken: "refresh",
+      expiresAt: 4_102_444_800,
+    });
+
+    await act(async () => {
+      root.render(
+        createElement(Provider, { store }, createElement(StandaloneProbe))
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(latestState?.workItem).toMatchObject({
+      assignee: { id: assigneeId, name: "ahanafish" },
+      createdBy: { id: creatorId, name: "1106510024" },
+    });
+
+    act(() => {
+      latestState?.updateWorkItem({ priority: "high" });
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(latestState?.workItem?.assignee?.name).toBe("ahanafish");
+
+    let transitioned: WorkItem | undefined;
+    await act(async () => {
+      transitioned = await latestState?.transitionHandoff({
+        handoffId: "handoff-1",
+        action: "accept",
+        actor: {
+          id: assigneeId,
+          name: "ahanafish",
+        },
+      });
+    });
+    expect(transitioned?.assignee?.name).toBe("ahanafish");
   });
 });

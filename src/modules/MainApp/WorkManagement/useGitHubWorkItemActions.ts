@@ -84,14 +84,18 @@ export function useGitHubWorkItemActions() {
   const addIssue = useCallback(
     (issue: ManagedIssueItem) => {
       setAddToAgent(toIssueContext(issue.rawIssue));
-      Message.success(t("toasts.addedAsContext", { name: `#${issue.id}` }));
+      Message.success(
+        t("common:toasts.addedAsContext", { name: `#${issue.id}` })
+      );
     },
     [setAddToAgent, t]
   );
 
   const addCreatedIssue = useCallback(
     (issue: GitHubIssue) => {
-      Message.success(t("toasts.addedAsContext", { name: `#${issue.number}` }));
+      Message.success(
+        t("common:toasts.addedAsContext", { name: `#${issue.number}` })
+      );
       setAddToAgent(toIssueContext(issue));
     },
     [setAddToAgent, t]
@@ -108,7 +112,9 @@ export function useGitHubWorkItemActions() {
         sourceBranch: pr.sourceBranch,
         targetBranch: pr.targetBranch,
       });
-      Message.success(t("toasts.addedAsContext", { name: `PR #${pr.id}` }));
+      Message.success(
+        t("common:toasts.addedAsContext", { name: `PR #${pr.id}` })
+      );
     },
     [setAddToAgent, t]
   );

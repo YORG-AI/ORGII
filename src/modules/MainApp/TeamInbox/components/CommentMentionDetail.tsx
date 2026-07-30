@@ -22,35 +22,52 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
   onMarkUnread,
 }) => {
   const { t } = useTranslation();
+  const targetTitle =
+    item.target.kind === "work_item_comment"
+      ? item.target.workItemTitle
+      : item.target.sessionTitle;
 
   return (
     <TeamInboxDetailLayout
-      title={item.target.sessionTitle}
+      title={targetTitle}
       subtitle={t("teamInbox.detail.mentionSubtitle")}
       icon={AtSign}
       unread={item.readAt === null}
       markReadLabel={t("teamInbox.actions.markRead")}
       markUnreadLabel={t("teamInbox.actions.markUnread")}
-      openLabel={t("teamInbox.actions.openSession")}
+      openLabel={t(
+        item.target.kind === "work_item_comment"
+          ? "teamInbox.actions.openWorkItem"
+          : "teamInbox.actions.openSession"
+      )}
       openIcon={<MessageSquare size={14} aria-hidden />}
       onMarkRead={onMarkRead ? () => onMarkRead(item) : undefined}
       onMarkUnread={onMarkUnread ? () => onMarkUnread(item) : undefined}
       onOpen={
         onNavigate
           ? () =>
-              onNavigate({
-                kind: "open_session_comment",
-                sessionId: item.target.sessionId,
-                commentId: item.target.commentId,
-                threadId: item.target.threadId,
-                ...(item.target.anchor ? { anchor: item.target.anchor } : {}),
-              })
+              item.target.kind === "work_item_comment"
+                ? onNavigate({
+                    kind: "open_work_item",
+                    orgId: item.target.orgId,
+                    projectId: item.target.projectId,
+                    workItemId: item.target.workItemId,
+                  })
+                : onNavigate({
+                    kind: "open_session_comment",
+                    sessionId: item.target.sessionId,
+                    commentId: item.target.commentId,
+                    threadId: item.target.threadId,
+                    ...(item.target.anchor
+                      ? { anchor: item.target.anchor }
+                      : {}),
+                  })
           : undefined
       }
       metadata={[
         {
           label: t("teamInbox.fields.session"),
-          value: item.target.sessionTitle,
+          value: targetTitle,
         },
         {
           label: t("teamInbox.fields.comments"),

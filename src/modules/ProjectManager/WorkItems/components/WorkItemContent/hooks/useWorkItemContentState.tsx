@@ -16,6 +16,7 @@ import type {
 
 import { SESSION_TAB_KEYS, type SessionTab } from "../types";
 import { useWorkItemTimeline } from "../useWorkItemTimeline";
+import { normalizeWorkItemMentionIds } from "../workItemMentions";
 
 const logger = createLogger("useWorkItemContentState");
 
@@ -73,6 +74,7 @@ export function useWorkItemContentState(
   const [activeSessionTab, setActiveSessionTab] =
     useState<SessionTab>("session");
   const [commentText, setCommentText] = useState("");
+  const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const [isSubscribed, setIsSubscribed] = useState(true);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
 
@@ -241,11 +243,17 @@ export function useWorkItemContentState(
         author: currentUser.id,
         content: commentText.trim(),
         created_at: new Date().toISOString(),
+        mentioned_user_ids: normalizeWorkItemMentionIds(
+          mentionedUserIds,
+          teamMembers,
+          currentUser.id
+        ),
       };
       onUpdateWorkItem?.({
         comments: [...(workItem.comments ?? []), newComment],
       } as Partial<WorkItemExtended>);
       setCommentText("");
+      setMentionedUserIds([]);
     } catch (err) {
       logger.error("Failed to create comment", err);
     } finally {
@@ -256,6 +264,8 @@ export function useWorkItemContentState(
     isSubmittingComment,
     workItem,
     currentUser.id,
+    mentionedUserIds,
+    teamMembers,
     onUpdateWorkItem,
   ]);
 
@@ -266,6 +276,8 @@ export function useWorkItemContentState(
     setActiveSessionTab,
     commentText,
     setCommentText,
+    mentionedUserIds,
+    setMentionedUserIds,
     isSubscribed,
     setIsSubscribed,
     isSubmittingComment,

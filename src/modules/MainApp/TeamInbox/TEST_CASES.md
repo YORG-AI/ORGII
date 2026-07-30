@@ -46,25 +46,29 @@
 
 ## Session → Work Item drop
 
-| #   | Steps                                                                                                                        | Expected result                                                                                                                                |
-| --- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Drag a Session tab over Team Inbox, then leave without dropping.                                                             | A localized dashed Drop Zone appears only during the eligible drag, highlights on entry, and disappears on leave/cancel without mutating data. |
-| 2   | Drop an unlinked Session on Team Inbox.                                                                                      | A review composer opens with the parsed title, request/impact preview, project roster, self selected by default, and an optional handoff note. |
-| 3   | Keep self selected and submit.                                                                                               | One normal assigned Work Item is created with the Session snapshot and no handoff state.                                                       |
-| 4   | Select an active teammate and submit.                                                                                        | The Work Item, teammate assignment, Session provenance, creator, and `pending` handoff record are persisted in one initial write.              |
-| 5   | Drop the same Session again.                                                                                                 | The existing linked Work Item is reused; no duplicate Work Item or second handoff is created.                                                  |
-| 6   | Remove the selected teammate before submission.                                                                              | Submission revalidates the project roster and fails visibly instead of assigning to a stale member.                                            |
-| 7   | Fail the reverse Session link after the Work Item write, then Retry.                                                         | The retry finds the Work Item by `linked_sessions`, repairs the reverse link, and reports success without creating a second Work Item.         |
-| 8   | Fail the Work Item write.                                                                                                    | The configured title, recipient and note remain in the composer so the same atomic submission can be retried or cancelled.                     |
-| 9   | Complete creation and activate Open.                                                                                         | The canonical Work Item navigation opens the created/reused item; Team Inbox refreshes through its coordinator invalidation.                   |
-| 10  | Switch scope or unmount Team Inbox while preparation/write is pending.                                                       | The request is aborted best-effort and late completion cannot overwrite the current UI.                                                        |
-| 11  | Open Team Inbox without an exactly resolved viewer member identity.                                                          | Session drop creation is unavailable; no unassigned Work Item is silently created.                                                             |
-| 12  | Select another member id that resolves to the current user.                                                                  | The operation remains a self-assignment and does not create a misleading human-to-human handoff.                                               |
-| 13  | Open a standalone Session that belongs to no project and has two eligible shared projects.                                   | The composer requires an explicit destination project, then limits sender/recipient identities to that project's roster.                       |
-| 14  | Right-click a Session tab and choose `Create team Work Item…`.                                                               | Team Inbox opens/focuses and displays the same review composer used by drag-and-drop; the Session tab remains in place.                        |
-| 15  | Remove the selected project or recipient after the composer opens.                                                           | Submit re-reads the current roster and fails visibly without writing into another project or retaining a stale recipient.                      |
-| 16  | Address the handoff to a second member id owned by the same signed-in person.                                                | That person can Accept/Return using the exact addressed member id; the UI does not reject a valid alias.                                       |
-| 17  | With a Cloud Org selected in the Sidebar, start a handoff from a standalone Session while also belonging to a local project. | The local project remains available as an explicit destination; Sidebar message scope does not incorrectly filter Work Item destinations.      |
+| #   | Steps                                                                                                                        | Expected result                                                                                                                                                  |
+| --- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Drag a Session tab over Team Inbox, then leave without dropping.                                                             | A localized dashed Drop Zone appears only during the eligible drag, highlights on entry, and disappears on leave/cancel without mutating data.                   |
+| 2   | Drop an unlinked Session on Team Inbox.                                                                                      | A review composer opens with the parsed title, request/impact preview, authoritative destination roster, self selected by default, and an optional handoff note. |
+| 3   | Keep self selected and submit.                                                                                               | One normal assigned Work Item is created with the Session snapshot and no handoff state.                                                                         |
+| 4   | Select an active teammate and submit.                                                                                        | The Work Item, teammate assignment, Session provenance, creator, and `pending` handoff record are persisted in one initial write.                                |
+| 5   | Drop the same Session again.                                                                                                 | The existing linked Work Item is reused; no duplicate Work Item or second handoff is created.                                                                    |
+| 6   | Remove the selected teammate before submission.                                                                              | Submission revalidates the authoritative destination roster and fails visibly instead of assigning to a stale member.                                            |
+| 7   | Fail the reverse Session link after the Work Item write, then Retry.                                                         | The retry finds the Work Item by `linked_sessions`, repairs the reverse link, and reports success without creating a second Work Item.                           |
+| 8   | Fail the Work Item write.                                                                                                    | The configured title, recipient and note remain in the composer so the same atomic submission can be retried or cancelled.                                       |
+| 9   | Complete creation and activate Open.                                                                                         | The canonical Work Item navigation opens the created/reused item; Team Inbox refreshes through its coordinator invalidation.                                     |
+| 10  | Switch scope or unmount Team Inbox while preparation/write is pending.                                                       | The request is aborted best-effort and late completion cannot overwrite the current UI.                                                                          |
+| 11  | Open Team Inbox without an exactly resolved viewer member identity.                                                          | Session drop creation is unavailable; no unassigned Work Item is silently created.                                                                               |
+| 12  | Select another member id that resolves to the current user.                                                                  | The operation remains a self-assignment and does not create a misleading human-to-human handoff.                                                                 |
+| 13  | Without an active Cloud Org, open a standalone Session that belongs to no project and has two eligible shared projects.      | The composer requires an explicit destination project, then limits sender/recipient identities to that project's roster.                                         |
+| 14  | Right-click a Session tab and choose `Create team Work Item…`.                                                               | Team Inbox opens/focuses and displays the same review composer used by drag-and-drop; the Session tab remains in place.                                          |
+| 15  | Remove the selected destination or recipient after the composer opens.                                                       | Submit re-reads the current roster and fails visibly without writing into another scope or retaining a stale recipient.                                          |
+| 16  | Address the handoff to a second member id owned by the same signed-in person.                                                | That person can Accept/Return using the exact addressed member id; the UI does not reject a valid alias.                                                         |
+| 17  | Sign in to two instances as `1106510024` and `ahanafish`, join both to the selected Cloud Org, then start a Session handoff. | The composer defaults to `1106510024 (me)`, offers active Cloud Org member `ahanafish`, and never substitutes a local project/Git alias.                         |
+| 18  | Assign the Session-derived Work Item to `ahanafish` in the selected Cloud Org.                                               | One standalone cloud Work Item is written under that Cloud Org; instance 2 sees it in Assigned and can update it without a local project.                        |
+| 19  | Switch accounts or Cloud Orgs while a member roster request is pending.                                                      | A late response cannot expose the previous identity/org roster or overwrite the current selection.                                                               |
+| 20  | With no Cloud Org selected, repeat the handoff from a local project Session.                                                 | The existing project-scoped flow remains available and uses only that local project's roster and storage path.                                                   |
+| 21  | In the handoff composer, change Status, Priority, and Due date, then compare the resulting Work Item detail.                 | Creation and detail use the same shared Work Item property pills, labels, icons, quick-date behavior, and canonical enum/date mapping.                           |
 
 ### Session-drop acceptance criteria
 
@@ -72,8 +76,10 @@
 - [ ] `pointermove` is subscribed only for an active eligible drag, hit-tests at most once per animation frame, and updates React state only when the over-boundary changes.
 - [ ] The Work Item and its `linked_sessions` provenance are written together before the Session reverse link is attempted.
 - [ ] The composer defaults to self, requires an available recipient, and never turns another current-user alias into a team handoff.
-- [ ] A standalone Session requires an explicit project when more than one eligible project exists; changing project resets the recipient to a valid project-local identity.
-- [ ] Eligible destination projects are derived from project membership, independently of the Sidebar's managed-cloud message scope.
+- [ ] Status, priority, and due date in the composer reuse `WorkItemProperties`; recipient selection remains handoff-specific so only the authoritative destination roster is assignable.
+- [ ] In a Cloud Org scope, the exact cloud account id and active Cloud Org roster are authoritative for sender/recipient identity; local project/Git aliases are never substituted.
+- [ ] A Cloud Org handoff writes a standalone Work Item into the active Cloud Org so the recipient can read and update it on another instance.
+- [ ] Without an active Cloud Org, a standalone Session requires an explicit project when more than one eligible project exists; changing project resets the recipient to a valid project-local identity.
 - [ ] Drag and the Session context-menu action converge on one request atom, one review composer, and one idempotent creation command.
 - [ ] A teammate handoff persists `pending / accepted / returned`, sender/recipient identities, timestamps, and bounded notes in canonical Work Item extras.
 - [ ] Creation is single-flight per viewer scope and Session, and retry after a partial link failure is idempotent.
@@ -124,7 +130,7 @@
 | 4   | Inspect a Work Item with proof of work and comments/history.                                                           | The primary body contains task execution content; Discussion is a drill-in where comments lead and system history stays collapsed.                                                |
 | 5   | Switch assigned rows while the first full Work Item is still loading.                                                  | A late response from the first row never replaces the newly selected Work Item.                                                                                                   |
 | 6   | Make two property changes in quick succession.                                                                         | Same-item writes run in invocation order through a bounded queue, so the final response contains both atomic partial updates and an older response cannot overwrite newer intent. |
-| 7   | Open a standalone assigned Work Item.                                                                                  | The thread remains readable, but edit controls/property rail are not exposed because standalone persistence requires the owning frontmatter round-trip.                           |
+| 7   | Open a standalone assigned Work Item received through a Cloud Org handoff.                                             | The shared property controls, To-Do list, comments, member picker, and handoff actions are available; every mutation uses the org-scoped atomic partial-update boundary.          |
 | 8   | Fail the selected Work Item read.                                                                                      | A visible error placeholder is shown; the short list row remains available for retry/navigation.                                                                                  |
 | 9   | Open a project Work Item with a short description.                                                                     | The description renders at its natural Markdown height. `Preview / Raw` and the editor are absent until `Edit` is activated.                                                      |
 | 10  | Activate `Edit`, change the description, then cancel.                                                                  | A compact editor and Cancel/Save footer appear; Save is disabled until content changes, and Cancel restores the original Markdown.                                                |
@@ -155,6 +161,37 @@
 - [ ] The centered reading frame and metadata band are composed by `WorkItemThreadLayout`; static card shells use `WorkItemThreadSection`, while collapsible Workflow shares tokens without duplicating collapse state.
 - [ ] No Session/comment transcript scan or frontend-fabricated impact data is introduced.
 
+## Core multi-user collaboration closure
+
+| #   | Steps                                                                                                                   | Expected result                                                                                                                                              |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | In instance A, create a Session-derived Work Item for B and choose status, priority, and target date before submitting. | The initial standalone Work Item persists all selected properties together with Session provenance, assignee, and pending handoff state.                     |
+| 2   | Open the new assignment in instance B.                                                                                  | B sees the same property strip as A, including status, priority, assignee, reviewer, and target date; the pending handoff notice exposes Accept and Return.  |
+| 3   | In B, change status, priority, and target date in quick succession.                                                     | Writes are serialized as atomic partial updates; A receives the final merged values through Cloud Org sync without reopening the Work Item.                  |
+| 4   | In B, add two To-Do items, toggle one, and remove the other while A keeps the same Work Item open.                      | Both instances converge on the canonical To-Do list; a stale full-document write cannot resurrect or erase a newer sibling edit.                             |
+| 5   | In B, add a comment and select A with the `@` member control.                                                           | The comment stores A's stable Cloud Org user id; A receives an unread Work Item comment mention in `Mentions`, and opening/marking it read is viewer-scoped. |
+| 6   | In B, reassign the Work Item to A.                                                                                      | The assignment receipt is reset in the same transaction; the row leaves B's Assigned view and appears unread in A's Assigned view.                           |
+| 7   | Create another A → B handoff, then have B accept it.                                                                    | The handoff becomes accepted while assignment remains with B; retrying the same transition is idempotent.                                                    |
+| 8   | Create another A → B handoff, then have B return it with a reason.                                                      | Handoff state, reason, history, reassignment to A, receipt reset, and one collaboration outbox write commit atomically.                                      |
+| 9   | In instance B, drop one of B's Sessions into Team Inbox and assign it to A.                                             | The same composer and state machine produce a reverse B → A handoff; no direction-specific UI or backend branch is required.                                 |
+| 10  | Remove a member from the active Cloud Org after the composer opens, then submit.                                        | Submission revalidates the authoritative roster and fails visibly; no stale recipient or cross-org assignment is persisted.                                  |
+| 11  | Keep a standalone Work Item selected in A while B edits it.                                                             | The selected detail demand-reloads when the coordinator observes a newer `updatedAt`; no timer or detail poller is created.                                  |
+| 12  | Sign out, switch account, or switch Cloud Org while roster/detail requests are in flight.                               | Late results are discarded and never expose or persist data from the previous identity or organization.                                                      |
+
+### Core collaboration acceptance criteria
+
+- [ ] Project-scoped and standalone Work Items reuse the same Work Item thread and property components.
+- [ ] Standalone reads and writes are scoped by `orgId + shortId + project_id IS NULL`; a caller cannot update another organization's item.
+- [ ] Status, priority, target date, To-Dos, comments, assignment, and handoff state use one atomic partial-update transaction and emit at most one collaboration write after commit.
+- [ ] Rapid standalone mutations are queued in invocation order, and remote invalidation reloads only the selected Work Item after its observed revision advances.
+- [ ] Reassignment clears the prior assignment episode's receipt transactionally so the new assignee receives an unread row.
+- [ ] Comment mentions persist only normalized active-roster user ids; self, unknown, blank, and duplicate ids are rejected before persistence.
+- [ ] Work Item comment mentions are viewer-scoped Inbox targets with durable read/unread receipts and do not appear for other members.
+- [ ] Pending handoff Accept/Return is recipient-only; Return requires a bounded reason and reassigns to the original sender atomically.
+- [ ] Session handoff is direction-neutral: either member can create a new Work Item for the other using the same composer and backend state machine.
+- [ ] Create-from-Session persists the selected status, priority, and target date in the initial canonical Work Item rather than patching presentation state afterward.
+- [ ] Cloud propagation remains push-driven through the existing Org signal and coordinator invalidation path; the feature introduces no interval, retry loop, or hidden-window poller.
+
 ## Rendered product path
 
 1. Seed or create a project member that matches the current Git identity.
@@ -163,10 +200,11 @@
 4. Verify the assigned item appears and `分配给我` keeps it visible.
 5. Open its detail, mark it read, and verify the row and Sidebar unread badge update together.
 6. Close and reopen Team Inbox; verify the durable local receipt remains read.
-7. In a managed cloud org, use the normal Session comment member picker to mention user B.
-8. In user B's independent app instance, verify `@ 提及` shows the stable comment/session target and unread badge.
-9. Open the row and verify the production click persists `readAt`; list again with user B's JWT and observe `unreadCount = 0`.
-10. List with user A's JWT and verify B's targeted mention is absent; refresh/reopen B's Inbox and verify it remains read.
+7. In a managed Cloud Org, create a Session-derived Work Item for user B with a non-default status, priority, and target date.
+8. In user B's independent app instance, verify Assigned shows the Work Item and its full property, To-Do, comment, reassignment, and handoff controls.
+9. In B, comment on the Work Item and select A with the `@` member control; verify A's `@ Mentions` receives the stable Work Item target and unread badge.
+10. Open the mention in A and verify the production click persists `readAt`; list again as A and observe `unreadCount = 0`, while B never sees A's targeted mention.
+11. Reassign the Work Item from B to A, then repeat with Return; verify both assignment projections and handoff state converge across the two instances.
 
 ## Degraded states
 

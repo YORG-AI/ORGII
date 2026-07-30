@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { createLogger } from "@src/hooks/logger";
 import type { SessionReferenceOpen } from "@src/shared/dnd/sessionTabDrag";
 
 import type {
@@ -55,6 +56,7 @@ type Operation =
     };
 
 const IDLE_OPERATION: Operation = { status: "idle" };
+const log = createLogger("TeamInboxSessionDropSurface");
 
 interface TeamInboxSessionDropSurfaceProps {
   dataSource: TeamInboxDataSource;
@@ -217,8 +219,11 @@ const TeamInboxSessionDropSurface: React.FC<
     void create({
       sessionId: reference.sessionId,
       title: form.title,
-      projectSlug: form.projectSlug,
+      destinationKey: form.destinationKey,
       assigneeMemberId: form.assigneeMemberId,
+      status: form.status,
+      priority: form.priority,
+      targetDate: form.targetDate || undefined,
       handoffNote: form.note || undefined,
       signal: controller.signal,
     })
@@ -233,10 +238,11 @@ const TeamInboxSessionDropSurface: React.FC<
           result,
         });
       })
-      .catch(() => {
+      .catch((error) => {
         if (controller.signal.aborted || generationRef.current !== generation) {
           return;
         }
+        log.error("Session handoff Work Item creation failed", error);
         setOperation({
           status: "configuring",
           owner: dataSource,
@@ -252,6 +258,7 @@ const TeamInboxSessionDropSurface: React.FC<
     if (currentOperation.status !== "success") return;
     onNavigate?.({
       kind: "open_work_item",
+      orgId: currentOperation.result.orgId,
       projectId: currentOperation.result.projectId,
       workItemId: currentOperation.result.workItemId,
     });

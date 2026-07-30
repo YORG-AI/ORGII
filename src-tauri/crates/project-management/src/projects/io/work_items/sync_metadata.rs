@@ -74,11 +74,45 @@ pub fn read_sync_metadata(
     let Some(work_item_id) = work_item_id else {
         return Ok(None);
     };
+    read_sync_metadata_for_work_item_id(&connection, &work_item_id)
+}
+
+/// Standalone-org counterpart to [`read_sync_metadata`].
+///
+/// The collaboration bridge addresses standalone Work Items by their durable
+/// row id. Reading metadata through that same identity avoids a short-id
+/// ambiguity when different orgs use the same human-facing identifier.
+pub(crate) fn read_standalone_sync_metadata(
+    org_id: &str,
+    work_item_id: &str,
+) -> Result<Option<SyncMetadata>, String> {
+    let connection = conn()?;
+    let exists: bool = map_db(
+        connection
+            .query_row(
+                "SELECT EXISTS(
+                    SELECT 1 FROM workitems
+                     WHERE id = ?1 AND org_id = ?2 AND project_id IS NULL
+                )",
+                params![work_item_id, org_id],
+                |row| row.get(0),
+            ),
+    )?;
+    if !exists {
+        return Ok(None);
+    }
+    read_sync_metadata_for_work_item_id(&connection, work_item_id)
+}
+
+fn read_sync_metadata_for_work_item_id(
+    connection: &rusqlite::Connection,
+    work_item_id: &str,
+) -> Result<Option<SyncMetadata>, String> {
     let raw = map_db(
         connection
             .query_row(
                 "SELECT extras_json FROM workitem_extras WHERE work_item_id = ?1",
-                params![&work_item_id],
+                params![work_item_id],
                 |row| row.get::<_, String>(0),
             )
             .optional(),

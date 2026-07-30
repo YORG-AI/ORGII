@@ -1,22 +1,33 @@
 import { ArrowRight, CheckSquare, FolderKanban } from "lucide-react";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
+import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
+import type { WorkItemPropertyFieldKey } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/types";
 import Modal from "@src/scaffold/ModalSystem";
+import type { WorkItem } from "@src/types/core/workItem";
 
 import type { TeamInboxSessionHandoffDraft } from "../domain";
 import {
   MAX_HANDOFF_NOTE_LENGTH,
   type SessionHandoffForm,
   isTeamHandoff,
-  selectedHandoffProject,
+  selectedHandoffDestination,
   sessionHandoffFormError,
-  sessionHandoffFormForProject,
+  sessionHandoffFormForDestination,
+  sessionHandoffFormToWorkItem,
+  sessionHandoffFormWithWorkItemUpdates,
 } from "../sessionHandoffForm";
+
+const SESSION_HANDOFF_PROPERTY_FIELDS: WorkItemPropertyFieldKey[] = [
+  "status",
+  "priority",
+  "date",
+];
 
 interface SessionHandoffComposerProps {
   draft: TeamInboxSessionHandoffDraft;
@@ -40,34 +51,50 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
   const { t } = useTranslation();
   const validationError = sessionHandoffFormError(form, draft);
   const teamHandoff = isTeamHandoff(form, draft);
-  const selectedProject = selectedHandoffProject(form, draft);
-  const recipient = selectedProject?.recipients.find(
+  const selectedDestination = selectedHandoffDestination(form, draft);
+  const recipient = selectedDestination?.recipients.find(
     (member) => member.id === form.assigneeMemberId
   );
-  const projectOptions = useMemo<SelectOption[]>(
+  const destinationOptions = useMemo<SelectOption[]>(
     () =>
-      draft.projects.map((project) => ({
-        value: project.slug,
-        label: project.name,
+      draft.destinations.map((destination) => ({
+        value: destination.key,
+        label:
+          destination.kind === "cloud_org"
+            ? t("teamInbox.handoff.cloudDestination", {
+                name: destination.name,
+              })
+            : destination.name,
       })),
-    [draft.projects]
+    [draft.destinations, t]
   );
   const recipientOptions = useMemo<SelectOption[]>(
     () =>
-      (selectedProject?.recipients ?? []).map((member) => ({
+      (selectedDestination?.recipients ?? []).map((member) => ({
         value: member.id,
         label: member.isCurrentUser
           ? t("teamInbox.handoff.recipientSelf", { name: member.name })
           : member.name,
       })),
-    [selectedProject?.recipients, t]
+    [selectedDestination?.recipients, t]
+  );
+  const propertyWorkItem = useMemo(
+    () => sessionHandoffFormToWorkItem(form, draft),
+    [draft, form]
+  );
+  const handlePropertyUpdate = useCallback(
+    (updates: Partial<WorkItem>) => {
+      if (submitting) return;
+      onChange(sessionHandoffFormWithWorkItemUpdates(form, updates));
+    },
+    [form, onChange, submitting]
   );
 
   return (
     <Modal
       visible
       title={t("teamInbox.handoff.title")}
-      width={560}
+      width={640}
       bodyClassName="p-0"
       onCancel={onCancel}
       onOk={onSubmit}
@@ -92,18 +119,24 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
         <div className="border-b border-border-2 bg-bg-2 px-5 py-4">
           <div className="flex items-center gap-2 text-xs text-text-3">
             <span className="font-medium text-text-2">
-              {selectedProject?.sender.name ??
-                t("teamInbox.handoff.chooseProject")}
+              {selectedDestination?.sender.name ??
+                t("teamInbox.handoff.chooseDestination")}
             </span>
             <ArrowRight size={13} aria-hidden />
             <span className="font-medium text-text-2">
               {recipient?.name ?? t("teamInbox.handoff.chooseRecipient")}
             </span>
-            {selectedProject ? (
+            {selectedDestination ? (
               <>
                 <span aria-hidden>·</span>
                 <FolderKanban size={13} aria-hidden />
-                <span className="truncate">{selectedProject.name}</span>
+                <span className="truncate">
+                  {selectedDestination.kind === "cloud_org"
+                    ? t("teamInbox.handoff.cloudDestination", {
+                        name: selectedDestination.name,
+                      })
+                    : selectedDestination.name}
+                </span>
               </>
             ) : null}
           </div>
@@ -128,19 +161,19 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
         </div>
 
         <div className="flex flex-col gap-4 px-5 py-4">
-          {!draft.sourceProjectSlug ? (
+          {!draft.sourceDestinationKey ? (
             <label className="flex flex-col gap-1.5 text-xs font-medium text-text-2">
-              {t("teamInbox.handoff.project")}
+              {t("teamInbox.handoff.destination")}
               <Select
-                value={form.projectSlug}
-                options={projectOptions}
+                value={form.destinationKey}
+                options={destinationOptions}
                 onChange={(value) =>
                   onChange(
-                    sessionHandoffFormForProject(form, String(value), draft)
+                    sessionHandoffFormForDestination(form, String(value), draft)
                   )
                 }
                 disabled={submitting}
-                placeholder={t("teamInbox.handoff.chooseProject")}
+                placeholder={t("teamInbox.handoff.chooseDestination")}
                 showSearch
                 dropdownWidthMode="match"
                 panelZIndex={10001}
@@ -167,13 +200,33 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
               onChange={(value) =>
                 onChange({ ...form, assigneeMemberId: String(value) })
               }
-              disabled={submitting || !selectedProject}
+              disabled={submitting || !selectedDestination}
               showSearch
               dropdownWidthMode="match"
               panelZIndex={10001}
               dataTestId="team-inbox-handoff-recipient"
             />
           </label>
+
+          <fieldset
+            key={submitting ? "locked-properties" : "editable-properties"}
+            disabled={submitting}
+            className="m-0 min-w-0 border-0 p-0"
+            data-testid="team-inbox-handoff-properties"
+          >
+            <legend className="sr-only">
+              {t("projects:workItems.properties.propertiesSection")}
+            </legend>
+            <WorkItemProperties
+              workItem={propertyWorkItem}
+              onUpdate={handlePropertyUpdate}
+              visibleFields={SESSION_HANDOFF_PROPERTY_FIELDS}
+              fieldVariant="pill"
+              pillLayout="wrap"
+              showTime={false}
+              showMoreMenu={false}
+            />
+          </fieldset>
 
           {teamHandoff ? (
             <label className="flex flex-col gap-1.5 text-xs font-medium text-text-2">
@@ -194,6 +247,12 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
               {t("teamInbox.handoff.selfHint")}
             </p>
           )}
+
+          {validationError && !error ? (
+            <p role="alert" className="text-xs text-danger-6">
+              {t(`teamInbox.handoff.validation.${validationError}`)}
+            </p>
+          ) : null}
 
           {error ? (
             <p role="alert" className="text-xs text-danger-6">

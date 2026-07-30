@@ -2489,6 +2489,13 @@
       "read": "Read",
       "unread": "Unread"
     },
+    "notifications": {
+      "assignmentTitle": "New Work Item assigned to you",
+      "mentionTitle": "{{name}} mentioned you",
+      "handoffTitle": "Handoff from {{name}}",
+      "multipleTitle": "{{count}} new Team Inbox updates",
+      "multipleBody": "Open Team Inbox to review assignments and mentions."
+    },
     "row": {
       "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
@@ -2526,7 +2533,7 @@
       "title": "Drop to create a Work Item",
       "subtitle": "Review the Session snapshot, then create or hand off the Work Item.",
       "processing": "Creating a Work Item from “{{title}}”…",
-      "processingHint": "Reading the Session and resolving project members.",
+      "processingHint": "Reading the Session and resolving destination members.",
       "success": "Work Item created",
       "reused": "Existing Work Item updated",
       "failed": "Couldn’t create the Work Item",
@@ -2537,25 +2544,37 @@
     "handoff": {
       "title": "Create from Session",
       "createFromSession": "Create team Work Item…",
-      "project": "Destination project",
-      "chooseProject": "Choose a project",
+      "destination": "Destination",
+      "chooseDestination": "Choose a destination",
+      "cloudDestination": "{{name}} · Team Inbox",
       "recipientSelf": "{{name}} (me)",
       "chooseRecipient": "Choose a recipient",
       "todoCount_one": "{{count}} to-do",
       "todoCount_other": "{{count}} to-dos",
       "workItemTitle": "Work Item title",
       "assignTo": "Assign to",
+      "status": "Status",
+      "priority": "Priority",
+      "dueDate": "Due date",
+      "noDueDate": "No due date",
       "note": "Handoff note",
       "notePlaceholder": "Share what is ready, what is unresolved, and what should happen next.",
       "selfHint": "Assigning this to yourself creates a normal Work Item without a handoff request.",
       "submitHandoff": "Create & hand off",
       "submitCreate": "Create Work Item",
       "preparing": "Preparing “{{title}}”…",
+      "validation": {
+        "title_required": "Enter a Work Item title.",
+        "project_required": "Choose a destination.",
+        "project_unavailable": "This destination is no longer available. Choose another destination.",
+        "recipient_required": "Choose a recipient.",
+        "recipient_unavailable": "This recipient is no longer available. Choose another recipient."
+      },
       "preparationError": {
         "session_unavailable": "This Session is no longer available. Reopen it and try again.",
         "project_unavailable": "This Session’s project is no longer available.",
-        "identity_unavailable": "Your identity is not a member of this Session’s project.",
-        "no_project": "No eligible project is available. Create or join a project, then try again.",
+        "identity_unavailable": "Your signed-in identity is not an active member of this destination.",
+        "no_project": "No eligible destination is available. Join a team or project, then try again.",
         "unknown": "Unable to prepare this Session. Refresh Team Inbox and try again."
       },
       "submitError": "The Work Item could not be created. Review the recipient and try again.",

@@ -3,7 +3,11 @@ use crate::projects::types::{
     WorkItemHandoffTransition,
 };
 
-use super::{crud::read_work_item, update_work_item_atomic_as};
+use super::{
+    atomic::update_standalone_work_item_atomic_as,
+    crud::{read_standalone_work_item, read_work_item},
+    update_work_item_atomic_as,
+};
 
 const MAX_HANDOFF_RESPONSE_NOTE_CHARS: usize = 500;
 
@@ -112,6 +116,49 @@ pub fn transition_work_item_handoff(
         },
     )?;
     read_work_item(project_slug, short_id)
+}
+
+/// Standalone-org variant of [`transition_work_item_handoff`].
+///
+/// Cloud Team Inbox handoffs intentionally have no project row. They still
+/// use the same atomic transition invariant and emit one org-scoped
+/// collaboration write after the transaction commits.
+pub fn transition_standalone_work_item_handoff(
+    org_id: Option<&str>,
+    short_id: &str,
+    transition: &WorkItemHandoffTransition,
+) -> Result<WorkItemData, String> {
+    let org_id = org_id.unwrap_or("personal-org");
+    let responded_at = chrono::Utc::now().to_rfc3339();
+    let (_, changed_fields, payload_tail_changed) = update_standalone_work_item_atomic_as(
+        org_id,
+        short_id,
+        Some(&transition.actor),
+        |frontmatter, _body| {
+            let handoff = frontmatter
+                .handoff
+                .as_mut()
+                .ok_or_else(|| "This Work Item has no active handoff".to_string())?;
+            match apply_handoff_transition(handoff, transition, &responded_at)? {
+                AssigneeEffect::Keep => {}
+                AssigneeEffect::ReassignToSender(sender_id) => {
+                    frontmatter.assignee = Some(sender_id);
+                    frontmatter.assignee_type = Some("member".to_string());
+                }
+            }
+            Ok(())
+        },
+    )?;
+    let data = read_standalone_work_item(Some(org_id), short_id)?;
+    if !changed_fields.is_empty() || payload_tail_changed {
+        crate::sync::collab_bridge::record_work_item_write(
+            org_id,
+            None,
+            &data.frontmatter.id,
+            false,
+        )?;
+    }
+    Ok(data)
 }
 
 #[cfg(test)]

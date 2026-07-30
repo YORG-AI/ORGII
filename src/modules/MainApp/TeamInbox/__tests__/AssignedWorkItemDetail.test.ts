@@ -18,6 +18,8 @@ import AssignedWorkItemDetail from "../components/AssignedWorkItemDetail";
 import type { AssignedWorkItem } from "../domain";
 
 const mocks = vi.hoisted(() => ({
+  updateWorkItem: vi.fn(),
+  transitionHandoff: vi.fn(),
   workItem: {
     session_id: "work-item-1",
     user_id: "member-2",
@@ -61,7 +63,8 @@ vi.mock("../useTeamInboxWorkItem", () => ({
       avatar: "https://example.com/hanafish.png",
       color: "#52c41a",
     },
-    updateWorkItem: vi.fn(),
+    updateWorkItem: mocks.updateWorkItem,
+    transitionHandoff: mocks.transitionHandoff,
     refreshWorkItem: vi.fn(),
   }),
 }));
@@ -71,11 +74,19 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
     onStartAgent,
     onOpenSession,
     propertyProps,
+    onUpdateWorkItem,
+    onTransitionHandoff,
     currentUser,
   }: {
     onStartAgent?: () => void;
     onOpenSession?: (sessionId: string) => void;
     propertyProps?: Record<string, unknown>;
+    onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
+    onTransitionHandoff?: (transition: {
+      handoffId: string;
+      action: "accept";
+      actor: { id: string; name: string };
+    }) => Promise<WorkItem>;
     currentUser?: { id: string; name: string; avatar?: string };
   }) =>
     createElement(
@@ -109,6 +120,29 @@ vi.mock("@src/modules/ProjectManager/WorkItems/components", () => ({
           onClick: () => onOpenSession?.("session-1"),
         },
         "Open session"
+      ),
+      createElement(
+        "button",
+        {
+          type: "button",
+          "data-testid": "set-status",
+          onClick: () => onUpdateWorkItem?.({ workItemStatus: "in_progress" }),
+        },
+        "Set status"
+      ),
+      createElement(
+        "button",
+        {
+          type: "button",
+          "data-testid": "accept-handoff",
+          onClick: () =>
+            void onTransitionHandoff?.({
+              handoffId: "handoff-1",
+              action: "accept",
+              actor: { id: "member-2", name: "Lin" },
+            }),
+        },
+        "Accept handoff"
       )
     ),
 }));
@@ -150,6 +184,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
   });
 
   beforeEach(() => {
+    vi.clearAllMocks();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -199,6 +234,42 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         .querySelector("[data-testid='work-item-properties']")
         ?.getAttribute("data-property-configured")
     ).toBe("true");
+  });
+
+  it("keeps standalone Org Work Items editable and handoff-aware", () => {
+    const standaloneItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        kind: "work_item",
+        orgId: "cloud-org-1",
+        projectId: "",
+        workItemId: "work-item-1",
+      },
+    };
+    act(() => {
+      root.render(
+        createElement(AssignedWorkItemDetail, { item: standaloneItem })
+      );
+    });
+
+    act(() => {
+      container
+        .querySelector<HTMLButtonElement>("[data-testid='set-status']")
+        ?.click();
+      container
+        .querySelector<HTMLButtonElement>("[data-testid='accept-handoff']")
+        ?.click();
+    });
+
+    expect(mocks.updateWorkItem).toHaveBeenCalledWith({
+      workItemStatus: "in_progress",
+    });
+    expect(mocks.transitionHandoff).toHaveBeenCalledWith(
+      expect.objectContaining({
+        handoffId: "handoff-1",
+        action: "accept",
+      })
+    );
   });
 
   it("passes one resolved identity to the comment composer and history surface", () => {

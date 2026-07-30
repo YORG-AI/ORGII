@@ -532,6 +532,23 @@ export async function updateWorkItemPartial(
   return result;
 }
 
+export async function updateStandaloneWorkItemPartial(
+  shortId: string,
+  updates: WorkItemPartialUpdate,
+  options?: ProjectScopeOptions
+): Promise<WorkItemData> {
+  const result = await invoke<WorkItemData>(
+    "work_item_update_standalone_partial",
+    {
+      ...scopeInvokePayload(options),
+      shortId,
+      updates,
+    }
+  );
+  invalidateCache();
+  return result;
+}
+
 export async function transitionWorkItemHandoff(
   projectSlug: string,
   shortId: string,
@@ -541,6 +558,23 @@ export async function transitionWorkItemHandoff(
     "project_transition_work_item_handoff",
     {
       projectSlug,
+      shortId,
+      transition,
+    }
+  );
+  invalidateCache();
+  return result;
+}
+
+export async function transitionStandaloneWorkItemHandoff(
+  shortId: string,
+  transition: WorkItemHandoffTransition,
+  options?: ProjectScopeOptions
+): Promise<WorkItemData> {
+  const result = await invoke<WorkItemData>(
+    "work_item_transition_standalone_handoff",
+    {
+      ...scopeInvokePayload(options),
       shortId,
       transition,
     }

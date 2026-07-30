@@ -22,6 +22,12 @@ use super::extras::{ExtrasPayload, FieldRevision, REVISION_SOURCE_LOCAL};
 use super::history::{append_mutation_event, WorkItemHistorySnapshot};
 use crate::projects::types::{WorkItemData, WorkItemFrontmatter, WorkItemPartialUpdate};
 
+#[derive(Debug, Clone, Copy)]
+enum AtomicWorkItemScope<'a> {
+    Project(&'a str),
+    Standalone { org_id: &'a str },
+}
+
 /// Sync-relevant fields whose mutations are tracked in
 /// `workitem_extras.field_revisions`. The names match
 /// [`crate::sync::adapter::EntityField::as_local_name`]
@@ -163,51 +169,108 @@ pub fn update_work_item_atomic_with_revisions<T, F>(
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
+    update_work_item_atomic_with_revisions_scoped(
+        AtomicWorkItemScope::Project(project_slug),
+        short_id,
+        override_revisions,
+        actor,
+        mutator,
+    )
+}
+
+pub(super) fn update_standalone_work_item_atomic_as<T, F>(
+    org_id: &str,
+    short_id: &str,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    mutator: F,
+) -> Result<(T, Vec<&'static str>, bool), String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
+    update_work_item_atomic_with_revisions_scoped(
+        AtomicWorkItemScope::Standalone { org_id },
+        short_id,
+        HashMap::new(),
+        actor,
+        mutator,
+    )
+}
+
+fn update_work_item_atomic_with_revisions_scoped<T, F>(
+    scope: AtomicWorkItemScope<'_>,
+    short_id: &str,
+    override_revisions: HashMap<String, FieldRevision>,
+    actor: Option<&crate::projects::types::WorkItemMutationActor>,
+    mutator: F,
+) -> Result<(T, Vec<&'static str>, bool), String>
+where
+    F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
+{
     let mut connection = conn()?;
     let tx = map_db(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
 
-    let project_id: String = map_db(
-        tx.query_row(
-            "SELECT id FROM projects WHERE slug = ?1",
-            params![project_slug],
-            |row| row.get(0),
-        )
-        .optional(),
-    )?
-    .ok_or_else(|| format!("Project '{}' not found", project_slug))?;
+    let project_id = match scope {
+        AtomicWorkItemScope::Project(project_slug) => Some(
+            map_db(
+                tx.query_row(
+                    "SELECT id FROM projects WHERE slug = ?1",
+                    params![project_slug],
+                    |row| row.get(0),
+                )
+                .optional(),
+            )?
+            .ok_or_else(|| format!("Project '{}' not found", project_slug))?,
+        ),
+        AtomicWorkItemScope::Standalone { .. } => None,
+    };
 
-    let core = map_db(
-        tx.query_row(
-            "SELECT id, short_id, title, body, status, priority, assignee, assignee_type,
-                    milestone, parent, start_date, target_date, created_at, updated_at,
-                    deleted_at, local_version, org_id
-             FROM workitems
-             WHERE project_id = ?1 AND short_id = ?2",
-            params![&project_id, short_id],
-            |row| {
-                Ok(AtomicCore {
-                    work_item_id: row.get::<_, String>(0)?,
-                    short_id: row.get::<_, String>(1)?,
-                    title: row.get::<_, String>(2)?,
-                    body: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
-                    status: row.get::<_, String>(4)?,
-                    priority: row.get::<_, String>(5)?,
-                    assignee: row.get::<_, Option<String>>(6)?,
-                    assignee_type: row.get::<_, Option<String>>(7)?,
-                    milestone: row.get::<_, Option<String>>(8)?,
-                    parent: row.get::<_, Option<String>>(9)?,
-                    start_date: row.get::<_, Option<String>>(10)?,
-                    target_date: row.get::<_, Option<String>>(11)?,
-                    created_at_ms: row.get::<_, i64>(12)?,
-                    updated_at_ms: row.get::<_, i64>(13)?,
-                    deleted_at_ms: row.get::<_, Option<i64>>(14)?,
-                    local_version: row.get::<_, i64>(15)?,
-                    org_id: row.get::<_, String>(16)?,
-                })
-            },
-        )
-        .optional(),
-    )?
+    let map_core = |row: &rusqlite::Row<'_>| {
+        Ok(AtomicCore {
+            work_item_id: row.get::<_, String>(0)?,
+            short_id: row.get::<_, String>(1)?,
+            title: row.get::<_, String>(2)?,
+            body: row.get::<_, Option<String>>(3)?.unwrap_or_default(),
+            status: row.get::<_, String>(4)?,
+            priority: row.get::<_, String>(5)?,
+            assignee: row.get::<_, Option<String>>(6)?,
+            assignee_type: row.get::<_, Option<String>>(7)?,
+            milestone: row.get::<_, Option<String>>(8)?,
+            parent: row.get::<_, Option<String>>(9)?,
+            start_date: row.get::<_, Option<String>>(10)?,
+            target_date: row.get::<_, Option<String>>(11)?,
+            created_at_ms: row.get::<_, i64>(12)?,
+            updated_at_ms: row.get::<_, i64>(13)?,
+            deleted_at_ms: row.get::<_, Option<i64>>(14)?,
+            local_version: row.get::<_, i64>(15)?,
+            org_id: row.get::<_, String>(16)?,
+        })
+    };
+    let core = match scope {
+        AtomicWorkItemScope::Project(_) => map_db(
+            tx.query_row(
+                "SELECT id, short_id, title, body, status, priority, assignee, assignee_type,
+                        milestone, parent, start_date, target_date, created_at, updated_at,
+                        deleted_at, local_version, org_id
+                 FROM workitems
+                 WHERE project_id = ?1 AND short_id = ?2",
+                params![project_id.as_ref().expect("project scope id"), short_id],
+                map_core,
+            )
+            .optional(),
+        )?,
+        AtomicWorkItemScope::Standalone { org_id } => map_db(
+            tx.query_row(
+                "SELECT id, short_id, title, body, status, priority, assignee, assignee_type,
+                        milestone, parent, start_date, target_date, created_at, updated_at,
+                        deleted_at, local_version, org_id
+                 FROM workitems
+                 WHERE org_id = ?1 AND project_id IS NULL AND short_id = ?2",
+                params![org_id, short_id],
+                map_core,
+            )
+            .optional(),
+        )?,
+    }
     .ok_or_else(|| format!("Work item '{}' not found", short_id))?;
 
     // Read labels + extras inside the same tx so the snapshot is
@@ -244,7 +307,7 @@ where
         None => ExtrasPayload::default(),
     };
 
-    let mut frontmatter = build_frontmatter(Some(project_id.clone()), &core, labels, &extras);
+    let mut frontmatter = build_frontmatter(project_id.clone(), &core, labels, &extras);
     let mut body = core.body.clone();
 
     // Snapshot every sync-tracked field's pre-mutation value so we can
@@ -308,7 +371,7 @@ where
     } else {
         core.org_id.clone()
     };
-    if next_project_id.as_deref() != Some(project_id.as_str()) {
+    if next_project_id != project_id {
         let exists_at_dest: bool = if let Some(next_project_id) = next_project_id.as_ref() {
             map_db(
                 tx.query_row(
@@ -515,6 +578,36 @@ pub fn update_work_item_partial(
     Ok(data)
 }
 
+/// Standalone-org counterpart to [`update_work_item_partial`].
+///
+/// The mutation shares the same `BEGIN IMMEDIATE` boundary, history writer,
+/// assignment-receipt reset, and field-revision logic as project-scoped work
+/// items. A single collaboration outbox write is emitted after commit so
+/// teammates receive status, priority, assignment, todo, and comment changes
+/// without a frontend read-modify-write race.
+pub fn update_standalone_work_item_partial(
+    org_id: Option<&str>,
+    short_id: &str,
+    updates: &WorkItemPartialUpdate,
+) -> Result<WorkItemData, String> {
+    let org_id = org_id.unwrap_or("personal-org");
+    let (data, changed_fields, payload_tail_changed) = update_work_item_partial_scoped(
+        AtomicWorkItemScope::Standalone { org_id },
+        short_id,
+        HashMap::new(),
+        updates,
+    )?;
+    if !changed_fields.is_empty() || payload_tail_changed {
+        crate::sync::collab_bridge::record_work_item_write(
+            org_id,
+            None,
+            &data.frontmatter.id,
+            data.frontmatter.deleted_at.is_some(),
+        )?;
+    }
+    Ok(data)
+}
+
 /// True when the patch touches any field that lives only in the server
 /// payload jsonb (outside the sync-tracked field set).
 fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
@@ -597,8 +690,43 @@ pub fn update_work_item_partial_with_revisions(
     override_revisions: HashMap<String, FieldRevision>,
     updates: &WorkItemPartialUpdate,
 ) -> Result<(WorkItemData, Vec<&'static str>), String> {
-    let (data, changed_fields, _payload_tail_changed) = update_work_item_atomic_with_revisions(
-        project_slug,
+    let (data, changed_fields, _payload_tail_changed) = update_work_item_partial_scoped(
+        AtomicWorkItemScope::Project(project_slug),
+        short_id,
+        override_revisions,
+        updates,
+    )?;
+    Ok((data, changed_fields))
+}
+
+/// Standalone-org merge-cycle counterpart to
+/// [`update_work_item_partial_with_revisions`].
+///
+/// This intentionally emits no outbox row: the caller is applying an inbound
+/// remote snapshot and must not echo it back to the collaboration service.
+pub(crate) fn update_standalone_work_item_partial_with_revisions(
+    org_id: &str,
+    short_id: &str,
+    override_revisions: HashMap<String, FieldRevision>,
+    updates: &WorkItemPartialUpdate,
+) -> Result<(WorkItemData, Vec<&'static str>), String> {
+    let (data, changed_fields, _payload_tail_changed) = update_work_item_partial_scoped(
+        AtomicWorkItemScope::Standalone { org_id },
+        short_id,
+        override_revisions,
+        updates,
+    )?;
+    Ok((data, changed_fields))
+}
+
+fn update_work_item_partial_scoped(
+    scope: AtomicWorkItemScope<'_>,
+    short_id: &str,
+    override_revisions: HashMap<String, FieldRevision>,
+    updates: &WorkItemPartialUpdate,
+) -> Result<(WorkItemData, Vec<&'static str>, bool), String> {
+    update_work_item_atomic_with_revisions_scoped(
+        scope,
         short_id,
         override_revisions,
         updates.actor.as_ref(),
@@ -683,8 +811,7 @@ pub fn update_work_item_partial_with_revisions(
                 filename: short_id.to_string(),
             })
         },
-    )?;
-    Ok((data, changed_fields))
+    )
 }
 
 // ---------------------------------------------------------------------

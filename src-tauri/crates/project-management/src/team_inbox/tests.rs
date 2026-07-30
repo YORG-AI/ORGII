@@ -371,8 +371,8 @@ fn read_receipts_and_bulk_read_are_viewer_scoped_and_idempotent() {
 }
 
 #[test]
-fn mentions_filter_is_empty_for_local_work_item_source() {
-    let connection = database();
+fn work_item_comment_mentions_are_viewer_scoped_and_readable() {
+    let mut connection = database();
     insert_work_item(
         &connection,
         WorkItemFixture {
@@ -387,6 +387,25 @@ fn mentions_filter_is_empty_for_local_work_item_source() {
             deleted_at: None,
         },
     );
+    connection
+        .execute(
+            "INSERT INTO workitem_extras (work_item_id, extras_json)
+             VALUES (?1, ?2)",
+            (
+                "work-a",
+                json!({
+                    "comments": [{
+                        "id": "comment-1",
+                        "author": "member-b",
+                        "content": "Please review this",
+                        "created_at": "2026-07-29T08:00:00Z",
+                        "mentioned_user_ids": ["member-a"]
+                    }]
+                })
+                .to_string(),
+            ),
+        )
+        .expect("insert comment extras");
     let page = list_page_with_connection(
         &connection,
         TeamInboxListOptions {
@@ -395,8 +414,30 @@ fn mentions_filter_is_empty_for_local_work_item_source() {
         },
     )
     .expect("list mentions");
-    assert!(page.items.is_empty());
+    assert_eq!(page.items.len(), 1);
+    assert_eq!(page.unread_count, 1);
+    assert_eq!(page.items[0].kind, TeamInboxItemKind::CommentMention);
+    assert!(matches!(
+        page.items[0].target,
+        TeamInboxTarget::WorkItemComment { ref comment_id, .. }
+            if comment_id == "comment-1"
+    ));
+
+    let item_id = page.items[0].id.clone();
+    assert!(
+        mark_read_with_connection(&mut connection, &["member-a".into()], &item_id, 123)
+            .expect("mark mention read")
+    );
+    let page = list_page_with_connection(
+        &connection,
+        TeamInboxListOptions {
+            filter: TeamInboxFilter::Mentions,
+            ..options(&["member-a"], 10)
+        },
+    )
+    .expect("list read mentions");
     assert_eq!(page.unread_count, 0);
+    assert_eq!(page.items[0].read_at, Some(123));
 }
 
 #[test]

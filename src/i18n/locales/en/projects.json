@@ -374,6 +374,7 @@
       "subscribe": "Subscribe",
       "unsubscribe": "Unsubscribe",
       "commentPlaceholder": "Leave a comment...",
+      "mentionPeople": "Mention people",
       "you": "You",
       "createdWorkItem": "created the work item",
       "deletedWorkItem": "deleted the work item",

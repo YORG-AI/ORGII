@@ -68,7 +68,7 @@ export function useTeamInboxNavigation(): (
             project?.meta.name ??
             intent.projectId ??
             t("teamInbox.detail.standaloneProject"),
-          orgId: project?.meta.org_id,
+          orgId: project?.meta.org_id ?? intent.orgId,
         });
         if (intent.action) {
           requestWorkItemAction({
@@ -80,7 +80,10 @@ export function useTeamInboxNavigation(): (
 
       if (!intent.projectId) {
         void projectApi
-          .readStandaloneWorkItem(intent.workItemId)
+          .readStandaloneWorkItem(
+            intent.workItemId,
+            intent.orgId ? { orgId: intent.orgId } : undefined
+          )
           .then((workItem) => openResolvedWorkItem(workItem))
           .catch((error: unknown) => {
             log.warn("Failed to open standalone Team Inbox Work Item", error);
