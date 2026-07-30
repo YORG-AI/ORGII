@@ -16,20 +16,35 @@
  * backend-initiated switches reach `sessionsAtom` without relying on the
  * initiating window's optimistic update.
  *
- * This intentionally does NOT trigger toasts or notifications: those are
- * owned by `useBackgroundSessionMonitor` (CLI sessions) and individual
- * session panels. This hook is the minimal "keep the store in sync" layer.
+ * This also owns terminal notifications for native background sessions.
+ * Delivery is transition-based so repeated native events and hydrated
+ * historical terminal state cannot replay notifications.
  */
 import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { useAtomValue } from "jotai";
+import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   markTurnRunning,
   markTurnTerminal,
   toTurnTerminalStatus,
 } from "@src/engines/SessionCore/control/turnLifecycle";
-import { type SessionStatus, updateSessionStatus } from "@src/store/session";
+import {
+  deliverBackgroundSessionTerminalNotification,
+  shouldDeliverBackgroundSessionTerminalNotification,
+} from "@src/hooks/session/backgroundSessionNotifications";
+import {
+  type SessionStatus,
+  sessionByIdAtom,
+  updateSessionStatus,
+} from "@src/store/session";
+import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
 import { isTerminalStatus } from "@src/types/session/session";
+import {
+  getInstrumentedStore,
+  isStoreInitialized,
+} from "@src/util/core/state/instrumentedStore";
 import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
 interface SessionStatusChangedPayload {
@@ -50,13 +65,48 @@ interface SessionRenamedPayload {
 }
 
 export function useNativeSessionStatusMonitor(): void {
+  const { t } = useTranslation();
+  const notificationSettings = useAtomValue(notificationSettingsAtom);
+  const settingsRef = useRef(notificationSettings);
+  const translationRef = useRef(t);
+
+  useEffect(() => {
+    settingsRef.current = notificationSettings;
+  }, [notificationSettings]);
+  useEffect(() => {
+    translationRef.current = t;
+  }, [t]);
+
   useEffect(() => {
     const unlistenPromise = listen<SessionStatusChangedPayload>(
       "session-status-changed",
       (event) => {
         const { sessionId, status } = event.payload;
+        const session = isStoreInitialized()
+          ? getInstrumentedStore().get(sessionByIdAtom(sessionId))
+          : undefined;
         if (isTerminalStatus(status)) {
           markTurnTerminal(sessionId, toTurnTerminalStatus(status));
+          if (
+            session &&
+            shouldDeliverBackgroundSessionTerminalNotification(
+              session.status,
+              status,
+              session.background === true
+            )
+          ) {
+            deliverBackgroundSessionTerminalNotification(
+              {
+                status,
+                sessionName:
+                  session.name ||
+                  translationRef.current("notifications.backgroundSession"),
+                errorMessage: session.error_message,
+              },
+              settingsRef.current,
+              translationRef.current
+            );
+          }
         } else if (isSessionRuntimeExecuting(status)) {
           markTurnRunning(sessionId);
         }

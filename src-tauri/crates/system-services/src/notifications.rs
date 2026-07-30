@@ -84,9 +84,3 @@ pub fn set_dock_badge(count: Option<u32>) -> Result<(), String> {
         Ok(())
     }
 }
-
-/// Clear the dock badge on macOS
-#[tauri::command]
-pub fn clear_dock_badge() -> Result<(), String> {
-    set_dock_badge(None)
-}

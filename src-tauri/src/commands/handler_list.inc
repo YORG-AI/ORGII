@@ -199,7 +199,6 @@ system_services::notifications::send_notification,
 system_services::notifications::check_notification_permission,
 system_services::notifications::request_notification_permission,
 system_services::notifications::set_dock_badge,
-system_services::notifications::clear_dock_badge,
 // Platform commands - App Menu (File > Open Recent)
 system_services::app_menu::menu_add_recent,
 system_services::app_menu::menu_get_recent,

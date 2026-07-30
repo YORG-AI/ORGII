@@ -2464,6 +2464,15 @@
       "noRepo": "No repo"
     }
   },
+  "notifications": {
+    "backgroundSession": "Background Session",
+    "taskCompletedTitle": "Task completed",
+    "taskCompletedBody": "“{{name}}” completed — ready for review",
+    "taskCompletedToast": "“{{name}}” completed. Open the Session to review the result.",
+    "taskFailedTitle": "Task failed",
+    "taskFailedBody": "“{{name}}” failed{{detail}}",
+    "taskCancelledToast": "“{{name}}” was cancelled"
+  },
   "teamInbox": {
     "title": "Team Inbox",
     "listLabel": "Team Inbox list",

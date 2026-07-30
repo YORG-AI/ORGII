@@ -174,4 +174,22 @@ describe("CliTurnLifecycleCoordinator", () => {
     expect(loadBatch).not.toHaveBeenCalled();
     vi.stubGlobal("document", originalDocument);
   });
+
+  it("returns only newly-applied statuses so reconnect consumers can recover side effects", async () => {
+    const terminal = {
+      sessionId: "cliagent-recovered",
+      status: "completed",
+      turnIntentId: "intent-recovered",
+    };
+    const coordinator = new CliTurnLifecycleCoordinator(
+      vi.fn(async () => [terminal, terminal])
+    );
+    coordinator.handleStatus({
+      sessionId: terminal.sessionId,
+      status: "running",
+      turnIntentId: terminal.turnIntentId,
+    });
+
+    await expect(coordinator.reconcile()).resolves.toEqual([terminal]);
+  });
 });

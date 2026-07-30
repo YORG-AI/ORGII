@@ -39,28 +39,17 @@ export const NOTIFICATIONS_SETTINGS_REGISTRY = {
     description: "Show notifications for task/session completion",
     category: "notifications",
   },
-  "notifications.categories.agentApproval": {
-    schema: z.boolean(),
-    default: true,
-    description: "Show notifications when an agent action requires approval",
-    category: "notifications",
-  },
   "notifications.categories.errors": {
     schema: z.boolean(),
     default: true,
     description: "Show notifications for errors and warnings",
     category: "notifications",
   },
-  "notifications.categories.sessionStatus": {
+  "notifications.categories.teamInbox": {
     schema: z.boolean(),
-    default: false,
-    description: "Show notifications for session status updates",
-    category: "notifications",
-  },
-  "notifications.categories.gitOperations": {
-    schema: z.boolean(),
-    default: false,
-    description: "Show notifications for git operations (push, pull, merge)",
+    default: true,
+    description:
+      "Show notifications for Team Inbox assignments, mentions, and handoffs",
     category: "notifications",
   },
 } as const satisfies Record<string, SettingDefinition>;

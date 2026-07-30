@@ -59,7 +59,7 @@ type BatchLoader = (input: {
 export class CliTurnLifecycleCoordinator {
   private readonly activeBySession = new Map<string, ActiveCliTurn>();
   private readonly recentTerminalIntents = new Set<string>();
-  private reconcilePromise: Promise<void> | null = null;
+  private reconcilePromise: Promise<CliLifecycleStatus[]> | null = null;
 
   constructor(private readonly loadStatusBatch: BatchLoader) {}
 
@@ -138,20 +138,20 @@ export class CliTurnLifecycleCoordinator {
     return true;
   }
 
-  reconcile(): Promise<void> {
+  reconcile(): Promise<CliLifecycleStatus[]> {
     if (
       typeof document !== "undefined" &&
       document.visibilityState === "hidden"
     ) {
-      return Promise.resolve();
+      return Promise.resolve([]);
     }
     if (this.reconcilePromise) return this.reconcilePromise;
 
     const sessionIds = this.collectReconcileSessionIds();
-    if (sessionIds.length === 0) return Promise.resolve();
+    if (sessionIds.length === 0) return Promise.resolve([]);
     this.reconcilePromise = this.loadStatusBatch({ sessionIds })
       .then((statuses) => {
-        for (const status of statuses) this.handleStatus(status);
+        return statuses.filter((status) => this.handleStatus(status));
       })
       .finally(() => {
         this.reconcilePromise = null;

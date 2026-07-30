@@ -2348,6 +2348,15 @@
       "noRepo": "无仓库"
     }
   },
+  "notifications": {
+    "backgroundSession": "后台会话",
+    "taskCompletedTitle": "任务已完成",
+    "taskCompletedBody": "“{{name}}”已完成，可以查看结果",
+    "taskCompletedToast": "“{{name}}”已完成，请打开会话查看结果。",
+    "taskFailedTitle": "任务失败",
+    "taskFailedBody": "“{{name}}”失败{{detail}}",
+    "taskCancelledToast": "“{{name}}”已取消"
+  },
   "teamInbox": {
     "title": "团队收件箱",
     "listLabel": "团队收件箱列表",
