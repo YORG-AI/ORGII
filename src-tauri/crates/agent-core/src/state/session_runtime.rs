@@ -134,6 +134,12 @@ pub struct AgentSession {
     /// tokenizer mismatch, sampling). `0` = unknown; reset after compaction
     /// mutates the message list so a stale reading can't re-trigger.
     pub last_context_tokens: Arc<AtomicI64>,
+    /// Cumulative weighted token spend since the last compaction
+    /// (uncached_input*1.0 + cache_read*0.1 + cache_write*1.25 + output*5.0,
+    /// stored x1000 to keep fractions in an integer atomic). Feeds the
+    /// cost-based compaction trigger (`CompactionConfig::weighted_token_threshold`);
+    /// reset to 0 after every successful compaction.
+    pub cumulative_weighted_tokens_milli: Arc<AtomicI64>,
     /// Wall-clock time of the last user interaction, used by the idle-cleanup task.
     pub last_active_at: tokio::sync::Mutex<Instant>,
 
@@ -293,6 +299,7 @@ impl AgentSession {
             runtime: tokio::sync::RwLock::new(None),
             compaction: tokio::sync::Mutex::new(CompactionState::default()),
             last_context_tokens: Arc::new(AtomicI64::new(0)),
+            cumulative_weighted_tokens_milli: Arc::new(AtomicI64::new(0)),
             permission_manager,
             question_manager: Arc::new(QuestionManager::with_cancel_flag(Arc::clone(&cancel_flag))),
             secret_broker: Arc::new(SecretBroker::with_cancel_flag(Arc::clone(&cancel_flag))),

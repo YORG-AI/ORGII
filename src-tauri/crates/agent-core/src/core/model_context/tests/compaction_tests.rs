@@ -1207,3 +1207,27 @@ fn compaction_summary_model_ignores_config_override_for_route_consistency() {
         Some("cheap/fallback-summary-model")
     );
 }
+
+#[test]
+fn weighted_token_threshold_default_is_5m_and_serde_default_applies() {
+    let config = CompactionConfig::default();
+    assert_eq!(config.weighted_token_threshold, 5_000_000);
+
+    // Old configs without the field must deserialize with the default
+    // (second trigger enabled) instead of failing or zeroing it out.
+    let parsed: CompactionConfig = serde_json::from_str("{}").expect("empty config parses");
+    assert_eq!(parsed.weighted_token_threshold, 5_000_000);
+
+    // Explicit zero disables the cost trigger.
+    let disabled: CompactionConfig =
+        serde_json::from_str(r#"{"weightedTokenThreshold": 0}"#).expect("explicit zero parses");
+    assert_eq!(disabled.weighted_token_threshold, 0);
+}
+
+#[test]
+fn compaction_state_replay_session_id_defaults_to_none() {
+    // Replay-based summarization must be opt-in per call site: a default
+    // state (tests, contexts without a session id) takes the flatten path.
+    let state = CompactionState::default();
+    assert!(state.replay_session_id.is_none());
+}

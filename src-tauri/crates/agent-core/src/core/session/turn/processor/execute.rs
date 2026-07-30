@@ -216,6 +216,22 @@ impl UnifiedMessageProcessor {
                 .store(result.context_tokens, std::sync::atomic::Ordering::SeqCst);
         }
 
+        // Accumulate weighted spend for the cost-based compaction trigger.
+        // prompt_tokens is billable (uncached) input in Anthropic accounting;
+        // cached prefix arrives in cache_read/cache_write. Stored x1000 so the
+        // fractional weights survive the integer atomic.
+        {
+            let weighted_milli = result.prompt_tokens.saturating_mul(1_000)
+                + result.cache_read_tokens.saturating_mul(100)
+                + result.cache_write_tokens.saturating_mul(1_250)
+                + result.completion_tokens.saturating_mul(5_000);
+            if weighted_milli > 0 {
+                self.session
+                    .cumulative_weighted_tokens_milli
+                    .fetch_add(weighted_milli, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+
         Ok((result, handler))
     }
 

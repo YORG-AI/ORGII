@@ -521,6 +521,9 @@ async fn run_manual_compact_exclusive(
     };
 
     session.last_context_tokens.store(0, Ordering::SeqCst);
+    session
+        .cumulative_weighted_tokens_milli
+        .store(0, Ordering::SeqCst);
 
     // Instant ring/panel refresh, ahead of the frontend's full reload.
     crate::bus::broadcast_event(
