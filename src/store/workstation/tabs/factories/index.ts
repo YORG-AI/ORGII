@@ -110,6 +110,7 @@ export {
   projectWorkItemsTabFactory,
   projectTreeTabFactory,
   projectJourneyTabFactory,
+  sessionJourneyTabFactory,
   workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
@@ -124,6 +125,7 @@ export {
   createProjectWorkItemsTab,
   createProjectTreeTab,
   createProjectJourneyTab,
+  createSessionJourneyTab,
   createWorkItemDetailTab,
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -143,6 +145,7 @@ export type {
   ProjectWorkItemsTabData,
   WorkItemDetailTabData,
   ProjectJourneyTabData,
+  SessionJourneyTabData,
 } from "./project";
 export type { NewWorkItemTabData } from "../types";
 

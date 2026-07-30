@@ -4,7 +4,8 @@ export type JourneyScope = `project/${string}` | `session/${string}`;
 export type EvidenceClass = "canonical" | "derivedRule" | "aiAnnotation" | "userOverlay";
 export interface JourneyGraphNode { id: string; kind: string; evidenceClass: EvidenceClass; sourceRef: string; displayTimestamp?: string | null; }
 export interface JourneyGraphEdge { from: string; to: string; kind: string; evidenceClass: EvidenceClass; sourceRef: string; }
-export interface JourneyCoverage { sourceRef: string; status: "represented" | "mergedInto" | "excluded" | "uncovered"; }
+export type JourneyCoverageStatus = "represented" | "uncovered" | { mergedInto: { target: string } } | { excluded: { reason: string } };
+export interface JourneyCoverage { sourceRef: string; status: JourneyCoverageStatus; }
 export interface JourneyGraphPayload { nodes: JourneyGraphNode[]; edges: JourneyGraphEdge[]; coverage: JourneyCoverage[]; }
 
 export function assertJourneyScope(scope: string): asserts scope is JourneyScope {

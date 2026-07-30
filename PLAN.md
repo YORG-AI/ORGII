@@ -1,5 +1,22 @@
 # PLAN.md — ORG-II ↔ Feishu 联动优化（6项 + opus-4.6）
 
+## P2 — Read-Only Journey Visualization (2026-07-30)
+
+### Deliverables and exact files
+
+1. **Pure, deterministic graph projections** — extend `src/modules/ProjectManager/JourneyGraph/viewModel.ts` with `graphToStorylineViewModel`, `graphToBranchesViewModel`, `graphToFileLineageViewModel`, and `graphToCoverageLedgerViewModel`. The storyline groups only factual `session`/agent lanes, positions dated nodes in sorted display-time order, and inserts labeled `idle-gap` records when the configured idle threshold is crossed; missing timestamps remain unpositioned rather than inferred. Branch links are only `forkedFrom`/`resumedFrom`/`compactedTo` edges, and file adjacency is only `produced`/`modified` edges. Every projection sorts by lineage-relevant IDs/sequence and preserves each graph item's evidence/source fields.
+2. **Shared read-only Journey views** — add `src/modules/ProjectManager/JourneyGraph/components/StorylineTimeline.tsx`, `BranchesGraph.tsx`, `FileLineagePanel.tsx`, `CoverageLedger.tsx`, and `EvidenceSource.tsx`. Each component renders semantic equivalents of its visual records, evidence-class badges, and source-reference drill links; the storyline visibly labels compressed idle spans, shows lanes and factual hand-off/branch connectors, and all views have empty states without placeholder facts.
+3. **One tabbed graph container for both scopes** — add `src/modules/ProjectManager/JourneyGraph/JourneyContainer.tsx`, `SessionJourneyPage.tsx`, and `index.ts`. The container owns loading/error/reload state around the existing `journeyGraphQuery(scope)` client and switches Storyline, Branches, File Lineage, and Coverage tabs with no mutation controls. Replace `src/modules/ProjectManager/ProjectJourney/ProjectJourneyPage.tsx` with the container using `project/{id}`. Add a `session-journey` tab factory, registry entry, and `src/modules/WorkStation/TabContent/renderers/sessionJourney.tsx` using the same container with `session/{id}`, so session rendering cannot create a second graph truth path.
+4. **Focused verification** — add `src/modules/ProjectManager/JourneyGraph/__tests__/viewModel.p2.test.ts` for every new pure projection (idle compression, factual-only branches, produced/modified-only files, coverage/provenance separation, deterministic ordering), and `components.p2.test.ts` for static component smoke coverage of evidence/source drill output. Retain and extend the P1 client test only when contract coverage is shared.
+5. **Audit and delivery evidence** — run the frontend UI audit against the new components if its workspace skill is available; write its dated report under `docs/frontend-ui-audit-2026-07-30/`. Add `docs/product/p2-journey-viz-gate-20260730.md` with the capability matrix, exact commands, output paths, baseline-aware typecheck result, and the explicit frontend-only/no-new-dependency decision. Commit implementation, tests, and gate documentation separately as `feat(p2):`, `test(p2):`, and `docs(p2):` without pushing.
+
+### Constraints carried into implementation
+
+- The visual layer accepts only `JourneyGraphPayload`; it never reads raw stores, creates source facts, or derives a branch/handoff from timestamp proximity.
+- The P1 client and all view models fail closed on `uncovered` coverage or absent evidence/source data; no demo/fallback graph is rendered.
+- Evidence class and source reference remain visible and drillable for every graph node and edge. Coverage status and independent provenance/audit status are distinct records in the ledger.
+- No backend, package/dependency, installation, `.deb`, `/usr/bin/org2`, live-config, or credential changes are planned for P2.
+
 ## P1 — Unified Read-Only Journey Graph (2026-07-30)
 
 ### Completion checklist

@@ -108,6 +108,11 @@ export function resolveProjectManagerTabTitle(
     return name ? `${name} ${journeyLabel}` : journeyLabel;
   }
 
+  if (tab.type === "session-journey") {
+    const name = tab.data.sessionName as string | undefined;
+    return name ? `${name} Journey` : "Session Journey";
+  }
+
   if (
     tab.type === "project-linear-projects" ||
     tab.type === "project-linear-work-items"
@@ -551,4 +556,24 @@ export function createProjectJourneyTab(
   data: ProjectJourneyTabData = {}
 ): WorkStationTab {
   return projectJourneyTabFactory(data);
+}
+
+export interface SessionJourneyTabData {
+  sessionId: string;
+  sessionName?: string;
+}
+
+export const sessionJourneyTabFactory = defineTabFactory<SessionJourneyTabData>({
+  tabType: "session-journey",
+  idStrategy: {
+    type: "keyed",
+    prefix: "session-journey",
+    getKey: (data) => data.sessionId,
+  },
+  getTitle: (data) => data.sessionName ? `${data.sessionName} Journey` : "Session Journey",
+  icon: "GitFork",
+});
+
+export function createSessionJourneyTab(data: SessionJourneyTabData): WorkStationTab {
+  return sessionJourneyTabFactory(data);
 }

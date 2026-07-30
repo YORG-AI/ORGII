@@ -65,6 +65,7 @@ export function tabTypeToTabHost(type: WorkStationTabType): WorkstationTabHost {
     case "project-org":
     case "project-org-settings":
     case "project-git-sync-review":
+    case "session-journey":
     case "project-workitems":
     case "workItem-detail":
       return "project";

@@ -1,0 +1,5 @@
+import React from "react";
+
+import type { CoverageLedgerViewModel } from "../viewModel";
+
+export const CoverageLedger: React.FC<{ viewModel: CoverageLedgerViewModel }> = ({ viewModel }) => <section aria-label="Coverage ledger" data-testid="coverage-ledger"><div className="mb-3 border border-border-2 p-2 text-xs" data-testid="provenance-audit-indicator"><div className="font-medium text-text-1">Independent provenance audit</div><div className="text-text-3">{viewModel.provenanceAudit === "notProvided" ? "Not provided by the P1 payload; not inferred from coverage." : viewModel.provenanceAudit}</div></div><div className="mb-3 grid grid-cols-2 gap-2 text-xs">{Object.entries(viewModel.summary).map(([status, count]) => <div key={status} className="border border-border-2 p-2">{status}: {count}</div>)}</div><div className="space-y-1">{viewModel.entries.map((entry) => <div key={entry.sourceRef} className="border-b border-border-2 py-2 text-xs" data-testid="coverage-ledger-entry"><div className="font-medium text-text-1">{entry.statusKind}: {entry.sourceRef}</div><div className="text-text-3">{entry.detail}</div></div>)}</div></section>;

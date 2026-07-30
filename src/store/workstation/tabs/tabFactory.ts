@@ -100,6 +100,7 @@ const DEFAULT_CATEGORY_BY_TYPE: Record<
   "project-work-items": "project",
   "project-tree": "project",
   "project-journey": "project",
+  "session-journey": "project",
   "project-linear-projects": "project",
   "project-linear-work-items": "project",
   "project-settings": "project",
