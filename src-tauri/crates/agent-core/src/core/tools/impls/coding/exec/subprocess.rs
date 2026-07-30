@@ -1,5 +1,7 @@
 //! Subprocess execution with bounded memory and durable shell replay.
 
+#[cfg(any(windows, test))]
+use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine as _};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -35,6 +37,48 @@ pub(super) const ESTIMATED_RETAINED_OUTPUT_BYTES: usize = (2
     + (8 * 1024);
 const BACKGROUND_SAFETY_TIMEOUT_SECS: u64 = 3600;
 const SHELL_TOOL_RESULT_MAX_BYTES: usize = 30 * 1024;
+#[cfg(any(windows, test))]
+const WINDOWS_POWERSHELL_ENCODED_COMMAND_MAX_CHARS: usize = 30_000;
+
+/// Build a PowerShell 5.1-compatible encoded command without placing user
+/// source directly on the Windows command line.
+///
+/// `-EncodedCommand` expects UTF-16LE. The inner source is carried as UTF-8
+/// base64 so that it is parsed only after output encoding has been normalized;
+/// syntax errors and localized diagnostics are therefore emitted as UTF-8 too.
+#[cfg(any(windows, test))]
+fn powershell_encoded_command(command: &str) -> String {
+    let source_payload = BASE64_STANDARD.encode(command.as_bytes());
+    let script = format!(
+        "$ErrorActionPreference = 'Stop'\n\
+         $__orgii_utf8 = [System.Text.UTF8Encoding]::new($false)\n\
+         [Console]::OutputEncoding = $__orgii_utf8\n\
+         $OutputEncoding = $__orgii_utf8\n\
+         $__orgii_source = [System.Text.Encoding]::UTF8.GetString(\
+         [System.Convert]::FromBase64String('{source_payload}'))\n\
+         $global:LASTEXITCODE = 0\n\
+         & ([ScriptBlock]::Create($__orgii_source))\n\
+         $__orgii_success = $?\n\
+         $__orgii_exit_code = $global:LASTEXITCODE\n\
+         if ($__orgii_success) {{ exit 0 }}\n\
+         if ($null -ne $__orgii_exit_code -and $__orgii_exit_code -ne 0) {{ \
+         exit $__orgii_exit_code }}\n\
+         exit 1"
+    );
+    let utf16le = script
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect::<Vec<_>>();
+    BASE64_STANDARD.encode(utf16le)
+}
+
+#[cfg(windows)]
+fn windows_powershell_executable() -> PathBuf {
+    let system_root = std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"));
+    system_root.join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
+}
 
 #[derive(Debug, Clone)]
 pub struct ExecIdentity {
@@ -275,9 +319,19 @@ async fn terminate_child_tree(pid: u32, child: &mut tokio::process::Child) {
 }
 
 #[cfg(windows)]
-async fn terminate_child_tree(_pid: u32, child: &mut tokio::process::Child) {
+async fn terminate_child_tree(pid: u32, child: &mut tokio::process::Child) {
+    if pid != 0 {
+        if let Err(err) = registry::terminate_shell_process_tree(pid).await {
+            warn!("[subprocess] failed to terminate Windows process tree {pid}: {err}");
+        }
+        if matches!(child.try_wait(), Ok(Some(_))) {
+            return;
+        }
+    }
     if let Err(err) = child.kill().await {
-        warn!("[subprocess] failed to kill child process: {err}");
+        if err.kind() != std::io::ErrorKind::InvalidInput {
+            warn!("[subprocess] failed to kill child process: {err}");
+        }
     }
 }
 
@@ -552,16 +606,42 @@ pub async fn execute_via_command(
     };
     #[cfg(windows)]
     let mut cmd = {
-        let mut command = tokio::process::Command::new("cmd");
-        command.arg("/C");
-        command
+        let encoded_command = powershell_encoded_command(command);
+        if encoded_command.len() > WINDOWS_POWERSHELL_ENCODED_COMMAND_MAX_CHARS {
+            let message = format!(
+                "PowerShell command is too large for reliable Windows execution (encoded length: \
+                 {} characters; limit: {}). Use edit_file/write_file for large code or content, \
+                 then run the resulting file in a shorter run_shell call.",
+                encoded_command.len(),
+                WINDOWS_POWERSHELL_ENCODED_COMMAND_MAX_CHARS
+            );
+            replay.mark_incomplete(message.clone());
+            return Err(ToolError::InvalidParams(message));
+        }
+        let mut powershell = tokio::process::Command::new(windows_powershell_executable());
+        powershell
+            .args([
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+            ])
+            .arg(encoded_command);
+        if std::env::var_os("PYTHONUTF8").is_none() {
+            powershell.env("PYTHONUTF8", "1");
+        }
+        if std::env::var_os("PYTHONIOENCODING").is_none() {
+            powershell.env("PYTHONIOENCODING", "utf-8");
+        }
+        powershell
     };
     configure_git_environment(&mut cmd);
     if let Ok(path) = std::env::var("PATH") {
         cmd.env("PATH", path);
     }
-    cmd.arg(command)
-        .current_dir(&work_dir)
+    #[cfg(unix)]
+    cmd.arg(command);
+    cmd.current_dir(&work_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
@@ -921,6 +1001,19 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
+    fn platform_command<'a>(unix: &'a str, windows: &'a str) -> &'a str {
+        #[cfg(windows)]
+        {
+            let _ = unix;
+            windows
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = windows;
+            unix
+        }
+    }
+
     #[test]
     fn background_tool_result_stays_inside_model_budget() {
         let preview = "中🙂ansi\x1b[31m".repeat(8_000);
@@ -940,9 +1033,9 @@ mod tests {
         let _sandbox = test_helpers::test_env::sandbox();
         let root = super::super::shell_replay::resolve_replay_root();
         let target = ShellReplayTarget::new("join-failure-session", "join-failure-call");
+        let cwd = std::env::temp_dir();
         let mut writer =
-            ShellReplayWriter::create(&root, target.clone(), "emit", Path::new("/tmp"), None)
-                .unwrap();
+            ShellReplayWriter::create(&root, target.clone(), "emit", &cwd, None).unwrap();
         writer
             .append(ShellReplayStream::Stdout, b"before panic")
             .unwrap();
@@ -989,7 +1082,6 @@ mod tests {
         panic!("replay {session_id}/{call_id} did not cross its completion barrier");
     }
 
-    #[cfg(unix)]
     #[tokio::test]
     #[serial_test::serial]
     async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier() {
@@ -1000,7 +1092,10 @@ mod tests {
 
         let explicit = ExecIdentity::new(session_id, "call-explicit-background");
         let launch = execute_via_command(
-            "printf explicit-background",
+            platform_command(
+                "printf explicit-background",
+                "Write-Output 'explicit-background'",
+            ),
             cwd.clone(),
             10,
             None,
@@ -1020,7 +1115,10 @@ mod tests {
 
         let timed = ExecIdentity::new(session_id, "call-wait-timeout-background");
         let launch = execute_via_command(
-            "printf timeout-background",
+            platform_command(
+                "printf timeout-background",
+                "Write-Output 'timeout-background'",
+            ),
             cwd.clone(),
             10,
             Some(0),
@@ -1048,7 +1146,10 @@ mod tests {
             }
         };
         let execute = execute_via_command(
-            "printf before-cancel; sleep 10",
+            platform_command(
+                "printf before-cancel; sleep 10",
+                "Write-Output 'before-cancel'; Start-Sleep -Seconds 10",
+            ),
             cwd,
             20,
             None,
@@ -1064,6 +1165,79 @@ mod tests {
             wait_for_terminal_replay(session_id, "call-cancelled").await,
             ShellReplayStatus::Running
         );
+    }
+
+    #[cfg(any(windows, test))]
+    #[test]
+    fn windows_powershell_encoded_command_preserves_unicode_and_quotes() {
+        let command = "Write-Output '中文 🙂 path with spaces \"quoted\"; semicolon'";
+        let encoded = powershell_encoded_command(command);
+        assert!(encoded.len() <= WINDOWS_POWERSHELL_ENCODED_COMMAND_MAX_CHARS);
+
+        let bytes = BASE64_STANDARD.decode(encoded).unwrap();
+        assert_eq!(bytes.len() % 2, 0);
+        let utf16 = bytes
+            .chunks_exact(2)
+            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+            .collect::<Vec<_>>();
+        let wrapper = String::from_utf16(&utf16).unwrap();
+
+        assert!(wrapper.contains("[Console]::OutputEncoding = $__orgii_utf8"));
+        assert!(wrapper.contains("[ScriptBlock]::Create($__orgii_source)"));
+        assert!(wrapper.contains(&BASE64_STANDARD.encode(command.as_bytes())));
+        assert!(!wrapper.contains(command));
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn windows_powershell_executes_unicode_quotes_paths_and_exit_codes() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let root = super::super::shell_replay::resolve_replay_root();
+        let temp = tempfile::tempdir().unwrap();
+        let cwd = temp.path().join("中文 path with spaces");
+        std::fs::create_dir(&cwd).unwrap();
+
+        let unicode = ExecIdentity::new("windows-powershell-session", "unicode-call");
+        let output = execute_via_command(
+            "Write-Output '中文 🙂 \"quoted\"; semicolon'; \
+             Write-Output (Get-Location).Path; \
+             Write-Output ('PSVERSION=' + $PSVersionTable.PSVersion.Major); \
+             Write-Output ('PSHOME=' + $PSHOME); \
+             Write-Output ('PYTHONIOENCODING=' + $env:PYTHONIOENCODING)",
+            cwd.clone(),
+            10,
+            None,
+            ExecMode::Blocking,
+            &unicode,
+            &root,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(output.contains("中文 🙂 \"quoted\"; semicolon"));
+        assert!(output.contains("中文 path with spaces"));
+        assert!(output.contains("PSVERSION=5"));
+        assert!(output.contains("WindowsPowerShell"));
+        assert!(output.contains("PYTHONIOENCODING=utf-8"));
+        assert!(output.contains("[exit code: 0]"));
+
+        let nonzero = ExecIdentity::new("windows-powershell-session", "nonzero-call");
+        let output = execute_via_command(
+            "exit 7",
+            cwd,
+            10,
+            None,
+            ExecMode::Blocking,
+            &nonzero,
+            &root,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert!(output.contains("[exit code: 7]"));
     }
 
     #[cfg(unix)]

@@ -166,7 +166,9 @@ fn launch_for_platform(
 
     if command_exists("wt") {
         let status = Command::new("wt")
-            .arg("powershell")
+            .arg(windows_powershell_executable())
+            .arg("-NoLogo")
+            .arg("-NoProfile")
             .arg("-NoExit")
             .arg("-Command")
             .arg(&powershell_command)
@@ -179,40 +181,35 @@ fn launch_for_platform(
         }
     }
 
-    let status = Command::new("powershell")
+    Command::new(windows_powershell_executable())
+        .arg("-NoLogo")
+        .arg("-NoProfile")
         .arg("-NoExit")
         .arg("-Command")
         .arg(&powershell_command)
-        .spawn();
-    if status.is_ok() {
-        return Ok(ExternalTerminalLaunch {
+        .spawn()
+        .map(|_| ExternalTerminalLaunch {
             terminal_app: "PowerShell".to_string(),
             automation_error: None,
-        });
-    }
-
-    Command::new("cmd")
-        .arg("/K")
-        .arg(format!("cd /d {} && {}", cmd_quote(&work_dir), command))
-        .spawn()
+        })
         .map_err(|err| {
-            ToolError::ExecutionFailed(format!("Failed to launch external terminal: {err}"))
-        })?;
+            ToolError::ExecutionFailed(format!(
+                "Failed to launch the built-in Windows PowerShell 5.1 terminal: {err}"
+            ))
+        })
+}
 
-    Ok(ExternalTerminalLaunch {
-        terminal_app: "cmd.exe".to_string(),
-        automation_error: None,
-    })
+#[cfg(target_os = "windows")]
+fn windows_powershell_executable() -> std::path::PathBuf {
+    let system_root = std::env::var_os("SystemRoot")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from(r"C:\Windows"));
+    system_root.join(r"System32\WindowsPowerShell\v1.0\powershell.exe")
 }
 
 #[cfg(target_os = "windows")]
 fn powershell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
-}
-
-#[cfg(target_os = "windows")]
-fn cmd_quote(value: &str) -> String {
-    format!("\"{}\"", value.replace('"', "\\\""))
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]

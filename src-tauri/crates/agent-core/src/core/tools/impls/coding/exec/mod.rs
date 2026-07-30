@@ -246,6 +246,40 @@ impl ExecTool {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ShellPlatform {
+    Posix,
+    WindowsPowerShell,
+}
+
+impl ShellPlatform {
+    fn current() -> Self {
+        if cfg!(windows) {
+            Self::WindowsPowerShell
+        } else {
+            Self::Posix
+        }
+    }
+}
+
+fn platform_shell_guidance(platform: ShellPlatform) -> &'static str {
+    match platform {
+        ShellPlatform::WindowsPowerShell => {
+            "## Windows shell contract (CRITICAL)\n\
+             - Commands run in built-in Windows PowerShell 5.1 (`powershell.exe`), never cmd.exe, Git Bash, WSL, or PowerShell 7. Do not nest another `cmd /C` or `powershell -Command` invocation.\n\
+             - Use PowerShell 5.1 syntax and `$env:NAME`. Do not use Bash/POSIX syntax such as `&&`, `||`, `export`, or backslash line continuations.\n\
+             - Use separate run_shell calls for dependent steps. Use `;` only when the next command should run regardless of the previous result.\n\
+             - Use `$HOME`, `$env:TEMP`, and `Join-Path` for Windows paths; never assume `/tmp` or another POSIX path exists. Prefer `-LiteralPath` where supported.\n\
+             - The tool normalizes PowerShell and Python output to UTF-8. Do not run `chcp`."
+        }
+        ShellPlatform::Posix => {
+            "## POSIX shell contract\n\
+             - Commands run under `sh -c`; use POSIX shell syntax rather than shell-specific extensions.\n\
+             - Chain dependent commands with `&&` in one call. Use separate parallel calls for independent commands."
+        }
+    }
+}
+
 #[async_trait]
 impl Tool for ExecTool {
     fn name(&self) -> &str {
@@ -261,7 +295,11 @@ impl Tool for ExecTool {
     }
 
     fn search_hint(&self) -> &str {
-        "bash shell terminal command execute exec grep awk sed process cli run script"
+        if cfg!(windows) {
+            "powershell windows shell terminal command execute process cli run script"
+        } else {
+            "posix sh shell terminal command execute process cli run script"
+        }
     }
 
     fn description(&self) -> &str {
@@ -275,11 +313,11 @@ impl Tool for ExecTool {
         is spawned; use await_output(command=\"wait_for\", handles=[pid]) to monitor until the process exits.\n\
         In the default blocking mode, commands that exceed the timeout are automatically backgrounded \
         (never killed) as a safety net — you get partial output plus a PID handle.\n\
-        Kill: set kill_handle to the PID of a backgrounded process to terminate it (SIGTERM → 2s grace → SIGKILL).\n\
+        Kill: set kill_handle to the PID of a backgrounded process to terminate its process tree using the platform-native mechanism.\n\
         For long-running commands (builds, installs, tests, git clone), prefer mode=\"background\" from the start, \
         then call await_output(command=\"wait_for\", handles=[pid]); do not treat progress output as completion. \
-        IMPORTANT: Always limit output — use | head, --short, --oneline -N, -maxdepth, etc. \
-        Do not use executable shell substitutions (`...`, $(...), or ${...}); for literal code fences/backticks, use a single-quoted heredoc such as <<'EOF' or use edit_file/write_file."
+        IMPORTANT: Always limit output with program-native flags or dedicated read/search tools. \
+        Do not use executable shell substitutions (`...`, $(...), or ${...}); use edit_file/write_file for literal code, code fences, and other file content."
     }
 
     fn llm_description(&self) -> Option<String> {
@@ -289,6 +327,7 @@ impl Tool for ExecTool {
             .ok()
             .and_then(|guard| guard.as_ref().map(|path| path.display().to_string()))
             .unwrap_or_else(|| self.working_dir.display().to_string());
+        let platform_guidance = platform_shell_guidance(ShellPlatform::current());
         Some(format!(
             "Execute a shell command in {cwd} or kill a backgrounded process.\n\
             Execute: terminal_target=\"integrated\" (default) runs as a fast subprocess with clean stdout/stderr capture. \
@@ -300,31 +339,26 @@ impl Tool for ExecTool {
             use await_output(command=\"wait_for\", handles=[pid]) to monitor until the process exits.\n\
             In the default blocking mode, commands that exceed the timeout ({timeout}s) are automatically \
             backgrounded (never killed) as a safety net. You get bounded partial output, a PID handle, and durable Session Replay access.\n\
-            Kill: set kill_handle to the PID of a backgrounded process to terminate it \
-            (SIGTERM → 2s grace → SIGKILL).\n\
+            Kill: set kill_handle to the PID of a backgrounded process to terminate its process tree using the platform-native mechanism.\n\
             For long-running commands (builds, installs, tests, git clone), prefer mode=\"background\" from the start, \
             then call await_output(command=\"wait_for\", handles=[pid]); do not treat progress output as completion. \
-            IMPORTANT: Always limit output — use | head, --short, --oneline -N, -maxdepth, etc. \
-            Do not use executable shell substitutions (`...`, $(...), or ${{...}}); for literal code fences/backticks, use a single-quoted heredoc such as <<'EOF' or use {edit_file}.\n\
+            IMPORTANT: Always limit output with program-native flags or dedicated read/search tools. \
+            Do not use executable shell substitutions (`...`, $(...), or ${{...}}); use {edit_file} for literal code, code fences, and other file content.\n\
+            \n\
+            {platform_guidance}\n\
             \n\
             ## Tool routing (CRITICAL)\n\
             - NEVER use shell `find` or `ls` to locate files — use `{code_search}` (find_files/glob) or `{list_dir}`.\n\
             - NEVER use shell `grep` or `rg` to search file contents — use `{code_search}` (grep action, ripgrep-backed).\n\
             - NEVER use `cat`/`head`/`tail`/`sed -n` to read files — use `{read_file}`.\n\
             - NEVER use `sed`/`awk`/`echo >`/heredoc to modify or create files — use `{edit_file}`.\n\
-            - Quote file paths containing spaces (e.g. cd \"path with spaces\").\n\
-            - Chain dependent commands with && in one call; use separate parallel calls for independent commands.\n\
+            - Quote every file path containing spaces using the active platform shell's syntax.\n\
             \n\
             ## Committing with git\n\
             Only commit when the user explicitly asks. When asked:\n\
             1. Run `git status`, `git diff HEAD`, and `git log --oneline -5` (in parallel) to see all changes and match the repo's commit message style.\n\
             2. Stage only the relevant files — never `git add -A` blindly when unrelated changes exist.\n\
-            3. Multi-line commit messages: $() is blocked here, so write the message to a file with a single-quoted heredoc, then `git commit -F`:\n\
-            cat > /tmp/commit-msg.txt <<'EOF'\n\
-            Commit message here.\n\
-            EOF\n\
-            git commit -F /tmp/commit-msg.txt\n\
-            (single-line messages can just use `git commit -m \"...\"`)\n\
+            3. For multi-paragraph commit messages, use repeated `-m` arguments; for example, `git commit -m \"subject\" -m \"body\"`. Do not create a message file with shell redirection.\n\
             4. If the commit fails due to pre-commit hooks, fix the underlying issue and retry — NEVER use --no-verify.\n\
             NEVER update git config, never force-push, never amend published commits unless explicitly asked.\n\
             \n\
@@ -332,9 +366,9 @@ impl Tool for ExecTool {
             Use `gh` for ALL GitHub interactions (PRs, issues, checks). When asked to create a PR:\n\
             1. Run `git status`, `git diff [base]...HEAD`, and `git log [base]..HEAD --oneline` to understand the FULL branch diff (all commits, not just the latest).\n\
             2. Push with `-u` if the branch has no upstream.\n\
-            3. Write the PR body to a file with a single-quoted heredoc, then:\n\
-            gh pr create --title \"the title\" --body-file /tmp/pr-body.md",
+            3. Use {edit_file} to create a temporary PR body file inside the workspace, pass its quoted path to `gh pr create --title \"the title\" --body-file <path>`, then remove that temporary file with the dedicated file tool.",
             cwd = cwd, timeout = self.timeout_secs,
+            platform_guidance = platform_guidance,
             code_search = crate::tools::names::CODE_SEARCH,
             list_dir = crate::tools::names::LIST_DIR,
             read_file = crate::tools::names::READ_FILE,
@@ -378,7 +412,7 @@ impl Tool for ExecTool {
                 },
                 "kill_handle": {
                     "type": "string",
-                    "description": "Instead of running a command, kill a backgrounded shell process by its handle (PID). Sends SIGTERM, waits 2s grace, then SIGKILL. When this is set, 'command' is not required."
+                    "description": "Instead of running a command, terminate a backgrounded shell process tree by its handle (PID) using the platform-native mechanism. When this is set, 'command' is not required."
                 }
             },
             "required": []
@@ -656,6 +690,22 @@ mod tests {
             .with_shell_replays_root(workspace.join("shell-replays"))
     }
 
+    fn echo_hello_command() -> &'static str {
+        if cfg!(windows) {
+            "Write-Output 'hello'"
+        } else {
+            "printf '%s' hello"
+        }
+    }
+
+    fn slow_command() -> &'static str {
+        if cfg!(windows) {
+            "Start-Sleep -Seconds 5"
+        } else {
+            "sleep 5"
+        }
+    }
+
     fn test_call_context() -> crate::tools::call_context::CallContext {
         use std::sync::atomic::{AtomicU64, Ordering};
         static NEXT_CALL: AtomicU64 = AtomicU64::new(1);
@@ -682,7 +732,10 @@ mod tests {
         assert!(!stale_repo.exists());
 
         let result = tool
-            .execute_text(json!({"command": "/bin/echo hello"}), &test_call_context())
+            .execute_text(
+                json!({"command": echo_hello_command()}),
+                &test_call_context(),
+            )
             .await
             .expect("run_shell should succeed after fallback");
 
@@ -701,7 +754,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo nope",
+                    "command": echo_hello_command(),
                     "working_dir": bogus.to_string_lossy(),
                 }),
                 &test_call_context(),
@@ -728,7 +781,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo hello",
+                    "command": echo_hello_command(),
                     "working_dir": "",
                 }),
                 &test_call_context(),
@@ -748,7 +801,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo hello",
+                    "command": echo_hello_command(),
                     "kill_handle": "",
                 }),
                 &test_call_context(),
@@ -768,7 +821,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo hello",
+                    "command": echo_hello_command(),
                     "kill_handle": "/dev/null",
                 }),
                 &test_call_context(),
@@ -825,7 +878,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo hello",
+                    "command": echo_hello_command(),
                     "terminal_target": "external",
                     "mode": "background",
                 }),
@@ -852,7 +905,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({
-                    "command": "/bin/echo hello",
+                    "command": echo_hello_command(),
                     "terminal_target": "space",
                 }),
                 &test_call_context(),
@@ -882,7 +935,7 @@ mod tests {
         let ctx = test_call_context();
         let run = tool.execute_text(
             json!({
-                "command": "sleep 5",
+                "command": slow_command(),
                 "wait": 10,
             }),
             &ctx,
@@ -903,5 +956,27 @@ mod tests {
             }
             other => panic!("expected cancelled execution error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn windows_shell_guidance_is_powershell_only_and_avoids_posix_assumptions() {
+        let guidance = platform_shell_guidance(ShellPlatform::WindowsPowerShell);
+
+        assert!(guidance.contains("Windows PowerShell 5.1"));
+        assert!(guidance.contains("never cmd.exe, Git Bash, WSL, or PowerShell 7"));
+        assert!(guidance.contains("Do not use Bash/POSIX syntax"));
+        assert!(guidance.contains("$env:TEMP"));
+        assert!(guidance.contains("Do not run `chcp`"));
+        assert!(!guidance.contains("single-quoted heredoc"));
+        assert!(!guidance.contains("/tmp/"));
+    }
+
+    #[test]
+    fn posix_shell_guidance_retains_posix_sequencing_contract() {
+        let guidance = platform_shell_guidance(ShellPlatform::Posix);
+
+        assert!(guidance.contains("`sh -c`"));
+        assert!(guidance.contains("dependent commands with `&&`"));
+        assert!(!guidance.contains("PowerShell"));
     }
 }

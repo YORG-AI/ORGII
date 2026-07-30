@@ -300,5 +300,16 @@ pub(super) fn default_shell() -> String {
 
 #[cfg(windows)]
 pub(super) fn default_shell() -> String {
-    std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+    // Cursor uses this request-context value to choose shell syntax before its
+    // native shell call is bridged into ORGII's run_shell implementation.
+    // Keep it aligned with the Windows PowerShell 5.1 execution contract.
+    "powershell.exe".to_string()
+}
+
+#[cfg(all(test, windows))]
+mod windows_shell_tests {
+    #[test]
+    fn windows_powershell_context_matches_run_shell_backend() {
+        assert_eq!(super::default_shell(), "powershell.exe");
+    }
 }

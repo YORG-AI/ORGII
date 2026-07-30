@@ -1,0 +1,47 @@
+name: "Windows run_shell"
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - develop
+      - release
+      - master
+    paths:
+      - ".github/workflows/windows-shell.yml"
+      - "src-tauri/Cargo.lock"
+      - "src-tauri/crates/agent-core/Cargo.toml"
+      - "src-tauri/crates/agent-core/src/core/providers/cursor_native/helpers.rs"
+      - "src-tauri/crates/agent-core/src/core/tools/impls/coding/exec/**"
+      - "src-tauri/crates/agent-core/src/foundation/security/policy/**"
+
+jobs:
+  powershell:
+    name: PowerShell 5.1 contract and lifecycle
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          shared-key: "ci-windows-agent-core-shell"
+
+      - name: PowerShell execution contract
+        working-directory: src-tauri
+        run: cargo test -p agent_core windows_powershell --lib -- --nocapture
+
+      - name: Platform prompt contract
+        working-directory: src-tauri
+        run: cargo test -p agent_core shell_guidance --lib -- --nocapture
+
+      - name: Background and cancellation lifecycle
+        working-directory: src-tauri
+        run: cargo test -p agent_core real_subprocess_background_timeout_and_cancel_cross_completion_barrier --lib -- --nocapture

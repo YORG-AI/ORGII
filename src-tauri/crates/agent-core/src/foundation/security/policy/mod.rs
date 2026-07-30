@@ -375,7 +375,7 @@ fn shell_substitution_denial_reason(substitution: ShellSubstitution) -> String {
         ShellSubstitution::Parameter => "${} parameter expansion",
     };
     format!(
-        "{operator} are not allowed in run_shell commands. This is a shell-injection guard, not an agent autonomy/tool permission setting. If you need literal backticks or code fences, put the content in a single-quoted heredoc (for example: <<'EOF') or use edit_file/write_file instead of embedding it in an executable shell command."
+        "{operator} are not allowed in run_shell commands. This is a shell-injection guard, not an agent autonomy/tool permission setting. If you need literal backticks, code fences, or other file content, use edit_file/write_file instead of embedding it in an executable shell command."
     )
 }
 
@@ -652,8 +652,9 @@ mod tests {
             ValidationResult::Denied(reason) => {
                 assert!(reason.contains("shell-injection guard"));
                 assert!(reason.contains("not an agent autonomy/tool permission"));
-                assert!(reason.contains("single-quoted heredoc"));
+                assert!(reason.contains("literal backticks"));
                 assert!(reason.contains("edit_file/write_file"));
+                assert!(!reason.contains("heredoc"));
             }
             other => panic!("expected denial, got {other:?}"),
         }

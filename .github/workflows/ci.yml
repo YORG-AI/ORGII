@@ -10,6 +10,7 @@
 name: "CI"
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - develop
@@ -20,6 +21,7 @@ jobs:
   # ── Frontend ────────────────────────────────────────────────────────────────
   frontend:
     name: Frontend (typecheck · lint · test)
+    if: github.event_name == 'pull_request'
     runs-on: macos-latest
 
     steps:
@@ -58,6 +60,7 @@ jobs:
   # ── Rust ────────────────────────────────────────────────────────────────────
   rust:
     name: Rust (clippy)
+    if: github.event_name == 'pull_request'
     runs-on: macos-latest
 
     steps:
@@ -83,3 +86,11 @@ jobs:
       - name: cargo clippy (advisory warnings)
         working-directory: src-tauri
         run: cargo clippy --workspace
+
+  # A manual dispatch validates the branch on a real Windows runner without
+  # adding Windows compilation cost to unrelated pull requests. The dedicated
+  # workflow also runs itself for PRs that touch the shell execution surface.
+  windows-shell:
+    name: Windows run_shell
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/windows-shell.yml
