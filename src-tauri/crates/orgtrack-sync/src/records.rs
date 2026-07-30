@@ -19,6 +19,9 @@ pub enum GraphNodeType {
     Lesson,
     Validation,
     SyncRecord,
+    Turn,
+    Checkpoint,
+    Artifact,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -33,6 +36,13 @@ pub enum GraphEdgeType {
     Validates,
     Rejects,
     DerivedLesson,
+    RunOf,
+    NextTurn,
+    ForkedFrom,
+    ResumedFrom,
+    CompactedTo,
+    ValidatedBy,
+    CommittedIn,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
