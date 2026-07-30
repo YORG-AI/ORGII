@@ -89,22 +89,6 @@ export interface SystemInfo {
   chip_type: string;
 }
 
-/**
- * Whole-machine burst sample from `system_runtime_snapshot` (member-runtime
- * sharing). The Rust side emits camelCase, so the invoke result IS the typed
- * shape. `gpuPercent` is null when the platform has no cheap sudo-free probe
- * (macOS) or the NVIDIA probe fails.
- */
-export interface SystemRuntimeSnapshot {
-  /** Whole-machine CPU utilization, 0–100 (averaged over the burst). */
-  cpuPercent: number;
-  memUsedMb: number;
-  memTotalMb: number;
-  gpuPercent: number | null;
-  /** Duration of the sampling burst, ms. */
-  sampledOverMs: number;
-}
-
 export const GPU_DETECTION_STATUS = {
   DETECTED: "detected",
   NOT_AVAILABLE: "not_available",

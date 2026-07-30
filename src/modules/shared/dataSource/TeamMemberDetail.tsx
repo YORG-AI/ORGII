@@ -381,7 +381,7 @@ export default function TeamMemberDetail({
                 {machine.totalRamGb ? (
                   <SectionRow label={t("detail.memory")}>
                     <span className="text-xs text-text-2">
-                      {machine.totalRamGb} GB
+                      {Math.round(machine.totalRamGb)} GB
                       {machine.unifiedMemory ? ` · ${t("detail.unified")}` : ""}
                     </span>
                   </SectionRow>

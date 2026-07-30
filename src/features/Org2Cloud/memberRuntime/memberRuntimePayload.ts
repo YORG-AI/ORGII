@@ -1,8 +1,8 @@
 /**
  * Payload collectors for the member-runtime push: the static `machine`
  * identity (cached for the whole app run — hardware never re-probed per
- * tick) and the per-tick burst `sample`, plus the installed-agent probe
- * mapping. Network-free; everything here talks to local Tauri commands.
+ * tick; RAM reported as an approximate whole GB), plus the installed-agent
+ * probe mapping. Network-free; everything here talks to local Tauri commands.
  */
 import { getVersion } from "@tauri-apps/api/app";
 
@@ -11,18 +11,14 @@ import type { ExternalCliSourceProbe } from "@src/api/tauri/externalHistory/dete
 import {
   detectLocalModelHardware,
   getSystemInfo,
-  systemRuntimeSnapshot,
+  getSystemMemory,
 } from "@src/api/tauri/perf/metrics";
 import type {
   LocalModelHardwareSummary,
   SystemInfo,
 } from "@src/api/tauri/perf/types";
 
-import type {
-  MemberInstalledAgent,
-  MemberRuntimeMachine,
-  MemberRuntimeSample,
-} from "./types";
+import type { MemberInstalledAgent, MemberRuntimeMachine } from "./types";
 
 async function composeMemberRuntimeMachine(): Promise<MemberRuntimeMachine> {
   // Device identity and app version are essential (deviceId keys the row);
@@ -47,6 +43,7 @@ async function composeMemberRuntimeMachine(): Promise<MemberRuntimeMachine> {
       systemInfo = null;
     }
   }
+  const totalRamGb = await resolveTotalRamGb(hardware);
   return {
     deviceId: identity.deviceId,
     machineLabel: identity.machineLabel,
@@ -57,9 +54,7 @@ async function composeMemberRuntimeMachine(): Promise<MemberRuntimeMachine> {
     ...(hardware && hardware.cpu_cores > 0
       ? { cpuCores: hardware.cpu_cores }
       : {}),
-    ...(hardware && hardware.total_ram_gb > 0
-      ? { totalRamGb: hardware.total_ram_gb }
-      : {}),
+    ...(totalRamGb > 0 ? { totalRamGb } : {}),
     ...(hardware?.gpu_name ? { gpuName: hardware.gpu_name } : {}),
     ...(hardware?.gpu_vram_gb != null
       ? { gpuVramGb: hardware.gpu_vram_gb }
@@ -67,6 +62,23 @@ async function composeMemberRuntimeMachine(): Promise<MemberRuntimeMachine> {
     ...(hardware ? { unifiedMemory: hardware.unified_memory } : {}),
     appVersion,
   };
+}
+
+/** Approximate whole-GB RAM size ("32", never "31.6"): rounded hardware
+ * figure, falling back to the cheap cached sysinfo total when hardware
+ * detection degraded. 0 = unknown (field omitted). */
+async function resolveTotalRamGb(
+  hardware: LocalModelHardwareSummary | null
+): Promise<number> {
+  if (hardware && hardware.total_ram_gb > 0) {
+    return Math.round(hardware.total_ram_gb);
+  }
+  try {
+    const memory = await getSystemMemory();
+    return memory.total_mb > 0 ? Math.round(memory.total_mb / 1024) : 0;
+  } catch {
+    return 0;
+  }
 }
 
 let cachedMachine: Promise<MemberRuntimeMachine> | null = null;
@@ -86,21 +98,6 @@ export function getMemberRuntimeMachineCached(): Promise<MemberRuntimeMachine> {
 
 export function __resetMemberRuntimeMachineCacheForTests(): void {
   cachedMachine = null;
-}
-
-/** One burst sample, stamped with the client clock at collection. */
-export async function collectMemberRuntimeSample(
-  nowMs: number
-): Promise<MemberRuntimeSample> {
-  const snapshot = await systemRuntimeSnapshot();
-  return {
-    cpuPercent: snapshot.cpuPercent,
-    memUsedMb: snapshot.memUsedMb,
-    memTotalMb: snapshot.memTotalMb,
-    gpuPercent: snapshot.gpuPercent,
-    sampledOverMs: snapshot.sampledOverMs,
-    sampledAtMs: nowMs,
-  };
 }
 
 /** Detection probes → wire inventory (ids are stable across machines;

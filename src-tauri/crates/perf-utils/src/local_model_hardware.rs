@@ -162,10 +162,8 @@ fn detect_gpu(chip_type: &str, total_ram_gb: f64) -> GpuDetection {
 }
 
 /// Build an `nvidia-smi` invocation for one `--query-gpu=` field list, with
-/// the console window suppressed on Windows. Shared by the hardware-identity
-/// probe below and the runtime snapshot's utilization probe
-/// ([`super::system_runtime`]), so both discover the binary identically
-/// (plain `PATH` lookup — spawn failure means "no NVIDIA tooling").
+/// the console window suppressed on Windows (plain `PATH` lookup — spawn
+/// failure means "no NVIDIA tooling").
 pub(crate) fn nvidia_smi_command(query_gpu_fields: &str) -> Command {
     let mut cmd = Command::new("nvidia-smi");
     cmd.arg(format!("--query-gpu={query_gpu_fields}"));

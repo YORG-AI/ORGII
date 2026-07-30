@@ -334,13 +334,3 @@ const AGENT_ABSENT_STATUSES = new Set([
 export function isInstalledAgentPresent(agent: MemberInstalledAgent): boolean {
   return !AGENT_ABSENT_STATUSES.has(agent.status);
 }
-
-// ---------------------------------------------------------------------------
-// Machine chips
-// ---------------------------------------------------------------------------
-
-/** Megabytes → gigabytes with at most one decimal (`24576` → `"24"`). */
-export function formatMemGb(mb: number): string {
-  if (!Number.isFinite(mb) || mb <= 0) return "0";
-  return String(Number((mb / 1024).toFixed(1)));
-}

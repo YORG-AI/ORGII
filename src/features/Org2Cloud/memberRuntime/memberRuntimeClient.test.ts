@@ -44,14 +44,6 @@ const STATUS_INPUT: UpsertMemberRuntimeInput = {
       chipType: "Apple M3",
       appVersion: "1.2.3",
     },
-    sample: {
-      cpuPercent: 42.5,
-      memUsedMb: 8_000,
-      memTotalMb: 16_000,
-      gpuPercent: null,
-      sampledOverMs: 800,
-      sampledAtMs: 1_753_000_000_000,
-    },
   },
 };
 
@@ -176,7 +168,6 @@ describe("listMemberRuntime", () => {
             role: "admin",
             reportedAt: "2026-07-29T09:00:00Z",
             machine: STATUS_INPUT.status?.machine,
-            sample: STATUS_INPUT.status?.sample,
             stats: { totalSessions: 321 },
             builderTypeCode: "MDFS",
             profile: { code: "MDFS", axes: [], extraFutureField: 1 },
@@ -205,7 +196,6 @@ describe("listMemberRuntime", () => {
             role: "member",
             reportedAt: null,
             machine: { totally: "malformed" },
-            sample: "not-an-object",
             builderTypeCode: null,
             profile: null,
             installedAgents: "garbage",
@@ -222,7 +212,6 @@ describe("listMemberRuntime", () => {
 
     expect(members[0].userId).toBe("user-1");
     expect(members[0].machine?.deviceId).toBe("dev-1");
-    expect(members[0].sample?.cpuPercent).toBe(42.5);
     expect(members[0].stats).toEqual({ totalSessions: 321 });
     expect(members[0].profile?.code).toBe("MDFS");
     expect(members[0].installedAgents).toEqual([
@@ -233,7 +222,6 @@ describe("listMemberRuntime", () => {
     // Malformed blobs degrade to null/[] instead of failing the roster.
     expect(members[1].displayName).toBeNull();
     expect(members[1].machine).toBeNull();
-    expect(members[1].sample).toBeNull();
     expect(members[1].stats).toBeNull();
     expect(members[1].profile).toBeNull();
     expect(members[1].installedAgents).toEqual([]);

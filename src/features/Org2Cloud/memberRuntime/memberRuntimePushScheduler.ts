@@ -72,7 +72,6 @@ import {
   upsertMemberRuntime,
 } from "./memberRuntimeClient";
 import {
-  collectMemberRuntimeSample,
   getMemberRuntimeMachineCached,
   mapProbesToInstalledAgents,
 } from "./memberRuntimePayload";
@@ -127,7 +126,6 @@ export interface MemberRuntimeSchedulerDeps {
   now(): number;
   random(): number;
   getMachine: typeof getMemberRuntimeMachineCached;
-  getSample: typeof collectMemberRuntimeSample;
   getDailyRollup: (
     startMs: number,
     endMs: number
@@ -147,7 +145,6 @@ const defaultDeps: MemberRuntimeSchedulerDeps = {
   now: () => Date.now(),
   random: Math.random,
   getMachine: getMemberRuntimeMachineCached,
-  getSample: collectMemberRuntimeSample,
   getDailyRollup: usageDashboardDailyRollup,
   getProfileOverview: () => builderProfileOverview(),
   detectInstalledAgents: async () =>
@@ -513,10 +510,10 @@ export class MemberRuntimePushScheduler {
       this.usageDaysCapByOrg.get(org.orgId) ?? MEMBER_USAGE_DAYS_MAX_PER_PUSH;
     const dropOptionalSections = this.dropOptionalSectionsByOrg.has(org.orgId);
 
-    // Status: cached machine identity + fresh burst sample. Failures here
-    // reject the tick (status is the heartbeat).
+    // Status: cached machine identity (RAM as approximate whole GB — no
+    // live load sampling by design). Failures here reject the tick (status
+    // is the heartbeat).
     const machine = await this.deps.getMachine();
-    const sample = await this.deps.getSample(nowMs);
 
     // Usage: recompute the rolling UTC-day window, delta-push changed rows.
     // The same scan carries the lifetime session census for status.stats.
@@ -572,7 +569,6 @@ export class MemberRuntimePushScheduler {
     const input: UpsertMemberRuntimeInput = {
       status: {
         machine,
-        sample,
         stats: { totalSessions: rollup.totalSessions },
       },
       ...(usagePlan.days.length > 0 ? { usageDays: usagePlan.days } : {}),

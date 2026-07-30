@@ -26,9 +26,7 @@
   },
   "card": {
     "you": "나",
-    "cpu": "CPU",
     "ram": "RAM",
-    "gpu": "GPU",
     "today": "오늘",
     "week": "7일",
     "sessions": "세션",

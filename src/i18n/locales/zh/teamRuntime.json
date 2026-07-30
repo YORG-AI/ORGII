@@ -26,9 +26,7 @@
   },
   "card": {
     "you": "你",
-    "cpu": "CPU",
     "ram": "内存",
-    "gpu": "GPU",
     "today": "今天",
     "week": "7 天",
     "sessions": "会话",

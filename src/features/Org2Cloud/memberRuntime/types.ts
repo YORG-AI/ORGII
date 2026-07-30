@@ -32,7 +32,7 @@
  *       and their detection status) — see `MemberInstalledAgent`;
  *     - per-day cost and token figures broken out by bucket — see
  *       `MemberUsageDay`.
- *   These are exactly what let a teammate see "who's running low on RAM" or
+ *   These are exactly what let a teammate see "who's on a 16 GB machine" or
  *   "who's spending the most on Claude this week"; they are not incidental
  *   leakage, but they are NOT covered by the "no session titles/repo
  *   paths/models" framing above and must be disclosed alongside it.
@@ -78,27 +78,12 @@ export interface MemberRuntimeMachine {
   chipType: string;
   cpuName?: string;
   cpuCores?: number;
+  /** Approximate whole GB (rounded at collection — "32", never "31.6"). */
   totalRamGb?: number;
   gpuName?: string;
   gpuVramGb?: number;
   unifiedMemory?: boolean;
   appVersion: string;
-}
-
-/** Point-in-time burst sample taken at push time (avg over ~1–2s), from the
- * `system_runtime_snapshot` Tauri command. */
-export interface MemberRuntimeSample {
-  /** Whole-machine CPU utilization, 0–100. */
-  cpuPercent: number;
-  memUsedMb: number;
-  memTotalMb: number;
-  /** GPU utilization 0–100; null when the platform has no cheap sudo-free
-   * probe (macOS) — GPU identity still ships via `machine`. */
-  gpuPercent: number | null;
-  /** Duration of the sampling burst. */
-  sampledOverMs: number;
-  /** Client clock at sampling, epoch ms (server also stamps reported_at). */
-  sampledAtMs: number;
 }
 
 /** Lifetime local-machine session totals, pushed with every status update
@@ -145,7 +130,6 @@ export interface MemberProfilePayload {
 export interface UpsertMemberRuntimeInput {
   status?: {
     machine: MemberRuntimeMachine;
-    sample: MemberRuntimeSample;
     stats?: MemberRuntimeStats;
   };
   usageDays?: MemberUsageDay[];
@@ -161,7 +145,6 @@ export interface MemberRuntimeListEntry {
   /** Server-stamped time of the last status push (ISO); null = never. */
   reportedAt: string | null;
   machine: MemberRuntimeMachine | null;
-  sample: MemberRuntimeSample | null;
   stats: MemberRuntimeStats | null;
   builderTypeCode: string | null;
   profile: MemberBuilderProfile | null;
@@ -197,8 +180,6 @@ export const MEMBER_RUNTIME_CAPABILITY = "memberRuntime" as const;
 export const MEMBER_RUNTIME_SIGNAL_KIND = "member_runtime" as const;
 
 export const MEMBER_RUNTIME_COMMANDS = {
-  /** → `{ cpuPercent, memUsedMb, memTotalMb, gpuPercent, sampledOverMs }` */
-  systemRuntimeSnapshot: "system_runtime_snapshot",
   /** args `{ startMs, endMs }` → `{ days: DailyRollupRow[], totalSessions }`
    * where a row is `{ dayStartMs, bucket, inputTokens, outputTokens,
    * cacheReadTokens, cacheWriteTokens, totalTokens, costUsd, sessions,

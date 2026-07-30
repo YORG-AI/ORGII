@@ -705,7 +705,6 @@ perf_utils::get_system_memory,
 perf_utils::get_system_info,
 perf_utils::local_model_hardware::detect_local_model_hardware,
 // - Whole-machine runtime burst sample (member-runtime sharing)
-perf_utils::system_runtime::system_runtime_snapshot,
 perf_utils::get_memory_breakdown,
 perf_utils::get_app_memory_snapshot_v1,
 perf_utils::get_tool_process_memory_diagnostics_v1,

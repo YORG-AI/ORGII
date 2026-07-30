@@ -180,18 +180,6 @@ const MemberRuntimeMachineWireSchema = z.object({
   appVersion: z.string().catch(""),
 });
 
-const MemberRuntimeSampleWireSchema = z.object({
-  cpuPercent: z.number(),
-  memUsedMb: z.number(),
-  memTotalMb: z.number(),
-  gpuPercent: z
-    .number()
-    .nullish()
-    .transform((value) => value ?? null),
-  sampledOverMs: z.number().catch(0),
-  sampledAtMs: z.number().catch(0),
-});
-
 /** The builder profile is an opaque client-authored jsonb blob; require the
  * one field consumers key on (`code`) and pass the rest through untouched. */
 const MemberBuilderProfileWireSchema = z.custom<MemberBuilderProfile>(
@@ -213,7 +201,6 @@ const MemberRuntimeListEntryWireSchema = z.object({
   role: z.string().catch("member"),
   reportedAt: z.string().nullish().catch(undefined),
   machine: MemberRuntimeMachineWireSchema.nullish().catch(undefined),
-  sample: MemberRuntimeSampleWireSchema.nullish().catch(undefined),
   stats: z.object({ totalSessions: z.number() }).nullish().catch(undefined),
   builderTypeCode: z.string().nullish().catch(undefined),
   profile: MemberBuilderProfileWireSchema.nullish().catch(undefined),
@@ -251,7 +238,6 @@ function toListEntry(
     role: entry.role,
     reportedAt: entry.reportedAt ?? null,
     machine: entry.machine ?? null,
-    sample: entry.sample ?? null,
     stats: entry.stats ?? null,
     builderTypeCode: entry.builderTypeCode ?? null,
     profile: entry.profile ?? null,

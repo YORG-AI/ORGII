@@ -341,14 +341,6 @@ function member(
       totalRamGb: 32,
       appVersion: "1.2.3",
     },
-    sample: {
-      cpuPercent: 42.4,
-      memUsedMb: 12_800,
-      memTotalMb: 32_768,
-      gpuPercent: null,
-      sampledOverMs: 1500,
-      sampledAtMs: Date.now(),
-    },
     stats: { totalSessions: 128 },
     builderTypeCode: "EAWH",
     profile: null,
@@ -528,7 +520,6 @@ describe("TeamRuntimePanel roster", () => {
         userId: "silent",
         reportedAt: null,
         machine: null,
-        sample: null,
       }),
     ]);
     await seedAtoms(AUTH, [org()]);
@@ -564,9 +555,9 @@ describe("TeamRuntimePanel roster", () => {
     ).not.toBeNull();
     expect(card?.textContent).toContain("EAWH");
     expect(card?.textContent).toContain("Swarm Founder");
-    // CPU% and RAM used-of-total (GPU absent: no name, null percent).
-    expect(card?.textContent).toContain("card.cpu 42%");
-    expect(card?.textContent).toContain("card.ram 12.5/32 GB");
+    // Total RAM as an approximate whole number — no live load chips.
+    expect(card?.textContent).toContain("card.ram 32 GB");
+    expect(card?.textContent).not.toContain("card.cpu");
     // Known id → icon; unknown id → raw id; not_detected → hidden.
     expect(
       card?.querySelector('[data-testid="model-icon-claude"]')

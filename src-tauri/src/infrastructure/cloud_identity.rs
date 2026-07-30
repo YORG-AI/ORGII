@@ -50,7 +50,7 @@ fn cloud_device_identity_blocking() -> Result<CloudDeviceIdentity, String> {
     let device_id = ensure_device_id(&cloud_device_id_path())?;
     Ok(CloudDeviceIdentity {
         device_id,
-        machine_label: perf_utils::system_runtime::machine_label(),
+        machine_label: perf_utils::machine_label::machine_label(),
     })
 }
 

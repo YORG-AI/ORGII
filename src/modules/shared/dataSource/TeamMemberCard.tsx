@@ -20,7 +20,6 @@ import BuilderTypeAvatar from "./BuilderTypeAvatar";
 import { getBuilderType } from "./builderTypes";
 import {
   foldRecentDays,
-  formatMemGb,
   isInstalledAgentPresent,
   isRuntimeStale,
 } from "./teamRuntimeData";
@@ -110,7 +109,6 @@ const TeamMemberCard = memo(function TeamMemberCard({
     () => entry.installedAgents.filter(isInstalledAgentPresent),
     [entry.installedAgents]
   );
-  const sample = entry.sample;
   const machine = entry.machine;
 
   return (
@@ -159,27 +157,14 @@ const TeamMemberCard = memo(function TeamMemberCard({
         ) : null}
       </div>
 
-      {sample ? (
+      {machine && (machine.totalRamGb || machine.gpuName) ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Chip>
-            {t("card.cpu")} {Math.round(sample.cpuPercent)}%
-          </Chip>
-          <Chip>
-            {t("card.ram")} {formatMemGb(sample.memUsedMb)}/
-            {formatMemGb(sample.memTotalMb)} GB
-          </Chip>
-          {machine?.gpuName ? (
+          {machine.totalRamGb ? (
             <Chip>
-              {machine.gpuName}
-              {sample.gpuPercent != null
-                ? ` ${Math.round(sample.gpuPercent)}%`
-                : ""}
-            </Chip>
-          ) : sample.gpuPercent != null ? (
-            <Chip>
-              {t("card.gpu")} {Math.round(sample.gpuPercent)}%
+              {t("card.ram")} {Math.round(machine.totalRamGb)} GB
             </Chip>
           ) : null}
+          {machine.gpuName ? <Chip>{machine.gpuName}</Chip> : null}
         </div>
       ) : null}
 

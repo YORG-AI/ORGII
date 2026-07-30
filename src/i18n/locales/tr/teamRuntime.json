@@ -26,9 +26,7 @@
   },
   "card": {
     "you": "Siz",
-    "cpu": "CPU",
     "ram": "RAM",
-    "gpu": "GPU",
     "today": "Bugün",
     "week": "7 g",
     "sessions": "Oturumlar",

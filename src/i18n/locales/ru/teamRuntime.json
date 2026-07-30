@@ -26,9 +26,7 @@
   },
   "card": {
     "you": "Вы",
-    "cpu": "CPU",
     "ram": "ОЗУ",
-    "gpu": "GPU",
     "today": "Сегодня",
     "week": "7 дн",
     "sessions": "Сессии",

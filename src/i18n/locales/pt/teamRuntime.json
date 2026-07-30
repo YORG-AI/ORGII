@@ -26,9 +26,7 @@
   },
   "card": {
     "you": "Você",
-    "cpu": "CPU",
     "ram": "RAM",
-    "gpu": "GPU",
     "today": "Hoje",
     "week": "7 d",
     "sessions": "Sessões",

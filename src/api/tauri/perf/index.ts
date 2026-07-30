@@ -11,7 +11,6 @@ export type {
   SampleRegion,
   SystemInfo,
   SystemMemoryMetrics,
-  SystemRuntimeSnapshot,
 } from "./types";
 
 export {
@@ -50,5 +49,4 @@ export {
   getProcessMetrics,
   getSystemInfo,
   getSystemMemory,
-  systemRuntimeSnapshot,
 } from "./metrics";
