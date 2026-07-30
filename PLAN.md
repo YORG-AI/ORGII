@@ -1,5 +1,31 @@
 # PLAN.md — ORG-II ↔ Feishu 联动优化（6项 + opus-4.6）
 
+## P1 — Unified Read-Only Journey Graph (2026-07-30)
+
+### Completion checklist
+
+- [ ] `orgtrack_graph` defines one serializable Journey graph contract with mandatory evidence class/source reference on every node and edge, and a coverage contract that fails closed for `uncovered` canonical units.
+- [ ] A canonical projector accepts canonical Turn, Session lineage, normalized WorkItem, orgtrack artifact, and commit inputs without using timestamps as a lineage key or assigning files to a first linked session.
+- [ ] An independent audit re-reads the supplied canonical stores and rejects any coverage ledger that leaves a source unit uncovered.
+- [ ] The read-only `journey_graph_query` command/gateway accepts only `project/{id}` or `session/{id}`, returns the same contract, and rejects partial/malformed data rather than guessing canonical facts.
+- [ ] Project Journey and Session Journey use one frontend graph client and pure view-model adapters; `buildJourney.ts` and the Session lineage inference no longer create truth graphs.
+- [ ] Rust projector/audit/query tests and focused Vitest tests cover evidence, exact lineage anchors, uncovered failure, same payload for both scopes, and partial-data failure.
+- [ ] Gate document records commands and evidence paths; required format/test/clippy/typecheck/Vitest gates pass before final notification.
+
+### Deliverables and exact files
+
+1. **Graph contracts and canonical projector** — add `src-tauri/crates/orgtrack-graph/src/journey.rs` for `EvidenceClass`, source references, node/edge refs, coverage units, canonical input records, and the validated projector; add `src-tauri/crates/orgtrack-graph/src/journey_tests.rs` for focused contract/projector tests; export it from `src-tauri/crates/orgtrack-graph/src/lib.rs`; extend `src-tauri/crates/orgtrack-sync/src/records.rs` only where P1 stable node/edge variants are absent. The projector will derive lineage only from explicit session ids plus parent revisions/turn sequences, create file relations exclusively from canonical `produced`/`modified` records, and reject missing required anchors.
+2. **Storage and independent audit** — add `src-tauri/crates/orgtrack-graph/src/audit.rs` and tests in `journey_tests.rs`; extend `src-tauri/crates/orgtrack-graph/src/store.rs`/`query.rs` with read-only scoped graph loading. The audit will independently enumerate canonical Turn, Session, WorkItem, artifact, and commit inputs before comparing their IDs to graph source references; no projector coverage labels are trusted.
+3. **Read-only application query** — add a small Journey graph service module under `src-tauri/crates/agent-core/src/` and expose it through the existing Tauri command registration under `src-tauri/src/commands/` (exact registration file to be selected from the existing command convention). It validates scope syntax, delegates only to the read-only graph store/query API, and serializes evidence/coverage unchanged.
+4. **Frontend single source and view mapping** — add `src/api/tauri/journeyGraph/` (typed command client and hook) and `src/modules/ProjectManager/JourneyGraph/` (pure graph-to-view-model adapter). Replace `src/modules/ProjectManager/ProjectJourney/ProjectJourneyPage.tsx` use of `model/buildJourney.ts`, remove `src/modules/ProjectManager/ProjectJourney/model/buildJourney.ts` and its inference tests, and replace the session lineage inference in `src/modules/WorkStation/ProjectManager/SessionReplay/` with the same hook/adapter. Views display an explicit unavailable state on failed/partial graph responses and surface edge evidence classes.
+5. **Verification and delivery records** — add Rust tests alongside the graph crate, add `src/modules/ProjectManager/JourneyGraph/__tests__/journeyGraph.test.ts`, update the applicable frontend Journey tests, add `docs/product/p1-unified-graph-gate-20260730.md`, and run the P1 task-spec gates. Commit separately after contracts/projector, audit/query, frontend unification, and tests/docs using `feat(p1):`, `refactor(p1):`, and `test(p1):` prefixes; do not push.
+
+### Architecture-audit scope
+
+Covered before finalization: compilation (1), duplicated truth paths/dead inference removal (2), layering from UI -> command -> graph store (3), lineage/evidence/coverage terminology (4), no fallback/fail-closed branches (5), canonical-vs-view-model separation (6), mandatory serialized evidence/source fields and no transcript bodies (8), command/store initialization parity (9), and symmetric project/session scope validation (10). Layer 7 is intentionally limited: P1 introduces no mutable state machine or migration workflow.
+
+---
+
 ## 总览
 
 经过对代码库的全面调研，以下是每项任务的落点、改法和验证方案。
