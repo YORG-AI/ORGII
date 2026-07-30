@@ -1,9 +1,78 @@
 //! Summarization prompt and message formatting helpers for context compaction.
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::Instant;
+
 use serde_json::Value;
 
 use super::compaction::ContextCompactor;
 use crate::core::side_query::{self, SideQueryConfig, StructuredOutput};
+
+// ============================================
+// Replay snapshot registry (prompt-cache reuse)
+// ============================================
+
+/// Max age of a replay snapshot before it is considered stale (provider
+/// prompt caches expire; a stale prefix would be a full-price cache write).
+const REPLAY_SNAPSHOT_MAX_AGE_SECS: u64 = 3_600;
+
+/// In-memory copy of the last messages array actually sent to the provider
+/// for a session. Replaying it byte-exact as the prefix of the
+/// summarization request hits the provider prompt cache instead of paying
+/// full price for a flattened re-encoding of the same history.
+struct ReplaySnapshot {
+    messages: Vec<Value>,
+    recorded_at: Instant,
+}
+
+static REPLAY_SNAPSHOTS: Mutex<Option<HashMap<String, ReplaySnapshot>>> = Mutex::new(None);
+
+/// Record the messages array of a successful main-session LLM request.
+/// Process-local only (no persistence); overwrites the previous snapshot.
+pub(crate) fn record_replay_snapshot(session_id: &str, messages: &[Value]) {
+    if session_id.is_empty() || messages.is_empty() {
+        return;
+    }
+    if let Ok(mut guard) = REPLAY_SNAPSHOTS.lock() {
+        guard.get_or_insert_with(HashMap::new).insert(
+            session_id.to_string(),
+            ReplaySnapshot {
+                messages: messages.to_vec(),
+                recorded_at: Instant::now(),
+            },
+        );
+    }
+}
+
+/// Drop the snapshot for a session. Best-effort.
+#[allow(dead_code)]
+pub(crate) fn clear_replay_snapshot(session_id: &str) {
+    if let Ok(mut guard) = REPLAY_SNAPSHOTS.lock() {
+        if let Some(map) = guard.as_mut() {
+            map.remove(session_id);
+        }
+    }
+}
+
+/// Fetch a *fresh* snapshot for replay-based summarization.
+///
+/// Freshness gates (both must hold, otherwise `None` -> flatten fallback):
+/// - recorded less than [`REPLAY_SNAPSHOT_MAX_AGE_SECS`] ago (provider
+///   prompt caches expire; an older prefix buys nothing), and
+/// - snapshot message count >= half of `current_message_count` (a much
+///   shorter snapshot means the session moved on -- stale prefix).
+fn fresh_replay_snapshot(session_id: &str, current_message_count: usize) -> Option<Vec<Value>> {
+    let guard = REPLAY_SNAPSHOTS.lock().ok()?;
+    let snapshot = guard.as_ref()?.get(session_id)?;
+    if snapshot.recorded_at.elapsed().as_secs() >= REPLAY_SNAPSHOT_MAX_AGE_SECS {
+        return None;
+    }
+    if snapshot.messages.len() * 2 < current_message_count {
+        return None;
+    }
+    Some(snapshot.messages.clone())
+}
 
 /// Relaxed cap for tool results fed to the summarizer. Large enough to keep
 /// exact error messages / paths intact; the per-message oversized guard in
@@ -168,6 +237,106 @@ pub(crate) fn format_tool_calls(msg: &Value) -> String {
         .unwrap_or_default()
 }
 
+/// Build the summarization prompt (system text + re-compaction context +
+/// prior summary + optional custom instructions). Shared by the flatten
+/// and replay paths.
+fn build_summary_prompt(
+    state: &super::compaction::CompactionState,
+    custom_instructions: Option<&str>,
+) -> String {
+    let mut prompt = String::from(SUMMARIZATION_SYSTEM_PROMPT);
+
+    if state.recompaction_info.compaction_count > 0 {
+        prompt.push_str(&format!(
+            "\n\n## Re-compaction Context\n\nThis is compaction #{} for this session (last at turn {}). \
+             Merge the prior summary with the new messages — preserve important details from both, \
+             but prioritize recent information when there are conflicts or superseded decisions.",
+            state.recompaction_info.compaction_count + 1,
+            state.recompaction_info.last_compaction_turn,
+        ));
+    }
+
+    if let Some(ref prior_summary) = state.summary {
+        prompt.push_str(&format!(
+            "\n\n## Prior Context Summary\n\n{}\n\n## New Messages to Incorporate\n\n",
+            prior_summary
+        ));
+    }
+
+    if let Some(instructions) = custom_instructions
+        .map(str::trim)
+        .filter(|instructions| !instructions.is_empty())
+    {
+        prompt.push_str(&format!(
+            "\n\n## Additional Instructions\n\nThe user provided extra focus instructions for this \
+             summary. Honor them on top of the required section structure — they refine emphasis, \
+             they do not replace any section:\n{}",
+            instructions
+        ));
+    }
+
+    prompt
+}
+
+/// Replay-based summarization: send the byte-exact previous request
+/// prefix plus one appended user message carrying the summarization
+/// instructions. No tools, no structured output (plain text reply is the
+/// summary), stream kept, cache writes suppressed (one-shot request).
+async fn summarize_via_replay(
+    snapshot: Vec<Value>,
+    state: &super::compaction::CompactionState,
+    provider: &dyn crate::providers::traits::LLMProvider,
+    model: &str,
+    config: &super::compaction::CompactionConfig,
+    custom_instructions: Option<&str>,
+) -> Result<String, String> {
+    let mut instruction = build_summary_prompt(state, custom_instructions);
+    instruction.push_str(
+        "\n\n## 输出要求\n\n直接输出压缩摘要正文（Markdown，中文），不要调用任何工具，不要 preamble。",
+    );
+
+    let mut request_messages = snapshot;
+    request_messages.push(serde_json::json!({
+        "role": "user",
+        "content": instruction,
+    }));
+
+    let sq_config = SideQueryConfig {
+        model: None,
+        max_tokens: config.summary_max_tokens,
+        temperature: 0.0,
+        stream: true,
+        system_prompt: None,
+        structured: None,
+        // One-shot request; the prefix is already cached from the main turn.
+        skip_cache_write: true,
+        ..Default::default()
+    };
+
+    let result = side_query::side_query(provider, &request_messages, &sq_config, model).await?;
+
+    tracing::info!(
+        "[compaction] replay summary usage: prompt={}, completion={}, cache_read={}",
+        result.prompt_tokens,
+        result.completion_tokens,
+        result.cache_read_tokens,
+    );
+
+    if result.finish_reason == crate::providers::finish_reason::LENGTH {
+        return Err(format!(
+            "replay summary output hit the summarizer cap ({}) — refusing incomplete summary",
+            config.summary_max_tokens
+        ));
+    }
+
+    let summary = result.content;
+    if summary.trim().is_empty() {
+        return Err("replay summarizer returned an empty summary".to_string());
+    }
+
+    Ok(summary)
+}
+
 /// Generate a summary of messages using the LLM.
 ///
 /// Oversized messages (>50% of context window) are excluded from
@@ -214,38 +383,48 @@ pub(crate) async fn summarize_messages(
         );
     }
 
+    // Replay path: reuse the byte-exact messages array of the last
+    // successful main-session request as the summarization prefix so the
+    // provider prompt cache hits (input billed at cache-read price)
+    // instead of paying full price for a flattened re-encoding.
+    if let Some(session_id) = state.replay_session_id.as_deref() {
+        if let Some(snapshot) = fresh_replay_snapshot(session_id, messages.len()) {
+            tracing::info!(
+                "[compaction] summarization path=replay (session={}, snapshot_msgs={}, live_msgs={})",
+                session_id,
+                snapshot.len(),
+                messages.len()
+            );
+            match summarize_via_replay(snapshot, state, provider, model, config, custom_instructions)
+                .await
+            {
+                Ok(mut summary) => {
+                    if !oversized_notes.is_empty() {
+                        summary.push_str("\n\n");
+                        summary.push_str(&oversized_notes.join("\n"));
+                    }
+                    return Ok(summary);
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "[compaction] replay summarization failed, falling back to flatten: {}",
+                        err
+                    );
+                }
+            }
+        } else {
+            tracing::info!(
+                "[compaction] replay snapshot missing/stale for session {} -> flatten path",
+                session_id
+            );
+        }
+    }
+
+    tracing::info!("[compaction] summarization path=flatten ({} messages)", summarizable.len());
+
     let formatted = format_messages_for_summary_refs(&summarizable);
 
-    let mut prompt = String::from(SUMMARIZATION_SYSTEM_PROMPT);
-
-    if state.recompaction_info.compaction_count > 0 {
-        prompt.push_str(&format!(
-            "\n\n## Re-compaction Context\n\nThis is compaction #{} for this session (last at turn {}). \
-             Merge the prior summary with the new messages — preserve important details from both, \
-             but prioritize recent information when there are conflicts or superseded decisions.",
-            state.recompaction_info.compaction_count + 1,
-            state.recompaction_info.last_compaction_turn,
-        ));
-    }
-
-    if let Some(ref prior_summary) = state.summary {
-        prompt.push_str(&format!(
-            "\n\n## Prior Context Summary\n\n{}\n\n## New Messages to Incorporate\n\n",
-            prior_summary
-        ));
-    }
-
-    if let Some(instructions) = custom_instructions
-        .map(str::trim)
-        .filter(|instructions| !instructions.is_empty())
-    {
-        prompt.push_str(&format!(
-            "\n\n## Additional Instructions\n\nThe user provided extra focus instructions for this \
-             summary. Honor them on top of the required section structure — they refine emphasis, \
-             they do not replace any section:\n{}",
-            instructions
-        ));
-    }
+    let mut prompt = build_summary_prompt(state, custom_instructions);
 
     let user_message = vec![serde_json::json!({
         "role": "user",

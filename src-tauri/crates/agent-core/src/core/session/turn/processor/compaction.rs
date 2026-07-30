@@ -201,6 +201,7 @@ impl UnifiedMessageProcessor {
                 // SM-compact not enough — fall through to LLM compaction on
                 // the SM-compacted tail.
                 let mut state = self.compaction_state.lock().await;
+                state.replay_session_id = Some(session_id.to_string());
                 let (compacted, llm_outcome) = ContextCompactor::compact(
                     &cleaned_tail,
                     budget_tokens,
@@ -228,6 +229,7 @@ impl UnifiedMessageProcessor {
             sm_state.last_summarized_msg_idx = None;
         } else {
             let mut state = self.compaction_state.lock().await;
+            state.replay_session_id = Some(session_id.to_string());
             let (compacted, llm_outcome) = ContextCompactor::compact(
                 &compactable_tail,
                 budget_tokens,
@@ -331,15 +333,38 @@ impl UnifiedMessageProcessor {
             .load(std::sync::atomic::Ordering::SeqCst)
             .max(0) as usize;
 
-        if !(self.runtime.resolved.compaction.enabled
+        // Cost-based trigger (second condition): cumulative weighted spend
+        // since the last compaction. Fires even when the window is far from
+        // full — a huge warm prefix on a large-window model bleeds cache-read
+        // cost every turn until compacted.
+        let weighted_threshold = self.runtime.resolved.compaction.weighted_token_threshold;
+        let cumulative_weighted = self
+            .session
+            .cumulative_weighted_tokens_milli
+            .load(std::sync::atomic::Ordering::SeqCst)
+            .max(0) as u64
+            / 1_000;
+        let cost_triggered = weighted_threshold > 0
+            && cumulative_weighted >= weighted_threshold
+            && compactable_tail.len() >= self.runtime.resolved.compaction.min_messages;
+
+        let size_triggered = self.runtime.resolved.compaction.enabled
             && ContextCompactor::needs_compaction_observed(
                 &compactable_tail,
                 context_window,
                 &self.runtime.resolved.compaction,
                 observed_tokens,
-            ))
-        {
+            );
+
+        if !(self.runtime.resolved.compaction.enabled && (size_triggered || cost_triggered)) {
             return CompactionPhaseOutcome::Continue;
+        }
+
+        if cost_triggered && !size_triggered {
+            info!(
+                "[unified_processor] Cost-based compaction trigger for session {}: cumulative weighted {} >= threshold {}",
+                session_id, cumulative_weighted, weighted_threshold
+            );
         }
 
         // Budget in ESTIMATED tokens for the compactors below: effective
@@ -438,6 +463,7 @@ impl UnifiedMessageProcessor {
                     }
                 };
             let mut state = self.compaction_state.lock().await;
+            state.replay_session_id = Some(session_id.to_string());
             let (compacted, outcome) = ContextCompactor::compact(
                 &compactable_tail,
                 budget_tokens,
@@ -481,6 +507,11 @@ impl UnifiedMessageProcessor {
         // clear it so the next trigger doesn't act on a stale value.
         self.session
             .last_context_tokens
+            .store(0, std::sync::atomic::Ordering::SeqCst);
+        // Weighted spend accounted against the old history — restart the
+        // cost-trigger accumulation window.
+        self.session
+            .cumulative_weighted_tokens_milli
             .store(0, std::sync::atomic::Ordering::SeqCst);
 
         // Fired before the compact-fork branch: the compaction itself is

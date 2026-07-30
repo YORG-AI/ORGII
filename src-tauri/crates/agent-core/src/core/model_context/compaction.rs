@@ -70,6 +70,16 @@ pub struct CompactionConfig {
     /// Fixed buffer to avoid hitting the exact context limit (default 13000).
     #[serde(default = "default_buffer_tokens")]
     pub buffer_tokens: usize,
+
+    /// Second, cost-based trigger: cumulative weighted token spend since the
+    /// last compaction at which compaction fires even though the context
+    /// window is nowhere near full. Large-window models (1M ctx) can
+    /// otherwise drag a huge cached prefix forever, paying cache-read on it
+    /// every turn. Weighted units: uncached_input*1.0 + cache_read*0.1 +
+    /// cache_write*1.25 + output*5.0 (same accounting as the OpenClaw
+    /// auto-compact-cost plugin). `0` disables the cost trigger.
+    #[serde(default = "default_weighted_token_threshold")]
+    pub weighted_token_threshold: u64,
 }
 
 fn default_enabled() -> bool {
@@ -103,6 +113,9 @@ fn default_reserved_summary_tokens() -> usize {
 fn default_buffer_tokens() -> usize {
     13_000
 }
+fn default_weighted_token_threshold() -> u64 {
+    5_000_000
+}
 
 impl Default for CompactionConfig {
     fn default() -> Self {
@@ -116,6 +129,7 @@ impl Default for CompactionConfig {
             floor_tokens: default_floor_tokens(),
             reserved_summary_tokens: default_reserved_summary_tokens(),
             buffer_tokens: default_buffer_tokens(),
+            weighted_token_threshold: default_weighted_token_threshold(),
         }
     }
 }
@@ -155,6 +169,10 @@ pub struct CompactionState {
     /// Re-compaction metadata — tracks how many times this session
     /// has been compacted and which turn triggered the last compaction.
     pub recompaction_info: RecompactionInfo,
+    /// Session id used to look up a replay snapshot (byte-exact previous
+    /// request body) for prompt-cache-friendly summarization. `None`
+    /// disables the replay path (tests, contexts without a session id).
+    pub replay_session_id: Option<String>,
 }
 
 /// Metadata about re-compaction history, injected into the summarization

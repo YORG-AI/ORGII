@@ -486,7 +486,16 @@ pub async fn execute_turn(
             };
 
         let response = match stream_result {
-            Ok(resp) => resp,
+            Ok(resp) => {
+                // Record the byte-exact request messages of this successful
+                // call so compaction can replay them as a prompt-cache-hot
+                // prefix for the summarization request (in-memory only).
+                crate::model_context::summarization::record_replay_snapshot(
+                    session_id,
+                    &llm_messages,
+                );
+                resp
+            }
             Err(crate::providers::traits::ProviderError::Cancelled) => {
                 info!(
                     "[agent-core] Stream cancelled by user (session={})",

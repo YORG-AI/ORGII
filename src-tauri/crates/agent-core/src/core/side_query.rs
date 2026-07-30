@@ -85,6 +85,8 @@ pub struct SideQueryResult {
     pub prompt_tokens: i64,
     /// Completion tokens used by this call.
     pub completion_tokens: i64,
+    /// Cache-read tokens reported by the provider (0 when unavailable).
+    pub cache_read_tokens: i64,
     /// Structured output extracted from a forced tool call. `None` when
     /// `SideQueryConfig::structured` was not set.
     pub structured: Option<Value>,
@@ -434,7 +436,7 @@ fn extract_structured_from_response(
 }
 
 fn build_structured_result(response: &LLMResponse, structured: Value) -> SideQueryResult {
-    let (prompt_tokens, completion_tokens) = extract_usage(response);
+    let (prompt_tokens, completion_tokens, cache_read_tokens) = extract_usage(response);
     info!(
         "[side-query] Done (structured): prompt={}, completion={}",
         prompt_tokens, completion_tokens
@@ -443,13 +445,14 @@ fn build_structured_result(response: &LLMResponse, structured: Value) -> SideQue
         content: String::new(),
         prompt_tokens,
         completion_tokens,
+        cache_read_tokens,
         structured: Some(structured),
         finish_reason: response.finish_reason.clone(),
     }
 }
 
 fn build_text_result(response: &LLMResponse, content: String) -> SideQueryResult {
-    let (prompt_tokens, completion_tokens) = extract_usage(response);
+    let (prompt_tokens, completion_tokens, cache_read_tokens) = extract_usage(response);
     info!(
         "[side-query] Done: {} chars, prompt={}, completion={}",
         content.len(),
@@ -460,19 +463,25 @@ fn build_text_result(response: &LLMResponse, content: String) -> SideQueryResult
         content,
         prompt_tokens,
         completion_tokens,
+        cache_read_tokens,
         structured: None,
         finish_reason: response.finish_reason.clone(),
     }
 }
 
-fn extract_usage(response: &LLMResponse) -> (i64, i64) {
+fn extract_usage(response: &LLMResponse) -> (i64, i64, i64) {
     let prompt_tokens = response.usage.get("prompt_tokens").copied().unwrap_or(0);
     let completion_tokens = response
         .usage
         .get("completion_tokens")
         .copied()
         .unwrap_or(0);
-    (prompt_tokens, completion_tokens)
+    let cache_read_tokens = response
+        .usage
+        .get(crate::providers::traits::usage_key::CACHE_READ_TOKENS)
+        .copied()
+        .unwrap_or(0);
+    (prompt_tokens, completion_tokens, cache_read_tokens)
 }
 
 /// When a thinking-only response is observed, record the model's reasoning
