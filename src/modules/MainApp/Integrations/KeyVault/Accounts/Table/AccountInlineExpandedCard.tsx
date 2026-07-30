@@ -226,6 +226,26 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
     return set;
   }, [account.enabledModels, account.id, availableModels, optimisticToggles]);
 
+  // Side-query dropdown options must mirror the model toggle list below in
+  // real time (enabledSet already folds in optimistic toggles). Falls back
+  // to all available models when nothing is enabled — matching backend
+  // resolve_side_query_model semantics.
+  const sideQueryAllowedModels = useMemo(() => {
+    const enabledOrdered = availableModels.filter((model) =>
+      enabledSet.has(model)
+    );
+    return enabledOrdered.length > 0 ? enabledOrdered : availableModels;
+  }, [availableModels, enabledSet]);
+
+  const sideQueryModelInvalid = useMemo(
+    () =>
+      Boolean(
+        account.sideQueryModel &&
+          !sideQueryAllowedModels.includes(account.sideQueryModel)
+      ),
+    [account.sideQueryModel, sideQueryAllowedModels]
+  );
+
   const handleSetModelEnabled = useCallback(
     (model: string, nextEnabled: boolean) => {
       if (!onToggleModel) return;
@@ -390,14 +410,31 @@ const AccountInlineExpandedCard: React.FC<AccountInlineExpandedCardProps> = ({
               </label>
               <Select
                 value={account.sideQueryModel}
-                options={(account.enabledModels?.length
-                  ? account.enabledModels
-                  : account.availableModels ?? []
-                ).map((model) => ({ value: model, label: model }))}
+                options={[
+                  ...sideQueryAllowedModels.map((model) => ({
+                    value: model,
+                    label: model,
+                  })),
+                  ...(sideQueryModelInvalid && account.sideQueryModel
+                    ? [
+                        {
+                          value: account.sideQueryModel,
+                          label: `⚠ ${account.sideQueryModel}`,
+                        },
+                      ]
+                    : []),
+                ]}
                 placeholder={t("keyVault.sideQueryModel.placeholder")}
                 onChange={handleSideQueryModelChange}
                 showSearch
               />
+              {sideQueryModelInvalid ? (
+                <p className="mt-1 text-xs text-danger-6">
+                  {t("keyVault.sideQueryModel.notEnabledWarning", {
+                    model: account.sideQueryModel,
+                  })}
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-text-3">
                 {t("keyVault.sideQueryModel.description")}
               </p>

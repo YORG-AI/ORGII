@@ -590,6 +590,7 @@
       "failed": "刷新模型失败：{{error}}"
     },
     "sideQueryModel": {
+      "notEnabledWarning": "⚠ “{{model}}”不在已启用模型列表中，旁路查询将失败，请选择已启用的模型。",
       "label": "旁路查询模型",
       "placeholder": "选择已启用模型",
       "description": "用于压缩和记忆提取。模型会按当前密钥严格校验，不会跨供应商降级。"

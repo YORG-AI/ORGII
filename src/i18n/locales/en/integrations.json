@@ -588,6 +588,7 @@
       "failed": "Refresh models failed: {{error}}"
     },
     "sideQueryModel": {
+      "notEnabledWarning": "⚠ '{{model}}' is not in the enabled model list; side queries will fail until you pick an enabled model.",
       "label": "Side-query model",
       "placeholder": "Select an enabled model",
       "description": "Used by compaction and memory extraction. The model is validated against this exact key; no cross-provider fallback."
