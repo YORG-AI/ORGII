@@ -51,6 +51,7 @@ export type WorkStationTabType =
   | "project-git-sync-review"
   | "project-tree"
   | "project-journey"
+  | "session-journey"
   | "project-workitems"
   | "workItem-detail"
   | "chat-session"
@@ -266,6 +267,7 @@ export function getWorkstationTabOwnership(
     case "project-git-sync-review":
     case "project-tree":
     case "project-journey":
+    case "session-journey":
     case "project-workitems":
     case "workItem-detail":
     case "chat-session":
@@ -525,6 +527,7 @@ export const TOOL_TAB_TYPES = [
   "project-org-settings",
   "project-tree",
   "project-journey",
+  "session-journey",
   "project-workitems",
   "workItem-detail",
   "chat-session",

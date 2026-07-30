@@ -168,6 +168,7 @@ export {
   projectWorkItemsTabFactory,
   projectTreeTabFactory,
   projectJourneyTabFactory,
+  sessionJourneyTabFactory,
   workItemDetailTabFactory,
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
@@ -182,6 +183,7 @@ export {
   createProjectWorkItemsTab,
   createProjectTreeTab,
   createProjectJourneyTab,
+  createSessionJourneyTab,
   createWorkItemDetailTab,
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -279,4 +281,7 @@ export {
   switchActiveRepoAtom,
 } from "./editorCache";
 
-export type { ProjectJourneyTabData } from "./factories/project";
+export type {
+  ProjectJourneyTabData,
+  SessionJourneyTabData,
+} from "./factories/project";

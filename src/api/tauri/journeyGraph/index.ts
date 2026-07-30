@@ -6,6 +6,7 @@ export type EvidenceClass =
   | "derivedRule"
   | "aiAnnotation"
   | "userOverlay";
+
 export interface JourneyGraphNode {
   id: string;
   kind: string;
@@ -13,6 +14,7 @@ export interface JourneyGraphNode {
   sourceRef: string;
   displayTimestamp?: string | null;
 }
+
 export interface JourneyGraphEdge {
   from: string;
   to: string;
@@ -20,10 +22,18 @@ export interface JourneyGraphEdge {
   evidenceClass: EvidenceClass;
   sourceRef: string;
 }
+
+export type JourneyCoverageStatus =
+  | "represented"
+  | "uncovered"
+  | { mergedInto: { target: string } }
+  | { excluded: { reason: string } };
+
 export interface JourneyCoverage {
   sourceRef: string;
-  status: "represented" | "mergedInto" | "excluded" | "uncovered";
+  status: JourneyCoverageStatus;
 }
+
 export interface JourneyGraphPayload {
   nodes: JourneyGraphNode[];
   edges: JourneyGraphEdge[];

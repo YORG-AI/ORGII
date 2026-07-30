@@ -5294,6 +5294,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "orgtrack_core",
+ "orgtrack_graph",
  "parking_lot 0.12.5",
  "perf_utils",
  "plist",

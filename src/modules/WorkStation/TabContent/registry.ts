@@ -213,6 +213,11 @@ const ProjectJourneyEntry: RendererEntry = {
   debugLabel: "project-journey",
 };
 
+const SessionJourneyEntry: RendererEntry = {
+  Component: lazy(() => import("./renderers/sessionJourney")),
+  debugLabel: "session-journey",
+};
+
 const WorkItemDetailEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/workItemDetail")),
   debugLabel: "workItem-detail",
@@ -297,6 +302,7 @@ export const REGISTRY: TabContentRegistry = {
   "project-git-sync-review": ProjectGitSyncReviewEntry,
   "project-tree": ProjectTreeEntry,
   "project-journey": ProjectJourneyEntry,
+  "session-journey": SessionJourneyEntry,
   "project-workitems": ProjectWorkitemsEntry,
   "workItem-detail": WorkItemDetailEntry,
   "chat-session": ChatSessionEntry,
