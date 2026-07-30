@@ -15,7 +15,6 @@ use crate::integrations::config::RerankConfig;
 
 const DEFAULT_ZENMUX_BASE_URL: &str = "https://zenmux.ai/api/v1";
 const DEFAULT_LOCAL_BASE_URL: &str = "http://localhost:9877";
-const MAX_VALIDATION_AGE_HOURS: i64 = 24;
 
 #[derive(Serialize)]
 struct ZenmuxRerankRequest<'a> {
@@ -97,8 +96,7 @@ impl ConfiguredReranker {
                     .ok_or_else(|| "ZenMux rerank model is not configured".to_string())?
                     .to_string();
                 let key = select_validated_zenmux_key(&model).ok_or_else(|| {
-                    "no enabled ZenMux credential with valid health and validation within 24 hours"
-                        .to_string()
+                    "no enabled ZenMux credential with valid health".to_string()
                 })?;
                 let api_key = key
                     .api_key
@@ -263,19 +261,15 @@ fn local_endpoint(base_url: Option<&str>) -> String {
 }
 
 fn select_validated_zenmux_key(model: &str) -> Option<ModelKey> {
-    let now = chrono::Utc::now();
+    // Validation is persistent: once a key was validated (health Valid) it
+    // stays eligible with no freshness window. Demotion happens only via
+    // call-time auth failures (auto.rs) or explicit re-validation in the UI.
     let mut keys: Vec<ModelKey> = KEY_SERVICE
         .get_all_keys_for_agent(&ModelType::ZenmuxApi)
         .into_iter()
         .filter(|key| {
-            let validation_age = key
-                .last_validated_at
-                .map(|validated_at| now.signed_duration_since(validated_at).num_seconds());
             key.enabled
                 && key.health_status == HealthStatus::Valid
-                && validation_age.is_some_and(|seconds| {
-                    (0..=MAX_VALIDATION_AGE_HOURS * 60 * 60).contains(&seconds)
-                })
                 && key
                     .api_key
                     .as_deref()
