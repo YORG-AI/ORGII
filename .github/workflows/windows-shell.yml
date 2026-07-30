@@ -79,24 +79,31 @@ jobs:
 
           $env:PYTHONUTF8 = "1"
           $env:PYTHONIOENCODING = "utf-8"
-          $workDir = Join-Path $env:RUNNER_TEMP "ORG2 中文 path with spaces"
+          # Windows PowerShell 5.1 reads a BOM-less .ps1 as the active ANSI
+          # code page, so keep this workflow source ASCII and construct the
+          # Unicode fixtures at runtime.
+          $chinese = ([string][char]0x4E2D) + ([char]0x6587)
+          $emoji = [char]::ConvertFromUtf32(0x1F642)
+          $expectedText = "$chinese $emoji `"quoted`"; semicolon"
+          $pathLeaf = "ORG2 $chinese path with spaces"
+          $workDir = Join-Path $env:RUNNER_TEMP $pathLeaf
           New-Item -ItemType Directory -Force -Path $workDir | Out-Null
           Push-Location $workDir
           try {
-            $source = @'
-          Write-Output '中文 🙂 "quoted"; semicolon'
-          Write-Output (Get-Location).Path
-          Write-Output ('PSVERSION=' + $PSVersionTable.PSVersion.Major)
-          Write-Output ('PYTHONIOENCODING=' + $env:PYTHONIOENCODING)
-          '@
+            $source = @(
+              "Write-Output '$expectedText'"
+              'Write-Output (Get-Location).Path'
+              'Write-Output (''PSVERSION='' + $PSVersionTable.PSVersion.Major)'
+              'Write-Output (''PYTHONIOENCODING='' + $env:PYTHONIOENCODING)'
+            ) -join "`n"
             $result = Invoke-OrgiiEncodedCommand $source
           } finally {
             Pop-Location
           }
 
           if ($result.ExitCode -ne 0) { throw "Unicode smoke exited $($result.ExitCode)" }
-          if ($result.Output -notmatch '中文 🙂 "quoted"; semicolon') { throw "Unicode output mismatch: $($result.Output)" }
-          if ($result.Output -notmatch 'ORG2 中文 path with spaces') { throw "Working directory mismatch: $($result.Output)" }
+          if (-not $result.Output.Contains($expectedText)) { throw "Unicode output mismatch: $($result.Output)" }
+          if (-not $result.Output.Contains($pathLeaf)) { throw "Working directory mismatch: $($result.Output)" }
           if ($result.Output -notmatch 'PSVERSION=5') { throw "PowerShell version mismatch: $($result.Output)" }
           if ($result.Output -notmatch 'PYTHONIOENCODING=utf-8') { throw "Python UTF-8 environment missing: $($result.Output)" }
 
