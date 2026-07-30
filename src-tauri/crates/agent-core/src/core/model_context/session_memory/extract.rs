@@ -196,12 +196,14 @@ pub async fn extract_session_memory(
     }
 
     let sq_config = SideQueryConfig {
-        // Session-memory extraction only reads the truncated <new_messages>
-        // digest (not the full conversation prefix), so it gains nothing
-        // from the parent prompt cache. Route it to the fast sibling of the
-        // session model (same provider family/protocol) instead of burning
-        // the primary channel model on a summarization side query.
-        model: Some(crate::providers::model_hints::fast_model_hint(model)),
+        // The `model` passed in is already the account-scoped side-query
+        // model resolved by `resolve_side_query_model` (fresh_fork_provider
+        // in post_turn.rs): it honors the user-configured side_query_model
+        // and is validated against the account's enabled/available models.
+        // Do NOT remap it through `fast_model_hint` here — that fabricates
+        // sibling model IDs (e.g. "openai/gpt-5.4-mini:openai") that may not
+        // exist for the account (ChatGPT OAuth/Codex rejects them with 400).
+        model: Some(model.to_string()),
         max_tokens: config.extraction_max_tokens,
         temperature: 0.0,
         system_prompt: Some(SM_EXTRACTION_SYSTEM_PROMPT.to_string()),
