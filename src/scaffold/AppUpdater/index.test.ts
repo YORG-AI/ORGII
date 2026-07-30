@@ -1,7 +1,7 @@
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 import { type ReactElement, type ReactNode, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   AppUpdateDownloadNoticeContent,
@@ -11,6 +11,7 @@ import {
 import {
   AppUpdater,
   checkForUpdatesManually,
+  executeAutomaticUpdateForTests,
   installAvailableAppUpdate,
   resetAppUpdaterForTests,
 } from "./index";
@@ -149,6 +150,17 @@ function createUpdate(overrides: Partial<Update> = {}): Update {
   } as unknown as Update;
 }
 
+function installMemoryLocalStorage() {
+  const values = new Map<string, string>();
+  const localStorage = {
+    getItem: vi.fn((key: string) => values.get(key) ?? null),
+    removeItem: vi.fn((key: string) => values.delete(key)),
+    setItem: vi.fn((key: string, value: string) => values.set(key, value)),
+  };
+  vi.stubGlobal("window", { localStorage });
+  return { localStorage, values };
+}
+
 describe("AppUpdater", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -163,6 +175,11 @@ describe("AppUpdater", () => {
     });
     mocks.getVersion.mockResolvedValue("1.1.21");
     resetAppUpdaterForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   function renderPreparedUpdate(update: Update): string {
@@ -368,14 +385,110 @@ describe("AppUpdater", () => {
     expect(mocks.relaunch).not.toHaveBeenCalled();
   });
 
+  it.each(["startup", "interval", "foreground", "online", "retry"] as const)(
+    "defers the %s reminder for 24 hours after Later",
+    async (automaticReason) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-30T00:00:00.000Z"));
+      const { values } = installMemoryLocalStorage();
+      const update = createUpdate();
+      mocks.check.mockResolvedValue(update);
+      await installAvailableAppUpdate();
+      renderPreparedUpdate(update);
+
+      capturedButton("Later").onClick?.();
+
+      expect(
+        JSON.parse(values.get("orgii:updater:deferred-update-reminder") ?? "{}")
+      ).toEqual({
+        version: "1.1.22",
+        remindAfter: Date.now() + 24 * 60 * 60_000,
+      });
+      mocks.storeSet.mockClear();
+
+      await executeAutomaticUpdateForTests(automaticReason);
+
+      expect(update.download).toHaveBeenCalledOnce();
+      expect(mocks.storeSet).not.toHaveBeenCalledWith(expect.anything(), true);
+    }
+  );
+
+  it("shows the deferred reminder again after its 24-hour cooldown", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-30T00:00:00.000Z"));
+    const { localStorage } = installMemoryLocalStorage();
+    const update = createUpdate();
+    mocks.check.mockResolvedValue(update);
+    await installAvailableAppUpdate();
+    renderPreparedUpdate(update);
+    capturedButton("Later").onClick?.();
+    mocks.storeSet.mockClear();
+    vi.advanceTimersByTime(24 * 60 * 60_000);
+
+    await executeAutomaticUpdateForTests("foreground");
+
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      "orgii:updater:deferred-update-reminder"
+    );
+    expect(mocks.storeSet).toHaveBeenCalledWith(expect.anything(), true);
+  });
+
+  it("does not let a deferred version suppress a newer update", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-30T00:00:00.000Z"));
+    installMemoryLocalStorage();
+    const deferredUpdate = createUpdate();
+    const newerUpdate = createUpdate({ version: "1.1.23" });
+    mocks.check
+      .mockResolvedValueOnce(deferredUpdate)
+      .mockResolvedValueOnce(newerUpdate);
+    await installAvailableAppUpdate();
+    renderPreparedUpdate(deferredUpdate);
+    capturedButton("Later").onClick?.();
+    mocks.storeSet.mockClear();
+
+    await executeAutomaticUpdateForTests("interval");
+
+    expect(deferredUpdate.close).toHaveBeenCalledOnce();
+    expect(newerUpdate.download).toHaveBeenCalledOnce();
+    expect(mocks.storeSet).toHaveBeenCalledWith(expect.anything(), true);
+  });
+
+  it("discards malformed reminder state instead of suppressing an update", async () => {
+    const { localStorage, values } = installMemoryLocalStorage();
+    values.set("orgii:updater:deferred-update-reminder", "{not-json");
+    const update = createUpdate();
+    mocks.check.mockResolvedValue(update);
+
+    await executeAutomaticUpdateForTests("startup");
+
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      "orgii:updater:deferred-update-reminder"
+    );
+    expect(mocks.storeSet).toHaveBeenCalledWith(expect.anything(), true);
+  });
+
+  it("lets an explicit install action override an active reminder cooldown", async () => {
+    const { values } = installMemoryLocalStorage();
+    const update = createUpdate();
+    mocks.check.mockResolvedValue(update);
+    await installAvailableAppUpdate();
+    renderPreparedUpdate(update);
+    capturedButton("Later").onClick?.();
+    expect(values.has("orgii:updater:deferred-update-reminder")).toBe(true);
+    mocks.storeSet.mockClear();
+
+    await installAvailableAppUpdate();
+
+    expect(mocks.storeSet).toHaveBeenCalledWith(expect.anything(), true);
+  });
+
   it("persists a skipped version and closes its update handle", async () => {
-    const values = new Map<string, string>();
-    const localStorage = {
-      getItem: vi.fn((key: string) => values.get(key) ?? null),
-      removeItem: vi.fn((key: string) => values.delete(key)),
-      setItem: vi.fn((key: string, value: string) => values.set(key, value)),
-    };
-    vi.stubGlobal("window", { localStorage });
+    const { localStorage, values } = installMemoryLocalStorage();
+    values.set(
+      "orgii:updater:deferred-update-reminder",
+      JSON.stringify({ version: "1.1.22", remindAfter: Date.now() + 60_000 })
+    );
     const update = createUpdate();
     mocks.check.mockResolvedValue(update);
     await installAvailableAppUpdate();
@@ -387,14 +500,21 @@ describe("AppUpdater", () => {
       "orgii:updater:skipped-update-version",
       "1.1.22"
     );
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      "orgii:updater:deferred-update-reminder"
+    );
     expect(update.close).toHaveBeenCalledOnce();
     expect(mocks.setInstallPromptVisible).toHaveBeenCalledWith(false);
     expect(update.install).not.toHaveBeenCalled();
     expect(mocks.relaunch).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
   });
 
   it("installs from the dialog only after its primary action is clicked", async () => {
+    const { localStorage, values } = installMemoryLocalStorage();
+    values.set(
+      "orgii:updater:deferred-update-reminder",
+      JSON.stringify({ version: "1.1.22", remindAfter: Date.now() + 60_000 })
+    );
     const update = createUpdate();
     mocks.check.mockResolvedValue(update);
     await installAvailableAppUpdate();
@@ -404,6 +524,9 @@ describe("AppUpdater", () => {
 
     expect(update.install).toHaveBeenCalledOnce();
     expect(mocks.relaunch).toHaveBeenCalledOnce();
+    expect(localStorage.removeItem).toHaveBeenCalledWith(
+      "orgii:updater:deferred-update-reminder"
+    );
     expect(mocks.setInstallPromptVisible).toHaveBeenCalledWith(false);
   });
 
@@ -437,6 +560,5 @@ describe("AppUpdater", () => {
     expect(progressMessages[3]?.[0].title).toBe("Downloading update… 100%");
     expect(mocks.messageRemove).toHaveBeenCalledWith("app-update-progress");
     expect(mocks.relaunch).not.toHaveBeenCalled();
-    vi.useRealTimers();
   });
 });
