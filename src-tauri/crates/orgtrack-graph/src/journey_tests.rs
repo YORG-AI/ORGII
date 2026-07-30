@@ -1,7 +1,7 @@
 use crate::{
     audit_canonical_journey, project_canonical_journey, ArtifactRelation, CanonicalArtifact,
     CanonicalJourneyInput, CanonicalProject, CanonicalSession, CanonicalTurn, CanonicalWorkItem,
-    CoverageStatus, JourneyEdgeKind, SessionParent,
+    CoverageStatus, JourneyEdgeKind, JourneyScope, SessionParent,
 };
 
 fn input() -> CanonicalJourneyInput {
@@ -126,4 +126,19 @@ fn evidence_and_source_are_mandatory() {
     let graph = project_canonical_journey(&input()).unwrap();
     assert!(graph.nodes.iter().all(|node| !node.source_ref.is_empty()));
     assert!(graph.edges.iter().all(|edge| !edge.source_ref.is_empty()));
+}
+
+#[test]
+fn query_scope_rejects_everything_except_project_or_session() {
+    assert!(matches!(
+        JourneyScope::parse("project/p"),
+        Ok(JourneyScope::Project(_))
+    ));
+    assert!(matches!(
+        JourneyScope::parse("session/s"),
+        Ok(JourneyScope::Session(_))
+    ));
+    assert!(JourneyScope::parse("project/").is_err());
+    assert!(JourneyScope::parse("project/p/child").is_err());
+    assert!(JourneyScope::parse("file/a").is_err());
 }

@@ -28,6 +28,18 @@ use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use serde::Serialize;
 use types::OrgtrackTier;
 
+/// P1 read-only Journey entry point. It validates scope before touching storage.
+/// The persisted canonical graph is not optional: absent graph data is an error,
+/// never a synthesized partial response.
+#[tauri::command]
+pub async fn journey_graph_query(scope: String) -> Result<orgtrack_graph::JourneyGraph, String> {
+    let _scope = orgtrack_graph::JourneyScope::parse(&scope)?;
+    Err(
+        "canonical Journey graph store is not initialized for this project; refusing partial data"
+            .to_string(),
+    )
+}
+
 const ORGTRACK_CALL_LOG_WINDOW: Duration = Duration::from_secs(30);
 const ORGTRACK_CALL_LOG_THRESHOLD: u64 = 10;
 
