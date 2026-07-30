@@ -64,6 +64,7 @@ export function toWorkItemPartialUpdate(
       author: comment.author,
       content: comment.content,
       created_at: comment.created_at,
+      mentioned_user_ids: comment.mentioned_user_ids,
     }));
   }
   if (updates.linkedSessions !== undefined) {

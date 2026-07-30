@@ -1,37 +1,82 @@
+import type {
+  WorkItem,
+  WorkItemPriority,
+  WorkItemStatus,
+} from "@src/types/core/workItem";
+
 import type { TeamInboxSessionHandoffDraft } from "./domain";
-import type { TeamInboxHandoffProject } from "./domain";
+import type { TeamInboxHandoffDestination } from "./domain";
 
 export const MAX_HANDOFF_NOTE_LENGTH = 1_000;
 
 export interface SessionHandoffForm {
   title: string;
-  projectSlug: string;
+  destinationKey: string;
   assigneeMemberId: string;
+  status: WorkItemStatus;
+  priority: WorkItemPriority;
+  targetDate: string;
   note: string;
 }
 
-export function selectedHandoffProject(
-  form: Pick<SessionHandoffForm, "projectSlug">,
+export function sessionHandoffFormToWorkItem(
+  form: SessionHandoffForm,
   draft: TeamInboxSessionHandoffDraft
-): TeamInboxHandoffProject | undefined {
-  return draft.projects.find((project) => project.slug === form.projectSlug);
+): WorkItem {
+  return {
+    session_id: draft.sessionId,
+    user_id: form.assigneeMemberId,
+    name: form.title,
+    target_date: form.targetDate || null,
+    updated_time: "",
+    star: false,
+    created_time: "",
+    spec: draft.requestPreview ?? "",
+    status: form.status,
+    workItemStatus: form.status,
+    priority: form.priority,
+    endDate: form.targetDate || undefined,
+  };
 }
 
-function defaultProject(
+export function sessionHandoffFormWithWorkItemUpdates(
+  form: SessionHandoffForm,
+  updates: Partial<WorkItem>
+): SessionHandoffForm {
+  return {
+    ...form,
+    ...(updates.workItemStatus !== undefined
+      ? { status: updates.workItemStatus }
+      : {}),
+    ...(updates.priority !== undefined ? { priority: updates.priority } : {}),
+    ...("endDate" in updates ? { targetDate: updates.endDate ?? "" } : {}),
+  };
+}
+
+export function selectedHandoffDestination(
+  form: Pick<SessionHandoffForm, "destinationKey">,
   draft: TeamInboxSessionHandoffDraft
-): TeamInboxHandoffProject | undefined {
-  if (draft.sourceProjectSlug) {
-    return draft.projects.find(
-      (project) => project.slug === draft.sourceProjectSlug
+): TeamInboxHandoffDestination | undefined {
+  return draft.destinations.find(
+    (destination) => destination.key === form.destinationKey
+  );
+}
+
+function defaultDestination(
+  draft: TeamInboxSessionHandoffDraft
+): TeamInboxHandoffDestination | undefined {
+  if (draft.sourceDestinationKey) {
+    return draft.destinations.find(
+      (destination) => destination.key === draft.sourceDestinationKey
     );
   }
-  return draft.projects.length === 1 ? draft.projects[0] : undefined;
+  return draft.destinations.length === 1 ? draft.destinations[0] : undefined;
 }
 
-function defaultRecipient(project?: TeamInboxHandoffProject): string {
+function defaultRecipient(destination?: TeamInboxHandoffDestination): string {
   return (
-    project?.recipients.find((member) => member.isCurrentUser)?.id ??
-    project?.recipients[0]?.id ??
+    destination?.recipients.find((member) => member.isCurrentUser)?.id ??
+    destination?.recipients[0]?.id ??
     ""
   );
 }
@@ -39,27 +84,30 @@ function defaultRecipient(project?: TeamInboxHandoffProject): string {
 export function createSessionHandoffForm(
   draft: TeamInboxSessionHandoffDraft
 ): SessionHandoffForm {
-  const project = defaultProject(draft);
+  const destination = defaultDestination(draft);
   return {
     title: draft.title,
-    projectSlug: project?.slug ?? "",
-    assigneeMemberId: defaultRecipient(project),
+    destinationKey: destination?.key ?? "",
+    assigneeMemberId: defaultRecipient(destination),
+    status: "planned",
+    priority: "none",
+    targetDate: "",
     note: "",
   };
 }
 
-export function sessionHandoffFormForProject(
+export function sessionHandoffFormForDestination(
   form: SessionHandoffForm,
-  projectSlug: string,
+  destinationKey: string,
   draft: TeamInboxSessionHandoffDraft
 ): SessionHandoffForm {
-  const project = draft.projects.find(
-    (candidate) => candidate.slug === projectSlug
+  const destination = draft.destinations.find(
+    (candidate) => candidate.key === destinationKey
   );
   return {
     ...form,
-    projectSlug,
-    assigneeMemberId: defaultRecipient(project),
+    destinationKey,
+    assigneeMemberId: defaultRecipient(destination),
   };
 }
 
@@ -74,12 +122,14 @@ export function sessionHandoffFormError(
   | "recipient_unavailable"
   | null {
   if (!form.title.trim()) return "title_required";
-  if (!form.projectSlug) return "project_required";
-  const project = selectedHandoffProject(form, draft);
-  if (!project) return "project_unavailable";
+  if (!form.destinationKey) return "project_required";
+  const destination = selectedHandoffDestination(form, draft);
+  if (!destination) return "project_unavailable";
   if (!form.assigneeMemberId) return "recipient_required";
   if (
-    !project.recipients.some((member) => member.id === form.assigneeMemberId)
+    !destination.recipients.some(
+      (member) => member.id === form.assigneeMemberId
+    )
   ) {
     return "recipient_unavailable";
   }
@@ -90,7 +140,7 @@ export function isTeamHandoff(
   form: SessionHandoffForm,
   draft: TeamInboxSessionHandoffDraft
 ): boolean {
-  const recipient = selectedHandoffProject(form, draft)?.recipients.find(
+  const recipient = selectedHandoffDestination(form, draft)?.recipients.find(
     (member) => member.id === form.assigneeMemberId
   );
   return Boolean(recipient && !recipient.isCurrentUser);
@@ -101,8 +151,11 @@ export function normalizedSessionHandoffForm(
 ): SessionHandoffForm {
   return {
     title: form.title.trim(),
-    projectSlug: form.projectSlug,
+    destinationKey: form.destinationKey,
     assigneeMemberId: form.assigneeMemberId,
+    status: form.status,
+    priority: form.priority,
+    targetDate: form.targetDate,
     note: form.note.trim().slice(0, MAX_HANDOFF_NOTE_LENGTH),
   };
 }

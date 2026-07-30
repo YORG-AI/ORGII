@@ -19,11 +19,25 @@ export interface SessionCommentTarget {
 
 export interface WorkItemTarget {
   kind: "work_item";
+  /** Owning project-org id; legacy/test rows may omit it. */
+  orgId?: string;
   projectId: string;
   workItemId: string;
 }
 
-export type TeamInboxTarget = SessionCommentTarget | WorkItemTarget;
+export interface WorkItemCommentTarget {
+  kind: "work_item_comment";
+  orgId?: string;
+  projectId: string;
+  workItemId: string;
+  commentId: string;
+  workItemTitle: string;
+}
+
+export type TeamInboxTarget =
+  | SessionCommentTarget
+  | WorkItemTarget
+  | WorkItemCommentTarget;
 
 interface TeamInboxItemBase {
   id: string;
@@ -34,7 +48,7 @@ interface TeamInboxItemBase {
 
 export interface CommentMentionItem extends TeamInboxItemBase {
   kind: "comment_mention";
-  target: SessionCommentTarget;
+  target: SessionCommentTarget | WorkItemCommentTarget;
   payload: {
     commentBody: string;
     context?: string;
@@ -103,8 +117,11 @@ export interface ListTeamInboxInput {
 export interface TeamInboxSessionDropInput {
   sessionId: string;
   title: string;
-  projectSlug: string;
+  destinationKey: string;
   assigneeMemberId: string;
+  status: import("@src/types/core/workItem").WorkItemStatus;
+  priority: import("@src/types/core/workItem").WorkItemPriority;
+  targetDate?: string;
   handoffNote?: string;
   signal?: AbortSignal;
 }
@@ -116,25 +133,40 @@ export interface TeamInboxHandoffMember {
   isCurrentUser: boolean;
 }
 
-export interface TeamInboxHandoffProject {
-  id: string;
-  slug: string;
+interface TeamInboxHandoffDestinationBase {
+  key: string;
   name: string;
   sender: TeamInboxHandoffMember;
   recipients: TeamInboxHandoffMember[];
 }
 
+export interface TeamInboxProjectHandoffDestination extends TeamInboxHandoffDestinationBase {
+  kind: "project";
+  projectId: string;
+  projectSlug: string;
+}
+
+export interface TeamInboxCloudOrgHandoffDestination extends TeamInboxHandoffDestinationBase {
+  kind: "cloud_org";
+  orgId: string;
+}
+
+export type TeamInboxHandoffDestination =
+  | TeamInboxProjectHandoffDestination
+  | TeamInboxCloudOrgHandoffDestination;
+
 export interface TeamInboxSessionHandoffDraft {
   sessionId: string;
   title: string;
-  sourceProjectSlug?: string;
-  projects: TeamInboxHandoffProject[];
+  sourceDestinationKey?: string;
+  destinations: TeamInboxHandoffDestination[];
   requestPreview?: string;
   impactSummary?: string;
   todoCount: number;
 }
 
 export interface TeamInboxCreatedWorkItem {
+  orgId?: string;
   projectId: string;
   workItemId: string;
   reused: boolean;
@@ -192,6 +224,7 @@ export type TeamInboxNavigationIntent =
     }
   | {
       kind: "open_work_item";
+      orgId?: string;
       projectId: string;
       workItemId: string;
       action?: "start_agent";

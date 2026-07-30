@@ -23,6 +23,7 @@ export {
   workItemStatusLabelKey,
 } from "./labels";
 export { toWireCursorItemId } from "./cursor";
+export { resolveWorkItemMemberIdentities } from "./workItemIdentity";
 export type {
   AssignedWorkItem,
   CommentMentionItem,
@@ -31,10 +32,12 @@ export type {
   TeamInboxActor,
   TeamInboxCursor,
   TeamInboxCreatedWorkItem,
+  TeamInboxCloudOrgHandoffDestination,
   TeamInboxDataSource,
   TeamInboxFilter,
+  TeamInboxHandoffDestination,
   TeamInboxHandoffMember,
-  TeamInboxHandoffProject,
+  TeamInboxProjectHandoffDestination,
   TeamInboxItem,
   TeamInboxIssue,
   TeamInboxIssueCode,
@@ -44,4 +47,5 @@ export type {
   TeamInboxSessionHandoffDraft,
   TeamInboxTarget,
   WorkItemTarget,
+  WorkItemCommentTarget,
 } from "./types";

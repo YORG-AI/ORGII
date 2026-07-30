@@ -40,7 +40,11 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
   ({ item, itemKey, selected, onSelect }, ref) => {
     const { t } = useTranslation();
     const isMention = item.kind === "comment_mention";
-    const title = isMention ? item.target.sessionTitle : item.payload.title;
+    const title = isMention
+      ? item.target.kind === "session_comment"
+        ? item.target.sessionTitle
+        : item.target.workItemTitle
+      : item.payload.title;
     const { meta, summary } = useMemo(() => {
       if (item.kind === "comment_mention") {
         return {

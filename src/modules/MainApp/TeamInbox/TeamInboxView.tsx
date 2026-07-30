@@ -166,6 +166,27 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     ? getTeamInboxItemKey(selectedItem)
     : null;
 
+  const markItemRead = useCallback(
+    (item: TeamInboxItem) => {
+      if (item.readAt !== null) return;
+      void performTeamInboxReadTransition("read", item, dataSource).then(
+        (result) => {
+          if (!result.ok) {
+            setLoadState({
+              status: "error",
+              message: t("teamInbox.errors.markRead"),
+            });
+          }
+        }
+      );
+    },
+    [dataSource, t]
+  );
+
+  useEffect(() => {
+    if (selectedItem) markItemRead(selectedItem);
+  }, [markItemRead, selectedItem]);
+
   const handleLoadMore = () => {
     if (!dataSource.loadMore || loadingMore) return;
     setLoadingMore(true);
@@ -210,31 +231,10 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
 
   const handleSelect = (item: TeamInboxItem) => {
     setRequestedItemId(getTeamInboxItemKey(item));
-    if (item.readAt !== null) return;
-    void performTeamInboxReadTransition("read", item, dataSource).then(
-      (result) => {
-        if (!result.ok) {
-          setLoadState({
-            status: "error",
-            message: t("teamInbox.errors.markRead"),
-          });
-        }
-      }
-    );
   };
 
   const handleMarkRead = (item: TeamInboxItem) => {
-    if (item.readAt !== null) return;
-    void performTeamInboxReadTransition("read", item, dataSource).then(
-      (result) => {
-        if (!result.ok) {
-          setLoadState({
-            status: "error",
-            message: t("teamInbox.errors.markRead"),
-          });
-        }
-      }
-    );
+    markItemRead(item);
   };
 
   const handleMarkUnread = (item: TeamInboxItem) => {

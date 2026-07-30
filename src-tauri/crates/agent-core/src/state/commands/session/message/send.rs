@@ -49,6 +49,19 @@ async fn persist_direct_user_intervention(
         .map_err(|err| format!("Agent Org intervention worker failed: {err}"))?
 }
 
+pub(super) fn terminal_intent_status_override(
+    state: crate::session::DialogTurnState,
+) -> Option<crate::foundation::session_bridge::TurnIntentBridgeStatus> {
+    match state {
+        crate::session::DialogTurnState::Cancelled => {
+            Some(crate::foundation::session_bridge::TurnIntentBridgeStatus::Cancelled)
+        }
+        crate::session::DialogTurnState::Running
+        | crate::session::DialogTurnState::Completed
+        | crate::session::DialogTurnState::Failed => None,
+    }
+}
+
 /// Implementation of agent_send_message.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn send_message_impl(
@@ -502,6 +515,18 @@ pub(crate) async fn send_message_impl(
                 })
                 .unwrap_or_default();
             session.end_turn(final_turn_state, stats).await;
+
+            // The turn processor can return Ok with an empty response after a
+            // user stop. Persist the authoritative cancelled terminal before
+            // handing control back to the scheduler; its generic Ok =>
+            // completed write is then rejected by the intent state machine.
+            if let Some(status) = terminal_intent_status_override(final_turn_state) {
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    &sid,
+                    &turn_intent_id,
+                    status,
+                );
+            }
 
             let terminal_turn =
                 response

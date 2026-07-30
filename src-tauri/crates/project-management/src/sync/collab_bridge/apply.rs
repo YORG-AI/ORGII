@@ -14,7 +14,8 @@ use super::wire::{iso_to_ms, now_ms, string_field};
 use super::{COLLAB_ORG_SOURCE, COLLAB_SYNC_PROVIDER, KIND_PROJECT, KIND_WORK_ITEM};
 use crate::projects::io::{
     apply_remote_merge, create_project_org, read_project_field_revisions, read_project_org,
-    read_project_scoped, read_sync_metadata, read_work_item_by_row_id,
+    read_project_scoped, read_standalone_sync_metadata, read_sync_metadata,
+    read_work_item_by_row_id, update_standalone_work_item_partial_with_revisions,
     update_work_item_partial_with_revisions, write_project_remote, write_work_item_remote,
     FieldRevision, PROJECT_SYNC_FIELDS,
 };
@@ -848,28 +849,48 @@ fn apply_work_item(org_id: &str, entity: &CollabRemoteEntity) -> Result<bool, St
                 let conn = io::conn()?;
                 store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;
             } else {
-                // Standalone (or project mismatch): whole-row semantics.
-                // With ANY local pending push we keep local (clock-safe
-                // presence gate, same rationale as the tail above) — the
-                // next push OCC-conflicts and merges against the then-
-                // fresh remote row instead.
-                if has_pending {
-                    return Ok(false);
+                // Standalone (or a standalone row moving into a project):
+                // use the same per-field resolver as project-scoped items.
+                // Crucially, record the pulled remote version even while a
+                // local push is pending. The outbox retry then rebases onto
+                // that version instead of conflicting forever.
+                let metadata =
+                    read_standalone_sync_metadata(org_id, &work_item_id)?.unwrap_or_default();
+                let remote_field_mtimes = parse_wire_field_mtimes(&entity.payload);
+                let change = crate::sync::adapter::ExternalChange {
+                    entity_type: EntityType::WorkItem,
+                    external_id: work_item_id.clone(),
+                    local_entity_id: Some(short_id.clone()),
+                    fields: work_item_fields_from_wire(&entity.payload),
+                    remote_updated_at: chrono::DateTime::from_timestamp_millis(remote_ms)
+                        .unwrap_or_else(chrono::Utc::now),
+                    deleted: false,
+                };
+                let decision = conflict::resolve_with_policy(
+                    &change,
+                    &metadata,
+                    COLLAB_REVISION_SOURCE,
+                    &COLLAB_FIELD_MAP,
+                    remote_field_mtimes.as_ref(),
+                    |_| crate::sync::adapter::ConflictResolution::UseRemote,
+                );
+                let adopted: serde_json::Map<String, Value> =
+                    decision.adopted_fields.clone().into_iter().collect();
+                let mut update = crate::sync::worker::partial_update_from_map(&adopted);
+                if !has_pending {
+                    apply_wire_tail(&mut update, &entity.payload);
+                } else if let Some(local) = read_work_item_by_row_id(org_id, &work_item_id)? {
+                    apply_wire_tail_union(&mut update, &entity.payload, &local.frontmatter);
+                }
+                if wire_project_id != local_project_id {
+                    update.project = Some(wire_project_id.clone());
                 }
                 drop(conn);
-                let frontmatter =
-                    frontmatter_from_wire(&entity.payload, &work_item_id, wire_project_id.clone());
-                let body = entity
-                    .payload
-                    .get("body")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                write_work_item_remote(
-                    wire_project_id.clone(),
+                update_standalone_work_item_partial_with_revisions(
                     org_id,
-                    &frontmatter.short_id.clone(),
-                    &frontmatter,
-                    body,
+                    &short_id,
+                    decision.new_revisions,
+                    &update,
                 )?;
                 let conn = io::conn()?;
                 store_remote_version(&conn, KIND_WORK_ITEM, &work_item_id, entity.version)?;

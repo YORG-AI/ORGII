@@ -101,7 +101,10 @@ describe("Session to Work Item mapping", () => {
         session: SESSION,
         title: "Dragged title",
         assigneeMemberId: "member-1",
-        activeOrgId: "org-1",
+        destination: { kind: "cloud_org", orgId: "org-1" },
+        status: "in_progress",
+        priority: "high",
+        targetDate: "2026-08-01T00:00:00.000Z",
       },
       deps
     );
@@ -111,15 +114,60 @@ describe("Session to Work Item mapping", () => {
         draft: expect.objectContaining({
           assigneeId: "member-1",
           orgId: "org-1",
+          status: "in_progress",
+          priority: "high",
+          targetDate: "2026-08-01T00:00:00.000Z",
         }),
         linkedSessions: [expect.objectContaining({ session_id: "session-1" })],
       })
     );
     expect(deps.link).not.toHaveBeenCalled();
     expect(result).toEqual({
+      orgId: "org-1",
       projectId: "",
       workItemId: "WI-0001",
       reused: false,
+    });
+  });
+
+  it("writes a cloud handoff into the selected org instead of the Session origin", async () => {
+    const deps = dependencies();
+    const result = await createWorkItemFromSession(
+      {
+        session: {
+          ...SESSION,
+          orgId: "origin-org",
+          projectId: "local-project-id",
+          projectSlug: "local-project",
+        },
+        destination: {
+          kind: "cloud_org",
+          orgId: "destination-org",
+        },
+        assigneeMemberId: "cloud-member-2",
+      },
+      deps
+    );
+
+    expect(deps.readStandaloneWorkItems).toHaveBeenCalledWith({
+      orgId: "destination-org",
+    });
+    expect(deps.readProjects).not.toHaveBeenCalled();
+    expect(deps.readProjectWorkItems).not.toHaveBeenCalled();
+    expect(deps.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        draft: expect.objectContaining({
+          assigneeId: "cloud-member-2",
+          assigneeType: "member",
+          orgId: "destination-org",
+        }),
+        orgId: "destination-org",
+        selectedProjectSlug: undefined,
+      })
+    );
+    expect(result).toMatchObject({
+      orgId: "destination-org",
+      projectId: "",
     });
   });
 
@@ -134,8 +182,10 @@ describe("Session to Work Item mapping", () => {
       },
       [
         {
-          id: "project-1",
-          slug: "platform",
+          kind: "project",
+          key: "project:platform",
+          projectId: "project-1",
+          projectSlug: "platform",
           name: "Platform",
           sender: { id: "member-me", name: "Me", isCurrentUser: true },
           recipients: [
@@ -145,17 +195,17 @@ describe("Session to Work Item mapping", () => {
         },
       ],
       "Sync follow-up",
-      "platform"
+      "project:platform"
     );
 
     expect(draft).toMatchObject({
       sessionId: "session-1",
       title: "Sync follow-up",
-      sourceProjectSlug: "platform",
+      sourceDestinationKey: "project:platform",
       todoCount: 1,
-      projects: [
+      destinations: [
         {
-          slug: "platform",
+          projectSlug: "platform",
           sender: { id: "member-me" },
           recipients: [{ id: "member-me" }, { id: "member-lin" }],
         },
@@ -242,6 +292,7 @@ describe("Session to Work Item mapping", () => {
 
     expect(deps.create).not.toHaveBeenCalled();
     expect(result).toEqual({
+      orgId: "personal-org",
       projectId: "",
       workItemId: "WI-0042",
       reused: true,
@@ -309,6 +360,7 @@ describe("Session to Work Item mapping", () => {
       agentRole: "custom",
     });
     expect(result).toEqual({
+      orgId: "org-1",
       projectId: "inbox",
       workItemId: "INB-0001",
       reused: true,
@@ -575,7 +627,7 @@ describe("Session to Work Item mapping", () => {
     const result = await createWorkItemFromSession(
       {
         session: { ...SESSION, workItemId: "STANDALONE-1" },
-        selectedProjectSlug: "inbox",
+        destination: { kind: "project", projectSlug: "inbox" },
         assigneeMemberId: "member-lin",
       },
       deps
@@ -613,7 +665,7 @@ describe("Session to Work Item mapping", () => {
     const result = await createWorkItemFromSession(
       {
         session: SESSION,
-        selectedProjectSlug: "inbox",
+        destination: { kind: "project", projectSlug: "inbox" },
         assigneeMemberId: "member-lin",
       },
       deps

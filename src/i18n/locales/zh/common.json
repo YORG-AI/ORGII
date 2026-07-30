@@ -2373,6 +2373,13 @@
       "read": "已读",
       "unread": "未读"
     },
+    "notifications": {
+      "assignmentTitle": "有新的工作项分配给你",
+      "mentionTitle": "{{name}} 提及了你",
+      "handoffTitle": "来自 {{name}} 的交接",
+      "multipleTitle": "团队收件箱有 {{count}} 条新动态",
+      "multipleBody": "打开团队收件箱查看新的分配和提及。"
+    },
     "row": {
       "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}，{{status}}"
@@ -2410,7 +2417,7 @@
       "title": "拖到这里创建工作项",
       "subtitle": "先确认会话摘要，再创建或交接工作项。",
       "processing": "正在从「{{title}}」创建工作项…",
-      "processingHint": "正在读取会话并解析项目成员。",
+      "processingHint": "正在读取会话并解析目标成员。",
       "success": "工作项已创建",
       "reused": "已更新现有工作项",
       "failed": "无法创建工作项",
@@ -2421,24 +2428,36 @@
     "handoff": {
       "title": "从会话创建",
       "createFromSession": "创建团队工作项…",
-      "project": "目标项目",
-      "chooseProject": "选择项目",
+      "destination": "交接到",
+      "chooseDestination": "选择交接位置",
+      "cloudDestination": "{{name}} · 团队收件箱",
       "recipientSelf": "{{name}}（我）",
       "chooseRecipient": "选择接收人",
       "todoCount": "{{count}} 个待办",
       "workItemTitle": "工作项标题",
       "assignTo": "分配给",
+      "status": "状态",
+      "priority": "优先级",
+      "dueDate": "截止日期",
+      "noDueDate": "无截止日期",
       "note": "交接说明",
       "notePlaceholder": "说明已经完成什么、还有哪些未决事项，以及下一步建议。",
       "selfHint": "分配给自己会创建普通工作项，不会发起交接请求。",
       "submitHandoff": "创建并交接",
       "submitCreate": "创建工作项",
       "preparing": "正在准备「{{title}}」…",
+      "validation": {
+        "title_required": "请输入工作项标题。",
+        "project_required": "请选择交接目标。",
+        "project_unavailable": "该交接目标已不可用，请选择其他目标。",
+        "recipient_required": "请选择接收人。",
+        "recipient_unavailable": "该接收人已不可用，请选择其他接收人。"
+      },
       "preparationError": {
         "session_unavailable": "该会话已不可用，请重新打开后再试。",
         "project_unavailable": "该会话所属的项目已不可用。",
-        "identity_unavailable": "你的团队身份不属于该会话的项目。",
-        "no_project": "没有可用项目，请先创建或加入项目后再试。",
+        "identity_unavailable": "当前登录账号不是该交接目标的有效成员。",
+        "no_project": "没有可用交接目标，请先加入团队或项目后再试。",
         "unknown": "无法准备该会话，请刷新团队收件箱后重试。"
       },
       "submitError": "无法创建工作项，请检查接收人后重试。",

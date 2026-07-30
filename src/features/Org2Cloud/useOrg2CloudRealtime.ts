@@ -105,6 +105,7 @@ import {
 import { useOrg2CloudRealtimeLease } from "./org2CloudRealtimeLease";
 import { decideSubscribedEdgeRecovery } from "./org2CloudRealtimeRecovery";
 import { resolveActiveRealtimeOrgId } from "./org2CloudRealtimeScope";
+import { Org2CloudRealtimeSignalCoalescer } from "./org2CloudRealtimeSignalCoalescer";
 import {
   bumpRemoteSessionsInvalidation,
   org2CloudRemoteSessionsAtom,
@@ -129,12 +130,10 @@ const CHANGE_SIGNALS_TABLE = "org_change_signals";
 /**
  * The backend's durable signal is intentionally coarse. Plane-specific
  * Presence broadcasts provide the live path; the durable coarse row is a
- * secondary event source. These windows throttle event storms—they do not
- * schedule polling when no signal arrives. On per-kind backends every plane
- * keeps its own 60s window (one `SignalPlane` stamp/timer each) instead of
- * sharing a single coarse stamp.
+ * secondary event source. A short leading/trailing window coalesces
+ * transaction bursts without delaying a teammate notification. It does not
+ * schedule polling when no signal arrives.
  */
-const COARSE_SIGNAL_THROTTLE_MS = 60_000;
 const CONTROL_PLANE_REFRESH_THROTTLE_MS = 5 * 60_000;
 
 /**
@@ -271,9 +270,8 @@ export function useOrg2CloudRealtime(): void {
   // Stable refs so the per-org effect and status callbacks read current values
   // without forcing the connection to rebuild.
   const refetchRef = useRef(refetchOrgs);
-  const planeSignalHandledAtRef = useRef(new Map<SignalPlane, number>());
-  const planeSignalTrailingTimersRef = useRef(
-    new Map<SignalPlane, ReturnType<typeof setTimeout>>()
+  const signalCoalescerRef = useRef(
+    new Org2CloudRealtimeSignalCoalescer<SignalPlane>()
   );
   const controlPlaneRefreshAtRef = useRef(0);
   const coarseSafetyNetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -422,17 +420,17 @@ export function useOrg2CloudRealtime(): void {
   );
 
   // Shared by the Slice B postgres_changes path (legacy backends) and the
-  // Slice C safety net (per-kind backends): identical throttle windows and
+  // Slice C safety net (per-kind backends): identical short coalescing and
   // refresh behavior regardless of transport.
   const runCoarseSignalRefresh = useCallback(() => {
     const orgId = activeRealtimeOrgId;
     if (!orgId) return;
-    const now = Date.now();
-    const handledAt = planeSignalHandledAtRef.current;
-    handledAt.set("coarse", now);
-    handledAt.set("sessions", now);
-    handledAt.set("comments", now);
-    handledAt.set("inbound", now);
+    signalCoalescerRef.current.markHandled([
+      "coarse",
+      "sessions",
+      "comments",
+      "inbound",
+    ]);
     // A blur/visibility event releases the connection. Ignore the tiny
     // event-delivery race during teardown; the next SUBSCRIBED true-edge
     // performs the authoritative full recovery.
@@ -447,31 +445,15 @@ export function useOrg2CloudRealtime(): void {
     bumpOrgCommentsSignal,
     maybeRefreshControlPlane,
   ]);
-  // Per-plane trailing-edge throttler (the generalized coarse scheduler):
-  // leading run when the plane's window is clear, otherwise one trailing
-  // timer at the window's end.
+  // Per-plane leading/trailing coalescer. A successful subscribe edge marks
+  // the initial recovery as handled, so the next real server signal waits at
+  // most the short live window rather than the old 60-second throttle.
   const schedulePlaneSignalRefresh = useCallback(
     (plane: SignalPlane, refresh: () => void) => {
-      const now = Date.now();
-      const elapsed = now - (planeSignalHandledAtRef.current.get(plane) ?? 0);
-      const run = () => {
-        planeSignalHandledAtRef.current.set(plane, Date.now());
+      signalCoalescerRef.current.schedule(plane, () => {
         if (isDocumentHidden()) return;
         refresh();
-      };
-      if (elapsed >= COARSE_SIGNAL_THROTTLE_MS) {
-        run();
-        return;
-      }
-      const timers = planeSignalTrailingTimersRef.current;
-      if (timers.has(plane)) return;
-      timers.set(
-        plane,
-        setTimeout(() => {
-          timers.delete(plane);
-          run();
-        }, COARSE_SIGNAL_THROTTLE_MS - elapsed)
-      );
+      });
     },
     []
   );
@@ -540,9 +522,7 @@ export function useOrg2CloudRealtime(): void {
   const runSignalEdgeRecovery = useCallback(
     (orgId: string) => {
       const now = Date.now();
-      for (const plane of ALL_SIGNAL_PLANES) {
-        planeSignalHandledAtRef.current.set(plane, now);
-      }
+      signalCoalescerRef.current.markHandled(ALL_SIGNAL_PLANES);
       controlPlaneRefreshAtRef.current = now;
       if (isDocumentHidden()) return;
       // A LONG gap forces complete listings so tombstone-free absences
@@ -596,9 +576,9 @@ export function useOrg2CloudRealtime(): void {
     if (!connection || !userId || !activeRealtimeOrgId) return undefined;
 
     const unsubscribes: Array<() => void> = [];
-    const orgId = activeRealtimeOrgId;
     const orgTeardownAt = orgTeardownAtRef.current;
-    const planeSignalTrailingTimers = planeSignalTrailingTimersRef.current;
+    const signalCoalescer = signalCoalescerRef.current;
+    const orgId = activeRealtimeOrgId;
     if (!broadcastSignals) {
       unsubscribes.push(
         connection.subscribe({
@@ -651,10 +631,7 @@ export function useOrg2CloudRealtime(): void {
         delete next[orgId];
         return next;
       });
-      for (const timer of planeSignalTrailingTimers.values()) {
-        clearTimeout(timer);
-      }
-      planeSignalTrailingTimers.clear();
+      signalCoalescer.reset();
       if (coarseSafetyNetTimerRef.current) {
         clearTimeout(coarseSafetyNetTimerRef.current);
         coarseSafetyNetTimerRef.current = null;
