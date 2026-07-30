@@ -1,7 +1,7 @@
 /**
- * Accept a dragged sidebar session row on a plain text surface (issue
- * comment box, issue body, work item description) and insert its cloud
- * reference at the caret.
+ * Accept a dragged sidebar session row on a text composer (issue/PR comment
+ * box or issue body) and insert its cloud reference at the active caret or
+ * rich-editor selection.
  *
  * The sidebar already emits a pill drag for session rows — the same one the
  * chat composer turns into a context pill — but its payload is the LOCAL
@@ -91,17 +91,41 @@ export function insertAtCaret(
   };
 }
 
-interface UseSessionReferenceDropTargetParams {
+interface TextareaSessionReferenceDropTargetParams {
   elementRef: RefObject<HTMLTextAreaElement | null>;
   value: string;
   onChange: (next: string) => void;
+  onInsertText?: never;
   enabled?: boolean;
 }
+
+interface CustomSessionReferenceDropTargetParams {
+  elementRef: RefObject<HTMLElement | null>;
+  /**
+   * `dropPoint` carries the pointer's viewport coordinates at release, so
+   * the caller can resolve an insertion position at the drop point instead
+   * of wherever the caret/selection happened to be (see
+   * `useRichTextEditor.insertText`'s `clientX`/`clientY` options). Absent
+   * only if the drag ended without a known pointer position.
+   */
+  onInsertText: (
+    text: string,
+    dropPoint?: { clientX: number; clientY: number }
+  ) => void;
+  value?: never;
+  onChange?: never;
+  enabled?: boolean;
+}
+
+type UseSessionReferenceDropTargetParams =
+  | TextareaSessionReferenceDropTargetParams
+  | CustomSessionReferenceDropTargetParams;
 
 export function useSessionReferenceDropTarget({
   elementRef,
   value,
   onChange,
+  onInsertText,
   enabled = true,
 }: UseSessionReferenceDropTargetParams): { isDragOver: boolean } {
   const store = useStore();
@@ -146,52 +170,64 @@ export function useSessionReferenceDropTarget({
   useEffect(() => {
     if (!enabled || !auth) return undefined;
 
-    const onDragStart = (event: Event) => {
-      const detail = (event as CustomEvent<TabDragEventDetail>).detail;
-      if (draggedSession(detail)) setIsDragOver(false);
-    };
-
-    const onDragEnd = (event: Event) => {
-      const detail = (event as CustomEvent<TabDragEventDetail>).detail;
-      setIsDragOver(false);
-      const dragged = draggedSession(detail);
-      if (!dragged) return;
-      const element = elementRef.current;
-      if (!isPointInside(element, detail.pointerX, detail.pointerY)) return;
-
-      const reference =
-        dragged.kind === "reference"
-          ? dragged.reference
-          : referenceFor(dragged.sessionId);
-      if (!reference || !element) return;
-      const { value: next, caret } = insertAtCaret(
-        value,
-        element.selectionStart ?? value.length,
-        element.selectionEnd ?? value.length,
-        referenceInsertText(reference)
-      );
-      onChange(next);
-      window.requestAnimationFrame(() => {
-        element.focus();
-        element.setSelectionRange(caret, caret);
-      });
-    };
-
     const onPointerMove = (event: PointerEvent) => {
       setIsDragOver(
         isPointInside(elementRef.current, event.clientX, event.clientY)
       );
     };
 
+    const onDragStart = (event: Event) => {
+      const detail = (event as CustomEvent<TabDragEventDetail>).detail;
+      if (!draggedSession(detail)) return;
+      setIsDragOver(false);
+      document.addEventListener("pointermove", onPointerMove);
+    };
+
+    const onDragEnd = (event: Event) => {
+      const detail = (event as CustomEvent<TabDragEventDetail>).detail;
+      document.removeEventListener("pointermove", onPointerMove);
+      setIsDragOver(false);
+      const dragged = draggedSession(detail);
+      if (!dragged) return;
+      const element = elementRef.current;
+      const { pointerX, pointerY } = detail;
+      if (pointerX == null || pointerY == null) return;
+      if (!isPointInside(element, pointerX, pointerY)) return;
+
+      const reference =
+        dragged.kind === "reference"
+          ? dragged.reference
+          : referenceFor(dragged.sessionId);
+      if (!reference || !element) return;
+      const insertText = referenceInsertText(reference);
+      if (onInsertText) {
+        onInsertText(insertText, { clientX: pointerX, clientY: pointerY });
+        return;
+      }
+      if (!(element instanceof HTMLTextAreaElement) || value === undefined) {
+        return;
+      }
+      const { value: next, caret } = insertAtCaret(
+        value,
+        element.selectionStart ?? value.length,
+        element.selectionEnd ?? value.length,
+        insertText
+      );
+      onChange?.(next);
+      window.requestAnimationFrame(() => {
+        element.focus();
+        element.setSelectionRange(caret, caret);
+      });
+    };
+
     document.addEventListener("tab-drag-start", onDragStart);
     document.addEventListener("tab-drag-end", onDragEnd);
-    document.addEventListener("pointermove", onPointerMove);
     return () => {
       document.removeEventListener("tab-drag-start", onDragStart);
       document.removeEventListener("tab-drag-end", onDragEnd);
       document.removeEventListener("pointermove", onPointerMove);
     };
-  }, [auth, elementRef, enabled, onChange, referenceFor, value]);
+  }, [auth, elementRef, enabled, onChange, onInsertText, referenceFor, value]);
 
   return { isDragOver };
 }

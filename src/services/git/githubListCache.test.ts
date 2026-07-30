@@ -3,12 +3,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   GITHUB_LIST_CACHE_TTL_MS,
   coalesceGitHubListRequest,
+  getCachedPrDetail,
   getCachedPrs,
   isIssueCacheStale,
   isPrCacheStale,
+  isPrDetailStale,
+  setCachedPrDetail,
   setCachedPrs,
   updateCachedClosedIssues,
   updateCachedOpenIssues,
+  updateCachedPrDetail,
 } from "./githubListCache";
 
 describe("global GitHub list cache", () => {
@@ -62,5 +66,42 @@ describe("global GitHub list cache", () => {
 
     await coalesceGitHubListRequest(key, requestFactory);
     expect(requestFactory).toHaveBeenCalledTimes(2);
+  });
+
+  it("patches PR detail mutations without extending unrelated freshness", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-28T18:00:00.000Z"));
+    const key = `detail-${crypto.randomUUID()}`;
+    const comment = {
+      id: 42,
+      body: "session reference",
+      user: { login: "reviewer", avatar_url: "" },
+      created_at: "2026-07-28T18:09:00.000Z",
+      updated_at: "2026-07-28T18:09:00.000Z",
+      html_url: "https://github.com/org/repo/pull/1#issuecomment-42",
+    };
+
+    setCachedPrDetail(key, {
+      detail: null,
+      headSha: "head",
+      baseRef: "develop",
+      conversation: [],
+      reviews: [],
+      reviewComments: [],
+      commits: [],
+      files: [],
+      checks: null,
+    });
+    vi.advanceTimersByTime(GITHUB_LIST_CACHE_TTL_MS - 60_000);
+
+    expect(
+      updateCachedPrDetail(key, (cached) => ({
+        conversation: [...cached.conversation, comment],
+      }))
+    ).toBe(true);
+    expect(getCachedPrDetail(key)?.conversation).toEqual([comment]);
+
+    vi.advanceTimersByTime(60_001);
+    expect(isPrDetailStale(key)).toBe(true);
   });
 });

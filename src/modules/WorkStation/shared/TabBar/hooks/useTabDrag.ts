@@ -479,12 +479,44 @@ export function useTabDrag({
   );
 
   const handleDragCancel = useCallback(() => {
+    const tabId = draggingTabId;
+
     setDraggingTabId(null);
     clearTabDragGlobals();
     dispatchSessionTabDragCancel();
     removePointerTracker();
     lastPointerPositionRef.current = null;
-  }, [clearTabDragGlobals, removePointerTracker]);
+
+    // handleDragEnd always fires "tab-drag-end" so drop targets (e.g.
+    // useSessionReferenceDropTarget) can drop the pointermove listener they
+    // attached on "tab-drag-start". An Escape-cancelled drag skips
+    // handleDragEnd entirely, so without this it never fires and the
+    // listener is stranded on every mounted drop target until an unrelated
+    // drag happens to end near it. No drop point is known here (the drag
+    // was cancelled, not released), so this carries no pointerX/pointerY —
+    // listeners must treat their absence as "nothing to insert".
+    if (tabId) {
+      const foundTab = tabs.find((tab) => tab.id === tabId);
+      const pill = foundTab ? getTabPillPayload(foundTab) : null;
+      const filePath =
+        pill?.iconType === "file" || pill?.iconType === "folder"
+          ? pill.path
+          : undefined;
+      const type = pill?.isFolder ? "directory" : "file";
+
+      document.dispatchEvent(
+        new CustomEvent<TabDragEventDetail>("tab-drag-end", {
+          detail: {
+            tabId,
+            filePath,
+            name: pill?.name ?? foundTab?.title,
+            type,
+            pill: pill ?? undefined,
+          },
+        })
+      );
+    }
+  }, [draggingTabId, tabs, clearTabDragGlobals, removePointerTracker]);
 
   return {
     draggingTabId,

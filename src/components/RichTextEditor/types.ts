@@ -20,6 +20,23 @@ export interface RichTextEditorRef {
   ) => void;
   removeFilePill: (filePath: string) => void;
   getFilePills: () => Array<{ filePath: string; fileName: string }>;
+  insertText: (
+    text: string,
+    options?: {
+      separateFromAdjacentText?: boolean;
+      /**
+       * Viewport coordinates of the drop point, when insertion is triggered
+       * by a drag-and-drop. Resolved to a document position via
+       * `editor.view.posAtCoords` so the reference lands where it was
+       * dropped instead of replacing whatever the caret/selection happened
+       * to be. Omit (or when resolution fails) falls back to the current
+       * selection collapsed to its end — insertion never replaces an active
+       * range.
+       */
+      clientX?: number;
+      clientY?: number;
+    }
+  ) => void;
   triggerAtMention: () => void;
   triggerSlashContext: () => void;
 }

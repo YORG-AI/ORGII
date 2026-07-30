@@ -84,11 +84,12 @@ On that rule:
 
 - **Copy ID on My Sessions rows**, hidden entirely for an unpublished
   session rather than failing when clicked.
-- **Drag a session row onto a text surface** (issue comment box, new
-  issue body) to insert the reference at the caret; teammate rows became
-  draggable in round two, see below. Deliberately NOT wired to the work
-  item description: that is a Tiptap editor which both edits and displays
-  the text, so a reference dropped there would never render as a chip.
+- **Drag a session row onto a text surface** (issue/PR comment box, new
+  issue body) to insert the reference at the active caret or rich-editor
+  selection; teammate rows became draggable in round two, see below.
+  Deliberately NOT wired to the work item description: that is a Tiptap
+  editor which both edits and displays the text, so a reference dropped
+  there would never render as a chip.
 - **The chip shows the session's real name** when the viewer already has
   it — from the org listing a member has loaded, or from the local
   session when it is theirs. Nothing is fetched for the label, so a

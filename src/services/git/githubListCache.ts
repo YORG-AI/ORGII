@@ -280,3 +280,28 @@ export function setCachedPrDetail(
     MAX_PR_DETAILS
   );
 }
+
+/**
+ * Apply a successful GitHub mutation to an existing detail snapshot without
+ * extending the snapshot's freshness window. Preserving `cachedAt` matters:
+ * changing one conversation field must not make commits/checks/files look
+ * freshly fetched for another ten minutes.
+ */
+export function updateCachedPrDetail(
+  key: string,
+  update: (current: CachedPrDetail) => Partial<Omit<CachedPrDetail, "cachedAt">>
+): boolean {
+  const current = prDetailCache.get(key);
+  if (!current) return false;
+  lruSet(
+    prDetailCache,
+    key,
+    {
+      ...current,
+      ...update(current),
+      cachedAt: current.cachedAt,
+    },
+    MAX_PR_DETAILS
+  );
+  return true;
+}
