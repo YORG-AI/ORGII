@@ -192,6 +192,68 @@ describe("TeamInboxView split layout", () => {
     expect(componentProps.list?.items).toEqual([]);
   });
 
+  it("marks an unread item as read when its detail becomes visible", async () => {
+    const unreadItem: AssignedWorkItem = {
+      id: "assigned-unread",
+      kind: "assigned_work_item",
+      occurredAt: "2026-07-28T00:00:00.000Z",
+      readAt: null,
+      actor: { id: "member-1", displayName: "Yuki" },
+      target: {
+        kind: "work_item",
+        projectId: "demo",
+        workItemId: "AAA-0002",
+      },
+      payload: {
+        title: "Unread item",
+        status: "todo",
+        priority: "none",
+        assigneeMemberId: "member-1",
+        assigneeName: "Yuki",
+        updatedAt: "2026-07-28T00:00:00.000Z",
+      },
+    };
+    let resolveMarkRead: (() => void) | undefined;
+    const markRead = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveMarkRead = resolve;
+        })
+    );
+
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({
+              items: [unreadItem],
+              nextCursor: null,
+            }),
+            markRead,
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(markRead).toHaveBeenCalledOnce();
+    expect(markRead).toHaveBeenCalledWith(unreadItem);
+
+    await act(async () => {
+      const onSelectItem = componentProps.list?.onSelectItem as
+        | ((item: AssignedWorkItem) => void)
+        | undefined;
+      onSelectItem?.(unreadItem);
+      await Promise.resolve();
+    });
+    expect(markRead).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      resolveMarkRead?.();
+      await Promise.resolve();
+    });
+  });
+
   it("retries the backing source instead of rereading a failed snapshot", async () => {
     const listPage = vi
       .fn()

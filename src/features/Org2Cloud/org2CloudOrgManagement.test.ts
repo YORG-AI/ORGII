@@ -4,6 +4,7 @@ import { ORG2_CLOUD_OFFICIAL_SUPABASE_URL } from "./config";
 import {
   CLOUD_ASSIGNABLE_ROLES,
   CLOUD_INVITE_STATE,
+  CLOUD_INVITE_WEB_BASE_URL,
   type CloudMemberLike,
   buildCloudInviteLink,
   buildCloudSessionShareLink,
@@ -51,11 +52,11 @@ describe("invite code generation + hashing", () => {
 });
 
 describe("cloud invite deep link", () => {
-  it("builds and parses a round-trip link", () => {
+  it("builds a shareable HTTPS link with the invite kept in the fragment", () => {
     const link = buildCloudInviteLink("c0de");
-    expect(link).toBe("orgii://cloud/join?invite=c0de");
-    expect(isCloudInviteDeepLink(link)).toBe(true);
-    expect(parseCloudInviteDeepLink(link)).toEqual({ inviteCode: "c0de" });
+    expect(link).toBe(`${CLOUD_INVITE_WEB_BASE_URL}#invite=c0de`);
+    expect(new URL(link).search).toBe("");
+    expect(isCloudInviteDeepLink(link)).toBe(false);
   });
 
   it("rejects collaboration links and foreign schemes", () => {
@@ -74,12 +75,19 @@ describe("cloud invite deep link", () => {
   it("parseCloudInviteInput accepts raw codes and links alike", () => {
     expect(parseCloudInviteInput("  rawcode  ")).toBe("rawcode");
     expect(parseCloudInviteInput("orgii://cloud/join?invite=abc")).toBe("abc");
+    expect(
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}#invite=abc`)
+    ).toBe("abc");
+    expect(
+      parseCloudInviteInput(`${CLOUD_INVITE_WEB_BASE_URL}?invite=legacy`)
+    ).toBe("legacy");
     expect(parseCloudInviteInput("")).toBeNull();
     // An orgii:// link that is NOT a cloud invite must not fall through to
     // being treated as a raw code.
     expect(
       parseCloudInviteInput("orgii://collaboration/join?invite=abc")
     ).toBeNull();
+    expect(parseCloudInviteInput("https://example.com/#invite=abc")).toBeNull();
   });
 });
 

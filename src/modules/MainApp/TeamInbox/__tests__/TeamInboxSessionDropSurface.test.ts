@@ -49,13 +49,13 @@ vi.mock("../components/SessionHandoffComposer", () => ({
     error?: string | null;
     form: {
       title: string;
-      projectSlug: string;
+      destinationKey: string;
       assigneeMemberId: string;
       note: string;
     };
     onChange: (form: {
       title: string;
-      projectSlug: string;
+      destinationKey: string;
       assigneeMemberId: string;
       note: string;
     }) => void;
@@ -96,11 +96,13 @@ const TRANSFER: SessionTabTransfer = {
 const DRAFT: TeamInboxSessionHandoffDraft = {
   sessionId: TRANSFER.sessionId,
   title: TRANSFER.title,
-  sourceProjectSlug: "project",
-  projects: [
+  sourceDestinationKey: "project:project",
+  destinations: [
     {
-      id: "project-id",
-      slug: "project",
+      kind: "project",
+      key: "project:project",
+      projectId: "project-id",
+      projectSlug: "project",
       name: "Project",
       sender: {
         id: "member-me",
@@ -259,7 +261,7 @@ describe("TeamInboxSessionDropSurface", () => {
       expect.objectContaining({
         sessionId: "session-1",
         title: "Fix Team Inbox",
-        projectSlug: "project",
+        destinationKey: "project:project",
         assigneeMemberId: "member-teammate",
         handoffNote: "Continue from the failing test.",
         signal: expect.any(AbortSignal),

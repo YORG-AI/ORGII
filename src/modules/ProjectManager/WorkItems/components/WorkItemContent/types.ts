@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type {
   OrchestratorPhase,
   PrStatus,
+  WorkItemHandoffTransition,
   WorkItemHistoryAction,
 } from "@src/api/http/project";
 import type { Person } from "@src/types/core/shared";
@@ -43,6 +44,13 @@ export interface WorkItemContentProps {
   onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
   onRefreshWorkflow?: () => void;
+  /**
+   * Optional scope-aware handoff command. Embedded Team Inbox threads use
+   * this for org-scoped Work Items that intentionally have no project slug.
+   */
+  onTransitionHandoff?: (
+    transition: WorkItemHandoffTransition
+  ) => Promise<WorkItemExtended>;
   activeAgentSessionId?: string | null;
   activeAgentRole?: AgentRole | null;
   isLockedByOther?: boolean;
@@ -82,6 +90,9 @@ export interface HistoryTabProps {
   onToggleSubscribe: () => void;
   commentText: string;
   onCommentTextChange: (text: string) => void;
+  mentionedUserIds?: string[];
+  onMentionedUserIdsChange?: (memberIds: string[]) => void;
+  teamMembers?: Person[];
   onCommentSubmit: () => void;
   isSubmittingComment: boolean;
   presentation?: WorkItemContentPresentation;

@@ -206,6 +206,8 @@ pub struct CommentEntry {
     pub author: String,
     pub content: String,
     pub created_at: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mentioned_user_ids: Vec<String>,
 }
 
 /// A market delegation entry on a work item

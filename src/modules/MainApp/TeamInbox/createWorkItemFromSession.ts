@@ -9,10 +9,14 @@ import {
 import { linkSessionToWorkItem } from "@src/api/tauri/agent/session";
 import { createWorkItemFromDraft } from "@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView/createWorkItemFromDraft";
 import type { Session } from "@src/store/session";
+import type {
+  WorkItemPriority,
+  WorkItemStatus,
+} from "@src/types/core/workItem";
 
 import type { TeamInboxCreatedWorkItem } from "./domain";
 import type {
-  TeamInboxHandoffProject,
+  TeamInboxHandoffDestination,
   TeamInboxSessionHandoffDraft,
 } from "./domain";
 
@@ -37,15 +41,30 @@ export interface CreateFromSessionDependencies {
     shortId: string,
     updates: Parameters<typeof projectApi.updateWorkItemPartial>[2]
   ) => Promise<unknown>;
+  updateStandaloneWorkItem?: (
+    shortId: string,
+    updates: Parameters<typeof projectApi.updateStandaloneWorkItemPartial>[1],
+    options?: { orgId?: string }
+  ) => Promise<unknown>;
 }
 
 export interface CreateWorkItemFromSessionOptions {
-  activeOrgId?: string | null;
   assigneeMemberId?: string;
   assigneeMemberName?: string;
+  destination?:
+    | {
+        kind: "cloud_org";
+        orgId: string;
+      }
+    | {
+        kind: "project";
+        projectSlug: string;
+      };
   handoffNote?: string;
   recipientIsCurrentUser?: boolean;
-  selectedProjectSlug?: string;
+  status?: WorkItemStatus;
+  priority?: WorkItemPriority;
+  targetDate?: string;
   session: Session;
   signal?: AbortSignal;
   senderMemberId?: string;
@@ -60,6 +79,7 @@ const DEFAULT_DEPENDENCIES: CreateFromSessionDependencies = {
   readProjectWorkItems: projectApi.readWorkItems,
   readStandaloneWorkItems: projectApi.readStandaloneWorkItems,
   updateProjectWorkItem: projectApi.updateWorkItemPartial,
+  updateStandaloneWorkItem: projectApi.updateStandaloneWorkItemPartial,
 };
 
 function abortIfNeeded(signal?: AbortSignal): void {
@@ -177,9 +197,9 @@ export function sessionWorkItemTodos(session: Session): TodoEntry[] {
 
 export function sessionHandoffDraft(
   session: Session,
-  projects: readonly TeamInboxHandoffProject[],
+  destinations: readonly TeamInboxHandoffDestination[],
   draggedTitle?: string,
-  sourceProjectSlug?: string
+  sourceDestinationKey?: string
 ): TeamInboxSessionHandoffDraft {
   const impact = [
     session.filesChanged
@@ -193,8 +213,8 @@ export function sessionHandoffDraft(
   return {
     sessionId: session.session_id,
     title: sessionWorkItemTitle(session, draggedTitle),
-    sourceProjectSlug,
-    projects: [...projects],
+    sourceDestinationKey,
+    destinations: [...destinations],
     requestPreview: session.user_input?.trim()
       ? clamp(session.user_input.trim(), 360)
       : undefined,
@@ -245,12 +265,11 @@ function findReusableWorkItem(
 
 async function reconcileReusableWorkItem(
   existing: WorkItemData,
+  orgId: string,
   projectSlug: string | undefined,
   options: CreateWorkItemFromSessionOptions,
   dependencies: CreateFromSessionDependencies
 ): Promise<void> {
-  if (!projectSlug) return;
-
   const { frontmatter } = existing;
   const requestedHandoff = sessionWorkItemHandoff(options);
   const currentHandoff = frontmatter.handoff;
@@ -278,16 +297,35 @@ async function reconcileReusableWorkItem(
   const shouldWriteAssignee =
     Boolean(options.assigneeMemberId) &&
     frontmatter.assignee !== options.assigneeMemberId;
+  const shouldWriteStatus =
+    Boolean(options.status) && frontmatter.status !== options.status;
+  const shouldWritePriority =
+    Boolean(options.priority) && frontmatter.priority !== options.priority;
+  const nextTargetDate = options.targetDate ?? null;
+  const shouldWriteTargetDate =
+    (frontmatter.target_date ?? null) !== nextTargetDate;
 
-  if (!shouldWriteHandoff && !shouldWriteAssignee && hasSessionLink) return;
+  if (
+    !shouldWriteHandoff &&
+    !shouldWriteAssignee &&
+    !shouldWriteStatus &&
+    !shouldWritePriority &&
+    !shouldWriteTargetDate &&
+    hasSessionLink
+  ) {
+    return;
+  }
 
-  await dependencies.updateProjectWorkItem(projectSlug, frontmatter.short_id, {
+  const updates = {
     ...(shouldWriteAssignee
       ? {
           assignee: options.assigneeMemberId,
           assigneeType: "member",
         }
       : {}),
+    ...(shouldWriteStatus ? { status: options.status } : {}),
+    ...(shouldWritePriority ? { priority: options.priority } : {}),
+    ...(shouldWriteTargetDate ? { targetDate: nextTargetDate } : {}),
     ...(shouldWriteHandoff ? { handoff: nextHandoff ?? null } : {}),
     ...(!hasSessionLink
       ? {
@@ -305,16 +343,38 @@ async function reconcileReusableWorkItem(
           },
         }
       : {}),
-  });
+  };
+  if (projectSlug) {
+    await dependencies.updateProjectWorkItem(
+      projectSlug,
+      frontmatter.short_id,
+      updates
+    );
+  } else {
+    const updateStandalone = dependencies.updateStandaloneWorkItem;
+    if (!updateStandalone) {
+      throw new Error(
+        "Standalone Work Item updates are unavailable for this destination"
+      );
+    }
+    await updateStandalone(frontmatter.short_id, updates, { orgId });
+  }
 }
 
 async function reuseWorkItem(
   existing: WorkItemData,
+  orgId: string,
   projectSlug: string | undefined,
   options: CreateWorkItemFromSessionOptions,
   dependencies: CreateFromSessionDependencies
 ): Promise<TeamInboxCreatedWorkItem> {
-  await reconcileReusableWorkItem(existing, projectSlug, options, dependencies);
+  await reconcileReusableWorkItem(
+    existing,
+    orgId,
+    projectSlug,
+    options,
+    dependencies
+  );
   await ensureReverseLink(
     options.session,
     projectSlug,
@@ -323,6 +383,7 @@ async function reuseWorkItem(
     options.signal
   );
   return {
+    orgId,
     projectId: projectSlug ?? "",
     workItemId: existing.frontmatter.short_id,
     reused: true,
@@ -389,24 +450,39 @@ export async function createWorkItemFromSession(
   const { session, signal } = options;
   abortIfNeeded(signal);
 
-  const project = await resolveProject(
-    session,
-    options.selectedProjectSlug,
-    dependencies,
-    signal
-  );
+  const selectedProjectSlug =
+    options.destination?.kind === "project"
+      ? options.destination.projectSlug
+      : undefined;
+  // A Cloud Org is an explicit storage boundary. Never infer the Session's
+  // local project after the user chose Team Inbox as the destination.
+  const project =
+    options.destination?.kind === "cloud_org"
+      ? undefined
+      : await resolveProject(
+          session,
+          selectedProjectSlug,
+          dependencies,
+          signal
+        );
   const projectSlug = project?.slug;
   const projectId = projectSlug ?? "";
+  const cloudOrgId =
+    options.destination?.kind === "cloud_org"
+      ? options.destination.orgId
+      : undefined;
+  const orgId =
+    project?.meta.org_id ?? cloudOrgId ?? session.orgId ?? "personal-org";
 
   const existingItems = projectSlug
     ? await dependencies.readProjectWorkItems(projectSlug)
     : await dependencies.readStandaloneWorkItems(
-        options.activeOrgId ? { orgId: options.activeOrgId } : undefined
+        cloudOrgId ? { orgId: cloudOrgId } : undefined
       );
   abortIfNeeded(signal);
   const existing = findReusableWorkItem(existingItems, session);
   if (existing) {
-    return reuseWorkItem(existing, projectSlug, options, dependencies);
+    return reuseWorkItem(existing, orgId, projectSlug, options, dependencies);
   }
 
   const title = sessionWorkItemTitle(session, options.title);
@@ -414,19 +490,21 @@ export async function createWorkItemFromSession(
     draft: {
       name: title,
       description: "",
-      status: "planned",
-      priority: "none",
+      status: options.status ?? "planned",
+      priority: options.priority ?? "none",
       assigneeId: options.assigneeMemberId,
+      assigneeType: options.assigneeMemberId ? "member" : undefined,
       projectId: project?.meta.id,
-      orgId: session.orgId ?? options.activeOrgId ?? undefined,
+      orgId: cloudOrgId ?? session.orgId ?? undefined,
       labelIds: [],
+      targetDate: options.targetDate,
     },
     description: sessionWorkItemDescription(session, title),
     linkedSessions: [linkedSessionSnapshot(session)],
     todos: sessionWorkItemTodos(session),
     handoff: sessionWorkItemHandoff(options),
     createdByMemberId: options.senderMemberId,
-    orgId: session.orgId ?? options.activeOrgId,
+    orgId: cloudOrgId ?? session.orgId,
     selectedProjectSlug: projectSlug,
   });
   abortIfNeeded(signal);
@@ -439,6 +517,7 @@ export async function createWorkItemFromSession(
   );
 
   return {
+    orgId,
     projectId,
     workItemId: created.shortId,
     reused: false,

@@ -193,7 +193,6 @@ const ContextListDropdown: React.FC<ContextListDropdownProps> = ({
         </div>
       ) : (
         <div className={DROPDOWN_CLASSES.listMessage}>
-          <AlertCircle size={DROPDOWN_ITEM.iconSize} />
           {t("contextList.noContextItemsFound")}
         </div>
       )}

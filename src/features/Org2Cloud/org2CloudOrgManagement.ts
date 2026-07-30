@@ -58,25 +58,25 @@ export async function sha256Hex(value: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Invite deep link (orgii://cloud/join?invite=…)
+// Invite links
 //
-// Rides the SAME OS-level `orgii://` scheme as the collaboration links
-// (registered in src-tauri/tauri.conf.json `deep-link.desktop.schemes`), so
-// no Rust change is needed — `useDeepLinkHandler` receives the raw URL from
-// the Tauri deep-link plugin and branches on the `cloud` host here, exactly
-// like `store/collaboration/deepLink.ts` does for `collaboration`.
+// Shareable links use HTTPS so messaging clients recognize them. The invite
+// is kept in the URL fragment (never sent to the web host), whose landing page
+// hands it to the existing OS-level `orgii://cloud/join` deep link.
 // ---------------------------------------------------------------------------
 
 export const CLOUD_INVITE_DEEP_LINK_HOST = "cloud";
 export const CLOUD_INVITE_DEEP_LINK_PATH = "join";
+export const CLOUD_INVITE_WEB_BASE_URL =
+  "https://orgii-invite-link.atah2000.chatgpt.site/";
 
 export interface CloudInviteDeepLink {
   inviteCode: string;
 }
 
 export function buildCloudInviteLink(inviteCode: string): string {
-  const params = new URLSearchParams({ invite: inviteCode });
-  return `orgii://${CLOUD_INVITE_DEEP_LINK_HOST}/${CLOUD_INVITE_DEEP_LINK_PATH}?${params.toString()}`;
+  const fragment = new URLSearchParams({ invite: inviteCode });
+  return `${CLOUD_INVITE_WEB_BASE_URL}#${fragment.toString()}`;
 }
 
 /**
@@ -116,10 +116,33 @@ export function parseCloudInviteDeepLink(
   }
 }
 
+function parseCloudInviteWebLink(url: string): CloudInviteDeepLink | null {
+  try {
+    const parsed = new URL(url.trim());
+    const expected = new URL(CLOUD_INVITE_WEB_BASE_URL);
+    if (
+      parsed.origin !== expected.origin ||
+      parsed.pathname.replace(/\/+$/, "/") !== expected.pathname
+    ) {
+      return null;
+    }
+
+    // New links use the fragment so the invite never appears in an HTTP
+    // request. Query parsing remains for already-shared compatibility links.
+    const fragmentParams = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+    const inviteCode = (
+      fragmentParams.get("invite") ?? parsed.searchParams.get("invite")
+    )?.trim();
+    return inviteCode ? { inviteCode } : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Join-form input: accepts either a pasted `orgii://cloud/join?...` link or
- * a raw invite code. Returns the bare code, or `null` when empty / a link
- * without a code.
+ * Join-form input: accepts a shareable HTTPS link, a direct
+ * `orgii://cloud/join?...` link, or a raw invite code. Returns the bare code,
+ * or `null` when empty / a link without a code.
  */
 export function parseCloudInviteInput(input: string): string | null {
   const trimmed = input.trim();
@@ -127,6 +150,10 @@ export function parseCloudInviteInput(input: string): string | null {
   if (trimmed.toLowerCase().startsWith("orgii://")) {
     return parseCloudInviteDeepLink(trimmed)?.inviteCode ?? null;
   }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return parseCloudInviteWebLink(trimmed)?.inviteCode ?? null;
+  }
+  if (trimmed.includes("://")) return null;
   return trimmed;
 }
 

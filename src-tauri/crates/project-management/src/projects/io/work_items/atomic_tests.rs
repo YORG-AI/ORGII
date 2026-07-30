@@ -2,12 +2,17 @@
 
 use super::*;
 use crate::projects::io::projects::write_project;
-use crate::projects::io::transition_work_item_handoff;
-use crate::projects::io::work_items::{read_standalone_work_item, read_work_item, write_work_item};
+use crate::projects::io::work_items::{
+    read_standalone_work_item, read_work_item, write_standalone_work_item, write_work_item,
+};
+use crate::projects::io::{
+    create_project_org, transition_standalone_work_item_handoff, transition_work_item_handoff,
+    update_standalone_work_item_partial,
+};
 use crate::projects::types::{
-    CommentEntry, ProjectMeta, TodoEntry, WorkItemHandoff, WorkItemHandoffAction,
-    WorkItemHandoffStatus, WorkItemHandoffTransition, WorkItemHistoryAction, WorkItemMutationActor,
-    WorkItemPartialUpdate, WorkItemSchedule,
+    CommentEntry, CreateProjectOrgRequest, ProjectMeta, TodoEntry, WorkItemHandoff,
+    WorkItemHandoffAction, WorkItemHandoffStatus, WorkItemHandoffTransition, WorkItemHistoryAction,
+    WorkItemMutationActor, WorkItemPartialUpdate, WorkItemSchedule,
 };
 use test_helpers::test_env;
 
@@ -76,6 +81,17 @@ fn seed(slug: &str, project_id: &str) {
     write_project(slug, &project_fixture(project_id, "Demo"), "", true).expect("project");
     let fm = work_item_fixture("w1", "AAA-0001", "Initial");
     write_work_item(slug, "AAA-0001", &fm, "body v1").expect("seed work item");
+}
+
+fn seed_standalone(org_id: &str) {
+    create_project_org(&CreateProjectOrgRequest {
+        name: "Team Org".to_string(),
+        id: Some(org_id.to_string()),
+    })
+    .expect("create standalone org");
+    let fm = work_item_fixture("standalone-w1", "ORG-0001", "Standalone");
+    write_standalone_work_item(Some(org_id), "ORG-0001", &fm, "standalone body")
+        .expect("seed standalone work item");
 }
 
 fn current_local_version(work_item_id: &str) -> i64 {
@@ -147,6 +163,7 @@ fn partial_update_records_comment_history_event() {
             author: "member-1".to_string(),
             content: "Looks good".to_string(),
             created_at: "2026-01-01T00:00:00Z".to_string(),
+            mentioned_user_ids: Vec::new(),
         }]),
         actor: Some(WorkItemMutationActor {
             id: "member-1".to_string(),
@@ -451,6 +468,122 @@ fn returned_handoff_atomically_reassigns_sender_and_resets_receipts() {
 }
 
 #[test]
+fn standalone_partial_update_persists_collaboration_fields_atomically() {
+    let _sandbox = test_env::sandbox();
+    seed_standalone("org-team");
+
+    let result = update_standalone_work_item_partial(
+        Some("org-team"),
+        "ORG-0001",
+        &WorkItemPartialUpdate {
+            status: Some("in_progress".to_string()),
+            priority: Some("high".to_string()),
+            assignee: Some(Some("member-b".to_string())),
+            assignee_type: Some(Some("member".to_string())),
+            target_date: Some(Some("2026-08-01T00:00:00.000Z".to_string())),
+            todos: Some(vec![TodoEntry {
+                id: "todo-1".to_string(),
+                content: "Verify the handoff".to_string(),
+                status: "completed".to_string(),
+            }]),
+            comments: Some(vec![CommentEntry {
+                id: "comment-1".to_string(),
+                author: "member-b".to_string(),
+                content: "@Ada ready for review".to_string(),
+                created_at: "2026-07-29T09:00:00.000Z".to_string(),
+                mentioned_user_ids: vec!["member-a".to_string()],
+            }]),
+            actor: Some(WorkItemMutationActor {
+                id: "member-b".to_string(),
+                name: "Lin".to_string(),
+            }),
+            ..Default::default()
+        },
+    )
+    .expect("update standalone work item");
+
+    assert_eq!(result.frontmatter.status, "in_progress");
+    assert_eq!(result.frontmatter.priority, "high");
+    assert_eq!(result.frontmatter.assignee.as_deref(), Some("member-b"));
+    assert_eq!(result.frontmatter.todos[0].status, "completed");
+    assert_eq!(
+        result.frontmatter.comments[0].mentioned_user_ids,
+        vec!["member-a".to_string()]
+    );
+
+    let persisted =
+        read_standalone_work_item(Some("org-team"), "ORG-0001").expect("read standalone");
+    assert_eq!(persisted.frontmatter.status, "in_progress");
+    assert_eq!(persisted.frontmatter.priority, "high");
+    assert_eq!(
+        persisted.frontmatter.target_date.as_deref(),
+        Some("2026-08-01T00:00:00.000Z")
+    );
+    assert_eq!(persisted.frontmatter.todos.len(), 1);
+    assert_eq!(persisted.frontmatter.comments.len(), 1);
+    assert!(persisted.frontmatter.history.iter().any(|event| {
+        event.actor_id.as_deref() == Some("member-b")
+            && event
+                .changes
+                .iter()
+                .any(|change| change.field == "assignee")
+    }));
+    assert_eq!(current_local_version("standalone-w1"), 1);
+}
+
+#[test]
+fn standalone_return_handoff_reassigns_to_original_sender() {
+    let _sandbox = test_env::sandbox();
+    seed_standalone("org-team");
+
+    update_standalone_work_item_partial(
+        Some("org-team"),
+        "ORG-0001",
+        &WorkItemPartialUpdate {
+            assignee: Some(Some("member-b".to_string())),
+            assignee_type: Some(Some("member".to_string())),
+            handoff: Some(Some(WorkItemHandoff {
+                id: "standalone-handoff".to_string(),
+                status: WorkItemHandoffStatus::Pending,
+                sender_member_id: "member-a".to_string(),
+                sender_name: "Ada".to_string(),
+                recipient_member_id: "member-b".to_string(),
+                recipient_name: "Lin".to_string(),
+                note: Some("Please continue".to_string()),
+                requested_at: "2026-07-29T09:00:00.000Z".to_string(),
+                responded_at: None,
+                response_note: None,
+            })),
+            ..Default::default()
+        },
+    )
+    .expect("seed standalone handoff");
+
+    let result = transition_standalone_work_item_handoff(
+        Some("org-team"),
+        "ORG-0001",
+        &WorkItemHandoffTransition {
+            handoff_id: "standalone-handoff".to_string(),
+            action: WorkItemHandoffAction::Return,
+            actor: WorkItemMutationActor {
+                id: "member-b".to_string(),
+                name: "Lin".to_string(),
+            },
+            note: Some("Need the original reproduction".to_string()),
+        },
+    )
+    .expect("return standalone handoff");
+
+    assert_eq!(result.frontmatter.assignee.as_deref(), Some("member-a"));
+    let handoff = result.frontmatter.handoff.expect("handoff");
+    assert_eq!(handoff.status, WorkItemHandoffStatus::Returned);
+    assert_eq!(
+        handoff.response_note.as_deref(),
+        Some("Need the original reproduction")
+    );
+}
+
+#[test]
 fn non_human_assignee_is_excluded_from_assigned_human_projection() {
     let _sandbox = test_env::sandbox();
     seed("demo", "p1");
@@ -627,6 +760,7 @@ fn partial_appends_comment_via_full_replace_semantics() {
         author: "alice".into(),
         content: "first".into(),
         created_at: "2026-01-01T00:00:00Z".into(),
+        mentioned_user_ids: Vec::new(),
     }]);
     update_work_item_partial("demo", "AAA-0001", &first).expect("first");
 
@@ -636,6 +770,7 @@ fn partial_appends_comment_via_full_replace_semantics() {
         author: "bob".into(),
         content: "replaced".into(),
         created_at: "2026-01-02T00:00:00Z".into(),
+        mentioned_user_ids: Vec::new(),
     }]);
     let result = update_work_item_partial("demo", "AAA-0001", &second).expect("second");
     assert_eq!(result.frontmatter.comments.len(), 1);

@@ -7,11 +7,18 @@ import {
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
 } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import type { CloudOrgMember } from "@src/features/Org2Cloud/org2CloudClient";
 import {
   org2CloudCommentsSignalAtom,
   orgCommentsKey,
 } from "@src/features/Org2Cloud/org2CloudCommentsBus";
-import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { loadCloudOrgMembers } from "@src/features/Org2Cloud/org2CloudMembersCoordinator";
+import {
+  getSidebarActiveCloudOrg,
+  org2CloudOrgsAtom,
+  org2CloudRosterVersionAtom,
+  sidebarActiveCloudOrgIdAtom,
+} from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
@@ -22,7 +29,7 @@ import { sessionHandoffDraft } from "./createWorkItemFromSession";
 import type {
   TeamInboxDataSource,
   TeamInboxFilter,
-  TeamInboxHandoffProject,
+  TeamInboxHandoffDestination,
   TeamInboxIssue,
   TeamInboxItem,
   TeamInboxSessionHandoffDraft,
@@ -31,7 +38,9 @@ import { SessionHandoffPreparationError } from "./sessionHandoffError";
 import {
   type SessionHandoffProjectRoster,
   eligibleSessionHandoffProjects,
+  handoffCloudOrgFromRoster,
   handoffProjectFromRoster,
+  teamInboxViewerMemberIds,
 } from "./sessionHandoffProjects";
 import { observeSharedOperation } from "./sharedOperation";
 import { teamInboxCacheAtom, teamInboxInvalidationAtom } from "./store";
@@ -55,6 +64,11 @@ interface MemberSnapshot {
   members: MemberEntry[];
   projectRosters: SessionHandoffProjectRoster[];
   issue: TeamInboxIssue | null;
+}
+
+interface CloudMemberSnapshot {
+  key: string;
+  members: CloudOrgMember[];
 }
 
 const EMPTY_MEMBER_SNAPSHOT: MemberSnapshot = {
@@ -145,12 +159,53 @@ export function useTeamInboxDataSource(): {
   const [memberSnapshot, setMemberSnapshot] = useState<MemberSnapshot>(
     EMPTY_MEMBER_SNAPSHOT
   );
+  const [cloudMemberSnapshot, setCloudMemberSnapshot] =
+    useState<CloudMemberSnapshot>({ key: "", members: [] });
   const { members } = memberSnapshot;
-  const { memberIds } = useCurrentUserMemberIds(members);
-  const viewerMemberIds = useMemo(() => [...memberIds].sort(), [memberIds]);
+  const { memberIds: localViewerMemberIds } = useCurrentUserMemberIds(members);
   const auth = useAtomValue(org2CloudAuthAtom);
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const activeCloudOrgId = useAtomValue(sidebarActiveCloudOrgIdAtom);
+  const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
+  const rosterVersions = useAtomValue(org2CloudRosterVersionAtom);
+  const activeCloudOrg = useMemo(
+    () => getSidebarActiveCloudOrg(activeCloudOrgId, cloudOrgs),
+    [activeCloudOrgId, cloudOrgs]
+  );
+  const activeCloudRosterVersion = activeCloudOrgId
+    ? (rosterVersions[activeCloudOrgId] ?? 0)
+    : 0;
+  const cloudRosterKey =
+    authIdentityKey && activeCloudOrgId
+      ? `${authIdentityKey}|${activeCloudOrgId}`
+      : "";
+  const cloudMembers = useMemo(
+    () =>
+      cloudMemberSnapshot.key === cloudRosterKey
+        ? cloudMemberSnapshot.members
+        : [],
+    [cloudMemberSnapshot, cloudRosterKey]
+  );
+  const viewerMemberIds = useMemo(
+    () =>
+      teamInboxViewerMemberIds(
+        localViewerMemberIds,
+        activeCloudOrgId && auth ? auth.userId : undefined
+      ),
+    [activeCloudOrgId, auth, localViewerMemberIds]
+  );
+  const scopeMembers = useMemo<MemberEntry[]>(() => {
+    const byId = new Map(members.map((member) => [member.id, member]));
+    for (const member of cloudMembers) {
+      if (member.status !== "active") continue;
+      byId.set(member.userId, {
+        id: member.userId,
+        name: member.displayName?.trim() || member.userId,
+        active: true,
+      });
+    }
+    return [...byId.values()];
+  }, [cloudMembers, members]);
   const commentsSignals = useAtomValue(org2CloudCommentsSignalAtom);
   // Every consumer observes the same version; the coordinator single-flights
   // the resulting request instead of giving each hook its own request state.
@@ -165,14 +220,14 @@ export function useTeamInboxDataSource(): {
       viewerMemberIds,
       accessToken: auth?.accessToken ?? null,
       activeCloudOrgId,
-      members,
+      members: scopeMembers,
       prerequisiteIssue: memberSnapshot.issue,
     }),
     [
       activeCloudOrgId,
       auth?.accessToken,
       memberSnapshot.issue,
-      members,
+      scopeMembers,
       viewerKey,
       viewerMemberIds,
     ]
@@ -207,13 +262,44 @@ export function useTeamInboxDataSource(): {
   }, [invalidation, store]);
 
   useEffect(() => {
-    const requestVersion = `${invalidation}:${activeCloudCommentsRevision}:${members.length}:${memberSnapshot.issue?.code ?? "members-ok"}`;
+    if (!auth || !activeCloudOrgId) {
+      return;
+    }
+    let cancelled = false;
+    void loadCloudOrgMembers(
+      store,
+      auth,
+      activeCloudOrgId,
+      activeCloudRosterVersion
+    ).then((loaded) => {
+      if (!cancelled) {
+        setCloudMemberSnapshot({
+          key: cloudRosterKey,
+          members: loaded?.members ?? [],
+        });
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeCloudOrgId,
+    activeCloudRosterVersion,
+    auth,
+    authIdentityKey,
+    cloudRosterKey,
+    store,
+  ]);
+
+  useEffect(() => {
+    const requestVersion = `${invalidation}:${activeCloudCommentsRevision}:${activeCloudRosterVersion}:${scopeMembers.length}:${memberSnapshot.issue?.code ?? "members-ok"}`;
     void teamInboxCoordinator.refresh(store, scope, requestVersion);
   }, [
     activeCloudCommentsRevision,
+    activeCloudRosterVersion,
     invalidation,
     memberSnapshot.issue?.code,
-    members.length,
+    scopeMembers.length,
     scope,
     store,
   ]);
@@ -236,43 +322,86 @@ export function useTeamInboxDataSource(): {
       }
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-      let sourceProjectSlug: string | undefined;
-      let projects: TeamInboxHandoffProject[] = [];
-      if (session.projectSlug || session.projectId) {
-        const project = session.projectSlug
-          ? await projectApi.readProject(session.projectSlug)
-          : (await projectApi.readProjects()).find(
-              (entry) => entry.meta.id === session.projectId
-            );
-        if (!project) {
+      let sourceDestinationKey: string | undefined;
+      const destinations: TeamInboxHandoffDestination[] = [];
+
+      if (auth && activeCloudOrg) {
+        const loaded = await loadCloudOrgMembers(
+          store,
+          auth,
+          activeCloudOrg.orgId,
+          activeCloudRosterVersion
+        );
+        const cloudDestination = loaded
+          ? handoffCloudOrgFromRoster(
+              activeCloudOrg,
+              loaded.members,
+              auth.userId
+            )
+          : null;
+        if (!cloudDestination) {
+          throw new SessionHandoffPreparationError("identity_unavailable");
+        }
+        destinations.push(cloudDestination);
+        sourceDestinationKey = cloudDestination.key;
+      }
+
+      if (
+        destinations.length === 0 &&
+        (session.projectSlug || session.projectId)
+      ) {
+        const project = await (session.projectSlug
+          ? projectApi.readProject(session.projectSlug)
+          : projectApi
+              .readProjects()
+              .then(
+                (entries) =>
+                  entries.find(
+                    (entry) => entry.meta.id === session.projectId
+                  ) ?? null
+              ));
+        if (!project && destinations.length === 0) {
           throw new SessionHandoffPreparationError("project_unavailable");
         }
-        const entries = (await projectApi.readMembers(project.slug)).members;
-        const candidate = handoffProjectFromRoster(
-          project,
-          entries,
-          viewerMemberIds
-        );
-        if (candidate) projects = [candidate];
-        sourceProjectSlug = project.slug;
-      } else {
+        if (project) {
+          const entries = (await projectApi.readMembers(project.slug)).members;
+          const candidate = handoffProjectFromRoster(
+            project,
+            entries,
+            viewerMemberIds
+          );
+          if (candidate) {
+            destinations.push(candidate);
+            sourceDestinationKey ??= candidate.key;
+          }
+        }
+      } else if (destinations.length === 0) {
         // A standalone Session has no canonical project boundary. Resolve a
         // fresh roster for both preview and submit so a removed membership or
         // newly joined project cannot be accepted from a stale hook snapshot.
         const latestMemberSnapshot = await readAllProjectMembers();
-        projects = eligibleSessionHandoffProjects(
-          latestMemberSnapshot.projectRosters,
-          viewerMemberIds
+        destinations.push(
+          ...eligibleSessionHandoffProjects(
+            latestMemberSnapshot.projectRosters,
+            viewerMemberIds
+          )
         );
       }
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-      if (projects.length === 0) {
+      if (destinations.length === 0) {
         throw new SessionHandoffPreparationError(
-          sourceProjectSlug ? "identity_unavailable" : "no_project"
+          session.projectSlug || session.projectId
+            ? "identity_unavailable"
+            : "no_project"
         );
       }
-      return sessionHandoffDraft(session, projects, title, sourceProjectSlug);
+      return sessionHandoffDraft(
+        session,
+        destinations,
+        title,
+        sourceDestinationKey
+      );
     };
 
     return {
@@ -334,16 +463,22 @@ export function useTeamInboxDataSource(): {
         ? ({
             sessionId,
             title,
-            projectSlug,
+            destinationKey,
             assigneeMemberId,
+            status,
+            priority,
+            targetDate,
             handoffNote,
             signal,
           }) => {
             const flightKey = [
               scope.key,
               sessionId,
-              projectSlug,
+              destinationKey,
               assigneeMemberId,
+              status,
+              priority,
+              targetDate ?? "",
               title.trim(),
               handoffNote?.trim() ?? "",
             ].join(":");
@@ -362,15 +497,15 @@ export function useTeamInboxDataSource(): {
               title,
             })
               .then((draft) => {
-                const project = draft.projects.find(
-                  (candidate) => candidate.slug === projectSlug
+                const destination = draft.destinations.find(
+                  (candidate) => candidate.key === destinationKey
                 );
-                if (!project) {
+                if (!destination) {
                   throw new Error(
-                    "The selected project is no longer available"
+                    "The selected destination is no longer available"
                   );
                 }
-                const recipient = project.recipients.find(
+                const recipient = destination.recipients.find(
                   (member) => member.id === assigneeMemberId
                 );
                 if (!recipient) {
@@ -381,13 +516,24 @@ export function useTeamInboxDataSource(): {
                 return createWorkItemFromSession({
                   session,
                   title,
-                  activeOrgId: activeCloudOrgId,
-                  selectedProjectSlug: project.slug,
+                  destination:
+                    destination.kind === "cloud_org"
+                      ? {
+                          kind: "cloud_org",
+                          orgId: destination.orgId,
+                        }
+                      : {
+                          kind: "project",
+                          projectSlug: destination.projectSlug,
+                        },
                   assigneeMemberId: recipient.id,
                   assigneeMemberName: recipient.name,
-                  senderMemberId: project.sender.id,
-                  senderMemberName: project.sender.name,
+                  senderMemberId: destination.sender.id,
+                  senderMemberName: destination.sender.name,
                   recipientIsCurrentUser: recipient.isCurrentUser,
+                  status,
+                  priority,
+                  targetDate,
                   handoffNote,
                 });
               })
@@ -415,7 +561,14 @@ export function useTeamInboxDataSource(): {
         });
       },
     };
-  }, [activeCloudOrgId, scope, store, viewerMemberIds]);
+  }, [
+    activeCloudOrg,
+    activeCloudRosterVersion,
+    auth,
+    scope,
+    store,
+    viewerMemberIds,
+  ]);
 
   return { dataSource, viewerMemberIds };
 }

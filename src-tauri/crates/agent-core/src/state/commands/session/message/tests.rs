@@ -7,7 +7,7 @@
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
 use super::org_wake::{promote_agent_org_wake_session_to_running, resolve_agent_org_wake_mode};
-use super::send::should_divert_to_mid_turn_steering;
+use super::send::{should_divert_to_mid_turn_steering, terminal_intent_status_override};
 use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, RequestId,
 };
@@ -183,6 +183,19 @@ fn force_send_never_enters_mid_turn_steering() {
         None,
         true,
     ));
+}
+
+#[test]
+fn cancelled_turn_overrides_scheduler_success_terminal() {
+    use crate::foundation::session_bridge::TurnIntentBridgeStatus;
+    use crate::session::DialogTurnState;
+
+    assert!(matches!(
+        terminal_intent_status_override(DialogTurnState::Cancelled),
+        Some(TurnIntentBridgeStatus::Cancelled)
+    ));
+    assert!(terminal_intent_status_override(DialogTurnState::Completed).is_none());
+    assert!(terminal_intent_status_override(DialogTurnState::Failed).is_none());
 }
 
 /// Historical callers without a task-scoped mode keep Build semantics.

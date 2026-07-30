@@ -145,6 +145,7 @@ export interface WorkItemComment {
   author: string;
   content: string;
   created_at: string;
+  mentioned_user_ids?: string[];
 }
 
 // ============================================

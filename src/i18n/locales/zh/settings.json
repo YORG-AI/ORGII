@@ -714,6 +714,8 @@
     "agentApprovalDesc": "当 Agent 操作需要您的批准时",
     "errors": "错误和警告",
     "errorsDesc": "当发生错误或警告时",
+    "teamInbox": "团队收件箱",
+    "teamInboxDesc": "来自队友的分配、提及和交接",
     "sessionStatus": "Session 状态",
     "sessionStatusDesc": "Session 开始、暂停和恢复更新",
     "gitOperations": "Git 操作",

@@ -202,19 +202,35 @@ function mapMentionsToItems(
   }));
 }
 
-function resolveAssigneeDisplayNames(
+function resolveTeamInboxMemberNames(
   items: readonly TeamInboxItem[],
   members: readonly MemberEntry[]
 ): TeamInboxItem[] {
   if (members.length === 0) return [...items];
   const nameById = new Map(members.map((member) => [member.id, member.name]));
   return items.map((item) => {
-    if (item.kind !== "assigned_work_item") return item;
-    const resolved = nameById.get(item.payload.assigneeMemberId);
-    if (!resolved || resolved === item.payload.assigneeName) return item;
+    const actorName = nameById.get(item.actor.id);
+    const nextActor =
+      actorName && actorName !== item.actor.displayName
+        ? { ...item.actor, displayName: actorName }
+        : item.actor;
+    if (item.kind !== "assigned_work_item") {
+      return nextActor === item.actor ? item : { ...item, actor: nextActor };
+    }
+    const assigneeName = nameById.get(item.payload.assigneeMemberId);
+    if (
+      (!assigneeName || assigneeName === item.payload.assigneeName) &&
+      nextActor === item.actor
+    ) {
+      return item;
+    }
     return {
       ...item,
-      payload: { ...item.payload, assigneeName: resolved },
+      actor: nextActor,
+      payload: {
+        ...item.payload,
+        ...(assigneeName ? { assigneeName } : {}),
+      },
     };
   });
 }
@@ -420,7 +436,7 @@ export class TeamInboxCoordinator {
         if (cloud.ok) runtime.cloudCursor = cloud.value.nextCursor ?? null;
 
         const items = boundedItems(
-          resolveAssigneeDisplayNames(
+          resolveTeamInboxMemberNames(
             [...cloudItems, ...localItems],
             scope.members
           )
@@ -528,7 +544,7 @@ export class TeamInboxCoordinator {
         if (cloudCursor && cloud.ok) {
           runtime.cloudCursor = cloud.value.nextCursor ?? null;
         }
-        const appended = resolveAssigneeDisplayNames(
+        const appended = resolveTeamInboxMemberNames(
           [
             ...(cloud.ok
               ? mapMentionsToItems(

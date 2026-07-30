@@ -27,6 +27,7 @@ import type {
   NavigationMenuRowAction,
 } from "../components/NavigationMenu/config";
 import type { SidebarTab } from "../types";
+import { isNavigationSectionCollapsed } from "./navigationSectionCollapse";
 
 // ============================================
 // Types
@@ -438,10 +439,11 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
             />
           ) : (
             sections.map((section) => {
-              const isSectionCollapsed =
-                !hasSearchInput &&
-                collapsibleSections &&
-                collapsedSections.has(section.id);
+              const isSectionCollapsed = isNavigationSectionCollapsed({
+                collapsibleSections,
+                collapsedSectionIds: collapsedSections,
+                sectionId: section.id,
+              });
 
               return (
                 <div key={section.id} data-sidebar-section-id={section.id}>
@@ -453,9 +455,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         tabIndex={0}
                         aria-expanded={!isSectionCollapsed}
                         className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-2 pl-2`}
-                        onClick={() => {
-                          if (!hasSearchInput) toggleSection(section.id);
-                        }}
+                        onClick={() => toggleSection(section.id)}
                         onKeyDown={(event) => {
                           if (
                             event.target !== event.currentTarget ||
@@ -464,7 +464,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                             return;
                           }
                           event.preventDefault();
-                          if (!hasSearchInput) toggleSection(section.id);
+                          toggleSection(section.id);
                         }}
                       >
                         <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
@@ -476,9 +476,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                               isSectionCollapsed ? ChevronRight : ChevronDown
                             }
                             label={section.title ?? section.id}
-                            onClick={() => {
-                              if (!hasSearchInput) toggleSection(section.id);
-                            }}
+                            onClick={() => toggleSection(section.id)}
                           />
                         </span>
                         {section.headerActions && (

@@ -184,6 +184,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   onOpenFileAtLine,
   onReviewAllFiles,
   onRefreshWorkflow,
+  onTransitionHandoff,
   activeAgentSessionId,
   activeAgentRole,
   isLockedByOther,
@@ -205,6 +206,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     setActiveSessionTab,
     commentText,
     setCommentText,
+    mentionedUserIds,
+    setMentionedUserIds,
     isSubscribed,
     setIsSubscribed,
     isSubmittingComment,
@@ -304,8 +307,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       : workItem.handoff;
   const canRespondToHandoff = Boolean(
     handoff &&
-    projectSlug &&
     shortId &&
+    (onTransitionHandoff || projectSlug) &&
     currentUserMemberIds.has(handoff.recipientMemberId) &&
     handoff.status === "pending"
   );
@@ -321,8 +324,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const respondToHandoff = (action: "accept" | "return", note?: string) => {
     if (
       !handoff ||
-      !projectSlug ||
       !shortId ||
+      (!onTransitionHandoff && !projectSlug) ||
       respondingHandoff ||
       !currentUserMemberIds.has(handoff.recipientMemberId)
     ) {
@@ -330,22 +333,26 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     }
     setRespondingHandoff(action);
     setHandoffError(null);
-    void projectApi
-      .transitionWorkItemHandoff(projectSlug, shortId, {
-        handoffId: handoff.id,
-        action,
-        actor: {
-          id: handoff.recipientMemberId,
-          name:
-            handoffRecipientName || handoff.recipientName || currentUser.name,
-        },
-        note,
-      })
+    const transition = {
+      handoffId: handoff.id,
+      action,
+      actor: {
+        id: handoff.recipientMemberId,
+        name: handoffRecipientName || handoff.recipientName || currentUser.name,
+      },
+      note,
+    } as const;
+    const request = onTransitionHandoff
+      ? onTransitionHandoff(transition)
+      : projectApi.transitionWorkItemHandoff(projectSlug!, shortId, transition);
+    void request
       .then((result) => {
-        if (result.frontmatter.handoff) {
+        const nextHandoff =
+          "frontmatter" in result ? result.frontmatter.handoff : result.handoff;
+        if (nextHandoff) {
           setHandoffOverride({
             workItemId: workItem.session_id,
-            value: result.frontmatter.handoff,
+            value: nextHandoff,
           });
         }
         onRefreshWorkflow?.();
@@ -593,6 +600,9 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       onToggleSubscribe={() => setIsSubscribed(!isSubscribed)}
       commentText={commentText}
       onCommentTextChange={setCommentText}
+      mentionedUserIds={mentionedUserIds}
+      onMentionedUserIdsChange={setMentionedUserIds}
+      teamMembers={teamMembers}
       onCommentSubmit={handleCommentSubmit}
       isSubmittingComment={isSubmittingComment}
       presentation={presentation}

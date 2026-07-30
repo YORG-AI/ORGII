@@ -180,6 +180,7 @@ export function useWorkstationSidebarMenuDecoration({
         // Cloud rows already carry Replay/Fork actions, so only local rows
         // use the regular session action decoration.
         sessionMenuItems: decorateSessionRowActions(sessionSidebarMenuItems),
+        sessionById: sessionMap,
         mySessionsLabel: t("cloud.sidebar.mySessions"),
         mySessionsVisibleCount: cloudMySessionsVisibleCount,
         loadMoreLabel: tCommon("common:actions.loadMore", "Load more"),
@@ -188,6 +189,7 @@ export function useWorkstationSidebarMenuDecoration({
       cloudMenuItems,
       cloudMySessionsVisibleCount,
       decorateSessionRowActions,
+      sessionMap,
       sessionSidebarMenuItems,
       t,
       tCommon,

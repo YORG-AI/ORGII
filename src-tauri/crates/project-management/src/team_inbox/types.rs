@@ -3,18 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::projects::types::WorkItemHandoff;
 
 /// Sources supported by the stable Team Inbox wire contract.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TeamInboxFilter {
+    #[default]
     All,
     Mentions,
     Assigned,
-}
-
-impl Default for TeamInboxFilter {
-    fn default() -> Self {
-        Self::All
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -46,6 +41,16 @@ pub enum TeamInboxTarget {
         #[serde(skip_serializing_if = "Option::is_none")]
         anchor: Option<String>,
     },
+    WorkItemComment {
+        work_item_id: String,
+        short_id: String,
+        org_id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        project_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        project_slug: Option<String>,
+        comment_id: String,
+    },
     WorkItem {
         work_item_id: String,
         short_id: String,
@@ -57,6 +62,10 @@ pub enum TeamInboxTarget {
     },
 }
 
+// This wire DTO is constructed only for bounded result pages and immediately
+// serialized. Keeping the fields inline preserves a simple, stable payload
+// shape without adding heap indirection to every assigned row.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(
     tag = "type",

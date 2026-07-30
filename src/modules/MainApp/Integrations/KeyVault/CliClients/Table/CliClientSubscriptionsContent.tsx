@@ -26,11 +26,11 @@ export function CliClientSubscriptionsContent({
   const compatibleApiLabels = agent.compatibleApiProviders.map((provider) =>
     formatAgentType(provider)
   );
-  const valueOrNA = (values: string[]): React.ReactNode =>
+  const valueOrEmpty = (values: string[]): React.ReactNode =>
     values.length > 0 ? (
       <span className="text-[12px] text-text-1">{values.join(", ")}</span>
     ) : (
-      <span className="text-[12px] text-text-3">{t("common:status.na")}</span>
+      <span className="text-[12px] text-text-3">—</span>
     );
 
   return (
@@ -47,10 +47,10 @@ export function CliClientSubscriptionsContent({
         </InfoRow>
       )}
       <InfoRow label={t("cliPreview.compatibleApis")} layout="vertical">
-        {valueOrNA(compatibleApiLabels)}
+        {valueOrEmpty(compatibleApiLabels)}
       </InfoRow>
       <InfoRow label={t("cliPreview.supportedProtocols")} layout="vertical">
-        {valueOrNA(agent.supportedProtocols)}
+        {valueOrEmpty(agent.supportedProtocols)}
       </InfoRow>
       <InfoRow label={t("cliPreview.addedSubscriptions")} layout="vertical">
         {subscriptionAccounts.length > 0 ? (

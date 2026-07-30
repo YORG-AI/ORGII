@@ -9,6 +9,7 @@ import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import RichMarkdownEditor from "@src/modules/shared/components/RichMarkdownEditor";
 
 import { WorkItemActivityTimeline } from "./WorkItemActivityTimeline";
+import WorkItemMentionPicker from "./WorkItemMentionPicker";
 import { partitionDiscussionTimeline } from "./discussionTimelineModel";
 import type { HistoryTabProps } from "./types";
 
@@ -19,6 +20,9 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
   onToggleSubscribe,
   commentText,
   onCommentTextChange,
+  mentionedUserIds = [],
+  onMentionedUserIdsChange = () => undefined,
+  teamMembers = [],
   onCommentSubmit,
   isSubmittingComment,
   presentation = "default",
@@ -104,26 +108,34 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       >
         {currentUser.name.charAt(0).toUpperCase()}
       </Avatar>
-      <ComposerShell
-        variant="comment"
-        className="min-w-0 flex-1"
-        data-testid="work-item-comment-composer"
-      >
-        <RichMarkdownEditor
-          className="min-w-0 flex-1"
-          placeholder={t("workItems.activity.commentPlaceholder")}
-          value={commentText}
-          onChange={(markdown) => onCommentTextChange(markdown)}
-          onSubmit={onCommentSubmit}
-          minHeight={28}
-          maxHeight={120}
-          appearance="plain"
-          showTabs={false}
-          matchMarkdownPreview={false}
-          dataTestId="work-item-comment-editor"
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <ComposerShell
+          variant="comment"
+          data-testid="work-item-comment-composer"
+        >
+          <RichMarkdownEditor
+            className="min-w-0 flex-1"
+            placeholder={t("workItems.activity.commentPlaceholder")}
+            value={commentText}
+            onChange={(markdown) => onCommentTextChange(markdown)}
+            onSubmit={onCommentSubmit}
+            minHeight={28}
+            maxHeight={120}
+            appearance="plain"
+            showTabs={false}
+            matchMarkdownPreview={false}
+            dataTestId="work-item-comment-editor"
+          />
+          {submitButton}
+        </ComposerShell>
+        <WorkItemMentionPicker
+          members={teamMembers}
+          currentUserId={currentUser.id}
+          value={mentionedUserIds}
+          disabled={isSubmittingComment}
+          onChange={onMentionedUserIdsChange}
         />
-        {submitButton}
-      </ComposerShell>
+      </div>
     </div>
   ) : (
     <div className="mt-auto flex flex-col gap-2">
@@ -140,6 +152,15 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
           dataTestId="work-item-comment-editor"
         />
         <div className="mt-2 flex items-center justify-end">{submitButton}</div>
+        <div className="mt-2">
+          <WorkItemMentionPicker
+            members={teamMembers}
+            currentUserId={currentUser.id}
+            value={mentionedUserIds}
+            disabled={isSubmittingComment}
+            onChange={onMentionedUserIdsChange}
+          />
+        </div>
       </div>
     </div>
   );

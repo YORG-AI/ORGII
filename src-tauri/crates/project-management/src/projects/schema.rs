@@ -425,6 +425,7 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
     ensure_workitems_deleted_at_column(conn)?;
     ensure_projects_sync_columns(conn)?;
     ensure_collab_sync_columns(conn)?;
+    ensure_workitems_allow_standalone_scope(conn)?;
     ensure_routine_definitions_durable_columns(conn)?;
     ensure_routine_fires_durable_columns(conn)?;
     conn.execute(
@@ -452,6 +453,142 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
 
 fn ensure_workitems_deleted_at_column(conn: &Connection) -> SqliteResult<()> {
     ensure_column(conn, "workitems", "deleted_at", "INTEGER")
+}
+
+/// Rebuild legacy `workitems` tables whose `project_id` still requires a
+/// project. Org-level Work Items intentionally have no project, so the
+/// authoritative storage invariant is `(org_id, project_id = NULL)`.
+///
+/// SQLite cannot remove a `NOT NULL` constraint or change a foreign-key
+/// action in place. The migration therefore copies the rows into the current
+/// table shape while foreign-key enforcement is temporarily suspended, then
+/// restores the indexes and verifies the resulting graph before returning.
+fn ensure_workitems_allow_standalone_scope(conn: &Connection) -> SqliteResult<()> {
+    let project_id_is_required = {
+        let mut statement = conn.prepare("PRAGMA table_info(workitems)")?;
+        let columns = statement.query_map([], |row| {
+            Ok((row.get::<_, String>(1)?, row.get::<_, i64>(3)?))
+        })?;
+        let mut required = false;
+        for column in columns {
+            let (name, not_null) = column?;
+            if name == "project_id" {
+                required = not_null != 0;
+                break;
+            }
+        }
+        required
+    };
+
+    let project_delete_sets_null = {
+        let mut statement = conn.prepare("PRAGMA foreign_key_list(workitems)")?;
+        let foreign_keys = statement.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(6)?,
+            ))
+        })?;
+        let mut sets_null = false;
+        for foreign_key in foreign_keys {
+            let (table, from, on_delete) = foreign_key?;
+            if table == "projects" && from == "project_id" {
+                sets_null = on_delete.eq_ignore_ascii_case("SET NULL");
+                break;
+            }
+        }
+        sets_null
+    };
+
+    if !project_id_is_required && project_delete_sets_null {
+        return Ok(());
+    }
+
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    let migration = (|| -> SqliteResult<()> {
+        let transaction = conn.unchecked_transaction()?;
+        transaction.execute_batch(
+            r#"
+            CREATE TABLE workitems_standalone_migration (
+                id                    TEXT PRIMARY KEY,
+                org_id                TEXT NOT NULL DEFAULT 'personal-org' REFERENCES project_orgs(id) ON DELETE RESTRICT,
+                project_id            TEXT REFERENCES projects(id) ON DELETE SET NULL,
+                short_id              TEXT NOT NULL,
+                title                 TEXT NOT NULL,
+                body                  TEXT NOT NULL DEFAULT '',
+                status                TEXT NOT NULL DEFAULT 'backlog',
+                priority              TEXT NOT NULL DEFAULT 'none',
+                assigned_human_id     TEXT,
+                assignee              TEXT,
+                assignee_type         TEXT,
+                milestone             TEXT,
+                parent                TEXT,
+                start_date            TEXT,
+                target_date           TEXT,
+                estimate              REAL,
+                order_index           INTEGER NOT NULL DEFAULT 0,
+                created_at            INTEGER NOT NULL,
+                updated_at            INTEGER NOT NULL,
+                completed_at          INTEGER,
+                deleted_at            INTEGER,
+                local_version         INTEGER NOT NULL DEFAULT 0,
+                collab_remote_version INTEGER
+            );
+
+            INSERT INTO workitems_standalone_migration (
+                id, org_id, project_id, short_id, title, body, status, priority,
+                assigned_human_id, assignee, assignee_type, milestone, parent,
+                start_date, target_date, estimate, order_index, created_at,
+                updated_at, completed_at, deleted_at, local_version,
+                collab_remote_version
+            )
+            SELECT
+                id, org_id, project_id, short_id, title, body, status, priority,
+                assigned_human_id, assignee, assignee_type, milestone, parent,
+                start_date, target_date, estimate, order_index, created_at,
+                updated_at, completed_at, deleted_at, local_version,
+                collab_remote_version
+            FROM workitems;
+
+            DROP TABLE workitems;
+            ALTER TABLE workitems_standalone_migration RENAME TO workitems;
+
+            CREATE UNIQUE INDEX idx_workitems_project_short_id
+                ON workitems(project_id, short_id)
+                WHERE project_id IS NOT NULL;
+            CREATE UNIQUE INDEX idx_workitems_standalone_short_id
+                ON workitems(org_id, short_id)
+                WHERE project_id IS NULL;
+            CREATE INDEX idx_workitems_org ON workitems(org_id);
+            CREATE INDEX idx_workitems_org_status ON workitems(org_id, status);
+            CREATE INDEX idx_workitems_project_status ON workitems(project_id, status);
+            CREATE INDEX idx_workitems_assigned_human ON workitems(assigned_human_id);
+            CREATE INDEX idx_workitems_assignee ON workitems(assignee);
+            CREATE INDEX idx_workitems_parent ON workitems(parent);
+            CREATE INDEX idx_workitems_milestone ON workitems(milestone);
+            CREATE INDEX idx_workitems_updated_at ON workitems(updated_at);
+            CREATE INDEX idx_workitems_deleted_at ON workitems(deleted_at);
+            "#,
+        )?;
+        transaction.commit()
+    })();
+
+    if migration.is_err() {
+        let _ = conn.execute_batch("ROLLBACK;");
+    }
+    let foreign_keys_result = conn.execute_batch("PRAGMA foreign_keys = ON;");
+    migration?;
+    foreign_keys_result?;
+
+    let foreign_key_violation: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM pragma_foreign_key_check",
+        [],
+        |row| row.get(0),
+    )?;
+    if foreign_key_violation != 0 {
+        return Err(rusqlite::Error::ExecuteReturnedResults);
+    }
+    Ok(())
 }
 
 /// Backfill the project-sync columns on DBs created before they were
@@ -662,6 +799,111 @@ mod tests {
         let conn = open_in_memory();
         init_project_tables(&conn).expect("first init");
         init_project_tables(&conn).expect("second init should not fail");
+    }
+
+    #[test]
+    fn legacy_workitems_schema_is_rebuilt_for_org_level_items() {
+        let conn = open_in_memory();
+        conn.execute_batch(
+            r#"
+            CREATE TABLE project_orgs (
+                id TEXT PRIMARY KEY
+            );
+            CREATE TABLE projects (
+                id TEXT PRIMARY KEY
+            );
+            CREATE TABLE workitems (
+                id                    TEXT PRIMARY KEY,
+                org_id                TEXT NOT NULL DEFAULT 'personal-org' REFERENCES project_orgs(id),
+                project_id            TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                short_id              TEXT NOT NULL,
+                title                 TEXT NOT NULL,
+                body                  TEXT NOT NULL DEFAULT '',
+                status                TEXT NOT NULL DEFAULT 'backlog',
+                priority              TEXT NOT NULL DEFAULT 'none',
+                assigned_human_id     TEXT,
+                assignee              TEXT,
+                assignee_type         TEXT,
+                milestone             TEXT,
+                parent                TEXT,
+                start_date            TEXT,
+                target_date           TEXT,
+                estimate              REAL,
+                order_index           INTEGER NOT NULL DEFAULT 0,
+                created_at            INTEGER NOT NULL,
+                updated_at            INTEGER NOT NULL,
+                completed_at          INTEGER,
+                deleted_at            INTEGER,
+                local_version         INTEGER NOT NULL DEFAULT 0,
+                collab_remote_version INTEGER
+            );
+            CREATE TABLE workitem_extras (
+                work_item_id TEXT PRIMARY KEY REFERENCES workitems(id) ON DELETE CASCADE,
+                extras_json TEXT NOT NULL DEFAULT '{}'
+            );
+
+            INSERT INTO project_orgs (id) VALUES ('org-1');
+            INSERT INTO projects (id) VALUES ('project-1');
+            INSERT INTO workitems (
+                id, org_id, project_id, short_id, title, created_at, updated_at
+            ) VALUES (
+                'item-1', 'org-1', 'project-1', 'PRJ-0001', 'Existing', 1, 1
+            );
+            INSERT INTO workitem_extras (work_item_id) VALUES ('item-1');
+            "#,
+        )
+        .expect("legacy fixture");
+
+        ensure_workitems_allow_standalone_scope(&conn).expect("migrate legacy workitems");
+
+        let project_id_not_null: i64 = conn
+            .query_row(
+                "SELECT \"notnull\" FROM pragma_table_info('workitems') WHERE name = 'project_id'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("project_id shape");
+        assert_eq!(
+            project_id_not_null, 0,
+            "org-level Work Items must permit a NULL project_id"
+        );
+
+        conn.execute(
+            "INSERT INTO workitems (
+                id, org_id, project_id, short_id, title, created_at, updated_at
+             ) VALUES ('item-2', 'org-1', NULL, 'WI-0001', 'Handoff', 2, 2)",
+            [],
+        )
+        .expect("standalone Work Item");
+
+        let extras_preserved: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM workitem_extras WHERE work_item_id = 'item-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("preserved child row");
+        assert_eq!(extras_preserved, 1);
+
+        conn.execute("DELETE FROM projects WHERE id = 'project-1'", [])
+            .expect("delete project");
+        let detached_project_id: Option<String> = conn
+            .query_row(
+                "SELECT project_id FROM workitems WHERE id = 'item-1'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("detached Work Item");
+        assert_eq!(detached_project_id, None);
+
+        let foreign_key_violations: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM pragma_foreign_key_check",
+                [],
+                |row| row.get(0),
+            )
+            .expect("foreign-key check");
+        assert_eq!(foreign_key_violations, 0);
     }
 
     #[test]

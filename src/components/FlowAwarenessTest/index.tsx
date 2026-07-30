@@ -310,7 +310,7 @@ export function FlowAwarenessTest({
                   </ul>
                 </div>
                 <div>
-                  <strong>Idle Seconds:</strong> {summary.idleSeconds ?? "N/A"}
+                  <strong>Idle Seconds:</strong> {summary.idleSeconds ?? "—"}
                 </div>
               </div>
             ) : (

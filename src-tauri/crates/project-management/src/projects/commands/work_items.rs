@@ -216,6 +216,20 @@ pub async fn project_update_work_item_partial(
     .map_err(|err| format!("Task join error: {}", err))?
 }
 
+/// Atomic partial update for an org-scoped Work Item without a project row.
+#[tauri::command]
+pub async fn work_item_update_standalone_partial(
+    org_id: Option<String>,
+    short_id: String,
+    updates: WorkItemPartialUpdate,
+) -> Result<WorkItemData, String> {
+    tokio::task::spawn_blocking(move || {
+        io::update_standalone_work_item_partial(org_id.as_deref(), &short_id, &updates)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
 /// Accept or return a pending human handoff using the Work Item's atomic
 /// mutation boundary. Read/unread is intentionally independent from this
 /// explicit response.
@@ -227,6 +241,20 @@ pub async fn project_transition_work_item_handoff(
 ) -> Result<WorkItemData, String> {
     tokio::task::spawn_blocking(move || {
         io::transition_work_item_handoff(&project_slug, &short_id, &transition)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Accept or return a pending org-scoped handoff without requiring a project.
+#[tauri::command]
+pub async fn work_item_transition_standalone_handoff(
+    org_id: Option<String>,
+    short_id: String,
+    transition: WorkItemHandoffTransition,
+) -> Result<WorkItemData, String> {
+    tokio::task::spawn_blocking(move || {
+        io::transition_standalone_work_item_handoff(org_id.as_deref(), &short_id, &transition)
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?

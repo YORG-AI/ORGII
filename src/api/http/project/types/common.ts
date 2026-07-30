@@ -10,4 +10,6 @@ export interface CommentEntry {
   author: string;
   content: string;
   created_at: string;
+  /** Canonical member ids explicitly notified by this comment. */
+  mentioned_user_ids?: string[];
 }

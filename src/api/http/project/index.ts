@@ -85,7 +85,10 @@ export const projectApi = {
   restoreWorkItem: client.restoreWorkItem,
   purgeExpiredDeletedWorkItems: client.purgeExpiredDeletedWorkItems,
   updateWorkItemPartial: client.updateWorkItemPartial,
+  updateStandaloneWorkItemPartial: client.updateStandaloneWorkItemPartial,
   transitionWorkItemHandoff: client.transitionWorkItemHandoff,
+  transitionStandaloneWorkItemHandoff:
+    client.transitionStandaloneWorkItemHandoff,
   moveWorkItem: client.moveWorkItem,
   allocateWorkItemId: client.allocateWorkItemId,
   allocateStandaloneWorkItemId: client.allocateStandaloneWorkItemId,

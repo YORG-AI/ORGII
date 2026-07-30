@@ -35,6 +35,15 @@ type TeamInboxWireTarget =
       orgId: string;
       projectId?: string;
       projectSlug?: string;
+    }
+  | {
+      type: "work_item_comment";
+      workItemId: string;
+      shortId: string;
+      orgId: string;
+      projectId?: string;
+      projectSlug?: string;
+      commentId: string;
     };
 
 type TeamInboxWirePayload =
@@ -83,9 +92,32 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
 
   if (
     item.kind === "comment_mention" &&
-    item.target.type === "comment" &&
     item.payload.type === "comment_mention"
   ) {
+    if (item.target.type === "work_item_comment") {
+      return {
+        id: item.id,
+        kind: "comment_mention",
+        occurredAt,
+        readAt: toIso(item.readAt),
+        actor,
+        target: {
+          kind: "work_item_comment",
+          orgId: item.target.orgId,
+          projectId: item.target.projectSlug ?? item.target.projectId ?? "",
+          workItemId: item.target.shortId,
+          workItemTitle: item.payload.sessionTitle,
+          commentId: item.target.commentId,
+        },
+        payload: {
+          commentBody: item.payload.commentExcerpt,
+          commentCount: item.payload.commentCount,
+        },
+      };
+    }
+    if (item.target.type !== "comment") {
+      throw new Error(`Unsupported comment mention target: ${item.id}`);
+    }
     return {
       id: item.id,
       kind: "comment_mention",
@@ -120,6 +152,7 @@ function mapWireItem(item: TeamInboxWireItem): TeamInboxItem {
       actor,
       target: {
         kind: "work_item",
+        orgId: item.target.orgId,
         projectId: item.target.projectSlug ?? item.target.projectId ?? "",
         workItemId: item.target.shortId,
       },

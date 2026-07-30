@@ -73,6 +73,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const mountedRef = useRef(true);
+  const readMutationsRef = useRef(new Set<string>());
 
   useEffect(() => {
     mountedRef.current = true;
@@ -165,6 +166,34 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     ? getTeamInboxItemKey(selectedItem)
     : null;
 
+  const markItemRead = useCallback(
+    (item: TeamInboxItem) => {
+      if (item.readAt !== null || !dataSource.markRead) return;
+      const itemKey = getTeamInboxItemKey(item);
+      if (readMutationsRef.current.has(itemKey)) return;
+
+      readMutationsRef.current.add(itemKey);
+      void dataSource
+        .markRead(item)
+        .catch(() => {
+          if (!mountedRef.current) return;
+          setLoadState({
+            status: "error",
+            message: t("teamInbox.errors.markRead"),
+          });
+        })
+        .finally(() => {
+          readMutationsRef.current.delete(itemKey);
+        });
+    },
+    [dataSource, t]
+  );
+
+  useEffect(() => {
+    if (!selectedItem) return;
+    markItemRead(selectedItem);
+  }, [markItemRead, selectedItem]);
+
   const handleLoadMore = () => {
     if (!dataSource.loadMore || loadingMore) return;
     setLoadingMore(true);
@@ -209,23 +238,10 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
 
   const handleSelect = (item: TeamInboxItem) => {
     setRequestedItemId(getTeamInboxItemKey(item));
-    if (item.readAt !== null) return;
-    void dataSource.markRead?.(item).catch(() => {
-      setLoadState({
-        status: "error",
-        message: t("teamInbox.errors.markRead"),
-      });
-    });
   };
 
   const handleMarkRead = (item: TeamInboxItem) => {
-    if (item.readAt !== null) return;
-    void dataSource.markRead?.(item).catch(() => {
-      setLoadState({
-        status: "error",
-        message: t("teamInbox.errors.markRead"),
-      });
-    });
+    markItemRead(item);
   };
 
   const handleMarkUnread = (item: TeamInboxItem) => {

@@ -49,6 +49,41 @@ test("light dev disables webpack dev-server browser client", () => {
   assert.equal(htmlPlugin?.userOptions?.retryMainScriptLoad, false);
 });
 
+test("development cache stays memory-only and bounded to one generation", () => {
+  for (const lightDev of [false, true]) {
+    const config = withEnv(
+      {
+        ORGII_LIGHT_DEV: lightDev ? "true" : null,
+        FAST_DEV: lightDev ? "true" : null,
+        DEV_SOURCEMAPS: lightDev ? "false" : null,
+      },
+      () => createWebpackConfig({}, { mode: "development" })
+    );
+
+    assert.deepEqual(config.cache, {
+      type: "memory",
+      maxGenerations: 1,
+    });
+  }
+});
+
+test("production keeps its isolated filesystem cache", () => {
+  for (const fastProd of [false, true]) {
+    const config = withEnv(
+      {
+        FAST_PROD: fastProd ? "true" : null,
+      },
+      () => createWebpackConfig({}, { mode: "production" })
+    );
+
+    assert.equal(config.cache.type, "filesystem");
+    assert.equal(
+      config.cache.version,
+      `${fastProd ? "prod-fast" : "prod"}-11`
+    );
+  }
+});
+
 test("retrying main script loader disables static HTML injection in dev", () => {
   const config = withEnv(
     {

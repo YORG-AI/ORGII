@@ -714,6 +714,8 @@
     "agentApprovalDesc": "When an Agent action requires your approval",
     "errors": "Errors & Warnings",
     "errorsDesc": "When errors or warnings occur",
+    "teamInbox": "Team Inbox",
+    "teamInboxDesc": "Assignments, mentions, and handoffs from teammates",
     "sessionStatus": "Session Status",
     "sessionStatusDesc": "Session start, pause, and resume updates",
     "gitOperations": "Git Operations",

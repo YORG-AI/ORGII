@@ -3,8 +3,8 @@ use super::wire::now_ms;
 use super::*;
 use crate::projects::io::{
     acquire_execution_lock, configure_project_org_collab_sync, create_project_org, read_project,
-    read_work_item, release_execution_lock, update_work_item_partial, write_project,
-    write_work_item,
+    read_standalone_work_item, read_work_item, release_execution_lock,
+    update_standalone_work_item_partial, update_work_item_partial, write_project, write_work_item,
 };
 use crate::projects::types::{
     CommentEntry, CreateProjectOrgRequest, ProjectData, ProjectMeta, WorkItemExecutionLockReason,
@@ -403,6 +403,116 @@ fn apply_remote_creates_entities_without_echo() {
 }
 
 #[test]
+fn standalone_pending_update_rebases_and_merges_remote_tail_without_conflict_loop() {
+    let _sandbox = test_env::sandbox();
+    seed_collab_org();
+
+    apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({
+                "id": "standalone-row",
+                "shortId": "ORG-0001",
+                "title": "Original title",
+                "body": "Original body",
+                "status": "backlog",
+                "priority": "none",
+                "comments": [],
+                "updatedAt": "2026-07-01T00:00:00Z",
+            }),
+            version: 1,
+            updated_by: Some("member-a".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("seed remote standalone");
+
+    let local_comment = CommentEntry {
+        id: "comment-local".to_string(),
+        author: "member-a".to_string(),
+        content: "local pending comment".to_string(),
+        created_at: "2026-07-29T01:00:00Z".to_string(),
+        mentioned_user_ids: vec![],
+    };
+    update_standalone_work_item_partial(
+        Some(ORG),
+        "ORG-0001",
+        &WorkItemPartialUpdate {
+            status: Some("in_progress".to_string()),
+            comments: Some(vec![local_comment.clone()]),
+            ..WorkItemPartialUpdate::default()
+        },
+    )
+    .expect("local pending update");
+    assert_eq!(pending_org_rows(), 1);
+
+    let remote_comment = CommentEntry {
+        id: "comment-remote".to_string(),
+        author: "member-b".to_string(),
+        content: "remote teammate comment".to_string(),
+        created_at: "2026-07-29T01:00:01Z".to_string(),
+        mentioned_user_ids: vec!["member-a".to_string()],
+    };
+    let applied = apply_remote(
+        ORG,
+        None,
+        vec![CollabRemoteEntity {
+            kind: KIND_WORK_ITEM.to_string(),
+            payload: json!({
+                "id": "standalone-row",
+                "shortId": "ORG-0001",
+                "title": "Remote title",
+                "body": "Original body",
+                "status": "backlog",
+                "priority": "high",
+                "comments": [remote_comment],
+                "updatedAt": "2026-07-01T00:05:00Z",
+            }),
+            version: 2,
+            updated_by: Some("member-b".to_string()),
+            deleted_at: None,
+        }],
+    )
+    .expect("apply conflicting remote standalone");
+    assert_eq!(applied, 1);
+
+    let item =
+        read_standalone_work_item(Some(ORG), "ORG-0001").expect("read merged standalone item");
+    assert_eq!(
+        item.frontmatter.status, "in_progress",
+        "the newer local status watermark survives the older remote row"
+    );
+    assert_eq!(item.frontmatter.title, "Remote title");
+    assert_eq!(item.frontmatter.priority, "high");
+    assert_eq!(
+        item.frontmatter
+            .comments
+            .iter()
+            .map(|comment| comment.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["comment-local", "comment-remote"],
+        "stable-id union preserves both independently appended comments"
+    );
+
+    let retried = drain_outbox(ORG, 50).expect("drain rebased retry");
+    assert_eq!(retried.len(), 1);
+    assert_eq!(
+        retried[0].base_version,
+        Some(2),
+        "the retry must use the pulled remote version instead of conflicting again"
+    );
+    let comments = retried[0]
+        .payload
+        .as_ref()
+        .and_then(|payload| payload.get("comments"))
+        .and_then(Value::as_array)
+        .expect("merged comments in outgoing snapshot");
+    assert_eq!(comments.len(), 2);
+}
+
+#[test]
 fn apply_remote_updates_handoff_on_an_existing_project_work_item() {
     let _sandbox = test_env::sandbox();
     seed_collab_org();
@@ -749,6 +859,7 @@ fn pending_local_push_blocks_remote_tail_clobber_and_unions_lists() {
         author: "me".to_string(),
         content: "local pending comment".to_string(),
         created_at: "2026-07-01T00:01:00Z".to_string(),
+        mentioned_user_ids: Vec::new(),
     }]);
     update_work_item_partial("remote-project", "REM-0001", &update).expect("local comment");
     assert!(pending_org_rows() >= 1, "local comment should be pending");
