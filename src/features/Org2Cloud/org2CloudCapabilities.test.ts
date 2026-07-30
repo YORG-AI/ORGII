@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __CAPABILITIES_INTERNALS,
   getCloudCapabilities,
+  getCloudCapabilitiesConfirmed,
 } from "./org2CloudCapabilities";
 import { getCloudCapabilitiesRaw } from "./org2CloudClient";
 
@@ -169,6 +170,80 @@ describe("getCloudCapabilities", () => {
       teamInboxMentions: false,
       memberRuntime: false,
     });
+    expect(rawMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("getCloudCapabilitiesConfirmed", () => {
+  it("confirms a valid response even when it's the legacy (all-false) shape", async () => {
+    rawMock.mockResolvedValueOnce({});
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(true);
+    expect(result.capabilities).toEqual({
+      broadcastSignals: false,
+      storageSegments: false,
+      homeEndpoints: false,
+      teamInboxMentions: false,
+      memberRuntime: false,
+    });
+  });
+
+  it("confirms and reports the memberRuntime flag on a full 0010 response", async () => {
+    rawMock.mockResolvedValueOnce({
+      broadcastSignals: true,
+      storageSegments: true,
+      homeEndpoints: true,
+      teamInboxMentions: true,
+      memberRuntime: true,
+    });
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(true);
+    expect(result.capabilities.memberRuntime).toBe(true);
+  });
+
+  it("does NOT confirm a null response (pre-0005 404 or a swallowed transport failure)", async () => {
+    rawMock.mockResolvedValueOnce(null);
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(false);
+    expect(result.capabilities).toEqual({
+      broadcastSignals: false,
+      storageSegments: false,
+      homeEndpoints: false,
+      teamInboxMentions: false,
+      memberRuntime: false,
+    });
+  });
+
+  it("does NOT confirm when the probe itself throws (e.g. a hard timeout)", async () => {
+    rawMock.mockRejectedValueOnce(new Error("timed out"));
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(false);
+    expect(result.capabilities.memberRuntime).toBe(false);
+  });
+
+  it("does not cache an unconfirmed read: the next probe retries", async () => {
+    rawMock.mockRejectedValueOnce(new Error("timed out"));
+    await getCloudCapabilitiesConfirmed("jwt-1");
+    rawMock.mockResolvedValueOnce({ memberRuntime: true });
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(true);
+    expect(result.capabilities.memberRuntime).toBe(true);
+    expect(rawMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares the same per-endpoint cache as getCloudCapabilities", async () => {
+    rawMock.mockResolvedValueOnce({ broadcastSignals: true });
+    expect(await getCloudCapabilities("jwt-1")).toEqual({
+      broadcastSignals: true,
+      storageSegments: false,
+      homeEndpoints: false,
+      teamInboxMentions: false,
+      memberRuntime: false,
+    });
+    // A cached hit is, by definition, a confirmed read — no second RPC.
+    const result = await getCloudCapabilitiesConfirmed("jwt-1");
+    expect(result.confirmed).toBe(true);
+    expect(result.capabilities.broadcastSignals).toBe(true);
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
 });

@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   externalCliSourcesDetect: vi.fn(),
   updateSettingsBatch: vi.fn(),
   signIn: vi.fn(),
+  resetMemberRuntimePushState: vi.fn(),
 }));
 
 vi.mock("@src/features/Org2Cloud/memberRuntime/memberRuntimeClient", () => ({
@@ -32,6 +33,10 @@ vi.mock("@src/features/Org2Cloud/memberRuntime/memberRuntimeClient", () => ({
   clearMemberRuntime: mocks.clearMemberRuntime,
   upsertMemberRuntime: vi.fn(),
   setOrgRuntimeTelemetry: vi.fn(),
+}));
+
+vi.mock("@src/features/Org2Cloud/memberRuntime/memberRuntimePushState", () => ({
+  resetMemberRuntimePushState: mocks.resetMemberRuntimePushState,
 }));
 
 // The auth and orgs atoms are replaced with plain writable atoms so each test
@@ -267,14 +272,19 @@ const store = getDefaultStore();
 // Resolved lazily so vi.mock module state applies.
 async function seedAtoms(
   auth: Org2CloudAuthState | null,
-  orgs: Org2CloudOrg[]
+  orgs: Org2CloudOrg[],
+  // Defaults to true (the mocked atom's own default) so every existing
+  // call site is unaffected; the org-load-stall tests below pass false to
+  // simulate the atom never resolving.
+  orgsLoaded = true
 ) {
   const { org2CloudAuthAtom } =
     await import("@src/features/Org2Cloud/org2CloudAuthAtom");
-  const { org2CloudOrgsAtom } =
+  const { org2CloudOrgsAtom, org2CloudOrgsLoadedAtom } =
     await import("@src/features/Org2Cloud/org2CloudOrgsAtom");
   store.set(org2CloudAuthAtom, auth);
   store.set(org2CloudOrgsAtom, orgs);
+  store.set(org2CloudOrgsLoadedAtom, orgsLoaded);
 }
 
 const AUTH: Org2CloudAuthState = {
@@ -356,6 +366,17 @@ function member(
 
 let container: HTMLDivElement;
 let root: Root;
+
+// Drains a handful of microtask ticks so chained promise hops (token →
+// capabilities → roster) settle. Shared by `mount()` below and by tests that
+// mutate atoms mid-test and need the resulting re-render/effects to land.
+async function drainMicrotasks(times = 6) {
+  for (let i = 0; i < times; i += 1) {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+}
 
 async function mount() {
   await act(async () => {
@@ -668,6 +689,48 @@ describe("TeamRuntimePanel self-service", () => {
       "privacy.shareRuntimeWithOrg": false,
     });
     expect(mocks.clearMemberRuntime).toHaveBeenCalledWith("token-1", "org-1");
+    // The remote delete succeeded: reset the local push-state fingerprints
+    // (same identityKey derivation the scheduler uses) so re-enabling
+    // sharing re-sends everything instead of skipping "unchanged" rows the
+    // server no longer has.
+    expect(mocks.resetMemberRuntimePushState).toHaveBeenCalledWith(
+      "https://cloud.example|me",
+      "org-1"
+    );
+  });
+
+  it("does not reset push state when the remote clear fails", async () => {
+    mocks.listMemberRuntime.mockResolvedValue([member()]);
+    mocks.clearMemberRuntime.mockRejectedValue(new Error("boom"));
+    await seedAtoms(AUTH, [org()]);
+    await mount();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="team-runtime-stop-sharing"]'
+        )
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="team-runtime-stop-confirm"]'
+        )
+        ?.click();
+    });
+    for (let i = 0; i < 6; i += 1) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+
+    expect(mocks.clearMemberRuntime).toHaveBeenCalledWith("token-1", "org-1");
+    expect(mocks.resetMemberRuntimePushState).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-testid="team-runtime-self-service"]')
+        ?.textContent
+    ).toContain("boom");
   });
 
   it("cancel backs out without touching anything", async () => {
@@ -692,8 +755,114 @@ describe("TeamRuntimePanel self-service", () => {
 
     expect(mocks.clearMemberRuntime).not.toHaveBeenCalled();
     expect(mocks.updateSettingsBatch).not.toHaveBeenCalled();
+    expect(mocks.resetMemberRuntimePushState).not.toHaveBeenCalled();
     expect(
       container.querySelector('[data-testid="team-runtime-stop-sharing"]')
+    ).not.toBeNull();
+  });
+});
+
+// Covers the live bug: cloud auth exists but `org2CloudOrgsAtom`'s token
+// refresh silently failed (auth was NOT cleared), so `org2CloudOrgsLoadedAtom`
+// never flips true. Without a stall bound, the panel spun on "loading"
+// forever with no recovery affordance.
+describe("TeamRuntimePanel org load stall", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("flips to an error phase with retry if cloud orgs never load", async () => {
+    vi.useFakeTimers();
+    await seedAtoms(AUTH, [], /* orgsLoaded */ false);
+    await mount();
+
+    expect(
+      container.querySelector('[data-testid="placeholder-loading"]')
+    ).not.toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    const error = container.querySelector('[data-testid="placeholder-error"]');
+    expect(error).not.toBeNull();
+    expect(error?.textContent).toContain("loadError");
+    expect(error?.textContent).toContain(
+      "Couldn't load your cloud organizations"
+    );
+    expect(container.querySelector('[data-testid="retry"]')).not.toBeNull();
+  });
+
+  it("does not error out if orgs load before the stall window elapses", async () => {
+    vi.useFakeTimers();
+    await seedAtoms(AUTH, [], /* orgsLoaded */ false);
+    await mount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+
+    const { org2CloudOrgsAtom, org2CloudOrgsLoadedAtom } =
+      await import("@src/features/Org2Cloud/org2CloudOrgsAtom");
+    await act(async () => {
+      store.set(org2CloudOrgsAtom, [org()]);
+      store.set(org2CloudOrgsLoadedAtom, true);
+    });
+    await drainMicrotasks();
+
+    // Past the original 20s window from mount, but the stall condition
+    // lifted once the org arrived, so no error should ever have latched.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+
+    expect(
+      container.querySelector('[data-testid="placeholder-error"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="placeholder-empty"]')?.textContent
+    ).toContain("empty.title");
+  });
+
+  it("retry resets the stall window instead of latching the error forever", async () => {
+    vi.useFakeTimers();
+    await seedAtoms(AUTH, [], /* orgsLoaded */ false);
+    await mount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(
+      container.querySelector('[data-testid="placeholder-error"]')
+    ).not.toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>('[data-testid="retry"]')
+        ?.click();
+    });
+    await drainMicrotasks();
+
+    // Retry re-armed the window: back to loading, not stuck on error.
+    expect(
+      container.querySelector('[data-testid="placeholder-error"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="placeholder-loading"]')
+    ).not.toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(19_000);
+    });
+    expect(
+      container.querySelector('[data-testid="placeholder-error"]')
+    ).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(
+      container.querySelector('[data-testid="placeholder-error"]')
     ).not.toBeNull();
   });
 });

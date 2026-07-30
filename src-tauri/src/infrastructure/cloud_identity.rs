@@ -54,7 +54,12 @@ fn cloud_device_identity_blocking() -> Result<CloudDeviceIdentity, String> {
     })
 }
 
-/// Read-or-create the persisted device id.
+/// Read-or-create the persisted device id. A non-empty file only counts as
+/// "existing" if its trimmed content parses as a UUID — a corrupted or
+/// hand-edited value is treated the same as a blank file (regenerated and
+/// rewritten) instead of being propagated verbatim into `org2_cloud` forever.
+/// The parsed value's canonical `to_string()` form is reused (not the raw
+/// trimmed text) so casing/formatting always normalizes to lowercase-hyphenated.
 fn ensure_device_id(path: &Path) -> Result<String, String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|err| {
@@ -75,8 +80,8 @@ fn ensure_device_id(path: &Path) -> Result<String, String> {
             )
         })?;
         let trimmed = existing.trim();
-        if !trimmed.is_empty() {
-            return Ok(trimmed.to_string());
+        if let Ok(parsed) = Uuid::parse_str(trimmed) {
+            return Ok(parsed.to_string());
         }
     }
 
@@ -175,10 +180,35 @@ mod tests {
 
         let path = cloud_device_id_path();
         fs::create_dir_all(path.parent().expect("root parent")).expect("create root");
-        fs::write(&path, "  existing-device-id\n").expect("seed id file");
+        let seeded = Uuid::new_v4().to_string();
+        fs::write(&path, format!("  {seeded}\n")).expect("seed id file");
 
         let id = ensure_device_id(&path).expect("reuse existing id");
-        assert_eq!(id, "existing-device-id");
+        assert_eq!(id, seeded);
+    }
+
+    #[test]
+    fn device_id_regenerates_on_invalid_content() {
+        let _sandbox = test_env::sandbox();
+
+        let path = cloud_device_id_path();
+        fs::create_dir_all(path.parent().expect("root parent")).expect("create root");
+        fs::write(&path, "  existing-device-id\n").expect("seed garbage id file");
+
+        let id = ensure_device_id(&path).expect("regenerate id");
+        assert_ne!(id, "existing-device-id");
+        assert!(
+            Uuid::parse_str(&id).is_ok(),
+            "regenerated id must be a UUID: {id}"
+        );
+
+        // The garbage content must actually have been rewritten on disk, not
+        // just papered over in the returned value.
+        let on_disk = fs::read_to_string(&path).expect("reread id file");
+        assert_eq!(on_disk.trim(), id);
+
+        // And it sticks on the next read.
+        assert_eq!(ensure_device_id(&path).expect("reread"), id);
     }
 
     #[test]

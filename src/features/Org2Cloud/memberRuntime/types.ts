@@ -21,8 +21,21 @@
  * - Buckets extend the local dashboard's `UsageBucket` with `"other"` so the
  *   synced totals are complete (the local desktop view hides `other`; the
  *   team rollup must not silently drop it).
- * - Aggregates only. No session titles, repo paths, models, or per-request
- *   rows ever leave the machine.
+ * - Usage aggregates only: no session titles, repo paths, models, or
+ *   per-request rows ever leave the machine. That said, this contract DOES
+ *   ship several other things off-machine that a reader of "aggregates only"
+ *   could easily miss:
+ *     - the machine's hostname (`machineLabel`) and hardware specs (CPU/GPU
+ *       name and core/VRAM counts, total RAM, OS name+version) — see
+ *       `MemberRuntimeMachine`;
+ *     - the full installed-agent inventory (which CLI providers are present
+ *       and their detection status) — see `MemberInstalledAgent`;
+ *     - per-day cost and token figures broken out by bucket — see
+ *       `MemberUsageDay`.
+ *   These are exactly what let a teammate see "who's running low on RAM" or
+ *   "who's spending the most on Claude this week"; they are not incidental
+ *   leakage, but they are NOT covered by the "no session titles/repo
+ *   paths/models" framing above and must be disclosed alongside it.
  */
 import type { BuilderProfile } from "@src/api/tauri/builderProfile";
 import type { UsageBucket } from "@src/api/tauri/usageDashboard";

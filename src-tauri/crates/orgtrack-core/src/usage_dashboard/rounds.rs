@@ -6,6 +6,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 
@@ -34,6 +35,76 @@ fn fetch_native_turns(conn: &Connection) -> Result<Vec<NativeTurn>, String> {
         .map_err(|err| err.to_string())?;
     let rows = statement
         .query_map([], |row| {
+            Ok(NativeTurn {
+                session_id: row.get(0)?,
+                created_at: row.get(1)?,
+                model: row.get(2)?,
+                input_tokens: row.get(3)?,
+                output_tokens: row.get(4)?,
+                cache_read_tokens: row.get(5)?,
+                cache_write_tokens: row.get(6)?,
+            })
+        })
+        .map_err(|err| err.to_string())?;
+    rows.collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|err| err.to_string())
+}
+
+/// Format an epoch-millisecond instant the same way every native turn's
+/// `created_at` is written: `session_persistence::token_usage::
+/// insert_token_usage_record` stamps `Utc::now().to_rfc3339()`, which uses a
+/// fixed `+00:00` offset and chrono's `AutoSi` fractional-second precision
+/// (the fewest digits that represent the value exactly). Comparing strings in
+/// that same format sorts identically to comparing the underlying instants,
+/// which is what lets [`fetch_native_turns_in_window`] push a time bound into
+/// SQL instead of pulling every row through the app layer to filter in Rust.
+fn rfc3339_ms_bound(ms: i64) -> Option<String> {
+    DateTime::<Utc>::from_timestamp_millis(ms).map(|dt| dt.to_rfc3339())
+}
+
+/// Windowed variant of [`fetch_native_turns`]: pushes an inclusive
+/// `[start_ms, end_ms]` bound down to SQL instead of fetching every native
+/// turn ever recorded. Used only by the unattended `daily_rollup` cadence
+/// (see `daily_rollup.rs` / [`super::visit_rounds_windowed`]) — full history
+/// can span months, and re-pulling all of it through row mapping + timestamp
+/// parsing on every ~15-minute tick is the "full-table rescan" this exists to
+/// avoid.
+///
+/// `iso_to_ms` floors sub-millisecond precision (`timestamp_millis()`
+/// truncates toward zero), so the Rust-side inclusive filter's bounds are
+/// asymmetric once translated to the underlying (unfloored) instant:
+/// `floor(x) >= start_ms` holds exactly when `x >= start_ms` (flooring an
+/// integer lower bound doesn't move it), but `floor(x) <= end_ms` holds
+/// exactly when `x < end_ms + 1ms` (a row landing in the SAME millisecond as
+/// `end_ms` with extra sub-ms precision must still be included). Getting the
+/// upper bound wrong here would silently drop rows at the trailing edge of
+/// every rollup window; `daily_rollup_native_window_pushdown_matches_
+/// unwindowed_rust_filter` in `tests.rs` pins exactly this case.
+///
+/// Falls back to the unwindowed [`fetch_native_turns`] if either bound
+/// can't be represented as a valid instant (out-of-range milliseconds), so a
+/// pathological input degrades to the always-correct full scan instead of
+/// silently skipping rows.
+fn fetch_native_turns_in_window(
+    conn: &Connection,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Vec<NativeTurn>, String> {
+    let bounds = rfc3339_ms_bound(start_ms).zip(rfc3339_ms_bound(end_ms.saturating_add(1)));
+    let Some((lower, upper)) = bounds else {
+        return fetch_native_turns(conn);
+    };
+
+    let mut statement = conn
+        .prepare(
+            "SELECT session_id, created_at, model,
+                    input_tokens, output_tokens, cache_read_tokens, cache_write_tokens
+             FROM session_token_usage
+             WHERE created_at >= ?1 AND created_at < ?2",
+        )
+        .map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map(rusqlite::params![lower, upper], |row| {
             Ok(NativeTurn {
                 session_id: row.get(0)?,
                 created_at: row.get(1)?,
@@ -139,6 +210,35 @@ fn build_round_row(
 pub(super) fn visit_rounds(
     conn: &Connection,
     filter: &UsageFilter,
+    visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
+) -> Result<(), String> {
+    visit_rounds_inner(conn, filter, false, visit)
+}
+
+/// Same streamed pass as [`visit_rounds`], but pushes the native per-turn
+/// fetch's time window down to SQL (see [`fetch_native_turns_in_window`])
+/// instead of pulling every native turn ever recorded on every call.
+///
+/// This is NOT a drop-in replacement for [`visit_rounds`]: windowing changes
+/// how many turns precede a given row within a session, which would change
+/// `UsageRoundRow::round_id` (`session_id#index`) numbering versus the
+/// unwindowed pass. That's harmless for `daily_rollup` — its aggregation
+/// folds by `(day, bucket)` and never reads `round_id` — but would break
+/// request-log pagination stability for the interactive dashboard, so only
+/// `daily_rollup` (`daily_rollup.rs`) calls this; every other caller keeps
+/// using plain [`visit_rounds`] unchanged.
+pub(super) fn visit_rounds_windowed(
+    conn: &Connection,
+    filter: &UsageFilter,
+    visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
+) -> Result<(), String> {
+    visit_rounds_inner(conn, filter, true, visit)
+}
+
+fn visit_rounds_inner(
+    conn: &Connection,
+    filter: &UsageFilter,
+    push_down_native_window: bool,
     mut visit: impl FnMut(UsageRoundRow) -> Result<(), String>,
 ) -> Result<(), String> {
     let mut sessions = fetch_scoped_sessions(conn, filter.bucket.as_deref(), filter.all_sources)?;
@@ -211,8 +311,14 @@ pub(super) fn visit_rounds(
         }
     }
 
+    let native_turns = match (push_down_native_window, filter.start_ms, filter.end_ms) {
+        (true, Some(start_ms), Some(end_ms)) => {
+            fetch_native_turns_in_window(conn, start_ms, end_ms)?
+        }
+        _ => fetch_native_turns(conn)?,
+    };
     let mut native_by: HashMap<String, Vec<NativeTurn>> = HashMap::new();
-    for turn in fetch_native_turns(conn)? {
+    for turn in native_turns {
         if !session_indexes.contains_key(&turn.session_id)
             || imported_session_ids.contains(&turn.session_id)
         {

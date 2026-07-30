@@ -22,6 +22,7 @@ import Button from "@src/components/Button";
 import Select from "@src/components/Select";
 import type { SettingsObject } from "@src/config/settingsSchema";
 import { clearMemberRuntime } from "@src/features/Org2Cloud/memberRuntime/memberRuntimeClient";
+import { resetMemberRuntimePushState } from "@src/features/Org2Cloud/memberRuntime/memberRuntimePushState";
 import { SHARE_RUNTIME_SETTING_KEY } from "@src/features/Org2Cloud/memberRuntime/types";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { useUpdateSettingsBatch } from "@src/hooks/settings/useSettings";
@@ -104,9 +105,13 @@ export default function TeamRuntimePanel() {
   const [stopError, setStopError] = useState<string | null>(null);
 
   // One clock per render pass so staleness and the today/7d fold agree across
-  // every card. Deliberately not memoized: the roster re-renders on fetches
-  // and interactions only, and each pass should re-evaluate "now".
-  const nowMs = Date.now();
+  // every card. Quantized to the whole minute (org intervals are >=15min, so
+  // ~1min staleness granularity is invisible) so an unrelated re-render (a
+  // click, a settings change) recomputes the SAME nowMs value instead of a
+  // strictly-increasing one — otherwise every card's `nowMs` prop would
+  // differ by construction and the `TeamMemberCard` React.memo comparison
+  // could never hold.
+  const nowMs = Math.floor(Date.now() / 60_000) * 60_000;
 
   // Leaving the org scope or losing the member closes the drilldown.
   useEffect(() => {
@@ -136,6 +141,14 @@ export default function TeamRuntimePanel() {
         null)
       : null;
 
+  // Stable across renders (setState setters never change identity) so the
+  // `TeamMemberCard` React.memo comparison isn't busted by a fresh closure
+  // every render — each card calls back with its own userId instead of
+  // capturing it in a per-card arrow function at the call site.
+  const handleOpenMember = useCallback((userId: string) => {
+    setOpenMemberId(userId);
+  }, []);
+
   const handleStopSharing = useCallback(async () => {
     if (stopping || !roster.selectedOrgId) return;
     setStopping(true);
@@ -146,6 +159,13 @@ export default function TeamRuntimePanel() {
     try {
       const accessToken = await roster.getFreshAccessToken();
       await clearMemberRuntime(accessToken, roster.selectedOrgId);
+      // The server just deleted every row this member reported. Without
+      // resetting the local fingerprint cursor, re-enabling sharing would
+      // see "unchanged" usage-days/profile/agents against content the
+      // server no longer has and skip re-sending them.
+      if (roster.identityKey) {
+        resetMemberRuntimePushState(roster.identityKey, roster.selectedOrgId);
+      }
       setConfirmingStop(false);
       roster.refresh();
     } catch (err) {
@@ -257,7 +277,7 @@ export default function TeamRuntimePanel() {
                   nowMs={nowMs}
                   agentCatalog={agentCatalog}
                   isSelf={member.userId === roster.currentUserId}
-                  onOpen={() => setOpenMemberId(member.userId)}
+                  onOpen={handleOpenMember}
                 />
               ))}
             </div>

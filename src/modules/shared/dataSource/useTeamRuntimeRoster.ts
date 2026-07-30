@@ -8,7 +8,7 @@
  * deliberately no polling loop; the data is hourly-coarse.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { listMemberRuntime } from "@src/features/Org2Cloud/memberRuntime/memberRuntimeClient";
 import type {
@@ -67,9 +67,34 @@ export interface TeamRuntimeRosterState {
   /** Fresh access token for follow-up RPCs (drilldown, clear). */
   getFreshAccessToken: () => Promise<string>;
   currentUserId: string | null;
+  /** Same `${supabaseUrl}|${userId}` key the push scheduler namespaces its
+   * localStorage state under; null when signed out. Lets self-service flows
+   * (stop-sharing) reset the scheduler's per-(identity, org) push state
+   * without duplicating its derivation. */
+  identityKey: string | null;
 }
 
 const NO_MEMBERS: MemberRuntimeListEntry[] = [];
+
+/**
+ * If cloud auth exists but `org2CloudOrgsAtom` never resolves (its token
+ * refresh silently failed and auth was NOT cleared — see the "cloud org
+ * fetch skipped: token refresh failed" log path there), `org2CloudOrgsLoadedAtom`
+ * can stay false forever. Left unchecked, the phase derivation below pins at
+ * "loading" indefinitely — an infinite spinner with no recovery affordance.
+ * Bound the wait: if we're still stuck after this long, surface the existing
+ * error phase (with its retry button) instead of spinning forever.
+ */
+const ORG_LOAD_STALL_MS = 20_000;
+
+/**
+ * This hook has no handle on the orgs fetch itself (that lives in
+ * `org2CloudOrgsAtom`), so there's nothing to re-kick on retry beyond
+ * re-arming this window and letting the atom get another chance to resolve
+ * before we flag it stuck again.
+ */
+const ORG_LOAD_STALL_ERROR =
+  "Couldn't load your cloud organizations. Try refreshing, or sign out and back in if this keeps happening.";
 
 export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
@@ -82,7 +107,18 @@ export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
       ? pickedOrgId
       : (orgs[0]?.orgId ?? null);
   const selectedOrg = orgs.find((org) => org.orgId === selectedOrgId) ?? null;
-  const telemetry = readOrgRuntimeTelemetry(selectedOrg);
+  const rawTelemetry = readOrgRuntimeTelemetry(selectedOrg);
+  // `readOrgRuntimeTelemetry` builds a fresh object every call, which would
+  // otherwise bust the `TeamMemberCard` React.memo comparison on every
+  // roster-panel render. Reuse the previous reference while the two fields
+  // that actually matter are unchanged — deliberately keyed on those
+  // primitives instead of `rawTelemetry` itself, which would defeat the
+  // memoization (it's a new object every render by construction).
+  const telemetry = useMemo(
+    () => rawTelemetry,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawTelemetry?.enabled, rawTelemetry?.intervalMinutes]
+  );
   const telemetryEnabled = telemetry?.enabled === true;
 
   // null = probe not answered yet for this sign-in.
@@ -92,6 +128,10 @@ export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
   const [error, setError] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
+  // Set once the "waiting on cloud orgs" condition below has held for
+  // ORG_LOAD_STALL_MS; cleared as soon as it lifts (orgs load, or auth goes
+  // away). See the effect below and the ORG_LOAD_STALL_MS comment.
+  const [stalledAtMs, setStalledAtMs] = useState<number | null>(null);
 
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const rosterKey = authIdentityKey
@@ -187,6 +227,25 @@ export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
       document.removeEventListener("visibilitychange", onVisibilityChange);
   }, [authIdentityKey, refresh]);
 
+  // Bounded stall detector for the "auth present, no org picked yet, orgs
+  // atom hasn't loaded" window (see ORG_LOAD_STALL_MS above).
+  const awaitingOrgs = Boolean(auth) && !selectedOrgId && !orgsLoaded;
+  useEffect(() => {
+    if (!awaitingOrgs) {
+      setStalledAtMs(null);
+      return;
+    }
+    // Re-arm on every refresh (including a stall-error retry): clear any
+    // prior stall immediately so the phase re-evaluates as "loading" while
+    // this fresh window runs.
+    setStalledAtMs(null);
+    const timer = setTimeout(
+      () => setStalledAtMs(Date.now()),
+      ORG_LOAD_STALL_MS
+    );
+    return () => clearTimeout(timer);
+  }, [awaitingOrgs, refreshNonce]);
+
   const visibleMembers =
     membersKey !== null && membersKey === rosterKey ? members : null;
 
@@ -194,7 +253,7 @@ export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
   if (!auth) {
     phase = "signedOut";
   } else if (!selectedOrgId) {
-    phase = orgsLoaded ? "noOrgs" : "loading";
+    phase = orgsLoaded ? "noOrgs" : stalledAtMs !== null ? "error" : "loading";
   } else if (visibleMembers === null && error !== null) {
     phase = "error";
   } else if (supported === false) {
@@ -218,10 +277,11 @@ export function useTeamRuntimeRoster(): TeamRuntimeRosterState {
     isSelectedOrgAdmin:
       selectedOrg?.role === "admin" || selectedOrg?.role === "owner",
     members: visibleMembers ?? NO_MEMBERS,
-    error,
+    error: stalledAtMs !== null ? ORG_LOAD_STALL_ERROR : error,
     refreshing: fetching,
     refresh,
     getFreshAccessToken,
     currentUserId: auth?.userId ?? null,
+    identityKey: authIdentityKey,
   };
 }

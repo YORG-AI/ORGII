@@ -1,23 +1,34 @@
 //! Per-(UTC day, bucket) usage rollup for member-runtime sharing.
 //!
 //! [`usage_daily_rollup`] folds the SAME streamed per-round set as the
-//! dashboard headline ([`visit_rounds`] — mirror rows excluded, per-round
-//! cost via `pricing::resolve_pricing`) into one row per UTC-day-floor ×
-//! source bucket. Unlike the desktop dashboard it always scopes to ALL
-//! sources: the pushed team totals must include the long-tail `other` bucket
-//! the local view hides, or member aggregates silently undercount.
+//! dashboard headline ([`visit_rounds_windowed`] — mirror rows excluded,
+//! per-round cost via `pricing::resolve_pricing`) into one row per
+//! UTC-day-floor × source bucket. Unlike the desktop dashboard it always
+//! scopes to ALL sources: the pushed team totals must include the long-tail
+//! `other` bucket the local view hides, or member aggregates silently
+//! undercount.
 //!
 //! Day attribution uses [`TrendBucket::Day`] floors (UTC), matching the
 //! `MemberUsageDay` contract in `features/Org2Cloud/memberRuntime/types.ts`
 //! where every member reports UTC days so team aggregation is
 //! timezone-consistent.
+//!
+//! Unlike the interactive dashboard reads, this runs unattended on a
+//! scheduler (up to every ~15 minutes) behind the shared single-permit query
+//! semaphore, so it uses [`visit_rounds_windowed`] instead of plain
+//! `visit_rounds`: the native per-turn fetch pushes this call's `[start_ms,
+//! end_ms]` window down to SQL rather than pulling every native turn ever
+//! recorded through the app layer on every tick. This is safe here (but not
+//! for the request-log/session-table reads) because this rollup never reads
+//! `UsageRoundRow::round_id`, whose numbering the windowed fetch does not
+//! preserve — see [`visit_rounds_windowed`]'s doc comment.
 
 use std::collections::{BTreeMap, HashSet};
 
 use rusqlite::Connection;
 use serde::Serialize;
 
-use super::rounds::visit_rounds;
+use super::rounds::visit_rounds_windowed;
 use super::{TrendBucket, UsageFilter};
 
 /// One (UTC-day-floor, bucket) aggregate row.
@@ -100,7 +111,7 @@ pub fn usage_daily_rollup(
 
     // BTreeMap keys give the required (day, bucket) output ordering for free.
     let mut cells: BTreeMap<(i64, String), RollupCell> = BTreeMap::new();
-    visit_rounds(conn, &filter, |round| {
+    visit_rounds_windowed(conn, &filter, |round| {
         // Rounds without a usable timestamp cannot be attributed to a UTC
         // day (mirrors the trend accumulator's `created_at_ms > 0` gate).
         if round.created_at_ms <= 0 {

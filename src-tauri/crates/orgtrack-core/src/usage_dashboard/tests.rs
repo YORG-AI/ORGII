@@ -793,6 +793,94 @@ fn daily_rollup_skips_zero_usage_cells() {
 }
 
 #[test]
+fn daily_rollup_native_window_pushdown_matches_unwindowed_rust_filter() {
+    // A fresh, minimal fixture (not `seeded_conn`) so the boundary math below
+    // is easy to check by hand without other fixture rows in range.
+    let conn = fixture_conn();
+    insert_code_session(
+        &conn,
+        "boundary-claude",
+        "claude",
+        "Boundary run",
+        "2026-07-18T02:00:00+00:00",
+    );
+
+    let boundary_ms = ms("2026-07-18T02:00:00Z");
+
+    // Every native `created_at` in production is `Utc::now().to_rfc3339()`:
+    // fixed `+00:00` offset, minimal (chrono `AutoSi`) fractional digits.
+    // These rows pin the floor-vs-boundary edge the SQL pushdown must get
+    // right: `iso_to_ms` floors sub-millisecond precision away, so a turn
+    // landing in the SAME millisecond as the window's upper bound but with
+    // extra sub-ms precision must still be included (rows at 333/555 below).
+    insert_turn(
+        &conn,
+        "boundary-claude",
+        "claude-sonnet-4-5",
+        (111, 0, 0, 0),
+        "2026-07-18T01:59:59.999+00:00", // boundary_ms - 1ms: excluded
+    );
+    insert_turn(
+        &conn,
+        "boundary-claude",
+        "claude-sonnet-4-5",
+        (222, 0, 0, 0),
+        "2026-07-18T02:00:00+00:00", // exactly boundary_ms: included
+    );
+    insert_turn(
+        &conn,
+        "boundary-claude",
+        "claude-sonnet-4-5",
+        (333, 0, 0, 0),
+        "2026-07-18T02:00:00.000700+00:00", // boundary_ms + 0.7ms, same floor: included
+    );
+    insert_turn(
+        &conn,
+        "boundary-claude",
+        "claude-sonnet-4-5",
+        (444, 0, 0, 0),
+        "2026-07-18T02:00:00.001+00:00", // boundary_ms + 1ms: excluded
+    );
+    insert_turn(
+        &conn,
+        "boundary-claude",
+        "claude-sonnet-4-5",
+        (555, 0, 0, 0),
+        "2026-07-18T02:00:00.001200+00:00", // boundary_ms + 1.2ms: excluded
+    );
+    recompute_session_usage(&conn, "boundary-claude")
+        .unwrap()
+        .expect("boundary session projected");
+
+    // Zero-width window: only turns whose floored millisecond is exactly
+    // `boundary_ms` should survive on either code path.
+    let filter = UsageFilter {
+        bucket: None,
+        start_ms: Some(boundary_ms),
+        end_ms: Some(boundary_ms),
+        session_id: None,
+        all_sources: true,
+    };
+
+    // Reference: the pre-existing unwindowed native fetch + Rust-side
+    // `filter.contains` (what every non-rollup caller still uses).
+    let unwindowed =
+        usage_rounds(&conn, &filter, SessionSort::Recent, 0, 100).expect("unwindowed rounds");
+    assert_eq!(unwindowed.len(), 2);
+    assert_eq!(
+        unwindowed.iter().map(|r| r.input_tokens).sum::<i64>(),
+        222 + 333
+    );
+
+    // The SQL-pushed-down path `daily_rollup` exercises must agree exactly.
+    let rollup = usage_daily_rollup(&conn, boundary_ms, boundary_ms).expect("daily rollup");
+    assert_eq!(rollup.days.len(), 1);
+    assert_eq!(rollup.days[0].bucket, "claude");
+    assert_eq!(rollup.days[0].requests, 2);
+    assert_eq!(rollup.days[0].input_tokens, 222 + 333);
+}
+
+#[test]
 fn daily_rollup_serializes_camel_case() {
     let row = DailyRollupRow {
         day_start_ms: 1_784_332_800_000,

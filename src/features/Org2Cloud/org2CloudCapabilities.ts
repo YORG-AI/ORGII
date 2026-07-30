@@ -38,18 +38,32 @@ const LEGACY_CAPABILITIES: CloudCapabilities = {
   memberRuntime: false,
 };
 
-const capabilitiesByEndpoint = new Map<string, CloudCapabilities>();
-const inFlightByEndpoint = new Map<string, Promise<CloudCapabilities>>();
+export interface CloudCapabilitiesProbeResult {
+  capabilities: CloudCapabilities;
+  /**
+   * True when the endpoint actually answered with a parseable payload (the
+   * cached/happy path below) — a CONFIRMED read, including a confirmed
+   * pre-0010 backend that legitimately lacks a flag. False when the probe
+   * itself never got a usable answer (pre-0005 404, a transient transport
+   * failure, or a hard timeout): the legacy shape returned in that case is
+   * only an ASSUMPTION standing in for "we don't actually know yet", and
+   * callers that gate long blackout periods on the result should treat it
+   * very differently from a confirmed legacy backend.
+   */
+  confirmed: boolean;
+}
 
-export async function getCloudCapabilities(
-  accessToken: string
-): Promise<CloudCapabilities> {
-  const endpointKey = getCloudEndpoint().supabaseUrl;
-  const cached = capabilitiesByEndpoint.get(endpointKey);
-  if (cached) return cached;
-  const inFlight = inFlightByEndpoint.get(endpointKey);
-  if (inFlight) return inFlight;
-  const probe = (async () => {
+const capabilitiesByEndpoint = new Map<string, CloudCapabilities>();
+const inFlightByEndpoint = new Map<
+  string,
+  Promise<CloudCapabilitiesProbeResult>
+>();
+
+async function probeCloudCapabilities(
+  accessToken: string,
+  endpointKey: string
+): Promise<CloudCapabilitiesProbeResult> {
+  try {
     const payload = await runCloudRequestWithTimeout(
       (signal) => getCloudCapabilitiesRaw(accessToken, signal),
       CLOUD_CAPABILITIES_TIMEOUT_MS
@@ -59,7 +73,7 @@ export async function getCloudCapabilities(
       // 404 (pre-0005) and transient failures are indistinguishable here, so
       // answer legacy but do NOT cache — the next connection generation
       // re-probes instead of pinning a healthy backend to the legacy path.
-      return LEGACY_CAPABILITIES;
+      return { capabilities: LEGACY_CAPABILITIES, confirmed: false };
     }
     const capabilities: CloudCapabilities = {
       broadcastSignals: parsed.data.broadcastSignals ?? false,
@@ -69,14 +83,43 @@ export async function getCloudCapabilities(
       memberRuntime: parsed.data.memberRuntime ?? false,
     };
     capabilitiesByEndpoint.set(endpointKey, capabilities);
-    return capabilities;
-  })();
+    return { capabilities, confirmed: true };
+  } catch {
+    // The probe never completed (e.g. `runCloudRequestWithTimeout`'s hard
+    // deadline firing) — treat exactly like an absent/unparseable response:
+    // legacy, unconfirmed, uncached.
+    return { capabilities: LEGACY_CAPABILITIES, confirmed: false };
+  }
+}
+
+/**
+ * Endpoint capability probe that also reports whether the legacy shape is a
+ * CONFIRMED read (the backend answered) or merely ASSUMED (the probe failed
+ * to get an answer at all). Used by callers that need to react differently
+ * to "this backend genuinely predates the feature" vs. "we couldn't reach it
+ * this time" — see the member-runtime push scheduler's capability blackout.
+ */
+export async function getCloudCapabilitiesConfirmed(
+  accessToken: string
+): Promise<CloudCapabilitiesProbeResult> {
+  const endpointKey = getCloudEndpoint().supabaseUrl;
+  const cached = capabilitiesByEndpoint.get(endpointKey);
+  if (cached) return { capabilities: cached, confirmed: true };
+  const inFlight = inFlightByEndpoint.get(endpointKey);
+  if (inFlight) return inFlight;
+  const probe = probeCloudCapabilities(accessToken, endpointKey);
   inFlightByEndpoint.set(endpointKey, probe);
   try {
     return await probe;
   } finally {
     inFlightByEndpoint.delete(endpointKey);
   }
+}
+
+export async function getCloudCapabilities(
+  accessToken: string
+): Promise<CloudCapabilities> {
+  return (await getCloudCapabilitiesConfirmed(accessToken)).capabilities;
 }
 
 export const __CAPABILITIES_INTERNALS = {

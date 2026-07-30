@@ -25,9 +25,24 @@
  * together don't stampede.
  *
  * Failure handling: `ORG2_RUNTIME_DISABLED` marks the org disabled until
- * its roster record changes (no retry churn); anything else applies an
- * exponential per-org backoff (5 min base, 30 min cap) WITHOUT advancing
- * `lastPushAtMs`, so the next success closes the gap.
+ * its roster record changes (no retry churn); `ORG2_RUNTIME_TOO_LARGE`
+ * additionally shrinks that org's usage-days batch (halved, floored at one
+ * row, then dropping the optional profile/agents parts) so the retry has a
+ * chance of fitting; anything else applies an exponential per-org backoff
+ * (5 min base, 30 min cap) WITHOUT advancing `lastPushAtMs`, so the next
+ * success closes the gap.
+ *
+ * Capability probe: a CONFIRMED legacy answer (the backend genuinely
+ * responded without the flag) holds the long 6h recheck blackout; a probe
+ * that never got an answer at all (timeout/transport error) is UNCONFIRMED
+ * and instead uses the normal exponential backoff, so a transient hiccup
+ * doesn't get treated the same as a known pre-0010 backend.
+ *
+ * `running` is only ever cleared in the pass's own `finally` (never in
+ * `stop()`), and that `finally` unconditionally re-schedules whenever the
+ * scheduler is still `started` — so a `stop()` racing ahead of an in-flight
+ * pass, followed by a fresh `start()`, always ends up with either a running
+ * pass or an armed timer once the stale pass settles.
  */
 import { isTauri } from "@tauri-apps/api/core";
 
@@ -47,8 +62,8 @@ import {
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
 } from "../org2CloudAuthAtom";
-import type { CloudCapabilities } from "../org2CloudCapabilities";
-import { getCloudCapabilities } from "../org2CloudCapabilities";
+import type { CloudCapabilitiesProbeResult } from "../org2CloudCapabilities";
+import { getCloudCapabilitiesConfirmed } from "../org2CloudCapabilities";
 import { ensureFreshSession } from "../org2CloudClient";
 import { type Org2CloudOrg, org2CloudOrgsAtom } from "../org2CloudOrgsAtom";
 import {
@@ -85,6 +100,7 @@ import type {
 } from "./types";
 import {
   MEMBER_AGENTS_DETECT_MIN_INTERVAL_MS,
+  MEMBER_USAGE_DAYS_MAX_PER_PUSH,
   MEMBER_USAGE_ROLLUP_WINDOW_DAYS,
   SHARE_RUNTIME_SETTING_KEY,
 } from "./types";
@@ -121,7 +137,9 @@ export interface MemberRuntimeSchedulerDeps {
   getProfileOverview: () => Promise<BuilderProfileOverview>;
   detectInstalledAgents: () => Promise<MemberInstalledAgent[]>;
   upsert: typeof upsertMemberRuntime;
-  getCapabilities: (accessToken: string) => Promise<CloudCapabilities>;
+  getCapabilities: (
+    accessToken: string
+  ) => Promise<CloudCapabilitiesProbeResult>;
   ensureFresh: typeof ensureFreshSession;
 }
 
@@ -135,7 +153,7 @@ const defaultDeps: MemberRuntimeSchedulerDeps = {
   detectInstalledAgents: async () =>
     mapProbesToInstalledAgents(await externalCliSourcesDetect()),
   upsert: upsertMemberRuntime,
-  getCapabilities: getCloudCapabilities,
+  getCapabilities: getCloudCapabilitiesConfirmed,
   ensureFresh: ensureFreshSession,
 };
 
@@ -162,8 +180,19 @@ export class MemberRuntimePushScheduler {
   private readonly disabledRecordFingerprint = new Map<string, string>();
   /** Non-zero while the endpoint's capability probe said no memberRuntime. */
   private capabilityRecheckAtMs = 0;
+  /** Consecutive capability probes that failed to get a CONFIRMED answer at
+   * all (timeout/transport error) — distinct from a confirmed legacy
+   * backend, which uses the long recheck instead of this backoff. */
+  private capabilityUnconfirmedFailures = 0;
   /** Pass-level floor after a failed token refresh. */
   private authRetryNotBeforeMs = 0;
+  /** Per-org usage-days batch cap, halved on `ORG2_RUNTIME_TOO_LARGE` and
+   * floored at 1; absent = the planner's default cap. */
+  private readonly usageDaysCapByOrg = new Map<string, number>();
+  /** Orgs where even a single usage-day row still exceeds the server's size
+   * cap: drop the optional profile/installed-agents parts from the next
+   * attempt too (and log the transition exactly once). */
+  private readonly dropOptionalSectionsByOrg = new Set<string>();
   private storeUnsubscribers: Array<() => void> = [];
 
   private readonly onVisibilityChange = (): void => {
@@ -213,7 +242,10 @@ export class MemberRuntimePushScheduler {
     this.orgBackoff.clear();
     this.disabledRecordFingerprint.clear();
     this.capabilityRecheckAtMs = 0;
+    this.capabilityUnconfirmedFailures = 0;
     this.authRetryNotBeforeMs = 0;
+    this.usageDaysCapByOrg.clear();
+    this.dropOptionalSectionsByOrg.clear();
     this.store = null;
   }
 
@@ -248,8 +280,17 @@ export class MemberRuntimePushScheduler {
         log.warn("member runtime push pass failed", error);
       })
       .finally(() => {
+        // ALWAYS clear the in-flight flag and re-arm from current state —
+        // even when this pass belongs to a stale generation (stop() then
+        // start() raced ahead of it settling). schedule() itself recomputes
+        // everything from the CURRENT store/atoms, so it's safe to call
+        // unconditionally; gating it on a generation match instead left a
+        // started scheduler with neither a timer nor a running pass
+        // whenever start() landed while the previous pass was still in
+        // flight (its trigger() no-ops on `running`, and the stale pass's
+        // generation mismatch used to skip re-scheduling here).
         this.running = false;
-        if (this.generation === generation) this.schedule();
+        if (this.started) this.schedule();
       });
   }
 
@@ -346,18 +387,32 @@ export class MemberRuntimePushScheduler {
       fresh
     );
 
-    let capabilities: CloudCapabilities | null = null;
+    let probe: CloudCapabilitiesProbeResult | null = null;
     try {
-      capabilities = await this.deps.getCapabilities(fresh.accessToken);
+      probe = await this.deps.getCapabilities(fresh.accessToken);
     } catch {
-      capabilities = null;
+      probe = null;
     }
     if (this.generation !== generation) return;
-    if (!capabilities?.memberRuntime) {
-      this.capabilityRecheckAtMs =
-        this.deps.now() + MEMBER_RUNTIME_CAPABILITY_RECHECK_MS;
+    if (!probe?.capabilities.memberRuntime) {
+      if (probe?.confirmed) {
+        // A backend that genuinely answered without the flag: hold the long
+        // recheck blackout, it isn't going to change until an upgrade.
+        this.capabilityUnconfirmedFailures = 0;
+        this.capabilityRecheckAtMs =
+          this.deps.now() + MEMBER_RUNTIME_CAPABILITY_RECHECK_MS;
+      } else {
+        // The probe itself failed (timeout/transport error) — we don't
+        // actually know whether the backend supports this. Retry soon via
+        // the normal exponential backoff instead of a 6h blackout.
+        this.capabilityUnconfirmedFailures += 1;
+        this.capabilityRecheckAtMs =
+          this.deps.now() +
+          memberRuntimeBackoffDelayMs(this.capabilityUnconfirmedFailures);
+      }
       return;
     }
+    this.capabilityUnconfirmedFailures = 0;
     this.capabilityRecheckAtMs = 0;
 
     // The detection probe is machine-global: run it at most once per pass
@@ -397,6 +452,12 @@ export class MemberRuntimePushScheduler {
       this.orgBackoff.delete(org.orgId);
       return;
     }
+    if (isMemberRuntimeErrorCode(error, "ORG2_RUNTIME_TOO_LARGE")) {
+      // A plain backoff alone would retry the SAME oversized bundle forever.
+      // Shrink what this org sends next tick too, so the retry has a chance
+      // of actually fitting under the server's cap.
+      this.shrinkOversizedOrgPayload(org.orgId);
+    }
     const failures = (this.orgBackoff.get(org.orgId)?.failures ?? 0) + 1;
     const delayMs = memberRuntimeBackoffDelayMs(failures);
     this.orgBackoff.set(org.orgId, {
@@ -411,6 +472,34 @@ export class MemberRuntimePushScheduler {
     );
   }
 
+  /**
+   * `ORG2_RUNTIME_TOO_LARGE` mitigation: halve the org's usage-days batch
+   * (floor 1 row), and once even a single row is still too large, additionally
+   * drop the optional profile/installed-agents sections from the next
+   * attempt. Sticky by design — never grown back automatically, since a
+   * later success at the reduced size doesn't tell us a larger one would
+   * still fit; this only needs to unstick the stall, not tune itself.
+   */
+  private shrinkOversizedOrgPayload(orgId: string): void {
+    const currentCap =
+      this.usageDaysCapByOrg.get(orgId) ?? MEMBER_USAGE_DAYS_MAX_PER_PUSH;
+    if (currentCap > 1) {
+      this.usageDaysCapByOrg.set(
+        orgId,
+        Math.max(1, Math.floor(currentCap / 2))
+      );
+      return;
+    }
+    if (!this.dropOptionalSectionsByOrg.has(orgId)) {
+      this.dropOptionalSectionsByOrg.add(orgId);
+      log.warn(
+        `member runtime push for org ${orgId} still exceeds the size cap at ` +
+          "a single usage-day row; dropping profile/installed-agents from " +
+          "the next attempt"
+      );
+    }
+  }
+
   /** One org's tick: compose parts, upsert, persist fingerprints. */
   private async pushOrg(
     accessToken: string,
@@ -420,6 +509,9 @@ export class MemberRuntimePushScheduler {
   ): Promise<void> {
     const state = readMemberRuntimePushState(identityKey, org.orgId);
     const nowMs = this.deps.now();
+    const usageDaysCap =
+      this.usageDaysCapByOrg.get(org.orgId) ?? MEMBER_USAGE_DAYS_MAX_PER_PUSH;
+    const dropOptionalSections = this.dropOptionalSectionsByOrg.has(org.orgId);
 
     // Status: cached machine identity + fresh burst sample. Failures here
     // reject the tick (status is the heartbeat).
@@ -433,33 +525,38 @@ export class MemberRuntimePushScheduler {
     const rollup = await this.deps.getDailyRollup(windowStartMs, nowMs);
     const usagePlan = planUsageDaysPush(
       mapRollupRowsToMemberUsageDays(rollup.days),
-      state.usageFingerprint
+      state.usageFingerprint,
+      usageDaysCap
     );
 
     // Profile: cache read only; included only when one exists and changed.
+    // Skipped entirely once this org has proven too-large even at a single
+    // usage-day row (ORG2_RUNTIME_TOO_LARGE mitigation).
     let profilePart: MemberProfilePayload | undefined;
     let nextProfileFingerprint = state.profileFingerprint;
-    try {
-      const overview = await this.deps.getProfileOverview();
-      const profile = overview.profile;
-      if (profile.code && profile.sessions > 0) {
-        const fingerprint = builderProfileFingerprint(profile);
-        if (fingerprint !== state.profileFingerprint) {
-          profilePart = { profile };
-          nextProfileFingerprint = fingerprint;
+    if (!dropOptionalSections) {
+      try {
+        const overview = await this.deps.getProfileOverview();
+        const profile = overview.profile;
+        if (profile.code && profile.sessions > 0) {
+          const fingerprint = builderProfileFingerprint(profile);
+          if (fingerprint !== state.profileFingerprint) {
+            profilePart = { profile };
+            nextProfileFingerprint = fingerprint;
+          }
         }
+      } catch {
+        // No cached profile (or read failed): enrichment only — skip.
       }
-    } catch {
-      // No cached profile (or read failed): enrichment only — skip.
     }
 
     // Installed agents: probe at most once per detect floor, include only on
-    // fingerprint change.
+    // fingerprint change. Also skipped while dropping optional sections.
     let nextAgentsFingerprint = state.agentsFingerprint;
     let nextAgentsDetectAtMs = state.lastAgentsDetectAtMs;
     if (
-      nowMs - state.lastAgentsDetectAtMs >=
-      MEMBER_AGENTS_DETECT_MIN_INTERVAL_MS
+      !dropOptionalSections &&
+      nowMs - state.lastAgentsDetectAtMs >= MEMBER_AGENTS_DETECT_MIN_INTERVAL_MS
     ) {
       const agents = await probeAgentsOnce();
       if (agents) {

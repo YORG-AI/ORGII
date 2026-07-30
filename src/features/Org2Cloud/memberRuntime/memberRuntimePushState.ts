@@ -69,3 +69,20 @@ export function writeMemberRuntimePushState(
     state
   );
 }
+
+/**
+ * Clear a (identity, org) push state back to "never pushed". Called from the
+ * explicit stop-sharing flow ONLY (never on `ORG2_RUNTIME_DISABLED`, which is
+ * a server-side toggle the org can flip back on without the member having
+ * deleted anything): `cloud_clear_member_runtime` deletes this member's rows
+ * server-side, so every locally-remembered fingerprint is now stale — without
+ * this reset, re-enabling sharing would see fingerprints matching the
+ * (already-deleted) previous content and skip re-sending unchanged
+ * usage-days/profile/agents rows the server no longer has.
+ */
+export function resetMemberRuntimePushState(
+  identityKey: string,
+  orgId: string
+): void {
+  pushStateStorage.removeItem(memberRuntimePushStateKey(identityKey, orgId));
+}

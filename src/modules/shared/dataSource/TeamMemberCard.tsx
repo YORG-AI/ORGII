@@ -82,7 +82,10 @@ interface TeamMemberCardProps {
   nowMs: number;
   agentCatalog: AgentCatalog;
   isSelf: boolean;
-  onOpen: () => void;
+  /** Takes the userId rather than being pre-bound per card, so the parent can
+   * pass one stable callback reference to every card instead of a fresh
+   * closure per render (which would defeat this component's `memo`). */
+  onOpen: (userId: string) => void;
 }
 
 const TeamMemberCard = memo(function TeamMemberCard({
@@ -113,7 +116,7 @@ const TeamMemberCard = memo(function TeamMemberCard({
   return (
     <button
       type="button"
-      onClick={onOpen}
+      onClick={() => onOpen(entry.userId)}
       data-testid={`team-member-card-${entry.userId}`}
       data-stale={stale ? "true" : "false"}
       className={`flex w-full flex-col gap-3 rounded-xl border border-border-1 bg-primary-container p-4 text-left transition-colors hover:border-border-2 ${
