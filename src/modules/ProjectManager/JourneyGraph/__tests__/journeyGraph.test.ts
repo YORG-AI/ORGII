@@ -1,13 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { describe, expect, it, vi } from "vitest";
 
-import { journeyGraphQuery } from "@src/api/tauri/journeyGraph";
+import {
+  type JourneyGraphPayload,
+  journeyGraphQuery,
+} from "@src/api/tauri/journeyGraph";
 
 import { graphToJourneyViewModel } from "../viewModel";
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: vi.fn() }));
 
-const payload = {
+const payload: JourneyGraphPayload = {
   nodes: [
     {
       id: "session/s",
@@ -18,7 +21,7 @@ const payload = {
   ],
   edges: [],
   coverage: [{ sourceRef: "session:s", status: "represented" }],
-} as const;
+};
 describe("shared journey graph", () => {
   it("uses the same command payload for project and session scopes", async () => {
     vi.mocked(invoke).mockResolvedValue(payload);
