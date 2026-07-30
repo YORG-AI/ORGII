@@ -2,34 +2,27 @@ import {
   SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
-import { invoke } from "@tauri-apps/api/core";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
+  type NotificationPermissionStatus,
   checkNotificationPermission,
   playCompletionSound,
+  requestNotificationPermission,
   sendTestNotification,
 } from "@src/api/services/notification";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import Slider from "@src/components/Slider";
 import Switch from "@src/components/Switch";
-import { createLogger } from "@src/hooks/logger";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { useSetting } from "@src/store/settings";
 import { isMacOS } from "@src/util/platform/tauri";
 
-const log = createLogger("Notifications");
-
 interface NotificationCategoryConfig {
-  key:
-    | "taskCompletion"
-    | "agentApproval"
-    | "errors"
-    | "sessionStatus"
-    | "gitOperations";
+  key: "taskCompletion" | "errors" | "teamInbox";
   labelKey: string;
 }
 
@@ -39,20 +32,12 @@ const NOTIFICATION_CATEGORIES: NotificationCategoryConfig[] = [
     labelKey: "notifications.taskCompletion",
   },
   {
-    key: "agentApproval",
-    labelKey: "notifications.agentApproval",
-  },
-  {
     key: "errors",
     labelKey: "notifications.errors",
   },
   {
-    key: "sessionStatus",
-    labelKey: "notifications.sessionStatus",
-  },
-  {
-    key: "gitOperations",
-    labelKey: "notifications.gitOperations",
+    key: "teamInbox",
+    labelKey: "notifications.teamInbox",
   },
 ];
 
@@ -72,18 +57,14 @@ const NotificationsAdvancedBlocks: React.FC = () => {
   const [taskCompletion, setTaskCompletion] = useSetting(
     "notifications.categories.taskCompletion"
   );
-  const [agentApproval, setAgentApproval] = useSetting(
-    "notifications.categories.agentApproval"
-  );
   const [errors, setErrors] = useSetting("notifications.categories.errors");
-  const [sessionStatus, setSessionStatus] = useSetting(
-    "notifications.categories.sessionStatus"
-  );
-  const [gitOperations, setGitOperations] = useSetting(
-    "notifications.categories.gitOperations"
+  const [teamInbox, setTeamInbox] = useSetting(
+    "notifications.categories.teamInbox"
   );
 
-  const [permissionStatus, setPermissionStatus] = useState<string>("unknown");
+  const [permissionStatus, setPermissionStatus] =
+    useState<NotificationPermissionStatus>("unknown");
+  const [isRequestingPermission, setIsRequestingPermission] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
@@ -98,22 +79,37 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     };
   }, []);
 
+  const ensureSystemPermission =
+    async (): Promise<NotificationPermissionStatus> => {
+      if (permissionStatus === "granted") return permissionStatus;
+      setIsRequestingPermission(true);
+      try {
+        const result = await requestNotificationPermission();
+        setPermissionStatus(result);
+        if (result !== "granted") {
+          Message.warning(t("notifications.permissionDenied"));
+        }
+        return result;
+      } finally {
+        setIsRequestingPermission(false);
+      }
+    };
+
+  const handleToggleSystemNotification = async () => {
+    if (systemNotificationEnabled) {
+      setSystemNotificationEnabled(false);
+      return;
+    }
+    if ((await ensureSystemPermission()) === "granted") {
+      setSystemNotificationEnabled(true);
+    }
+  };
+
   const handleTestNotification = async () => {
     setIsTesting(true);
     try {
-      const success = await sendTestNotification({
-        enabled,
-        systemNotificationEnabled,
-        completionSound,
-        soundVolume,
-        categories: {
-          taskCompletion,
-          agentApproval,
-          errors,
-          sessionStatus,
-          gitOperations,
-        },
-      });
+      if ((await ensureSystemPermission()) !== "granted") return;
+      const success = await sendTestNotification();
       if (success) {
         Message.success(t("notifications.test.sent"));
       } else {
@@ -126,18 +122,6 @@ const NotificationsAdvancedBlocks: React.FC = () => {
     }
   };
 
-  const handleToggleDockBadge = async () => {
-    const newEnabled = !dockBadgeEnabled;
-    setDockBadgeEnabled(newEnabled);
-    if (!newEnabled) {
-      try {
-        await invoke("clear_dock_badge");
-      } catch (error) {
-        log.error("[Notifications] Failed to clear badge:", error);
-      }
-    }
-  };
-
   const handleVolumeChange: (value: number | [number, number]) => void = (
     value
   ) => {
@@ -147,18 +131,14 @@ const NotificationsAdvancedBlocks: React.FC = () => {
 
   const categoryValues = {
     taskCompletion,
-    agentApproval,
     errors,
-    sessionStatus,
-    gitOperations,
+    teamInbox,
   };
 
   const categorySetters = {
     taskCompletion: setTaskCompletion,
-    agentApproval: setAgentApproval,
     errors: setErrors,
-    sessionStatus: setSessionStatus,
-    gitOperations: setGitOperations,
+    teamInbox: setTeamInbox,
   } as const;
 
   if (!enabled) {
@@ -191,31 +171,28 @@ const NotificationsAdvancedBlocks: React.FC = () => {
         )}
       </SectionContainer>
 
-      {completionSound && (
-        <SectionContainer>
-          {NOTIFICATION_CATEGORIES.map((category) => (
-            <SectionRow key={category.key} label={t(category.labelKey)}>
-              <Switch
-                checked={categoryValues[category.key]}
-                onChange={() =>
-                  categorySetters[category.key](!categoryValues[category.key])
-                }
-              />
-            </SectionRow>
-          ))}
-        </SectionContainer>
-      )}
+      <SectionContainer>
+        {NOTIFICATION_CATEGORIES.map((category) => (
+          <SectionRow key={category.key} label={t(category.labelKey)}>
+            <Switch
+              checked={categoryValues[category.key]}
+              onChange={() =>
+                categorySetters[category.key](!categoryValues[category.key])
+              }
+            />
+          </SectionRow>
+        ))}
+      </SectionContainer>
 
       <SectionContainer>
         <SectionRow label={t("notifications.enableSystem")}>
           <Switch
             checked={systemNotificationEnabled}
-            onChange={() =>
-              setSystemNotificationEnabled(!systemNotificationEnabled)
-            }
+            disabled={isRequestingPermission}
+            onChange={() => void handleToggleSystemNotification()}
           />
         </SectionRow>
-        {systemNotificationEnabled && (
+        {(systemNotificationEnabled || permissionStatus !== "unknown") && (
           <SectionRow
             label={t("notifications.systemPermission")}
             indent
@@ -254,7 +231,10 @@ const NotificationsAdvancedBlocks: React.FC = () => {
 
       <SectionContainer>
         <SectionRow label={t("notifications.enableDockBadge")}>
-          <Switch checked={dockBadgeEnabled} onChange={handleToggleDockBadge} />
+          <Switch
+            checked={dockBadgeEnabled}
+            onChange={() => setDockBadgeEnabled(!dockBadgeEnabled)}
+          />
         </SectionRow>
       </SectionContainer>
 
@@ -265,13 +245,13 @@ const NotificationsAdvancedBlocks: React.FC = () => {
               size="default"
               onClick={handleTestNotification}
               loading={isTesting}
-              disabled={permissionStatus !== "granted"}
+              disabled={isRequestingPermission}
             >
               {t("notifications.notification")}
             </Button>
             <Button
               size="default"
-              onClick={() => playCompletionSound(soundVolume)}
+              onClick={() => void playCompletionSound(soundVolume)}
               disabled={!completionSound}
             >
               {t("notifications.sound")}

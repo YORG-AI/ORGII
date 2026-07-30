@@ -13,14 +13,13 @@ import { settingsAtom } from "@src/store/settings/settingsAtom";
 export interface NotificationSettings {
   enabled: boolean;
   systemNotificationEnabled: boolean;
+  dockBadgeEnabled: boolean;
   completionSound: boolean;
   soundVolume: number;
   categories: {
     taskCompletion: boolean;
-    agentApproval: boolean;
     errors: boolean;
-    sessionStatus: boolean;
-    gitOperations: boolean;
+    teamInbox: boolean;
   };
 }
 
@@ -30,14 +29,13 @@ export const notificationSettingsAtom = atom<NotificationSettings>((get) => {
     enabled: settings["notifications.enabled"],
     systemNotificationEnabled:
       settings["notifications.systemNotificationEnabled"],
+    dockBadgeEnabled: settings["notifications.dockBadgeEnabled"],
     completionSound: settings["notifications.completionSound"],
     soundVolume: settings["notifications.soundVolume"],
     categories: {
       taskCompletion: settings["notifications.categories.taskCompletion"],
-      agentApproval: settings["notifications.categories.agentApproval"],
       errors: settings["notifications.categories.errors"],
-      sessionStatus: settings["notifications.categories.sessionStatus"],
-      gitOperations: settings["notifications.categories.gitOperations"],
+      teamInbox: settings["notifications.categories.teamInbox"],
     },
   };
 });

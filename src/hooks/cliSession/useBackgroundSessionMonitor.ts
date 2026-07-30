@@ -11,17 +11,23 @@
  * Active adapters remain responsible for transcript/UI mirroring only; turn
  * finality for active and background sessions is owned here.
  */
+import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { getCodeEditorWebSocket } from "@src/api/realtime/codeEditorWebSocket";
+import { deliverBackgroundSessionTerminalNotification } from "@src/hooks/session/backgroundSessionNotifications";
+import { sessionByIdAtom } from "@src/store/session";
 import {
-  notifyError,
-  notifyTaskCompletion,
-} from "@src/api/services/notification";
-import Message from "@src/components/Message";
-import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
+  type NotificationSettings,
+  notificationSettingsAtom,
+} from "@src/store/ui/notificationAtom";
 import { isTerminalStatus } from "@src/types/session/session";
+import {
+  getInstrumentedStore,
+  isStoreInitialized,
+} from "@src/util/core/state/instrumentedStore";
 
 import { cliTurnLifecycleCoordinator } from "./cliTurnLifecycleCoordinator";
 
@@ -37,12 +43,17 @@ interface BackgroundStatusMessage {
 }
 
 export function useBackgroundSessionMonitor(): void {
+  const { t } = useTranslation();
   const notificationSettings = useAtomValue(notificationSettingsAtom);
 
   const settingsRef = useRef(notificationSettings);
   useEffect(() => {
     settingsRef.current = notificationSettings;
   }, [notificationSettings]);
+  const translationRef = useRef(t);
+  useEffect(() => {
+    translationRef.current = t;
+  }, [t]);
 
   useEffect(() => {
     const wsClient = getCodeEditorWebSocket();
@@ -56,48 +67,31 @@ export function useBackgroundSessionMonitor(): void {
         turnIntentId: msg.turn_intent_id,
       });
 
-      if (!msg.background) return;
       if (!isTerminalStatus(msg.status)) return;
       if (!applied) return;
-
-      const sessionName = msg.session_name || "Background session";
-
-      if (msg.status === "completed") {
-        notifyTaskCompletion(
-          `"${sessionName}" completed — ready for review`,
-          settingsRef.current
-        );
-
-        Message.success({
-          content: `"${sessionName}" completed. Click to review diff.`,
-          duration: 0,
-          closable: true,
-        });
-      } else if (msg.status === "failed") {
-        const errorDetail = msg.error_message
-          ? `: ${msg.error_message.slice(0, 120)}`
-          : "";
-
-        notifyError(
-          `"${sessionName}" failed${errorDetail}`,
-          settingsRef.current
-        );
-
-        Message.error({
-          content: `"${sessionName}" failed${errorDetail}`,
-          duration: 8000,
-          closable: true,
-        });
-      } else if (msg.status === "cancelled") {
-        Message.warning({
-          content: `"${sessionName}" was cancelled`,
-          duration: 5000,
-        });
-      }
+      deliverBackgroundTerminal(
+        msg,
+        settingsRef.current,
+        translationRef.current
+      );
     });
 
     const reconcile = () => {
-      void cliTurnLifecycleCoordinator.reconcile();
+      void cliTurnLifecycleCoordinator.reconcile().then((appliedStatuses) => {
+        for (const status of appliedStatuses) {
+          if (!isTerminalStatus(status.status)) continue;
+          deliverBackgroundTerminal(
+            {
+              type: "code_session.status_changed",
+              session_id: status.sessionId,
+              status: status.status,
+              turn_intent_id: status.turnIntentId,
+            },
+            settingsRef.current,
+            translationRef.current
+          );
+        }
+      });
     };
     const unsubscribeConnected = wsClient.on("connected", reconcile);
     const handleVisibilityChange = () => {
@@ -113,4 +107,29 @@ export function useBackgroundSessionMonitor(): void {
       window.removeEventListener("focus", reconcile);
     };
   }, []);
+}
+
+function deliverBackgroundTerminal(
+  msg: BackgroundStatusMessage,
+  settings: NotificationSettings,
+  t: TFunction
+): void {
+  const session = isStoreInitialized()
+    ? getInstrumentedStore().get(sessionByIdAtom(msg.session_id))
+    : undefined;
+  const background = msg.background ?? session?.background ?? false;
+  if (!background) return;
+
+  const sessionName =
+    msg.session_name || session?.name || t("notifications.backgroundSession");
+
+  deliverBackgroundSessionTerminalNotification(
+    {
+      status: msg.status,
+      sessionName,
+      errorMessage: msg.error_message ?? session?.error_message,
+    },
+    settings,
+    t
+  );
 }

@@ -707,7 +707,9 @@
       "sent": "Test notification sent",
       "permissionWarning": "Failed to send test notification. Check permissions.",
       "sendFailed": "Unable to send test notification. Please check your notification permissions and try again."
-    }
+    },
+    "teamInbox": "Team Inbox",
+    "teamInboxDesc": "Assignments, mentions, and handoffs from teammates"
   },
   "editor": {
     "tabEditor": "Editor",
