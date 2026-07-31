@@ -33,6 +33,10 @@ import {
   selectedAgentDefinitionIdAtom,
   sessionSourceAtom,
 } from "@src/store/session/creatorStateAtom";
+import {
+  creatorProjectScopeAtom,
+  projectScopeKey,
+} from "@src/store/session/creatorDefaultModelAtom";
 import { isMultiRootWorkspaceAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { primaryFolderAtom } from "@src/store/workspace/derived";
 import type { SlashItem } from "@src/types/extensions";
@@ -302,6 +306,23 @@ export function useSessionCreator(
 
   const { advancedConfig, setAdvancedConfig, setLastModelSelection } =
     useAdvancedConfig();
+
+  // E3 全共享: scope shared model/key/account config to the current
+  // project. Org projectId wins; otherwise repo path. Cleared on unmount
+  // so global surfaces (Spotlight) keep writing to the category key.
+  const setCreatorProjectScope = useSetAtom(creatorProjectScopeAtom);
+  const scopeProjectId = workItemContext?.projectId;
+  const scopeRepoPath = effectiveSource?.repoPath;
+  useEffect(() => {
+    const scope = scopeProjectId
+      ? projectScopeKey(`project:${scopeProjectId}`)
+      : scopeRepoPath
+        ? projectScopeKey(`repo:${scopeRepoPath}`)
+        : null;
+    setCreatorProjectScope(scope);
+    return () => setCreatorProjectScope(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeProjectId, scopeRepoPath]);
 
   // ============================================
   // Market URL Deeplink (one-shot on mount)

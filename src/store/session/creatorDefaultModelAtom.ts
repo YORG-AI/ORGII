@@ -59,6 +59,44 @@ import { formatModelNameFull } from "@src/util/formatModelName";
 import { dispatchCategoryAtom } from "./creatorStateAtom";
 import type { RecentModelEntry } from "./recentModelEntriesAtom";
 
+// ============================================
+// Project-scoped shared model config (E3: 全共享)
+// ============================================
+
+/**
+ * Active project scope for the session creator's shared model config.
+ *
+ * E3 "全共享": every session under the same project shares one
+ * model+key+account selection. The storage key for `LastModelPairMap`
+ * is derived from this scope instead of the dispatch category:
+ *
+ *   - `project:<projectId>`  — Agent Org project scoping
+ *   - `repo:<repoPath>`      — repo/workspace scoping (no org project)
+ *   - fallback: dispatch category (legacy + global surfaces)
+ *
+ * Set by SessionCreator variants (ChatPanel) and repo-scoped launchers
+ * (AgentLauncherSection) on mount; cleared on unmount so global
+ * surfaces (Spotlight) keep writing to the category fallback.
+ */
+export const creatorProjectScopeAtom = atom<string | null>(null);
+creatorProjectScopeAtom.debugLabel = "creatorProjectScopeAtom";
+
+/** Build the shared-config storage key for a project scope. */
+export function projectScopeKey(scope: string | null): string | null {
+  if (!scope) return null;
+  return scope.startsWith("project:") || scope.startsWith("repo:")
+    ? scope
+    : `project:${scope}`;
+}
+
+/** Resolve the effective storage key: project scope first, category fallback. */
+export function resolveModelPairKey(
+  scope: string | null,
+  category: string
+): string {
+  return projectScopeKey(scope) ?? category;
+}
+
 const log = createLogger("CreatorDefaultModel");
 
 // ============================================
@@ -146,7 +184,10 @@ export const creatorDefaultModelPairAtom = atom(
   (get): RecentModelEntry | null => {
     const map = get(creatorDefaultModelMapAtom);
     const category = get(dispatchCategoryAtom);
-    return map[category] ?? null;
+    const scope = get(creatorProjectScopeAtom);
+    const scopeKey = projectScopeKey(scope);
+    // E3 全共享: project-scoped entry wins; category is the legacy fallback.
+    return (scopeKey ? map[scopeKey] : undefined) ?? map[category] ?? null;
   }
 );
 
@@ -274,10 +315,12 @@ export const creatorDefaultModelSelectionAtom = atom(
   (get, set, entry: RecentModelEntry | null) => {
     const map = get(creatorDefaultModelMapAtom);
     const category = get(dispatchCategoryAtom);
+    const scope = get(creatorProjectScopeAtom);
+    const key = resolveModelPairKey(scope, category);
 
     const newMap: LastModelPairMap = {
       ...map,
-      [category]: entry ?? undefined,
+      [key]: entry ?? undefined,
     };
 
     cachedMap = newMap;

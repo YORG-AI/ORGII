@@ -38,7 +38,9 @@ import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAto
 import {
   type LastModelSelection,
   creatorDefaultModelSelectionAtom,
+  creatorProjectScopeAtom,
   extractModelPair,
+  projectScopeKey,
 } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { modelPickerStyleAtom } from "@src/store/ui/chatPanelAtom";
@@ -61,6 +63,7 @@ const ModelPill: React.FC = memo(() => {
   // strings, etc. — fields not stored on the session row).
   const creatorDefaultLastModel = useValidatedLastPair();
   const setCreatorDefaultModel = useSetAtom(creatorDefaultModelSelectionAtom);
+  const setCreatorProjectScope = useSetAtom(creatorProjectScopeAtom);
 
   const { sessionId } = useSessionId();
   const isInSession = Boolean(sessionId);
@@ -170,7 +173,23 @@ const ModelPill: React.FC = memo(() => {
       }
 
       const pair = extractModelPair(config);
-      setCreatorDefaultModel(pair);
+      // E3 全共享: in-session picks write back to the project-scoped
+      // shared config (same projectId/repoPath as the session row), so
+      // sibling sessions under the same project inherit the change.
+      // Creator mode (no session) writes to whatever scope the creator
+      // set on mount; global surfaces fall back to the category key.
+      if (isInSession && session) {
+        const sessionScope = session.projectId
+          ? projectScopeKey(`project:${session.projectId}`)
+          : session.repoPath
+            ? projectScopeKey(`repo:${session.repoPath}`)
+            : null;
+        setCreatorProjectScope(sessionScope);
+        setCreatorDefaultModel(pair);
+        setCreatorProjectScope(null);
+      } else {
+        setCreatorDefaultModel(pair);
+      }
 
       // For in-session model swaps, persist `(model, accountId)` to
       // the session row via session_patch. For market sessions the

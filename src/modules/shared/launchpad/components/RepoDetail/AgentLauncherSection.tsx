@@ -7,7 +7,7 @@
  */
 import { useSetAtom } from "jotai";
 import { Grip, Sparkles, X } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ModelTypeSchema } from "@src/api/tauri/rpc/schemas/validation";
@@ -37,7 +37,9 @@ import {
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import {
   creatorDefaultModelSelectionAtom,
+  creatorProjectScopeAtom,
   extractModelPair,
+  projectScopeKey,
 } from "@src/store/session/creatorDefaultModelAtom";
 
 interface AgentLauncherSectionProps {
@@ -100,6 +102,18 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
     },
     [setLastModel]
   );
+
+  // E3 全共享: repo-scoped shared config for launchpad-launched sessions.
+  const setCreatorProjectScope = useSetAtom(creatorProjectScopeAtom);
+  const launcherRepoPath = context.repoPath;
+  useEffect(() => {
+    const scope = launcherRepoPath
+      ? projectScopeKey(`repo:${launcherRepoPath}`)
+      : null;
+    setCreatorProjectScope(scope);
+    return () => setCreatorProjectScope(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [launcherRepoPath]);
 
   // ============================================
   // Model Selector State
