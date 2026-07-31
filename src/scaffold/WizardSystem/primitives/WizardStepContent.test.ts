@@ -3,7 +3,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { HEADER_ICON_SIZE, TYPOGRAPHY } from "@src/config/workstation/tokens";
+import { SECTION_INTRO_TOKENS } from "@src/modules/shared/layouts/SectionLayout";
 
 import WizardStepContent, {
   WIZARD_STEP_CONTENT_TOKENS,
@@ -28,10 +28,8 @@ describe("WizardStepContent", () => {
     expect(html).toContain("<h1");
     expect(html).toContain("Choose a tutorial");
     expect(html).toContain("Learn on the product surface.");
-    expect(WIZARD_STEP_CONTENT_TOKENS.iconSize).toBe(HEADER_ICON_SIZE.md);
-    expect(WIZARD_STEP_CONTENT_TOKENS.title).toContain(TYPOGRAPHY.contentTitle);
-    expect(WIZARD_STEP_CONTENT_TOKENS.description).toContain(
-      TYPOGRAPHY.contentSubtitle
-    );
+    expect(html).toContain(SECTION_INTRO_TOKENS.title);
+    expect(html).toContain(SECTION_INTRO_TOKENS.description);
+    expect(WIZARD_STEP_CONTENT_TOKENS.container).toContain("max-w-[900px]");
   });
 });

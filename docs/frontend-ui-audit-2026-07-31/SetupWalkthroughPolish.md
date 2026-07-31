@@ -10,6 +10,10 @@
 `src/components/ProgressBar/index.tsx`,
 `src/config/windowChromeTokens.ts`,
 `src/modules/shared/layouts/OnboardingLayout/index.tsx`,
+`src/modules/shared/layouts/SectionLayout/Heading.test.ts`,
+`src/modules/shared/layouts/SectionLayout/Heading.tsx`,
+`src/modules/shared/layouts/SectionLayout/index.ts`,
+`src/modules/shared/layouts/SectionLayout/tokens.ts`,
 `src/modules/SetupWalkthrough/__tests__/layoutTokens.test.ts`,
 `src/modules/SetupWalkthrough/index.tsx`,
 `src/modules/SetupWalkthrough/index.scss`,
@@ -29,6 +33,7 @@
 | `ReadinessSteps.tsx` feedback surfaces       | Local alert skin  | fixed            | The shared `InlineAlert` already covers info, success, danger, icons, actions, and tokenized spacing.                                                                                                 | Replaced the local `StatusBanner` implementation.                |
 | `SetupWalkthrough/index.tsx` progress track  | Local progress UI | fixed            | The shared `ProgressBar` covers clamping, animation, track/fill tokens, and now accepts an accessible label.                                                                                          | Replaced setup-only progress markup with `ProgressBar`.          |
 | `ReadinessSteps.tsx` step heading/frame      | Local page frame  | fixed            | The feature rebuilt semantic heading, icon, supporting copy, content width, and vertical rhythm instead of using WizardSystem.                                                                        | Added and reused shared `WizardStepContent`.                     |
+| `WizardStepContent.tsx` intro hierarchy      | Raw structural UI | fixed            | The wizard primitive still assembled `<section>`, `<header>`, heading, and supporting copy instead of delegating the established SectionLayout system.                                                | Added the generic `SectionHeading appearance="intro"` contract.  |
 
 ## D2 — Arbitrary Tailwind Value vs Token
 
@@ -80,9 +85,11 @@
   sidebar/window-chrome tokens as the main app, and delegates the linear meter
   to ProgressBar.
 - WizardStepContent centralizes step title, description, icon, content width,
-  spacing, and heading semantics for WizardSystem and onboarding. Internally it
-  composes `TYPOGRAPHY`, `HEADER_ICON_SIZE`, `DETAIL_PANEL_TOKENS`, and
-  `SECTION_GAP_CLASSES` rather than defining a parallel visual scale.
+  spacing, and heading semantics for WizardSystem and onboarding. It now
+  delegates the entire semantic intro hierarchy to the shared
+  `SectionHeading` component; SectionLayout composes `TYPOGRAPHY`,
+  `HEADER_ICON_SIZE`, and `SECTION_GAP_CLASSES`, while WizardSystem supplies
+  only `DETAIL_PANEL_TOKENS.contentWidth`.
 - Setup step status, path, summary, and descriptive copy reuse the shared
   SectionLayout typography/path tokens; raw feature-level text sizing remains
   only where a component owns the design-system primitive.
@@ -90,7 +97,7 @@
 
 ## Summary
 
-- 11 fixes applied
+- 12 fixes applied
 - 5 kept with documented reason
 - 0 remaining fix candidates
 - 0 abstract candidates

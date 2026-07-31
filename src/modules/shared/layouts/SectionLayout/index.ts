@@ -105,4 +105,6 @@ export {
   SECTION_ACTION_GAP_CLASSES,
   /** "flex flex-col gap-3" — wrapper gap between section containers */
   SECTION_GAP_CLASSES,
+  /** Shared icon/title/description/content hierarchy for content intros */
+  SECTION_INTRO_TOKENS,
 } from "./tokens";
