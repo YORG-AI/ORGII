@@ -4,6 +4,8 @@
 `src/components/ActionCard/ActionCard.test.ts`,
 `src/components/ActionCard/index.tsx`,
 `src/components/ActionCard/types.ts`,
+`src/components/InlineAlert/InlineAlert.test.ts`,
+`src/components/InlineAlert/index.tsx`,
 `src/modules/SetupWalkthrough/index.tsx`,
 `src/modules/SetupWalkthrough/index.scss`,
 `src/modules/SetupWalkthrough/steps/ReadinessSteps.tsx`
@@ -16,6 +18,7 @@
 | -------------------------------------------- | ----------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | `SetupWalkthrough/index.tsx` step navigation | Native `<button>` | keep with reason | The row combines current/completed/locked states, a timeline connector, two-line copy, and `aria-current`; the shared Button variants do not cover this navigation shape.                             | Promote only if another wizard needs the same timeline contract. |
 | `ActionCard/index.tsx` selectable container  | Native `<button>` | keep with reason | `ActionCard` is itself the canonical design-system selectable control and owns native pressed/disabled/focus semantics. Wrapping it in Button would create the wrong visual and semantic abstraction. | —                                                                |
+| `ReadinessSteps.tsx` feedback surfaces       | Local alert skin  | fixed            | The shared `InlineAlert` already covers info, success, danger, icons, actions, and tokenized spacing.                                                                                                 | Replaced the local `StatusBanner` implementation.                |
 
 ## D2 — Arbitrary Tailwind Value vs Token
 
@@ -25,13 +28,15 @@
 
 ## D3 — Hardcoded Sizes / Colors
 
-| Line / value                   | Verdict          | Reason                                                                                                                                            | Suggested change           |
-| ------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Brand subtitle `max-w-[210px]` | fixed            | A spacing-scale equivalent is available.                                                                                                          | Replaced with `max-w-52`.  |
-| Ready content `max-w-[760px]`  | fixed            | The intended content width maps closely to an existing width token.                                                                               | Replaced with `max-w-3xl`. |
-| Setup progress `text-[11px]`   | keep with reason | This is compact secondary chrome between the 10 px brand tag and 12 px step copy; raising it to 12 px weakens the sidebar hierarchy.              | —                          |
-| ActionCard badge `text-[10px]` | keep with reason | The badge is tertiary metadata inside a 13 px card title and is an established ActionCard micro-label size.                                       | —                          |
-| Walkthrough sidebar `280px`    | keep with reason | This is a deliberate split-pane contract, not general spacing. It keeps eight localized step labels readable while preserving the content canvas. | —                          |
+| Line / value                   | Verdict          | Reason                                                                                                                                            | Suggested change                                            |
+| ------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Brand subtitle `max-w-[210px]` | fixed            | A spacing-scale equivalent is available.                                                                                                          | Replaced with `max-w-52`.                                   |
+| Ready content `max-w-[760px]`  | fixed            | The intended content width maps closely to an existing width token.                                                                               | Replaced with `max-w-3xl`.                                  |
+| Setup progress `text-[11px]`   | keep with reason | This is compact secondary chrome between the 10 px brand tag and 12 px step copy; raising it to 12 px weakens the sidebar hierarchy.              | —                                                           |
+| ActionCard badge `text-[10px]` | keep with reason | The badge is tertiary metadata inside a 13 px card title and is an established ActionCard micro-label size.                                       | —                                                           |
+| Walkthrough sidebar `280px`    | keep with reason | This is a deliberate split-pane contract, not general spacing. It keeps eight localized step labels readable while preserving the content canvas. | —                                                           |
+| Work-model numbered cards      | fixed            | Decorative ordinals, large corner radii, and hover scaling introduced a setup-only visual language.                                               | Replaced with shared SectionContainer / SectionRow density. |
+| Ready destination glow         | fixed            | The blurred accent treatment was unique to setup and competed with the app's normal information hierarchy.                                        | Replaced with the shared InlineAlert info treatment.        |
 
 ## D4 — Accessibility
 
@@ -40,6 +45,7 @@
 | Application logo | pass    | The canonical application asset is reused; decorative use is hidden from assistive technology and named use supports alternative text.     | —                |
 | Step navigation  | pass    | Native buttons expose disabled state, current step uses `aria-current="step"`, and the group has a localized accessible label.             | —                |
 | Goal choices     | pass    | ActionCard retains native button semantics and `aria-pressed`; the visual polish does not add or remove selection affordances dynamically. | —                |
+| Dynamic feedback | pass    | Shared InlineAlert accepts an explicit role; asynchronous success uses `status` and operation failures use `alert`.                        | —                |
 
 ## D5 — Visual Patterns Observed
 
@@ -50,11 +56,15 @@
 - Goal selection delegates hover, selected, focus, spacing, and color to the
   existing SelectionGrid and ActionCard primitives; onboarding adds no custom
   card variant.
+- Work-model explanations and the final readiness summary use the same
+  SectionContainer / SectionRow hierarchy as Settings and other App surfaces.
+- Guidance, success, and failure feedback use InlineAlert instead of a local
+  onboarding banner variant.
 - No additional pattern appears independently in three or more files.
 
 ## Summary
 
-- 2 fixes applied
+- 5 fixes applied
 - 5 kept with documented reason
 - 0 remaining fix candidates
 - 0 abstract candidates

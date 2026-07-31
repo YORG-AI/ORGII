@@ -1,16 +1,13 @@
 import {
-  AlertCircle,
   Boxes,
   BriefcaseBusiness,
   Building2,
   Check,
-  CircleCheck,
   Clipboard,
   Cloud,
   Eye,
   FolderGit2,
   Inbox,
-  Info,
   KeyRound,
   LayoutDashboard,
   Link2,
@@ -29,6 +26,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import { openOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
@@ -87,41 +85,6 @@ const StepFrame: React.FC<{
   );
 };
 
-const STATUS_STYLES = {
-  error: {
-    icon: AlertCircle,
-    className:
-      "border-danger-6/30 bg-danger-1 text-danger-6 shadow-sm shadow-danger-6/5",
-  },
-  success: {
-    icon: CircleCheck,
-    className:
-      "border-success-6/30 bg-success-1 text-success-7 shadow-sm shadow-success-6/5",
-  },
-  info: {
-    icon: Info,
-    className: "border-border-1 bg-fill-2/80 text-text-2",
-  },
-} as const;
-
-const StatusBanner: React.FC<{
-  kind?: keyof typeof STATUS_STYLES;
-  className?: string;
-  children: React.ReactNode;
-}> = ({ kind = "info", className = "", children }) => {
-  const config = STATUS_STYLES[kind];
-  const StatusIcon = config.icon;
-  return (
-    <div
-      className={`flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm leading-5 ${config.className} ${className}`.trim()}
-      role={kind === "error" ? "alert" : "status"}
-    >
-      <StatusIcon size={16} className="mt-0.5 flex-shrink-0" aria-hidden />
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
-};
-
 export const GoalStep: React.FC<StepProps> = ({ controller }) => {
   const { t } = useTranslation("onboarding");
   const options = useMemo<
@@ -167,9 +130,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
         showSelectionCheck={false}
         className="walkthrough-choice-grid"
       />
-      <StatusBanner className="walkthrough-goal-hint">
-        {t("readiness.goal.hint")}
-      </StatusBanner>
+      <InlineAlert type="info">{t("readiness.goal.hint")}</InlineAlert>
     </StepFrame>
   );
 };
@@ -247,11 +208,11 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
         </Button>
       </div>
       {controller.progress.historySessionCount !== null && (
-        <StatusBanner kind="success">
+        <InlineAlert type="success" role="status">
           {t("readiness.tools.historyImported", {
             count: controller.progress.historySessionCount,
           })}
-        </StatusBanner>
+        </InlineAlert>
       )}
       <p className="m-0 text-xs leading-5 text-text-3">
         {t("readiness.tools.privacy")}
@@ -291,9 +252,9 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
       icon={Building2}
     >
       {!controller.cloudAuth ? (
-        <StatusBanner>
-          <div className="flex items-center justify-between gap-3">
-            <span>{t("readiness.organization.signInHint")}</span>
+        <InlineAlert
+          type="info"
+          action={
             <Button
               variant="primary"
               icon={<Cloud size={15} />}
@@ -302,8 +263,10 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
             >
               {t("readiness.organization.signIn")}
             </Button>
-          </div>
-        </StatusBanner>
+          }
+        >
+          {t("readiness.organization.signInHint")}
+        </InlineAlert>
       ) : (
         <>
           {orgOptions.length > 0 && (
@@ -411,11 +374,11 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
         </>
       )}
       {selected && (
-        <StatusBanner kind="success">
+        <InlineAlert type="success" role="status">
           {t("readiness.organization.selected", {
             org: controller.progress.selectedOrgName,
           })}
-        </StatusBanner>
+        </InlineAlert>
       )}
     </StepFrame>
   );
@@ -512,11 +475,11 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
       </SectionContainer>
       {isMember ? (
         <>
-          <StatusBanner>
+          <InlineAlert type="info">
             {t("readiness.sharing.memberHint", {
               org: controller.progress.selectedOrgName,
             })}
-          </StatusBanner>
+          </InlineAlert>
           <Button
             variant="primary"
             icon={<RefreshCw size={15} />}
@@ -573,13 +536,13 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
         </div>
       )}
       {isSaved && (
-        <StatusBanner kind="success">
+        <InlineAlert type="success" role="status">
           {t(
             isMember
               ? "readiness.sharing.memberVerified"
               : "readiness.sharing.verified"
           )}
-        </StatusBanner>
+        </InlineAlert>
       )}
     </StepFrame>
   );
@@ -634,9 +597,9 @@ export const BasicsStep: React.FC<StepProps> = ({ controller }) => {
           </Button>
         </SectionRow>
       </SectionContainer>
-      <StatusBanner>
+      <InlineAlert type="info">
         {t("onboarding:readiness.basics.settingsHint")}
-      </StatusBanner>
+      </InlineAlert>
     </StepFrame>
   );
 };
@@ -662,7 +625,7 @@ export const TutorialStep: React.FC<StepProps> = ({ controller }) => {
         columns={2}
         className="walkthrough-choice-grid"
       />
-      <StatusBanner>{t("readiness.tutorial.hint")}</StatusBanner>
+      <InlineAlert type="info">{t("readiness.tutorial.hint")}</InlineAlert>
     </StepFrame>
   );
 };
@@ -682,31 +645,31 @@ export const WorkModelStep: React.FC<StepProps> = () => {
       description={t("readiness.model.description")}
       icon={Boxes}
     >
-      <div className="grid grid-cols-2 gap-3">
-        {MODEL_ITEMS.map(({ key, icon: Icon }, index) => (
-          <div
-            key={key}
-            className="group relative overflow-hidden rounded-2xl border border-border-1 bg-bg-1 p-4 transition-colors hover:border-border-3"
-          >
-            <span className="absolute right-3 top-3 text-xs font-medium tabular-nums text-text-4">
-              0{index + 1}
-            </span>
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl bg-primary-1 text-primary-6 transition-transform group-hover:scale-105">
-              <Icon size={17} />
+      <SectionContainer>
+        {MODEL_ITEMS.map(({ key, icon: Icon }) => (
+          <SectionRow key={key} showHeader={false}>
+            <div className="flex w-full min-w-0 items-start gap-3">
+              <span className="flex size-7 flex-shrink-0 items-center justify-center rounded-lg bg-fill-2 text-text-2">
+                <Icon size={15} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-text-1">
+                  {t(`readiness.model.${key}.title`)}
+                </div>
+                <p className="m-0 mt-0.5 text-xs leading-5 text-text-3">
+                  {t(`readiness.model.${key}.description`)}
+                </p>
+              </div>
             </div>
-            <div className="mb-1.5 text-sm font-semibold text-text-1">
-              {t(`readiness.model.${key}.title`)}
-            </div>
-            <p className="m-0 text-xs leading-5 text-text-2">
-              {t(`readiness.model.${key}.description`)}
-            </p>
-          </div>
+          </SectionRow>
         ))}
-      </div>
-      <div className="flex items-center justify-center gap-2 rounded-xl border border-primary-6/20 bg-primary-1 px-4 py-3 text-xs font-medium text-primary-6">
-        <FolderGit2 size={15} />
-        <span>{t("readiness.model.relationship")}</span>
-      </div>
+      </SectionContainer>
+      <InlineAlert
+        type="info"
+        icon={<FolderGit2 size={14} className="flex-shrink-0" />}
+      >
+        {t("readiness.model.relationship")}
+      </InlineAlert>
     </StepFrame>
   );
 };
@@ -720,73 +683,80 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
       : team
         ? t("readiness.ready.teamDestination")
         : t("readiness.ready.personalDestination");
+  const DestinationIcon =
+    controller.progress.goal === "team_activity"
+      ? Inbox
+      : controller.progress.goal === "work_management"
+        ? BriefcaseBusiness
+        : Play;
+  const readinessItems = [
+    {
+      key: "tools",
+      icon: KeyRound,
+      label: controller.progress.tools.some((tool) => tool.found)
+        ? t("readiness.ready.toolsReady")
+        : t("readiness.ready.toolsLater"),
+    },
+    {
+      key: "workspace",
+      icon: FolderGit2,
+      label: controller.workspaceFolders.length
+        ? t("readiness.ready.workspaceReady")
+        : t("readiness.ready.workspaceLater"),
+    },
+    ...(team
+      ? [
+          {
+            key: "organization",
+            icon: Building2,
+            label: controller.progress.selectedOrgName ?? "",
+          },
+          {
+            key: "visibility",
+            icon: Eye,
+            label: t(
+              controller.progress.selectedOrgRole === "member"
+                ? "readiness.ready.memberSyncReady"
+                : "readiness.ready.teamPolicyReady"
+            ),
+          },
+        ]
+      : []),
+  ];
   return (
     <StepFrame
       title={t("readiness.ready.title")}
       description={t("readiness.ready.description")}
       icon={Check}
     >
-      <div className="grid grid-cols-2 gap-3">
-        <StatusBanner kind="success">
-          <div className="flex items-center gap-2">
-            <KeyRound size={15} />
-            {controller.progress.tools.some((tool) => tool.found)
-              ? t("readiness.ready.toolsReady")
-              : t("readiness.ready.toolsLater")}
-          </div>
-        </StatusBanner>
-        <StatusBanner kind="success">
-          <div className="flex items-center gap-2">
-            <FolderGit2 size={15} />
-            {controller.workspaceFolders.length
-              ? t("readiness.ready.workspaceReady")
-              : t("readiness.ready.workspaceLater")}
-          </div>
-        </StatusBanner>
-        {team && (
-          <>
-            <StatusBanner kind="success">
-              <div className="flex items-center gap-2">
-                <Building2 size={15} />
-                {controller.progress.selectedOrgName}
-              </div>
-            </StatusBanner>
-            <StatusBanner kind="success">
-              <div className="flex items-center gap-2">
-                <Eye size={15} />
-                {t(
-                  controller.progress.selectedOrgRole === "member"
-                    ? "readiness.ready.memberSyncReady"
-                    : "readiness.ready.teamPolicyReady"
-                )}
-              </div>
-            </StatusBanner>
-          </>
+      <SectionContainer>
+        {readinessItems.map(({ key, icon: Icon, label }) => (
+          <SectionRow key={key} showHeader={false}>
+            <div className="flex w-full min-w-0 items-center gap-2.5">
+              <Icon size={14} className="flex-shrink-0 text-text-2" />
+              <span className="min-w-0 flex-1 text-xs text-text-2">
+                {label}
+              </span>
+              <Check
+                size={14}
+                className="flex-shrink-0 text-success-6"
+                aria-hidden
+              />
+            </div>
+          </SectionRow>
+        ))}
+      </SectionContainer>
+      <InlineAlert
+        type="info"
+        title={destination}
+        icon={<DestinationIcon size={14} className="flex-shrink-0" />}
+      >
+        {t(
+          team
+            ? "readiness.ready.teamDestinationHint"
+            : "readiness.ready.destinationHint"
         )}
-      </div>
-      <div className="relative overflow-hidden rounded-2xl border border-primary-6/30 bg-primary-1 p-5">
-        <div
-          className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-primary-6/10 blur-2xl"
-          aria-hidden
-        />
-        <div className="relative mb-1.5 flex items-center gap-2 font-semibold text-text-1">
-          {team ? (
-            <Inbox size={17} />
-          ) : controller.progress.goal === "work_management" ? (
-            <BriefcaseBusiness size={17} />
-          ) : (
-            <Play size={17} />
-          )}
-          {destination}
-        </div>
-        <p className="relative m-0 text-xs leading-5 text-text-2">
-          {t(
-            team
-              ? "readiness.ready.teamDestinationHint"
-              : "readiness.ready.destinationHint"
-          )}
-        </p>
-      </div>
+      </InlineAlert>
     </StepFrame>
   );
 };
@@ -794,6 +764,8 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
 export const SetupOperationError: React.FC<StepProps> = ({ controller }) =>
   controller.operationError ? (
     <div className="mx-auto w-full max-w-3xl pb-2">
-      <StatusBanner kind="error">{controller.operationError}</StatusBanner>
+      <InlineAlert type="danger" role="alert">
+        {controller.operationError}
+      </InlineAlert>
     </div>
   ) : null;

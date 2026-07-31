@@ -98,6 +98,8 @@ export interface InlineAlertProps {
   closeIcon?: React.ReactNode;
   /** Accessible label for close button */
   closeAriaLabel?: string;
+  /** Optional live-region semantic for dynamic status or error feedback. */
+  role?: React.AriaRole;
 }
 
 const InlineAlert: React.FC<InlineAlertProps> = ({
@@ -113,6 +115,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   onClose,
   closeIcon,
   closeAriaLabel = "Close",
+  role,
 }) => {
   const styles = STYLE_MAP[type];
   const [expanded, setExpanded] = React.useState(presentation !== "pill");
@@ -179,6 +182,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   return (
     <div
       className={`border border-solid ${styles.border} ${isPill ? `inline-block w-fit max-w-full ${expanded ? "rounded-lg" : "rounded-full"} px-3 py-2` : "rounded-lg p-3"} ${styles.text} ${className ?? ""}`}
+      role={role}
     >
       <div className={`flex items-center ${isPill ? "gap-1" : "gap-3"}`}>
         {isPill ? (
