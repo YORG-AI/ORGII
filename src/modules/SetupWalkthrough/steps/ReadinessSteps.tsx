@@ -58,21 +58,24 @@ const StepFrame: React.FC<{
   const titleId = React.useId();
   return (
     <section
-      className="walkthrough-step-frame mx-auto flex w-full max-w-4xl flex-col gap-6"
+      className="walkthrough-step-frame mx-auto flex w-full max-w-3xl flex-col gap-6"
       aria-labelledby={titleId}
     >
-      <header className="flex items-start gap-4">
-        <div className="walkthrough-step-icon" aria-hidden>
-          <Icon size={20} strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0 pt-0.5">
+      <header className="flex items-start gap-3">
+        <Icon
+          size={16}
+          strokeWidth={1.7}
+          className="mt-1 flex-shrink-0 text-text-3"
+          aria-hidden
+        />
+        <div className="min-w-0">
           <h1
             id={titleId}
-            className="m-0 text-3xl font-semibold tracking-tight text-text-1"
+            className="m-0 text-2xl font-semibold tracking-tight text-text-1"
           >
             {title}
           </h1>
-          <p className="m-0 mt-2 max-w-3xl text-sm leading-6 text-text-2">
+          <p className="m-0 mt-1.5 max-w-2xl text-sm leading-6 text-text-3">
             {description}
           </p>
         </div>
@@ -137,7 +140,6 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
         label: t("readiness.goal.team.title"),
         description: t("readiness.goal.team.description"),
         icon: Users,
-        badge: t("readiness.goal.recommended"),
         dataTestId: "setup-goal-team",
       },
       {
@@ -161,7 +163,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
         selected={controller.progress.goal}
         onSelect={controller.selectGoal}
         columns={3}
-        cardLayout="stacked"
+        cardLayout="inline"
         showSelectionCheck={false}
         cardClassName="walkthrough-goal-card"
         className="walkthrough-choice-grid walkthrough-goal-grid"
@@ -792,7 +794,7 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
 
 export const SetupOperationError: React.FC<StepProps> = ({ controller }) =>
   controller.operationError ? (
-    <div className="mx-auto w-full max-w-[760px] pb-2">
+    <div className="mx-auto w-full max-w-3xl pb-2">
       <StatusBanner kind="error">{controller.operationError}</StatusBanner>
     </div>
   ) : null;

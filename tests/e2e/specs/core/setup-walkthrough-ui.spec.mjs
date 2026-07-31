@@ -54,6 +54,9 @@ describe("Goal-driven setup walkthrough (rendered UI)", () => {
       "navigate to setup checklist"
     );
     await visible('[data-testid="setup-step-goal"]');
+    if (process.env.E2E_SETUP_GOAL_SCREENSHOT) {
+      await browser.saveScreenshot(process.env.E2E_SETUP_GOAL_SCREENSHOT);
+    }
   });
 
   after(async function () {

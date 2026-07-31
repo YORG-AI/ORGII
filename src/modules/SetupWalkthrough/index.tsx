@@ -1,11 +1,12 @@
 import { useSetAtom } from "jotai";
-import { ArrowLeft, ArrowRight, Check, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import PearlMark from "@src/components/PearlMark";
 import { ROUTES } from "@src/config/routes";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
@@ -156,43 +157,40 @@ const SetupWalkthrough: React.FC = () => {
   const leftContent = (
     <div className="flex h-full w-full flex-col">
       <div className="walkthrough-brand">
-        <div className="walkthrough-brand-mark" aria-hidden>
-          <Sparkles size={17} />
-        </div>
+        <PearlMark className="walkthrough-brand-mark" size={32} />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-base font-semibold tracking-tight text-text-1">
+            <span className="text-sm font-semibold tracking-tight text-text-1">
               ORGII
             </span>
-            <span className="rounded-full bg-primary-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-6">
+            <span className="walkthrough-brand-tag">
               {t("readiness.sidebar.brandTag")}
             </span>
           </div>
-          <div className="mt-1 text-xs leading-5 text-text-3">
+          <div className="mt-1 max-w-52 text-xs leading-5 text-text-3">
             {t("readiness.sidebar.subtitle")}
           </div>
         </div>
       </div>
 
-      <div className="mt-6 rounded-xl border border-border-1 bg-bg-2/70 p-3">
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+      <div className="walkthrough-progress mt-6">
+        <div className="mb-2 flex items-center justify-between gap-3 text-[11px]">
           <span className="font-medium text-text-2">
             {t("readiness.sidebar.stepProgress", {
               current: stepNumber,
               total: visibleSteps.length,
             })}
           </span>
-          <span className="tabular-nums text-text-3">{progressPercent}%</span>
         </div>
         <div
-          className="h-1.5 overflow-hidden rounded-full bg-fill-3"
+          className="h-px overflow-hidden bg-border-2"
           role="progressbar"
           aria-valuemin={1}
           aria-valuemax={visibleSteps.length}
           aria-valuenow={stepNumber}
         >
           <div
-            className="h-full rounded-full bg-primary-6 transition-[width] duration-300 ease-out"
+            className="h-full bg-text-1 transition-[width] duration-300 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
@@ -227,11 +225,11 @@ const SetupWalkthrough: React.FC = () => {
                 </span>
               )}
               <button
-                className={`walkthrough-step-button group flex w-full items-center gap-3 rounded-xl border py-2.5 text-left transition-all duration-200 ${
+                className={`walkthrough-step-button group flex w-full items-center gap-3 rounded-lg border py-2 text-left transition-colors duration-150 ${
                   isActive
-                    ? "border-primary-6/25 bg-primary-1"
+                    ? "border-border-1 bg-fill-2"
                     : canNavigate
-                      ? "cursor-pointer border-transparent bg-transparent hover:border-border-1 hover:bg-fill-2"
+                      ? "cursor-pointer border-transparent bg-transparent hover:bg-fill-2"
                       : "cursor-not-allowed border-transparent bg-transparent opacity-45"
                 }`}
                 onClick={() => void controller.goToStep(step.id)}
@@ -243,18 +241,18 @@ const SetupWalkthrough: React.FC = () => {
                 <div
                   className={`walkthrough-step-node relative z-10 flex flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
                     isActive
-                      ? "border-primary-6 bg-primary-6 text-white ring-4 ring-primary-1"
+                      ? "border-text-1 bg-text-1 text-bg-1"
                       : isCompleted
-                        ? "text-success-7 border-success-6/50 bg-success-1"
+                        ? "border-border-2 bg-bg-2 text-text-1"
                         : "border-border-2 bg-bg-2 text-text-3"
                   }`}
                 >
-                  {isCompleted ? <Check size={15} /> : <StepIcon size={15} />}
+                  {isCompleted ? <Check size={13} /> : <StepIcon size={13} />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div
                     className={`truncate text-sm font-medium ${
-                      isActive ? "text-primary-6" : "text-text-1"
+                      isActive ? "text-text-1" : "text-text-2"
                     }`}
                   >
                     {t(`steps.${step.i18nKey}.title`)}
