@@ -9,6 +9,7 @@ import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import ProgressBar from "@src/components/ProgressBar";
 import { ROUTES } from "@src/config/routes";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
@@ -173,21 +174,29 @@ const SetupWalkthrough: React.FC = () => {
         <AppLogo className="rounded-full" size={32} alt="" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold tracking-tight text-text-1">
+            <span
+              className={`${TYPOGRAPHY.statistic} tracking-tight text-text-1`}
+            >
               ORGII
             </span>
-            <span className="text-xs font-medium uppercase tracking-wide text-text-3">
+            <span
+              className={`${TYPOGRAPHY.badge} uppercase tracking-wide text-text-3`}
+            >
               {t("readiness.sidebar.brandTag")}
             </span>
           </div>
-          <div className="mt-1 max-w-52 text-xs leading-5 text-text-3">
+          <div
+            className={`mt-1 max-w-52 leading-5 text-text-3 ${TYPOGRAPHY.contentSubtitle}`}
+          >
             {t("readiness.sidebar.subtitle")}
           </div>
         </div>
       </div>
 
       <div className="walkthrough-progress mt-6">
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+        <div
+          className={`mb-2 flex items-center justify-between gap-3 ${TYPOGRAPHY.contentSubtitle}`}
+        >
           <span className="font-medium text-text-2">
             {t("readiness.sidebar.stepProgress", {
               current: stepNumber,
@@ -262,13 +271,15 @@ const SetupWalkthrough: React.FC = () => {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div
-                    className={`truncate text-sm font-medium ${
+                    className={`truncate ${TYPOGRAPHY.contentTitle} ${
                       isActive ? "text-text-1" : "text-text-2"
                     }`}
                   >
                     {t(`steps.${step.i18nKey}.title`)}
                   </div>
-                  <div className="mt-0.5 truncate text-xs text-text-3">
+                  <div
+                    className={`mt-0.5 truncate text-text-3 ${TYPOGRAPHY.contentSubtitle}`}
+                  >
                     {t(`steps.${step.i18nKey}.description`)}
                   </div>
                 </div>

@@ -18,6 +18,12 @@ export type { WizardShellProps } from "./WizardShell";
 export { default as WizardStepLayout } from "./WizardStepLayout";
 export type { WizardStepLayoutProps } from "./WizardStepLayout";
 
+export {
+  default as WizardStepContent,
+  WIZARD_STEP_CONTENT_TOKENS,
+} from "./WizardStepContent";
+export type { WizardStepContentProps } from "./WizardStepContent";
+
 export { default as FormField, FORM_FIELD_TOKENS } from "./FormField";
 export type { FormFieldProps } from "./FormField";
 

@@ -46,14 +46,6 @@ body.walkthrough-mode {
   scrollbar-color: var(--color-border-2) transparent;
 }
 
-.walkthrough-step-frame {
-  padding: 8px 0 32px;
-}
-
-.walkthrough-step-body > [class*="@container"] {
-  box-shadow: none;
-}
-
 .walkthrough-footer {
   border-color: var(--color-border-1) !important;
   background: var(--color-bg-2);
@@ -122,22 +114,6 @@ body.walkthrough-mode {
     padding: 20px !important;
   }
 
-  .walkthrough-step-frame header {
-    gap: 12px;
-  }
-
-  .walkthrough-step-icon {
-    width: 40px;
-    height: 40px;
-  }
-
-  .walkthrough-step-frame h1 {
-    font-size: 24px;
-    line-height: 30px;
-  }
-
-  .walkthrough-step-body .grid-cols-2,
-  .walkthrough-step-body .grid-cols-3,
   .walkthrough-choice-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }

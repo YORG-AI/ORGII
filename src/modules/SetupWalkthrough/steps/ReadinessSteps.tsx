@@ -21,7 +21,6 @@ import {
   User,
   Users,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,61 +28,33 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { openOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
 import {
   SECTION_CONTROL_STYLE,
+  SECTION_DESCRIPTION_CLASSES,
+  SECTION_PATH_TEXT_CLASSES,
+  SECTION_VALUE_SMALL_SECONDARY_CLASSES,
+  SECTION_VALUE_TEXT_CLASSES,
+  SECTION_VALUE_TEXT_SUCCESS_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
+import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 import { openWorkspaceSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { TUTORIALS } from "@src/scaffold/Tutorials/tutorialRegistry";
-import SelectionGrid from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
-import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
+import {
+  SelectionGrid,
+  type SelectionGridOption,
+  WizardStepContent,
+} from "@src/scaffold/WizardSystem/primitives";
 
 import type { SetupWalkthroughController } from "../useSetupWalkthroughController";
 
 type StepProps = { controller: SetupWalkthroughController };
 
 const CONTROL_STYLE = { width: "100%", maxWidth: "100%" } as const;
-
-const StepFrame: React.FC<{
-  title: string;
-  description: string;
-  icon: LucideIcon;
-  children: React.ReactNode;
-}> = ({ title, description, icon: Icon, children }) => {
-  const titleId = React.useId();
-  return (
-    <section
-      className="walkthrough-step-frame mx-auto flex w-full max-w-3xl flex-col gap-5"
-      aria-labelledby={titleId}
-    >
-      <header className="flex items-start gap-3">
-        <Icon
-          size={16}
-          strokeWidth={1.7}
-          className="mt-1 flex-shrink-0 text-text-3"
-          aria-hidden
-        />
-        <div className="min-w-0">
-          <h1
-            id={titleId}
-            className="m-0 text-xl font-semibold leading-7 tracking-tight text-text-1"
-          >
-            {title}
-          </h1>
-          <p className="m-0 mt-1 max-w-2xl text-sm leading-5 text-text-3">
-            {description}
-          </p>
-        </div>
-      </header>
-      <div className="walkthrough-step-body flex flex-col gap-5">
-        {children}
-      </div>
-    </section>
-  );
-};
 
 export const GoalStep: React.FC<StepProps> = ({ controller }) => {
   const { t } = useTranslation("onboarding");
@@ -116,7 +87,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
     [t]
   );
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.goal.title")}
       description={t("readiness.goal.description")}
       icon={ListChecks}
@@ -131,7 +102,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
         className="walkthrough-choice-grid"
       />
       <InlineAlert type="info">{t("readiness.goal.hint")}</InlineAlert>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -149,7 +120,7 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
   const isDetecting = controller.activeOperation === "detect-tools";
   const isImporting = controller.activeOperation === "import-history";
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.tools.title")}
       description={t("readiness.tools.description")}
       icon={KeyRound}
@@ -168,8 +139,8 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
               <span
                 className={
                   tool?.found
-                    ? "text-success-7 inline-flex items-center gap-1.5 text-sm"
-                    : "text-sm text-text-3"
+                    ? `inline-flex items-center gap-1.5 ${SECTION_VALUE_TEXT_SUCCESS_CLASSES}`
+                    : SECTION_VALUE_TEXT_CLASSES
                 }
               >
                 {tool?.found && <Check size={14} />}
@@ -214,10 +185,10 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
           })}
         </InlineAlert>
       )}
-      <p className="m-0 text-xs leading-5 text-text-3">
+      <p className={`m-0 leading-5 ${SECTION_DESCRIPTION_CLASSES}`}>
         {t("readiness.tools.privacy")}
       </p>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -246,7 +217,7 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
   }));
   const selected = controller.progress.selectedOrgId;
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.organization.title")}
       description={t("readiness.organization.description")}
       icon={Building2}
@@ -380,7 +351,7 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
           })}
         </InlineAlert>
       )}
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -389,7 +360,7 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
   const isMember = controller.progress.selectedOrgRole === "member";
   const isSaved = controller.progress.verifiedAt !== null;
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.sharing.title")}
       description={t("readiness.sharing.description")}
       icon={ShieldCheck}
@@ -400,7 +371,7 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
           description={t("readiness.sharing.workspaceDescription")}
         >
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <span className="max-w-64 truncate text-sm text-text-2">
+            <span className={`max-w-64 truncate ${SECTION_VALUE_TEXT_CLASSES}`}>
               {controller.workspaceFolders.length
                 ? controller.workspaceFolders
                     .map((folder) => folder.name)
@@ -437,7 +408,7 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
             </SectionRow>
             {controller.progress.repoScopes.map((scope) => (
               <SectionRow key={scope} label={t("readiness.sharing.remote")}>
-                <code className="break-all text-xs text-text-2">{scope}</code>
+                <code className={SECTION_PATH_TEXT_CLASSES}>{scope}</code>
               </SectionRow>
             ))}
             <SectionRow
@@ -544,7 +515,7 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
           )}
         </InlineAlert>
       )}
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -559,7 +530,7 @@ export const BasicsStep: React.FC<StepProps> = ({ controller }) => {
     handleThemeChange,
   } = useAppearanceState();
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("onboarding:readiness.basics.title")}
       description={t("onboarding:readiness.basics.description")}
       icon={MonitorCog}
@@ -600,7 +571,7 @@ export const BasicsStep: React.FC<StepProps> = ({ controller }) => {
       <InlineAlert type="info">
         {t("onboarding:readiness.basics.settingsHint")}
       </InlineAlert>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -613,7 +584,7 @@ export const TutorialStep: React.FC<StepProps> = ({ controller }) => {
     icon: tutorial.id === "general-layout" ? LayoutDashboard : MonitorCog,
   }));
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.tutorial.title")}
       description={t("readiness.tutorial.description")}
       icon={Play}
@@ -626,7 +597,7 @@ export const TutorialStep: React.FC<StepProps> = ({ controller }) => {
         className="walkthrough-choice-grid"
       />
       <InlineAlert type="info">{t("readiness.tutorial.hint")}</InlineAlert>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -640,7 +611,7 @@ const MODEL_ITEMS = [
 export const WorkModelStep: React.FC<StepProps> = () => {
   const { t } = useTranslation("onboarding");
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.model.title")}
       description={t("readiness.model.description")}
       icon={Boxes}
@@ -653,10 +624,10 @@ export const WorkModelStep: React.FC<StepProps> = () => {
                 <Icon size={15} />
               </span>
               <div className="min-w-0">
-                <div className="text-sm font-medium text-text-1">
+                <div className={`${TYPOGRAPHY.contentTitle} text-text-1`}>
                   {t(`readiness.model.${key}.title`)}
                 </div>
-                <p className="m-0 mt-0.5 text-xs leading-5 text-text-3">
+                <p className={`m-0 leading-5 ${SECTION_DESCRIPTION_CLASSES}`}>
                   {t(`readiness.model.${key}.description`)}
                 </p>
               </div>
@@ -670,7 +641,7 @@ export const WorkModelStep: React.FC<StepProps> = () => {
       >
         {t("readiness.model.relationship")}
       </InlineAlert>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
@@ -724,7 +695,7 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
       : []),
   ];
   return (
-    <StepFrame
+    <WizardStepContent
       title={t("readiness.ready.title")}
       description={t("readiness.ready.description")}
       icon={Check}
@@ -734,7 +705,9 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
           <SectionRow key={key} showHeader={false}>
             <div className="flex w-full min-w-0 items-center gap-2.5">
               <Icon size={14} className="flex-shrink-0 text-text-2" />
-              <span className="min-w-0 flex-1 text-xs text-text-2">
+              <span
+                className={`min-w-0 flex-1 ${SECTION_VALUE_SMALL_SECONDARY_CLASSES}`}
+              >
                 {label}
               </span>
               <Check
@@ -757,13 +730,15 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
             : "readiness.ready.destinationHint"
         )}
       </InlineAlert>
-    </StepFrame>
+    </WizardStepContent>
   );
 };
 
 export const SetupOperationError: React.FC<StepProps> = ({ controller }) =>
   controller.operationError ? (
-    <div className="mx-auto w-full max-w-3xl pb-2">
+    <div
+      className={`${DETAIL_PANEL_TOKENS.contentWidth} ${DETAIL_PANEL_TOKENS.contentPaddingBottom}`}
+    >
       <InlineAlert type="danger" role="alert">
         {controller.operationError}
       </InlineAlert>
