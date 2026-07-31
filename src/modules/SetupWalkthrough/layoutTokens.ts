@@ -21,7 +21,9 @@ export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
     "!hidden !shrink-0 !items-stretch !justify-start !gap-0 !border-r !border-border-1 !bg-bg-1 !px-4 !pb-4 !pt-4 md:!flex",
   sidebarContent: "flex h-full w-full flex-col",
   brandRow: "flex items-start gap-3",
-  brandLogo: "rounded-full",
+  brandLogoFrame:
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-2 bg-white shadow-sm",
+  brandLogo: "rounded-md",
   brandCopy: "min-w-0",
   brandTitleRow: "flex items-center gap-2",
   brandTitle: `${TYPOGRAPHY.statistic} tracking-tight text-text-1`,

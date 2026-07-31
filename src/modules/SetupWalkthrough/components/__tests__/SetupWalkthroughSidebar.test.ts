@@ -38,6 +38,8 @@ describe("SetupWalkthroughSidebar", () => {
 
     expect(html).toContain("<aside");
     expect(html).toContain("logo.png");
+    expect(html).toContain("bg-white");
+    expect(html).toContain("border-border-2");
     expect(html).toContain('role="progressbar"');
     expect(html).toContain('aria-valuenow="50"');
     expect(html).toContain('aria-label="Setup steps"');

@@ -47,11 +47,16 @@ const SetupWalkthroughSidebar: React.FC<SetupWalkthroughSidebarProps> = memo(
       style={style}
     >
       <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandRow}>
-        <AppLogo
-          className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandLogo}
-          size={32}
-          alt=""
-        />
+        <div
+          className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandLogoFrame}
+          aria-hidden
+        >
+          <AppLogo
+            className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandLogo}
+            size={28}
+            alt=""
+          />
+        </div>
         <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandCopy}>
           <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandTitleRow}>
             <span className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.brandTitle}>
