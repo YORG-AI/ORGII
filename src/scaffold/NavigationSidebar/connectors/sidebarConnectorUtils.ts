@@ -24,6 +24,7 @@ export const PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID =
   "projects-import-github-issues";
 export const PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID = "projects-new-work-item";
 export const OPS_CONTROL_MENU_ITEM_ID = "ops-control";
+export const JOURNEY_MENU_ITEM_ID = "journey-station";
 export const COLLAB_ADD_ORG_MENU_ITEM_ID = "colleagues-add-org";
 export const SESSION_CREATOR_DRAFT_MENU_PREFIX = "session-creator-draft:";
 

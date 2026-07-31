@@ -235,6 +235,9 @@ export function getAppModeForRoute(pathname: string): AppModeType {
   if (pathname.startsWith("/orgii/workstation/ops-control")) {
     return "opsControl";
   }
+  if (pathname.startsWith("/orgii/workstation/journey")) {
+    return "journey";
+  }
 
   return "code";
 }

@@ -58,6 +58,14 @@ export const GLOBAL_SHORTCUTS: ShortcutEntry[] = [
     category: "navigation",
   },
   {
+    id: "open_journey",
+    command: "Open Journey",
+    macKeys: "⌘4",
+    winKeys: "Ctrl+4",
+    scope: "global",
+    category: "navigation",
+  },
+  {
     id: "toggle_ade_manager",
     command: "Open ADE Manager",
     macKeys: "⌥⌘G",

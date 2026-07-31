@@ -4,7 +4,7 @@
  * Renders the My Station / Agent's Station icon segmented toggle.
  */
 import { useAtom } from "jotai";
-import { Infinity, Laptop, type LucideIcon, Radar } from "lucide-react";
+import { GitFork, Infinity, Laptop, type LucideIcon, Radar } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -20,6 +20,7 @@ import { WorkstationToolbarTooltip } from "../WorkstationToolbarTooltip";
 const MY_STATION_SHORTCUT_ID = "open_my_station";
 const AGENT_STATION_SHORTCUT_ID = "open_agent_station";
 const OPS_CONTROL_SHORTCUT_ID = "open_ops_control";
+const JOURNEY_SHORTCUT_ID = "open_journey";
 
 interface IconSwitchButtonProps {
   label: string;
@@ -78,10 +79,14 @@ const StationModePill: React.FC = () => {
   const mySegment = t("terminology.myStation");
   const agentSegment = t("terminology.agentStation");
   const opsControlSegment = t("navigation:routes.opsControl");
+  const journeySegment = t("navigation:routes.journey", {
+    defaultValue: "Journey",
+  });
 
   const myStationShortcut = getShortcutKeys(MY_STATION_SHORTCUT_ID);
   const agentStationShortcut = getShortcutKeys(AGENT_STATION_SHORTCUT_ID);
   const opsControlShortcut = getShortcutKeys(OPS_CONTROL_SHORTCUT_ID);
+  const journeyShortcut = getShortcutKeys(JOURNEY_SHORTCUT_ID);
   const activeStationMode = stationMode;
 
   const handleChange = useCallback(
@@ -95,7 +100,17 @@ const StationModePill: React.FC = () => {
         return;
       }
 
-      if (location.pathname === ROUTES.workStation.opsControl.path) {
+      if (mode === "journey") {
+        if (location.pathname !== ROUTES.workStation.journey.path) {
+          navigate(ROUTES.workStation.journey.path);
+        }
+        return;
+      }
+
+      if (
+        location.pathname === ROUTES.workStation.opsControl.path ||
+        location.pathname === ROUTES.workStation.journey.path
+      ) {
         navigate(ROUTES.workStation.base.path);
       }
     },
@@ -107,6 +122,20 @@ const StationModePill: React.FC = () => {
       className="flex items-center gap-px rounded-[100px] border border-border-2 bg-fill-1 p-0.5"
       data-tour-target={GENERAL_LAYOUT_TOUR_TARGETS.stationModePill}
     >
+      {activeStationMode === "journey" && (
+        <IconSwitchButton
+          label={journeySegment}
+          tooltipLabel={t("actions.switchToStation", {
+            station: journeySegment,
+          })}
+          icon={GitFork}
+          selected
+          onClick={() => handleChange("journey")}
+          testId="station-mode-journey"
+          shortcut={journeyShortcut}
+          selectedClassName="bg-success-6 text-white"
+        />
+      )}
       {activeStationMode === "ops-control" && (
         <IconSwitchButton
           label={opsControlSegment}

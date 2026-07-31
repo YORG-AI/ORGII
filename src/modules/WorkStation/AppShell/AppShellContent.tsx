@@ -14,6 +14,9 @@ import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "../shared/tokens";
 const Browser = React.lazy(() => import("../Browser"));
 const DatabaseManager = React.lazy(() => import("../DatabaseManager"));
 const OpsControl = React.lazy(() => import("@src/modules/MainApp/OpsControl"));
+const JourneyStation = React.lazy(
+  () => import("@src/modules/MainApp/JourneyStation")
+);
 const ActivitySimulator = React.lazy(() =>
   import("@src/engines/Simulator").then((module) => ({
     default: module.ActivitySimulator,
@@ -29,9 +32,11 @@ interface AppShellContentProps {
   chatPanelFocused: boolean;
   isAgentStation: boolean;
   isOpsControlStation: boolean;
+  isJourneyStation: boolean;
   opsControlPeekHost: "code" | "browser" | "data" | "project" | null;
   hasVisitedAgentStation: boolean;
   hasVisitedOpsControlStation: boolean;
+  hasVisitedJourneyStation: boolean;
   hasVisitedCode: boolean;
   hasVisitedData: boolean;
   hasVisitedBrowser: boolean;
@@ -67,9 +72,11 @@ export function AppShellContent({
   chatPanelFocused,
   isAgentStation,
   isOpsControlStation,
+  isJourneyStation,
   opsControlPeekHost,
   hasVisitedAgentStation,
   hasVisitedOpsControlStation,
+  hasVisitedJourneyStation,
   hasVisitedCode,
   hasVisitedData,
   hasVisitedBrowser,
@@ -153,11 +160,23 @@ export function AppShellContent({
         </div>
       )}
 
+      {(isJourneyStation || hasVisitedJourneyStation) && (
+        <div
+          className="h-full w-full"
+          style={{ display: isJourneyStation ? "block" : "none" }}
+        >
+          <Suspense fallback={<AppShellLoadingPlaceholder />}>
+            <JourneyStation />
+          </Suspense>
+        </div>
+      )}
+
       <div
         className="h-full w-full"
         style={{
           display:
             isAgentStation ||
+            isJourneyStation ||
             (isOpsControlStation && opsControlPeekHost === null)
               ? "none"
               : "contents",

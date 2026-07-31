@@ -79,6 +79,14 @@ export const WORK_STATION_ROUTES = {
     "radar",
     "Cross-session operations control surface for agents, tasks, and workspace tools"
   ),
+  journey: route(
+    "/orgii/workstation/journey",
+    "Journey",
+    "workStation",
+    "workstation",
+    "git-fork",
+    "Project and session journey graphs with factual lineage and coverage"
+  ),
 } as const;
 
 // ============================================================================

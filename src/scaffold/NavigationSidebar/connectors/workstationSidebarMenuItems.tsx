@@ -1,6 +1,7 @@
 import {
   Box,
   Compass,
+  GitFork,
   Github,
   LayoutDashboard,
   Plus,
@@ -15,6 +16,7 @@ import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import {
+  JOURNEY_MENU_ITEM_ID,
   NEW_SESSION_MENU_ITEM_ID,
   OPS_CONTROL_MENU_ITEM_ID,
   PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
@@ -30,6 +32,9 @@ interface BuildPinnedMenuItemsParams {
   opsControlLabel: string;
   opsControlRoutePath: string;
   opsControlShortcut: string;
+  journeyLabel: string;
+  journeyRoutePath: string;
+  journeyShortcut: string;
 }
 
 interface BuildProjectsPinnedMenuItemsParams {
@@ -51,6 +56,9 @@ export function buildPinnedMenuItems({
   opsControlLabel,
   opsControlRoutePath,
   opsControlShortcut,
+  journeyLabel,
+  journeyRoutePath,
+  journeyShortcut,
 }: BuildPinnedMenuItemsParams): NavigationMenuItem[] {
   return [
     {
@@ -69,6 +77,15 @@ export function buildPinnedMenuItems({
       iconName: "radar",
       routePath: opsControlRoutePath,
       shortcut: opsControlShortcut,
+    },
+    {
+      id: JOURNEY_MENU_ITEM_ID,
+      key: JOURNEY_MENU_ITEM_ID,
+      label: journeyLabel,
+      icon: GitFork,
+      iconName: "git-fork",
+      routePath: journeyRoutePath,
+      shortcut: journeyShortcut,
     },
   ];
 }

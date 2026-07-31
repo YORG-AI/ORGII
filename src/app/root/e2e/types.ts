@@ -634,7 +634,7 @@ export interface E2EHelpers {
       activeSessionId: string | null;
       activeSession: Json | null;
       coreSessionId: string | null;
-      stationMode: "my-station" | "agent-station" | "ops-control";
+      stationMode: "my-station" | "agent-station" | "ops-control" | "journey";
       chatPanelMaximized: boolean;
       snapshotEventCount: number;
       snapshotChatEventCount: number;

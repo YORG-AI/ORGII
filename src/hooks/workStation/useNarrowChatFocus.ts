@@ -175,7 +175,7 @@ export function useNarrowChatFocus({
         // Ops Control hides the chat panel entirely (Kanban surface);
         // surprise-maximizing it on narrow would reveal a panel the
         // user explicitly switched away from. Leave it alone.
-        if (mode === "ops-control") return;
+        if (mode === "ops-control" || mode === "journey") return;
         setChatPanelMaximized(true);
         autoTriggeredRef.current = true;
         return;
@@ -266,7 +266,7 @@ export function useNarrowChatFocus({
 
     if (isNarrow && wasNarrow !== true) {
       if (chatPanelMaximized) return;
-      if (stationMode === "ops-control") return;
+      if (stationMode === "ops-control" || stationMode === "journey") return;
       setChatPanelMaximized(true);
       autoTriggeredRef.current = true;
       return;

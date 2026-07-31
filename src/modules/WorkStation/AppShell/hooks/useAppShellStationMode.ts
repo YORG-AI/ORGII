@@ -17,6 +17,7 @@ interface AppShellStationModeState {
   stationMode: StationMode;
   isAgentStation: boolean;
   isOpsControlStation: boolean;
+  isJourneyStation: boolean;
   opsControlPeekHost: "code" | "browser" | "data" | "project" | null;
   hasVisitedAgentStation: boolean;
   illuminateAgentStationChrome: boolean;
@@ -35,6 +36,7 @@ export function useAppShellStationMode({
   const setOpsControlFocusedTab = useSetAtom(opsControlFocusedTabAtom);
   const isAgentStation = stationMode === "agent-station";
   const isOpsControlStation = stationMode === "ops-control";
+  const isJourneyStation = stationMode === "journey";
   const replayMode = useAtomValue(replayModeAtom);
   const sessionPlaybackPlaying = useAtomValue(
     simulatorSessionPlaybackPlayingAtom
@@ -52,7 +54,16 @@ export function useAppShellStationMode({
       }
       return;
     }
-    if (stationModeRef.current === "ops-control") {
+    if (appMode === "journey") {
+      if (stationModeRef.current !== "journey") {
+        setStationMode("journey");
+      }
+      return;
+    }
+    if (
+      stationModeRef.current === "ops-control" ||
+      stationModeRef.current === "journey"
+    ) {
       setStationMode("my-station");
     }
   }, [appMode, setStationMode]);
@@ -90,6 +101,7 @@ export function useAppShellStationMode({
     stationMode,
     isAgentStation,
     isOpsControlStation,
+    isJourneyStation,
     opsControlPeekHost,
     hasVisitedAgentStation,
     illuminateAgentStationChrome,

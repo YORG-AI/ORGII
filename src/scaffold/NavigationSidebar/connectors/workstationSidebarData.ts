@@ -3,6 +3,7 @@ import type { Repo } from "@src/store/repo";
 import type { Session, SessionCreatorDraft } from "@src/store/session";
 
 import {
+  JOURNEY_MENU_ITEM_ID,
   NEW_SESSION_MENU_ITEM_ID,
   OPS_CONTROL_MENU_ITEM_ID,
   getDraftMenuItemId,
@@ -56,11 +57,16 @@ export function getSelectedDraftMenuItemId(
 
 export function getSelectedPinnedMenuItemId(
   pathname: string,
-  opsControlRoutePath: string
+  opsControlRoutePath: string,
+  journeyRoutePath?: string
 ): string {
-  return pathname.startsWith(opsControlRoutePath)
-    ? OPS_CONTROL_MENU_ITEM_ID
-    : "";
+  if (pathname.startsWith(opsControlRoutePath)) {
+    return OPS_CONTROL_MENU_ITEM_ID;
+  }
+  if (journeyRoutePath && pathname.startsWith(journeyRoutePath)) {
+    return JOURNEY_MENU_ITEM_ID;
+  }
+  return "";
 }
 
 export function getSelectedMenuItemId({

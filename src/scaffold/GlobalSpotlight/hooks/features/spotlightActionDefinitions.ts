@@ -85,6 +85,7 @@ export type SpotlightStaticActionId =
   | "open-my-station"
   | "open-agent-station"
   | "open-ops-control"
+  | "open-journey"
   | "zoom-in"
   | "zoom-out"
   | "zoom-reset"
@@ -118,6 +119,7 @@ export type SpotlightStaticActionFallback =
   | "open-my-station"
   | "open-agent-station"
   | "open-ops-control"
+  | "open-journey"
   | "open-search-sidebar"
   | "open-source-control-tab"
   | "open-terminal-tab"
@@ -385,6 +387,24 @@ export const STATION_MODE_ACTIONS = [
     actionId: ACTION_ID.WORKSTATION_OPEN_OPS_CONTROL,
     payload: {},
     fallback: "open-ops-control",
+    closeOnSuccess: true,
+  },
+  {
+    id: "open-journey",
+    labelKey: "common:spotlightActions.openJourney",
+    icon: GitBranch,
+    keywords: [
+      "journey",
+      "session journey",
+      "project journey",
+      "storyline",
+      "lineage",
+      "timeline",
+    ],
+    shortcut: getShortcutKeys("open_journey"),
+    actionId: ACTION_ID.WORKSTATION_OPEN_JOURNEY,
+    payload: {},
+    fallback: "open-journey",
     closeOnSuccess: true,
   },
 ] satisfies SpotlightStaticActionDefinition[];

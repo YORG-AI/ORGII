@@ -71,6 +71,7 @@ export const ACTION_ID = {
   WORKSTATION_OPEN_MY_STATION: "workstation.openMyStation",
   WORKSTATION_OPEN_AGENT_STATION: "workstation.openAgentStation",
   WORKSTATION_OPEN_OPS_CONTROL: "workstation.openOpsControl",
+  WORKSTATION_OPEN_JOURNEY: "workstation.openJourney",
   WORKSTATION_TOGGLE_SIDEBAR: "workstation.toggleSidebar",
   WORKSTATION_OPEN_CODE_EDITOR_TAB: "workstation.openCodeEditorTab",
   WORKSTATION_OPEN_FILE_FOLDER_TAB: "workstation.openFileFolderTab",

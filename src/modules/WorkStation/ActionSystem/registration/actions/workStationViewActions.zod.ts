@@ -63,7 +63,7 @@ export const workstationToggleChatPanelVisibility = defineZodAction(
 
 function defineOpenStationAction(
   id: ActionId,
-  mode: "my-station" | "agent-station" | "ops-control",
+  mode: "my-station" | "agent-station" | "ops-control" | "journey",
   description: string,
   message: string,
   shortcut: string,
@@ -117,6 +117,15 @@ export const workstationOpenOpsControl = defineOpenStationAction(
   "Opened Ops Control",
   getShortcutKeys("open_ops_control"),
   ["open ops control", "go to ops control", "show ops control"]
+);
+
+export const workstationOpenJourney = defineOpenStationAction(
+  ACTION_ID.WORKSTATION_OPEN_JOURNEY,
+  "journey",
+  "Open the Journey station (project and session journeys)",
+  "Opened Journey",
+  getShortcutKeys("open_journey"),
+  ["open journey", "show session journey", "show project journey"]
 );
 
 export const workstationToggleSidebar = defineZodAction(
@@ -313,6 +322,7 @@ export const workStationViewZodActions = [
   workstationOpenMyStation,
   workstationOpenAgentStation,
   workstationOpenOpsControl,
+  workstationOpenJourney,
   workstationToggleSidebar,
   workstationOpenCodeEditorTab,
   workstationOpenFileFolderTab,

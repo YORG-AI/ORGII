@@ -97,6 +97,7 @@ const AppShell = React.memo(
     const {
       isAgentStation,
       isOpsControlStation,
+      isJourneyStation,
       opsControlPeekHost,
       hasVisitedAgentStation,
       illuminateAgentStationChrome,
@@ -134,6 +135,7 @@ const AppShell = React.memo(
     const hasVisitedBrowser = visitedModes.has("browser");
     const hasVisitedProject = visitedModes.has("project");
     const hasVisitedOpsControlStation = visitedModes.has("opsControl");
+    const hasVisitedJourneyStation = visitedModes.has("journey");
 
     const showCodeEditorBottomPanelToggle =
       codeContentVisible && !isAgentStation;
@@ -154,7 +156,8 @@ const AppShell = React.memo(
     const showStatusBar = !statusBarHidden && !isAgentStation;
     const useFloatingStatusBar = internalLayoutMode === "comfort";
     const showOpsControlEmptyStatusBar =
-      isOpsControlStation && opsControlPeekHost === null;
+      (isOpsControlStation && opsControlPeekHost === null) ||
+      isJourneyStation;
 
     return (
       <div
@@ -172,7 +175,8 @@ const AppShell = React.memo(
             {isOpsControlStation ? (
               <OpsControlStationTabBar />
             ) : (
-              !isAgentStation && (
+              !isAgentStation &&
+              !isJourneyStation && (
                 <div data-guide-target={GUIDE_TARGETS.WORKSTATION_TAB_BAR}>
                   <WorkstationTabBar
                     appMode={
@@ -187,7 +191,7 @@ const AppShell = React.memo(
                 </div>
               )
             )}
-            {!isAgentStation && (
+            {!isAgentStation && !isJourneyStation && (
               <div data-guide-target={GUIDE_TARGETS.WORKSTATION_TAB_HEADER}>
                 <WorkstationTabHeader />
               </div>
@@ -202,9 +206,11 @@ const AppShell = React.memo(
                 chatPanelFocused={chatPanelFocused}
                 isAgentStation={isAgentStation}
                 isOpsControlStation={isOpsControlStation}
+                isJourneyStation={isJourneyStation}
                 opsControlPeekHost={opsControlPeekHost}
                 hasVisitedAgentStation={hasVisitedAgentStation}
                 hasVisitedOpsControlStation={hasVisitedOpsControlStation}
+                hasVisitedJourneyStation={hasVisitedJourneyStation}
                 hasVisitedCode={hasVisitedCode}
                 hasVisitedData={hasVisitedData}
                 hasVisitedBrowser={hasVisitedBrowser}
@@ -227,6 +233,7 @@ const AppShell = React.memo(
           )}
           {!isAgentStation &&
             !isOpsControlStation &&
+            !isJourneyStation &&
             !hideWorkstationDockForChatPanel && (
               <StationDockChrome
                 autoHide={dockAutoHide}

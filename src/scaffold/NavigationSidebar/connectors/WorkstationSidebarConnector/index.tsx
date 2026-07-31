@@ -559,6 +559,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
       chatPanelWorkspaceDashboardOpen,
       chatPanelExploreOpen,
       opsControlRoutePath: ROUTES.workStation.opsControl.path,
+      journeyRoutePath: ROUTES.workStation.journey.path,
       pathname: location.pathname,
       projectsSelectedMenuItemId,
       sessionCreatorDrafts,

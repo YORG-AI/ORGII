@@ -5,6 +5,7 @@ import {
   Clipboard,
   FolderOutput,
   GalleryThumbnails,
+  GitFork,
   LayoutGrid,
   Link2,
   ListChevronsDownUp,
@@ -82,6 +83,7 @@ interface ChatPanelHeaderProps {
   handleOpenExportSessionJson: () => void;
   handleOpenLinkWorkItem: () => void;
   handleOpenLinkProject: () => void;
+  handleOpenSessionJourney: () => void;
   handleOpenSearch: () => void;
   handleNewSession: () => void;
   handleOpenStartPage: () => void;
@@ -153,6 +155,7 @@ export function ChatPanelHeader({
   handleOpenExportSessionJson,
   handleOpenLinkWorkItem,
   handleOpenLinkProject,
+  handleOpenSessionJourney,
   handleOpenSearch,
   handleNewSession,
   handleOpenStartPage,
@@ -462,6 +465,20 @@ export function ChatPanelHeader({
                   : copyEventJsonLabel === "failed"
                     ? t("chat.copyEventJsonFailed")
                     : t("chat.copyEventJson")}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={handleOpenSessionJourney}
+              disabled={!currentSessionId}
+              data-testid="session-open-journey-button"
+            >
+              <GitFork size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+              <span className="flex-1 truncate">
+                {t("chat.viewSessionJourney", {
+                  defaultValue: "Session Journey",
+                })}
               </span>
             </button>
             <button

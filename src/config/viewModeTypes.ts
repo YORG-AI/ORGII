@@ -16,4 +16,5 @@ export type AppModeType =
   | "browser"
   | "chat"
   | "project"
-  | "opsControl";
+  | "opsControl"
+  | "journey";

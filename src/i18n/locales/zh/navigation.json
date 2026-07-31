@@ -84,7 +84,8 @@
     "appLauncher": "应用启动器",
     "ideaArea": "想法广场",
     "changelog": "更新日志",
-    "opsControl": "Ops Control"
+    "opsControl": "Ops Control",
+    "journey": "旅程"
   },
   "appGrid": {
     "customizeGrid": "自定义网格",
@@ -581,5 +582,13 @@
     "members": {
       "remove": "移除"
     }
+  },
+  "journeyStation": {
+    "projectJourney": "项目旅程",
+    "sessionJourney": "会话旅程",
+    "noProjects": "暂无项目",
+    "noSessions": "暂无会话",
+    "emptyTitle": "选择一个项目旅程或会话旅程",
+    "emptyHint": "旅程是只读事实图：每个里程碑、分支和文件血缘条目都带有证据与覆盖信息。"
   }
 }

@@ -179,6 +179,9 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
       shortcutRegistry.on("open_ops_control", () => {
         void WorkStationViewService.openStationMode("ops-control");
       }),
+      shortcutRegistry.on("open_journey", () => {
+        void WorkStationViewService.openStationMode("journey");
+      }),
       shortcutRegistry.on(
         "open_file_folder_tab",
         handleOpenCodeEditorFileFolder

@@ -303,13 +303,20 @@ const AppShell = () => {
     // Settings-in-slot must stay visible even on Ops Control so the user can
     // open Settings from the Kanban surface without flipping out of it.
     if (isSettingsRoute) return true;
-    if (stationMode === "ops-control") return false;
+    if (stationMode === "ops-control" || stationMode === "journey") {
+      return false;
+    }
     return path.includes("/workstation");
   }, [location.pathname, isSettingsRoute, stationMode]);
 
   useEffect(() => {
     if (viewMode !== "workStation") return;
-    if (chatPanelMaximized || stationMode === "ops-control") return;
+    if (
+      chatPanelMaximized ||
+      stationMode === "ops-control" ||
+      stationMode === "journey"
+    )
+      return;
     // Don't touch chat width while Settings-in-slot owns the slot — its
     // own fallback width (DEFAULT_CHAT_WIDTH) shouldn't be overwritten.
     if (isSettingsRoute) return;
@@ -379,6 +386,7 @@ const AppShell = () => {
   const shouldBridgeWorkStationPipeline =
     isWorkStationViewActive &&
     stationMode !== "ops-control" &&
+    stationMode !== "journey" &&
     !isSettingsRoute;
 
   useNarrowChatFocus({ enabled: isWorkStationViewActive });
@@ -411,7 +419,8 @@ const AppShell = () => {
   const effectiveChatFocus =
     chatPanelMaximized &&
     isWorkStationViewActive &&
-    (stationMode !== "ops-control" || isSettingsRoute);
+    ((stationMode !== "ops-control" && stationMode !== "journey") ||
+      isSettingsRoute);
 
   return (
     <TerminalProvider>

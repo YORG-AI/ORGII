@@ -250,12 +250,18 @@ simulatorAutoScrollAtom.debugLabel = "simulatorAutoScrollAtom";
 // two concerns don't share an enum value any more.
 // ============================================
 
-const STATION_MODES = ["my-station", "agent-station", "ops-control"] as const;
+const STATION_MODES = [
+  "my-station",
+  "agent-station",
+  "ops-control",
+  "journey",
+] as const;
 export type StationMode = (typeof STATION_MODES)[number];
 export const STATION_MODE = {
   MY_STATION: "my-station",
   AGENT_STATION: "agent-station",
   OPS_CONTROL: "ops-control",
+  JOURNEY: "journey",
 } as const satisfies Record<string, StationMode>;
 const StationModeSchema = z.enum(STATION_MODES);
 

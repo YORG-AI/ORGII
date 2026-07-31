@@ -235,6 +235,9 @@ export function useSpotlight(
         "open-ops-control": () => {
           void WorkStationViewService.openStationMode("ops-control");
         },
+        "open-journey": () => {
+          void WorkStationViewService.openStationMode("journey");
+        },
         "open-search-sidebar": () => {
           void WorkStationViewService.openSearchSidebar();
         },

@@ -133,10 +133,16 @@ export const WorkStationViewService = {
       store.set(opsControlFocusedTabAtom, null);
       if (
         !isWorkStationRoute() ||
-        window.location.pathname === ROUTES.workStation.opsControl.path
+        window.location.pathname === ROUTES.workStation.opsControl.path ||
+        window.location.pathname === ROUTES.workStation.journey.path
       ) {
         dispatchNavigate(ROUTES.workStation.base.path);
       }
+      return true;
+    }
+
+    if (mode === "journey") {
+      dispatchNavigate(ROUTES.workStation.journey.path);
       return true;
     }
 

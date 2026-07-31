@@ -66,6 +66,9 @@ export function usePinnedMenuItems({
         opsControlLabel: t("routes.opsControl"),
         opsControlRoutePath: ROUTES.workStation.opsControl.path,
         opsControlShortcut: getShortcutKeys("open_ops_control"),
+        journeyLabel: t("routes.journey", { defaultValue: "Journey" }),
+        journeyRoutePath: ROUTES.workStation.journey.path,
+        journeyShortcut: getShortcutKeys("open_journey"),
       }),
     [newSessionLabel, t]
   );

@@ -37,6 +37,12 @@ import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
+import { journeyStationSelectionAtom } from "@src/store/ui/journeyStationAtom";
+import { ROUTES } from "@src/config/routes";
+import {
+  createSessionJourneyTab,
+  workstationLayoutAtom,
+} from "@src/store/workstation/tabs";
 import {
   chatPanelContentModeAtom,
   chatPanelCreateProjectContextAtom,
@@ -135,6 +141,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
 
     const isChatFocus = useAtomValue(chatPanelMaximizedAtom);
     const toggleChatFocus = useSetAtom(toggleChatPanelMaximizedAtom);
+    const setChatPanelMaximized = useSetAtom(chatPanelMaximizedAtom);
     const showChatFocusToggle = viewMode === "workStation";
     const rawChatWidth = useAtomValue(chatWidthAtom);
     const viewportWidth = useViewportWidth();
@@ -349,6 +356,54 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       workItemCreateDraft,
     });
 
+    const setJourneyStationSelection = useSetAtom(journeyStationSelectionAtom);
+    const setWorkstationLayout = useSetAtom(workstationLayoutAtom);
+    const handleOpenSessionJourney = useCallback(() => {
+      if (!currentSessionId) return;
+      // Open the current session's Journey as a My Station tab — same
+      // navigation depth as work-item detail tabs. Rendering goes through
+      // the canonical journey_graph_query path; nothing is derived here.
+      const journeyTab = createSessionJourneyTab({
+        sessionId: currentSessionId,
+        sessionName: activeSession?.name ?? undefined,
+      });
+      setWorkstationLayout((prev) => {
+        const exists = prev.mainPane.tabs.some(
+          (item) => item.id === journeyTab.id
+        );
+        const tabs = exists
+          ? prev.mainPane.tabs.map((item) =>
+              item.id === journeyTab.id
+                ? { ...item, ...journeyTab, data: { ...item.data, ...journeyTab.data } }
+                : item
+            )
+          : [...prev.mainPane.tabs, journeyTab];
+        return {
+          ...prev,
+          mainPane: { ...prev.mainPane, tabs, activeTabId: journeyTab.id },
+        };
+      });
+      // Keep the standalone Journey station in sync so switching to it
+      // later shows the same session without re-selecting.
+      setJourneyStationSelection({
+        kind: "session",
+        id: currentSessionId,
+        name: activeSession?.name ?? undefined,
+      });
+      closeHeaderActionsMenu();
+      // Un-maximize chat and surface My Station so the tab is visible.
+      setChatPanelMaximized(false);
+      navigate(ROUTES.workStation.base.path);
+    }, [
+      activeSession?.name,
+      closeHeaderActionsMenu,
+      currentSessionId,
+      navigate,
+      setChatPanelMaximized,
+      setJourneyStationSelection,
+      setWorkstationLayout,
+    ]);
+
     const {
       handleOpenExportSessionJson,
       handleOpenLinkWorkItem,
@@ -537,6 +592,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           handleOpenExportSessionJson={handleOpenExportSessionJson}
           handleOpenLinkWorkItem={handleOpenLinkWorkItem}
           handleOpenLinkProject={handleOpenLinkProject}
+          handleOpenSessionJourney={handleOpenSessionJourney}
           handleOpenSearch={handleOpenSearch}
           handleNewSession={handleNewSession}
           handleOpenStartPage={handleOpenStartPage}

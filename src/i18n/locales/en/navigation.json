@@ -112,7 +112,8 @@
     "launchpad": "Launchpad",
     "ideaArea": "Idea Area",
     "changelog": "Changelog",
-    "opsControl": "Ops Control"
+    "opsControl": "Ops Control",
+    "journey": "Journey"
   },
   "appGrid": {
     "customizeGrid": "Customize Grid",
@@ -512,5 +513,13 @@
     "details": "Details",
     "frontend": "Frontend",
     "backend": "Backend"
+  },
+  "journeyStation": {
+    "projectJourney": "Project Journey",
+    "sessionJourney": "Session Journey",
+    "noProjects": "No projects yet",
+    "noSessions": "No sessions yet",
+    "emptyTitle": "Select a project or session journey",
+    "emptyHint": "Journeys are read-only fact graphs: every milestone, branch, and file lineage entry carries evidence and coverage."
   }
 }

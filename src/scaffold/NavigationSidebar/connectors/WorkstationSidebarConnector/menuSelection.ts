@@ -34,6 +34,7 @@ interface ResolveSelectedMenuItemIdParams {
   chatPanelWorkspaceDashboardOpen: boolean;
   chatPanelExploreOpen: boolean;
   opsControlRoutePath: string;
+  journeyRoutePath?: string;
   pathname: string;
   projectsSelectedMenuItemId: string;
   sessionCreatorDrafts: readonly SessionCreatorDraft[];
@@ -56,6 +57,7 @@ export function resolveSelectedMenuItemIds({
   chatPanelWorkspaceDashboardOpen,
   chatPanelExploreOpen,
   opsControlRoutePath,
+  journeyRoutePath,
   pathname,
   projectsSelectedMenuItemId,
   sessionCreatorDrafts,
@@ -66,7 +68,8 @@ export function resolveSelectedMenuItemIds({
   );
   const selectedPinnedMenuItemId = getSelectedPinnedMenuItemId(
     pathname,
-    opsControlRoutePath
+    opsControlRoutePath,
+    journeyRoutePath
   );
   const isChatPanelProjectsContentSelected =
     chatPanelContentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION ||
