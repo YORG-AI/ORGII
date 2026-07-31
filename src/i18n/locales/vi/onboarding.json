@@ -74,7 +74,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Thiết lập",
-      "subtitle": "Thiết lập đường dẫn ngắn nhất tới giá trị. Tiến trình của bạn được lưu sau mỗi bước.",
+      "subtitle": "Chọn ngôn ngữ và giao diện. Mọi thiết lập khác vẫn có sẵn trong ứng dụng.",
       "ariaLabel": "Tiến trình thiết lập",
       "stepProgress": "Bước {{current}} / {{total}}",
       "saved": "Tiến trình được lưu tự động",
@@ -157,13 +157,13 @@
       "memberVerified": "Lựa chọn tổ chức của bạn đang hoạt động và yêu cầu đồng bộ hóa hiện tại đã được loại bỏ."
     },
     "basics": {
-      "title": "Hoàn tất những điều cơ bản",
-      "description": "Hãy thiết lập ở mức đơn giản: chọn giao diện và xác nhận không gian làm việc bạn sẽ sử dụng trước tiên.",
+      "title": "Cá nhân hóa ORGII",
+      "description": "Chọn ngôn ngữ, chủ đề và màu nhấn phù hợp. Bạn có thể thay đổi bất cứ lúc nào.",
       "workspace": "Không gian làm việc mặc định",
       "workspaceDescription": "Các phiên chạy trên các tệp trong một không gian làm việc; các dự án và mục công việc tổ chức công việc thay vì thay thế hệ thống tệp.",
       "openWorkspace": "Mở không gian làm việc",
       "changeWorkspace": "Thay đổi không gian làm việc",
-      "settingsHint": "Mô hình, ngôn ngữ, thông báo và nhịp quét vẫn có sẵn trong Cài đặt sau khi thiết lập."
+      "settingsHint": "Công cụ, không gian làm việc, tổ chức, khả năng hiển thị nhóm và hướng dẫn có thể được thiết lập sau trong ứng dụng."
     },
     "tutorial": {
       "title": "Chọn một hướng dẫn theo ngữ cảnh",

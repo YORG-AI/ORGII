@@ -1,6 +1,6 @@
 /* global describe, before, after, it, browser */
 /**
- * Rendered proof for the goal-driven setup flow.
+ * Rendered proof for compact first-run preference setup.
  *
  * Fixture helpers only preserve/restore persisted settings and navigate. Every
  * transition below uses the production buttons and the real settings writer;
@@ -42,7 +42,7 @@ async function click(selector) {
   await element.click();
 }
 
-describe("Goal-driven setup walkthrough (rendered UI)", () => {
+describe("Quick setup preferences (rendered UI)", () => {
   before(async function () {
     await waitForApp();
     originalSettings = unwrap(
@@ -53,7 +53,7 @@ describe("Goal-driven setup walkthrough (rendered UI)", () => {
       await invokeE2E("navigateTo", SETUP_ROUTE),
       "navigate to setup checklist"
     );
-    await visible('[data-testid="setup-step-goal"]');
+    await visible('[data-testid="setup-preferences"]');
     if (process.env.E2E_SETUP_GOAL_SCREENSHOT) {
       await browser.saveScreenshot(process.env.E2E_SETUP_GOAL_SCREENSHOT);
     }
@@ -67,32 +67,44 @@ describe("Goal-driven setup walkthrough (rendered UI)", () => {
           originalSettings["general.setupWalkthroughOutcome"],
         "general.setupWalkthroughProgress":
           originalSettings["general.setupWalkthroughProgress"],
+        "general.language": originalSettings["general.language"],
+        "general.theme": originalSettings["general.theme"],
+        "general.primaryColor": originalSettings["general.primaryColor"],
       }),
       "restore setup settings"
     );
   });
 
-  it("completes the personal path and opens the real Launchpad", async () => {
-    // Returning users can reopen the checklist and revisit completed steps.
-    await click('[data-testid="setup-step-goal"]');
-    await click('[data-testid="setup-goal-personal"]');
-    await click('[data-testid="setup-continue"]');
+  it("persists a visible preference change and completes in one action", async () => {
+    const legacyStepCount = await browser.executeScript(
+      "return document.querySelectorAll('[data-testid^=setup-step-]').length;",
+      []
+    );
+    if (legacyStepCount !== 0) {
+      throw new Error(`quick setup still renders ${legacyStepCount} step rows`);
+    }
 
-    await visible('[data-testid="setup-step-tools"][aria-current="step"]');
-    // Tool detection is optional for this path; Continue remains an explicit
-    // user decision rather than a test-only state seed.
-    await click('[data-testid="setup-continue"]');
+    await click('[data-testid="setup-primary-color"]');
+    const violetOption = await browser.$(
+      '//*[normalize-space(text())="Violet"]'
+    );
+    await violetOption.waitForDisplayed({ timeout: WAIT_MS });
+    await violetOption.click();
+    await browser.waitUntil(
+      async () => {
+        const settings = unwrap(
+          await invokeE2E("readSettings"),
+          "read changed quick-setup preference"
+        ).settings;
+        return settings["general.primaryColor"] === "violet";
+      },
+      {
+        timeout: WAIT_MS,
+        interval: 200,
+        timeoutMsg: "primary color selection was not persisted",
+      }
+    );
 
-    await visible('[data-testid="setup-step-basics"][aria-current="step"]');
-    await click('[data-testid="setup-continue"]');
-
-    await visible('[data-testid="setup-step-tutorial"][aria-current="step"]');
-    await click('[data-testid="setup-continue"]');
-
-    await visible('[data-testid="setup-step-work-model"][aria-current="step"]');
-    await click('[data-testid="setup-continue"]');
-
-    await visible('[data-testid="setup-step-ready"][aria-current="step"]');
     if (process.env.E2E_SETUP_SCREENSHOT) {
       await browser.saveScreenshot(process.env.E2E_SETUP_SCREENSHOT);
     }
@@ -110,10 +122,27 @@ describe("Goal-driven setup walkthrough (rendered UI)", () => {
         timeoutMsg: "setup did not land in the Workstation",
       }
     );
-    await visible('[data-testid="chat-panel-start-page"]');
+    const completedSettings = unwrap(
+      await invokeE2E("readSettings"),
+      "read completed quick-setup settings"
+    ).settings;
+    const completedProgress =
+      completedSettings["general.setupWalkthroughProgress"];
+    if (
+      completedSettings["general.setupWalkthroughOutcome"] !== "completed" ||
+      completedProgress?.currentStepId !== "preferences" ||
+      !completedProgress?.completedStepIds?.includes("preferences")
+    ) {
+      throw new Error(
+        `quick setup did not commit completion atomically: ${JSON.stringify({
+          outcome: completedSettings["general.setupWalkthroughOutcome"],
+          progress: completedProgress,
+        })}`
+      );
+    }
   });
 
-  it("reopens a fresh checklist through the hidden release-build shortcut", async () => {
+  it("reopens quick setup through the hidden release-build shortcut", async () => {
     const isMac = await browser.executeScript(
       "return navigator.platform.toUpperCase().includes('MAC');",
       []
@@ -134,7 +163,7 @@ describe("Goal-driven setup walkthrough (rendered UI)", () => {
       [isMac]
     );
 
-    await visible('[data-testid="setup-step-goal"][aria-current="step"]');
+    await visible('[data-testid="setup-preferences"]');
     const settings = unwrap(
       await invokeE2E("readSettings"),
       "read shortcut-reset setup settings"

@@ -74,7 +74,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Configuración",
-      "subtitle": "Configura la ruta más corta al valor. Su progreso se guarda después de cada paso.",
+      "subtitle": "Elige el idioma y la apariencia. Todo lo demás seguirá disponible en la aplicación.",
       "ariaLabel": "Progreso de la configuración",
       "stepProgress": "Paso {{current}} de {{total}}",
       "saved": "Progreso guardado automáticamente",
@@ -157,13 +157,13 @@
       "memberVerified": "La selección de su organización está activa y la solicitud de sincronización actual está agotada."
     },
     "basics": {
-      "title": "Termine lo básico",
-      "description": "Mantenga la configuración pequeña: elija la apariencia y confirme el espacio de trabajo que usará primero.",
+      "title": "Personaliza ORGII",
+      "description": "Elige el idioma, el tema y el color de énfasis que prefieras. Podrás cambiarlos cuando quieras.",
       "workspace": "Predeterminado espacio de trabajo",
       "workspaceDescription": "Las sesiones se ejecutan en archivos en un espacio de trabajo; los proyectos y elementos de trabajo organizan el trabajo en lugar de reemplazar el sistema de archivos.",
       "openWorkspace": "Abrir espacio de trabajo",
       "changeWorkspace": "Cambiar espacio de trabajo",
-      "settingsHint": "Los modelos, el idioma, las notificaciones y la cadencia de escaneo permanecen disponibles en Configuración después de la configuración."
+      "settingsHint": "Las herramientas, los espacios de trabajo, las organizaciones, la visibilidad del equipo y los tutoriales se pueden configurar más adelante en la aplicación."
     },
     "tutorial": {
       "title": "Elija un tutorial contextual",

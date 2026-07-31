@@ -106,7 +106,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "设置",
-      "subtitle": "按最短路径完成首次价值。每一步都会保存进度。",
+      "subtitle": "选择语言与外观即可开始使用，其他设置之后仍可在应用内完成。",
       "ariaLabel": "设置进度",
       "stepProgress": "第 {{current}} / {{total}} 步",
       "saved": "进度已自动保存",
@@ -189,13 +189,13 @@
       "memberVerified": "组织选择已生效，本轮同步请求已处理完毕。"
     },
     "basics": {
-      "title": "完成基础设置",
-      "description": "保持精简：选择外观，并确认首先使用的 Workspace。",
+      "title": "让 ORGII 更适合你",
+      "description": "选择顺手的语言、主题和强调色；这些设置之后都可以随时修改。",
       "workspace": "默认 Workspace",
       "workspaceDescription": "会话在 Workspace 文件中运行；项目和工作项用于组织工作，并不会替代文件系统。",
       "openWorkspace": "打开 Workspace",
       "changeWorkspace": "切换 Workspace",
-      "settingsHint": "模型、语言、通知和扫描频率可在完成后继续从“设置”修改。"
+      "settingsHint": "工具、Workspace、组织、团队可见性和教程都可以之后在应用内按需设置。"
     },
     "tutorial": {
       "title": "选择一个页面教程",

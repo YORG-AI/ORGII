@@ -106,7 +106,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Setup",
-      "subtitle": "Set up the shortest path to value. Your progress is saved after every step.",
+      "subtitle": "Choose your language and appearance. Everything else stays available in the app.",
       "ariaLabel": "Setup progress",
       "stepProgress": "Step {{current}} of {{total}}",
       "saved": "Progress saved automatically",
@@ -189,13 +189,13 @@
       "memberVerified": "Your organization selection is active and the current sync request drained."
     },
     "basics": {
-      "title": "Finish the basics",
-      "description": "Keep setup small: choose the appearance and confirm the workspace you will use first.",
+      "title": "Make ORGII yours",
+      "description": "Choose the language, theme, and accent that feel right. You can change them anytime.",
       "workspace": "Default workspace",
       "workspaceDescription": "Sessions run against files in a workspace; projects and work items organize work rather than replace the filesystem.",
       "openWorkspace": "Open workspace",
       "changeWorkspace": "Change workspace",
-      "settingsHint": "Models, language, notifications, and scan cadence remain available in Settings after setup."
+      "settingsHint": "Tools, workspaces, organizations, team visibility, and tutorials can be configured later from the app."
     },
     "tutorial": {
       "title": "Pick one contextual tutorial",

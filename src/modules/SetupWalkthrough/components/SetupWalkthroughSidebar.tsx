@@ -14,12 +14,12 @@ import { SETUP_WALKTHROUGH_LAYOUT_TOKENS } from "../layoutTokens";
 export interface SetupWalkthroughSidebarProps {
   brandTag: string;
   description: string;
-  progressLabel: string;
-  progressPercent: number;
-  navigationLabel: string;
-  navigationItems: WizardStepNavigationItem<SetupStepId>[];
-  activeStepId: SetupStepId;
-  onSelectStep: (stepId: SetupStepId) => void | Promise<void>;
+  progressLabel?: string;
+  progressPercent?: number;
+  navigationLabel?: string;
+  navigationItems?: WizardStepNavigationItem<SetupStepId>[];
+  activeStepId?: SetupStepId;
+  onSelectStep?: (stepId: SetupStepId) => void | Promise<void>;
   disabled?: boolean;
   style?: React.CSSProperties;
 }
@@ -69,30 +69,34 @@ const SetupWalkthroughSidebar: React.FC<SetupWalkthroughSidebarProps> = memo(
         </div>
       </div>
 
-      <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progress}>
-        <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progressLabel}>
-          <span className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progressLabelText}>
-            {progressLabel}
-          </span>
+      {progressLabel !== undefined && progressPercent !== undefined && (
+        <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progress}>
+          <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progressLabel}>
+            <span className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.progressLabelText}>
+              {progressLabel}
+            </span>
+          </div>
+          <ProgressBar
+            percent={progressPercent}
+            color="bg-text-1"
+            trackColor="bg-border-2"
+            height="h-px"
+            ariaLabel={progressLabel}
+          />
         </div>
-        <ProgressBar
-          percent={progressPercent}
-          color="bg-text-1"
-          trackColor="bg-border-2"
-          height="h-px"
-          ariaLabel={progressLabel}
-        />
-      </div>
+      )}
 
-      <WizardStepNavigation
-        items={navigationItems}
-        activeId={activeStepId}
-        onSelect={onSelectStep}
-        ariaLabel={navigationLabel}
-        disabled={disabled}
-        className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.navigation}
-        testIdPrefix="setup-step"
-      />
+      {navigationLabel && navigationItems && activeStepId && onSelectStep && (
+        <WizardStepNavigation
+          items={navigationItems}
+          activeId={activeStepId}
+          onSelect={onSelectStep}
+          ariaLabel={navigationLabel}
+          disabled={disabled}
+          className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.navigation}
+          testIdPrefix="setup-step"
+        />
+      )}
     </aside>
   )
 );

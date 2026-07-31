@@ -74,7 +74,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Einrichtung",
-      "subtitle": "Stellen Sie den kürzesten Weg zum Wert ein. Ihr Fortschritt wird nach jedem Schritt gespeichert.",
+      "subtitle": "Wählen Sie Sprache und Erscheinungsbild. Alles Weitere bleibt in der App verfügbar.",
       "ariaLabel": "Setup-Fortschritt",
       "stepProgress": "Schritt {{current}} von {{total}}",
       "saved": "Fortschritt automatisch gespeichert",
@@ -157,13 +157,13 @@
       "memberVerified": "Ihre Organisationsauswahl ist aktiv und die aktuelle Synchronisierungsanforderung wurde gelöscht."
     },
     "basics": {
-      "title": "Beenden Sie die Grundlagen",
-      "description": "Halten Sie die Einrichtung klein: Wählen Sie das Erscheinungsbild und bestätigen Sie zuerst den Arbeitsbereich, den Sie verwenden möchten.",
+      "title": "ORGII personalisieren",
+      "description": "Wählen Sie Sprache, Design und Akzentfarbe. Sie können alles jederzeit ändern.",
       "workspace": "Standard Arbeitsbereich",
       "workspaceDescription": "Sitzungen werden für Dateien in einem Arbeitsbereich ausgeführt; Projekte und Arbeitselemente organisieren die Arbeit, anstatt das Dateisystem zu ersetzen.",
       "openWorkspace": "Arbeitsbereich öffnen",
       "changeWorkspace": "Arbeitsbereich ändern",
-      "settingsHint": "Modelle, Sprache, Benachrichtigungen und Scan-Rhythmus bleiben nach der Einrichtung in den Einstellungen verfügbar."
+      "settingsHint": "Tools, Arbeitsbereiche, Organisationen, Team-Sichtbarkeit und Tutorials können später in der App eingerichtet werden."
     },
     "tutorial": {
       "title": "Wählen Sie ein kontextbezogenes Tutorial aus",

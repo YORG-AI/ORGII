@@ -74,7 +74,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Konfiguracja",
-      "subtitle": "Ustaw najkrótszą ścieżkę do wartości. Twój postęp jest zapisywany po każdym kroku.",
+      "subtitle": "Wybierz język i wygląd. Wszystkie pozostałe ustawienia pozostaną dostępne w aplikacji.",
       "ariaLabel": "Postęp konfiguracji",
       "stepProgress": "Krok {{current}} z {{total}}",
       "saved": "Postęp zapisywany jest automatycznie",
@@ -157,13 +157,13 @@
       "memberVerified": "Wybór organizacji jest aktywny, a bieżące żądanie synchronizacji zostało wyczerpane."
     },
     "basics": {
-      "title": "Zakończ podstawy",
-      "description": "Utrzymuj niewielką konfigurację: wybierz wygląd i potwierdź obszar roboczy, którego będziesz używać jako pierwszy.",
+      "title": "Dostosuj ORGII do siebie",
+      "description": "Wybierz język, motyw i kolor akcentu. Możesz je zmienić w dowolnym momencie.",
       "workspace": "Domyślne obszar roboczy",
       "workspaceDescription": "Sesje uruchamiane z plikami w obszarze roboczym; projekty i elementy pracy organizują pracę zamiast zastępować system plików.",
       "openWorkspace": "Otwórz obszar roboczy",
       "changeWorkspace": "Zmień obszar roboczy",
-      "settingsHint": "Modele, język, powiadomienia i częstotliwość skanowania pozostają dostępne w Ustawieniach po konfiguracji."
+      "settingsHint": "Narzędzia, obszary robocze, organizacje, widoczność zespołu i samouczki można skonfigurować później w aplikacji."
     },
     "tutorial": {
       "title": "Wybierz jeden samouczek kontekstowy",

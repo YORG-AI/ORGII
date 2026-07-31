@@ -2,12 +2,10 @@
 
 const WAIT_MS = 30_000;
 
-async function setupGoalVisible() {
+async function setupPreferencesVisible() {
   return browser.executeScript(
     `
-      const element = document.querySelector(
-        '[data-testid="setup-step-goal"][aria-current="step"]'
-      );
+      const element = document.querySelector('[data-testid="setup-preferences"]');
       if (!element) return false;
       const rect = element.getBoundingClientRect();
       const style = getComputedStyle(element);
@@ -51,10 +49,10 @@ describe("Setup walkthrough shortcut entry (rendered UI)", () => {
       []
     );
 
-    await browser.waitUntil(setupGoalVisible, {
+    await browser.waitUntil(setupPreferencesVisible, {
       timeout: WAIT_MS,
       interval: 200,
-      timeoutMsg: "setup menu bridge did not open the Goal step",
+      timeoutMsg: "setup menu bridge did not open quick preferences",
     });
     const firstPath = await browser.executeScript(
       "return window.location.pathname;",
@@ -65,7 +63,7 @@ describe("Setup walkthrough shortcut entry (rendered UI)", () => {
     }
 
     await browser.refresh();
-    await browser.waitUntil(setupGoalVisible, {
+    await browser.waitUntil(setupPreferencesVisible, {
       timeout: WAIT_MS,
       interval: 200,
       timeoutMsg: "shortcut-reset onboarding state did not survive reload",

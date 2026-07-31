@@ -6,6 +6,19 @@ import { describe, expect, it } from "vitest";
 import SetupWalkthroughSidebar from "../SetupWalkthroughSidebar";
 
 describe("SetupWalkthroughSidebar", () => {
+  it("renders the compact first-run treatment without wizard progress", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(SetupWalkthroughSidebar, {
+        brandTag: "Setup",
+        description: "Choose language and appearance.",
+      })
+    );
+
+    expect(html).toContain("Choose language and appearance.");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).not.toContain('aria-label="Setup steps"');
+  });
+
   it("composes the shared logo, progress, and wizard navigation contracts", () => {
     const html = renderToStaticMarkup(
       React.createElement(SetupWalkthroughSidebar, {

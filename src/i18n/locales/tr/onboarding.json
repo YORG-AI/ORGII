@@ -74,7 +74,7 @@
   "readiness": {
     "sidebar": {
       "brandTag": "Kurulum",
-      "subtitle": "Değere giden en kısa yolu ayarlayın. İlerleme durumunuz her adımdan sonra kaydedilir.",
+      "subtitle": "Dilinizi ve görünümü seçin. Diğer tüm ayarlar uygulamada kullanılabilir kalır.",
       "ariaLabel": "Kurulum ilerleme durumu",
       "stepProgress": "Adım {{current}} / {{total}}",
       "saved": "İlerleme otomatik olarak kaydedilir",
@@ -157,13 +157,13 @@
       "memberVerified": "Kuruluş seçiminiz etkin ve mevcut senkronizasyon isteği boşaltıldı."
     },
     "basics": {
-      "title": "Temel işlemleri tamamlayın",
-      "description": "Kurulumu küçük tutun: ilk önce görünümü seçin ve kullanacağınız çalışma alanını onaylayın.",
+      "title": "ORGII’yi kişiselleştirin",
+      "description": "Size uygun dili, temayı ve vurgu rengini seçin. Bunları istediğiniz zaman değiştirebilirsiniz.",
       "workspace": "Varsayılan çalışma alanı",
       "workspaceDescription": "Oturumlar bir çalışma alanındaki dosyalarda çalıştırılır; projeler ve iş öğeleri, dosya sistemini değiştirmek yerine işi düzenler.",
       "openWorkspace": "Çalışma alanını açın",
       "changeWorkspace": "Çalışma alanını değiştirin",
-      "settingsHint": "Modeller, dil, bildirimler ve tarama temposu, kurulumdan sonra Ayarlar'da kullanılabilir durumda kalır."
+      "settingsHint": "Araçlar, çalışma alanları, kuruluşlar, ekip görünürlüğü ve eğitimler daha sonra uygulamada yapılandırılabilir."
     },
     "tutorial": {
       "title": "Bağlamsal bir eğitim seçin",
