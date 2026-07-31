@@ -20,6 +20,7 @@ describe("ActionCard accessibility contract", () => {
     expect(html).toContain('type="button"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('data-testid="cloud-source"');
+    expect(html).toContain("border-primary-6 bg-primary-1");
   });
 
   it("keeps cards with a trailing action free of nested buttons", () => {
