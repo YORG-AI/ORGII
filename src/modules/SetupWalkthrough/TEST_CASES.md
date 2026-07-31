@@ -38,8 +38,10 @@
 | Goal layout at a constrained width                   | The single-column goal list remains readable without clipping labels or changing the underlying selected goal.                                                                                                                                      |
 | Shared surface consistency                           | Guidance and results use `InlineAlert`; explanatory and readiness rows use `SectionContainer` / `SectionRow` without onboarding-only card skins or glow effects.                                                                                    |
 | Shared shell tokens                                  | Sidebar width comes from the main navigation sidebar token, the setup progress indicator uses `ProgressBar`, and shell colors/spacing use the app's semantic Tailwind tokens.                                                                       |
+| Shared step navigation                               | The sidebar delegates active/completed/locked rendering, keyboard semantics, and busy disabling to `WizardStepNavigation`; flow state remains authoritative in the setup controller.                                                                |
 | macOS window controls                                | The brand block starts below the shared native-titlebar inset; traffic lights never touch or overlap the application logo. Windows and Linux add no macOS-only inset.                                                                               |
 | Typographic hierarchy                                | Every setup page delegates title, description, icon, width, spacing, and a11y hierarchy to shared `WizardStepContent`; ActionCard/SectionRow retain their canonical title scales.                                                                   |
+| Supporting copy                                      | Standalone setup descriptions use `SectionDescription`; the feature does not rebuild the shared paragraph reset and typography token.                                                                                                               |
 | Dynamic setup feedback                               | Imported, selected, and verified states expose `role="status"`; operation failures expose `role="alert"`.                                                                                                                                           |
 | Team user signed out                                 | Organization step shows a sign-in/register action and cannot advance.                                                                                                                                                                               |
 | Existing team membership                             | Selecting the org persists the namespaced sidebar scope and unlocks sharing.                                                                                                                                                                        |
@@ -47,6 +49,7 @@
 | Invalid/expired invite                               | Error stays inline; org selection and step completion do not change.                                                                                                                                                                                |
 | Workspace has no Git remote                          | Scope action explains the blocker; a local path is never used as a shareable scope.                                                                                                                                                                 |
 | Admin scope succeeds, floor fails                    | Step remains incomplete and retryable; UI never reports the two-RPC policy as committed.                                                                                                                                                            |
+| Invite link returned                                 | The link renders in a shared `SectionContainer` / `SectionRow`, truncates without moving the Copy action, and copies the complete authoritative value.                                                                                              |
 | Organization or policy changes while save is pending | The request may finish for its captured org, but it cannot mark the newer selection verified.                                                                                                                                                       |
 | Member path                                          | No admin mutation is offered; one explicit org sync pass is required.                                                                                                                                                                               |
 | Codex history import                                 | Only `codex_app` is scanned; changed cache reloads the roster; count is persisted.                                                                                                                                                                  |
@@ -60,6 +63,7 @@
 | Selected tutorial                                    | Tutorial starts after the Workstation surface mounts.                                                                                                                                                                                               |
 | Switch to any supported language                     | Setup sidebar, all goal paths, role labels, tutorial picker, tutorial modal, and every tour step render from that locale without falling back to English.                                                                                           |
 | Translation interpolation                            | Step counts, account counts, organization names, and role labels retain the same interpolation variables in every locale.                                                                                                                           |
+| Legacy setup exports                                 | Only readiness-flow steps are exported or imported in production; removed welcome/repo/theme/passport step symbols cannot be reintroduced through a barrel import.                                                                                  |
 
 ## Verification
 
@@ -67,8 +71,9 @@
   `__tests__/layoutTokens.test.ts`,
   `__tests__/testShortcut.test.ts`,
   `__tests__/useSyncedSetupWalkthroughProgress.test.ts`,
-  `__tests__/i18n.test.ts`, `ProgressBar.test.ts`, setup navigation/settings tests, and
-  `settingsAtom.atomic.test.ts`.
+  `__tests__/i18n.test.ts`, `WizardStepNavigation.test.ts`,
+  `SectionDescription.test.ts`, `ProgressBar.test.ts`, setup
+  navigation/settings tests, and `settingsAtom.atomic.test.ts`.
 - Rendered UI: `tests/e2e/specs/core/setup-walkthrough-ui.spec.mjs` and
   `tests/e2e/specs/core/setup-walkthrough-shortcut-ui.spec.mjs`.
 - Static gates: TypeScript typecheck and ESLint over all changed TypeScript/TSX

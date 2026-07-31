@@ -15,6 +15,7 @@ import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { TUTORIALS } from "@src/scaffold/Tutorials/tutorialRegistry";
+import { WizardStepNavigation } from "@src/scaffold/WizardSystem";
 import {
   openCreateTargetInChatPanelStartPageAtom,
   openTeamInboxInChatPanelTabAtom,
@@ -34,7 +35,7 @@ import {
 } from "./flow";
 import "./index.scss";
 import { resolveSetupSidebarLayout } from "./layoutTokens";
-import { SetupOperationError } from "./steps";
+import { SetupOperationError } from "./steps/ReadinessSteps";
 import { useSetupWalkthroughController } from "./useSetupWalkthroughController";
 
 const WALKTHROUGH_STYLES = `
@@ -85,6 +86,14 @@ const SetupWalkthrough: React.FC = () => {
   const progressPercent = Math.round(
     (stepNumber / Math.max(1, visibleSteps.length)) * 100
   );
+  const navigationItems = visibleSteps.map((step) => ({
+    id: step.id,
+    title: t(`steps.${step.i18nKey}.title`),
+    description: t(`steps.${step.i18nKey}.description`),
+    icon: step.icon,
+    completed: controller.progress.completedStepIds.includes(step.id),
+    disabled: !canNavigateToSetupStep(controller.progress, step.id),
+  }));
 
   const landInSelectedOutcome = useCallback(() => {
     if (controller.progress.goal === "team_activity") {
@@ -216,78 +225,15 @@ const SetupWalkthrough: React.FC = () => {
         />
       </div>
 
-      <div
-        className="walkthrough-step-list mt-5 flex flex-1 flex-col overflow-y-auto [scrollbar-color:var(--color-border-2)_transparent] [scrollbar-width:thin]"
-        aria-label={t("readiness.sidebar.ariaLabel")}
-      >
-        {visibleSteps.map((step, index) => {
-          const StepIcon = step.icon;
-          const isActive = step.id === controller.currentStepId;
-          const isCompleted = controller.progress.completedStepIds.includes(
-            step.id
-          );
-          const canNavigate = canNavigateToSetupStep(
-            controller.progress,
-            step.id
-          );
-          return (
-            <div key={step.id} className="relative pb-1">
-              {index < visibleSteps.length - 1 && (
-                <span
-                  className="pointer-events-none absolute bottom-0 left-2.5 top-9 flex w-6 justify-center"
-                  aria-hidden
-                >
-                  <span
-                    className={`h-full w-px ${
-                      isCompleted ? "bg-success-6/45" : "bg-border-2"
-                    }`}
-                  />
-                </span>
-              )}
-              <button
-                className={`group flex w-full items-center gap-3 rounded-lg border px-2.5 py-2 text-left transition-colors duration-150 ${
-                  isActive
-                    ? "border-transparent bg-sidebar-selected"
-                    : canNavigate
-                      ? "cursor-pointer border-transparent bg-transparent hover:bg-fill-2"
-                      : "cursor-not-allowed border-transparent bg-transparent opacity-45"
-                }`}
-                onClick={() => void controller.goToStep(step.id)}
-                disabled={!canNavigate || isClosing}
-                aria-current={isActive ? "step" : undefined}
-                type="button"
-                data-testid={`setup-step-${step.id}`}
-              >
-                <div
-                  className={`relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
-                    isActive
-                      ? "border-text-1 bg-text-1 text-bg-1"
-                      : isCompleted
-                        ? "border-border-2 bg-bg-2 text-text-1"
-                        : "border-border-2 bg-bg-2 text-text-3"
-                  }`}
-                >
-                  {isCompleted ? <Check size={13} /> : <StepIcon size={13} />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div
-                    className={`truncate ${TYPOGRAPHY.contentTitle} ${
-                      isActive ? "text-text-1" : "text-text-2"
-                    }`}
-                  >
-                    {t(`steps.${step.i18nKey}.title`)}
-                  </div>
-                  <div
-                    className={`mt-0.5 truncate text-text-3 ${TYPOGRAPHY.contentSubtitle}`}
-                  >
-                    {t(`steps.${step.i18nKey}.description`)}
-                  </div>
-                </div>
-              </button>
-            </div>
-          );
-        })}
-      </div>
+      <WizardStepNavigation
+        items={navigationItems}
+        activeId={controller.currentStepId}
+        onSelect={controller.goToStep}
+        ariaLabel={t("readiness.sidebar.ariaLabel")}
+        disabled={isClosing}
+        className="walkthrough-step-list mt-5"
+        testIdPrefix="setup-step"
+      />
     </div>
   );
 

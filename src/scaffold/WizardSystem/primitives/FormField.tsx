@@ -17,16 +17,18 @@
  */
 import React from "react";
 
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+
 // ============================================
 // Tokens
 // ============================================
 
 export const FORM_FIELD_TOKENS = {
-  label: "text-[12px] font-medium text-text-2",
+  label: `${TYPOGRAPHY.valueMedium} text-text-2`,
   labelMargin: "mb-1.5",
-  hint: "mt-1 text-[11px] text-text-3",
-  error: "mt-1 text-[12px] text-danger-6",
-  warning: "mt-1 text-[11px] text-warning-6",
+  hint: `mt-1 text-text-3 ${TYPOGRAPHY.secondary}`,
+  error: `mt-1 text-danger-6 ${TYPOGRAPHY.value}`,
+  warning: `mt-1 text-warning-6 ${TYPOGRAPHY.secondary}`,
 } as const;
 
 // ============================================

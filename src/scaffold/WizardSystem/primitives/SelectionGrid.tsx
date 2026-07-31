@@ -42,6 +42,7 @@ import type {
   ActionCardVariant,
 } from "@src/components/ActionCard/types";
 import Button from "@src/components/Button";
+import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 
 // ============================================
 // Types
@@ -158,7 +159,7 @@ function SelectionGrid<T extends string = string>(
 
     return (
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[12px] font-medium text-text-1">{label}</span>
+        <span className={`${TYPOGRAPHY.valueMedium} text-text-1`}>{label}</span>
         {nextOption && (
           <Button
             variant="tertiary"

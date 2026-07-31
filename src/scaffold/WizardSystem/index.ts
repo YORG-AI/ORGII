@@ -14,6 +14,8 @@ export {
   WizardShell,
   WizardStepContent,
   WIZARD_STEP_CONTENT_TOKENS,
+  WizardStepNavigation,
+  WIZARD_STEP_NAVIGATION_TOKENS,
   WizardStepLayout,
   FormField,
   FORM_FIELD_TOKENS,
@@ -25,6 +27,8 @@ export {
 export type {
   WizardShellProps,
   WizardStepContentProps,
+  WizardStepNavigationItem,
+  WizardStepNavigationProps,
   WizardStepLayoutProps,
   FormFieldProps,
   SelectionGridProps,

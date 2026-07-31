@@ -10,7 +10,9 @@
 `src/components/ProgressBar/index.tsx`,
 `src/config/windowChromeTokens.ts`,
 `src/modules/shared/layouts/OnboardingLayout/index.tsx`,
-`src/modules/shared/layouts/SectionLayout/Heading.test.ts`,
+`src/modules/shared/layouts/SectionLayout/Description.tsx`,
+`src/modules/shared/layouts/SectionLayout/__tests__/Heading.test.ts`,
+`src/modules/shared/layouts/SectionLayout/__tests__/SectionDescription.test.ts`,
 `src/modules/shared/layouts/SectionLayout/Heading.tsx`,
 `src/modules/shared/layouts/SectionLayout/index.ts`,
 `src/modules/shared/layouts/SectionLayout/tokens.ts`,
@@ -19,21 +21,31 @@
 `src/modules/SetupWalkthrough/index.scss`,
 `src/modules/SetupWalkthrough/layoutTokens.ts`,
 `src/modules/SetupWalkthrough/steps/ReadinessSteps.tsx`,
-`src/scaffold/WizardSystem/primitives/WizardStepContent.test.ts`,
+`src/scaffold/WizardSystem/primitives/FormField.tsx`,
+`src/scaffold/WizardSystem/primitives/SelectionGrid.tsx`,
+`src/scaffold/WizardSystem/primitives/WizardProgressCard.tsx`,
+`src/scaffold/WizardSystem/primitives/WizardStepLayout.tsx`,
+`src/scaffold/WizardSystem/primitives/WizardStepNavigation.tsx`,
+`src/scaffold/WizardSystem/primitives/__tests__/WizardStepContent.test.ts`,
+`src/scaffold/WizardSystem/primitives/__tests__/WizardStepNavigation.test.ts`,
 `src/scaffold/WizardSystem/primitives/WizardStepContent.tsx`
 **Date:** 2026-07-31
 **Auditor:** Codex
 
 ## D1 — Raw HTML vs Design System
 
-| Line / element                               | Element           | Verdict          | Reason                                                                                                                                                                                                | Suggested change                                                 |
-| -------------------------------------------- | ----------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| `SetupWalkthrough/index.tsx` step navigation | Native `<button>` | keep with reason | The row combines current/completed/locked states, a timeline connector, two-line copy, and `aria-current`; the shared Button variants do not cover this navigation shape.                             | Promote only if another wizard needs the same timeline contract. |
-| `ActionCard/index.tsx` selectable container  | Native `<button>` | keep with reason | `ActionCard` is itself the canonical design-system selectable control and owns native pressed/disabled/focus semantics. Wrapping it in Button would create the wrong visual and semantic abstraction. | —                                                                |
-| `ReadinessSteps.tsx` feedback surfaces       | Local alert skin  | fixed            | The shared `InlineAlert` already covers info, success, danger, icons, actions, and tokenized spacing.                                                                                                 | Replaced the local `StatusBanner` implementation.                |
-| `SetupWalkthrough/index.tsx` progress track  | Local progress UI | fixed            | The shared `ProgressBar` covers clamping, animation, track/fill tokens, and now accepts an accessible label.                                                                                          | Replaced setup-only progress markup with `ProgressBar`.          |
-| `ReadinessSteps.tsx` step heading/frame      | Local page frame  | fixed            | The feature rebuilt semantic heading, icon, supporting copy, content width, and vertical rhythm instead of using WizardSystem.                                                                        | Added and reused shared `WizardStepContent`.                     |
-| `WizardStepContent.tsx` intro hierarchy      | Raw structural UI | fixed            | The wizard primitive still assembled `<section>`, `<header>`, heading, and supporting copy instead of delegating the established SectionLayout system.                                                | Added the generic `SectionHeading appearance="intro"` contract.  |
+| Line / element                               | Element           | Verdict          | Reason                                                                                                                                                                                                       | Suggested change                                                                               |
+| -------------------------------------------- | ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `SetupWalkthrough/index.tsx` step navigation | Native `<button>` | fixed            | The feature owned a reusable wizard navigation pattern and rebuilt current/completed/locked state, connector geometry, typography, and semantics locally.                                                    | Added shared `WizardStepNavigation`; setup now supplies only flow state and localized content. |
+| `WizardStepNavigation.tsx` interactive root  | Native `<button>` | keep with reason | The shared primitive is the design-system boundary for this compound navigation control and owns native disabled/current semantics. Wrapping it in the generic Button would apply the wrong visual contract. | —                                                                                              |
+| `ActionCard/index.tsx` selectable container  | Native `<button>` | keep with reason | `ActionCard` is itself the canonical design-system selectable control and owns native pressed/disabled/focus semantics. Wrapping it in Button would create the wrong visual and semantic abstraction.        | —                                                                                              |
+| `ReadinessSteps.tsx` feedback surfaces       | Local alert skin  | fixed            | The shared `InlineAlert` already covers info, success, danger, icons, actions, and tokenized spacing.                                                                                                        | Replaced the local `StatusBanner` implementation.                                              |
+| `SetupWalkthrough/index.tsx` progress track  | Local progress UI | fixed            | The shared `ProgressBar` covers clamping, animation, track/fill tokens, and now accepts an accessible label.                                                                                                 | Replaced setup-only progress markup with `ProgressBar`.                                        |
+| `ReadinessSteps.tsx` step heading/frame      | Local page frame  | fixed            | The feature rebuilt semantic heading, icon, supporting copy, content width, and vertical rhythm instead of using WizardSystem.                                                                               | Added and reused shared `WizardStepContent`.                                                   |
+| `WizardStepContent.tsx` intro hierarchy      | Raw structural UI | fixed            | The wizard primitive still assembled `<section>`, `<header>`, heading, and supporting copy instead of delegating the established SectionLayout system.                                                       | Added the generic `SectionHeading appearance="intro"` contract.                                |
+| `ReadinessSteps.tsx` invite link             | Local card markup | fixed            | A one-off rounded border/fill surface duplicated the established settings information-row composition.                                                                                                       | Replaced with `SectionContainer`, `SectionRow`, the shared path token, and Button.             |
+| `ReadinessSteps.tsx` supporting paragraphs   | Native `<p>`      | fixed            | Multiple setup steps repeated the same paragraph reset, line height, and shared description token.                                                                                                           | Added and reused `SectionDescription`.                                                         |
+| `SectionDescription.tsx` semantic root       | Native `<p>`      | keep with reason | This shared SectionLayout primitive is the semantic design-system boundary for supporting copy and must preserve ordinary paragraph attributes.                                                              | —                                                                                              |
 
 ## D2 — Arbitrary Tailwind Value vs Token
 
@@ -43,19 +55,21 @@
 
 ## D3 — Hardcoded Sizes / Colors
 
-| Line / value                   | Verdict          | Reason                                                                                                                                             | Suggested change                                            |
-| ------------------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Brand subtitle `max-w-[210px]` | fixed            | A spacing-scale equivalent is available.                                                                                                           | Replaced with `max-w-52`.                                   |
-| Ready/error content width      | fixed            | Local `max-w-*` wrappers drifted from the standard detail/wizard content measure.                                                                  | Reuses `DETAIL_PANEL_TOKENS.contentWidth`.                  |
-| ActionCard badge `text-[10px]` | keep with reason | The badge is tertiary metadata inside a 13 px card title and is an established ActionCard micro-label size.                                        | —                                                           |
-| Setup progress `text-[11px]`   | fixed            | The setup-only micro-size was unnecessary and did not use the configured type scale.                                                               | Replaced with the shared `text-xs` token.                   |
-| Walkthrough sidebar `280px`    | fixed            | The setup shell guessed a width independently from the main application sidebar.                                                                   | Reuses `DEFAULT_SIDEBAR_WIDTH`.                             |
-| macOS content top inset        | fixed            | Ordinary panel padding let native traffic lights touch the logo; the window-control safe area was not represented.                                 | Added shared `WINDOW_CHROME_TOKENS.titleBarHeight`.         |
-| `OnboardingLayout` max sizes   | keep with reason | These values define the reusable onboarding card's viewport contract and predate this setup variant; changing them would alter login/repo layouts. | —                                                           |
-| Fullscreen drag region `52px`  | keep with reason | This is a desktop hit-target region owned by the shared layout, not general content spacing.                                                       | —                                                           |
-| Work-model numbered cards      | fixed            | Decorative ordinals, large corner radii, and hover scaling introduced a setup-only visual language.                                                | Replaced with shared SectionContainer / SectionRow density. |
-| Ready destination glow         | fixed            | The blurred accent treatment was unique to setup and competed with the app's normal information hierarchy.                                         | Replaced with the shared InlineAlert info treatment.        |
-| Setup title/body type scale    | fixed            | Local `text-lg` / `text-sm` combinations diverged from the app's compact main-surface hierarchy.                                                   | Reuses `TYPOGRAPHY.contentTitle` / `contentSubtitle`.       |
+| Line / value                   | Verdict          | Reason                                                                                                                                                       | Suggested change                                                                              |
+| ------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Brand subtitle `max-w-[210px]` | fixed            | A spacing-scale equivalent is available.                                                                                                                     | Replaced with `max-w-52`.                                                                     |
+| Ready/error content width      | fixed            | Local `max-w-*` wrappers drifted from the standard detail/wizard content measure.                                                                            | Reuses `DETAIL_PANEL_TOKENS.contentWidth`.                                                    |
+| ActionCard badge `text-[10px]` | keep with reason | The badge is tertiary metadata inside a 13 px card title and is an established ActionCard micro-label size.                                                  | —                                                                                             |
+| Setup progress `text-[11px]`   | fixed            | The setup-only micro-size was unnecessary and did not use the configured type scale.                                                                         | Replaced with the shared `text-xs` token.                                                     |
+| Walkthrough sidebar `280px`    | fixed            | The setup shell guessed a width independently from the main application sidebar.                                                                             | Reuses `DEFAULT_SIDEBAR_WIDTH`.                                                               |
+| macOS content top inset        | fixed            | Ordinary panel padding let native traffic lights touch the logo; the window-control safe area was not represented.                                           | Added shared `WINDOW_CHROME_TOKENS.titleBarHeight`.                                           |
+| `OnboardingLayout` max sizes   | keep with reason | These values define the reusable onboarding card's viewport contract and predate this setup variant; changing them would alter login/repo layouts.           | —                                                                                             |
+| Fullscreen drag region `52px`  | keep with reason | This is a desktop hit-target region owned by the shared layout, not general content spacing.                                                                 | —                                                                                             |
+| Work-model numbered cards      | fixed            | Decorative ordinals, large corner radii, and hover scaling introduced a setup-only visual language.                                                          | Replaced with shared SectionContainer / SectionRow density.                                   |
+| Ready destination glow         | fixed            | The blurred accent treatment was unique to setup and competed with the app's normal information hierarchy.                                                   | Replaced with the shared InlineAlert info treatment.                                          |
+| Setup title/body type scale    | fixed            | Local `text-lg` / `text-sm` combinations diverged from the app's compact main-surface hierarchy.                                                             | Reuses `TYPOGRAPHY.contentTitle` / `contentSubtitle`.                                         |
+| Wizard primitive typography    | fixed            | `FormField`, compact `SelectionGrid`, progress copy, and step footer retained local pixel or generic text sizes instead of the configured application scale. | Reuses `TYPOGRAPHY.valueMedium`, `secondary`, `value`, `contentSubtitle`, and `sectionTitle`. |
+| Wizard content padding         | fixed            | WizardSystem duplicated the same padding strings already owned by the shared detail-panel layout token.                                                      | `WIZARD_CONTENT_TOKENS` now references `DETAIL_PANEL_TOKENS` directly.                        |
 
 ## D4 — Accessibility
 
@@ -77,8 +91,13 @@
 - Goal selection delegates hover, selected, focus, spacing, and color to the
   existing SelectionGrid and ActionCard primitives; onboarding adds no custom
   card variant.
+- SetupWalkthrough projects authoritative flow state into
+  WizardStepNavigation; the shared primitive owns connector geometry,
+  active/completed/locked styling, native semantics, and stable icon slots.
 - Work-model explanations and the final readiness summary use the same
   SectionContainer / SectionRow hierarchy as Settings and other App surfaces.
+- Invite-link presentation uses the same SectionContainer / SectionRow / Button
+  composition and path token as other structured app surfaces.
 - Guidance, success, and failure feedback use InlineAlert instead of a local
   onboarding banner variant.
 - The setup shell derives its width and macOS titlebar inset from the same
@@ -91,13 +110,14 @@
   `HEADER_ICON_SIZE`, and `SECTION_GAP_CLASSES`, while WizardSystem supplies
   only `DETAIL_PANEL_TOKENS.contentWidth`.
 - Setup step status, path, summary, and descriptive copy reuse the shared
-  SectionLayout typography/path tokens; raw feature-level text sizing remains
-  only where a component owns the design-system primitive.
+  SectionLayout typography/path tokens. SectionDescription owns the semantic
+  paragraph boundary, while WizardSystem primitives compose the application
+  typography and detail-panel spacing tokens.
 - No additional pattern appears independently in three or more files.
 
 ## Summary
 
-- 12 fixes applied
-- 5 kept with documented reason
+- 17 fixes applied
+- 6 kept with documented reason
 - 0 remaining fix candidates
 - 0 abstract candidates

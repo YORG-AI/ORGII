@@ -7,7 +7,7 @@ import { SECTION_INTRO_TOKENS } from "@src/modules/shared/layouts/SectionLayout"
 
 import WizardStepContent, {
   WIZARD_STEP_CONTENT_TOKENS,
-} from "./WizardStepContent";
+} from "../WizardStepContent";
 
 describe("WizardStepContent", () => {
   it("owns the shared wizard heading hierarchy and accessible relationship", () => {

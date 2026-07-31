@@ -32,13 +32,14 @@ import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { openOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
 import {
+  SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
-  SECTION_DESCRIPTION_CLASSES,
   SECTION_PATH_TEXT_CLASSES,
   SECTION_VALUE_SMALL_SECONDARY_CLASSES,
   SECTION_VALUE_TEXT_CLASSES,
   SECTION_VALUE_TEXT_SUCCESS_CLASSES,
   SectionContainer,
+  SectionDescription,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
@@ -185,9 +186,7 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
           })}
         </InlineAlert>
       )}
-      <p className={`m-0 leading-5 ${SECTION_DESCRIPTION_CLASSES}`}>
-        {t("readiness.tools.privacy")}
-      </p>
+      <SectionDescription>{t("readiness.tools.privacy")}</SectionDescription>
     </WizardStepContent>
   );
 };
@@ -489,22 +488,26 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
         </div>
       )}
       {controller.progress.inviteLink && (
-        <div className="flex items-center gap-2 rounded-lg border border-border-1 bg-fill-2 p-2">
-          <code className="min-w-0 flex-1 truncate text-xs">
-            {controller.progress.inviteLink}
-          </code>
-          <Button
-            size="small"
-            icon={<Clipboard size={14} />}
-            onClick={() =>
-              void navigator.clipboard.writeText(
-                controller.progress.inviteLink ?? ""
-              )
-            }
-          >
-            {t("readiness.sharing.copy")}
-          </Button>
-        </div>
+        <SectionContainer>
+          <SectionRow label={t("readiness.organization.invite")}>
+            <div className={SECTION_ACTION_GAP_CLASSES}>
+              <code className={SECTION_PATH_TEXT_CLASSES}>
+                {controller.progress.inviteLink}
+              </code>
+              <Button
+                size="small"
+                icon={<Clipboard size={14} />}
+                onClick={() =>
+                  void navigator.clipboard.writeText(
+                    controller.progress.inviteLink ?? ""
+                  )
+                }
+              >
+                {t("readiness.sharing.copy")}
+              </Button>
+            </div>
+          </SectionRow>
+        </SectionContainer>
       )}
       {isSaved && (
         <InlineAlert type="success" role="status">
@@ -627,9 +630,9 @@ export const WorkModelStep: React.FC<StepProps> = () => {
                 <div className={`${TYPOGRAPHY.contentTitle} text-text-1`}>
                   {t(`readiness.model.${key}.title`)}
                 </div>
-                <p className={`m-0 leading-5 ${SECTION_DESCRIPTION_CLASSES}`}>
+                <SectionDescription>
                   {t(`readiness.model.${key}.description`)}
-                </p>
+                </SectionDescription>
               </div>
             </div>
           </SectionRow>

@@ -7,19 +7,6 @@ import type { ComponentType } from "react";
 import type { SetupWalkthroughController } from "./useSetupWalkthroughController";
 
 // ============================================
-// AnimatedTitle Types
-// ============================================
-
-export interface AnimatedTitleProps {
-  title: string;
-  subtitle?: string;
-  /** If true, title stays visible (doesn't fade out) */
-  persistent?: boolean;
-  /** If true, hide the small header at top */
-  hideSmallTitle?: boolean;
-}
-
-// ============================================
 // Step Configuration Types
 // ============================================
 

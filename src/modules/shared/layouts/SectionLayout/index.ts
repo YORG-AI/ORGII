@@ -28,6 +28,9 @@
 export { default as SectionHeading } from "./Heading";
 export type { SectionHeadingProps } from "./Heading";
 
+export { default as SectionDescription } from "./Description";
+export type { SectionDescriptionProps } from "./Description";
+
 export { default as SectionContainer } from "./Container";
 export type { SectionContainerProps } from "./Container";
 

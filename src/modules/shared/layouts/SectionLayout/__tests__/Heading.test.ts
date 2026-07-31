@@ -3,8 +3,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import SectionHeading from "./Heading";
-import { SECTION_INTRO_TOKENS } from "./tokens";
+import SectionHeading from "../Heading";
+import { SECTION_INTRO_TOKENS } from "../tokens";
 
 describe("SectionHeading", () => {
   it("preserves the existing section heading contract by default", () => {
