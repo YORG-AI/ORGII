@@ -1,6 +1,6 @@
 # Frontend UI Audit — Setup Walkthrough Polish
 
-**Files:** `src/components/PearlMark/index.tsx`,
+**Files:** `src/components/AppLogo/index.tsx`,
 `src/components/ActionCard/ActionCard.test.ts`,
 `src/components/ActionCard/index.tsx`,
 `src/components/ActionCard/types.ts`,
@@ -36,16 +36,16 @@
 
 ## D4 — Accessibility
 
-| Element         | Verdict | Reason                                                                                                                                     | Suggested change |
-| --------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
-| Pearl mark      | pass    | Decorative use is hidden from assistive technology; named use supports `role="img"` and a direct accessible label.                         | —                |
-| Step navigation | pass    | Native buttons expose disabled state, current step uses `aria-current="step"`, and the group has a localized accessible label.             | —                |
-| Goal choices    | pass    | ActionCard retains native button semantics and `aria-pressed`; the visual polish does not add or remove selection affordances dynamically. | —                |
+| Element          | Verdict | Reason                                                                                                                                     | Suggested change |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| Application logo | pass    | The canonical application asset is reused; decorative use is hidden from assistive technology and named use supports alternative text.     | —                |
+| Step navigation  | pass    | Native buttons expose disabled state, current step uses `aria-current="step"`, and the group has a localized accessible label.             | —                |
+| Goal choices     | pass    | ActionCard retains native button semantics and `aria-pressed`; the visual polish does not add or remove selection affordances dynamically. | —                |
 
 ## D5 — Visual Patterns Observed
 
-- The pearl is now a shared, theme-aware `PearlMark` component instead of an
-  onboarding-only icon treatment.
+- The canonical desktop asset is exposed through a shared `AppLogo` component
+  instead of introducing an onboarding-only brand mark.
 - ActionCard's reusable inline/stacked layout keeps optional metadata and
   selection affordances in stable slots, preventing selection-driven reflow.
 - The existing SelectionGrid and ActionCard primitives remain the canonical

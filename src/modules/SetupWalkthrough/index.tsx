@@ -4,9 +4,9 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
+import AppLogo from "@src/components/AppLogo";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
-import PearlMark from "@src/components/PearlMark";
 import { ROUTES } from "@src/config/routes";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
@@ -157,7 +157,7 @@ const SetupWalkthrough: React.FC = () => {
   const leftContent = (
     <div className="flex h-full w-full flex-col">
       <div className="walkthrough-brand">
-        <PearlMark className="walkthrough-brand-mark" size={32} />
+        <AppLogo className="walkthrough-brand-mark" size={32} alt="" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight text-text-1">
