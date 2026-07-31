@@ -34,7 +34,8 @@ export type CloudChannelVisibility = "org" | "private";
 export type CloudChannelPostPolicy = "everyone" | "managers";
 export type CloudChannelRole = "manager" | "member";
 
-const NullableStringSchema = z
+/** Absent/null → undefined. Shared with the message plane's contract. */
+export const NullableStringSchema = z
   .string()
   .nullish()
   .transform((value) => value ?? undefined)
@@ -65,9 +66,9 @@ export type CloudChannel = z.output<typeof CloudChannelSchema>;
 /**
  * Drop-bad-rows array (the org2CloudSyncClient listing precedent): one
  * malformed row degrades to nothing instead of rejecting the whole listing
- * and blanking the sidebar section.
+ * and blanking the sidebar section. Shared with the message plane's contract.
  */
-const tolerantRowArray = <Schema extends z.ZodType>(schema: Schema) =>
+export const tolerantRowArray = <Schema extends z.ZodType>(schema: Schema) =>
   z
     .array(z.unknown())
     .default([])

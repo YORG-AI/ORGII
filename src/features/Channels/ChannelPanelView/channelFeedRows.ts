@@ -15,7 +15,6 @@
  *      days come from the caller's `t` and everything older is formatted by
  *      `Intl` in the active locale.
  */
-import type { LocalChannelMessage } from "@src/store/ui/localChannelMessagesAtom";
 import {
   getLocalDateKey,
   getLocalDayDiff,
@@ -28,12 +27,37 @@ import {
  */
 export const CHANNEL_MESSAGE_GROUPING_WINDOW_MS = 5 * 60 * 1000;
 
+/**
+ * The transcript's scope-neutral row model — the ONE shape the renderer
+ * understands, so the local and cloud planes share `ChannelMessageList` /
+ * `ChannelMessageRow` instead of forking them.
+ *
+ * `LocalChannelMessage` satisfies it structurally: the author fields are the
+ * cloud plane's addition (that plane is multi-user), and their absence means
+ * "single author — use the list-level label".
+ */
+export interface ChannelFeedMessage {
+  id: string;
+  channelId: string;
+  body: string;
+  createdAt: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  /** Multi-author planes: who wrote it (grouping breaks on a change). */
+  authorUserId?: string;
+  /** Already-localized display name; falls back to the list-level label. */
+  authorLabel?: string;
+  authorAvatarUrl?: string;
+  /** False hides this row's edit/delete actions (someone else's message). */
+  canModify?: boolean;
+}
+
 export type ChannelFeedRow =
   | { kind: "divider"; id: string; dateKey: string }
   | {
       kind: "message";
       id: string;
-      message: LocalChannelMessage;
+      message: ChannelFeedMessage;
       /** True when this row continues the block above (header suppressed). */
       grouped: boolean;
     };
@@ -48,11 +72,12 @@ function parseTime(iso: string): number {
  * `createdAt` — `selectLocalChannelMessages` guarantees that order).
  */
 export function buildChannelFeedRows(
-  messages: readonly LocalChannelMessage[]
+  messages: readonly ChannelFeedMessage[]
 ): ChannelFeedRow[] {
   const rows: ChannelFeedRow[] = [];
   let currentDateKey: string | null = null;
   let previousTime: number | null = null;
+  let previousAuthor: string | undefined;
 
   for (const message of messages) {
     const created = new Date(message.createdAt);
@@ -63,17 +88,22 @@ export function buildChannelFeedRows(
       rows.push({ kind: "divider", id: `divider-${dateKey}`, dateKey });
       currentDateKey = dateKey;
       previousTime = null;
+      previousAuthor = undefined;
     }
 
     // A tombstone always starts a fresh block: collapsing "message deleted"
     // into the block above would read as an edit of the message before it.
+    // A different author does too — grouping suppresses the author line, so
+    // collapsing across authors would attribute the row to the wrong person.
     const grouped =
       previousTime !== null &&
       message.deletedAt === null &&
+      message.authorUserId === previousAuthor &&
       time - previousTime <= CHANNEL_MESSAGE_GROUPING_WINDOW_MS;
 
     rows.push({ kind: "message", id: message.id, message, grouped });
     previousTime = time;
+    previousAuthor = message.authorUserId;
   }
 
   return rows;

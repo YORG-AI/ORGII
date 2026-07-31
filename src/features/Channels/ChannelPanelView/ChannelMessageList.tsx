@@ -22,10 +22,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { useEffect, useMemo, useRef } from "react";
 
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import type { LocalChannelMessage } from "@src/store/ui/localChannelMessagesAtom";
 
 import ChannelMessageRow, { ChannelDateDivider } from "./ChannelMessageRow";
 import {
+  type ChannelFeedMessage,
   buildChannelFeedRows,
   resolveChannelDateDividerLabel,
 } from "./channelFeedRows";
@@ -36,10 +36,19 @@ export const CHANNEL_VIRTUALIZATION_THRESHOLD = 30;
 export const CHANNEL_ESTIMATED_ROW_HEIGHT = 64;
 
 export interface ChannelMessageListProps {
-  messages: readonly LocalChannelMessage[];
+  messages: readonly ChannelFeedMessage[];
+  /** Author label for rows that carry none of their own (local plane). */
   authorLabel: string;
-  onEdit: ((messageId: string, body: string) => boolean) | null;
+  onEdit:
+    | ((messageId: string, body: string) => boolean | Promise<boolean>)
+    | null;
   onDelete: ((messageId: string) => void) | null;
+  /**
+   * Rendered above the first row inside the transcript column — the cloud
+   * plane's "load earlier messages" control lives here so paging stays inside
+   * the scroller without the list owning the pagination policy.
+   */
+  header?: React.ReactNode;
 }
 
 const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
@@ -47,6 +56,7 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
   authorLabel,
   onEdit,
   onDelete,
+  header,
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const rows = useMemo(() => buildChannelFeedRows(messages), [messages]);
@@ -62,19 +72,30 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
     overscan: 8,
   });
 
-  // Auto-scroll to the newest row, the transcript's resting position. Keyed
-  // on the row count so a new post lands in view; an edit does not scroll.
+  // Row count read at scroll time, so the effect below can key on the LAST
+  // row's identity without going stale on the count.
+  const rowCountRef = useRef(rowCount);
+  useEffect(() => {
+    rowCountRef.current = rowCount;
+  }, [rowCount]);
+
+  // Auto-scroll to the newest row, the transcript's resting position. Keyed on
+  // the LAST row's id, not the row count: a new post lands in view, an edit
+  // does not scroll, and PREPENDING an older page (cloud paging) leaves the
+  // reader where they were instead of yanking them back to the bottom.
+  const lastRowId = rows.length > 0 ? rows[rows.length - 1].id : null;
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (shouldVirtualize && rowCount > 0) {
-        rowVirtualizer.scrollToIndex(rowCount - 1, { align: "end" });
+      const count = rowCountRef.current;
+      if (shouldVirtualize && count > 0) {
+        rowVirtualizer.scrollToIndex(count - 1, { align: "end" });
         return;
       }
       const container = scrollContainerRef.current;
       if (container) container.scrollTop = container.scrollHeight;
     });
     return () => cancelAnimationFrame(frame);
-  }, [rowCount, rowVirtualizer, shouldVirtualize]);
+  }, [lastRowId, rowVirtualizer, shouldVirtualize]);
 
   const renderRow = (index: number): React.ReactNode => {
     const row = rows[index];
@@ -106,6 +127,7 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
       <div
         className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
       >
+        {header}
         {shouldVirtualize ? (
           <div
             className="relative min-w-0"

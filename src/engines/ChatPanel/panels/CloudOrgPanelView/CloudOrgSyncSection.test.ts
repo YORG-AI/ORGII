@@ -42,6 +42,7 @@ function status(
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     },
     capabilitiesLoading: false,
     lastSync: { lastPassAtMs: null, lastSuccessAtMs: null },

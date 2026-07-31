@@ -14,6 +14,8 @@
  * the old hand-rolled textarea did by returning `false`.
  */
 import type { SubmitOverrideInput } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { org2ChannelMessagesErrorCode } from "@src/features/Org2Cloud/channels/channelMessagesClient";
+import { CHANNEL_MESSAGE_MAX_LENGTH } from "@src/features/Org2Cloud/channels/channelMessagesTypes";
 import type {
   LocalChannelMessageErrorCode,
   LocalChannelMessageResult,
@@ -67,5 +69,71 @@ export function createChannelPostHandler(
     const message = translate(CHANNEL_POST_ERROR_KEYS[result.error]);
     onError(message);
     throw new Error(message);
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Cloud scope
+// ---------------------------------------------------------------------------
+
+/**
+ * Server refusal code → `navigation` namespace key. Every entry is copy the
+ * user can ACT on: "only managers can post here", "this channel is archived".
+ * Anything unlisted (transport failure, an unrecognized future code) falls
+ * back to the generic post error the local plane already uses.
+ */
+export const CLOUD_CHANNEL_POST_ERROR_KEYS: Record<string, string> = {
+  ORG2_CHANNEL_POST_FORBIDDEN: "cloud.channels.feed.errorPostForbidden",
+  ORG2_CHANNEL_ARCHIVED: "cloud.channels.feed.errorArchived",
+  ORG2_CHANNEL_NOT_FOUND: "cloud.channels.feed.errorChannelMissing",
+  ORG2_NOT_FOUND: "cloud.channels.feed.errorChannelMissing",
+  ORG2_MESSAGE_NOT_FOUND: "cloud.channels.feed.errorMessageMissing",
+  ORG2_MEMBER_REQUIRED: "cloud.channels.feed.errorPostForbidden",
+};
+
+/** The `navigation` key explaining a failed cloud message write. */
+export function resolveCloudChannelErrorKey(error: unknown): string {
+  const code = org2ChannelMessagesErrorCode(error);
+  return (
+    (code ? CLOUD_CHANNEL_POST_ERROR_KEYS[code] : undefined) ??
+    CHANNEL_POST_ERROR_KEYS.invalid
+  );
+}
+
+export interface CloudChannelPostHandlerDeps {
+  /** Posts the body; rejects with the RPC error (rollback already applied). */
+  post: (body: string) => Promise<void>;
+  translate: (key: string) => string;
+  onError: (message: string | null) => void;
+}
+
+/**
+ * The cloud twin of `createChannelPostHandler`. Same contract — resolve `true`
+ * when handled, THROW so `useSubmitMessage` restores the editor snapshot —
+ * with the length bound checked before the round trip (the RPC would answer
+ * `ORG2_VALIDATION`, which cannot say WHICH rule was broken) and the server's
+ * refusal code mapped to its own copy.
+ */
+export function createCloudChannelPostHandler(
+  deps: CloudChannelPostHandlerDeps
+): ChannelPostHandler {
+  const { post, translate, onError } = deps;
+  return async ({ displayText }: SubmitOverrideInput): Promise<boolean> => {
+    const body = displayText.trim();
+    if (body.length === 0) return true;
+    if (body.length > CHANNEL_MESSAGE_MAX_LENGTH) {
+      const message = translate(CHANNEL_POST_ERROR_KEYS.tooLong);
+      onError(message);
+      throw new Error(message);
+    }
+    try {
+      await post(body);
+      onError(null);
+      return true;
+    } catch (error) {
+      const message = translate(resolveCloudChannelErrorKey(error));
+      onError(message);
+      throw new Error(message);
+    }
   };
 }

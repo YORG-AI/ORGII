@@ -33,6 +33,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
@@ -43,6 +44,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -61,6 +63,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -79,6 +82,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -98,6 +102,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -111,6 +116,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: true,
@@ -121,6 +127,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -135,6 +142,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     rawMock.mockResolvedValueOnce({ broadcastSignals: true });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
@@ -146,6 +154,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(2);
   });
@@ -165,6 +174,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(await getCloudCapabilities("jwt-1")).toEqual({
       broadcastSignals: false,
@@ -175,6 +185,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -198,6 +209,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(await second).toEqual({
       broadcastSignals: true,
@@ -208,6 +220,7 @@ describe("getCloudCapabilities", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     expect(rawMock).toHaveBeenCalledTimes(1);
   });
@@ -227,6 +240,7 @@ describe("getCloudCapabilitiesConfirmed", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -240,6 +254,7 @@ describe("getCloudCapabilitiesConfirmed", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     const result = await getCloudCapabilitiesConfirmed("jwt-1");
     expect(result.confirmed).toBe(true);
@@ -259,6 +274,7 @@ describe("getCloudCapabilitiesConfirmed", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
   });
 
@@ -290,6 +306,7 @@ describe("getCloudCapabilitiesConfirmed", () => {
       sessionTurnIndex: false,
       offlineSync: false,
       orgChannels: false,
+      orgChannelMessages: false,
     });
     // A cached hit is, by definition, a confirmed read — no second RPC.
     const result = await getCloudCapabilitiesConfirmed("jwt-1");

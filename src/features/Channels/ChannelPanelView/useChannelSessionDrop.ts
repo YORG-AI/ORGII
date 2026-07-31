@@ -67,7 +67,7 @@ interface UseChannelSessionDropOptions {
   /** The composer footer, searched for `InputArea`'s own drop rect. */
   composerFooterRef: RefObject<HTMLElement | null>;
   composerInputRef: RefObject<ComposerInputRef | null>;
-  /** True on cloud channels: nothing to post, so nothing to accept. */
+  /** True with no writable message plane: nothing to post, nothing to accept. */
   disabled?: boolean;
 }
 

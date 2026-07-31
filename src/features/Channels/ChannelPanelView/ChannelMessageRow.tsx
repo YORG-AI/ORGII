@@ -58,7 +58,6 @@ import {
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
-import type { LocalChannelMessage } from "@src/store/ui/localChannelMessagesAtom";
 import { LOCAL_CHANNEL_MESSAGE_MAX_LENGTH } from "@src/store/ui/localChannelMessagesAtom";
 import { formatLocalClock } from "@src/util/data/formatters/date";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
@@ -66,7 +65,10 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 import ChannelGitHubCard from "./ChannelGitHubCard";
 import ChannelSessionCard from "./ChannelSessionCard";
 import ChannelWorkItemCard from "./ChannelWorkItemCard";
-import type { ChannelDateDividerLabel } from "./channelFeedRows";
+import type {
+  ChannelDateDividerLabel,
+  ChannelFeedMessage,
+} from "./channelFeedRows";
 import {
   type ChannelMessageReference,
   channelReferenceKey,
@@ -178,13 +180,19 @@ const ReferenceCard: React.FC<{
 };
 
 export interface ChannelMessageRowProps {
-  message: LocalChannelMessage;
+  message: ChannelFeedMessage;
   /** Continues the block above: avatar + author line are suppressed. */
   grouped: boolean;
-  /** Author label for the single local user (already localized). */
+  /** Fallback author label when the row carries none (already localized). */
   authorLabel: string;
-  /** Null on the cloud variant — its message plane is not writable yet. */
-  onEdit: ((messageId: string, body: string) => boolean) | null;
+  /**
+   * Null when the surface has no writable message plane (a backend without
+   * the message capability). Cloud edits are async, so the handler may hand
+   * back a promise — the editor stays open until it resolves true.
+   */
+  onEdit:
+    | ((messageId: string, body: string) => boolean | Promise<boolean>)
+    | null;
   onDelete: ((messageId: string) => void) | null;
 }
 
@@ -201,8 +209,12 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.body);
   const isTombstone = message.deletedAt !== null;
-  const canEdit = onEdit !== null && !isTombstone;
-  const canDelete = onDelete !== null && !isTombstone;
+  // Multi-author planes gate the row actions to the author's own rows; the
+  // single-user local plane leaves `canModify` unset and keeps both.
+  const isMine = message.canModify ?? true;
+  const canEdit = onEdit !== null && !isTombstone && isMine;
+  const canDelete = onDelete !== null && !isTombstone && isMine;
+  const displayAuthor = message.authorLabel ?? authorLabel;
 
   // Editing stays on the RAW body — the stored pill syntax is what the author
   // typed, and rewriting it from the split would drop their references.
@@ -230,8 +242,10 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
 
   const saveEdit = useCallback(() => {
     if (!onEdit) return;
-    // Keep the editor open on refusal so the text is never thrown away.
-    if (onEdit(message.id, draft)) setEditing(false);
+    void (async () => {
+      // Keep the editor open on refusal so the text is never thrown away.
+      if (await onEdit(message.id, draft)) setEditing(false);
+    })();
   }, [draft, message.id, onEdit]);
 
   return (
@@ -242,14 +256,19 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
     >
       <div className="w-7 shrink-0">
         {grouped ? null : (
-          <Avatar size={28}>{authorLabel.slice(0, 1).toUpperCase()}</Avatar>
+          <Avatar size={28} src={message.authorAvatarUrl}>
+            {displayAuthor.slice(0, 1).toUpperCase()}
+          </Avatar>
         )}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {grouped ? null : (
           <div className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[13px] font-semibold text-text-1">
-              {authorLabel}
+            <span
+              className="truncate text-[13px] font-semibold text-text-1"
+              data-testid="channel-message-author"
+            >
+              {displayAuthor}
             </span>
             <Tooltip
               content={formatRelativeTime(message.createdAt, "long")}
@@ -315,6 +334,8 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
               size="small"
               autoSize
               rows={2}
+              // Both planes bound bodies at 4000 (the cloud RPC enforces the
+              // same ceiling), so one constant covers the shared editor.
               maxLength={LOCAL_CHANNEL_MESSAGE_MAX_LENGTH}
               autoFocus
               data-testid="channel-message-edit-input"

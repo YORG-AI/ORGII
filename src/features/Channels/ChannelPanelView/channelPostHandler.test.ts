@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { Org2CloudChannelMessagesError } from "@src/features/Org2Cloud/channels/channelMessagesClient";
+import { CHANNEL_MESSAGE_MAX_LENGTH } from "@src/features/Org2Cloud/channels/channelMessagesTypes";
 import type {
   LocalChannelMessage,
   LocalChannelMessageResult,
@@ -7,7 +9,10 @@ import type {
 
 import {
   CHANNEL_POST_ERROR_KEYS,
+  CLOUD_CHANNEL_POST_ERROR_KEYS,
   createChannelPostHandler,
+  createCloudChannelPostHandler,
+  resolveCloudChannelErrorKey,
 } from "./channelPostHandler";
 
 const MESSAGE: LocalChannelMessage = {
@@ -86,5 +91,87 @@ describe("createChannelPostHandler", () => {
     // `useSubmitMessage` only calls `handleSessChatSubmit` when the override
     // resolves false — a channel has no session to submit to.
     await expect(handler({ displayText: "ship it" })).resolves.toBe(true);
+  });
+});
+
+function setupCloud(post: (body: string) => Promise<void>) {
+  const onError = vi.fn();
+  const handler = createCloudChannelPostHandler({
+    post,
+    translate: (key) => key,
+    onError,
+  });
+  return { handler, onError };
+}
+
+function refusal(code: string): Org2CloudChannelMessagesError {
+  return new Org2CloudChannelMessagesError(`refused (${code})`, 403);
+}
+
+describe("createCloudChannelPostHandler", () => {
+  it("posts the trimmed body and clears the inline error on success", async () => {
+    const post = vi.fn(async () => undefined);
+    const { handler, onError } = setupCloud(post);
+
+    await expect(
+      handler({ displayText: "  ship the release notes  " })
+    ).resolves.toBe(true);
+    expect(post).toHaveBeenCalledWith("ship the release notes");
+    expect(onError).toHaveBeenCalledWith(null);
+  });
+
+  it("explains a managers-only channel instead of a generic failure", async () => {
+    const { handler, onError } = setupCloud(async () => {
+      throw refusal("ORG2_CHANNEL_POST_FORBIDDEN");
+    });
+
+    await expect(handler({ displayText: "hello" })).rejects.toThrow(
+      CLOUD_CHANNEL_POST_ERROR_KEYS.ORG2_CHANNEL_POST_FORBIDDEN
+    );
+    expect(onError).toHaveBeenCalledWith(
+      "cloud.channels.feed.errorPostForbidden"
+    );
+  });
+
+  it("explains an archived channel instead of a generic failure", async () => {
+    const { handler, onError } = setupCloud(async () => {
+      throw refusal("ORG2_CHANNEL_ARCHIVED");
+    });
+
+    await expect(handler({ displayText: "hello" })).rejects.toThrow(
+      CLOUD_CHANNEL_POST_ERROR_KEYS.ORG2_CHANNEL_ARCHIVED
+    );
+    expect(onError).toHaveBeenCalledWith("cloud.channels.feed.errorArchived");
+  });
+
+  it("falls back to the generic post error for anything unmapped", async () => {
+    // A transport failure carries no ORG2_* code at all.
+    expect(resolveCloudChannelErrorKey(new Error("network down"))).toBe(
+      CHANNEL_POST_ERROR_KEYS.invalid
+    );
+    // ...and so does a future server code this build does not know.
+    expect(resolveCloudChannelErrorKey(refusal("ORG2_QUOTA_EXCEEDED"))).toBe(
+      CHANNEL_POST_ERROR_KEYS.invalid
+    );
+  });
+
+  it("refuses an over-long body before spending a round trip", async () => {
+    const post = vi.fn(async () => undefined);
+    const { handler, onError } = setupCloud(post);
+
+    await expect(
+      handler({ displayText: "x".repeat(CHANNEL_MESSAGE_MAX_LENGTH + 1) })
+    ).rejects.toThrow(CHANNEL_POST_ERROR_KEYS.tooLong);
+    expect(post).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledWith(CHANNEL_POST_ERROR_KEYS.tooLong);
+  });
+
+  it("ignores a whitespace-only submit without calling the RPC", async () => {
+    const post = vi.fn(async () => undefined);
+    const { handler, onError } = setupCloud(post);
+
+    await expect(handler({ displayText: "   \n  " })).resolves.toBe(true);
+    expect(post).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 });
