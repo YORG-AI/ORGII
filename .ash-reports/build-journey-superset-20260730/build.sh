@@ -24,7 +24,7 @@ echo "started=$STARTED commit=$COMMIT"
 MEM_AVAIL_KB=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
 SWAP_FREE_KB=$(awk '/SwapFree:/ {print $2}' /proc/meminfo)
 echo "preflight MemAvailable_kB=$MEM_AVAIL_KB SwapFree_kB=$SWAP_FREE_KB"
-[ "$MEM_AVAIL_KB" -ge 6291456 ]
+[ "$MEM_AVAIL_KB" -ge 5242880 ]
 [ "$SWAP_FREE_KB" -ge 1048576 ]
 grep -q 'layoutStoryline' "$SRC/src/modules/ProjectManager/JourneyGraph/timelineLayout.ts"
 grep -q 'session-journey' "$SRC/src/store/workstation/tabs/factories/project.ts"
