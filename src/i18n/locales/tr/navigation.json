@@ -118,6 +118,14 @@
       "collapseAll": "Tümünü daralt",
       "markAllRead": "Tümünü okundu olarak işaretle"
     },
+    "guide": {
+      "trigger": "Kılavuzu aç",
+      "title": "Başlarken",
+      "startSession": "Oturum başlat",
+      "setUpTeam": "Ekip kur",
+      "manageWork": "İşi yönet",
+      "openTutorials": "Eğitimleri aç"
+    },
     "search": {
       "folders": "Çalışma alanında ara...",
       "sessions": "Oturum ara...",

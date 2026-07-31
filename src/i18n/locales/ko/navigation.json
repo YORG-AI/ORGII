@@ -118,6 +118,14 @@
       "collapseAll": "모두 접기",
       "markAllRead": "모두 읽음으로 표시"
     },
+    "guide": {
+      "trigger": "가이드 열기",
+      "title": "시작하기",
+      "startSession": "세션 시작",
+      "setUpTeam": "팀 설정",
+      "manageWork": "작업 관리",
+      "openTutorials": "튜토리얼 열기"
+    },
     "search": {
       "folders": "워크스페이스 검색...",
       "sessions": "세션 검색...",

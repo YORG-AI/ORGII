@@ -119,6 +119,14 @@
       "collapseAll": "全部折叠",
       "markAllRead": "全部标为已读"
     },
+    "guide": {
+      "trigger": "打开使用引导",
+      "title": "开始使用",
+      "startSession": "开始会话",
+      "setUpTeam": "设置团队",
+      "manageWork": "管理工作",
+      "openTutorials": "打开页面教程"
+    },
     "search": {
       "folders": "搜索工作区...",
       "sessions": "搜索会话...",

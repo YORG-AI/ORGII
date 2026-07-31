@@ -118,6 +118,14 @@
       "collapseAll": "Alle einklappen",
       "markAllRead": "Alle als gelesen markieren"
     },
+    "guide": {
+      "trigger": "Anleitung öffnen",
+      "title": "Erste Schritte",
+      "startSession": "Sitzung starten",
+      "setUpTeam": "Team einrichten",
+      "manageWork": "Arbeit verwalten",
+      "openTutorials": "Tutorials öffnen"
+    },
     "search": {
       "folders": "Workspace suchen...",
       "sessions": "Sitzungen suchen...",

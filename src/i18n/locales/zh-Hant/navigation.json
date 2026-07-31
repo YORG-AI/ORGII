@@ -119,6 +119,14 @@
       "collapseAll": "全部摺疊",
       "markAllRead": "全部標為已讀"
     },
+    "guide": {
+      "trigger": "開啟使用引導",
+      "title": "開始使用",
+      "startSession": "開始會話",
+      "setUpTeam": "設定團隊",
+      "manageWork": "管理工作",
+      "openTutorials": "開啟頁面教學"
+    },
     "search": {
       "folders": "搜尋工作區...",
       "sessions": "搜尋會話...",

@@ -118,6 +118,14 @@
       "collapseAll": "Zwiń wszystko",
       "markAllRead": "Oznacz wszystkie jako przeczytane"
     },
+    "guide": {
+      "trigger": "Otwórz przewodnik",
+      "title": "Pierwsze kroki",
+      "startSession": "Rozpocznij sesję",
+      "setUpTeam": "Skonfiguruj zespół",
+      "manageWork": "Zarządzaj pracą",
+      "openTutorials": "Otwórz samouczki"
+    },
     "search": {
       "folders": "Szukaj w Workspace...",
       "sessions": "Szukaj sesji...",

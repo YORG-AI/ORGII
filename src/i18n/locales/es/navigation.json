@@ -118,6 +118,14 @@
       "collapseAll": "Contraer todo",
       "markAllRead": "Marcar todo como leído"
     },
+    "guide": {
+      "trigger": "Abrir guía",
+      "title": "Primeros pasos",
+      "startSession": "Iniciar una sesión",
+      "setUpTeam": "Configurar un equipo",
+      "manageWork": "Gestionar trabajo",
+      "openTutorials": "Abrir tutoriales"
+    },
     "search": {
       "folders": "Buscar en el espacio de trabajo...",
       "sessions": "Buscar sesiones...",

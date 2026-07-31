@@ -8,6 +8,7 @@ import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
+import { TUTORIALS_OPEN_EVENT } from "@src/scaffold/Tutorials/tutorialRegistry";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
@@ -20,15 +21,18 @@ import {
   visitedSessionsAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
+import { CHAT_PANEL_CREATE_TARGET } from "@src/store/ui/chatPanelAtom";
 import {
   clearSessionSidebarRevealAtom,
   sessionSidebarRevealRequestAtom,
   sidebarCollapsedAtom,
 } from "@src/store/ui/sidebarAtom";
+import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 
 import { SidebarBottomBar, SidebarMenuSearchInput } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
+import SidebarGuideButton from "../SidebarGuideButton";
 import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
 import { useWorkstationSidebarBottomActions } from "./sidebarConnector.bottomActions";
@@ -524,6 +528,24 @@ export const WorkstationSidebarConnector: React.FC = () => {
       pinnedMenuItems,
     });
 
+  const handleGuideSetUpTeam = useCallback(() => {
+    openCreateTargetInStartPage({
+      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
+      title: t("routes.launchpad"),
+    });
+  }, [openCreateTargetInStartPage, t]);
+
+  const handleGuideManageWork = useCallback(() => {
+    openWorkManagementTab({
+      section: WORK_MANAGEMENT_SECTION.KANBAN,
+      title: tSessions("simulator.tabs.kanban"),
+    });
+  }, [openWorkManagementTab, tSessions]);
+
+  const handleGuideOpenTutorials = useCallback(() => {
+    window.dispatchEvent(new CustomEvent(TUTORIALS_OPEN_EVENT));
+  }, []);
+
   return (
     <>
       <NavigationSidebar
@@ -549,6 +571,14 @@ export const WorkstationSidebarConnector: React.FC = () => {
         addTooltipContent={
           <SidebarSearchShortcutTooltip
             searchLabel={tCommon("actions.search")}
+          />
+        }
+        beforeAddNewActions={
+          <SidebarGuideButton
+            onStartSession={handleGoToNewSession}
+            onSetUpTeam={handleGuideSetUpTeam}
+            onManageWork={handleGuideManageWork}
+            onOpenTutorials={handleGuideOpenTutorials}
           />
         }
         search={{

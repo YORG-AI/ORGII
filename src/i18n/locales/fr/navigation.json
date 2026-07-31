@@ -118,6 +118,14 @@
       "collapseAll": "Tout réduire",
       "markAllRead": "Tout marquer comme lu"
     },
+    "guide": {
+      "trigger": "Ouvrir le guide",
+      "title": "Bien démarrer",
+      "startSession": "Démarrer une session",
+      "setUpTeam": "Configurer une équipe",
+      "manageWork": "Gérer le travail",
+      "openTutorials": "Ouvrir les tutoriels"
+    },
     "search": {
       "folders": "Rechercher dans l’espace de travail...",
       "sessions": "Rechercher des sessions...",

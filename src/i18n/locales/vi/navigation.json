@@ -118,6 +118,14 @@
       "collapseAll": "Thu gọn tất cả",
       "markAllRead": "Đánh dấu tất cả đã đọc"
     },
+    "guide": {
+      "trigger": "Mở hướng dẫn",
+      "title": "Bắt đầu",
+      "startSession": "Bắt đầu phiên",
+      "setUpTeam": "Thiết lập nhóm",
+      "manageWork": "Quản lý công việc",
+      "openTutorials": "Mở hướng dẫn sử dụng"
+    },
     "search": {
       "folders": "Tìm kiếm Workspace...",
       "sessions": "Tìm kiếm phiên...",

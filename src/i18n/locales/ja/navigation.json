@@ -118,6 +118,14 @@
       "collapseAll": "すべて折りたたむ",
       "markAllRead": "すべて既読にする"
     },
+    "guide": {
+      "trigger": "ガイドを開く",
+      "title": "はじめに",
+      "startSession": "セッションを開始",
+      "setUpTeam": "チームを設定",
+      "manageWork": "作業を管理",
+      "openTutorials": "チュートリアルを開く"
+    },
     "search": {
       "folders": "ワークスペースを検索...",
       "sessions": "セッションを検索...",

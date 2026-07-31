@@ -147,6 +147,14 @@
       "collapseAll": "Collapse All",
       "markAllRead": "Mark All Read"
     },
+    "guide": {
+      "trigger": "Open guide",
+      "title": "Get started",
+      "startSession": "Start a session",
+      "setUpTeam": "Set up a team",
+      "manageWork": "Manage work",
+      "openTutorials": "Open tutorials"
+    },
     "search": {
       "folders": "Search Workspace...",
       "sessions": "Search Sessions...",
