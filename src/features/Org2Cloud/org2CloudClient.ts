@@ -70,7 +70,7 @@ let inFlightRefresh:
   | { key: string; promise: Promise<RefreshAttemptResult> }
   | undefined;
 
-type CloudRpcEndpoint = Pick<
+export type CloudRpcEndpoint = Pick<
   ReturnType<typeof getCloudEndpoint>,
   "supabaseUrl" | "anonKey"
 >;
@@ -136,13 +136,14 @@ export async function schemaVersion(): Promise<number | null> {
  */
 export async function getCloudCapabilitiesRaw(
   accessToken: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  endpoint?: CloudRpcEndpoint
 ): Promise<unknown | null> {
   return callRpc(
     "get_cloud_capabilities",
     accessToken,
     undefined,
-    getCloudEndpoint(),
+    endpoint ?? getCloudEndpoint(),
     signal
   );
 }

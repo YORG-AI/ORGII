@@ -51,6 +51,14 @@ const shareableScopeKeyInFlight = new Map<string, Promise<string[] | null>>();
 
 interface RepoNetworkScopeCacheEntry {
   value: string | null;
+  /**
+   * True when the provider lookup FAILED (transport/API error) rather than
+   * answering "no network identity". A failed entry rate-limits retries for
+   * its TTL but must never be read as proof of no identity: scope matching
+   * that would need this key reports UNKNOWN instead of no-match, because
+   * no-match retracts live shared rows and drops org tags.
+   */
+  failed: boolean;
   expiresAt: number;
 }
 
@@ -301,13 +309,17 @@ export async function resolveRepoNetworkScopeKey(
       const sourceKey = normalizeRepoScopeKey(
         `github.com/${identity.source_full_name}`
       );
-      return sourceKey && !isLocalRepoPath(sourceKey) ? sourceKey : null;
+      return {
+        value: sourceKey && !isLocalRepoPath(sourceKey) ? sourceKey : null,
+        failed: false,
+      };
     })
-    .catch(() => null)
-    .then((value) => {
+    .catch(() => ({ value: null, failed: true }))
+    .then(({ value, failed }) => {
       if (repoNetworkScopeInFlight.get(normalized) === task) {
         writeLruEntry(repoNetworkScopeCache, normalized, {
           value,
+          failed,
           expiresAt:
             value === null
               ? Date.now() + NETWORK_LOOKUP_FAILURE_TTL_MS
@@ -371,18 +383,44 @@ export function peekMatchingOrgRepoScope(
   return unresolved ? undefined : null;
 }
 
+/** True when a cached network lookup for `input` is a rate-limited FAILURE. */
+function peekRepoNetworkLookupFailed(input: string): boolean {
+  const normalized = normalizeRepoScopeKey(input);
+  if (!normalized || isLocalRepoPath(normalized)) return false;
+  if (!githubRepoFullName(normalized)) return false;
+  const entry = readLruEntry(repoNetworkScopeCache, normalized);
+  return Boolean(entry && entry.failed && entry.expiresAt > Date.now());
+}
+
+/**
+ * `undefined` ⇒ UNKNOWN: no direct match, and at least one network-identity
+ * lookup that a match could hinge on has FAILED (transient GitHub/API
+ * error). Callers on destructive paths (out-of-scope retract/untag) must
+ * defer on unknown — treating a failed lookup as "no match" retracted live
+ * rows and dropped org tags whenever the identity API blipped, then pushed
+ * them again once the 30s failure TTL expired (scope flapping).
+ */
 export async function resolveMatchingOrgRepoScope(
   repoScopeKeys: string[] | null | undefined,
   orgScopes: string[] | null | undefined
-): Promise<string | null> {
+): Promise<string | null | undefined> {
   const immediate = peekMatchingOrgRepoScope(repoScopeKeys, orgScopes);
-  if (immediate !== undefined) return immediate;
+  if (immediate != null) return immediate;
   await Promise.all(
     [...(repoScopeKeys ?? []), ...(orgScopes ?? [])].map((key) =>
       resolveRepoNetworkScopeKey(key)
     )
   );
-  return peekMatchingOrgRepoScope(repoScopeKeys, orgScopes) ?? null;
+  const matched = peekMatchingOrgRepoScope(repoScopeKeys, orgScopes) ?? null;
+  if (matched !== null) return matched;
+  if (
+    [...(repoScopeKeys ?? []), ...(orgScopes ?? [])].some(
+      peekRepoNetworkLookupFailed
+    )
+  ) {
+    return undefined;
+  }
+  return null;
 }
 
 // ============================================================================
@@ -429,7 +467,7 @@ export async function resolveLocalCheckoutForScopeKey(
       const candidateKeys = await resolve(normalizedPath);
       if (
         candidateKeys?.includes(normalizedKey) ||
-        (await resolveMatchingOrgRepoScope(candidateKeys, [normalizedKey])) !==
+        (await resolveMatchingOrgRepoScope(candidateKeys, [normalizedKey])) !=
           null
       ) {
         return normalizedPath;

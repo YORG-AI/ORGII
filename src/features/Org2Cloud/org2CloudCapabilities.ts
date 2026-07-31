@@ -8,7 +8,10 @@
 import { z } from "zod/v4";
 
 import { getCloudEndpoint } from "./config";
-import { getCloudCapabilitiesRaw } from "./org2CloudClient";
+import {
+  type CloudRpcEndpoint,
+  getCloudCapabilitiesRaw,
+} from "./org2CloudClient";
 import { runCloudRequestWithTimeout } from "./org2CloudFetchRetry";
 
 const CLOUD_CAPABILITIES_TIMEOUT_MS = 15_000;
@@ -69,11 +72,12 @@ const inFlightByEndpoint = new Map<
 
 async function probeCloudCapabilities(
   accessToken: string,
-  endpointKey: string
+  endpointKey: string,
+  endpoint?: CloudRpcEndpoint
 ): Promise<CloudCapabilitiesProbeResult> {
   try {
     const payload = await runCloudRequestWithTimeout(
-      (signal) => getCloudCapabilitiesRaw(accessToken, signal),
+      (signal) => getCloudCapabilitiesRaw(accessToken, signal, endpoint),
       CLOUD_CAPABILITIES_TIMEOUT_MS
     );
     const parsed = CloudCapabilitiesWireSchema.safeParse(payload);
@@ -110,14 +114,18 @@ async function probeCloudCapabilities(
  * this time" — see the member-runtime push scheduler's capability blackout.
  */
 export async function getCloudCapabilitiesConfirmed(
-  accessToken: string
+  accessToken: string,
+  endpoint?: CloudRpcEndpoint
 ): Promise<CloudCapabilitiesProbeResult> {
-  const endpointKey = getCloudEndpoint().supabaseUrl;
+  // Per-endpoint routing: home-endpoint orgs answer for their OWN backend.
+  // Probing the default endpoint for a per-org feature gate reads the wrong
+  // server's capability set (fails toward "off", but wrongly).
+  const endpointKey = (endpoint ?? getCloudEndpoint()).supabaseUrl;
   const cached = capabilitiesByEndpoint.get(endpointKey);
   if (cached) return { capabilities: cached, confirmed: true };
   const inFlight = inFlightByEndpoint.get(endpointKey);
   if (inFlight) return inFlight;
-  const probe = probeCloudCapabilities(accessToken, endpointKey);
+  const probe = probeCloudCapabilities(accessToken, endpointKey, endpoint);
   inFlightByEndpoint.set(endpointKey, probe);
   try {
     return await probe;
@@ -127,9 +135,11 @@ export async function getCloudCapabilitiesConfirmed(
 }
 
 export async function getCloudCapabilities(
-  accessToken: string
+  accessToken: string,
+  endpoint?: CloudRpcEndpoint
 ): Promise<CloudCapabilities> {
-  return (await getCloudCapabilitiesConfirmed(accessToken)).capabilities;
+  return (await getCloudCapabilitiesConfirmed(accessToken, endpoint))
+    .capabilities;
 }
 
 export const __CAPABILITIES_INTERNALS = {

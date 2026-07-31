@@ -482,6 +482,16 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
           scopeKeys,
           scopes
         );
+        if (matchedScope === undefined) {
+          // A failed network-identity lookup cannot prove out-of-scope:
+          // retracting on it flapped rename-family scopes every time the
+          // identity API blipped. Skip until a lookup answers.
+          log.info(
+            `scope check deferred for session ${session.session_id} org ` +
+              `${org.orgId}: network identity lookup failed this pass`
+          );
+          continue;
+        }
         if (matchedScope === null) {
           // The scope mirror is persisted and restored empty-or-stale on
           // boot. An unconfirmed mirror cannot prove "out of scope": acting

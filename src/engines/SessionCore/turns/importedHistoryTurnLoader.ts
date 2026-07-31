@@ -12,6 +12,7 @@ import type { SessionTurnLoader } from "./types";
 interface PendingImportedTurnBatch {
   turnIds: Set<string>;
   waiters: Array<{
+    turnId: string;
     resolve: (loaded: boolean) => void;
     reject: (error: unknown) => void;
   }>;
@@ -36,18 +37,26 @@ async function flushPendingBatch(sessionId: string): Promise<void> {
         turnIds,
       });
       const chunks = windows.flatMap((window) => window.chunks);
-      // Batch-level resolution: per-turn attribution is not available on
-      // this wire, but provider files are local so an empty window means
-      // the whole batch found nothing.
-      let loaded = false;
+      let merged = false;
       if (chunks.length > 0) {
         const events = await processChunksRust(chunks, sessionId);
         if (events.length > 0) {
           await eventStoreProxy.mergeRoundWindowEvents(events, sessionId);
-          loaded = true;
+          merged = true;
         }
       }
-      for (const waiter of waiters) waiter.resolve(loaded);
+      // Per-turn resolution: the wire names each window's turn, so a turn
+      // whose window came back empty must NOT be marked loaded by its
+      // batch-mates — that would disarm exactly the retry affordance the
+      // loader contract exists to preserve.
+      const loadedTurnIds = new Set(
+        windows
+          .filter((window) => window.chunks.length > 0)
+          .map((window) => window.turnId)
+      );
+      for (const waiter of waiters) {
+        waiter.resolve(merged && loadedTurnIds.has(waiter.turnId));
+      }
     } catch (error) {
       for (const waiter of waiters) waiter.reject(error);
     }
@@ -64,13 +73,13 @@ function enqueueImportedTurnLoad(
     const existing = pendingBatches.get(sessionId);
     if (existing) {
       existing.turnIds.add(turnId);
-      existing.waiters.push({ resolve, reject });
+      existing.waiters.push({ turnId, resolve, reject });
       return;
     }
 
     pendingBatches.set(sessionId, {
       turnIds: new Set([turnId]),
-      waiters: [{ resolve, reject }],
+      waiters: [{ turnId, resolve, reject }],
       flushing: false,
     });
     queueMicrotask(() => {

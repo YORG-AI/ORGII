@@ -63,6 +63,7 @@ import { buildCloudSessionFetchClient } from "./org2CloudBackendAdapter";
 import { getCloudCapabilities } from "./org2CloudCapabilities";
 import { ensureFreshSession } from "./org2CloudClient";
 import { isFetchTransportError } from "./org2CloudFetchRetry";
+import { endpointForOrg } from "./org2CloudOrgEndpointRouter";
 import {
   org2CloudOrgsAtom,
   sidebarActiveCloudOrgIdAtom,
@@ -235,7 +236,12 @@ class Org2CloudOfflineSyncScheduler {
       remoteSessionsEntryForIdentity(entry, org2CloudAuthIdentityKey(auth))
         ?.rows ?? [];
     if (rows.length === 0) return;
-    if (!(await getCloudCapabilities(auth.accessToken)).offlineSync) return;
+    if (
+      !(await getCloudCapabilities(auth.accessToken, endpointForOrg(orgId)))
+        .offlineSync
+    ) {
+      return;
+    }
     if (generation !== this.generation) return;
 
     const candidates = pickOfflineSyncCandidates({

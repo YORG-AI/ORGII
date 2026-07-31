@@ -219,7 +219,11 @@ const log = createLogger("Org2CloudSyncClient");
 
 const CloudOrgSessionsSchema = z.object({
   serverTime: z.string().optional(),
-  sessions: z.array(RemoteTeammateSessionMetadataSchema).default([]),
+  // Per-row tolerance: one malformed row (a newer client's shape, a bad
+  // owner payload) must cost that row, not the whole org listing — a failed
+  // listing reads as "org has no sessions" downstream, which the sidebar,
+  // offline sync, and the retract sweep all treat as authoritative absence.
+  sessions: z.array(z.unknown()).default([]),
   // 0005 backends return a keyset cursor when a bounded page has more rows;
   // absent on legacy backends and on the final page. `.catch(undefined)`
   // degrades a malformed cursor to "no more pages" instead of failing the
@@ -229,6 +233,30 @@ const CloudOrgSessionsSchema = z.object({
     .nullish()
     .catch(undefined),
 });
+
+function parseListingRows(
+  orgId: string,
+  rows: readonly unknown[]
+): RemoteTeammateSessionMetadata[] {
+  const parsed: RemoteTeammateSessionMetadata[] = [];
+  let dropped = 0;
+  for (const row of rows) {
+    const result = RemoteTeammateSessionMetadataSchema.safeParse(row);
+    if (result.success) {
+      parsed.push(result.data);
+    } else {
+      dropped += 1;
+    }
+  }
+  if (dropped > 0) {
+    log.rateLimited(
+      `listing-malformed-${orgId}`,
+      60_000,
+      `cloud_list_org_sessions dropped ${dropped} malformed row(s) for org ${orgId}`
+    );
+  }
+  return parsed;
+}
 
 /** Read-side segment wire: inline (`payloadGz`) or offloaded (`storagePath`). */
 export interface CloudSegmentWire {
@@ -575,10 +603,14 @@ export async function listOrgSessions(
       signal,
       15_000
     );
-    return CloudOrgSessionsSchema.parse(payload);
+    const raw = CloudOrgSessionsSchema.parse(payload);
+    return {
+      ...(raw.serverTime !== undefined ? { serverTime: raw.serverTime } : {}),
+      sessions: parseListingRows(orgId, raw.sessions),
+    } satisfies CloudOrgSessions;
   };
 
-  let parsed: z.output<typeof CloudOrgSessionsSchema>;
+  let parsed: CloudOrgSessions;
   if (
     since !== undefined ||
     paginationUnsupportedEndpoints.has(endpoint.supabaseUrl)
@@ -619,19 +651,25 @@ export async function listOrgSessions(
         throw error;
       }
       const pageParsed = CloudOrgSessionsSchema.parse(payload);
-      sessions.push(...pageParsed.sessions);
+      sessions.push(...parseListingRows(orgId, pageParsed.sessions));
       serverTime = pageParsed.serverTime ?? serverTime;
       cursor = pageParsed.nextCursor ?? undefined;
       page += 1;
       if (!cursor) {
-        parsed = { serverTime, sessions };
+        parsed = {
+          ...(serverTime !== undefined ? { serverTime } : {}),
+          sessions,
+        };
         break;
       }
       if (page >= SESSION_LISTING_MAX_PAGES) {
         log.warn(
           `cloud_list_org_sessions stopped after ${page} pages for org ${orgId}`
         );
-        parsed = { serverTime, sessions };
+        parsed = {
+          ...(serverTime !== undefined ? { serverTime } : {}),
+          sessions,
+        };
         break;
       }
     }
@@ -948,7 +986,7 @@ export async function upsertSessionTurnIndex(
 ): Promise<boolean> {
   const endpoint = endpointForOrg(orgId);
   if (turnIndexUnsupportedEndpoints.has(endpoint.supabaseUrl)) return false;
-  if (!(await getCloudCapabilities(accessToken)).sessionTurnIndex) {
+  if (!(await getCloudCapabilities(accessToken, endpoint)).sessionTurnIndex) {
     return false;
   }
   try {
@@ -994,7 +1032,7 @@ export async function getSessionTurnIndex(
   if (turnIndexUnsupportedEndpoints.has(endpoint.supabaseUrl)) {
     return NO_TURN_INDEX;
   }
-  if (!(await getCloudCapabilities(accessToken)).sessionTurnIndex) {
+  if (!(await getCloudCapabilities(accessToken, endpoint)).sessionTurnIndex) {
     return NO_TURN_INDEX;
   }
   let payload: unknown;
