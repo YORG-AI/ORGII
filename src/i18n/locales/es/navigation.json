@@ -120,11 +120,15 @@
     },
     "guide": {
       "trigger": "Abrir guía",
-      "title": "Primeros pasos",
+      "title": "Continuar configuración",
       "startSession": "Iniciar una sesión",
       "setUpTeam": "Configurar un equipo",
       "manageWork": "Gestionar trabajo",
-      "openTutorials": "Abrir tutoriales"
+      "openTutorials": "Abrir tutoriales",
+      "quickSetup": "Idioma y apariencia",
+      "close": "Cerrar guía",
+      "progressLabel": "{{completed}} de {{total}} pasos completados",
+      "localWorkspace": "Espacio de trabajo local"
     },
     "search": {
       "folders": "Buscar en el espacio de trabajo...",

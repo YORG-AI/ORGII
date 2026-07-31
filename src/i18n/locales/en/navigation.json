@@ -149,11 +149,15 @@
     },
     "guide": {
       "trigger": "Open guide",
-      "title": "Get started",
+      "title": "Continue setup",
       "startSession": "Start a session",
       "setUpTeam": "Set up a team",
       "manageWork": "Manage work",
-      "openTutorials": "Open tutorials"
+      "openTutorials": "Open tutorials",
+      "quickSetup": "Language and appearance",
+      "close": "Close guide",
+      "progressLabel": "{{completed}} of {{total}} setup milestones complete",
+      "localWorkspace": "Local workspace"
     },
     "search": {
       "folders": "Search Workspace...",

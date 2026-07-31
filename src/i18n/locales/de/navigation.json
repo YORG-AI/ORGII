@@ -120,11 +120,15 @@
     },
     "guide": {
       "trigger": "Anleitung öffnen",
-      "title": "Erste Schritte",
+      "title": "Einrichtung fortsetzen",
       "startSession": "Sitzung starten",
       "setUpTeam": "Team einrichten",
       "manageWork": "Arbeit verwalten",
-      "openTutorials": "Tutorials öffnen"
+      "openTutorials": "Tutorials öffnen",
+      "quickSetup": "Sprache und Darstellung",
+      "close": "Anleitung schließen",
+      "progressLabel": "{{completed}} von {{total}} Einrichtungsschritten abgeschlossen",
+      "localWorkspace": "Lokaler Arbeitsbereich"
     },
     "search": {
       "folders": "Workspace suchen...",

@@ -120,11 +120,15 @@
     },
     "guide": {
       "trigger": "Mở hướng dẫn",
-      "title": "Bắt đầu",
+      "title": "Tiếp tục thiết lập",
       "startSession": "Bắt đầu phiên",
       "setUpTeam": "Thiết lập nhóm",
       "manageWork": "Quản lý công việc",
-      "openTutorials": "Mở hướng dẫn sử dụng"
+      "openTutorials": "Mở hướng dẫn sử dụng",
+      "quickSetup": "Ngôn ngữ và giao diện",
+      "close": "Đóng hướng dẫn",
+      "progressLabel": "Đã hoàn thành {{completed}}/{{total}} bước thiết lập",
+      "localWorkspace": "Không gian làm việc cục bộ"
     },
     "search": {
       "folders": "Tìm kiếm Workspace...",

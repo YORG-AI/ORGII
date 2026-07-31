@@ -13,6 +13,7 @@ import {
 } from "vitest";
 
 import SidebarGuideButton from "../SidebarGuideButton";
+import { SIDEBAR_GUIDE_MILESTONE } from "../sidebarGuideProgress";
 
 const mocks = vi.hoisted(() => ({
   close: vi.fn(),
@@ -51,6 +52,7 @@ describe("SidebarGuideButton", () => {
   const onSetUpTeam = vi.fn();
   const onManageWork = vi.fn();
   const onOpenTutorials = vi.fn();
+  const onOpenQuickSetup = vi.fn();
 
   beforeAll(() => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
@@ -64,10 +66,17 @@ describe("SidebarGuideButton", () => {
     await act(async () => {
       root.render(
         React.createElement(SidebarGuideButton, {
+          completion: {
+            [SIDEBAR_GUIDE_MILESTONE.SESSION]: true,
+            [SIDEBAR_GUIDE_MILESTONE.TEAM]: false,
+            [SIDEBAR_GUIDE_MILESTONE.WORK]: false,
+          },
+          scopeLabel: "ORG2 OSS",
           onStartSession,
           onSetUpTeam,
           onManageWork,
           onOpenTutorials,
+          onOpenQuickSetup,
         })
       );
     });
@@ -100,6 +109,12 @@ describe("SidebarGuideButton", () => {
       "sidebar.guide.manageWork",
       "sidebar.guide.openTutorials",
     ]);
+    expect(
+      document
+        .querySelector('[role="progressbar"]')
+        ?.getAttribute("aria-valuenow")
+    ).toBe("33");
+    expect(document.body.textContent).toContain("ORG2 OSS");
   });
 
   it.each([
@@ -119,6 +134,21 @@ describe("SidebarGuideButton", () => {
     expect(action).toHaveBeenCalledOnce();
     expect(mocks.close.mock.invocationCallOrder[0]).toBeLessThan(
       action.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("opens quick setup from the panel header and closes first", () => {
+    const quickSetupButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="sidebar.guide.quickSetup"]'
+    );
+
+    expect(quickSetupButton).not.toBeNull();
+    act(() => quickSetupButton?.click());
+
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(onOpenQuickSetup).toHaveBeenCalledOnce();
+    expect(mocks.close.mock.invocationCallOrder[0]).toBeLessThan(
+      onOpenQuickSetup.mock.invocationCallOrder[0]
     );
   });
 });

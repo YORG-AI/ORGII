@@ -121,11 +121,15 @@
     },
     "guide": {
       "trigger": "開啟使用引導",
-      "title": "開始使用",
+      "title": "繼續設定",
       "startSession": "開始會話",
       "setUpTeam": "設定團隊",
       "manageWork": "管理工作",
-      "openTutorials": "開啟頁面教學"
+      "openTutorials": "開啟頁面教學",
+      "quickSetup": "語言與外觀",
+      "close": "關閉引導",
+      "progressLabel": "已完成 {{completed}}/{{total}} 項設定",
+      "localWorkspace": "本機工作區"
     },
     "search": {
       "folders": "搜尋工作區...",

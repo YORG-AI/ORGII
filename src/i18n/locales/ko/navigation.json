@@ -120,11 +120,15 @@
     },
     "guide": {
       "trigger": "가이드 열기",
-      "title": "시작하기",
+      "title": "설정 계속하기",
       "startSession": "세션 시작",
       "setUpTeam": "팀 설정",
       "manageWork": "작업 관리",
-      "openTutorials": "튜토리얼 열기"
+      "openTutorials": "튜토리얼 열기",
+      "quickSetup": "언어 및 모양",
+      "close": "가이드 닫기",
+      "progressLabel": "설정 {{total}}개 중 {{completed}}개 완료",
+      "localWorkspace": "로컬 작업 공간"
     },
     "search": {
       "folders": "워크스페이스 검색...",

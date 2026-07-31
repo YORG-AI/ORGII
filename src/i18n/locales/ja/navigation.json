@@ -120,11 +120,15 @@
     },
     "guide": {
       "trigger": "ガイドを開く",
-      "title": "はじめに",
+      "title": "設定を続ける",
       "startSession": "セッションを開始",
       "setUpTeam": "チームを設定",
       "manageWork": "作業を管理",
-      "openTutorials": "チュートリアルを開く"
+      "openTutorials": "チュートリアルを開く",
+      "quickSetup": "言語と外観",
+      "close": "ガイドを閉じる",
+      "progressLabel": "{{total}} 件中 {{completed}} 件の設定が完了",
+      "localWorkspace": "ローカルワークスペース"
     },
     "search": {
       "folders": "ワークスペースを検索...",
