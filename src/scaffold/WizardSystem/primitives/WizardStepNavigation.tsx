@@ -5,11 +5,25 @@
  * path. Flow ownership stays with the caller; this component only projects
  * active, completed, and locked state into the canonical navigation UI.
  */
-import type { LucideIcon } from "lucide-react";
-import { Check } from "lucide-react";
-import React, { memo } from "react";
+import React, { type AriaAttributes, type ComponentType, memo } from "react";
 
+import completedIcon from "@src/assets/fileTypeIcons/todo.svg";
+import { createRepositoryAssetIcon } from "@src/components/RepositoryAssetIcon";
 import { HEADER_ICON_SIZE, TYPOGRAPHY } from "@src/config/workstation/tokens";
+
+export interface WizardStepIconProps {
+  size?: number | string;
+  strokeWidth?: number | string;
+  className?: string;
+  "aria-hidden"?: AriaAttributes["aria-hidden"];
+}
+
+export type WizardStepIcon = ComponentType<WizardStepIconProps>;
+
+const CompletedStepIcon = createRepositoryAssetIcon(
+  completedIcon,
+  "CompletedStepIcon"
+);
 
 export const WIZARD_STEP_NAVIGATION_TOKENS = {
   list: "scrollbar-overlay flex flex-1 flex-col overflow-y-auto",
@@ -35,7 +49,7 @@ export interface WizardStepNavigationItem<T extends string = string> {
   id: T;
   title: string;
   description: string;
-  icon: LucideIcon;
+  icon: WizardStepIcon;
   completed: boolean;
   disabled?: boolean;
 }
@@ -108,7 +122,9 @@ function WizardStepNavigationComponent<T extends string = string>({
                 aria-hidden
               >
                 {item.completed ? (
-                  <Check size={WIZARD_STEP_NAVIGATION_TOKENS.iconSize} />
+                  <CompletedStepIcon
+                    size={WIZARD_STEP_NAVIGATION_TOKENS.iconSize}
+                  />
                 ) : (
                   <StepIcon size={WIZARD_STEP_NAVIGATION_TOKENS.iconSize} />
                 )}

@@ -51,6 +51,16 @@ import {
   WizardStepContent,
 } from "@src/scaffold/WizardSystem/primitives";
 
+import {
+  BasicsStepIcon,
+  GoalStepIcon,
+  OrganizationStepIcon,
+  ReadyStepIcon,
+  SharingStepIcon,
+  ToolsStepIcon,
+  TutorialStepIcon,
+  WorkModelStepIcon,
+} from "../components/SetupStepIcons";
 import { SETUP_WALKTHROUGH_LAYOUT_TOKENS } from "../layoutTokens";
 import type { SetupWalkthroughController } from "../useSetupWalkthroughController";
 
@@ -92,7 +102,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.goal.title")}
       description={t("readiness.goal.description")}
-      icon={ListChecks}
+      icon={GoalStepIcon}
     >
       <SelectionGrid
         options={options}
@@ -125,7 +135,7 @@ export const ToolsStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.tools.title")}
       description={t("readiness.tools.description")}
-      icon={KeyRound}
+      icon={ToolsStepIcon}
     >
       <SectionContainer>
         {["codex", "claude_code", "cursor_cli"].map((agentType) => {
@@ -220,7 +230,7 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.organization.title")}
       description={t("readiness.organization.description")}
-      icon={Building2}
+      icon={OrganizationStepIcon}
     >
       {!controller.cloudAuth ? (
         <InlineAlert
@@ -363,7 +373,7 @@ export const SharingStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.sharing.title")}
       description={t("readiness.sharing.description")}
-      icon={ShieldCheck}
+      icon={SharingStepIcon}
     >
       <SectionContainer>
         <SectionRow
@@ -537,7 +547,7 @@ export const BasicsStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("onboarding:readiness.basics.title")}
       description={t("onboarding:readiness.basics.description")}
-      icon={MonitorCog}
+      icon={BasicsStepIcon}
     >
       <SectionContainer>
         <SectionRow label={t("settings:general.appearanceMode")}>
@@ -591,7 +601,7 @@ export const TutorialStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.tutorial.title")}
       description={t("readiness.tutorial.description")}
-      icon={Play}
+      icon={TutorialStepIcon}
     >
       <SelectionGrid
         options={options}
@@ -618,7 +628,7 @@ export const WorkModelStep: React.FC<StepProps> = () => {
     <WizardStepContent
       title={t("readiness.model.title")}
       description={t("readiness.model.description")}
-      icon={Boxes}
+      icon={WorkModelStepIcon}
     >
       <SectionContainer>
         {MODEL_ITEMS.map(({ key, icon: Icon }) => (
@@ -702,7 +712,7 @@ export const ReadyStep: React.FC<StepProps> = ({ controller }) => {
     <WizardStepContent
       title={t("readiness.ready.title")}
       description={t("readiness.ready.description")}
-      icon={Check}
+      icon={ReadyStepIcon}
     >
       <SectionContainer>
         {readinessItems.map(({ key, icon: Icon, label }) => (

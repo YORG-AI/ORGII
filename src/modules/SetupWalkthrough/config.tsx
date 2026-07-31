@@ -2,16 +2,15 @@
  * SetupWalkthrough step configuration
  */
 import {
-  BookOpen,
-  Bot,
-  Building2,
-  FolderGit2,
-  ListChecks,
-  Rocket,
-  Settings2,
-  ShieldCheck,
-} from "lucide-react";
-
+  BasicsStepIcon,
+  GoalStepIcon,
+  OrganizationStepIcon,
+  ReadyStepIcon,
+  SharingStepIcon,
+  ToolsStepIcon,
+  TutorialStepIcon,
+  WorkModelStepIcon,
+} from "./components/SetupStepIcons";
 import {
   BasicsStep,
   GoalStep,
@@ -32,49 +31,49 @@ export const STEP_CONFIGS: StepConfig[] = [
   {
     id: "goal",
     i18nKey: "goal",
-    icon: ListChecks,
+    icon: GoalStepIcon,
     component: GoalStep,
   },
   {
     id: "tools",
     i18nKey: "tools",
-    icon: Bot,
+    icon: ToolsStepIcon,
     component: ToolsStep,
   },
   {
     id: "organization",
     i18nKey: "organization",
-    icon: Building2,
+    icon: OrganizationStepIcon,
     component: OrganizationStep,
   },
   {
     id: "sharing",
     i18nKey: "sharing",
-    icon: ShieldCheck,
+    icon: SharingStepIcon,
     component: SharingStep,
   },
   {
     id: "basics",
     i18nKey: "basics",
-    icon: FolderGit2,
+    icon: BasicsStepIcon,
     component: BasicsStep,
   },
   {
     id: "tutorial",
     i18nKey: "tutorial",
-    icon: BookOpen,
+    icon: TutorialStepIcon,
     component: TutorialStep,
   },
   {
     id: "work-model",
     i18nKey: "workModel",
-    icon: Settings2,
+    icon: WorkModelStepIcon,
     component: WorkModelStep,
   },
   {
     id: "ready",
     i18nKey: "ready",
-    icon: Rocket,
+    icon: ReadyStepIcon,
     component: ReadyStep,
   },
 ];

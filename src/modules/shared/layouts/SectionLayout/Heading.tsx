@@ -11,8 +11,12 @@
  *     </SectionContainer>
  *   </SectionHeading>
  */
-import type { LucideIcon } from "lucide-react";
-import React, { memo, useId } from "react";
+import React, {
+  type AriaAttributes,
+  type ComponentType,
+  memo,
+  useId,
+} from "react";
 
 import {
   SECTION_GAP_CLASSES,
@@ -34,7 +38,12 @@ export interface SectionHeadingProps {
   /** Supporting copy for the `intro` appearance. */
   description?: React.ReactNode;
   /** Leading icon for the `intro` appearance. */
-  icon?: LucideIcon;
+  icon?: ComponentType<{
+    size?: number | string;
+    strokeWidth?: number | string;
+    className?: string;
+    "aria-hidden"?: AriaAttributes["aria-hidden"];
+  }>;
   /** Semantic heading level. Defaults to 2 for section and 1 for intro. */
   headingLevel?: 1 | 2 | 3;
   /** Additional class for the outer content group. */

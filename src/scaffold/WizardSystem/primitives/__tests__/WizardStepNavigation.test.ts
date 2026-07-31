@@ -1,9 +1,14 @@
-import { Circle } from "lucide-react";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import WizardStepNavigation from "../WizardStepNavigation";
+
+const TestIcon: React.FC<{ size?: number | string }> = ({ size = 16 }) =>
+  React.createElement("span", {
+    "data-testid": "repository-test-icon",
+    style: { width: size, height: size },
+  });
 
 describe("WizardStepNavigation", () => {
   it("renders active, completed, and locked steps with accessible state", () => {
@@ -18,21 +23,21 @@ describe("WizardStepNavigation", () => {
             id: "goal",
             title: "Goal",
             description: "Choose an outcome",
-            icon: Circle,
+            icon: TestIcon,
             completed: true,
           },
           {
             id: "tools",
             title: "Tools",
             description: "Detect local access",
-            icon: Circle,
+            icon: TestIcon,
             completed: false,
           },
           {
             id: "ready",
             title: "Ready",
             description: "Open the destination",
-            icon: Circle,
+            icon: TestIcon,
             completed: false,
             disabled: true,
           },
@@ -64,14 +69,14 @@ describe("WizardStepNavigation", () => {
             id: "goal",
             title: "Goal",
             description: "Choose an outcome",
-            icon: Circle,
+            icon: TestIcon,
             completed: false,
           },
           {
             id: "tools",
             title: "Tools",
             description: "Detect local access",
-            icon: Circle,
+            icon: TestIcon,
             completed: false,
           },
         ],

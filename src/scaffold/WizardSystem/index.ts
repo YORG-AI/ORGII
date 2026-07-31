@@ -27,6 +27,8 @@ export {
 export type {
   WizardShellProps,
   WizardStepContentProps,
+  WizardStepIcon,
+  WizardStepIconProps,
   WizardStepNavigationItem,
   WizardStepNavigationProps,
   WizardStepLayoutProps,

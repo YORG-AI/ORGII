@@ -30,6 +30,8 @@ export {
   WIZARD_STEP_NAVIGATION_TOKENS,
 } from "./WizardStepNavigation";
 export type {
+  WizardStepIcon,
+  WizardStepIconProps,
   WizardStepNavigationItem,
   WizardStepNavigationProps,
 } from "./WizardStepNavigation";

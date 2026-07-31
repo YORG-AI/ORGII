@@ -1,8 +1,9 @@
 /**
  * Types for SetupWalkthrough module
  */
-import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
+
+import type { WizardStepIcon } from "@src/scaffold/WizardSystem";
 
 import type { SetupWalkthroughController } from "./useSetupWalkthroughController";
 
@@ -15,6 +16,6 @@ export interface StepConfig {
   id: import("./flow").SetupStepId;
   /** Translation key under steps.{key}.title */
   i18nKey: string;
-  icon: LucideIcon;
+  icon: WizardStepIcon;
   component: ComponentType<{ controller: SetupWalkthroughController }>;
 }

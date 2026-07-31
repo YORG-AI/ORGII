@@ -5,10 +5,12 @@
  * the standard wizard content width and level-one heading contract so wizard
  * variants do not rebuild layout or semantic markup locally.
  */
-import type { LucideIcon } from "lucide-react";
 import React, { memo } from "react";
 
-import { SectionHeading } from "@src/modules/shared/layouts/SectionLayout";
+import {
+  SectionHeading,
+  type SectionHeadingProps,
+} from "@src/modules/shared/layouts/SectionLayout";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 export const WIZARD_STEP_CONTENT_TOKENS = {
@@ -18,7 +20,7 @@ export const WIZARD_STEP_CONTENT_TOKENS = {
 export interface WizardStepContentProps {
   title: string;
   description?: string;
-  icon?: LucideIcon;
+  icon?: SectionHeadingProps["icon"];
   children?: React.ReactNode;
   className?: string;
 }
