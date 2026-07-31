@@ -36,8 +36,8 @@ docker run --rm --name "$CONTAINER" \
   -e CI=true \
   -e NODE_OPTIONS='--max-old-space-size=4096' \
   -e CARGO_BUILD_JOBS=1 -e CARGO_INCREMENTAL=0 -e CARGO_TARGET_DIR=/out/target \
-  -e CARGO_PROFILE_RELEASE_LTO=false -e CARGO_PROFILE_RELEASE_CODEGEN_UNITS=32 \
-  -e CARGO_PROFILE_RELEASE_OPT_LEVEL=3 -e CARGO_PROFILE_RELEASE_STRIP=true \
+  -e CARGO_PROFILE_RELEASE_LTO=false -e CARGO_PROFILE_RELEASE_CODEGEN_UNITS=64 \
+  -e CARGO_PROFILE_RELEASE_OPT_LEVEL=2 -e CARGO_PROFILE_RELEASE_STRIP=true \
   -e CARGO_PROFILE_RELEASE_DEBUG=false -e RUSTFLAGS='-C debuginfo=0' \
   -v "$SRC:/work" -v "$DEPS:/work/node_modules" -v "$TARGET:/out/target" \
   -w /work org2-build:22.04-xdg \
