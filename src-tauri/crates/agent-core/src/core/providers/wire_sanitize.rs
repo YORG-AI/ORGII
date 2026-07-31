@@ -85,6 +85,16 @@ pub fn sanitize_deepseek_messages(messages: &[Value]) -> Vec<Value> {
         .collect()
 }
 
+/// True when the wire target is DeepSeek's text-only chat completions.
+///
+/// Matches both the native `deepseek` provider spec and any aggregator-routed
+/// deepseek model id (e.g. `zenmux` provider with `deepseek/deepseek-v4-flash`),
+/// because DeepSeek's API rejects `image_url` content blocks with HTTP 400
+/// ("unknown variant image_url, expected text").
+pub fn is_deepseek_text_only_wire(provider_name: &str, wire_model: &str) -> bool {
+    provider_name == "deepseek" || wire_model.contains("deepseek")
+}
+
 fn sanitize_message(message: &Value) -> Value {
     let mut sanitized = message.clone();
     let role = sanitized
@@ -254,6 +264,21 @@ mod tests {
             sanitized[0]["content"],
             "[Image omitted: DeepSeek chat completions currently require text-only message content.]\n\nWhat is in this image?"
         );
+    }
+
+    #[test]
+    fn is_deepseek_text_only_wire_matches_native_and_aggregator_routed() {
+        // native deepseek provider spec
+        assert!(is_deepseek_text_only_wire("deepseek", "deepseek/deepseek-chat"));
+        // zenmux/aggregator provider with a deepseek wire model
+        assert!(is_deepseek_text_only_wire("zenmux", "deepseek/deepseek-v4-flash"));
+        // slug-carrying deepseek wire model
+        assert!(is_deepseek_text_only_wire("zenmux", "deepseek/deepseek-v4-flash:deepseek"));
+        // non-deepseek models routed through aggregators stay unaffected
+        assert!(!is_deepseek_text_only_wire("zenmux", "anthropic/claude-sonnet-4.5"));
+        assert!(!is_deepseek_text_only_wire("openai", "gpt-5"));
+        // substring safety: unrelated model containing the word must not match
+        assert!(!is_deepseek_text_only_wire("zenmux", "z-ai/glm-4.5-air"));
     }
 
     #[test]

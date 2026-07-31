@@ -85,7 +85,15 @@ pub(super) async fn run_chat_streaming(
     let url = this.chat_url(&base_model);
 
     let sanitized_messages = sanitize_openai_compat_messages(messages);
-    let wire_messages = if this.provider_spec.name == provider_id::DEEPSEEK {
+    // DeepSeek chat completions are text-only: image_url blocks must be
+    // replaced with text placeholders. The provider-spec check alone misses
+    // DeepSeek models routed through aggregators (e.g. zenmux), so also match
+    // the resolved wire model id.
+    let is_deepseek_wire = crate::providers::wire_sanitize::is_deepseek_text_only_wire(
+        this.provider_spec.name,
+        &resolved_model,
+    );
+    let wire_messages = if is_deepseek_wire {
         sanitize_deepseek_messages(&sanitized_messages)
     } else {
         super::super::wire_expand::expand_tool_images_for_openai_wire(&sanitized_messages)
