@@ -80,6 +80,11 @@ interface MyAccountsTableSectionProps {
     baseModel: string,
     model: string
   ) => void;
+  onUpdateAccountModelSlug?: (
+    accountId: string,
+    model: string,
+    slug: string
+  ) => void;
   onEditAccountSave?: (
     accountId: string,
     name: string,
@@ -123,6 +128,7 @@ export default function MyAccountsTableSection({
   onToggleModel,
   onUpdateAccountEnabledModels,
   onUpdateAccountDefaultVariant,
+  onUpdateAccountModelSlug,
   onEditAccountSave,
   t,
 }: MyAccountsTableSectionProps) {
@@ -327,6 +333,7 @@ export default function MyAccountsTableSection({
         onToggleModel={onToggleModel}
         onUpdateAccountEnabledModels={onUpdateAccountEnabledModels}
         onUpdateAccountDefaultVariant={onUpdateAccountDefaultVariant}
+        onUpdateAccountModelSlug={onUpdateAccountModelSlug}
         onRefresh={
           onRefreshAccountUsage
             ? () => onRefreshAccountUsage(account.id)

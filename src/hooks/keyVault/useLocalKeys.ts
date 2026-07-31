@@ -246,6 +246,7 @@ export function useLocalKeys(
             model_variants: request.model_variants ?? next[idx].model_variants,
             default_variants:
               request.default_variants ?? next[idx].default_variants,
+            model_slugs: request.model_slugs ?? next[idx].model_slugs,
             quota_info: request.quota_info ?? next[idx].quota_info,
             has_local_key: request.has_local_key ?? next[idx].has_local_key,
             is_listed: request.is_listed ?? next[idx].is_listed,

@@ -86,6 +86,7 @@ pub struct KeyInfo {
     pub model_aliases: Vec<ModelAliasInfo>,
     pub model_variants: Vec<ModelVariantInfo>,
     pub default_variants: Vec<DefaultVariantInfo>,
+    pub model_slugs: Vec<crate::key_store::ModelSlug>,
     pub quota_info: Option<serde_json::Value>,
     pub description: Option<String>,
     pub has_local_key: bool,
@@ -618,6 +619,7 @@ impl From<ModelKey> for KeyInfo {
                 .collect(),
             model_variants: model_variants_for_key(&entry),
             default_variants: default_variants_for_key(&entry),
+            model_slugs: entry.model_slugs.clone(),
             quota_info: entry.quota_info.clone(),
             has_local_key: entry.has_local_key,
             is_listed: entry.is_listed,
@@ -675,6 +677,7 @@ pub struct SaveKeyRequest {
     pub model_aliases: Option<Vec<ModelAliasInfo>>,
     pub model_variants: Option<Vec<ModelVariantInfo>>,
     pub default_variants: Option<Vec<DefaultVariantInfo>>,
+    pub model_slugs: Option<Vec<crate::key_store::ModelSlug>>,
     pub quota_info: Option<serde_json::Value>,
     pub has_local_key: Option<bool>,
     pub is_listed: Option<bool>,
@@ -907,6 +910,15 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
                     base_model: variant.base_model,
                     model: variant.model,
                 })
+                .collect();
+        }
+        if let Some(slugs) = request.model_slugs {
+            // Deduplicate by base model; later entries win.
+            let mut seen = std::collections::HashSet::new();
+            entry.model_slugs = slugs
+                .into_iter()
+                .filter(|s| !s.model.trim().is_empty() && !s.slug.trim().is_empty())
+                .filter(|s| seen.insert(s.model.clone()))
                 .collect();
         }
         if let Some(quota) = request.quota_info {

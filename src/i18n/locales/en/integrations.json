@@ -975,7 +975,10 @@
     "turnOnKeyFor": "Turn on this key for {{model}}",
     "turnOffKeyFor": "Turn off this key for {{model}}",
     "sortEnabledFirst": "Sort: enabled first",
-    "sortAlphabetical": "Sort: A–Z"
+    "sortAlphabetical": "Sort: A–Z",
+    "supplierSlug": "Supplier slug",
+    "supplierSlugPlaceholder": "e.g. deepseek",
+    "supplierSlugHint": "Pins upstream supplier at launch: {{model}}"
   },
   "modelPreview": {
     "title": "Model Details",

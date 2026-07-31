@@ -218,6 +218,11 @@ export const DefaultVariantInfoSchema = z.object({
   model: z.string(),
 });
 
+export const ModelSlugInfoSchema = z.object({
+  model: z.string(),
+  slug: z.string(),
+});
+
 export const ProviderProtocolSchema = z.enum(["openai", "anthropic"]);
 
 export const KeyInfoSchema = z.object({
@@ -241,6 +246,7 @@ export const KeyInfoSchema = z.object({
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
+  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.unknown().nullable(),
   has_local_key: z.boolean(),
   is_listed: z.boolean(),
@@ -299,6 +305,7 @@ export const SaveKeyRequestSchema = z.object({
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
+  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.record(z.string(), z.unknown()).optional(),
   has_local_key: z.boolean().optional(),
   is_listed: z.boolean().optional(),

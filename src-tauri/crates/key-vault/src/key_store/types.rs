@@ -456,6 +456,9 @@ pub struct ModelKey {
     /// concrete variant model id stored here (e.g. `claude-4.6-opus-high`).
     #[serde(default)]
     pub default_variants: Vec<DefaultVariant>,
+    /// Supplier slug pins per model (aggregator routing).
+    #[serde(default)]
+    pub model_slugs: Vec<ModelSlug>,
     #[serde(default)]
     pub oauth_refresh_failure_count: u32,
     #[serde(default, with = "optional_flexible_datetime")]
@@ -506,6 +509,19 @@ pub struct ModelVariant {
     pub context_window: Option<u64>,
 }
 
+/// A user-configured ZenMux/aggregator supplier slug pin for one model.
+///
+/// When set, the effective model id sent to the aggregator becomes
+/// `{model}:{slug}` (e.g. `deepseek/deepseek-v4-flash:deepseek`), locking the
+/// upstream supplier instead of letting the aggregator free-route.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelSlug {
+    /// Base model id (e.g. `deepseek/deepseek-v4-flash`).
+    pub model: String,
+    /// Supplier slug (e.g. `deepseek`).
+    pub slug: String,
+}
+
 /// A user-chosen default variant for one base model family. `base_model` is
 /// the family root (e.g. `claude-4.6-opus`); `model` is the concrete variant
 /// id the runtime should launch when that family is selected.
@@ -545,6 +561,7 @@ impl ModelKey {
             model_aliases: Vec::new(),
             model_variants: Vec::new(),
             default_variants: Vec::new(),
+            model_slugs: Vec::new(),
             oauth_refresh_failure_count: 0,
             last_oauth_refresh_failed_at: None,
             temporary_unavailable_until: None,

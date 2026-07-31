@@ -125,12 +125,28 @@ fn transient_spawn_os_error(_err: &io::Error) -> bool {
 }
 
 fn opencode_zenmux_model_id(session_model: Option<&str>, selected_key: &ModelKey) -> String {
-    session_model
+    let model = session_model
         .filter(|value| !value.trim().is_empty())
         .or_else(|| selected_key.enabled_models.first().map(String::as_str))
         .or_else(|| selected_key.available_models.first().map(String::as_str))
         .unwrap_or(OPENCODE_DEFAULT_ZENMUX_MODEL)
-        .to_string()
+        .to_string();
+    apply_model_slug(&model, selected_key)
+}
+
+/// Append the user-configured supplier slug (`model:slug`) to the resolved
+/// model id so aggregator routing pins the upstream supplier. An explicit
+/// `:` suffix on the model (caller-provided slug) wins and is left untouched.
+fn apply_model_slug(model: &str, selected_key: &ModelKey) -> String {
+    if model.contains(':') {
+        return model.to_string();
+    }
+    selected_key
+        .model_slugs
+        .iter()
+        .find(|slug| slug.model == model)
+        .map(|slug| format!("{}:{}", model, slug.slug))
+        .unwrap_or_else(|| model.to_string())
 }
 
 fn opencode_zenmux_config_payload(model_id: &str) -> serde_json::Value {
@@ -1907,6 +1923,40 @@ mod tests {
             opencode_zenmux_model_id(None, &key),
             "anthropic/claude-sonnet-4.5"
         );
+    }
+
+    #[test]
+    fn opencode_zenmux_model_id_appends_configured_supplier_slug() {
+        let mut key = ModelKey::new(ModelType::ZenmuxApi);
+        key.enabled_models = vec!["deepseek/deepseek-v4-flash".to_string()];
+        key.model_slugs = vec![key_vault::key_store::ModelSlug {
+            model: "deepseek/deepseek-v4-flash".to_string(),
+            slug: "deepseek".to_string(),
+        }];
+
+        assert_eq!(
+            opencode_zenmux_model_id(None, &key),
+            "deepseek/deepseek-v4-flash:deepseek"
+        );
+    }
+
+    #[test]
+    fn apply_model_slug_respects_explicit_slug_and_missing_config() {
+        let mut key = ModelKey::new(ModelType::ZenmuxApi);
+        key.model_slugs = vec![key_vault::key_store::ModelSlug {
+            model: "deepseek/deepseek-v4-flash".to_string(),
+            slug: "deepseek".to_string(),
+        }];
+
+        // Explicit slug on the model wins over the configured one.
+        assert_eq!(
+            apply_model_slug("deepseek/deepseek-v4-flash:deepseek", &key),
+            "deepseek/deepseek-v4-flash:deepseek"
+        );
+        // Unconfigured model passes through untouched.
+        assert_eq!(apply_model_slug("anthropic/claude-sonnet-4.5", &key), "anthropic/claude-sonnet-4.5");
+        // Model without a slug entry stays bare.
+        assert_eq!(apply_model_slug("deepseek/deepseek-chat", &key), "deepseek/deepseek-chat");
     }
 
     #[test]

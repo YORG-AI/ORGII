@@ -394,6 +394,29 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
     [accounts, onRefresh]
   );
 
+  const handleUpdateAccountModelSlug = useCallback(
+    (accountId: string, model: string, slug: string) => {
+      const account = accounts.find((entry) => entry.id === accountId);
+      if (!account) return;
+
+      const nextSlugs = (account.modelSlugs ?? []).filter(
+        (entry) => entry.model !== model
+      );
+      if (slug.trim()) {
+        nextSlugs.push({ model, slug: slug.trim() });
+      }
+
+      void saveKey({
+        id: account.id,
+        agent_type: account.modelType,
+        model_slugs: nextSlugs,
+      })
+        .then(() => onRefresh?.())
+        .catch(() => onRefresh?.());
+    },
+    [accounts, onRefresh]
+  );
+
   const [optimisticToggles, setOptimisticToggles] = useState<
     Map<string, boolean>
   >(new Map());
@@ -581,6 +604,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 onUpdateAccountDefaultVariant={
                   handleUpdateAccountDefaultVariant
                 }
+                onUpdateAccountModelSlug={handleUpdateAccountModelSlug}
                 onToggleAccount={handleToggleAccount}
                 isAccountEnabled={isAccountEnabled}
                 t={t}
@@ -610,6 +634,7 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 onUpdateAccountDefaultVariant={
                   handleUpdateAccountDefaultVariant
                 }
+                onUpdateAccountModelSlug={handleUpdateAccountModelSlug}
                 onEditAccountSave={onEditAccountSave}
                 t={t}
               />

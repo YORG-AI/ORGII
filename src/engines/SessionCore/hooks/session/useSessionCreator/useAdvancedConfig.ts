@@ -109,11 +109,20 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
         ? (selectedAccount?.nativeHarnessType ?? NATIVE_HARNESS_TYPE.CURSOR)
         : undefined;
 
+    // Apply the account's configured supplier slug (e.g. `:deepseek`) to the
+    // selected model so aggregator routing pins the upstream supplier. An
+    // explicit slug already embedded in the model id wins and is left as-is.
+    const baseModel = lastModelSelection.model;
+    const slugEntry = selectedAccount?.modelSlugs?.find(
+      (entry) => entry.model === baseModel && !baseModel.includes(":")
+    );
+    const model = slugEntry ? `${baseModel}:${slugEntry.slug}` : baseModel;
+
     return {
       keySource: KEY_SOURCE.OWN,
       cliAgentType: atomCliAgentType ?? undefined,
       provider: lastModelSelection.provider,
-      model: lastModelSelection.model,
+      model,
       nativeHarnessType,
       agent: lastModelSelection.provider as ModelType | undefined,
       selectedAccountId: lastModelSelection.selectedAccountId,

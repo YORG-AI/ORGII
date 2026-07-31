@@ -93,6 +93,7 @@ export function useKeyVault(
           sideQueryModel: keyInfo.side_query_model ?? undefined,
           modelVariants: keyInfo.model_variants,
           defaultVariants: keyInfo.default_variants,
+          modelSlugs: keyInfo.model_slugs,
           enabled: keyInfo.enabled,
           quotaInfo: keyInfo.quota_info as KeyVaultAccount["quotaInfo"],
           listingId: keyInfo.listing_id ?? undefined,

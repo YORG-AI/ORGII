@@ -95,6 +95,7 @@ export default function ModelsTableSection({
   onToggleModel,
   onUpdateAccountEnabledModels,
   onUpdateAccountDefaultVariant,
+  onUpdateAccountModelSlug,
   onToggleAccount,
   isAccountEnabled,
   t,
@@ -117,6 +118,11 @@ export default function ModelsTableSection({
     accountId: string,
     baseModel: string,
     model: string
+  ) => void;
+  onUpdateAccountModelSlug?: (
+    accountId: string,
+    model: string,
+    slug: string
   ) => void;
   onToggleAccount: (account: KeyVaultAccount, enabled: boolean) => void;
   isAccountEnabled?: (account: KeyVaultAccount) => boolean;
@@ -296,6 +302,7 @@ export default function ModelsTableSection({
         onToggleModel={onToggleModel}
         onUpdateAccountEnabledModels={onUpdateAccountEnabledModels}
         onUpdateAccountDefaultVariant={onUpdateAccountDefaultVariant}
+        onUpdateAccountModelSlug={onUpdateAccountModelSlug}
         onToggleAccount={onToggleAccount}
         isAccountEnabled={isAccountEnabled}
         onAddKey={onAdd}

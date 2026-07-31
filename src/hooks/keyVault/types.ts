@@ -67,6 +67,8 @@ export interface KeyVaultAccount {
   modelVariants?: ModelVariantInfo[];
   /** User-chosen default variant per base model family (persisted). */
   defaultVariants?: DefaultVariantInfo[];
+  /** Supplier slug pins per model (aggregator routing, e.g. zenmux :deepseek). */
+  modelSlugs?: ModelSlugInfo[];
   /** Master switch — when false the key is disabled without clearing enabledModels. */
   enabled: boolean;
   quotaInfo?: QuotaSnapshot | QuotaInfo | null;
@@ -123,4 +125,11 @@ export interface UseKeyVaultReturn {
   saveKey: (request: SaveKeyRequest) => Promise<KeyInfo | null>;
   /** Delete a key entry (delegates to internal useLocalKeys, updates state) */
   deleteKey: (agentType: ModelType, keyId?: string) => Promise<boolean>;
+}
+
+export interface ModelSlugInfo {
+  /** Base model id (e.g. "deepseek/deepseek-v4-flash"). */
+  model: string;
+  /** Supplier slug (e.g. "deepseek"). */
+  slug: string;
 }

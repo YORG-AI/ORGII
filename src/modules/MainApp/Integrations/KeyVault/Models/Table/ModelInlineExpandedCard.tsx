@@ -27,6 +27,7 @@ import {
   InlineSplitHeaderRow,
   InlineSplitSelectableRow,
 } from "../../shared/InlineSplitRows";
+import ModelSlugEditor from "../../shared/ModelSlugEditor";
 import { AccountSourceBreadcrumb } from "./AccountSourceBreadcrumb";
 import {
   type IntegrationsModelGroupRow,
@@ -99,6 +100,11 @@ interface ModelInlineExpandedCardProps {
     accountId: string,
     baseModel: string,
     model: string
+  ) => void;
+  onUpdateAccountModelSlug?: (
+    accountId: string,
+    model: string,
+    slug: string
   ) => void;
   onToggleAccount: (account: KeyVaultAccount, enabled: boolean) => void;
   isAccountEnabled?: (account: KeyVaultAccount) => boolean;
@@ -203,6 +209,7 @@ const ModelInlineExpandedCard: React.FC<ModelInlineExpandedCardProps> = ({
   onToggleModel: _onToggleModel,
   onUpdateAccountEnabledModels,
   onUpdateAccountDefaultVariant,
+  onUpdateAccountModelSlug,
   onToggleAccount,
   isAccountEnabled = (account) => account.enabled,
   onAddKey,
@@ -370,14 +377,28 @@ const ModelInlineExpandedCard: React.FC<ModelInlineExpandedCardProps> = ({
 
     if (!showVersionPicker && selectedEntry.groupModels.length === 1) {
       const model = selectedEntry.groupModels[0];
+      const slugEntry = (selectedEntry.account.modelSlugs ?? []).find(
+        (entry) => entry.model === model
+      );
 
       return (
-        <InlineSplitDefaultVersionHeaderRow
-          label={t("modelsTable.keyDefaultVersionOnly", {
-            model: formatModelNameFull(model),
-          })}
-          pillLabel={t("modelsTable.variantDefault")}
-        />
+        <>
+          <InlineSplitDefaultVersionHeaderRow
+            label={t("modelsTable.keyDefaultVersionOnly", {
+              model: formatModelNameFull(model),
+            })}
+            pillLabel={t("modelsTable.variantDefault")}
+          />
+          {onUpdateAccountModelSlug ? (
+            <ModelSlugEditor
+              model={model}
+              slug={slugEntry?.slug}
+              onChange={(slug) =>
+                onUpdateAccountModelSlug(selectedEntry.account.id, model, slug)
+              }
+            />
+          ) : null}
+        </>
       );
     }
 
@@ -396,6 +417,7 @@ const ModelInlineExpandedCard: React.FC<ModelInlineExpandedCardProps> = ({
   }, [
     handleChangeDefaultVariant,
     onUpdateAccountDefaultVariant,
+    onUpdateAccountModelSlug,
     selectedDefaultVariantByBaseModel,
     selectedEntry,
     t,

@@ -977,7 +977,10 @@
     "turnOnKeyFor": "为 {{model}} 启用此 key",
     "turnOffKeyFor": "为 {{model}} 关闭此 key",
     "sortEnabledFirst": "排序：已启用优先",
-    "sortAlphabetical": "排序：A–Z"
+    "sortAlphabetical": "排序：A–Z",
+    "supplierSlug": "供应商 slug",
+    "supplierSlugPlaceholder": "例如 deepseek",
+    "supplierSlugHint": "启动时锁定上游供应商：{{model}}"
   },
   "modelPreview": {
     "title": "模型详情",

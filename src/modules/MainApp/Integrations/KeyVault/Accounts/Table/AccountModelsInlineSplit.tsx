@@ -13,6 +13,7 @@ import {
   applyModelGroupToEnabledSet,
   getModelGroupEnableSummary,
 } from "@src/modules/MainApp/Integrations/KeyVault/Models/Table/integrationsModelGroups";
+import ModelSlugEditor from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelSlugEditor";
 import { InlineCardSplit } from "@src/modules/MainApp/Integrations/KeyVault/shared/InlineCardPrimitives";
 import {
   InlineSplitDefaultVersionHeaderRow,
@@ -41,6 +42,11 @@ interface AccountModelsInlineSplitProps {
     baseModel: string,
     model: string
   ) => void;
+  onUpdateAccountModelSlug?: (
+    accountId: string,
+    model: string,
+    slug: string
+  ) => void;
 }
 
 function getGroupKey(group: ModelGroup): string {
@@ -55,6 +61,7 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
   onSetModelEnabled: _onSetModelEnabled,
   onUpdateEnabledModels,
   onUpdateAccountDefaultVariant,
+  onUpdateAccountModelSlug,
 }) => {
   const { t } = useTranslation("integrations");
   const [selectedGroupKey, setSelectedGroupKey] = useState<string | null>(null);
@@ -272,13 +279,25 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
 
     if (!showVersionPicker && selectedGroup.models.length === 1) {
       const model = selectedGroup.models[0];
+      const slugEntry = (account.modelSlugs ?? []).find(
+        (entry) => entry.model === model
+      );
       return (
-        <InlineSplitDefaultVersionHeaderRow
-          label={t("modelsTable.keyDefaultVersionOnly", {
-            model: formatModelNameFull(model),
-          })}
-          pillLabel={t("modelsTable.variantDefault")}
-        />
+        <>
+          <InlineSplitDefaultVersionHeaderRow
+            label={t("modelsTable.keyDefaultVersionOnly", {
+              model: formatModelNameFull(model),
+            })}
+            pillLabel={t("modelsTable.variantDefault")}
+          />
+          {onUpdateAccountModelSlug ? (
+            <ModelSlugEditor
+              model={model}
+              slug={slugEntry?.slug}
+              onChange={(slug) => onUpdateAccountModelSlug(account.id, model, slug)}
+            />
+          ) : null}
+        </>
       );
     }
 
@@ -295,9 +314,12 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
       />
     );
   }, [
+    account.id,
+    account.modelSlugs,
     defaultVariantByBaseModel,
     handleChangeDefaultVariant,
     onUpdateAccountDefaultVariant,
+    onUpdateAccountModelSlug,
     selectedGroup,
     t,
     variantsByModel,
