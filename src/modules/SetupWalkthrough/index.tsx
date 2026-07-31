@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import AppLogo from "@src/components/AppLogo";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import ProgressBar from "@src/components/ProgressBar";
 import { ROUTES } from "@src/config/routes";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
@@ -31,6 +32,7 @@ import {
   getVisibleSetupStepIds,
 } from "./flow";
 import "./index.scss";
+import { resolveSetupSidebarLayout } from "./layoutTokens";
 import { SetupOperationError } from "./steps";
 import { useSetupWalkthroughController } from "./useSetupWalkthroughController";
 
@@ -38,6 +40,14 @@ const WALKTHROUGH_STYLES = `
   body.walkthrough-mode .tab-bar { display: none !important; }
   body.walkthrough-mode [data-toolbar-section] { display: none !important; }
 `;
+
+const SETUP_SIDEBAR_LAYOUT = resolveSetupSidebarLayout();
+const SETUP_SIDEBAR_STYLE: React.CSSProperties = {
+  width: SETUP_SIDEBAR_LAYOUT.panelWidth,
+};
+const SETUP_SIDEBAR_CONTENT_STYLE: React.CSSProperties = {
+  paddingTop: SETUP_SIDEBAR_LAYOUT.contentTopInset,
+};
 
 const SetupWalkthrough: React.FC = () => {
   const navigate = useNavigate();
@@ -155,15 +165,18 @@ const SetupWalkthrough: React.FC = () => {
   }, [controller, t]);
 
   const leftContent = (
-    <div className="flex h-full w-full flex-col">
-      <div className="walkthrough-brand">
-        <AppLogo className="walkthrough-brand-mark" size={32} alt="" />
+    <div
+      className="flex h-full w-full flex-col"
+      style={SETUP_SIDEBAR_CONTENT_STYLE}
+    >
+      <div className="flex items-start gap-3">
+        <AppLogo className="rounded-full" size={32} alt="" />
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold tracking-tight text-text-1">
               ORGII
             </span>
-            <span className="walkthrough-brand-tag">
+            <span className="text-xs font-medium uppercase tracking-wide text-text-3">
               {t("readiness.sidebar.brandTag")}
             </span>
           </div>
@@ -174,7 +187,7 @@ const SetupWalkthrough: React.FC = () => {
       </div>
 
       <div className="walkthrough-progress mt-6">
-        <div className="mb-2 flex items-center justify-between gap-3 text-[11px]">
+        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
           <span className="font-medium text-text-2">
             {t("readiness.sidebar.stepProgress", {
               current: stepNumber,
@@ -182,22 +195,20 @@ const SetupWalkthrough: React.FC = () => {
             })}
           </span>
         </div>
-        <div
-          className="h-px overflow-hidden bg-border-2"
-          role="progressbar"
-          aria-valuemin={1}
-          aria-valuemax={visibleSteps.length}
-          aria-valuenow={stepNumber}
-        >
-          <div
-            className="h-full bg-text-1 transition-[width] duration-300 ease-out"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
+        <ProgressBar
+          percent={progressPercent}
+          color="bg-text-1"
+          trackColor="bg-border-2"
+          height="h-px"
+          ariaLabel={t("readiness.sidebar.stepProgress", {
+            current: stepNumber,
+            total: visibleSteps.length,
+          })}
+        />
       </div>
 
       <div
-        className="walkthrough-step-list mt-5 flex flex-1 flex-col overflow-y-auto"
+        className="walkthrough-step-list mt-5 flex flex-1 flex-col overflow-y-auto [scrollbar-color:var(--color-border-2)_transparent] [scrollbar-width:thin]"
         aria-label={t("readiness.sidebar.ariaLabel")}
       >
         {visibleSteps.map((step, index) => {
@@ -214,7 +225,7 @@ const SetupWalkthrough: React.FC = () => {
             <div key={step.id} className="relative pb-1">
               {index < visibleSteps.length - 1 && (
                 <span
-                  className="walkthrough-step-connector pointer-events-none absolute bottom-0 top-9 flex justify-center"
+                  className="pointer-events-none absolute bottom-0 left-2.5 top-9 flex w-6 justify-center"
                   aria-hidden
                 >
                   <span
@@ -225,9 +236,9 @@ const SetupWalkthrough: React.FC = () => {
                 </span>
               )}
               <button
-                className={`walkthrough-step-button group flex w-full items-center gap-3 rounded-lg border py-2 text-left transition-colors duration-150 ${
+                className={`group flex w-full items-center gap-3 rounded-lg border px-2.5 py-2 text-left transition-colors duration-150 ${
                   isActive
-                    ? "border-border-1 bg-fill-2"
+                    ? "border-transparent bg-sidebar-selected"
                     : canNavigate
                       ? "cursor-pointer border-transparent bg-transparent hover:bg-fill-2"
                       : "cursor-not-allowed border-transparent bg-transparent opacity-45"
@@ -239,7 +250,7 @@ const SetupWalkthrough: React.FC = () => {
                 data-testid={`setup-step-${step.id}`}
               >
                 <div
-                  className={`walkthrough-step-node relative z-10 flex flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                  className={`relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
                     isActive
                       ? "border-text-1 bg-text-1 text-bg-1"
                       : isCompleted
@@ -343,7 +354,8 @@ const SetupWalkthrough: React.FC = () => {
         bodyClass="walkthrough-mode"
         className="walkthrough-shell"
         cardClassName="walkthrough-card"
-        leftPanelClassName="walkthrough-sidebar"
+        leftPanelClassName="walkthrough-sidebar !items-stretch !justify-start !gap-0 !border-r !border-border-1 !bg-bg-1 !px-4 !pb-4 !pt-4"
+        leftPanelStyle={SETUP_SIDEBAR_STYLE}
         rightPanelClassName="walkthrough-main"
         leftContent={leftContent}
         rightContent={rightContent}

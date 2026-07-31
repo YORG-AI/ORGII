@@ -37,6 +37,8 @@
 | Goal selection by keyboard                           | Tab reaches each native ActionCard; Enter/Space updates `aria-pressed`, the sidebar step count, and Continue state.                                                                                                                                 |
 | Goal layout at a constrained width                   | The single-column goal list remains readable without clipping labels or changing the underlying selected goal.                                                                                                                                      |
 | Shared surface consistency                           | Guidance and results use `InlineAlert`; explanatory and readiness rows use `SectionContainer` / `SectionRow` without onboarding-only card skins or glow effects.                                                                                    |
+| Shared shell tokens                                  | Sidebar width comes from the main navigation sidebar token, the setup progress indicator uses `ProgressBar`, and shell colors/spacing use the app's semantic Tailwind tokens.                                                                       |
+| macOS window controls                                | The brand block starts below the shared native-titlebar inset; traffic lights never touch or overlap the application logo. Windows and Linux add no macOS-only inset.                                                                               |
 | Dynamic setup feedback                               | Imported, selected, and verified states expose `role="status"`; operation failures expose `role="alert"`.                                                                                                                                           |
 | Team user signed out                                 | Organization step shows a sign-in/register action and cannot advance.                                                                                                                                                                               |
 | Existing team membership                             | Selecting the org persists the namespaced sidebar scope and unlocks sharing.                                                                                                                                                                        |
@@ -61,9 +63,10 @@
 ## Verification
 
 - Unit: `__tests__/flow.test.ts`, `__tests__/setupCommands.test.ts`,
+  `__tests__/layoutTokens.test.ts`,
   `__tests__/testShortcut.test.ts`,
   `__tests__/useSyncedSetupWalkthroughProgress.test.ts`,
-  `__tests__/i18n.test.ts`, setup navigation/settings tests, and
+  `__tests__/i18n.test.ts`, `ProgressBar.test.ts`, setup navigation/settings tests, and
   `settingsAtom.atomic.test.ts`.
 - Rendered UI: `tests/e2e/specs/core/setup-walkthrough-ui.spec.mjs` and
   `tests/e2e/specs/core/setup-walkthrough-shortcut-ui.spec.mjs`.

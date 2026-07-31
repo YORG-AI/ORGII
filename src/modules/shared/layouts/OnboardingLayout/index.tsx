@@ -35,6 +35,8 @@ export interface OnboardingLayoutProps {
   cardClassName?: string;
   /** Optional class name for the left panel in split layouts. */
   leftPanelClassName?: string;
+  /** Optional style overrides for the left panel in split layouts. */
+  leftPanelStyle?: React.CSSProperties;
   /** Optional class name for the right panel in split layouts. */
   rightPanelClassName?: string;
 }
@@ -52,6 +54,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   bodyClass,
   cardClassName = "",
   leftPanelClassName = "",
+  leftPanelStyle,
   rightPanelClassName = "",
 }) => {
   // Add/remove body class for special styling (e.g., hiding toolbar)
@@ -145,7 +148,10 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
       >
         {showRightPanel ? (
           <>
-            <div className={`${leftClasses} ${leftPanelClassName}`.trim()}>
+            <div
+              className={`${leftClasses} ${leftPanelClassName}`.trim()}
+              style={leftPanelStyle}
+            >
               {leftContent}
             </div>
             <div className={`${rightClasses} ${rightPanelClassName}`.trim()}>

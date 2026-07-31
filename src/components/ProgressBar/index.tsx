@@ -21,6 +21,8 @@ export interface ProgressBarProps {
   className?: string;
   /** Background color class for the track (default: "bg-fill-3") */
   trackColor?: string;
+  /** Accessible label; when provided, exposes progressbar semantics. */
+  ariaLabel?: string;
 }
 
 export const ProgressBar: React.FC<ProgressBarProps> = memo(
@@ -32,6 +34,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = memo(
     animated = false,
     className = "",
     trackColor = "bg-fill-3",
+    ariaLabel,
   }) => {
     const widthClass = width === "flex" ? "flex-1" : width;
     const heightStyle =
@@ -45,6 +48,11 @@ export const ProgressBar: React.FC<ProgressBarProps> = memo(
       <div
         className={`overflow-hidden rounded-full ${trackColor} ${widthClass} ${heightClass} ${className}`}
         style={heightStyle}
+        role={ariaLabel ? "progressbar" : undefined}
+        aria-label={ariaLabel}
+        aria-valuemin={ariaLabel ? 0 : undefined}
+        aria-valuemax={ariaLabel ? 100 : undefined}
+        aria-valuenow={ariaLabel ? clampedPercent : undefined}
       >
         <div
           className={`h-full rounded-full ${color} transition-all duration-300 ${
