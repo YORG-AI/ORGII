@@ -28,9 +28,6 @@ const CompletedStepIcon = createRepositoryAssetIcon(
 export const WIZARD_STEP_NAVIGATION_TOKENS = {
   list: "scrollbar-overlay flex flex-1 flex-col overflow-y-auto",
   item: "relative pb-1",
-  connector:
-    "pointer-events-none absolute bottom-0 left-2.5 top-9 flex w-6 justify-center",
-  connectorLine: "h-full w-px",
   button:
     "group flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors duration-150",
   buttonActive: "bg-sidebar-selected",
@@ -78,25 +75,13 @@ function WizardStepNavigationComponent<T extends string = string>({
       className={`${WIZARD_STEP_NAVIGATION_TOKENS.list} ${className}`.trim()}
       aria-label={ariaLabel}
     >
-      {items.map((item, index) => {
+      {items.map((item) => {
         const StepIcon = item.icon;
         const isActive = item.id === activeId;
         const isDisabled = disabled || item.disabled === true;
 
         return (
           <div key={item.id} className={WIZARD_STEP_NAVIGATION_TOKENS.item}>
-            {index < items.length - 1 && (
-              <span
-                className={WIZARD_STEP_NAVIGATION_TOKENS.connector}
-                aria-hidden
-              >
-                <span
-                  className={`${WIZARD_STEP_NAVIGATION_TOKENS.connectorLine} ${
-                    item.completed ? "bg-success-6/45" : "bg-border-2"
-                  }`}
-                />
-              </span>
-            )}
             <button
               className={`${WIZARD_STEP_NAVIGATION_TOKENS.button} ${
                 isActive
