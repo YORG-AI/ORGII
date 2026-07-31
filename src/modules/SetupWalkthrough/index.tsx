@@ -4,18 +4,14 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
-import AppLogo from "@src/components/AppLogo";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
-import ProgressBar from "@src/components/ProgressBar";
 import { ROUTES } from "@src/config/routes";
-import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { TUTORIALS } from "@src/scaffold/Tutorials/tutorialRegistry";
-import { WizardStepNavigation } from "@src/scaffold/WizardSystem";
 import {
   openCreateTargetInChatPanelStartPageAtom,
   openTeamInboxInChatPanelTabAtom,
@@ -27,14 +23,17 @@ import {
 } from "@src/store/settings/setupWalkthrough";
 import { CHAT_PANEL_CREATE_TARGET } from "@src/store/ui/chatPanelAtom";
 
+import SetupWalkthroughSidebar from "./components/SetupWalkthroughSidebar";
 import { STEP_CONFIGS } from "./config";
 import {
   canCompleteSetupStep,
   canNavigateToSetupStep,
   getVisibleSetupStepIds,
 } from "./flow";
-import "./index.scss";
-import { resolveSetupSidebarLayout } from "./layoutTokens";
+import {
+  SETUP_WALKTHROUGH_LAYOUT_TOKENS,
+  resolveSetupSidebarLayout,
+} from "./layoutTokens";
 import { SetupOperationError } from "./steps/ReadinessSteps";
 import { useSetupWalkthroughController } from "./useSetupWalkthroughController";
 
@@ -86,6 +85,10 @@ const SetupWalkthrough: React.FC = () => {
   const progressPercent = Math.round(
     (stepNumber / Math.max(1, visibleSteps.length)) * 100
   );
+  const progressLabel = t("readiness.sidebar.stepProgress", {
+    current: stepNumber,
+    total: visibleSteps.length,
+  });
   const navigationItems = visibleSteps.map((step) => ({
     id: step.id,
     title: t(`steps.${step.i18nKey}.title`),
@@ -175,92 +178,44 @@ const SetupWalkthrough: React.FC = () => {
   }, [controller, t]);
 
   const leftContent = (
-    <div
-      className="flex h-full w-full flex-col"
+    <SetupWalkthroughSidebar
+      brandTag={t("readiness.sidebar.brandTag")}
+      description={t("readiness.sidebar.subtitle")}
+      progressLabel={progressLabel}
+      progressPercent={progressPercent}
+      navigationLabel={t("readiness.sidebar.ariaLabel")}
+      navigationItems={navigationItems}
+      activeStepId={controller.currentStepId}
+      onSelectStep={controller.goToStep}
+      disabled={isClosing}
       style={SETUP_SIDEBAR_CONTENT_STYLE}
-    >
-      <div className="flex items-start gap-3">
-        <AppLogo className="rounded-full" size={32} alt="" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span
-              className={`${TYPOGRAPHY.statistic} tracking-tight text-text-1`}
-            >
-              ORGII
-            </span>
-            <span
-              className={`${TYPOGRAPHY.badge} uppercase tracking-wide text-text-3`}
-            >
-              {t("readiness.sidebar.brandTag")}
-            </span>
-          </div>
-          <div
-            className={`mt-1 max-w-52 leading-5 text-text-3 ${TYPOGRAPHY.contentSubtitle}`}
-          >
-            {t("readiness.sidebar.subtitle")}
-          </div>
-        </div>
-      </div>
-
-      <div className="walkthrough-progress mt-6">
-        <div
-          className={`mb-2 flex items-center justify-between gap-3 ${TYPOGRAPHY.contentSubtitle}`}
-        >
-          <span className="font-medium text-text-2">
-            {t("readiness.sidebar.stepProgress", {
-              current: stepNumber,
-              total: visibleSteps.length,
-            })}
-          </span>
-        </div>
-        <ProgressBar
-          percent={progressPercent}
-          color="bg-text-1"
-          trackColor="bg-border-2"
-          height="h-px"
-          ariaLabel={t("readiness.sidebar.stepProgress", {
-            current: stepNumber,
-            total: visibleSteps.length,
-          })}
-        />
-      </div>
-
-      <WizardStepNavigation
-        items={navigationItems}
-        activeId={controller.currentStepId}
-        onSelect={controller.goToStep}
-        ariaLabel={t("readiness.sidebar.ariaLabel")}
-        disabled={isClosing}
-        className="walkthrough-step-list mt-5"
-        testIdPrefix="setup-step"
-      />
-    </div>
+    />
   );
 
   const rightContent = (
-    <div className="flex h-full w-full flex-col overflow-hidden">
-      <div className="walkthrough-mobile-progress">
+    <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.mainContent}>
+      <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.mobileProgress}>
         <span>
           {t("readiness.sidebar.stepProgress", {
             current: stepNumber,
             total: visibleSteps.length,
           })}
         </span>
-        <span className="font-medium text-primary-6">
+        <span className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.mobileProgressTitle}>
           {t(`steps.${currentStep.i18nKey}.title`)}
         </span>
       </div>
-      <div className="walkthrough-content-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto px-10 py-9">
+      <div className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.contentScroll}>
         <div
           key={currentStep.id}
-          className="walkthrough-step-enter flex min-h-full w-full flex-col"
+          className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.stepFrame}
         >
           <CurrentStepComponent controller={controller} />
           <SetupOperationError controller={controller} />
         </div>
       </div>
       <PanelFooter
-        className="walkthrough-footer h-16 px-8"
+        className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.footer}
         primaryButtonSize="default"
         secondaryButtonSize="default"
         left={
@@ -309,11 +264,11 @@ const SetupWalkthrough: React.FC = () => {
         variant="contained"
         size="large"
         bodyClass="walkthrough-mode"
-        className="walkthrough-shell"
-        cardClassName="walkthrough-card"
-        leftPanelClassName="walkthrough-sidebar !items-stretch !justify-start !gap-0 !border-r !border-border-1 !bg-bg-1 !px-4 !pb-4 !pt-4"
+        className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.shell}
+        cardClassName={SETUP_WALKTHROUGH_LAYOUT_TOKENS.card}
+        leftPanelClassName={SETUP_WALKTHROUGH_LAYOUT_TOKENS.sidebar}
         leftPanelStyle={SETUP_SIDEBAR_STYLE}
-        rightPanelClassName="walkthrough-main"
+        rightPanelClassName={SETUP_WALKTHROUGH_LAYOUT_TOKENS.main}
         leftContent={leftContent}
         rightContent={rightContent}
       />

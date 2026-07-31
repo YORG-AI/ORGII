@@ -51,6 +51,7 @@ import {
   WizardStepContent,
 } from "@src/scaffold/WizardSystem/primitives";
 
+import { SETUP_WALKTHROUGH_LAYOUT_TOKENS } from "../layoutTokens";
 import type { SetupWalkthroughController } from "../useSetupWalkthroughController";
 
 type StepProps = { controller: SetupWalkthroughController };
@@ -100,7 +101,7 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
         columns={1}
         cardLayout="inline"
         showSelectionCheck={false}
-        className="walkthrough-choice-grid"
+        className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid}
       />
       <InlineAlert type="info">{t("readiness.goal.hint")}</InlineAlert>
     </WizardStepContent>
@@ -257,7 +258,7 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
                   columns={2}
                   cardVariant="subtle"
                   compactCards
-                  className="walkthrough-choice-grid"
+                  className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid}
                 />
               </SectionRow>
             </SectionContainer>
@@ -284,7 +285,7 @@ export const OrganizationStep: React.FC<StepProps> = ({ controller }) => {
                 onSelect={setMode}
                 columns={2}
                 compactCards
-                className="walkthrough-choice-grid"
+                className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid}
               />
             </SectionRow>
             <SectionRow
@@ -597,7 +598,7 @@ export const TutorialStep: React.FC<StepProps> = ({ controller }) => {
         selected={controller.progress.tutorialId}
         onSelect={(tutorialId) => controller.patchProgress({ tutorialId })}
         columns={2}
-        className="walkthrough-choice-grid"
+        className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid}
       />
       <InlineAlert type="info">{t("readiness.tutorial.hint")}</InlineAlert>
     </WizardStepContent>
