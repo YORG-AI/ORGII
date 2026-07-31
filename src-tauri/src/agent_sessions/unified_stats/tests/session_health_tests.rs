@@ -76,6 +76,7 @@ fn make_session(id: &str, status: &str) -> SessionAggregateRecord {
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        channel: None,
     }
 }
 
