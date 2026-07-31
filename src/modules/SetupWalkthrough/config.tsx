@@ -2,22 +2,26 @@
  * SetupWalkthrough step configuration
  */
 import {
+  BookOpen,
+  Bot,
+  Building2,
   FolderGit2,
-  Github,
-  IdCard,
-  Palette,
+  ListChecks,
   Rocket,
-  Sparkles,
+  Settings2,
+  ShieldCheck,
 } from "lucide-react";
 
 import {
-  CompleteStep,
-  DevPassportStep,
-  GitHubStep,
-  RepoStep,
-  ThemeSelectionStep,
-  WelcomeStep,
-} from "./steps";
+  BasicsStep,
+  GoalStep,
+  OrganizationStep,
+  ReadyStep,
+  SharingStep,
+  ToolsStep,
+  TutorialStep,
+  WorkModelStep,
+} from "./steps/ReadinessSteps";
 import type { StepConfig } from "./types";
 
 // ============================================
@@ -26,39 +30,51 @@ import type { StepConfig } from "./types";
 
 export const STEP_CONFIGS: StepConfig[] = [
   {
-    id: "welcome",
-    i18nKey: "welcome",
-    icon: Sparkles,
-    content: <WelcomeStep />,
+    id: "goal",
+    i18nKey: "goal",
+    icon: ListChecks,
+    component: GoalStep,
   },
   {
-    id: "theme",
-    i18nKey: "theme",
-    icon: Palette,
-    content: <ThemeSelectionStep />,
+    id: "tools",
+    i18nKey: "tools",
+    icon: Bot,
+    component: ToolsStep,
   },
   {
-    id: "dev-passport",
-    i18nKey: "devPassport",
-    icon: IdCard,
-    content: <DevPassportStep />,
+    id: "organization",
+    i18nKey: "organization",
+    icon: Building2,
+    component: OrganizationStep,
   },
   {
-    id: "github",
-    i18nKey: "github",
-    icon: Github,
-    content: <GitHubStep />,
+    id: "sharing",
+    i18nKey: "sharing",
+    icon: ShieldCheck,
+    component: SharingStep,
   },
   {
-    id: "workspace",
-    i18nKey: "workspace",
+    id: "basics",
+    i18nKey: "basics",
     icon: FolderGit2,
-    content: <RepoStep />,
+    component: BasicsStep,
   },
   {
-    id: "complete",
-    i18nKey: "complete",
+    id: "tutorial",
+    i18nKey: "tutorial",
+    icon: BookOpen,
+    component: TutorialStep,
+  },
+  {
+    id: "work-model",
+    i18nKey: "workModel",
+    icon: Settings2,
+    component: WorkModelStep,
+  },
+  {
+    id: "ready",
+    i18nKey: "ready",
     icon: Rocket,
-    content: <CompleteStep />,
+    component: ReadyStep,
   },
 ];

@@ -23,7 +23,7 @@ describe("first-use setup navigation", () => {
     ).toBe("redirect-to-setup");
   });
 
-  it("allows the open onboarding route and closes it after any terminal outcome", () => {
+  it("allows the onboarding route as an explicit resume destination", () => {
     expect(
       resolveSetupWalkthroughNavigation({
         loaded: true,
@@ -39,7 +39,7 @@ describe("first-use setup navigation", () => {
           outcome,
           pathname: "/orgii/app/walkthrough",
         })
-      ).toBe("redirect-to-workstation");
+      ).toBe("continue");
     }
   });
 

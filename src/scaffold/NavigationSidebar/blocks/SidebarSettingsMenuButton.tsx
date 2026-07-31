@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import {
   ChevronRight,
   Circle,
+  ClipboardCheck,
   Contrast,
   Gauge,
   HelpCircle,
@@ -32,6 +33,7 @@ import {
 } from "@src/components/KeyboardShortcut";
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { ROUTES } from "@src/config/routes";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useAppNavigation } from "@src/hooks/navigation";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
@@ -78,7 +80,7 @@ function getSubmenuPosition(
 const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const { t } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
-  const { goToSettings } = useAppNavigation();
+  const { goToSettings, navigateTo } = useAppNavigation();
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const ramPanelRef = useRef<HTMLDivElement | null>(null);
   const submenuPanelRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +202,11 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
     closeAll();
   }, [closeAll]);
 
+  const handleOpenSetupChecklist = useCallback(() => {
+    closeAll();
+    navigateTo(ROUTES.auth.setup.path);
+  }, [closeAll, navigateTo]);
+
   const handleOpenGuiControl = useCallback(() => {
     openAgentControlSpotlight();
     closeAll();
@@ -320,6 +327,24 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 TODO(changelog-web): Restore the Changelog item here, directly
                 above Tutorials, once the maintained web destination is ready.
               */}
+              <button
+                type="button"
+                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                onMouseEnter={() => setActiveSubmenu(null)}
+                onFocus={() => setActiveSubmenu(null)}
+                onClick={handleOpenSetupChecklist}
+                data-testid="sidebar-open-setup-checklist"
+              >
+                <ClipboardCheck
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={MENU_ICON_CLASS_NAME}
+                />
+                <span>
+                  {t("sidebar.settingsMenu.setupChecklist", {
+                    defaultValue: "Setup checklist",
+                  })}
+                </span>
+              </button>
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}

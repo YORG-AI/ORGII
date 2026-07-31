@@ -14,15 +14,258 @@ body.walkthrough-mode {
 }
 
 // ============================================
-// Animations
+// Setup shell
 // ============================================
-@keyframes fadeInUp {
+
+.walkthrough-shell {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: var(--color-bg-2);
+}
+
+.walkthrough-card {
+  max-width: none !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
+}
+
+.walkthrough-sidebar {
+  width: 300px !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+  padding: 30px 24px 24px !important;
+  border-right: 1px solid var(--color-border-1);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-primary-6) 4%, var(--color-bg-1)),
+    var(--color-bg-1) 42%
+  ) !important;
+}
+
+.walkthrough-brand {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.walkthrough-brand-mark,
+.walkthrough-step-icon {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary-6);
+  border: 1px solid color-mix(in srgb, var(--color-primary-6) 24%, transparent);
+  background: color-mix(in srgb, var(--color-primary-6) 10%, var(--color-bg-2));
+}
+
+.walkthrough-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px
+    color-mix(in srgb, var(--color-primary-6) 12%, transparent);
+}
+
+.walkthrough-step-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 10%, transparent);
+}
+
+.walkthrough-step-list {
+  --walkthrough-step-inline-padding: 0.625rem;
+  --walkthrough-step-node-size: 2rem;
+
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-2) transparent;
+}
+
+.walkthrough-step-button {
+  padding-inline: var(--walkthrough-step-inline-padding);
+}
+
+.walkthrough-step-node {
+  width: var(--walkthrough-step-node-size);
+  height: var(--walkthrough-step-node-size);
+}
+
+.walkthrough-step-connector {
+  left: var(--walkthrough-step-inline-padding);
+  width: var(--walkthrough-step-node-size);
+}
+
+.walkthrough-main {
+  min-width: 0;
+  background: var(--color-bg-2) !important;
+}
+
+.walkthrough-content-scroll {
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      color-mix(in srgb, var(--color-primary-6) 6%, transparent),
+      transparent 34%
+    ),
+    var(--color-bg-2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-2) transparent;
+}
+
+.walkthrough-step-frame {
+  padding: 4px 0 32px;
+}
+
+.walkthrough-step-body > [class*="@container"] {
+  box-shadow: 0 10px 32px color-mix(in srgb, black 5%, transparent);
+}
+
+.walkthrough-goal-grid {
+  gap: 12px !important;
+}
+
+.walkthrough-goal-card {
+  padding: 16px;
+  border-radius: 16px;
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--color-bg-2) 96%, white),
+    var(--color-bg-2)
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 5%, transparent),
+    0 8px 24px color-mix(in srgb, black 4%, transparent);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.walkthrough-goal-card:hover {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, white 7%, transparent),
+    0 12px 30px color-mix(in srgb, black 8%, transparent);
+}
+
+.walkthrough-goal-card[aria-pressed="true"] {
+  box-shadow: 0 8px 24px color-mix(in srgb, black 5%, transparent);
+}
+
+.walkthrough-goal-hint {
+  border-color: color-mix(
+    in srgb,
+    var(--color-primary-6) 12%,
+    transparent
+  ) !important;
+  background: color-mix(
+    in srgb,
+    var(--color-primary-6) 5%,
+    var(--color-bg-2)
+  ) !important;
+}
+
+.walkthrough-footer {
+  border-color: var(--color-border-1) !important;
+  background: color-mix(in srgb, var(--color-bg-2) 92%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 -8px 24px color-mix(in srgb, black 4%, transparent);
+}
+
+.walkthrough-mobile-progress {
+  display: none;
+}
+
+// ============================================
+// Motion and responsive behavior
+// ============================================
+
+@keyframes walkthrough-step-in {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.walkthrough-step-enter {
+  animation: walkthrough-step-in 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walkthrough-step-enter,
+  .walkthrough-goal-card {
+    animation: none;
+    transition: none;
+  }
+}
+
+@media (max-width: 1040px) {
+  .walkthrough-sidebar {
+    width: 260px !important;
+    padding-inline: 18px !important;
+  }
+}
+
+@media (max-width: 800px) {
+  .walkthrough-sidebar {
+    display: none !important;
+  }
+
+  .walkthrough-mobile-progress {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--color-border-1);
+    background: var(--color-bg-1);
+    font-size: 12px;
+    color: var(--color-text-3);
+  }
+
+  .walkthrough-content-scroll {
+    padding: 24px !important;
+  }
+
+  .walkthrough-footer {
+    padding-inline: 24px !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .walkthrough-content-scroll {
+    padding: 20px !important;
+  }
+
+  .walkthrough-step-frame header {
+    gap: 12px;
+  }
+
+  .walkthrough-step-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .walkthrough-step-frame h1 {
+    font-size: 24px;
+    line-height: 30px;
+  }
+
+  .walkthrough-step-body .grid-cols-2,
+  .walkthrough-step-body .grid-cols-3,
+  .walkthrough-choice-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .walkthrough-footer {
+    height: 60px !important;
+    padding-inline: 16px !important;
   }
 }

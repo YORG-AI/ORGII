@@ -167,6 +167,7 @@
     "goToSettings": "Ayarlara Git",
     "restart": "Yeniden Başlat",
     "switchToStation": "{{station}} moduna geç",
+    "switchMethod": "Yöntemi değiştir",
     "rate": "Değerlendir",
     "openInTab": "Sekmede Aç",
     "insert": "Ekle",

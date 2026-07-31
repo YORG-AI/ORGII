@@ -18,6 +18,7 @@ import SidebarSettingsMenuButton from "./SidebarSettingsMenuButton";
 const mocks = vi.hoisted(() => ({
   closeDropdown: vi.fn(),
   goToSettings: vi.fn(),
+  navigateTo: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -27,6 +28,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/hooks/navigation", () => ({
   useAppNavigation: () => ({
     goToSettings: mocks.goToSettings,
+    navigateTo: mocks.navigateTo,
   }),
 }));
 
@@ -107,5 +109,19 @@ describe("SidebarSettingsMenuButton", () => {
 
     expect(changelogButton).toBeUndefined();
     expect(tutorialButton).toBeDefined();
+  });
+
+  it("reopens the setup checklist through shared app navigation", () => {
+    const setupButton = Array.from(
+      document.body.querySelectorAll("button")
+    ).find(
+      (button) => button.textContent === "sidebar.settingsMenu.setupChecklist"
+    );
+
+    expect(setupButton).toBeDefined();
+    act(() => setupButton?.click());
+
+    expect(mocks.navigateTo).toHaveBeenCalledWith("/orgii/app/walkthrough");
+    expect(mocks.closeDropdown).toHaveBeenCalled();
   });
 });

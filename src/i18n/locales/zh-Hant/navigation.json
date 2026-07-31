@@ -140,7 +140,8 @@
       "workstation": "工作站",
       "viewRam": "查看 RAM",
       "tutorials": "教學",
-      "openSettings": "開啟設定"
+      "openSettings": "開啟設定",
+      "setupChecklist": "設定檢查清單"
     },
     "empty": {
       "noItems": "暫無內容",

@@ -10,6 +10,10 @@ import {
   FAMILIAR_LANGUAGE_TECH_STACKS,
   TECH_SAVVY_LEVELS,
 } from "@src/config/profile/userProfile";
+import {
+  DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+  SetupWalkthroughProgressSchema,
+} from "@src/config/settingsSchema/setupWalkthroughProgress";
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
 const USER_PROFILE_PRESET_SCHEMA = z.object({
@@ -269,6 +273,13 @@ export const GENERAL_SETTINGS_REGISTRY = {
     default: "open",
     description:
       "First-use setup walkthrough outcome. Open shows the walkthrough automatically; completed and dismissed keep it closed",
+    category: "general",
+  },
+  "general.setupWalkthroughProgress": {
+    schema: SetupWalkthroughProgressSchema,
+    default: DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+    description:
+      "Resumable, secret-free readiness state for the first-use setup walkthrough",
     category: "general",
   },
   "general.githubStarPromptCompleted": {

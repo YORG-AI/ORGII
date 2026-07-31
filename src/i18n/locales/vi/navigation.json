@@ -139,7 +139,8 @@
       "workstation": "Workstation",
       "viewRam": "Xem RAM",
       "tutorials": "Hướng dẫn",
-      "openSettings": "Mở cài đặt"
+      "openSettings": "Mở cài đặt",
+      "setupChecklist": "Danh sách kiểm tra thiết lập"
     },
     "empty": {
       "noItems": "Không có mục nào",

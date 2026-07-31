@@ -167,6 +167,7 @@
     "goToSettings": "Aller aux Paramètres",
     "restart": "Redémarrer",
     "switchToStation": "Basculer vers {{station}}",
+    "switchMethod": "Changer de méthode",
     "rate": "Évaluer",
     "openInTab": "Ouvrir dans un onglet",
     "insert": "Insérer",

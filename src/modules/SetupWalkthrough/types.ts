@@ -2,7 +2,9 @@
  * Types for SetupWalkthrough module
  */
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import type { ComponentType } from "react";
+
+import type { SetupWalkthroughController } from "./useSetupWalkthroughController";
 
 // ============================================
 // AnimatedTitle Types
@@ -23,9 +25,9 @@ export interface AnimatedTitleProps {
 
 /** Step config with translation keys instead of static strings */
 export interface StepConfig {
-  id: string;
+  id: import("./flow").SetupStepId;
   /** Translation key under steps.{key}.title */
   i18nKey: string;
   icon: LucideIcon;
-  content: ReactNode;
+  component: ComponentType<{ controller: SetupWalkthroughController }>;
 }

@@ -1,4 +1,4 @@
-import { useAtom, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { Cloud, Laptop, LogIn, Plus } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -9,18 +9,12 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { refreshOrg2CloudAuthForAction } from "@src/features/Org2Cloud/org2CloudAuthAction";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { cloudManagementErrorMessage } from "@src/features/Org2Cloud/org2CloudOrgManagement";
 import {
-  acceptCloudInvite,
-  createCloudOrg,
-} from "@src/features/Org2Cloud/org2CloudManagementClient";
-import {
-  cloudManagementErrorMessage,
-  parseCloudInviteInput,
-} from "@src/features/Org2Cloud/org2CloudOrgManagement";
-import { useRefetchOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
-import { ensureProjectOrgForCloudOrg } from "@src/features/Org2Cloud/org2CloudProjectOrgAlias";
+  CloudOrgMembershipActionFailure,
+  useCloudOrgMembershipActions,
+} from "@src/features/Org2Cloud/useCloudOrgMembershipActions";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import {
   SECTION_ACTION_GAP_CLASSES,
@@ -61,8 +55,9 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   onCreated,
 }) => {
   const { t } = useTranslation(["navigation", "common"]);
-  const [cloudAuth, setCloudAuth] = useAtom(org2CloudAuthAtom);
-  const refetchCloudOrgs = useRefetchOrg2CloudOrgs();
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const { createOrganization, joinOrganization } =
+    useCloudOrgMembershipActions();
 
   const [source, setSource] = useState<CreateOrgSource | null>(null);
   const [mode, setMode] = useState<CreateCollabOrgMode>(CREATE_MODE);
@@ -140,65 +135,22 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   // management client (JWT from the cloud account), then refresh
   // org2CloudOrgsAtom so the sidebar selector picks the org up immediately.
   const handleCloudSubmit = useCallback(async () => {
-    const current = cloudAuth;
-    if (!current) return;
-    const refreshed = await refreshOrg2CloudAuthForAction(
-      current,
-      setCloudAuth
-    );
-    if (refreshed.status === "expired") {
-      throw new Error(t("navigation:cloud.sessionExpired"));
-    }
-    if (refreshed.status === "superseded") return;
-    if (refreshed.status === "unavailable") {
-      throw new Error(t("navigation:cloud.orgPanel.loadError"));
-    }
-    const fresh = refreshed.auth;
-
     if (mode === CREATE_MODE) {
-      const { orgId } = await createCloudOrg(fresh.accessToken, orgName.trim());
-      // Project-org alias (cloud-parity Phase B): local project/work-item
-      // mutations under this org route into the collab outbox from the very
-      // first edit. Best-effort — the sync engine re-ensures it per start.
-      try {
-        await ensureProjectOrgForCloudOrg({ orgId, name: orgName.trim() });
-      } catch {
-        // Non-fatal: the engine's per-org pass self-heals the alias.
-      }
-      await refetchCloudOrgs({
-        until: (orgs) => orgs.some((org) => org.orgId === orgId),
-      });
+      const created = await createOrganization(orgName);
       Message.success(t("navigation:cloud.orgManagement.create.createdToast"));
       // Land straight in the org management panel (invites, members, repo
       // scopes) instead of a dead-end success screen.
       openOrganizationTab({
-        organization: { kind: "cloud", cloudOrg: { orgId } },
+        organization: {
+          kind: "cloud",
+          cloudOrg: { orgId: created.orgId },
+        },
         title: t("navigation:collaboration.manageOrg"),
       });
       return;
     }
 
-    const inviteCode = parseCloudInviteInput(inviteInput);
-    if (!inviteCode) {
-      throw new Error(t("navigation:cloud.orgManagement.errors.inviteInvalid"));
-    }
-    const result = await acceptCloudInvite(fresh.accessToken, inviteCode);
-    const orgs = await refetchCloudOrgs({
-      until: (items) => items.some((org) => org.orgId === result.orgId),
-    });
-    const joined = orgs.find((org) => org.orgId === result.orgId);
-    if (!joined) {
-      // Do not close the form or show a success toast unless the refreshed
-      // roster confirms that the invite produced an active membership.
-      throw new Error(t("navigation:cloud.orgPanel.loadError"));
-    }
-    // Project-org alias on join (cloud-parity Phase B); best-effort, the
-    // engine re-ensures it per start.
-    try {
-      await ensureProjectOrgForCloudOrg(joined);
-    } catch {
-      // Non-fatal: the engine's per-org pass self-heals the alias.
-    }
+    const joined = await joinOrganization(inviteInput);
     Message.success(
       t("navigation:cloud.orgManagement.join.joinedToast", {
         org: joined.name,
@@ -206,14 +158,13 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
     );
     onCancel();
   }, [
-    cloudAuth,
+    createOrganization,
     inviteInput,
+    joinOrganization,
     mode,
     onCancel,
     openOrganizationTab,
     orgName,
-    refetchCloudOrgs,
-    setCloudAuth,
     t,
   ]);
 
@@ -232,13 +183,26 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
     } catch (err) {
       // Cloud failures carry §22 ORG2_* codes (ORG2_INVITE_EXPIRED,
       // ORG2_QUOTA_EXCEEDED, …) — surface the specific translated message.
-      setError(
-        source === CLOUD_SOURCE
-          ? cloudManagementErrorMessage(err, t)
-          : err instanceof Error
-            ? err.message
-            : String(err)
-      );
+      if (
+        source === CLOUD_SOURCE &&
+        err instanceof CloudOrgMembershipActionFailure
+      ) {
+        setError(
+          err.code === "invalid_invite"
+            ? t("navigation:cloud.orgManagement.errors.inviteInvalid")
+            : err.code === "session_expired"
+              ? t("navigation:cloud.sessionExpired")
+              : t("navigation:cloud.orgPanel.loadError")
+        );
+      } else {
+        setError(
+          source === CLOUD_SOURCE
+            ? cloudManagementErrorMessage(err, t)
+            : err instanceof Error
+              ? err.message
+              : String(err)
+        );
+      }
     } finally {
       setLoading(false);
     }

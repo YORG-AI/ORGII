@@ -139,7 +139,8 @@
       "workstation": "Рабочая станция",
       "viewRam": "Показать RAM",
       "tutorials": "Обучение",
-      "openSettings": "Открыть настройки"
+      "openSettings": "Открыть настройки",
+      "setupChecklist": "Контрольный список настройки"
     },
     "empty": {
       "noItems": "Нет элементов",

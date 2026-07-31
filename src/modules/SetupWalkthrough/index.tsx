@@ -1,81 +1,92 @@
-/**
- * Setup Walkthrough Page
- *
- * A wizard-style onboarding flow entered automatically for first-time users.
- * Completion persists a completed outcome and emits the GitHub Star value
- * moment. Skipping persists a dismissed outcome without prompting for a Star.
- *
- * Renders outside AppShell (no sidebar) for a focused experience.
- */
 import { useSetAtom } from "jotai";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
-import React, { useCallback, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Check, Sparkles } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
-import "@src/components/DevPassport/devpassport.css";
 import Message from "@src/components/Message";
 import { ROUTES } from "@src/config/routes";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { signalGitHubStarValueMoment } from "@src/features/GitHubStar";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
-import { saveSettingAtom } from "@src/store/settings/settingsAtom";
+import { TUTORIALS } from "@src/scaffold/Tutorials/tutorialRegistry";
+import {
+  openCreateTargetInChatPanelStartPageAtom,
+  openTeamInboxInChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabOpenAtoms";
+import { saveSettingsBatchAtom } from "@src/store/settings/settingsAtom";
 import {
   type SetupWalkthroughOutcome,
   shouldSignalGitHubStarAfterSetup,
 } from "@src/store/settings/setupWalkthrough";
+import { CHAT_PANEL_CREATE_TARGET } from "@src/store/ui/chatPanelAtom";
 
 import { STEP_CONFIGS } from "./config";
+import {
+  canCompleteSetupStep,
+  canNavigateToSetupStep,
+  getVisibleSetupStepIds,
+} from "./flow";
 import "./index.scss";
-
-// ============================================
-// Global Styles (injected)
-// ============================================
+import { SetupOperationError } from "./steps";
+import { useSetupWalkthroughController } from "./useSetupWalkthroughController";
 
 const WALKTHROUGH_STYLES = `
-  body.walkthrough-mode .tab-bar {
-    display: none !important;
-  }
-  body.walkthrough-mode [data-toolbar-section] {
-    display: none !important;
-  }
-  @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(20px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+  body.walkthrough-mode .tab-bar { display: none !important; }
+  body.walkthrough-mode [data-toolbar-section] { display: none !important; }
 `;
-
-// ============================================
-// Main Component
-// ============================================
 
 const SetupWalkthrough: React.FC = () => {
   const navigate = useNavigate();
   const { t } = useTranslation("onboarding");
-  const saveSetting = useSetAtom(saveSettingAtom);
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
+  const controller = useSetupWalkthroughController();
+  const saveSettings = useSetAtom(saveSettingsBatchAtom);
+  const openCreateTarget = useSetAtom(openCreateTargetInChatPanelStartPageAtom);
+  const openTeamInbox = useSetAtom(openTeamInboxInChatPanelTabAtom);
   const [isClosing, setIsClosing] = useState(false);
   const closingRef = useRef(false);
 
-  // Add/remove body class for hiding tabbar
   React.useLayoutEffect(() => {
     document.body.classList.add("walkthrough-mode");
-    return () => {
-      document.body.classList.remove("walkthrough-mode");
-    };
+    return () => document.body.classList.remove("walkthrough-mode");
   }, []);
 
-  const currentStep = STEP_CONFIGS[currentStepIndex];
-  const isFirstStep = currentStepIndex === 0;
-  const isLastStep = currentStepIndex === STEP_CONFIGS.length - 1;
+  const visibleStepIds = getVisibleSetupStepIds(controller.progress);
+  const visibleSteps = useMemo(
+    () => STEP_CONFIGS.filter((step) => visibleStepIds.includes(step.id)),
+    [visibleStepIds]
+  );
+  const currentIndex = visibleSteps.findIndex(
+    (step) => step.id === controller.currentStepId
+  );
+  const currentStep = visibleSteps[Math.max(0, currentIndex)];
+  const CurrentStepComponent = currentStep.component;
+  const isFirstStep = currentIndex <= 0;
+  const isLastStep = currentIndex === visibleSteps.length - 1;
+  const canContinue = canCompleteSetupStep(
+    controller.progress,
+    controller.currentStepId
+  );
+  const stepNumber = Math.max(1, currentIndex + 1);
+  const progressPercent = Math.round(
+    (stepNumber / Math.max(1, visibleSteps.length)) * 100
+  );
+
+  const landInSelectedOutcome = useCallback(() => {
+    if (controller.progress.goal === "team_activity") {
+      openTeamInbox(t("readiness.destinations.teamInbox"));
+    } else {
+      openCreateTarget({
+        target:
+          controller.progress.goal === "work_management"
+            ? CHAT_PANEL_CREATE_TARGET.WORK_ITEM
+            : CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
+        title: t("readiness.destinations.launchpad"),
+      });
+    }
+  }, [controller.progress.goal, openCreateTarget, openTeamInbox, t]);
 
   const closeWalkthrough = useCallback(
     async (outcome: Exclude<SetupWalkthroughOutcome, "open">) => {
@@ -83,14 +94,35 @@ const SetupWalkthrough: React.FC = () => {
       closingRef.current = true;
       setIsClosing(true);
       try {
-        await saveSetting({
-          key: "general.setupWalkthroughOutcome",
-          value: outcome,
+        const finalProgress =
+          outcome === "completed"
+            ? {
+                ...controller.progress,
+                completedStepIds: Array.from(
+                  new Set([...controller.progress.completedStepIds, "ready"])
+                ),
+              }
+            : controller.progress;
+        await saveSettings({
+          "general.setupWalkthroughOutcome": outcome,
+          "general.setupWalkthroughProgress": finalProgress,
         });
         if (shouldSignalGitHubStarAfterSetup(outcome)) {
           signalGitHubStarValueMoment();
         }
+        if (outcome === "completed") landInSelectedOutcome();
         navigate(ROUTES.workStation.base.path, { replace: true });
+        if (outcome === "completed" && finalProgress.tutorialId) {
+          const tutorial = TUTORIALS.find(
+            (item) => item.id === finalProgress.tutorialId
+          );
+          if (tutorial) {
+            window.setTimeout(
+              () => window.dispatchEvent(new CustomEvent(tutorial.eventName)),
+              250
+            );
+          }
+        }
       } catch {
         Message.error(t("common:status.saveFailed"));
       } finally {
@@ -98,89 +130,180 @@ const SetupWalkthrough: React.FC = () => {
         setIsClosing(false);
       }
     },
-    [navigate, saveSetting, t]
+    [controller.progress, landInSelectedOutcome, navigate, saveSettings, t]
   );
 
-  const handleNext = useCallback(() => {
+  const handleNext = useCallback(async () => {
     if (isLastStep) {
-      void closeWalkthrough("completed");
-    } else {
-      setCurrentStepIndex((prev) => prev + 1);
+      await closeWalkthrough("completed");
+      return;
     }
-  }, [closeWalkthrough, isLastStep]);
-
-  const handleBack = useCallback(() => {
-    if (!isFirstStep) {
-      setCurrentStepIndex((prev) => prev - 1);
+    try {
+      await controller.goNext();
+    } catch {
+      Message.error(t("common:status.saveFailed"));
     }
-  }, [isFirstStep]);
+  }, [closeWalkthrough, controller, isLastStep, t]);
 
-  const handleSkip = useCallback(() => {
-    void closeWalkthrough("dismissed");
-  }, [closeWalkthrough]);
+  const handleBack = useCallback(async () => {
+    try {
+      await controller.goBack();
+    } catch {
+      Message.error(t("common:status.saveFailed"));
+    }
+  }, [controller, t]);
 
-  // Left content: Step navigation
   const leftContent = (
-    <div className="flex h-full w-full flex-col gap-4">
-      <div className="flex flex-1 flex-col gap-1 overflow-y-auto">
-        {STEP_CONFIGS.map((step, index) => {
-          const StepIcon = step.icon;
-          const isActive = index === currentStepIndex;
-          const isCompleted = index < currentStepIndex;
+    <div className="flex h-full w-full flex-col">
+      <div className="walkthrough-brand">
+        <div className="walkthrough-brand-mark" aria-hidden>
+          <Sparkles size={17} />
+        </div>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold tracking-tight text-text-1">
+              ORGII
+            </span>
+            <span className="rounded-full bg-primary-1 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-primary-6">
+              {t("readiness.sidebar.brandTag")}
+            </span>
+          </div>
+          <div className="mt-1 text-xs leading-5 text-text-3">
+            {t("readiness.sidebar.subtitle")}
+          </div>
+        </div>
+      </div>
 
+      <div className="mt-6 rounded-xl border border-border-1 bg-bg-2/70 p-3">
+        <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+          <span className="font-medium text-text-2">
+            {t("readiness.sidebar.stepProgress", {
+              current: stepNumber,
+              total: visibleSteps.length,
+            })}
+          </span>
+          <span className="tabular-nums text-text-3">{progressPercent}%</span>
+        </div>
+        <div
+          className="h-1.5 overflow-hidden rounded-full bg-fill-3"
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={visibleSteps.length}
+          aria-valuenow={stepNumber}
+        >
+          <div
+            className="h-full rounded-full bg-primary-6 transition-[width] duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+      </div>
+
+      <div
+        className="walkthrough-step-list mt-5 flex flex-1 flex-col overflow-y-auto"
+        aria-label={t("readiness.sidebar.ariaLabel")}
+      >
+        {visibleSteps.map((step, index) => {
+          const StepIcon = step.icon;
+          const isActive = step.id === controller.currentStepId;
+          const isCompleted = controller.progress.completedStepIds.includes(
+            step.id
+          );
+          const canNavigate = canNavigateToSetupStep(
+            controller.progress,
+            step.id
+          );
           return (
-            <button
-              key={step.id}
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border-none px-3 py-2.5 text-left transition-all ${
-                isActive
-                  ? "bg-fill-2"
-                  : isCompleted
-                    ? "bg-transparent opacity-70"
-                    : "bg-transparent hover:bg-fill-3"
-              }`}
-              onClick={() => setCurrentStepIndex(index)}
-              type="button"
-            >
-              <div
-                className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg ${
+            <div key={step.id} className="relative pb-1">
+              {index < visibleSteps.length - 1 && (
+                <span
+                  className="walkthrough-step-connector pointer-events-none absolute bottom-0 top-9 flex justify-center"
+                  aria-hidden
+                >
+                  <span
+                    className={`h-full w-px ${
+                      isCompleted ? "bg-success-6/45" : "bg-border-2"
+                    }`}
+                  />
+                </span>
+              )}
+              <button
+                className={`walkthrough-step-button group flex w-full items-center gap-3 rounded-xl border py-2.5 text-left transition-all duration-200 ${
                   isActive
-                    ? "bg-primary-6 text-white"
-                    : isCompleted
-                      ? "bg-success-6 text-white"
-                      : "bg-fill-3 text-text-2"
+                    ? "border-primary-6/25 bg-primary-1"
+                    : canNavigate
+                      ? "cursor-pointer border-transparent bg-transparent hover:border-border-1 hover:bg-fill-2"
+                      : "cursor-not-allowed border-transparent bg-transparent opacity-45"
                 }`}
+                onClick={() => void controller.goToStep(step.id)}
+                disabled={!canNavigate || isClosing}
+                aria-current={isActive ? "step" : undefined}
+                type="button"
+                data-testid={`setup-step-${step.id}`}
               >
-                {isCompleted ? <Check size={16} /> : <StepIcon size={16} />}
-              </div>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-sm font-medium text-text-1">
-                  {t(`steps.${step.i18nKey}.title`)}
-                </span>
-                <span className="text-xs leading-snug text-text-3">
-                  {t(`steps.${step.i18nKey}.description`)}
-                </span>
-              </div>
-            </button>
+                <div
+                  className={`walkthrough-step-node relative z-10 flex flex-shrink-0 items-center justify-center rounded-full border transition-colors ${
+                    isActive
+                      ? "border-primary-6 bg-primary-6 text-white ring-4 ring-primary-1"
+                      : isCompleted
+                        ? "text-success-7 border-success-6/50 bg-success-1"
+                        : "border-border-2 bg-bg-2 text-text-3"
+                  }`}
+                >
+                  {isCompleted ? <Check size={15} /> : <StepIcon size={15} />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`truncate text-sm font-medium ${
+                      isActive ? "text-primary-6" : "text-text-1"
+                    }`}
+                  >
+                    {t(`steps.${step.i18nKey}.title`)}
+                  </div>
+                  <div className="mt-0.5 truncate text-xs text-text-3">
+                    {t(`steps.${step.i18nKey}.description`)}
+                  </div>
+                </div>
+              </button>
+            </div>
           );
         })}
       </div>
     </div>
   );
 
-  // Right content: Step content + footer
   const rightContent = (
     <div className="flex h-full w-full flex-col overflow-hidden">
-      <div className="relative flex flex-1 items-center justify-center overflow-y-auto p-6">
-        {currentStep.content}
+      <div className="walkthrough-mobile-progress">
+        <span>
+          {t("readiness.sidebar.stepProgress", {
+            current: stepNumber,
+            total: visibleSteps.length,
+          })}
+        </span>
+        <span className="font-medium text-primary-6">
+          {t(`steps.${currentStep.i18nKey}.title`)}
+        </span>
       </div>
-
+      <div className="walkthrough-content-scroll relative flex min-h-0 flex-1 flex-col overflow-y-auto px-10 py-9">
+        <div
+          key={currentStep.id}
+          className="walkthrough-step-enter flex min-h-full w-full flex-col"
+        >
+          <CurrentStepComponent controller={controller} />
+          <SetupOperationError controller={controller} />
+        </div>
+      </div>
       <PanelFooter
+        className="walkthrough-footer h-16 px-8"
+        primaryButtonSize="default"
+        secondaryButtonSize="default"
         left={
           !isFirstStep ? (
             <Button
-              size="default"
               icon={<ArrowLeft size={16} />}
-              onClick={handleBack}
+              onClick={() => void handleBack()}
+              disabled={isClosing || controller.activeOperation !== null}
+              data-testid="setup-back"
             >
               {t("common:actions.back")}
             </Button>
@@ -191,20 +314,23 @@ const SetupWalkthrough: React.FC = () => {
             ? [
                 {
                   label: t("navigation.skipSetup"),
-                  onClick: handleSkip,
-                  disabled: isClosing,
+                  onClick: () => void closeWalkthrough("dismissed"),
+                  disabled: isClosing || controller.activeOperation !== null,
+                  dataTestId: "setup-skip",
                 },
               ]
             : undefined
         }
         primaryAction={{
           label: isLastStep
-            ? t("navigation.getStarted")
+            ? t("readiness.ready.openDestination")
             : t("common:actions.continue"),
-          onClick: handleNext,
+          onClick: () => void handleNext(),
           loading: isClosing,
-          disabled: isClosing,
+          disabled:
+            isClosing || controller.activeOperation !== null || !canContinue,
           icon: isLastStep ? <Check size={16} /> : <ArrowRight size={16} />,
+          dataTestId: isLastStep ? "setup-finish" : "setup-continue",
         }}
       />
     </div>
@@ -212,13 +338,15 @@ const SetupWalkthrough: React.FC = () => {
 
   return (
     <>
-      {/* Global styles for walkthrough mode */}
       <style nonce={CODEMIRROR_STYLE_NONCE}>{WALKTHROUGH_STYLES}</style>
-
       <OnboardingLayout
         variant="contained"
         size="large"
         bodyClass="walkthrough-mode"
+        className="walkthrough-shell"
+        cardClassName="walkthrough-card"
+        leftPanelClassName="walkthrough-sidebar"
+        rightPanelClassName="walkthrough-main"
         leftContent={leftContent}
         rightContent={rightContent}
       />

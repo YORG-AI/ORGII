@@ -167,6 +167,7 @@
     "goToSettings": "Ir a Configuración",
     "restart": "Reiniciar",
     "switchToStation": "Cambiar a {{station}}",
+    "switchMethod": "Cambiar método",
     "rate": "Calificar",
     "openInTab": "Abrir en pestaña",
     "insert": "Insertar",

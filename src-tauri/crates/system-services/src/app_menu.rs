@@ -24,6 +24,8 @@ const RECENT_PATHS_FILENAME: &str = "recent_paths.json";
 const MAIN_WINDOW_LABEL: &str = "main";
 const EVENT_QUIT_CONFIRMATION_OPEN: &str = "native-quit-confirmation-open";
 const EVENT_QUIT_CONFIRMATION_CLOSE: &str = "native-quit-confirmation-close";
+const EVENT_REOPEN_SETUP: &str = "menu-reopen-setup";
+const MENU_ID_RESTART_SETUP: &str = "help_restart_setup";
 
 /// Global state for recent paths (thread-safe)
 static RECENT_PATHS: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -256,8 +258,17 @@ pub fn create_app_menu(app: &AppHandle) -> Result<Menu<Wry>, tauri::Error> {
     )?;
     let report_issue_item =
         MenuItem::with_id(app, "help_report_issue", "Report Issue", true, None::<&str>)?;
+    let restart_setup_item = MenuItem::with_id(
+        app,
+        MENU_ID_RESTART_SETUP,
+        "Restart Setup Guide",
+        true,
+        Some("CmdOrCtrl+Alt+O"),
+    )?;
 
     let help_menu = SubmenuBuilder::new(app, "Help")
+        .item(&restart_setup_item)
+        .separator()
         .item(&documentation_item)
         .item(&report_issue_item)
         .build()?;
@@ -596,6 +607,15 @@ pub fn setup_menu_events(app: &AppHandle) {
             }
             "help_report_issue" => {
                 let _ = open::that("https://github.com/YORG-AI/ORGII/issues");
+            }
+            MENU_ID_RESTART_SETUP => {
+                println!("[AppMenu] Restart Setup Guide requested");
+                if let Err(error) = app.emit(EVENT_REOPEN_SETUP, ()) {
+                    eprintln!(
+                        "[AppMenu] Failed to broadcast {}: {}",
+                        EVENT_REOPEN_SETUP, error
+                    );
+                }
             }
             "recent_clear" => {
                 clear_recent_menu(&app_handle);

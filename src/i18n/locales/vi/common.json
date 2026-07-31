@@ -167,6 +167,7 @@
     "goToSettings": "Đi đến Cài đặt",
     "restart": "Khởi động lại",
     "switchToStation": "Chuyển sang {{station}}",
+    "switchMethod": "Đổi phương thức",
     "rate": "Đánh giá",
     "openInTab": "Mở trong tab",
     "insert": "Chèn",

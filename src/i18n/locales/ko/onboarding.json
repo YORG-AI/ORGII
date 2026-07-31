@@ -70,5 +70,251 @@
     "skipSetup": "설정 건너뛰기",
     "getStarted": "시작하기",
     "goToSettings": "설정으로 이동"
+  },
+  "readiness": {
+    "sidebar": {
+      "brandTag": "설정",
+      "subtitle": "가치에 대한 최단 경로를 설정합니다. 진행 상황은 모든 단계 후에 저장됩니다.",
+      "ariaLabel": "설정 진행 상황",
+      "stepProgress": "{{current}}/{{total}} 단계",
+      "saved": "진행 상황은 자동으로 저장됩니다.",
+      "help": "완료된 단계는 편집 가능한 상태로 유지됩니다. 완료하면 향후 단계가 잠금 해제됩니다."
+    },
+    "goal": {
+      "title": "먼저 무엇을 달성하고 싶습니까?",
+      "description": "완료되면 ORGII가 설정을 조정하고 올바른 제품 화면으로 안내합니다.",
+      "recommended": "권장",
+      "hint": "이렇게 하면 설정 경로가 변경됩니다. 사용할 수 있는 항목을 영구적으로 제한하지 않습니다.",
+      "personal": {
+        "title": "에이전트 세션 시작",
+        "description": "개인 코딩 워크플로를 설정하고 Launchpad를 엽니다."
+      },
+      "team": {
+        "title": "팀 Codex 활동 보기",
+        "description": "조직을 연결하고 저장소 가시성을 선택하고 팀 받은 편지함을 엽니다."
+      },
+      "work": {
+        "title": "작업 관리",
+        "description": "프로젝트 및 작업 이해 항목을 선택한 다음 첫 번째 항목을 만듭니다."
+      }
+    },
+    "tools": {
+      "title": "코딩 도구를 감지합니다.",
+      "description": "기존 로컬 유효성 검사 서비스를 사용하여 Codex, Claude Code 및 Cursor를 확인합니다.",
+      "detectedDescription": "로컬 자격 증명 또는 구독 상태",
+      "found": "{{count}}개 계정 발견 · {{validated}}개 검증됨",
+      "notFound": "사용 가능한 계정 감지 없음",
+      "notScanned": "아직 스캔되지 않음",
+      "detect": "도구 감지",
+      "importHistory": "Codex 기록 가져오기",
+      "historyImported": "{{count}} Codex 세션 사용 가능 로컬",
+      "privacy": "비밀번호는 절대 설정 상태로 들어가지 않습니다. 공급자, 개수 및 유효성 검사 상태만 유지됩니다."
+    },
+    "organization": {
+      "title": "팀 조직 연결",
+      "description": "한 번 로그인한 후 기존 조직을 선택하거나 조직을 생성하거나 초대로 참여하세요.",
+      "signInHint": "팀 활동은 ORG2 Cloud 계정을 사용하므로 구성원은 동일한 조직 경계를 공유합니다.",
+      "signIn": "로그인/등록",
+      "existing": "귀하의 조직",
+      "role": "역할: {{role}}",
+      "mode": "조직 작업",
+      "create": "조직 생성",
+      "join": "조직 가입",
+      "orgName": "조직 이름",
+      "orgNamePlaceholder": "예: Acme Engineering",
+      "invite": "링크 또는 코드 초대",
+      "invitePlaceholder": "관리자가 공유한 링크 붙여넣기",
+      "selected": "{{org}}가 팀 설정을 위해 선택되었습니다.",
+      "roles": {
+        "owner": "소유자",
+        "admin": "관리자",
+        "member": "구성원",
+        "guest": "게스트"
+      }
+    },
+    "sharing": {
+      "title": "팀이 볼 수 있는 항목 선택",
+      "description": "원격 저장소 가시성 경계입니다. 공유 수준은 게시되는 세션 세부 정보의 양을 제어합니다.",
+      "workspace": "작업 공간",
+      "workspaceDescription": "에이전트가 실행되는 로컬 폴더",
+      "noWorkspace": "열린 작업 공간 없음",
+      "openWorkspace": "작업 공간 열기",
+      "repoScope": "저장소 범위",
+      "repoScopeDescription": "현재 작업 공간에서 정규화된 Git 원격 해결",
+      "detectScope": "저장소 감지 범위",
+      "remote": "공유 가능한 원격",
+      "level": "최소 공유 수준",
+      "levelDescription": "일치하는 세션에 조직에서 적용",
+      "off": "끄기",
+      "metadata": "메타데이터만",
+      "replay": "전체 재생",
+      "save": "정책 저장 및 확인",
+      "createInvite": "구성원 초대 만들기",
+      "copy": "복사",
+      "verified": "서버가 이 저장소 정책과 동기화 대기열을 수락했습니다. 배수되었습니다.",
+      "memberHint": "{{org}}는 관리자가 관리합니다. 로컬 Codex 기록은 저장소 정책에 따라 동기화할 준비가 되었습니다.",
+      "verifyMember": "동기화 경로를 확인하세요",
+      "memberVerified": "조직 선택이 활성화되어 있고 현재 동기화 요청이 드레이닝되었습니다."
+    },
+    "basics": {
+      "title": "기본 사항을 완료하세요",
+      "description": "설정을 작게 유지하세요. 모양을 선택하고 먼저 사용할 작업 공간을 확인하세요.",
+      "workspace": "기본값 작업 공간",
+      "workspaceDescription": "세션은 작업 공간의 파일에 대해 실행됩니다. 프로젝트 및 작업 항목은 파일 시스템을 교체하는 대신 작업을 구성합니다.",
+      "openWorkspace": "작업 공간 열기",
+      "changeWorkspace": "작업 공간 변경",
+      "settingsHint": "설정 후 모델, 언어, 알림 및 스캔 주기는 설정에서 계속 사용할 수 있습니다."
+    },
+    "tutorial": {
+      "title": "상황에 맞는 튜토리얼 하나 선택",
+      "description": "설정 후 컨트롤이 있는 실제 제품 표면에서 시작됩니다.",
+      "hint": "나중에 설정 메뉴에서 두 튜토리얼 중 하나를 다시 재생할 수 있습니다."
+    },
+    "model": {
+      "title": "ORGII 작동 방식",
+      "description": "이러한 개체는 다양한 문제를 해결합니다. 그 중 어느 것도 폴더의 다른 이름이 아닙니다.",
+      "session": {
+        "title": "세션",
+        "description": "에이전트의 대화 및 실행 컨텍스트입니다. 하나의 작업공간을 참조할 수 있습니다."
+      },
+      "workItem": {
+        "title": "작업 항목",
+        "description": "상태, 담당자, 토론 및 연결된 세션이 포함된 추적 가능한 작업."
+      },
+      "project": {
+        "title": "프로젝트",
+        "description": "작업 항목에 대한 계획 컨테이너입니다. 저장소 전반에 걸쳐 작업을 조정할 수 있습니다."
+      },
+      "workspace": {
+        "title": "작업 공간/파일 시스템",
+        "description": "실제 로컬 폴더 및 파일 에이전트가 읽고 수정합니다."
+      },
+      "relationship": "프로젝트 → 작업 항목 → 세션 → 작업 공간 파일"
+    },
+    "ready": {
+      "title": "설정이 준비되었습니다.",
+      "description": "아래 내구성 검사를 검토한 다음 원본과 일치하는 표면을 엽니다. 목표입니다.",
+      "toolsReady": "에이전트 액세스가 감지되었습니다",
+      "toolsLater": "에이전트 액세스는 나중에 추가할 수 있습니다.",
+      "workspaceReady": "작업 영역이 선택됨",
+      "workspaceLater": "작업 영역은 다음에 열 수 있습니다.",
+      "teamPolicyReady": "팀 가시성 정책 확인됨",
+      "memberSyncReady": "멤버 동기화 경로 확인됨",
+      "teamDestination": "팀 받은 편지함 열기",
+      "workDestination": "첫 번째 작업 항목 만들기",
+      "personalDestination": "에이전트 세션 시작",
+      "destinationHint": "설정 진행 상황은 다음 이후에도 유지됩니다. 다시 시작하세요.",
+      "teamDestinationHint": "다시 시작한 후에도 선택한 조직 및 설정 진행 상황이 유지됩니다.",
+      "openDestination": "완료하고 열기"
+    },
+    "destinations": {
+      "teamInbox": "팀 받은 편지함",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "먼저 ORG2 Cloud에 로그인하세요.",
+      "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 다시 로그인하세요.",
+      "invalidInvite": "이 초대 링크 또는 코드가 유효하지 않습니다.",
+      "rosterNotConverged": "새로 고친 멤버십 목록에 해당 조직이 아직 표시되지 않습니다.",
+      "cloudUnavailable": "ORG2 Cloud를 사용할 수 없습니다. 다시 시도해 보세요.",
+      "unknown": "설정 작업이 실패했습니다. 다시 시도하세요.",
+      "workspaceRequired": "팀 범위를 구성하기 전에 작업공간을 여세요.",
+      "gitRemoteRequired": "이 작업공간에는 Git 원격이 없습니다. 리모컨을 추가한 후 다시 시도하세요.",
+      "orgAndScopeRequired": "먼저 조직과 저장소 범위를 선택하세요.",
+      "orgRequired": "먼저 조직을 선택하세요.",
+      "policyChanged": "저장하는 동안 팀 설정이 변경되었습니다. 다시 검토하고 확인하세요.",
+      "inviteOrgChanged": "초대를 만드는 동안 선택한 조직이 변경되었습니다. 다시 시도하세요.",
+      "syncOrgChanged": "동기화를 확인하는 동안 선택한 조직이 변경되었습니다. 다시 시도하세요."
+    }
+  },
+  "tutorials": {
+    "modalTitle": "튜토리얼",
+    "start": "시작",
+    "chrome": {
+      "stepProgress": "단계 {{current}}/{{total}}",
+      "close": "닫기",
+      "previous": "이전 단계",
+      "next": "다음 단계",
+      "finish": "둘러보기 완료",
+      "keyboardHint": "← / → 또는 < / > 사용",
+      "desktop": "데스크톱",
+      "myStation": "내 스테이션",
+      "infinity": "Infinity",
+      "agentStation": "에이전트 스테이션"
+    },
+    "generalLayout": {
+      "title": "일반 레이아웃 둘러보기",
+      "description": "세션 사이드바, 채팅 패널, 스테이션 모드 전환기, 워크스테이션, 도크 및 앱 영역에 대해 알아보세요.",
+      "duration": "1분",
+      "steps": {
+        "chat-panel": {
+          "title": "채팅 패널",
+          "body": "여기서 사용자는 에이전트와 대화하고, 활동을 검토하고, 후속 조치를 보냅니다. 지침."
+        },
+        "station-mode-pill": {
+          "title": "스테이션 모드 전환",
+          "body": "스테이션 모드를 전환하려면 이 알약을 사용하세요. 데스크탑은 작업 공간인 My Station을 의미합니다. Infinity는 에이전트 활동 보기인 Agent Station을 의미합니다."
+        },
+        "dock": {
+          "title": "Agent Station 도킹",
+          "body": "도크는 스테이션 내부의 앱을 전환합니다. 둘러보기는 자동 숨기기를 일시적으로 비활성화하여 이러한 컨트롤이 계속 표시되도록 합니다."
+        },
+        "all-tabs": {
+          "title": "모든 탭",
+          "body": "첫 번째 도킹 아이콘은 어떤 워크스테이션 앱이 소유하는지에 관계없이 열려 있는 모든 탭을 함께 표시합니다."
+        },
+        "code-editor": {
+          "title": "코드 편집기",
+          "body": "파일, diff, 터미널, 소스 제어 및 코딩 변경 사항에 대해 코드 편집기를 사용합니다. 세션."
+        },
+        "browser": {
+          "title": "브라우저",
+          "body": "채팅과 함께 웹페이지, 미리보기, 앱 테스트 및 브라우저 기반 조사를 위해 브라우저를 사용합니다."
+        },
+        "projects": {
+          "title": "프로젝트",
+          "body": "프로젝트를 사용하여 현재 작업공간에 연결된 작업 항목, 계획 및 프로젝트 상태를 추적합니다."
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "코드 편집기 둘러보기",
+      "description": "탭, 저장소 및 분기 전환, 소스 제어, Git 기록 및 프로젝트 대시보드에 대해 알아보세요.",
+      "duration": "2분",
+      "steps": {
+        "tabs": {
+          "title": "코드 편집기 탭",
+          "body": "탭은 작업하는 동안 연 파일, 차이점, 터미널, 소스 제어 보기 및 대시보드를 수집합니다."
+        },
+        "repo-selector": {
+          "title": "저장소 생성 또는 전환",
+          "body": "활성 저장소를 전환하거나 다른 저장소나 작업공간을 추가하려면 저장소 선택기를 사용하세요."
+        },
+        "branch-selector": {
+          "title": "분기 변경",
+          "body": "분기 선택기는 현재 Git 분기를 표시하고 분기 전환을 열거나 이 저장소에 대한 흐름을 생성합니다."
+        },
+        "editor-surface": {
+          "title": "편집기 작업공간",
+          "body": "이것은 기본 코드 편집기 화면입니다. 여기에서 파일을 열고, diff를 검사하고, 터미널을 실행하고, 생성된 변경 사항을 검토하세요."
+        },
+        "create-tabs": {
+          "title": "새 탭 만들기",
+          "body": "모든 탭의 더하기 메뉴를 사용하여 터미널, 브라우저 탭, 파일, 대시보드 및 저장소 유틸리티를 만드세요."
+        },
+        "source-control": {
+          "title": "Git 변경 사항",
+          "body": "소스 제어를 열어 변경된 파일을 검토하고, 작업 준비 또는 취소, 커밋, 풀, 푸시, 가져오기, 그리고 리모컨과 동기화하세요."
+        },
+        "git-history": {
+          "title": "Git 기록",
+          "body": "Git 기록은 소스 제어를 커밋 기록 모드로 전환하므로 이전 커밋 및 관련 변경 사항을 검사할 수 있습니다."
+        },
+        "dashboard": {
+          "title": "코드 편집기 대시보드",
+          "body": "대시보드는 작업 영역에 대한 코드 편집기 홈 탭입니다. 이를 사용하여 저장소를 추가하고, 저장소 세부정보를 열고, 프로젝트 작업에 뛰어들 수 있습니다."
+        }
+      }
+    }
   }
 }

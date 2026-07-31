@@ -31,6 +31,12 @@ export interface OnboardingLayoutProps {
   size?: "default" | "large";
   /** Optional body class to add when mounted */
   bodyClass?: string;
+  /** Optional class name for the card shell. */
+  cardClassName?: string;
+  /** Optional class name for the left panel in split layouts. */
+  leftPanelClassName?: string;
+  /** Optional class name for the right panel in split layouts. */
+  rightPanelClassName?: string;
 }
 
 /**
@@ -44,6 +50,9 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   variant = "contained",
   size = "default",
   bodyClass,
+  cardClassName = "",
+  leftPanelClassName = "",
+  rightPanelClassName = "",
 }) => {
   // Add/remove body class for special styling (e.g., hiding toolbar)
   React.useLayoutEffect(() => {
@@ -131,13 +140,17 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
 
       {/* Card Container */}
       <div
-        className={`relative z-10 ${cardClasses}`}
+        className={`relative z-10 ${cardClasses} ${cardClassName}`.trim()}
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
       >
         {showRightPanel ? (
           <>
-            <div className={leftClasses}>{leftContent}</div>
-            <div className={rightClasses}>{rightContent}</div>
+            <div className={`${leftClasses} ${leftPanelClassName}`.trim()}>
+              {leftContent}
+            </div>
+            <div className={`${rightClasses} ${rightPanelClassName}`.trim()}>
+              {rightContent}
+            </div>
           </>
         ) : (
           <div className={singleColumnInnerClasses}>{leftContent}</div>

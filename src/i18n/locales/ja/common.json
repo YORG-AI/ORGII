@@ -167,6 +167,7 @@
     "goToSettings": "設定へ移動",
     "restart": "再起動",
     "switchToStation": "{{station}}に切り替え",
+    "switchMethod": "方法を切り替える",
     "rate": "評価",
     "openInTab": "タブで開く",
     "insert": "挿入",

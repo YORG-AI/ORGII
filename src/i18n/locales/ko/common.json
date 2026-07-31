@@ -167,6 +167,7 @@
     "goToSettings": "설정으로 이동",
     "restart": "재시작",
     "switchToStation": "{{station}}로 전환",
+    "switchMethod": "방법 전환",
     "rate": "평가",
     "openInTab": "탭에서 열기",
     "insert": "삽입",

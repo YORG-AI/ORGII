@@ -168,6 +168,7 @@
     "goToSettings": "Ir para configurações",
     "restart": "Reiniciar",
     "switchToStation": "Alternar para {{station}}",
+    "switchMethod": "Alterar método",
     "rate": "Avaliar",
     "openInTab": "Abrir em aba",
     "insert": "Inserir",

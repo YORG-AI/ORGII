@@ -139,7 +139,8 @@
       "workstation": "Stacja robocza",
       "viewRam": "Pokaż RAM",
       "tutorials": "Samouczki",
-      "openSettings": "Otwórz ustawienia"
+      "openSettings": "Otwórz ustawienia",
+      "setupChecklist": "Lista kontrolna konfiguracji"
     },
     "empty": {
       "noItems": "Brak elementów",

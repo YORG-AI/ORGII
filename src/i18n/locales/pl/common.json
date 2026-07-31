@@ -168,6 +168,7 @@
     "goToSettings": "Przejdź do ustawień",
     "restart": "Uruchom ponownie",
     "switchToStation": "Przełącz na {{station}}",
+    "switchMethod": "Zmień metodę",
     "rate": "Oceń",
     "openInTab": "Otwórz w karcie",
     "insert": "Wstaw",

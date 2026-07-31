@@ -25,7 +25,9 @@ export function resolveSetupWalkthroughNavigation(args: {
   if (!args.loaded) return "wait";
 
   if (args.pathname === ROUTES.auth.setup.path) {
-    return args.outcome === "open" ? "continue" : "redirect-to-workstation";
+    // The same goal-driven checklist is also the explicit resume/reconfigure
+    // destination after a user dismisses or completes first-run setup.
+    return "continue";
   }
 
   return args.outcome === "open" ? "redirect-to-setup" : "continue";

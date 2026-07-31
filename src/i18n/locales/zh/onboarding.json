@@ -22,6 +22,38 @@
     "complete": {
       "title": "完成",
       "description": "准备就绪"
+    },
+    "goal": {
+      "title": "目标",
+      "description": "选择第一次要完成的事"
+    },
+    "tools": {
+      "title": "工具与密钥",
+      "description": "检测本机 Agent 权限"
+    },
+    "organization": {
+      "title": "组织",
+      "description": "创建、加入或选择"
+    },
+    "sharing": {
+      "title": "团队可见性",
+      "description": "选择范围和详细程度"
+    },
+    "basics": {
+      "title": "基础设置",
+      "description": "Workspace 与外观"
+    },
+    "tutorial": {
+      "title": "页面教程",
+      "description": "在真实页面中学习"
+    },
+    "workModel": {
+      "title": "工作关系",
+      "description": "会话、工作项与项目"
+    },
+    "ready": {
+      "title": "准备完成",
+      "description": "验证并打开正确页面"
     }
   },
   "welcome": {
@@ -70,5 +102,251 @@
     "skipSetup": "跳过设置",
     "getStarted": "开始使用",
     "goToSettings": "前往设置"
+  },
+  "readiness": {
+    "sidebar": {
+      "brandTag": "设置",
+      "subtitle": "按最短路径完成首次价值。每一步都会保存进度。",
+      "ariaLabel": "设置进度",
+      "stepProgress": "第 {{current}} / {{total}} 步",
+      "saved": "进度已自动保存",
+      "help": "已完成步骤可随时返回；后续步骤会按完成进度解锁。"
+    },
+    "goal": {
+      "title": "你首先想完成什么？",
+      "description": "ORGII 会据此调整设置流程，并在完成后把你带到正确的产品页面。",
+      "recommended": "推荐",
+      "hint": "这个选择只调整首次设置路径，不会永久限制你能使用的功能。",
+      "personal": {
+        "title": "启动 Agent 会话",
+        "description": "完成个人编码工作流设置并打开 Launchpad。"
+      },
+      "team": {
+        "title": "查看团队 Codex 活动",
+        "description": "连接组织、设置仓库可见性，然后打开 Team Inbox。"
+      },
+      "work": {
+        "title": "管理工作",
+        "description": "理解项目和工作项，然后创建第一个工作项。"
+      }
+    },
+    "tools": {
+      "title": "检测你的编码工具",
+      "description": "使用现有本机验证服务检查 Codex、Claude Code 和 Cursor。",
+      "detectedDescription": "本机凭证或订阅状态",
+      "found": "发现 {{count}} 个账户 · {{validated}} 个已验证",
+      "notFound": "没有检测到可用账户",
+      "notScanned": "尚未检测",
+      "detect": "检测工具",
+      "importHistory": "导入 Codex 历史",
+      "historyImported": "本机已有 {{count}} 条 Codex 会话可用",
+      "privacy": "密钥不会进入设置状态；只保留工具、数量和验证结果。"
+    },
+    "organization": {
+      "title": "连接团队组织",
+      "description": "登录一次，然后选择现有组织、创建组织，或通过邀请加入。",
+      "signInHint": "团队活动使用 ORG2 Cloud 账户，让成员处于同一个组织边界中。",
+      "signIn": "登录 / 注册",
+      "existing": "你的组织",
+      "role": "角色：{{role}}",
+      "mode": "组织操作",
+      "create": "创建组织",
+      "join": "加入组织",
+      "orgName": "组织名称",
+      "orgNamePlaceholder": "例如：Acme Engineering",
+      "invite": "邀请链接或邀请码",
+      "invitePlaceholder": "粘贴管理员分享的链接",
+      "selected": "已选择 {{org}} 用于团队设置",
+      "roles": {
+        "owner": "所有者",
+        "admin": "管理员",
+        "member": "成员",
+        "guest": "访客"
+      }
+    },
+    "sharing": {
+      "title": "选择团队能看到什么",
+      "description": "Git 远程仓库是可见性边界；分享等级决定发布多少会话细节。",
+      "workspace": "Workspace",
+      "workspaceDescription": "Agent 实际运行的本地目录",
+      "noWorkspace": "尚未打开 Workspace",
+      "openWorkspace": "打开 Workspace",
+      "repoScope": "仓库范围",
+      "repoScopeDescription": "从当前 Workspace 解析规范化的 Git remote",
+      "detectScope": "检测仓库范围",
+      "remote": "可分享 remote",
+      "level": "最低分享等级",
+      "levelDescription": "应用于该组织中匹配仓库的会话",
+      "off": "关闭",
+      "metadata": "仅元数据",
+      "replay": "完整回放",
+      "save": "保存并验证策略",
+      "createInvite": "创建成员邀请",
+      "copy": "复制",
+      "verified": "服务端已接受仓库策略，同步队列也已完成本轮处理。",
+      "memberHint": "{{org}} 的策略由管理员管理；你的本机 Codex 历史会按管理员配置的仓库策略同步。",
+      "verifyMember": "验证我的同步链路",
+      "memberVerified": "组织选择已生效，本轮同步请求已处理完毕。"
+    },
+    "basics": {
+      "title": "完成基础设置",
+      "description": "保持精简：选择外观，并确认首先使用的 Workspace。",
+      "workspace": "默认 Workspace",
+      "workspaceDescription": "会话在 Workspace 文件中运行；项目和工作项用于组织工作，并不会替代文件系统。",
+      "openWorkspace": "打开 Workspace",
+      "changeWorkspace": "切换 Workspace",
+      "settingsHint": "模型、语言、通知和扫描频率可在完成后继续从“设置”修改。"
+    },
+    "tutorial": {
+      "title": "选择一个页面教程",
+      "description": "设置完成后，教程会在控件真实存在的产品页面中启动。",
+      "hint": "之后也可以从设置菜单重复播放任意教程。"
+    },
+    "model": {
+      "title": "ORGII 的工作对象如何配合",
+      "description": "这些对象解决不同问题；它们都不是文件夹的另一种叫法。",
+      "session": {
+        "title": "会话 Session",
+        "description": "Agent 的对话与执行上下文，可以关联一个 Workspace。"
+      },
+      "workItem": {
+        "title": "工作项 Work Item",
+        "description": "可跟踪的任务，包含状态、负责人、讨论和关联会话。"
+      },
+      "project": {
+        "title": "项目 Project",
+        "description": "工作项的规划容器，也可以协调跨仓库工作。"
+      },
+      "workspace": {
+        "title": "Workspace / 文件系统",
+        "description": "Agent 实际读取和修改的本地目录与文件。"
+      },
+      "relationship": "项目 → 工作项 → 会话 → Workspace 文件"
+    },
+    "ready": {
+      "title": "设置已准备好",
+      "description": "检查下面已落盘的结果，然后打开与你最初目标一致的页面。",
+      "toolsReady": "已检测 Agent 权限",
+      "toolsLater": "可以稍后添加 Agent 权限",
+      "workspaceReady": "已选择 Workspace",
+      "workspaceLater": "下一步可打开 Workspace",
+      "teamPolicyReady": "团队可见性策略已确认",
+      "memberSyncReady": "成员同步链路已确认",
+      "teamDestination": "打开 Team Inbox",
+      "workDestination": "创建第一个工作项",
+      "personalDestination": "启动 Agent 会话",
+      "destinationHint": "设置进度在重启后仍会保留。",
+      "teamDestinationHint": "选择的组织和设置进度在重启后仍会保留。",
+      "openDestination": "完成并打开"
+    },
+    "destinations": {
+      "teamInbox": "Team Inbox",
+      "launchpad": "Launchpad"
+    },
+    "errors": {
+      "signInRequired": "请先登录 ORG2 Cloud。",
+      "sessionExpired": "ORG2 Cloud 登录已过期，请重新登录。",
+      "invalidInvite": "邀请链接或邀请码无效。",
+      "rosterNotConverged": "刷新后的组织列表中暂时还没有该组织。",
+      "cloudUnavailable": "ORG2 Cloud 暂时不可用，请重试。",
+      "unknown": "设置操作失败，请重试。",
+      "workspaceRequired": "配置团队范围前，请先打开一个 Workspace。",
+      "gitRemoteRequired": "当前 Workspace 没有 Git remote，请添加后重试。",
+      "orgAndScopeRequired": "请先选择组织和仓库范围。",
+      "orgRequired": "请先选择组织。",
+      "policyChanged": "保存期间团队设置发生变化，请检查后重新验证。",
+      "inviteOrgChanged": "创建邀请期间所选组织发生变化，请重试。",
+      "syncOrgChanged": "验证同步期间所选组织发生变化，请重试。"
+    }
+  },
+  "tutorials": {
+    "modalTitle": "页面教程",
+    "start": "开始",
+    "chrome": {
+      "stepProgress": "第 {{current}} / {{total}} 步",
+      "close": "关闭",
+      "previous": "上一步",
+      "next": "下一步",
+      "finish": "完成教程",
+      "keyboardHint": "使用 ← / → 或 < / >",
+      "desktop": "桌面",
+      "myStation": "我的工作站",
+      "infinity": "无限",
+      "agentStation": "Agent 工作站"
+    },
+    "generalLayout": {
+      "title": "整体布局教程",
+      "description": "了解会话侧栏、聊天面板、工作站模式切换、Workstation、Dock 与应用区域。",
+      "duration": "1 分钟",
+      "steps": {
+        "chat-panel": {
+          "title": "聊天面板",
+          "body": "在这里与 Agent 对话、查看活动，并发送后续指令。"
+        },
+        "station-mode-pill": {
+          "title": "切换工作站模式",
+          "body": "使用此按钮切换工作站模式。桌面代表“我的工作站”，也就是你的 Workspace；无限代表“Agent 工作站”，用于查看 Agent 活动。"
+        },
+        "dock": {
+          "title": "Agent 工作站 Dock",
+          "body": "Dock 用于切换工作站内的应用。教程期间会暂时关闭自动隐藏，让这些控件保持可见。"
+        },
+        "all-tabs": {
+          "title": "全部标签页",
+          "body": "第一个 Dock 图标会集中显示所有已打开的标签页，不受其所属工作站应用限制。"
+        },
+        "code-editor": {
+          "title": "代码编辑器",
+          "body": "在代码编辑器中处理文件、Diff、终端、源代码管理，以及会话中产生的代码变更。"
+        },
+        "browser": {
+          "title": "浏览器",
+          "body": "在聊天的同时使用浏览器查看网页与预览、测试应用，并开展基于浏览器的调查。"
+        },
+        "projects": {
+          "title": "项目",
+          "body": "使用项目跟踪与当前 Workspace 相关的工作项、计划和项目状态。"
+        }
+      }
+    },
+    "codeEditor": {
+      "title": "代码编辑器教程",
+      "description": "了解标签页、仓库与分支切换、源代码管理、Git 历史和项目看板。",
+      "duration": "2 分钟",
+      "steps": {
+        "tabs": {
+          "title": "代码编辑器标签页",
+          "body": "标签页集中承载你在仓库工作时打开的文件、Diff、终端、源代码管理视图和看板。"
+        },
+        "repo-selector": {
+          "title": "创建或切换仓库",
+          "body": "使用仓库选择器切换当前仓库，或添加另一个仓库或 Workspace。"
+        },
+        "branch-selector": {
+          "title": "切换分支",
+          "body": "分支选择器会显示当前 Git 分支，并打开该仓库的分支切换或创建流程。"
+        },
+        "editor-surface": {
+          "title": "编辑器 Workspace",
+          "body": "这是代码编辑器的主要工作区。你可以在这里打开文件、检查 Diff、运行终端并审核生成的变更。"
+        },
+        "create-tabs": {
+          "title": "创建新标签页",
+          "body": "使用“全部标签页”中的加号菜单创建终端、浏览器标签页、文件、看板和仓库工具。"
+        },
+        "source-control": {
+          "title": "Git 变更",
+          "body": "打开源代码管理以查看变更文件、暂存或取消暂存、提交，以及执行拉取、推送、获取和远程同步。"
+        },
+        "git-history": {
+          "title": "Git 历史",
+          "body": "Git 历史会把源代码管理切换到提交历史模式，供你检查过去的提交及相关变更。"
+        },
+        "dashboard": {
+          "title": "代码编辑器看板",
+          "body": "看板是代码编辑器面向 Workspace 的主页标签页，可用于添加仓库、查看仓库详情并进入项目工作。"
+        }
+      }
+    }
   }
 }

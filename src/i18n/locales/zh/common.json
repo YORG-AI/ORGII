@@ -169,6 +169,7 @@
     "goToSettings": "前往设置",
     "restart": "重新启动",
     "switchToStation": "切换到{{station}}",
+    "switchMethod": "切换方式",
     "rate": "评分",
     "openInTab": "在标签页中打开",
     "insert": "插入",

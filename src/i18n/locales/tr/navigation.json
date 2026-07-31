@@ -139,7 +139,8 @@
       "workstation": "İş istasyonu",
       "viewRam": "RAM’i görüntüle",
       "tutorials": "Eğitimler",
-      "openSettings": "Ayarları aç"
+      "openSettings": "Ayarları aç",
+      "setupChecklist": "Kurulum kontrol listesi"
     },
     "empty": {
       "noItems": "Öğe yok",

@@ -169,6 +169,7 @@
     "goToSettings": "Go to Settings",
     "restart": "Restart",
     "switchToStation": "Switch to {{station}}",
+    "switchMethod": "Switch method",
     "rate": "Rate",
     "openInTab": "Open in Tab",
     "insert": "Insert",

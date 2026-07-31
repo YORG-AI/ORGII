@@ -167,6 +167,7 @@
     "goToSettings": "Перейти к настройкам",
     "restart": "Перезапустить",
     "switchToStation": "Переключиться на {{station}}",
+    "switchMethod": "Сменить способ",
     "rate": "Оценить",
     "openInTab": "Открыть во вкладке",
     "insert": "Вставить",

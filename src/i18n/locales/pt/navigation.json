@@ -141,7 +141,8 @@
       "workstation": "Estação de trabalho",
       "viewRam": "Ver RAM",
       "tutorials": "Tutoriais",
-      "openSettings": "Abrir configurações"
+      "openSettings": "Abrir configurações",
+      "setupChecklist": "Lista de configuração"
     },
     "empty": {
       "noItems": "Nenhum item",
