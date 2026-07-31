@@ -43,6 +43,8 @@ import { TUTORIALS } from "@src/scaffold/Tutorials/tutorialRegistry";
 import SelectionGrid from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 
+import SetupRoutePreview from "../components/SetupRoutePreview";
+import { getVisibleSetupStepIds } from "../flow";
 import type { SetupWalkthroughController } from "../useSetupWalkthroughController";
 
 type StepProps = { controller: SetupWalkthroughController };
@@ -53,12 +55,15 @@ const StepFrame: React.FC<{
   title: string;
   description: string;
   icon: LucideIcon;
+  width?: "default" | "wide";
   children: React.ReactNode;
-}> = ({ title, description, icon: Icon, children }) => {
+}> = ({ title, description, icon: Icon, width = "default", children }) => {
   const titleId = React.useId();
   return (
     <section
-      className="walkthrough-step-frame mx-auto flex w-full max-w-3xl flex-col gap-6"
+      className={`walkthrough-step-frame mx-auto flex w-full flex-col gap-6 ${
+        width === "wide" ? "max-w-5xl" : "max-w-3xl"
+      }`}
       aria-labelledby={titleId}
     >
       <header className="flex items-start gap-3">
@@ -157,20 +162,29 @@ export const GoalStep: React.FC<StepProps> = ({ controller }) => {
       title={t("readiness.goal.title")}
       description={t("readiness.goal.description")}
       icon={ListChecks}
+      width="wide"
     >
-      <SelectionGrid
-        options={options}
-        selected={controller.progress.goal}
-        onSelect={controller.selectGoal}
-        columns={3}
-        cardLayout="inline"
-        showSelectionCheck={false}
-        cardClassName="walkthrough-goal-card"
-        className="walkthrough-choice-grid walkthrough-goal-grid"
-      />
-      <StatusBanner className="walkthrough-goal-hint">
-        {t("readiness.goal.hint")}
-      </StatusBanner>
+      <div className="walkthrough-goal-layout">
+        <div className="walkthrough-goal-selector">
+          <SelectionGrid
+            options={options}
+            selected={controller.progress.goal}
+            onSelect={controller.selectGoal}
+            columns={1}
+            cardLayout="inline"
+            showSelectionCheck={false}
+            cardClassName="walkthrough-goal-card"
+            className="walkthrough-choice-grid walkthrough-goal-grid"
+          />
+          <StatusBanner className="walkthrough-goal-hint">
+            {t("readiness.goal.hint")}
+          </StatusBanner>
+        </div>
+        <SetupRoutePreview
+          goal={controller.progress.goal}
+          stepIds={getVisibleSetupStepIds(controller.progress)}
+        />
+      </div>
     </StepFrame>
   );
 };

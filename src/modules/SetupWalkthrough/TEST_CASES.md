@@ -32,6 +32,10 @@
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | New install, personal goal                           | Team-only steps disappear; finish opens the real agent Launchpad.                                                                                                                                                                                                               |
 | New install, work-management goal                    | Finish opens the existing Work Item creator in Launchpad.                                                                                                                                                                                                                       |
+| No goal selected                                     | Goal choices and a stable base route remain visible; Continue stays disabled and no destination is implied.                                                                                                                                                                     |
+| Switch goal between personal/work/team               | The route preview is derived from the canonical visible-step list; team adds Organization and Team visibility, focused paths remove them, and the destination changes without inserting a checkmark or shifting the goal rows.                                                  |
+| Goal selection by keyboard                           | Tab reaches each native ActionCard; Enter/Space updates `aria-pressed`, the polite route live region, sidebar step count, and Continue state.                                                                                                                                   |
+| Goal layout at a constrained width                   | The selector and route preview stack into one column without clipping labels or changing the underlying selected goal.                                                                                                                                                          |
 | Team user signed out                                 | Organization step shows a sign-in/register action and cannot advance.                                                                                                                                                                                                           |
 | Existing team membership                             | Selecting the org persists the namespaced sidebar scope and unlocks sharing.                                                                                                                                                                                                    |
 | Create/join double click                             | Only one membership operation is active; authoritative roster convergence is required before success.                                                                                                                                                                           |
@@ -54,9 +58,10 @@
 
 ## Verification
 
-- Unit: `__tests__/flow.test.ts`, `__tests__/setupCommands.test.ts`,
-  `__tests__/testShortcut.test.ts`, `__tests__/i18n.test.ts`, setup
-  navigation/settings tests, and `settingsAtom.atomic.test.ts`.
+- Unit: `components/SetupRoutePreview.test.ts`, `__tests__/flow.test.ts`,
+  `__tests__/setupCommands.test.ts`, `__tests__/testShortcut.test.ts`,
+  `__tests__/i18n.test.ts`, setup navigation/settings tests, and
+  `settingsAtom.atomic.test.ts`.
 - Rendered UI: `tests/e2e/specs/core/setup-walkthrough-ui.spec.mjs` and
   `tests/e2e/specs/core/setup-walkthrough-shortcut-ui.spec.mjs`.
 - Static gates: TypeScript typecheck and ESLint over all changed TypeScript/TSX

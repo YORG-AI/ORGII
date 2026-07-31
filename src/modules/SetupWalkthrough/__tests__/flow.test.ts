@@ -14,18 +14,42 @@ import {
 
 describe("setup walkthrough flow", () => {
   it("keeps personal setup focused while team setup includes governance", () => {
+    const focusedPath = [
+      "goal",
+      "tools",
+      "basics",
+      "tutorial",
+      "work-model",
+      "ready",
+    ];
+
     expect(
       getVisibleSetupStepIds({
         ...DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
         goal: "personal",
       })
-    ).toEqual(["goal", "tools", "basics", "tutorial", "work-model", "ready"]);
+    ).toEqual(focusedPath);
+    expect(
+      getVisibleSetupStepIds({
+        ...DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+        goal: "work_management",
+      })
+    ).toEqual(focusedPath);
     expect(
       getVisibleSetupStepIds({
         ...DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
         goal: "team_activity",
       })
-    ).toContain("sharing");
+    ).toEqual([
+      "goal",
+      "tools",
+      "organization",
+      "sharing",
+      "basics",
+      "tutorial",
+      "work-model",
+      "ready",
+    ]);
   });
 
   it("does not advance until the current postcondition is true", () => {
