@@ -6,7 +6,6 @@ import {
   DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
   type SetupWalkthroughProgress,
   createDefaultSetupWalkthroughProgress,
-  normalizeSetupWalkthroughProgress,
 } from "@src/config/settingsSchema/setupWalkthroughProgress";
 import { org2CloudSharingFloorAtom } from "@src/features/Org2Cloud/org2CloudAccessSettings";
 import { refreshOrg2CloudAuthForAction } from "@src/features/Org2Cloud/org2CloudAuthAction";
@@ -58,6 +57,7 @@ import {
   setupTeamPolicyMatches,
 } from "./flow";
 import { detectSetupTools, importCodexHistory } from "./setupCommands";
+import { useSyncedSetupWalkthroughProgress } from "./useSyncedSetupWalkthroughProgress";
 
 export type SetupOperation =
   | "detect-tools"
@@ -72,9 +72,8 @@ export type SetupOperation =
 export function useSetupWalkthroughController() {
   const { t } = useTranslation("onboarding");
   const stored = useAtomValue(settingsAtom)["general.setupWalkthroughProgress"];
-  const [progress, setProgress] = useState<SetupWalkthroughProgress>(() =>
-    normalizeSetupWalkthroughProgress(stored)
-  );
+  const { progress, replaceProgress: replaceSyncedProgress } =
+    useSyncedSetupWalkthroughProgress(stored);
   const progressRef = useRef(progress);
   const mountedRef = useRef(true);
   const activeOperationRef = useRef<SetupOperation | null>(null);
@@ -97,6 +96,10 @@ export function useSetupWalkthroughController() {
   const setDataSourceConfig = useSetAtom(dataSourceConfigAtom);
   const { createOrganization, joinOrganization } =
     useCloudOrgMembershipActions();
+
+  useEffect(() => {
+    progressRef.current = progress;
+  }, [progress]);
 
   const getOperationErrorMessage = useCallback(
     (error: unknown): string => {
@@ -122,10 +125,6 @@ export function useSetupWalkthroughController() {
     [t]
   );
 
-  useEffect(() => {
-    progressRef.current = progress;
-  }, [progress]);
-
   useEffect(
     () => () => {
       mountedRef.current = false;
@@ -133,11 +132,13 @@ export function useSetupWalkthroughController() {
     []
   );
 
-  const replaceProgress = useCallback((next: SetupWalkthroughProgress) => {
-    progressRef.current = next;
-    setProgress(next);
-    return next;
-  }, []);
+  const replaceProgress = useCallback(
+    (next: SetupWalkthroughProgress) => {
+      progressRef.current = next;
+      return replaceSyncedProgress(next);
+    },
+    [replaceSyncedProgress]
+  );
 
   const patchProgress = useCallback(
     (patch: Partial<SetupWalkthroughProgress>) =>
