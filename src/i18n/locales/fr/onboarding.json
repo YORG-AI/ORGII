@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Aperçu de la mise en page",
       "native": "Natif de l’app",
-      "cinematic": "Carte immersive"
+      "cinematic": "Carte immersive",
+      "classic": "Panneau classique"
+    },
+    "classicPanel": {
+      "title": "Adaptez ORGII à vos préférences",
+      "description": "Choisissez la langue, l’apparence, le thème et la couleur d’accentuation. Vous pourrez les modifier à tout moment."
     },
     "sidebar": {
       "brandTag": "Configuration",

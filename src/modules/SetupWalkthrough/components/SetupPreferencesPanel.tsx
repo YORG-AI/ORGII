@@ -26,7 +26,7 @@ import {
   ThemePreferenceIcon,
 } from "./SetupStepIcons";
 
-export type SetupPreferencesPresentation = "native" | "cinematic";
+export type SetupPreferencesPresentation = "native" | "cinematic" | "classic";
 
 interface SetupPreferencesPanelProps {
   isClosing: boolean;
@@ -89,6 +89,7 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
   const themeLabel = t("settings:general.themePreset");
   const colorLabel = t("settings:general.primaryColor");
   const isCinematic = presentation === "cinematic";
+  const isClassic = presentation === "classic";
 
   const presentationOptions: SelectOption[] = [
     {
@@ -99,7 +100,24 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
       value: "cinematic",
       label: t("onboarding:readiness.presentation.cinematic"),
     },
+    {
+      value: "classic",
+      label: t("onboarding:readiness.presentation.classic"),
+    },
   ];
+
+  const preferenceRowClass = isCinematic
+    ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceRow
+    : isClassic
+      ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceRow
+      : undefined;
+  const preferenceControlClass = isCinematic
+    ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceControl
+    : isClassic
+      ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceControl
+      : undefined;
+  const preferenceControlStyle = isClassic ? undefined : SECTION_CONTROL_STYLE;
+  const preferenceRowLayout = isClassic ? "vertical" : "horizontal";
 
   const preferenceFields = (
     <SectionContainer
@@ -107,7 +125,9 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
       className={
         isCinematic
           ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceList
-          : undefined
+          : isClassic
+            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceList
+            : undefined
       }
     >
       <SectionRow
@@ -121,11 +141,8 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             languageLabel
           )
         }
-        className={
-          isCinematic
-            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceRow
-            : undefined
-        }
+        className={preferenceRowClass}
+        layout={preferenceRowLayout}
       >
         {isCinematic ? (
           <div
@@ -161,22 +178,15 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             appearanceLabel
           )
         }
-        className={
-          isCinematic
-            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceRow
-            : undefined
-        }
+        className={preferenceRowClass}
+        layout={preferenceRowLayout}
       >
         <Select
           value={appearanceMode}
           onChange={handleAppearanceModeChange}
           options={appearanceModeOptions}
-          style={SECTION_CONTROL_STYLE}
-          className={
-            isCinematic
-              ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceControl
-              : undefined
-          }
+          style={preferenceControlStyle}
+          className={preferenceControlClass}
           size="large"
           variant={isCinematic ? "ghost" : "default"}
           ariaLabel={appearanceLabel}
@@ -194,22 +204,15 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             themeLabel
           )
         }
-        className={
-          isCinematic
-            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceRow
-            : undefined
-        }
+        className={preferenceRowClass}
+        layout={preferenceRowLayout}
       >
         <Select
           value={globalThemeId}
           onChange={(value) => void handleThemeChange(String(value))}
           options={themeOptions}
-          style={SECTION_CONTROL_STYLE}
-          className={
-            isCinematic
-              ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceControl
-              : undefined
-          }
+          style={preferenceControlStyle}
+          className={preferenceControlClass}
           size="large"
           variant={isCinematic ? "ghost" : "default"}
           ariaLabel={themeLabel}
@@ -224,11 +227,8 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             colorLabel
           )
         }
-        className={
-          isCinematic
-            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceRow
-            : undefined
-        }
+        className={preferenceRowClass}
+        layout={preferenceRowLayout}
       >
         <Select
           value={primaryColorPreset}
@@ -236,12 +236,8 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             setPrimaryColorPreset(String(value) as PrimaryColorPreset)
           }
           options={primaryColorOptions}
-          style={SECTION_CONTROL_STYLE}
-          className={
-            isCinematic
-              ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceControl
-              : undefined
-          }
+          style={preferenceControlStyle}
+          className={preferenceControlClass}
           size="large"
           variant={isCinematic ? "ghost" : "default"}
           ariaLabel={colorLabel}
@@ -304,13 +300,23 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
 
   const form = (
     <WizardStepContent
-      title={t("onboarding:readiness.basics.title")}
-      description={t("onboarding:readiness.basics.description")}
+      title={t(
+        isClassic
+          ? "onboarding:readiness.classicPanel.title"
+          : "onboarding:readiness.basics.title"
+      )}
+      description={t(
+        isClassic
+          ? "onboarding:readiness.classicPanel.description"
+          : "onboarding:readiness.basics.description"
+      )}
       icon={BasicsStepIcon}
       className={
         isCinematic
           ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceContent
-          : undefined
+          : isClassic
+            ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceContent
+            : undefined
       }
     >
       {preferenceFields}
@@ -329,7 +335,9 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
             value={presentation}
             options={presentationOptions}
             onChange={(value) =>
-              setPresentation(value === "cinematic" ? "cinematic" : "native")
+              setPresentation(
+                value === "cinematic" || value === "classic" ? value : "native"
+              )
             }
             style={SECTION_CONTROL_STYLE}
             disabled={isClosing}
@@ -343,6 +351,13 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
         <div
           className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceCard}
           data-testid="setup-presentation-cinematic"
+        >
+          {form}
+        </div>
+      ) : isClassic ? (
+        <div
+          className={SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceCard}
+          data-testid="setup-presentation-classic"
         >
           {form}
         </div>

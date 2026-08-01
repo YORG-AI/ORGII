@@ -21,7 +21,7 @@ describe("SetupWalkthroughSidebar", () => {
     expect(html).toContain("Let&#x27;s set up your");
     expect(html).toContain("personalize your workspace");
     expect(html).toContain("logo.png");
-    expect(html).toContain("orgii-setup-mascot.png");
+    expect(html).toContain("org2-pearl-relay-mascot.png");
     expect(html).toContain('aria-labelledby="setup-hero-title"');
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain('aria-label="Setup steps"');

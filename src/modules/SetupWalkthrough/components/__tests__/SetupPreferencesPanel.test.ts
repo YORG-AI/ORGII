@@ -88,4 +88,26 @@ describe("SetupPreferencesPanel", () => {
     expect(html).toContain('data-testid="setup-theme"');
     expect(html).toContain('data-testid="setup-primary-color"');
   });
+
+  it("can start in the classic vertical presentation with canonical controls", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(SetupPreferencesPanel, {
+        isClosing: false,
+        onComplete: vi.fn(),
+        onSkip: vi.fn(),
+        initialPresentation: "classic",
+      })
+    );
+
+    expect(html).toContain('data-testid="setup-presentation-classic"');
+    expect(html).toContain("onboarding:readiness.classicPanel.title");
+    expect(html).toContain("onboarding:readiness.classicPanel.description");
+    expect(html).not.toContain("logo.png");
+    expect(html).toContain("!bg-transparent");
+    expect(html.match(/flex-col/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(html).toContain('data-testid="setup-appearance-mode"');
+    expect(html).toContain('data-testid="setup-theme"');
+    expect(html).toContain('data-testid="setup-primary-color"');
+    expect(html).not.toContain("setup-preference-row");
+  });
 });

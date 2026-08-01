@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Layout-Vorschau",
       "native": "App-nativ",
-      "cinematic": "Filmische Karte"
+      "cinematic": "Filmische Karte",
+      "classic": "Klassisches Panel"
+    },
+    "classicPanel": {
+      "title": "Passe ORGII an dich an",
+      "description": "Wähle Sprache, Darstellung, Design und Akzentfarbe. Du kannst alles jederzeit ändern."
     },
     "sidebar": {
       "brandTag": "Einrichtung",

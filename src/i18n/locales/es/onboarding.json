@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Vista previa del diseño",
       "native": "Nativo de la app",
-      "cinematic": "Tarjeta cinematográfica"
+      "cinematic": "Tarjeta cinematográfica",
+      "classic": "Panel clásico"
+    },
+    "classicPanel": {
+      "title": "Adapta ORGII a tu estilo",
+      "description": "Elige el idioma, la apariencia, el tema y el color de énfasis. Puedes cambiarlos en cualquier momento."
     },
     "sidebar": {
       "brandTag": "Configuración",

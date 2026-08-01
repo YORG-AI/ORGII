@@ -51,6 +51,12 @@ describe("setup walkthrough layout tokens", () => {
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceCard).toContain(
       "setup-preferences-card"
     );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceCard).toContain(
+      "bg-bg-1"
+    );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceControl).toBe(
+      "w-full"
+    );
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid).toBe(
       "max-sm:!grid-cols-1"
     );

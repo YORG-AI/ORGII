@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Düzen önizleme",
       "native": "Uygulama yerel",
-      "cinematic": "Sinematik kart"
+      "cinematic": "Sinematik kart",
+      "classic": "Klasik panel"
+    },
+    "classicPanel": {
+      "title": "ORGII'yi kendinize göre ayarlayın",
+      "description": "Rahat ettiğiniz dili, görünümü, temayı ve vurgu rengini seçin. Bunları istediğiniz zaman değiştirebilirsiniz."
     },
     "sidebar": {
       "brandTag": "Kurulum",

@@ -54,6 +54,13 @@ export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
   presentationStack: "flex w-full flex-col items-center gap-3",
   presentationToolbar: `${DETAIL_PANEL_TOKENS.contentWidth} flex justify-end`,
   presentationField: "w-full max-w-xs",
+  classicPreferenceCard:
+    "w-full max-w-2xl rounded-2xl border border-border-1 bg-bg-1 shadow-sm",
+  classicPreferenceContent: "!max-w-none gap-5 px-6 py-6 sm:px-8 [&>div]:gap-4",
+  classicPreferenceList:
+    "!rounded-none !border-0 !bg-transparent !px-0 [&>.section-layout-row]:after:!inset-x-0",
+  classicPreferenceRow: "!min-h-0 !py-3",
+  classicPreferenceControl: "w-full",
   cinematicPreferenceCard:
     "setup-preferences-card w-full max-w-2xl rounded-3xl p-6 sm:p-8",
   cinematicPreferenceContent:

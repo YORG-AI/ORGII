@@ -1,10 +1,10 @@
 .setup-walkthrough-ambient {
-  --setup-glow-violet: color-mix(
+  --setup-glow-primary-strong: color-mix(
     in srgb,
     var(--color-primary-6) 34%,
     transparent
   );
-  --setup-glow-blue: color-mix(
+  --setup-glow-primary-soft: color-mix(
     in srgb,
     var(--color-primary-5) 22%,
     transparent
@@ -22,17 +22,17 @@
   background:
     radial-gradient(
       ellipse 46% 58% at 18% 88%,
-      var(--setup-glow-violet),
+      var(--setup-glow-primary-strong),
       transparent 68%
     ),
     radial-gradient(
       ellipse 42% 54% at 88% 26%,
-      var(--setup-glow-blue),
+      var(--setup-glow-primary-soft),
       transparent 72%
     ),
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--color-bg-2) 94%, black),
+      color-mix(in srgb, var(--color-bg-2) 94%, var(--color-text-1)),
       var(--color-bg-2)
     );
 }
@@ -57,17 +57,17 @@
   background:
     radial-gradient(
       ellipse at 58% 0%,
-      color-mix(in srgb, var(--color-primary-6) 76%, white),
+      color-mix(in srgb, var(--color-primary-6) 76%, var(--color-bg-1)),
       transparent 20%
     ),
     linear-gradient(
       100deg,
-      color-mix(in srgb, var(--color-primary-7) 74%, black),
-      color-mix(in srgb, var(--color-primary-5) 82%, white)
+      color-mix(in srgb, var(--color-primary-7) 74%, var(--color-text-1)),
+      color-mix(in srgb, var(--color-primary-5) 82%, var(--color-bg-1))
     );
   filter: blur(0.5px);
   box-shadow:
-    0 -18px 60px var(--setup-glow-violet),
+    0 -18px 60px var(--setup-glow-primary-strong),
     0 -2px 18px color-mix(in srgb, var(--color-primary-5) 62%, transparent);
   opacity: 0.78;
   transform: scaleX(1.35);
@@ -118,7 +118,7 @@
 .setup-preference-cta {
   background: linear-gradient(
     100deg,
-    color-mix(in srgb, var(--color-primary-6) 72%, white),
+    color-mix(in srgb, var(--color-primary-6) 72%, var(--color-bg-1)),
     var(--color-primary-6)
   ) !important;
   box-shadow: 0 12px 28px

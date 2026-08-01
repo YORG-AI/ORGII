@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 
-import setupMascot from "@src/assets/onboarding/orgii-setup-mascot.png";
+import setupMascot from "@src/assets/onboarding/org2-pearl-relay-mascot.png";
 import AppLogo from "@src/components/AppLogo";
 
 import { SETUP_WALKTHROUGH_LAYOUT_TOKENS } from "../layoutTokens";

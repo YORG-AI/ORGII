@@ -79,7 +79,12 @@
     "presentation": {
       "label": "레이아웃 미리보기",
       "native": "앱 기본",
-      "cinematic": "시네마틱 카드"
+      "cinematic": "시네마틱 카드",
+      "classic": "클래식 패널"
+    },
+    "classicPanel": {
+      "title": "ORGII를 나에게 맞게 설정",
+      "description": "편한 언어, 외관, 테마와 강조 색상을 선택하세요. 언제든지 변경할 수 있습니다."
     },
     "sidebar": {
       "brandTag": "설정",

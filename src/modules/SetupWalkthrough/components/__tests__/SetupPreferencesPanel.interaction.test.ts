@@ -129,6 +129,21 @@ describe("SetupPreferencesPanel presentation switching", () => {
 
     act(() => {
       if (!presentation) return;
+      presentation.value = "classic";
+      presentation.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    expect(
+      container.querySelector('[data-testid="setup-presentation-classic"]')
+    ).not.toBeNull();
+    expect(
+      container.querySelector<HTMLSelectElement>(
+        '[data-testid="setup-appearance-mode"]'
+      )?.value
+    ).toBe("dark");
+
+    act(() => {
+      if (!presentation) return;
       presentation.value = "cinematic";
       presentation.dispatchEvent(new Event("change", { bubbles: true }));
     });

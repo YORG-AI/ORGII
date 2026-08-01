@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Xem trước bố cục",
       "native": "Giao diện gốc",
-      "cinematic": "Thẻ điện ảnh"
+      "cinematic": "Thẻ điện ảnh",
+      "classic": "Bảng cổ điển"
+    },
+    "classicPanel": {
+      "title": "Điều chỉnh ORGII theo bạn",
+      "description": "Chọn ngôn ngữ, giao diện, chủ đề và màu nhấn phù hợp. Bạn có thể thay đổi bất cứ lúc nào."
     },
     "sidebar": {
       "brandTag": "Thiết lập",

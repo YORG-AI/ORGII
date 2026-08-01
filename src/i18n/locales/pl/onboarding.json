@@ -79,7 +79,12 @@
     "presentation": {
       "label": "Podgląd układu",
       "native": "Natywny aplikacji",
-      "cinematic": "Karta filmowa"
+      "cinematic": "Karta filmowa",
+      "classic": "Panel klasyczny"
+    },
+    "classicPanel": {
+      "title": "Dostosuj ORGII do siebie",
+      "description": "Wybierz język, wygląd, motyw i kolor akcentu. Możesz je zmienić w dowolnym momencie."
     },
     "sidebar": {
       "brandTag": "Konfiguracja",

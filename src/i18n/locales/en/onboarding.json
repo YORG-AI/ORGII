@@ -111,7 +111,12 @@
     "presentation": {
       "label": "Preview layout",
       "native": "App native",
-      "cinematic": "Cinematic card"
+      "cinematic": "Cinematic card",
+      "classic": "Classic panel"
+    },
+    "classicPanel": {
+      "title": "Make ORGII feel like yours",
+      "description": "Choose a comfortable language, appearance, theme, and accent color. You can change them anytime."
     },
     "sidebar": {
       "brandTag": "Setup",

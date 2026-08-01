@@ -79,7 +79,12 @@
     "presentation": {
       "label": "預覽樣式",
       "native": "App 原生",
-      "cinematic": "沉浸卡片"
+      "cinematic": "沉浸卡片",
+      "classic": "經典面板"
+    },
+    "classicPanel": {
+      "title": "讓 ORGII 更適合你",
+      "description": "選擇順手的語言、外觀、主題和強調色；這些設定之後都可以隨時修改。"
     },
     "sidebar": {
       "brandTag": "設定",
