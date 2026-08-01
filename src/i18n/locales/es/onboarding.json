@@ -72,6 +72,10 @@
     "goToSettings": "Ir a Ajustes"
   },
   "readiness": {
+    "hero": {
+      "title": "Configuremos tu <brand>ORGII</brand>",
+      "description": "Unas pocas opciones rápidas para personalizar tu espacio de trabajo."
+    },
     "sidebar": {
       "brandTag": "Configuración",
       "subtitle": "Elige el idioma y la apariencia. Todo lo demás seguirá disponible en la aplicación.",
@@ -157,8 +161,8 @@
       "memberVerified": "La selección de su organización está activa y la solicitud de sincronización actual está agotada."
     },
     "basics": {
-      "title": "Personaliza ORGII",
-      "description": "Elige el idioma, el tema y el color de énfasis que prefieras. Podrás cambiarlos cuando quieras.",
+      "title": "Preferencias básicas",
+      "description": "Siempre puedes cambiarlas más tarde.",
       "workspace": "Predeterminado espacio de trabajo",
       "workspaceDescription": "Las sesiones se ejecutan en archivos en un espacio de trabajo; los proyectos y elementos de trabajo organizan el trabajo en lugar de reemplazar el sistema de archivos.",
       "openWorkspace": "Abrir espacio de trabajo",

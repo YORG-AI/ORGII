@@ -104,6 +104,10 @@
     "goToSettings": "Go to Settings"
   },
   "readiness": {
+    "hero": {
+      "title": "Let's set up your <brand>ORGII</brand>",
+      "description": "A few quick choices to personalize your workspace."
+    },
     "sidebar": {
       "brandTag": "Setup",
       "subtitle": "Choose your language and appearance. Everything else stays available in the app.",
@@ -189,8 +193,8 @@
       "memberVerified": "Your organization selection is active and the current sync request drained."
     },
     "basics": {
-      "title": "Make ORGII yours",
-      "description": "Choose the language, theme, and accent that feel right. You can change them anytime.",
+      "title": "Basic preferences",
+      "description": "You can always change these later.",
       "workspace": "Default workspace",
       "workspaceDescription": "Sessions run against files in a workspace; projects and work items organize work rather than replace the filesystem.",
       "openWorkspace": "Open workspace",

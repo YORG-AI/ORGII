@@ -1,0 +1,146 @@
+.setup-walkthrough-ambient {
+  --setup-glow-violet: color-mix(
+    in srgb,
+    var(--color-primary-6) 34%,
+    transparent
+  );
+  --setup-glow-blue: color-mix(
+    in srgb,
+    var(--color-primary-5) 22%,
+    transparent
+  );
+  --setup-card-surface: color-mix(in srgb, var(--color-bg-1) 86%, transparent);
+  --setup-card-border: color-mix(
+    in srgb,
+    var(--color-primary-6) 24%,
+    var(--color-border-1)
+  );
+  --setup-row-surface: color-mix(in srgb, var(--color-fill-2) 76%, transparent);
+  --setup-card-blur: 24px;
+  --setup-mascot-motion: 5s;
+
+  background:
+    radial-gradient(
+      ellipse 46% 58% at 18% 88%,
+      var(--setup-glow-violet),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 42% 54% at 88% 26%,
+      var(--setup-glow-blue),
+      transparent 72%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--color-bg-2) 94%, black),
+      var(--color-bg-2)
+    );
+}
+
+.setup-walkthrough-card {
+  isolation: isolate;
+}
+
+.setup-walkthrough-brand-accent {
+  background: linear-gradient(
+    100deg,
+    var(--color-primary-5),
+    var(--color-primary-7)
+  );
+  background-clip: text;
+  color: transparent;
+  -webkit-background-clip: text;
+}
+
+.setup-walkthrough-planet {
+  border-radius: 50% 50% 0 0;
+  background:
+    radial-gradient(
+      ellipse at 58% 0%,
+      color-mix(in srgb, var(--color-primary-6) 76%, white),
+      transparent 20%
+    ),
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--color-primary-7) 74%, black),
+      color-mix(in srgb, var(--color-primary-5) 82%, white)
+    );
+  filter: blur(0.5px);
+  box-shadow:
+    0 -18px 60px var(--setup-glow-violet),
+    0 -2px 18px color-mix(in srgb, var(--color-primary-5) 62%, transparent);
+  opacity: 0.78;
+  transform: scaleX(1.35);
+}
+
+.setup-walkthrough-mascot {
+  animation: setup-mascot-float var(--setup-mascot-motion) ease-in-out infinite;
+  filter: drop-shadow(
+    0 18px 24px color-mix(in srgb, var(--color-primary-7) 48%, transparent)
+  );
+  transform-origin: center bottom;
+}
+
+.setup-preferences-card {
+  border: 1px solid var(--setup-card-border);
+  background: var(--setup-card-surface);
+  box-shadow:
+    0 28px 80px color-mix(in srgb, var(--color-bg-1) 72%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--color-text-1) 8%, transparent);
+  backdrop-filter: blur(var(--setup-card-blur));
+  -webkit-backdrop-filter: blur(var(--setup-card-blur));
+}
+
+.setup-preference-row {
+  border: 1px solid color-mix(in srgb, var(--color-border-1) 72%, transparent);
+  background: var(--setup-row-surface);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.setup-preference-row:hover,
+.setup-preference-row:focus-within {
+  border-color: color-mix(
+    in srgb,
+    var(--color-primary-6) 46%,
+    var(--color-border-1)
+  );
+  background: color-mix(in srgb, var(--color-fill-3) 82%, transparent);
+  transform: translateY(-1px);
+}
+
+.setup-preference-row .select-selector {
+  min-height: 2.5rem;
+}
+
+.setup-preference-cta {
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--color-primary-6) 72%, white),
+    var(--color-primary-6)
+  ) !important;
+  box-shadow: 0 12px 28px
+    color-mix(in srgb, var(--color-primary-6) 26%, transparent);
+}
+
+@keyframes setup-mascot-float {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-walkthrough-mascot {
+    animation: none;
+  }
+
+  .setup-preference-row {
+    transition: none;
+  }
+}

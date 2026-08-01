@@ -75,4 +75,6 @@ export interface SelectProps {
   variant?: "default" | "ghost";
   /** Stable selector for rendered UI tests. */
   dataTestId?: string;
+  /** Accessible name for the keyboard-focusable select trigger. */
+  ariaLabel?: string;
 }

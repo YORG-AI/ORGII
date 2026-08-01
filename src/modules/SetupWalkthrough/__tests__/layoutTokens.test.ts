@@ -27,15 +27,18 @@ describe("setup walkthrough layout tokens", () => {
     }
   );
 
-  it("uses shared responsive, typography, scrollbar, and motion utilities", () => {
-    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.sidebar).toContain("md:!flex");
+  it("uses shared responsive, typography, and reduced-motion utilities", () => {
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.sidebar).toContain("lg:!flex");
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.card).toContain("!max-w-screen-2xl");
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.hero).toContain("pb-0");
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.hero).not.toContain("pb-10");
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.mobileProgress).toContain(
-      "md:hidden"
+      "lg:hidden"
     );
-    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.contentScroll).toContain(
-      "scrollbar-overlay"
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.mainContent).toContain(
+      "overflow-y-auto"
     );
-    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.contentScroll).toContain("sm:p-6");
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.mainContent).toContain("sm:px-8");
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.stepFrame).toContain(
       "animate-fade-in"
     );
@@ -44,6 +47,9 @@ describe("setup walkthrough layout tokens", () => {
     );
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid).toBe(
       "max-sm:!grid-cols-1"
+    );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.preferenceCard).toContain(
+      "setup-preferences-card"
     );
   });
 });

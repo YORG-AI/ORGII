@@ -72,6 +72,10 @@
     "goToSettings": "Ayarlara Git"
   },
   "readiness": {
+    "hero": {
+      "title": "<brand>ORGII</brand>'nizi birlikte ayarlayalım",
+      "description": "Çalışma alanınızı kişiselleştirmek için birkaç hızlı seçim."
+    },
     "sidebar": {
       "brandTag": "Kurulum",
       "subtitle": "Dilinizi ve görünümü seçin. Diğer tüm ayarlar uygulamada kullanılabilir kalır.",
@@ -157,8 +161,8 @@
       "memberVerified": "Kuruluş seçiminiz etkin ve mevcut senkronizasyon isteği boşaltıldı."
     },
     "basics": {
-      "title": "ORGII’yi kişiselleştirin",
-      "description": "Size uygun dili, temayı ve vurgu rengini seçin. Bunları istediğiniz zaman değiştirebilirsiniz.",
+      "title": "Temel tercihler",
+      "description": "Bunları daha sonra istediğiniz zaman değiştirebilirsiniz.",
       "workspace": "Varsayılan çalışma alanı",
       "workspaceDescription": "Oturumlar bir çalışma alanındaki dosyalarda çalıştırılır; projeler ve iş öğeleri, dosya sistemini değiştirmek yerine işi düzenler.",
       "openWorkspace": "Çalışma alanını açın",

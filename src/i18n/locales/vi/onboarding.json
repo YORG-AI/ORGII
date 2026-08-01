@@ -72,6 +72,10 @@
     "goToSettings": "Đi đến Cài đặt"
   },
   "readiness": {
+    "hero": {
+      "title": "Hãy thiết lập <brand>ORGII</brand> của bạn",
+      "description": "Một vài lựa chọn nhanh để cá nhân hóa không gian làm việc."
+    },
     "sidebar": {
       "brandTag": "Thiết lập",
       "subtitle": "Chọn ngôn ngữ và giao diện. Mọi thiết lập khác vẫn có sẵn trong ứng dụng.",
@@ -157,8 +161,8 @@
       "memberVerified": "Lựa chọn tổ chức của bạn đang hoạt động và yêu cầu đồng bộ hóa hiện tại đã được loại bỏ."
     },
     "basics": {
-      "title": "Cá nhân hóa ORGII",
-      "description": "Chọn ngôn ngữ, chủ đề và màu nhấn phù hợp. Bạn có thể thay đổi bất cứ lúc nào.",
+      "title": "Tùy chọn cơ bản",
+      "description": "Bạn luôn có thể thay đổi sau.",
       "workspace": "Không gian làm việc mặc định",
       "workspaceDescription": "Các phiên chạy trên các tệp trong một không gian làm việc; các dự án và mục công việc tổ chức công việc thay vì thay thế hệ thống tệp.",
       "openWorkspace": "Mở không gian làm việc",

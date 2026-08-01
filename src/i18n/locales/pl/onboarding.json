@@ -72,6 +72,10 @@
     "goToSettings": "Przejdź do Ustawień"
   },
   "readiness": {
+    "hero": {
+      "title": "Skonfigurujmy Twoje <brand>ORGII</brand>",
+      "description": "Kilka szybkich wyborów, aby spersonalizować środowisko pracy."
+    },
     "sidebar": {
       "brandTag": "Konfiguracja",
       "subtitle": "Wybierz język i wygląd. Wszystkie pozostałe ustawienia pozostaną dostępne w aplikacji.",
@@ -157,8 +161,8 @@
       "memberVerified": "Wybór organizacji jest aktywny, a bieżące żądanie synchronizacji zostało wyczerpane."
     },
     "basics": {
-      "title": "Dostosuj ORGII do siebie",
-      "description": "Wybierz język, motyw i kolor akcentu. Możesz je zmienić w dowolnym momencie.",
+      "title": "Podstawowe ustawienia",
+      "description": "Zawsze możesz je później zmienić.",
       "workspace": "Domyślne obszar roboczy",
       "workspaceDescription": "Sesje uruchamiane z plikami w obszarze roboczym; projekty i elementy pracy organizują pracę zamiast zastępować system plików.",
       "openWorkspace": "Otwórz obszar roboczy",

@@ -72,6 +72,10 @@
     "goToSettings": "前往設置"
   },
   "readiness": {
+    "hero": {
+      "title": "一起設定你的 <brand>ORGII</brand>",
+      "description": "透過幾個快速選項，打造更適合你的工作空間。"
+    },
     "sidebar": {
       "brandTag": "設定",
       "subtitle": "選擇語言與外觀即可開始使用，其他設定之後仍可在應用程式內完成。",
@@ -157,8 +161,8 @@
       "memberVerified": "組織選擇已生效，本輪同步請求已處理完畢。"
     },
     "basics": {
-      "title": "讓 ORGII 更適合你",
-      "description": "選擇順手的語言、主題和強調色；這些設定之後都可以隨時修改。",
+      "title": "基礎偏好",
+      "description": "之後隨時都可以變更。",
       "workspace": "預設 Workspace",
       "workspaceDescription": "會話在 Workspace 檔案中運作；專案和工作項目用於組織工作，不會取代檔案系統。",
       "openWorkspace": "開啟 Workspace",

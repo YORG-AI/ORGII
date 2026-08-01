@@ -72,6 +72,10 @@
     "goToSettings": "설정으로 이동"
   },
   "readiness": {
+    "hero": {
+      "title": "<brand>ORGII</brand> 설정을 시작해 볼까요",
+      "description": "몇 가지 빠른 선택으로 작업 공간을 나에게 맞게 설정하세요."
+    },
     "sidebar": {
       "brandTag": "설정",
       "subtitle": "언어와 화면 모양만 선택하면 시작할 수 있습니다. 나머지는 앱에서 나중에 설정할 수 있습니다.",
@@ -157,8 +161,8 @@
       "memberVerified": "조직 선택이 활성화되어 있고 현재 동기화 요청이 드레이닝되었습니다."
     },
     "basics": {
-      "title": "나에게 맞는 ORGII 만들기",
-      "description": "편한 언어, 테마, 강조 색상을 선택하세요. 언제든 다시 변경할 수 있습니다.",
+      "title": "기본 설정",
+      "description": "나중에 언제든 변경할 수 있습니다.",
       "workspace": "기본값 작업 공간",
       "workspaceDescription": "세션은 작업 공간의 파일에 대해 실행됩니다. 프로젝트 및 작업 항목은 파일 시스템을 교체하는 대신 작업을 구성합니다.",
       "openWorkspace": "작업 공간 열기",

@@ -15,13 +15,13 @@ import { DEFAULT_SIDEBAR_WIDTH } from "@src/store/ui/sidebarAtom";
  * are not rebuilt across JSX and SCSS.
  */
 export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
-  shell: "!overflow-hidden !bg-bg-2 !p-0",
-  card: "!max-h-none !max-w-none !rounded-none !border-0 !shadow-none",
+  shell: "setup-walkthrough-ambient !overflow-hidden !bg-bg-2 !p-0",
+  card: "setup-walkthrough-card !mx-auto !max-h-none !w-full !max-w-screen-2xl !rounded-none !border-0 !bg-transparent !shadow-none",
   sidebar:
-    "!hidden !shrink-0 !items-stretch !justify-start !gap-0 !border-r !border-border-1 !bg-bg-1 !px-4 !pb-4 !pt-4 md:!flex",
-  sidebarContent: "flex h-full w-full flex-col",
-  brandRow: "flex items-start gap-3",
-  brandLogo: "rounded-full",
+    "!hidden !max-w-none !basis-5/12 !shrink-0 !items-stretch !justify-stretch !bg-transparent !p-0 lg:!flex",
+  sidebarContent: "relative flex h-full w-full flex-col overflow-hidden",
+  brandRow: "flex items-center gap-3",
+  brandLogo: "rounded-xl",
   brandCopy: "min-w-0",
   brandTitleRow: "flex items-center gap-2",
   brandTitle: `${TYPOGRAPHY.statistic} tracking-tight text-text-1`,
@@ -31,17 +31,48 @@ export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
   progressLabel: `mb-2 flex items-center justify-between gap-3 ${TYPOGRAPHY.contentSubtitle}`,
   progressLabelText: "font-medium text-text-2",
   navigation: "mt-5",
-  main: "!min-w-0 !bg-bg-2",
-  mainContent: "flex h-full w-full flex-col overflow-hidden",
-  mobileProgress: `flex flex-none items-center justify-between gap-3 border-b border-border-1 bg-bg-1 px-5 py-3 text-text-3 sm:px-6 md:hidden ${TYPOGRAPHY.secondary}`,
-  mobileProgressTitle: "font-medium text-primary-6",
-  contentScroll:
-    "scrollbar-overlay relative flex min-h-0 flex-1 flex-col overflow-y-auto bg-bg-2 p-5 sm:p-6 md:px-10 md:py-9",
+  hero: "relative flex h-full w-full flex-col px-10 pb-0 pt-20 xl:px-20 xl:pt-24",
+  heroCopy: "relative z-10 mt-20 max-w-lg xl:mt-24",
+  heroTitle:
+    "m-0 text-4xl font-semibold leading-tight tracking-tight text-text-1 xl:text-6xl",
+  heroBrandAccent: "setup-walkthrough-brand-accent",
+  heroDescription:
+    "mt-5 max-w-md text-base leading-7 text-text-2 xl:text-lg xl:leading-8",
+  heroVisual: "relative mt-auto min-h-72 flex-1",
+  heroPlanet: "setup-walkthrough-planet absolute inset-x-0 bottom-0 h-40",
+  heroMascot:
+    "setup-walkthrough-mascot absolute bottom-10 left-1/2 h-64 w-auto -translate-x-1/2 object-contain xl:h-80",
+  main: "!min-w-0 !bg-transparent !p-0",
+  mainContent:
+    "relative flex h-full w-full flex-col items-center justify-center overflow-y-auto px-5 py-16 sm:px-8 lg:px-10 xl:px-12",
+  mobileProgress: `absolute left-5 top-16 flex items-center gap-3 text-text-1 sm:left-10 lg:hidden ${TYPOGRAPHY.secondary}`,
+  mobileProgressTitle: "font-semibold tracking-tight",
+  contentScroll: "contents",
   stepFrame:
-    "animate-fade-in flex min-h-full w-full flex-col motion-reduce:animate-none",
-  footer: "h-16 !border-border-1 !bg-bg-2 !px-5 !shadow-none sm:!px-6 md:!px-8",
+    "animate-fade-in flex w-full justify-center motion-reduce:animate-none",
+  preferenceCard:
+    "setup-preferences-card w-full max-w-2xl rounded-3xl p-6 sm:p-8",
+  preferenceContent:
+    "!max-w-none gap-7 [&_h1]:!text-xl [&_h1]:!leading-7 [&>header]:items-center [&>header]:gap-4 [&>div]:gap-5",
+  preferenceList:
+    "!flex !flex-col !gap-3 !border-0 !bg-transparent !p-0 [&>.section-layout-row]:after:!hidden",
+  preferenceRow:
+    "setup-preference-row !min-h-16 rounded-xl !px-4 !py-3 sm:!min-h-20 sm:!px-5",
+  preferenceLabel: "flex items-center gap-3 font-medium text-text-1",
+  preferenceIcon:
+    "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-2",
+  preferenceControl: "w-full sm:w-56",
+  preferenceCta: "setup-preference-cta !h-12 !rounded-xl",
+  preferenceSecondary: "self-center",
+  footer: "",
   choiceGrid: "max-sm:!grid-cols-1",
 } as const;
+
+export const SETUP_WALKTHROUGH_HERO_PANEL_STYLE: React.CSSProperties = {
+  flex: "0 0 46%",
+  width: "46%",
+  maxWidth: "none",
+};
 
 export interface SetupSidebarLayout {
   panelWidth: number;

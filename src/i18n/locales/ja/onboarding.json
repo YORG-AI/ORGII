@@ -72,6 +72,10 @@
     "goToSettings": "設定へ移動"
   },
   "readiness": {
+    "hero": {
+      "title": "<brand>ORGII</brand> をセットアップしましょう",
+      "description": "いくつかの簡単な選択でワークスペースを自分好みにできます。"
+    },
     "sidebar": {
       "brandTag": "セットアップ",
       "subtitle": "言語と外観を選ぶだけで始められます。その他の設定は後からアプリ内で行えます。",
@@ -157,8 +161,8 @@
       "memberVerified": "組織の選択がアクティブで、現在の同期リクエストが排出されています。"
     },
     "basics": {
-      "title": "ORGII を自分好みに",
-      "description": "使いやすい言語、テーマ、アクセントカラーを選んでください。いつでも変更できます。",
+      "title": "基本設定",
+      "description": "これらは後からいつでも変更できます。",
       "workspace": "デフォルトworkspace",
       "workspaceDescription": "セッションはワークスペース内のファイルに対して実行されます。プロジェクトと作業項目は、ファイル システムを置き換えるのではなく、作業を整理します。",
       "openWorkspace": "ワークスペースを開く",
