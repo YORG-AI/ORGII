@@ -49,6 +49,7 @@ describe("SetupPreferencesPanel", () => {
     expect(html.match(/role="combobox"/g)).toHaveLength(4);
     expect(html.match(/aria-haspopup="listbox"/g)).toHaveLength(4);
     expect(html).toContain("bg-primary-container");
+    expect(html).toContain("!bg-transparent");
     expect(html.match(/class="section-layout-row/g)).toHaveLength(4);
     expect(html).not.toContain("setup-preference-row");
     expect(html).not.toContain("setup-preference-cta");

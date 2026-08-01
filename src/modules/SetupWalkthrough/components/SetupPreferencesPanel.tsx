@@ -127,7 +127,7 @@ const SetupPreferencesPanel: React.FC<SetupPreferencesPanelProps> = ({
           ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceList
           : isClassic
             ? SETUP_WALKTHROUGH_LAYOUT_TOKENS.classicPreferenceList
-            : undefined
+            : SETUP_WALKTHROUGH_LAYOUT_TOKENS.nativePreferenceList
       }
     >
       <SectionRow

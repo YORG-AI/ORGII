@@ -54,6 +54,7 @@ export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
   presentationStack: "flex w-full flex-col items-center gap-3",
   presentationToolbar: `${DETAIL_PANEL_TOKENS.contentWidth} flex justify-end`,
   presentationField: "w-full max-w-xs",
+  nativePreferenceList: "!bg-transparent",
   classicPreferenceCard:
     "w-full max-w-2xl rounded-2xl border border-border-1 bg-bg-1 shadow-sm",
   classicPreferenceContent: "!max-w-none gap-5 px-6 py-6 sm:px-8 [&>div]:gap-4",

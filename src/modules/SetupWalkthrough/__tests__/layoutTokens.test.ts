@@ -48,6 +48,9 @@ describe("setup walkthrough layout tokens", () => {
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.presentationToolbar).toContain(
       "max-w-[900px]"
     );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.nativePreferenceList).toContain(
+      "!bg-transparent"
+    );
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceCard).toContain(
       "setup-preferences-card"
     );
