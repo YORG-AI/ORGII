@@ -76,6 +76,11 @@
       "title": "Configuremos tu <brand>ORGII</brand>",
       "description": "Unas pocas opciones rápidas para personalizar tu espacio de trabajo."
     },
+    "presentation": {
+      "label": "Vista previa del diseño",
+      "native": "Nativo de la app",
+      "cinematic": "Tarjeta cinematográfica"
+    },
     "sidebar": {
       "brandTag": "Configuración",
       "subtitle": "Elige el idioma y la apariencia. Todo lo demás seguirá disponible en la aplicación.",

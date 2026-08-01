@@ -45,11 +45,14 @@ describe("setup walkthrough layout tokens", () => {
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.stepFrame).toContain(
       "motion-reduce:animate-none"
     );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.presentationToolbar).toContain(
+      "max-w-[900px]"
+    );
+    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.cinematicPreferenceCard).toContain(
+      "setup-preferences-card"
+    );
     expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.choiceGrid).toBe(
       "max-sm:!grid-cols-1"
-    );
-    expect(SETUP_WALKTHROUGH_LAYOUT_TOKENS.preferenceCard).toContain(
-      "setup-preferences-card"
     );
   });
 });

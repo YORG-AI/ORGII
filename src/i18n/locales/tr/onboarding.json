@@ -76,6 +76,11 @@
       "title": "<brand>ORGII</brand>'nizi birlikte ayarlayalım",
       "description": "Çalışma alanınızı kişiselleştirmek için birkaç hızlı seçim."
     },
+    "presentation": {
+      "label": "Düzen önizleme",
+      "native": "Uygulama yerel",
+      "cinematic": "Sinematik kart"
+    },
     "sidebar": {
       "brandTag": "Kurulum",
       "subtitle": "Dilinizi ve görünümü seçin. Diğer tüm ayarlar uygulamada kullanılabilir kalır.",

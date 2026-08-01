@@ -76,6 +76,11 @@
       "title": "一起設定你的 <brand>ORGII</brand>",
       "description": "透過幾個快速選項，打造更適合你的工作空間。"
     },
+    "presentation": {
+      "label": "預覽樣式",
+      "native": "App 原生",
+      "cinematic": "沉浸卡片"
+    },
     "sidebar": {
       "brandTag": "設定",
       "subtitle": "選擇語言與外觀即可開始使用，其他設定之後仍可在應用程式內完成。",

@@ -76,6 +76,11 @@
       "title": "Skonfigurujmy Twoje <brand>ORGII</brand>",
       "description": "Kilka szybkich wyborów, aby spersonalizować środowisko pracy."
     },
+    "presentation": {
+      "label": "Podgląd układu",
+      "native": "Natywny aplikacji",
+      "cinematic": "Karta filmowa"
+    },
     "sidebar": {
       "brandTag": "Konfiguracja",
       "subtitle": "Wybierz język i wygląd. Wszystkie pozostałe ustawienia pozostaną dostępne w aplikacji.",

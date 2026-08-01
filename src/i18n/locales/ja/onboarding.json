@@ -76,6 +76,11 @@
       "title": "<brand>ORGII</brand> をセットアップしましょう",
       "description": "いくつかの簡単な選択でワークスペースを自分好みにできます。"
     },
+    "presentation": {
+      "label": "レイアウトプレビュー",
+      "native": "アプリ標準",
+      "cinematic": "シネマティックカード"
+    },
     "sidebar": {
       "brandTag": "セットアップ",
       "subtitle": "言語と外観を選ぶだけで始められます。その他の設定は後からアプリ内で行えます。",

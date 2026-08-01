@@ -5,6 +5,7 @@ import {
 } from "@src/config/windowChromeRadius";
 import { WINDOW_CHROME_TOKENS } from "@src/config/windowChromeTokens";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 import { DEFAULT_SIDEBAR_WIDTH } from "@src/store/ui/sidebarAtom";
 
 /**
@@ -50,20 +51,23 @@ export const SETUP_WALKTHROUGH_LAYOUT_TOKENS = {
   contentScroll: "contents",
   stepFrame:
     "animate-fade-in flex w-full justify-center motion-reduce:animate-none",
-  preferenceCard:
+  presentationStack: "flex w-full flex-col items-center gap-3",
+  presentationToolbar: `${DETAIL_PANEL_TOKENS.contentWidth} flex justify-end`,
+  presentationField: "w-full max-w-xs",
+  cinematicPreferenceCard:
     "setup-preferences-card w-full max-w-2xl rounded-3xl p-6 sm:p-8",
-  preferenceContent:
+  cinematicPreferenceContent:
     "!max-w-none gap-7 [&_h1]:!text-xl [&_h1]:!leading-7 [&>header]:items-center [&>header]:gap-4 [&>div]:gap-5",
-  preferenceList:
+  cinematicPreferenceList:
     "!flex !flex-col !gap-3 !border-0 !bg-transparent !p-0 [&>.section-layout-row]:after:!hidden",
-  preferenceRow:
+  cinematicPreferenceRow:
     "setup-preference-row !min-h-16 rounded-xl !px-4 !py-3 sm:!min-h-20 sm:!px-5",
-  preferenceLabel: "flex items-center gap-3 font-medium text-text-1",
-  preferenceIcon:
+  cinematicPreferenceLabel: "flex items-center gap-3 font-medium text-text-1",
+  cinematicPreferenceIcon:
     "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-text-2",
-  preferenceControl: "w-full sm:w-56",
-  preferenceCta: "setup-preference-cta !h-12 !rounded-xl",
-  preferenceSecondary: "self-center",
+  cinematicPreferenceControl: "w-full sm:w-56",
+  cinematicPreferenceCta: "setup-preference-cta !h-12 !rounded-xl",
+  cinematicPreferenceSecondary: "self-center",
   footer: "",
   choiceGrid: "max-sm:!grid-cols-1",
 } as const;

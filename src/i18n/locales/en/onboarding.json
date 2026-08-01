@@ -108,6 +108,11 @@
       "title": "Let's set up your <brand>ORGII</brand>",
       "description": "A few quick choices to personalize your workspace."
     },
+    "presentation": {
+      "label": "Preview layout",
+      "native": "App native",
+      "cinematic": "Cinematic card"
+    },
     "sidebar": {
       "brandTag": "Setup",
       "subtitle": "Choose your language and appearance. Everything else stays available in the app.",

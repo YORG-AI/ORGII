@@ -76,6 +76,11 @@
       "title": "Hãy thiết lập <brand>ORGII</brand> của bạn",
       "description": "Một vài lựa chọn nhanh để cá nhân hóa không gian làm việc."
     },
+    "presentation": {
+      "label": "Xem trước bố cục",
+      "native": "Giao diện gốc",
+      "cinematic": "Thẻ điện ảnh"
+    },
     "sidebar": {
       "brandTag": "Thiết lập",
       "subtitle": "Chọn ngôn ngữ và giao diện. Mọi thiết lập khác vẫn có sẵn trong ứng dụng.",
