@@ -10,6 +10,7 @@ import {
   BRANCH_CI_EMPTY_POLL_MS,
   BRANCH_CI_POLL_BASE_MS,
   BRANCH_CI_POLL_MAX_MS,
+  BRANCH_CI_SAFETY_POLL_MS,
   BRANCH_PULL_REQUEST_STATUS_CACHE_MAX_ENTRIES,
   BRANCH_PULL_REQUEST_STATUS_TTL_MS,
   branchPullRequestStatusCacheSize,
@@ -63,13 +64,13 @@ describe("branch pull request status", () => {
     vi.useRealTimers();
   });
 
-  it("stops polling when there is nothing left to trace", () => {
+  it("cools terminal and no-PR states to the safety interval", () => {
     const base = { attempt: 0, checksUnavailable: false };
 
-    // No PR, unreadable checks, and settled checks all end the schedule.
+    // These states leave the fast loop but retain a remote-change fallback.
     expect(
       nextBranchCiPollDelayMs({ ...base, pr: null, checks: checks("pending") })
-    ).toBeNull();
+    ).toBe(BRANCH_CI_SAFETY_POLL_MS);
     expect(
       nextBranchCiPollDelayMs({
         ...base,
@@ -77,13 +78,13 @@ describe("branch pull request status", () => {
         checks: null,
         checksUnavailable: true,
       })
-    ).toBeNull();
+    ).toBe(BRANCH_CI_SAFETY_POLL_MS);
     expect(
       nextBranchCiPollDelayMs({ ...base, pr, checks: checks("success") })
-    ).toBeNull();
+    ).toBe(BRANCH_CI_SAFETY_POLL_MS);
     expect(
       nextBranchCiPollDelayMs({ ...base, pr, checks: checks("failure") })
-    ).toBeNull();
+    ).toBe(BRANCH_CI_SAFETY_POLL_MS);
   });
 
   it("backs off while checks run and caps the interval", () => {
@@ -121,7 +122,7 @@ describe("branch pull request status", () => {
         ...empty,
         attempt: BRANCH_CI_EMPTY_POLL_MAX_ATTEMPTS,
       })
-    ).toBeNull();
+    ).toBe(BRANCH_CI_SAFETY_POLL_MS);
   });
 
   it("builds GitHub compare links and falls back to the compare picker", () => {

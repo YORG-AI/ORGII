@@ -15,6 +15,12 @@ export const BRANCH_CI_POLL_MAX_MS = 60_000;
 export const BRANCH_CI_EMPTY_POLL_MS = 30_000;
 /** How many times to re-ask before accepting that a PR simply has no CI. */
 export const BRANCH_CI_EMPTY_POLL_MAX_ATTEMPTS = 3;
+/**
+ * Slow safety refresh after a terminal/no-PR result. Push and PR creation
+ * normally invalidate immediately; this bounded fallback covers remote-only
+ * changes and missed events without keeping the fast CI loop alive forever.
+ */
+export const BRANCH_CI_SAFETY_POLL_MS = 5 * 60_000;
 
 export interface BranchPullRequestStatusSnapshot {
   pr: LocalFindPRResponse | null;
@@ -153,13 +159,13 @@ export function resolveBranchCiStatus({
 }
 
 /**
- * Delay before the next branch-CI poll, or `null` to stop polling.
+ * Delay before the next branch-CI poll.
  *
  * Tracing a branch's CI the way GitHub Desktop does, without its polling cost:
- * we only keep asking while something can still change. Once every run has
- * reported — or there is no PR and no CI to watch at all — the schedule ends
- * and the next read comes from an explicit trigger (opening the menu,
- * switching branch, or the window becoming visible again).
+ * we ask quickly only while something can still change. Once every run has
+ * reported — or there is no PR yet — the schedule cools to a five-minute
+ * safety refresh. Local pushes and PR creation trigger immediate invalidation,
+ * so the safety timer is for remote-only changes and missed events.
  *
  * @param attempt Consecutive polls already scheduled for this head commit.
  *   Callers reset it whenever the head SHA changes, so a new push restarts at
@@ -171,18 +177,17 @@ export function nextBranchCiPollDelayMs({
   checksUnavailable,
   pr,
 }: BranchPullRequestStatusSnapshot & { attempt: number }): number | null {
-  // No PR to trace, or checks we couldn't read — nothing a timer would fix.
-  if (!pr || checksUnavailable || !checks) return null;
+  if (!pr || checksUnavailable || !checks) return BRANCH_CI_SAFETY_POLL_MS;
 
   if (checks.check_runs.length === 0 && checks.statuses.length === 0) {
     // CI may not have registered its runs yet; give it a bounded grace period
     // rather than polling an un-CI'd repository forever.
     return attempt < BRANCH_CI_EMPTY_POLL_MAX_ATTEMPTS
       ? BRANCH_CI_EMPTY_POLL_MS
-      : null;
+      : BRANCH_CI_SAFETY_POLL_MS;
   }
 
-  if (areChecksSettled(checks)) return null;
+  if (areChecksSettled(checks)) return BRANCH_CI_SAFETY_POLL_MS;
 
   return Math.min(BRANCH_CI_POLL_BASE_MS * 2 ** attempt, BRANCH_CI_POLL_MAX_MS);
 }

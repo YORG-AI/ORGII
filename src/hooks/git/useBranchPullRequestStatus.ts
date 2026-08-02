@@ -23,6 +23,11 @@ import {
   setCachedBranchPullRequestStatus,
 } from "@src/services/git/branchPullRequestStatus";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
+import {
+  BRANCH_REMOTE_MUTATION_EVENT,
+  type BranchRemoteMutationDetail,
+  isMatchingBranchRemoteMutation,
+} from "@src/util/git/branchRemoteMutation";
 
 const GITHUB_ENDPOINT = "https://github.com";
 
@@ -49,6 +54,8 @@ const EMPTY_STATE: BranchPullRequestStatusState = {
 
 export interface UseBranchPullRequestStatusOptions {
   branchName?: string;
+  /** Local HEAD identity; a change forces a fresh PR-head/check read. */
+  headRevision?: string;
   repoId?: string;
   repoPath?: string;
   /**
@@ -119,6 +126,7 @@ async function fetchStatusSnapshot(
 
 export function useBranchPullRequestStatus({
   branchName,
+  headRevision,
   repoId,
   repoPath,
   poll = false,
@@ -131,6 +139,12 @@ export function useBranchPullRequestStatus({
   const pollTimerRef = useRef<number | null>(null);
   const pollAttemptRef = useRef(0);
   const pollHeadShaRef = useRef<string | null>(null);
+  const remoteMutationVersionRef = useRef(0);
+  const appliedRemoteMutationVersionRef = useRef(0);
+  const observedHeadRef = useRef<{
+    scopeKey: string | null;
+    revision?: string;
+  } | null>(null);
   const scopeKey =
     repoPath && branchName
       ? `${repoId ?? "default"}|${repoPath}|${branchName}`
@@ -138,6 +152,14 @@ export function useBranchPullRequestStatus({
 
   useEffect(() => {
     let disposed = false;
+
+    const previousHead = observedHeadRef.current;
+    const localHeadChanged =
+      previousHead?.scopeKey === scopeKey &&
+      previousHead.revision !== undefined &&
+      previousHead.revision !== headRevision;
+    observedHeadRef.current = { scopeKey, revision: headRevision };
+    if (localHeadChanged) remoteMutationVersionRef.current += 1;
 
     const clearPollTimer = () => {
       if (pollTimerRef.current != null) {
@@ -189,6 +211,7 @@ export function useBranchPullRequestStatus({
         return;
       }
       const force = options?.force === true;
+      const mutationVersion = remoteMutationVersionRef.current;
       const generation = ++generationRef.current;
       const isCurrent = () => !disposed && generation === generationRef.current;
 
@@ -259,8 +282,12 @@ export function useBranchPullRequestStatus({
       }
 
       try {
+        // A mutation version change uses a new coalescing lane. If a push
+        // lands while an older GitHub request is in flight, the forced read
+        // must not join that pre-push promise and preserve stale green CI.
+        const requestKey = `${cacheKey}|remote:${remoteMutationVersionRef.current}`;
         const snapshot = await loadBranchPullRequestStatusCoalesced(
-          cacheKey,
+          requestKey,
           () => fetchStatusSnapshot(repoFullName, branchName)
         );
         if (!isCurrent()) return;
@@ -274,6 +301,7 @@ export function useBranchPullRequestStatus({
           refreshing: false,
           scopeKey,
         });
+        appliedRemoteMutationVersionRef.current = mutationVersion;
         scheduleNextPoll(snapshot);
       } catch {
         if (!isCurrent()) return;
@@ -294,22 +322,44 @@ export function useBranchPullRequestStatus({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void load();
+        void load({
+          force:
+            appliedRemoteMutationVersionRef.current !==
+            remoteMutationVersionRef.current,
+        });
       } else {
         // Nothing to trace behind a hidden window; the return trip re-reads.
         clearPollTimer();
       }
     };
 
+    const handleRemoteMutation = (event: Event) => {
+      const detail = (event as CustomEvent<BranchRemoteMutationDetail>).detail;
+      if (
+        !isMatchingBranchRemoteMutation(detail, {
+          repoId: repoId ?? "default",
+          repoPath,
+          branchName,
+        })
+      ) {
+        return;
+      }
+      remoteMutationVersionRef.current += 1;
+      pollAttemptRef.current = 0;
+      pollHeadShaRef.current = null;
+      loadRef.current?.({ force: true });
+    };
+
     if (
       typeof document === "undefined" ||
       document.visibilityState !== "hidden"
     ) {
-      void load();
+      void load({ force: localHeadChanged });
     }
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
     }
+    window.addEventListener(BRANCH_REMOTE_MUTATION_EVENT, handleRemoteMutation);
 
     return () => {
       disposed = true;
@@ -322,8 +372,12 @@ export function useBranchPullRequestStatus({
           handleVisibilityChange
         );
       }
+      window.removeEventListener(
+        BRANCH_REMOTE_MUTATION_EVENT,
+        handleRemoteMutation
+      );
     };
-  }, [branchName, poll, repoId, repoPath, scopeKey]);
+  }, [branchName, headRevision, poll, repoId, repoPath, scopeKey]);
 
   const visibleState =
     state.scopeKey === scopeKey

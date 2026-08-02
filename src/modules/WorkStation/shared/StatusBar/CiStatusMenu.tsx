@@ -59,6 +59,7 @@ const SECTION_ORDER: CiCheckState[] = [
 
 interface CiStatusMenuProps {
   branchName?: string;
+  headRevision?: string;
 }
 
 function CheckStateIcon({
@@ -174,13 +175,14 @@ const CheckRow: React.FC<CheckRowProps> = memo(({ item, onOpenDetails }) => {
 CheckRow.displayName = "CheckRow";
 
 export const CiStatusMenu: React.FC<CiStatusMenuProps> = memo(
-  ({ branchName }) => {
+  ({ branchName, headRevision }) => {
     const { t } = useTranslation();
     const { repoId, repoPath } = useActiveRepoRef();
 
     const { checks, ciStatus, pr, refresh, refreshing } =
       useBranchPullRequestStatus({
         branchName,
+        headRevision,
         repoId,
         repoPath,
         poll: true,

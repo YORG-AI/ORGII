@@ -23,8 +23,10 @@ import {
 import {
   BRANCH_CI_POLL_BASE_MS,
   BRANCH_CI_POLL_MAX_MS,
+  BRANCH_CI_SAFETY_POLL_MS,
   clearBranchPullRequestStatusCache,
 } from "@src/services/git/branchPullRequestStatus";
+import { announceBranchRemoteMutation } from "@src/util/git/branchRemoteMutation";
 
 import {
   type UseBranchPullRequestStatusOptions,
@@ -337,6 +339,187 @@ describe("useBranchPullRequestStatus", () => {
       await vi.advanceTimersByTimeAsync(BRANCH_CI_POLL_MAX_MS * 4);
     });
     expect(getChecksLocalMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("discovers a newly-created PR immediately after branch invalidation", async () => {
+    findPullRequestLocalMock.mockResolvedValueOnce(null);
+    let latest!: UseBranchPullRequestStatusResult;
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+            poll: true,
+          },
+          onValue: (value) => {
+            latest = value;
+          },
+        })
+      );
+    });
+    expect(latest.pr).toBeNull();
+
+    await act(async () => {
+      announceBranchRemoteMutation({
+        repoId: "repo-1",
+        repoPath: "/repo",
+        branchName: "feature",
+        reason: "pull-request-created",
+      });
+    });
+
+    expect(findPullRequestLocalMock).toHaveBeenCalledTimes(2);
+    expect(latest.pr?.number).toBe(12);
+    expect(latest.ciStatus).toBe("success");
+  });
+
+  it("defers a hidden push invalidation and forces it on visibility return", async () => {
+    getPRLocalMock
+      .mockResolvedValueOnce({ head: { sha: "abc" } })
+      .mockResolvedValueOnce({ head: { sha: "def" } });
+    getChecksLocalMock
+      .mockResolvedValueOnce({
+        ...runningChecks(),
+        sha: "abc",
+        state: "success",
+        check_runs: [
+          {
+            ...runningChecks().check_runs[0],
+            status: "completed",
+            conclusion: "success",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ ...runningChecks(), sha: "def" });
+    let latest!: UseBranchPullRequestStatusResult;
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+            poll: true,
+          },
+          onValue: (value) => {
+            latest = value;
+          },
+        })
+      );
+    });
+    expect(latest.ciStatus).toBe("success");
+
+    visibilityState = "hidden";
+    document.dispatchEvent(new Event("visibilitychange"));
+    await act(async () => {
+      announceBranchRemoteMutation({
+        repoId: "repo-1",
+        repoPath: "/repo",
+        branchName: "feature",
+        reason: "push",
+      });
+    });
+    expect(getChecksLocalMock).toHaveBeenCalledTimes(1);
+
+    visibilityState = "visible";
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(getChecksLocalMock).toHaveBeenLastCalledWith("acme/repo", "def");
+    expect(latest.ciStatus).toBe("pending");
+  });
+
+  it("forces a new PR-head read when local HEAD changes", async () => {
+    getPRLocalMock
+      .mockResolvedValueOnce({ head: { sha: "abc" } })
+      .mockResolvedValueOnce({ head: { sha: "def" } });
+    getChecksLocalMock
+      .mockResolvedValueOnce({
+        ...runningChecks(),
+        sha: "abc",
+        state: "success",
+        check_runs: [
+          {
+            ...runningChecks().check_runs[0],
+            status: "completed",
+            conclusion: "success",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ ...runningChecks(), sha: "def" });
+    let latest!: UseBranchPullRequestStatusResult;
+    const onValue = (value: UseBranchPullRequestStatusResult) => {
+      latest = value;
+    };
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+            headRevision: "abc1234",
+            poll: true,
+          },
+          onValue,
+        })
+      );
+    });
+    expect(latest.ciStatus).toBe("success");
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+            headRevision: "def5678",
+            poll: true,
+          },
+          onValue,
+        })
+      );
+    });
+
+    expect(getPRLocalMock).toHaveBeenCalledTimes(2);
+    expect(getChecksLocalMock).toHaveBeenLastCalledWith("acme/repo", "def");
+    expect(latest.ciStatus).toBe("pending");
+  });
+
+  it("uses only a slow safety refresh after settled CI", async () => {
+    vi.useFakeTimers();
+
+    await act(async () => {
+      root.render(
+        createElement(Probe, {
+          options: {
+            repoId: "repo-1",
+            repoPath: "/repo",
+            branchName: "feature",
+            poll: true,
+          },
+          onValue: () => undefined,
+        })
+      );
+    });
+    expect(getChecksLocalMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(BRANCH_CI_SAFETY_POLL_MS - 1);
+    });
+    expect(getChecksLocalMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(getChecksLocalMock).toHaveBeenCalledTimes(2);
   });
 
   it("never schedules a poll when tracing is not requested", async () => {

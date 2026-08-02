@@ -312,7 +312,10 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
           )}
 
           {showGitControls && branchName && (
-            <CiStatusMenu branchName={branchName} />
+            <CiStatusMenu
+              branchName={branchName}
+              headRevision={commitInfo?.shortSha}
+            />
           )}
 
           {showGitControls && branchName && (
@@ -421,6 +424,7 @@ export const EditorStatusBar: React.FC<EditorStatusBarProps> = memo(
         aheadCount,
         workingAdditions,
         workingDeletions,
+        commitInfo?.shortSha,
         onRepoClick,
         onBranchClick,
         onWorktreeClick,
