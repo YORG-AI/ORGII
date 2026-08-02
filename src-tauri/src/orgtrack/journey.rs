@@ -11,7 +11,9 @@
 
 use std::collections::{HashMap, HashSet};
 
+use database::db::get_projects_connection;
 use orgtrack_core::canonical::SessionEditKind;
+use rusqlite::OptionalExtension;
 use orgtrack_core::store::sqlite::SqliteRecordStore;
 use orgtrack_core::store::RecordStore;
 use orgtrack_graph::audit::audit_canonical_journey;
@@ -25,8 +27,10 @@ use orgtrack_graph::JourneyScope;
 /// Build the canonical Journey graph for a scope.
 ///
 /// Scope semantics (no guessing, no synthesized data):
-/// - `project/{id}` selects every canonical session whose `workspace_path`
-///   equals `id` (the canonical project identity).
+/// - `project/{id}` resolves the canonical project id through its linked
+///   workspaces (`linked_repos_json` in projects.db) and selects every
+///   canonical session whose `workspace_path` is inside one of them. A
+///   project without explicit linked workspaces is an error.
 /// - `session/{id}` selects the session plus its full parent lineage chain
 ///   (`parent_session_id` recursion), so fork edges stay verifiable.
 pub fn build_journey_graph(
@@ -169,8 +173,23 @@ fn select_sessions(
     let mut selected = HashSet::new();
     match scope {
         JourneyScope::Project(id) => {
+            // Resolve the canonical project identity to its linked
+            // workspaces (`linked_repos_json` in projects.db). The mapping
+            // must exist explicitly: a project without linked workspaces is
+            // an error, never a guessed path.
+            let workspaces = resolve_project_workspaces(id)?;
             for session in sessions {
-                if session.workspace_path.as_deref() == Some(id.as_str()) {
+                let in_project = session
+                    .workspace_path
+                    .as_deref()
+                    .map(|path| {
+                        workspaces.iter().any(|workspace| {
+                            path == workspace
+                                || path.starts_with(&format!("{workspace}/"))
+                        })
+                    })
+                    .unwrap_or(false);
+                if in_project {
                     selected.insert(session.session_id.clone());
                 }
             }
@@ -199,6 +218,40 @@ fn select_sessions(
         }
     }
     Ok(selected)
+}
+
+/// Read the canonical project row from `projects.db` and return its linked
+/// workspace paths (`linked_repos_json`). Fail-closed: an unknown project id
+/// or an empty linked-repos list is an error, because there is no honest
+/// workspace to scope the journey to.
+fn resolve_project_workspaces(project_id: &str) -> Result<Vec<String>, String> {
+    let conn = get_projects_connection().map_err(|err| {
+        format!("cannot open project store while resolving {project_id}: {err}")
+    })?;
+    let linked_repos_json: Option<String> = conn
+        .query_row(
+            "SELECT linked_repos_json FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| {
+            format!("cannot read linked repos for {project_id}: {err}")
+        })?;
+    let Some(raw) = linked_repos_json else {
+        return Err(format!(
+            "canonical Journey graph store is not initialized for this project;              project {project_id} does not exist in the project store"
+        ));
+    };
+    let workspaces: Vec<String> = serde_json::from_str(&raw).map_err(|err| {
+        format!("project {project_id} linked_repos_json is invalid: {err}")
+    })?;
+    if workspaces.is_empty() {
+        return Err(format!(
+            "canonical Journey graph store is not initialized for this project;              project {project_id} has no linked workspaces (linked_repos_json is empty)"
+        ));
+    }
+    Ok(workspaces)
 }
 
 fn scope_label(scope: &JourneyScope) -> String {
