@@ -24,6 +24,8 @@ fn fake_run(id: &str) -> AgentOrgRunRecord {
         created_at: now.clone(),
         updated_at: now,
         completed_at: None,
+        continued_from_run_id: None,
+        originating_message_id: None,
     }
 }
 

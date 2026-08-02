@@ -31,7 +31,7 @@ use crate::coordination::agent_org_tasks::{
 };
 use crate::state::AgentAppState;
 
-use super::context::{require_session_member_id, session_org_read_context};
+use super::context::{require_session_member_id, session_org_read_context_for_run_view};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -172,7 +172,7 @@ pub async fn agent_org_session_run_view_impl(
     state: &AgentAppState,
     session_id: &str,
 ) -> Result<Option<AgentOrgRunView>, String> {
-    let Some(read_context) = session_org_read_context(state, session_id).await? else {
+    let Some(read_context) = session_org_read_context_for_run_view(state, session_id).await? else {
         return Ok(None);
     };
     let Some(context) = read_context.context.as_ref() else {

@@ -72,15 +72,6 @@ pub(super) fn validate_launch_agent_definitions(
 
     let store = crate::definitions::definitions_store();
 
-    if let Some(definition_id) = agent_definition_id.filter(|id| !id.trim().is_empty()) {
-        if store.get(definition_id).is_none() {
-            return Err(format!(
-                "Agent definition '{}' does not exist; remove the stale session or choose an existing Agent definition before launching",
-                definition_id
-            ));
-        }
-    }
-
     if let Some(org) = org_definition {
         let mut missing: Vec<String> = Vec::new();
         let mut unsupported_cli: Vec<String> = Vec::new();
@@ -141,6 +132,15 @@ pub(super) fn validate_launch_agent_definitions(
                 "Agent Org '{}' references missing Agent definition(s): {}",
                 org.name,
                 missing.join(", ")
+            ));
+        }
+    }
+
+    if let Some(definition_id) = agent_definition_id.filter(|id| !id.trim().is_empty()) {
+        if store.get(definition_id).is_none() {
+            return Err(format!(
+                "Agent definition '{}' does not exist; remove the stale session or choose an existing Agent definition before launching",
+                definition_id
             ));
         }
     }

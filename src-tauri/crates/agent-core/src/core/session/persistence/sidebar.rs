@@ -179,7 +179,7 @@ mod tests {
         .expect("upsert sidebar session");
     }
 
-    fn insert_agent_org_run(run_id: &str, root_session_id: &str, updated_at: &str) {
+    fn insert_agent_org_run(run_id: &str, root_session_id: &str, updated_at: &str, status: &str) {
         ensure_runtime_schemas();
         let conn = database::db::get_connection().expect("test sqlite connection");
         conn.execute(
@@ -199,7 +199,7 @@ mod tests {
                 "builtin:sde",
                 root_session_id,
                 "standalone_session",
-                "running",
+                status,
                 updated_at,
             ],
         )
@@ -245,9 +245,24 @@ mod tests {
             session_type::CODING,
             Some("org-root-b"),
         );
-        insert_agent_org_run("run-root-a-old", "org-root-a", "2026-07-29T09:00:00Z");
-        insert_agent_org_run("run-root-b", "org-root-b", "2026-07-29T14:00:00Z");
-        insert_agent_org_run("run-root-a-new", "org-root-a", "2026-07-29T10:00:00Z");
+        insert_agent_org_run(
+            "run-root-a-old",
+            "org-root-a",
+            "2026-07-29T09:00:00Z",
+            "completed",
+        );
+        insert_agent_org_run(
+            "run-root-b",
+            "org-root-b",
+            "2026-07-29T14:00:00Z",
+            "running",
+        );
+        insert_agent_org_run(
+            "run-root-a-new",
+            "org-root-a",
+            "2026-07-29T10:00:00Z",
+            "running",
+        );
         upsert_sidebar_session(
             "newer-worker",
             "2026-07-29T15:00:00Z",

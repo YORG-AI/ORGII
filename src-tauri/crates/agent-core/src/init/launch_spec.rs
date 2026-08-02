@@ -13,6 +13,7 @@ pub struct AgentLaunchSpec {
     pub account_id: Option<String>,
     pub model_override: Option<String>,
     pub native_harness_type: Option<NativeHarnessType>,
+    pub agent_org_run_hint: Option<String>,
 }
 
 impl AgentLaunchSpec {
@@ -31,7 +32,13 @@ impl AgentLaunchSpec {
             account_id,
             model_override: model_override.filter(|model| !model.is_empty()),
             native_harness_type,
+            agent_org_run_hint: None,
         }
+    }
+
+    pub fn with_agent_org_run_hint(mut self, run_id: Option<String>) -> Self {
+        self.agent_org_run_hint = run_id.filter(|value| !value.is_empty());
+        self
     }
 
     pub async fn from_session_sources(

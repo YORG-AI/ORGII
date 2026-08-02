@@ -791,6 +791,7 @@ mod tests {
     #[test]
     fn validation_rejects_cli_member_with_member_id_and_transport() {
         let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
         let mut org = custom_org();
         org.children.push(OrgMember {
             id: "cli-worker".to_string(),
@@ -801,9 +802,33 @@ mod tests {
             children: Vec::new(),
         });
 
-        let error = AgentOrgsStore::validate_agent_references(&org)
+        let error = store
+            .insert(org)
             .expect_err("CLI Agent Org members must be rejected at save time");
         assert!(error.contains("member_id=cli-worker"), "{error}");
         assert!(error.contains("cli:claude_code"), "{error}");
+        assert!(error.contains("inbox"), "{error}");
+        assert!(error.contains("task tools"), "{error}");
+        assert!(store.get("custom-org").is_err());
+    }
+
+    #[test]
+    fn validation_rejects_cli_coordinator_when_saving_org() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = AgentOrgsStore::new();
+        let mut org = custom_org();
+        org.id = "cli-coordinator-org".to_string();
+        org.name = "CLI Coordinator Org".to_string();
+        org.agent_id = "cli:claude_code".to_string();
+
+        let error = store
+            .insert(org)
+            .expect_err("CLI Coordinator must be rejected at save time");
+
+        assert!(error.contains("coordinator"), "{error}");
+        assert!(error.contains("cli:claude_code"), "{error}");
+        assert!(error.contains("inbox"), "{error}");
+        assert!(error.contains("task tools"), "{error}");
+        assert!(store.get("cli-coordinator-org").is_err());
     }
 }

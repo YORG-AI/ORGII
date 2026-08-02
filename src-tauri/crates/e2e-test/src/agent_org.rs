@@ -12,11 +12,8 @@
 //! Pairing strategy: positive AND negative pins per behavior. Every
 //! successful send is followed by a `list-by-run` read so a future
 //! refactor of either side surfaces here, not just in unit tests.
-//! Production caller-path coverage lives in
-//! `production_return_to_work_drains_inbox_into_member_transcript` below. It
-//! launches a real materialized member and uses the debug-only deterministic
-//! provider; full live-provider coordinator behavior belongs in rendered UI
-//! E2E, not this deterministic runtime contract suite.
+//! Production caller paths cover launch, member wake, and guarded deletion;
+//! live-provider and rendered UI behavior remains in the UI E2E suite.
 
 use super::config::Config;
 use super::harness;
@@ -31,12 +28,17 @@ const LAUNCH_COORDINATOR_PATH: &str = "/agent/test/agent-org/launch-coordinator"
 const SESSION_RETURN_TO_WORK_PATH: &str = "/agent/test/agent-org/session-return-to-work";
 const TASK_TOOL_DIRECT_PATH: &str = "/agent/test/agent-org/task-tool-direct";
 const RUN_SEED_PATH: &str = "/agent/test/agent-org/run/seed";
+const RUN_CLEANUP_PATH: &str = "/agent/test/agent-org/run/cleanup";
 const E2E_RUN_FIXTURE_ORG_PREFIX: &str = "e2e-agent-org-fixture:";
 const RUN_VIEW_PATH: &str = "/agent/test/agent-org/run-view";
 const DURABLE_INVARIANTS_PATH: &str = "/agent/test/agent-org/durable-invariants";
 const FIND_WORKER_SESSION_PATH: &str = "/agent/test/agent-org/find-worker-session";
 const SEED_CLI_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-cli-member";
+const SEED_RUST_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-run";
+const SESSION_DELETE_SNAPSHOT_PATH: &str = "/agent/test/agent-org/session-delete/snapshot";
+const SESSION_DELETE_ATTEMPT_PATH: &str = "/agent/test/agent-org/session-delete/attempt";
 const TASKS_SEED_PATH: &str = "/agent/test/agent-org/tasks/seed";
+const TASKS_LIST_PATH: &str = "/agent/test/agent-org/tasks/list";
 const PAUSE_RUN_PATH: &str = "/agent/test/agent-org/run/pause";
 const RESUME_RUN_PATH: &str = "/agent/test/agent-org/run/resume";
 const SIMULATE_APP_RESTART_PATH: &str = "/agent/test/agent-org/simulate-app-restart";
@@ -462,6 +464,30 @@ async fn durable_invariants(cfg: &Config, org_run_id: &str) -> Result<serde_json
         return Err(format!("durable invariant probe rejected payload: {resp}"));
     }
     Ok(resp)
+}
+
+fn run_view_has_exact_worker(
+    response: &serde_json::Value,
+    run_id: &str,
+    member_id: &str,
+    session_id: &str,
+) -> bool {
+    response
+        .pointer("/view/context/runId")
+        .and_then(serde_json::Value::as_str)
+        == Some(run_id)
+        && response
+            .pointer("/view/members")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|members| {
+                members.iter().any(|member| {
+                    member.get("memberId").and_then(serde_json::Value::as_str) == Some(member_id)
+                        && member
+                            .pointer("/sessionRuntime/sessionId")
+                            .and_then(serde_json::Value::as_str)
+                            == Some(session_id)
+                })
+            })
 }
 
 fn tmp_agent_org_workspace(label: &str) -> String {
@@ -3242,14 +3268,27 @@ pub async fn run_pause_resume_toggles_status(cfg: &Config) -> bool {
 pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> bool {
     let label = "app-restart-transitions-running-runs-to-paused";
 
-    // (1) Seed a fresh running org run.
-    let seed_resp = match post_agent_org_json(
+    let fixture_id = unique_run_id("multi-run-restart");
+    let org_id = fixture_id.clone();
+    let root_session_id = format!("root-{fixture_id}");
+    let historical_worker_session_id = format!("worker-history-{fixture_id}");
+    let current_worker_session_id = format!("worker-current-{fixture_id}");
+    let member_id = "m-restart";
+
+    let historical_seed = match post_agent_org_json(
         cfg,
-        SEED_CLI_MEMBER_RUN_PATH,
+        SEED_RUST_MEMBER_RUN_PATH,
         serde_json::json!({
-            "cli_agent_type": "claude_code",
-            "member_id": "m-restart",
-            "status": "idle"
+            "org_id": org_id,
+            "root_session_id": root_session_id,
+            "run_status": "completed",
+            "root_status": "idle",
+            "workers": [{
+                "member_id": member_id,
+                "agent_definition_id": "builtin:explore",
+                "session_id": historical_worker_session_id,
+                "status": "completed"
+            }]
         }),
     )
     .await
@@ -3257,14 +3296,40 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         Err(err) => return harness::print_error(label, &err),
         Ok(json) => json,
     };
-    let seed_ok = seed_resp.get("ok").and_then(|v| v.as_bool()) == Some(true);
+    let historical_run_id = match historical_seed
+        .get("org_run_id")
+        .and_then(|value| value.as_str())
+    {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => return harness::print_error(label, &historical_seed.to_string()),
+    };
+
+    let seed_resp = match post_agent_org_json(
+        cfg,
+        SEED_RUST_MEMBER_RUN_PATH,
+        serde_json::json!({
+            "org_id": org_id,
+            "root_session_id": root_session_id,
+            "run_status": "running",
+            "root_status": "idle",
+            "workers": [{
+                "member_id": member_id,
+                "agent_definition_id": "builtin:explore",
+                "session_id": current_worker_session_id,
+                "status": "running"
+            }]
+        }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let seed_ok = historical_seed.get("ok").and_then(|v| v.as_bool()) == Some(true)
+        && seed_resp.get("ok").and_then(|v| v.as_bool()) == Some(true);
     let org_run_id = match seed_resp.get("org_run_id").and_then(|v| v.as_str()) {
         Some(value) if !value.is_empty() => value.to_string(),
         _ => return harness::print_error(label, "seed did not return org_run_id"),
-    };
-    let root_session_id = match seed_resp.get("root_session_id").and_then(|v| v.as_str()) {
-        Some(value) if !value.is_empty() => value.to_string(),
-        _ => return harness::print_error(label, "seed did not return root_session_id"),
     };
     if let Err(err) = seed_task(
         cfg,
@@ -3294,6 +3359,38 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         .get("runStatus")
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
+
+    let historical_view_before = match post_agent_org_json(
+        cfg,
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": historical_worker_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let current_view_before = match post_agent_org_json(
+        cfg,
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": current_worker_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let exact_ownership_before = run_view_has_exact_worker(
+        &historical_view_before,
+        &historical_run_id,
+        member_id,
+        &historical_worker_session_id,
+    ) && run_view_has_exact_worker(
+        &current_view_before,
+        &org_run_id,
+        member_id,
+        &current_worker_session_id,
+    );
 
     // (3) Simulate app restart.
     let restart_resp =
@@ -3328,7 +3425,7 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
     let run_view_resp = match post_agent_org_json(
         cfg,
         RUN_VIEW_PATH,
-        serde_json::json!({ "session_id": root_session_id }),
+        serde_json::json!({ "session_id": current_worker_session_id }),
     )
     .await
     {
@@ -3340,8 +3437,145 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         .and_then(|value| value.get("runStatus"))
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
+    let historical_view_after_restart = match post_agent_org_json(
+        cfg,
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": historical_worker_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let exact_ownership_after_restart = run_view_has_exact_worker(
+        &historical_view_after_restart,
+        &historical_run_id,
+        member_id,
+        &historical_worker_session_id,
+    ) && run_view_has_exact_worker(
+        &run_view_resp,
+        &org_run_id,
+        member_id,
+        &current_worker_session_id,
+    );
+    let historical_run_stayed_completed = historical_view_after_restart
+        .pointer("/view/runStatus")
+        .and_then(serde_json::Value::as_str)
+        == Some("completed");
 
-    // (6) User can resume from UI — full round trip.
+    let snapshot_body = serde_json::json!({
+        "session_ids": [
+            root_session_id,
+            historical_worker_session_id,
+            current_worker_session_id
+        ],
+        "run_ids": [historical_run_id, org_run_id]
+    });
+    let snapshot_before =
+        match post_agent_org_json(cfg, SESSION_DELETE_SNAPSHOT_PATH, snapshot_body.clone()).await {
+            Err(err) => return harness::print_error(label, &err),
+            Ok(json) => json,
+        };
+    let tasks_before = match post_agent_org_json(
+        cfg,
+        TASKS_LIST_PATH,
+        serde_json::json!({ "org_run_id": org_run_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let delete_attempt = match post_agent_org_json(
+        cfg,
+        SESSION_DELETE_ATTEMPT_PATH,
+        serde_json::json!({ "session_id": root_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let snapshot_after =
+        match post_agent_org_json(cfg, SESSION_DELETE_SNAPSHOT_PATH, snapshot_body).await {
+            Err(err) => return harness::print_error(label, &err),
+            Ok(json) => json,
+        };
+    let tasks_after = match post_agent_org_json(
+        cfg,
+        TASKS_LIST_PATH,
+        serde_json::json!({ "org_run_id": org_run_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let historical_view_after_delete = match post_agent_org_json(
+        cfg,
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": historical_worker_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let current_view_after_delete = match post_agent_org_json(
+        cfg,
+        RUN_VIEW_PATH,
+        serde_json::json!({ "session_id": current_worker_session_id }),
+    )
+    .await
+    {
+        Err(err) => return harness::print_error(label, &err),
+        Ok(json) => json,
+    };
+    let deletion_rejected = delete_attempt.get("ok").and_then(|value| value.as_bool())
+        == Some(false)
+        && delete_attempt
+            .get("error")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|error| error.contains("at least 2 runs claim the same root"));
+    let snapshot_has = |group: &str, id: &str| {
+        snapshot_before
+            .get(group)
+            .and_then(|value| value.get(id))
+            .is_some_and(serde_json::Value::is_object)
+    };
+    let snapshot_complete = [
+        &root_session_id,
+        &historical_worker_session_id,
+        &current_worker_session_id,
+    ]
+    .iter()
+    .all(|id| snapshot_has("sessions", id))
+        && [&historical_run_id, &org_run_id]
+            .iter()
+            .all(|id| snapshot_has("runs", id))
+        && snapshot_before
+            .get("mappings")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|mappings| mappings.len() == 4);
+    let durable_state_unchanged = snapshot_complete
+        && snapshot_before == snapshot_after
+        && tasks_before == tasks_after
+        && tasks_before
+            .get("tasks")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|tasks| tasks.len() == 1);
+    let exact_ownership_after_delete = run_view_has_exact_worker(
+        &historical_view_after_delete,
+        &historical_run_id,
+        member_id,
+        &historical_worker_session_id,
+    ) && run_view_has_exact_worker(
+        &current_view_after_delete,
+        &org_run_id,
+        member_id,
+        &current_worker_session_id,
+    );
+
     let resume_resp = match post_agent_org_json(
         cfg,
         RESUME_RUN_PATH,
@@ -3371,7 +3605,7 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         .and_then(|v| v.as_str())
         .unwrap_or("unknown");
 
-    harness::print_result(
+    let passed = harness::print_result(
         label,
         &serde_json::json!({
             "seed": seed_resp,
@@ -3379,12 +3613,18 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
             "inv_before_restart": inv_before_restart,
             "inv_after_restart": inv_after_restart,
             "run_view_after_restart": run_view_resp,
+            "delete_attempt": delete_attempt,
+            "snapshot_before": snapshot_before,
             "resume": resume_resp,
             "inv_after_resume": inv_after_resume,
         })
         .to_string(),
         &[
             ("seed ok", seed_ok),
+            (
+                "exact worker ownership before restart",
+                exact_ownership_before,
+            ),
             (
                 "run status before restart is 'running'",
                 run_status_before == "running",
@@ -3399,6 +3639,26 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
                 "run view poll does not auto-terminate paused run",
                 run_status_after_view_poll == "paused",
             ),
+            (
+                "exact worker ownership survives recovery",
+                exact_ownership_after_restart,
+            ),
+            (
+                "historical run stays completed",
+                historical_run_stayed_completed,
+            ),
+            (
+                "production multi-run deletion is rejected",
+                deletion_rejected,
+            ),
+            (
+                "delete rejection changes no durable rows",
+                durable_state_unchanged,
+            ),
+            (
+                "exact mappings survive delete rejection",
+                exact_ownership_after_delete,
+            ),
             ("resume endpoint ok", resume_ok),
             ("resume transitioned=true", resume_transitioned),
             (
@@ -3406,5 +3666,38 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
                 run_status_after_resume == "running",
             ),
         ],
-    )
+    );
+
+    let mut cleanup_ok = true;
+    for run_id in [&historical_run_id, &org_run_id] {
+        let cleanup = post_agent_org_json(
+            cfg,
+            RUN_CLEANUP_PATH,
+            serde_json::json!({ "org_run_id": run_id }),
+        )
+        .await;
+        if !matches!(cleanup, Ok(ref response) if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true))
+        {
+            cleanup_ok = false;
+            eprintln!("[{label}] run cleanup failed for {run_id}: {cleanup:?}");
+        }
+    }
+    for session_id in [
+        &historical_worker_session_id,
+        &current_worker_session_id,
+        &root_session_id,
+    ] {
+        let cleanup = post_agent_org_json(
+            cfg,
+            SESSION_DELETE_ATTEMPT_PATH,
+            serde_json::json!({ "session_id": session_id }),
+        )
+        .await;
+        if !matches!(cleanup, Ok(ref response) if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true))
+        {
+            cleanup_ok = false;
+            eprintln!("[{label}] session cleanup failed for {session_id}: {cleanup:?}");
+        }
+    }
+    passed && cleanup_ok
 }

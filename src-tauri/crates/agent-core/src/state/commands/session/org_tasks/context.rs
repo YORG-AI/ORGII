@@ -5,13 +5,10 @@
 //! the command families (run view, group chat, plan approval, intervention,
 //! lifecycle) share one implementation.
 
-use rusqlite::{params, OptionalExtension};
-
 use crate::coordination::agent_org_runs::{AgentOrgRunContext, AgentOrgRunStore};
 use crate::definitions::orgs::AgentOrgsStore;
 use crate::session::persistence;
 use crate::state::AgentAppState;
-use database::db::get_connection;
 
 pub(super) struct SessionOrgReadContext {
     pub(super) context: Option<AgentOrgRunContext>,
@@ -21,6 +18,21 @@ pub(super) struct SessionOrgReadContext {
 pub(super) async fn session_org_read_context(
     state: &AgentAppState,
     session_id: &str,
+) -> Result<Option<SessionOrgReadContext>, String> {
+    session_org_read_context_inner(state, session_id, false).await
+}
+
+pub(super) async fn session_org_read_context_for_run_view(
+    state: &AgentAppState,
+    session_id: &str,
+) -> Result<Option<SessionOrgReadContext>, String> {
+    session_org_read_context_inner(state, session_id, true).await
+}
+
+async fn session_org_read_context_inner(
+    state: &AgentAppState,
+    session_id: &str,
+    read_only: bool,
 ) -> Result<Option<SessionOrgReadContext>, String> {
     let runtime_context = match state.get_session(session_id).await {
         Some(session) => session
@@ -46,37 +58,29 @@ pub(super) async fn session_org_read_context(
     // executor at every call site.
     tokio::task::spawn_blocking(move || -> Result<Option<SessionOrgReadContext>, String> {
         let persisted = persistence::get_session(&session_id).map_err(|err| err.to_string())?;
-        let member_id = match persisted.as_ref() {
-            Some(record) => Some(record.org_member_id.clone()),
-            None => {
-                let conn = get_connection().map_err(|err| err.to_string())?;
-                conn.query_row(
-                    "SELECT org_member_id FROM code_sessions WHERE session_id = ?1",
-                    params![&session_id],
-                    |row| row.get::<_, Option<String>>(0),
-                )
-                .optional()
-                .map_err(|err| err.to_string())?
-            }
-        };
-        if persisted.is_none() && member_id.is_none() && runtime_context.is_none() {
+        let mapped_member_id = AgentOrgRunStore::member_id_for_mapped_session(&session_id)?;
+        let member_id = mapped_member_id.or_else(|| {
+            persisted
+                .as_ref()
+                .and_then(|record| record.org_member_id.clone())
+        });
+        if persisted.is_none() && member_id.is_none() {
             return Ok(None);
         }
 
-        let context = match runtime_context {
-            Some(context) => Some(context),
-            None => match org_store {
-                Some(store) => AgentOrgRunStore::context_for_session_with_parent_walk(
+        let context = match (org_store, read_only) {
+            (Some(store), true) => {
+                AgentOrgRunStore::context_for_session_read_only_with_parent_walk(
                     &session_id,
                     store.as_ref(),
-                )?,
-                None => None,
-            },
+                )?
+            }
+            (Some(store), false) => {
+                AgentOrgRunStore::context_for_session_with_parent_walk(&session_id, store.as_ref())?
+            }
+            (None, _) => runtime_context,
         };
-        Ok(Some(SessionOrgReadContext {
-            context,
-            member_id: member_id.flatten(),
-        }))
+        Ok(Some(SessionOrgReadContext { context, member_id }))
     })
     .await
     .map_err(|err| format!("Agent Org session context worker failed: {err}"))?

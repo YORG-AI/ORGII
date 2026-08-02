@@ -4,7 +4,7 @@
 //! mapper in [`super::record`] so the column list stays in one place.
 
 use chrono::Utc;
-use rusqlite::{params, Result as SqliteResult};
+use rusqlite::{params, OptionalExtension, Result as SqliteResult};
 use tracing::warn;
 
 use crate::persistence::db_helpers as shared;
@@ -23,6 +23,7 @@ const SESSION_DELETE_TABLES: &[&str] = &[
     "session_tool_usage",
     "events",
     "pending_plan_approvals",
+    "agent_org_run_sessions",
     "agent_sessions",
 ];
 
@@ -50,6 +51,10 @@ fn notify_session_mirror(session_id: &str) {
         hook(session_id);
     }
     crate::coordination::agent_org_run_events::notify_agent_org_session_changed(session_id);
+}
+
+pub(crate) fn notify_session_upserted(session_id: &str) {
+    notify_session_mirror(session_id);
 }
 
 /// Companion delete hook: the upsert-style mirror hook cannot serve deletes
@@ -157,48 +162,87 @@ ON CONFLICT(session_id) DO UPDATE SET
 pub fn upsert_session(record: &UnifiedSessionRecord) -> SqliteResult<()> {
     with_sessions_writer(|| -> SqliteResult<()> {
         let conn = get_connection()?;
-        let key_source_str = record.key_source.as_ref();
-        conn.execute(
-            UPSERT_SESSION_SQL,
-            params![
-                record.session_id,
-                record.name,
-                record.status,
-                record.model,
-                record.account_id,
-                record.user_input,
-                record.created_at,
-                record.updated_at,
-                record.session_type,
-                record.channel,
-                record.chat_id,
-                record.workspace_path,
-                record.org_id,
-                record.project_id,
-                record.project_name,
-                record.work_item_id,
-                record.agent_role,
-                record.worktree_path,
-                record.worktree_branch,
-                record.base_branch,
-                record.merge_status,
-                record.project_slug,
-                record.agent_definition_id,
-                record.org_member_id,
-                record.parent_session_id,
-                record.parent_event_id,
-                record.workspace_additional_json,
-                key_source_str,
-                record.agent_exec_mode,
-                record.native_harness_type,
-                record.draft_text,
-                record.reply_target_event_id,
-                record.pinned as i64,
-            ],
-        )?;
-        Ok(())
+        upsert_session_with_connection(&conn, record)
     })?;
     notify_session_mirror(&record.session_id);
+    Ok(())
+}
+
+pub(crate) fn upsert_session_with_connection(
+    conn: &rusqlite::Connection,
+    record: &UnifiedSessionRecord,
+) -> SqliteResult<()> {
+    if let Some(proposed_member_id) = record.org_member_id.as_deref() {
+        let has_mapping_table: bool = conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sqlite_master
+                 WHERE type='table' AND name='agent_org_run_sessions'
+             )",
+            [],
+            |row| row.get(0),
+        )?;
+        let mapped_member_id = has_mapping_table
+            .then(|| {
+                conn.query_row(
+                    "SELECT member_id FROM agent_org_run_sessions
+                     WHERE session_id=?1 LIMIT 1",
+                    [&record.session_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()
+            })
+            .transpose()?
+            .flatten();
+        if mapped_member_id
+            .as_deref()
+            .is_some_and(|id| id != proposed_member_id)
+        {
+            return Err(rusqlite::Error::InvalidParameterName(format!(
+                "Agent Org session {} is mapped as member {} and cannot be saved as {proposed_member_id}",
+                record.session_id,
+                mapped_member_id.as_deref().unwrap_or_default()
+            )));
+        }
+    }
+    let key_source_str = record.key_source.as_ref();
+    conn.execute(
+        UPSERT_SESSION_SQL,
+        params![
+            record.session_id,
+            record.name,
+            record.status,
+            record.model,
+            record.account_id,
+            record.user_input,
+            record.created_at,
+            record.updated_at,
+            record.session_type,
+            record.channel,
+            record.chat_id,
+            record.workspace_path,
+            record.org_id,
+            record.project_id,
+            record.project_name,
+            record.work_item_id,
+            record.agent_role,
+            record.worktree_path,
+            record.worktree_branch,
+            record.base_branch,
+            record.merge_status,
+            record.project_slug,
+            record.agent_definition_id,
+            record.org_member_id,
+            record.parent_session_id,
+            record.parent_event_id,
+            record.workspace_additional_json,
+            key_source_str,
+            record.agent_exec_mode,
+            record.native_harness_type,
+            record.draft_text,
+            record.reply_target_event_id,
+            record.pinned as i64,
+        ],
+    )?;
     Ok(())
 }
 
@@ -451,22 +495,6 @@ pub fn update_work_item_link(
         )?;
         Ok(updated > 0)
     })
-}
-
-/// Set the canonical Agent Org roster member id for a session.
-pub fn update_org_member_id(session_id: &str, org_member_id: &str) -> SqliteResult<bool> {
-    let changed = with_sessions_writer(|| -> SqliteResult<bool> {
-        let conn = get_connection()?;
-        let updated = conn.execute(
-            "UPDATE agent_sessions SET org_member_id = ?2 WHERE session_id = ?1",
-            params![session_id, org_member_id],
-        )?;
-        Ok(updated > 0)
-    })?;
-    if changed {
-        notify_session_mirror(session_id);
-    }
-    Ok(changed)
 }
 
 // `updated_at` invariant

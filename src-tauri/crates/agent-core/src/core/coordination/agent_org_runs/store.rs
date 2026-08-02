@@ -6,23 +6,30 @@ use crate::coordination::agent_member_interventions::AgentMemberInterventionStor
 use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
 use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task, TaskStatus};
 use crate::definitions::orgs::AgentOrgsStore;
+use crate::session::persistence::{
+    notify_session_upserted, upsert_session_with_connection, UnifiedSessionRecord,
+};
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
 use super::finality::load_and_assess;
 use super::helpers::{
-    context_for_run_record, flatten_members, insert_run, load_by_id, load_by_root_session,
-    parent_session_id_of, row_to_run, validate_entry_mode, validate_status,
+    context_for_run_record, flatten_members, insert_run, load_by_id, row_to_run,
+    validate_entry_mode, validate_status,
 };
 use super::progress::{
     ensure_progress_in_conn, load_progress_with_conn, mark_coordinator_observed_revision_with_conn,
     record_completion_request_in_tx, stage_coordinator_presented_with_conn,
 };
 use super::worker::{WorkerSessionInfo, WorkerSessionRuntime};
+#[cfg(test)]
+use super::AgentOrgRunSessionRecord;
 use super::{
     AgentOrgCompletionRequestOutcome, AgentOrgFinalityAssessment, AgentOrgRunContext,
-    AgentOrgRunProgress, AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams,
-    COORDINATOR_MEMBER_ID,
+    AgentOrgRunLineage, AgentOrgRunProgress, AgentOrgRunRecord, AgentOrgRunResolution,
+    AgentOrgRunResolutionAccess, AgentOrgRunSessionRole, AgentOrgRunStatus,
+    AgentOrgRunTimelineCursor, AgentOrgRunTimelineItem, AgentOrgRunTimelinePage,
+    CreateAgentOrgRunParams, COORDINATOR_MEMBER_ID,
 };
 
 pub struct AgentOrgRunStore;
@@ -50,15 +57,16 @@ impl AgentOrgRunStore {
             return Ok(Vec::new());
         }
         let conn = get_connection().map_err(|err| err.to_string())?;
-        let placeholders = (1..=root_session_ids.len())
-            .map(|index| format!("?{index}"))
+        let requested_values = (1..=root_session_ids.len())
+            .map(|index| format!("(?{index})"))
             .collect::<Vec<_>>()
             .join(", ");
         let sql = format!(
-            "SELECT id,
+            "WITH requested_roots(root_session_id) AS (VALUES {requested_values})
+             SELECT candidate.id,
                     org_id,
                     coordinator_agent_id,
-                    root_session_id,
+                    candidate.root_session_id,
                     org_snapshot_json,
                     entry_mode,
                     status,
@@ -69,10 +77,18 @@ impl AgentOrgRunStore {
                     last_error,
                     created_at,
                     updated_at,
-                    completed_at
-             FROM agent_org_runs
-             WHERE root_session_id IN ({placeholders})
-             ORDER BY updated_at DESC, id DESC"
+                    completed_at,
+                    continued_from_run_id,
+                    originating_message_id
+             FROM requested_roots requested
+             JOIN agent_org_runs candidate ON candidate.id=(
+                   SELECT latest.id
+                   FROM agent_org_runs latest
+                   WHERE latest.root_session_id=requested.root_session_id
+                   ORDER BY latest.updated_at DESC, latest.id DESC
+                   LIMIT 1
+               )
+             ORDER BY candidate.updated_at DESC, candidate.id DESC"
         );
         let mut stmt = conn.prepare(&sql).map_err(|err| err.to_string())?;
         let rows = stmt
@@ -86,6 +102,23 @@ impl AgentOrgRunStore {
     }
 
     pub fn create(params: CreateAgentOrgRunParams) -> Result<AgentOrgRunRecord, String> {
+        Self::create_with_lineage(params, Default::default())
+    }
+
+    pub(crate) fn create_with_lineage(
+        params: CreateAgentOrgRunParams,
+        lineage: AgentOrgRunLineage,
+    ) -> Result<AgentOrgRunRecord, String> {
+        let run = Self::new_run_record(params, lineage)?;
+        Self::persist_new_run(&run, None)?;
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run.id);
+        Ok(run)
+    }
+
+    fn new_run_record(
+        params: CreateAgentOrgRunParams,
+        lineage: AgentOrgRunLineage,
+    ) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
         let status = validate_status(params.status.as_str())?;
         let org_snapshot_json = serde_json::to_string(&params.org_snapshot)
@@ -107,19 +140,244 @@ impl AgentOrgRunStore {
             created_at: now.clone(),
             updated_at: now,
             completed_at: None,
+            continued_from_run_id: lineage.continued_from_run_id,
+            originating_message_id: lineage.originating_message_id,
         };
+        Ok(run)
+    }
 
+    fn validate_lineage_with_connection(
+        conn: &Connection,
+        run: &AgentOrgRunRecord,
+    ) -> Result<(), String> {
+        let Some(continued_from_run_id) = run.continued_from_run_id.as_deref() else {
+            return Ok(());
+        };
+        let predecessor_root: Option<Option<String>> = conn
+            .query_row(
+                "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                [continued_from_run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| err.to_string())?;
+        let Some(predecessor_root) = predecessor_root else {
+            return Err(format!(
+                "continued_from_run_not_found: run {continued_from_run_id} does not exist"
+            ));
+        };
+        if predecessor_root != run.root_session_id {
+            return Err(format!(
+                "continued_from_run_root_mismatch: run {continued_from_run_id} does not belong to root {:?}",
+                run.root_session_id
+            ));
+        }
+        Ok(())
+    }
+
+    fn persist_new_run(
+        run: &AgentOrgRunRecord,
+        coordinator_session: Option<&UnifiedSessionRecord>,
+    ) -> Result<(), String> {
         with_sessions_writer(|| -> Result<(), String> {
             let mut conn = get_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
-            insert_run(&tx, &run).map_err(|err| err.to_string())?;
+            Self::validate_lineage_with_connection(&tx, run)?;
+            if let Some(session) = coordinator_session {
+                upsert_session_with_connection(&tx, session).map_err(|err| err.to_string())?;
+            }
+            insert_run(&tx, run).map_err(|err| err.to_string())?;
+            if let Some(root_session_id) = run.root_session_id.as_deref() {
+                Self::insert_session_mapping_with_connection(
+                    &tx,
+                    &run.id,
+                    COORDINATOR_MEMBER_ID,
+                    root_session_id,
+                    AgentOrgRunSessionRole::Coordinator,
+                    &run.created_at,
+                )?;
+            }
             ensure_progress_in_conn(&tx, &run.id)?;
             tx.commit().map_err(|err| err.to_string())
+        })
+    }
+
+    pub(crate) fn insert_session_mapping_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+        member_id: &str,
+        session_id: &str,
+        role: AgentOrgRunSessionRole,
+        created_at: &str,
+    ) -> Result<(), String> {
+        conn.execute(
+            "INSERT INTO agent_org_run_sessions (
+                org_run_id, member_id, session_id, role, created_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![org_run_id, member_id, session_id, role.as_str(), created_at],
+        )
+        .map_err(|err| {
+            format!(
+                "failed to register Agent Org {role:?} ownership run={org_run_id} member={member_id} session={session_id}: {err}"
+            )
         })?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mapping_for_session(
+        session_id: &str,
+    ) -> Result<Vec<AgentOrgRunSessionRecord>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        Self::mapping_for_session_with_connection(&conn, session_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mapping_for_session_with_connection(
+        conn: &Connection,
+        session_id: &str,
+    ) -> Result<Vec<AgentOrgRunSessionRecord>, String> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT org_run_id, member_id, session_id, role, created_at
+                 FROM agent_org_run_sessions
+                 WHERE session_id=?1
+                 ORDER BY created_at, org_run_id",
+            )
+            .map_err(|err| err.to_string())?;
+        let rows = stmt
+            .query_map([session_id], |row| {
+                let role_raw: String = row.get(3)?;
+                let role = AgentOrgRunSessionRole::parse(&role_raw).ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        3,
+                        rusqlite::types::Type::Text,
+                        format!("unknown AgentOrgRunSessionRole value: {role_raw:?}").into(),
+                    )
+                })?;
+                Ok(AgentOrgRunSessionRecord {
+                    org_run_id: row.get(0)?,
+                    member_id: row.get(1)?,
+                    session_id: row.get(2)?,
+                    role,
+                    created_at: row.get(4)?,
+                })
+            })
+            .map_err(|err| err.to_string())?;
+        rows.collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())
+    }
+
+    pub(crate) fn member_id_for_mapped_session(session_id: &str) -> Result<Option<String>, String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        conn.query_row(
+            "SELECT member_id
+             FROM agent_org_run_sessions
+             WHERE session_id=?1
+             LIMIT 1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())
+    }
+
+    fn worker_run_id_for_session_with_connection(
+        conn: &Connection,
+        session_id: &str,
+    ) -> Result<Option<String>, String> {
+        conn.query_row(
+            "SELECT org_run_id
+             FROM agent_org_run_sessions
+             WHERE session_id=?1 AND role='worker'
+             LIMIT 1",
+            [session_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| err.to_string())
+    }
+
+    pub(crate) fn create_with_coordinator_session(
+        params: CreateAgentOrgRunParams,
+        lineage: AgentOrgRunLineage,
+        session: &UnifiedSessionRecord,
+    ) -> Result<AgentOrgRunRecord, String> {
+        let run = Self::new_run_record(params, lineage)?;
+        if run.root_session_id.as_deref() != Some(session.session_id.as_str()) {
+            return Err("coordinator session must match the Agent Org root session".to_string());
+        }
+        if session.org_member_id.as_deref() != Some(COORDINATOR_MEMBER_ID)
+            || session.agent_definition_id.as_deref() != Some(run.coordinator_agent_id.as_str())
+        {
+            return Err("coordinator session identity must match the Agent Org run".to_string());
+        }
+        Self::persist_new_run(&run, Some(session))?;
+        notify_session_upserted(&session.session_id);
         crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run.id);
         Ok(run)
+    }
+
+    pub fn materialize_rust_worker_sessions(
+        org_run_id: &str,
+        sessions: &[UnifiedSessionRecord],
+    ) -> Result<(), String> {
+        if sessions.is_empty() {
+            return Ok(());
+        }
+        with_sessions_writer(|| -> Result<(), String> {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            let expected_root: String = tx
+                .query_row(
+                    "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                    [org_run_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|err| err.to_string())?
+                .flatten()
+                .ok_or_else(|| format!("Agent Org run {org_run_id} has no root session"))?;
+            let roster = Self::snapshot_member_agent_ids_with_connection(&tx, org_run_id)?
+                .ok_or_else(|| format!("Agent Org run {org_run_id} has no launch snapshot"))?;
+            for session in sessions {
+                let member_id = session.org_member_id.as_deref().ok_or_else(|| {
+                    format!(
+                        "Rust Agent Org worker {} has no member id",
+                        session.session_id
+                    )
+                })?;
+                if member_id == COORDINATOR_MEMBER_ID
+                    || session.agent_definition_id.is_none()
+                    || session.parent_session_id.as_deref() != Some(expected_root.as_str())
+                    || roster.get(member_id) != session.agent_definition_id.as_ref()
+                {
+                    return Err(format!(
+                        "invalid Rust Agent Org worker run={org_run_id} member={member_id} session={}",
+                        session.session_id
+                    ));
+                }
+                upsert_session_with_connection(&tx, session).map_err(|err| err.to_string())?;
+                Self::insert_session_mapping_with_connection(
+                    &tx,
+                    org_run_id,
+                    member_id,
+                    &session.session_id,
+                    AgentOrgRunSessionRole::Worker,
+                    &session.created_at,
+                )?;
+            }
+            tx.commit().map_err(|err| err.to_string())
+        })?;
+        for session in sessions {
+            notify_session_upserted(&session.session_id);
+        }
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(org_run_id);
+        Ok(())
     }
 
     /// Pause a running run. Only transitions `running → paused`; already
@@ -501,23 +759,8 @@ impl AgentOrgRunStore {
         Ok(status)
     }
 
-    /// Resolve the org-run context for an arbitrary session — works for
-    /// both the root (coordinator) session and materialized member sessions
-    /// linked to the same Agent Org run.
-    ///
-    /// Strategy: try the direct `root_session_id` lookup first; if that
-    /// misses, walk the persisted `agent_sessions.parent_session_id`
-    /// chain upward (using the existing `idx_agent_sessions_parent`
-    /// index) and retry the lookup at each ancestor. The first ancestor
-    /// that anchors an `agent_org_runs` row wins.
-    ///
-    /// The persisted parent chain serves as the reverse-resolution
-    /// path. `root_session_id` remains the **single anchor** for an org
-    /// run — no per-subagent rows are added (avoids a second source of
-    /// truth and the corresponding unify-then-reshuffle reshape).
-    ///
-    /// Bounded to `MAX_PARENT_WALK_DEPTH` hops so a corrupt or cyclic
-    /// parent chain can't cause an unbounded scan during session init.
+    /// Resolve through turn ownership, exact mapping, root history, then the
+    /// bounded legacy parent walk.
     pub fn context_for_run(
         run_id: &str,
         org_store: &AgentOrgsStore,
@@ -532,7 +775,33 @@ impl AgentOrgRunStore {
         session_id: &str,
         org_store: &AgentOrgsStore,
     ) -> Result<Option<AgentOrgRunContext>, String> {
-        let Some(run) = Self::run_for_session_with_parent_walk(session_id)? else {
+        Self::context_for_session(
+            session_id,
+            org_store,
+            AgentOrgRunResolution::default(),
+            AgentOrgRunResolutionAccess::Mutable,
+        )
+    }
+
+    pub(crate) fn context_for_session_read_only_with_parent_walk(
+        session_id: &str,
+        org_store: &AgentOrgsStore,
+    ) -> Result<Option<AgentOrgRunContext>, String> {
+        Self::context_for_session(
+            session_id,
+            org_store,
+            AgentOrgRunResolution::default(),
+            AgentOrgRunResolutionAccess::ReadOnly,
+        )
+    }
+
+    pub(crate) fn context_for_session(
+        session_id: &str,
+        org_store: &AgentOrgsStore,
+        resolution: AgentOrgRunResolution,
+        access: AgentOrgRunResolutionAccess,
+    ) -> Result<Option<AgentOrgRunContext>, String> {
+        let Some(run) = Self::resolve_run_for_session(session_id, resolution, access)? else {
             return Ok(None);
         };
         Ok(Some(context_for_run_record(&run, org_store)?))
@@ -541,11 +810,21 @@ impl AgentOrgRunStore {
     pub fn root_session_id_for_session_with_parent_walk(
         session_id: &str,
     ) -> Result<Option<String>, String> {
-        Ok(Self::run_for_session_with_parent_walk(session_id)?.and_then(|run| run.root_session_id))
+        Ok(Self::resolve_run_for_session(
+            session_id,
+            AgentOrgRunResolution::default(),
+            AgentOrgRunResolutionAccess::Mutable,
+        )?
+        .and_then(|run| run.root_session_id))
     }
 
     pub fn run_id_for_session_with_parent_walk(session_id: &str) -> Result<Option<String>, String> {
-        Ok(Self::run_for_session_with_parent_walk(session_id)?.map(|run| run.id))
+        Ok(Self::resolve_run_for_session(
+            session_id,
+            AgentOrgRunResolution::default(),
+            AgentOrgRunResolutionAccess::Mutable,
+        )?
+        .map(|run| run.id))
     }
 
     pub fn is_root_session(org_run_id: &str, session_id: &str) -> Result<bool, String> {
@@ -562,13 +841,145 @@ impl AgentOrgRunStore {
         Ok(root_session_id.as_deref() == Some(session_id))
     }
 
-    fn run_for_session_with_parent_walk(
+    pub(crate) fn resolve_run_for_session(
         session_id: &str,
+        resolution: AgentOrgRunResolution,
+        access: AgentOrgRunResolutionAccess,
     ) -> Result<Option<AgentOrgRunRecord>, String> {
         const MAX_PARENT_WALK_DEPTH: usize = 16;
 
+        if access == AgentOrgRunResolutionAccess::Mutable
+            && resolution.selected_historical_run_id.is_some()
+        {
+            return Err(
+                "historical Agent Org run selection is read-only and cannot authorize writes"
+                    .to_string(),
+            );
+        }
+
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let selected_historical_run = resolution
+            .selected_historical_run_id
+            .as_deref()
+            .map(|selected_run_id| {
+                Self::load_run_with_connection(&conn, selected_run_id)?
+                    .ok_or_else(|| format!("historical Agent Org run {selected_run_id} not found"))
+            })
+            .transpose()?;
+        let mut active_run_ids = {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT DISTINCT org_run_id
+                     FROM session_turn_intents
+                     WHERE session_id=?1
+                       AND org_run_id IS NOT NULL
+                       AND status IN ('optimistic', 'queued', 'running')
+                     ORDER BY org_run_id
+                     LIMIT 3",
+                )
+                .map_err(|err| err.to_string())?;
+            let rows = stmt
+                .query_map([session_id], |row| row.get::<_, String>(0))
+                .map_err(|err| err.to_string())?;
+            rows.collect::<Result<Vec<_>, _>>()
+                .map_err(|err| err.to_string())?
+        };
+        if let Some(run_id) = resolution.active_turn_run_id {
+            active_run_ids.push(run_id);
+            active_run_ids.sort();
+            active_run_ids.dedup();
+        }
+        if active_run_ids.len() > 1 {
+            return Err(format!(
+                "Agent Org turn intents disagree for session {session_id}: [{}]",
+                active_run_ids.join(", ")
+            ));
+        }
+
+        let worker_run_id = Self::worker_run_id_for_session_with_connection(&conn, session_id)?;
+        if let (Some(active_run_id), Some(mapped_run_id)) =
+            (active_run_ids.first(), worker_run_id.as_ref())
+        {
+            if active_run_id != mapped_run_id {
+                return Err(format!(
+                    "Agent Org ownership conflict for session {session_id}: active turn run {active_run_id}, exact mapping run {mapped_run_id}"
+                ));
+            }
+        }
+        if let Some(active_run_id) = active_run_ids.first() {
+            let active_run = Self::load_run_with_connection(&conn, active_run_id)?.ok_or_else(|| {
+                format!(
+                    "Agent Org active turn for session {session_id} references missing run {active_run_id}"
+                )
+            })?;
+            if worker_run_id.is_none() {
+                let active_root = active_run.root_session_id.as_deref().ok_or_else(|| {
+                    format!("Agent Org active turn run {active_run_id} has no root session")
+                })?;
+                let reaches_active_root: bool = conn
+                    .query_row(
+                        "WITH RECURSIVE ancestors(session_id, depth) AS (
+                             VALUES (?1, 0)
+                             UNION ALL
+                             SELECT parent.parent_session_id, ancestors.depth + 1
+                             FROM agent_sessions parent
+                             JOIN ancestors ON parent.session_id=ancestors.session_id
+                             WHERE parent.parent_session_id IS NOT NULL
+                               AND ancestors.depth < ?3
+                         )
+                         SELECT EXISTS(SELECT 1 FROM ancestors WHERE session_id=?2)",
+                        params![session_id, active_root, MAX_PARENT_WALK_DEPTH as i64],
+                        |row| row.get(0),
+                    )
+                    .map_err(|err| err.to_string())?;
+                if !reaches_active_root {
+                    return Err(format!(
+                        "Agent Org ownership conflict for session {session_id}: active turn run {active_run_id} belongs to root {active_root}"
+                    ));
+                }
+            }
+            return Ok(Some(active_run));
+        }
+        if let Some(mapped_run_id) = worker_run_id {
+            return Self::load_run_with_connection(&conn, &mapped_run_id).and_then(|run| {
+                run.ok_or_else(|| {
+                    format!(
+                        "Agent Org mapping for session {session_id} references missing run {mapped_run_id}"
+                    )
+                })
+                .map(Some)
+            });
+        }
+        if let Some(selected) = selected_historical_run {
+            if selected.root_session_id.as_deref() != Some(session_id) {
+                return Err(format!(
+                    "historical Agent Org run {} does not belong to root {session_id}",
+                    selected.id
+                ));
+            }
+            return Ok(Some(selected));
+        }
+
+        let unmapped_canonical_worker: bool = conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_sessions
+                     WHERE session_id=?1
+                       AND agent_definition_id IS NOT NULL
+                       AND org_member_id IS NOT NULL
+                       AND org_member_id<>?2
+                 )",
+                params![session_id, COORDINATOR_MEMBER_ID],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if access == AgentOrgRunResolutionAccess::Mutable && unmapped_canonical_worker {
+            return Err(format!(
+                "Rust Agent Org worker {session_id} has no exact Run mapping"
+            ));
+        }
         let mut current_id = session_id.to_string();
-        let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut visited = HashSet::new();
         for hop in 0..=MAX_PARENT_WALK_DEPTH {
             if !visited.insert(current_id.clone()) {
                 tracing::warn!(
@@ -578,8 +989,53 @@ impl AgentOrgRunStore {
                 );
                 return Ok(None);
             }
-            if let Some(run) = load_by_root_session(&current_id).map_err(|err| err.to_string())? {
-                return Ok(Some(run));
+            if current_id != session_id {
+                if let Some(mapped_run_id) =
+                    Self::worker_run_id_for_session_with_connection(&conn, &current_id)?
+                {
+                    return Self::load_run_with_connection(&conn, &mapped_run_id);
+                }
+            }
+            let root_runs = Self::load_runs_for_root_with_connection(&conn, &current_id)?;
+            if !root_runs.is_empty() {
+                // A legacy descendant is safe to infer only when its root has
+                // exactly one Run; a unique live Run does not remove ambiguity.
+                if hop > 0 {
+                    if root_runs.len() == 1 {
+                        return Ok(root_runs.into_iter().next());
+                    }
+                    return Err(format!(
+                        "unmapped legacy Agent Org session {session_id} is ambiguous across at least 2 runs for root {current_id}"
+                    ));
+                }
+                let live_runs = root_runs
+                    .iter()
+                    .filter(|run| {
+                        matches!(
+                            run.status,
+                            AgentOrgRunStatus::Running | AgentOrgRunStatus::Paused
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                if live_runs.len() == 1 {
+                    return Ok(Some(live_runs[0].clone()));
+                }
+                if live_runs.len() > 1 {
+                    return Err(format!(
+                        "duplicate live Agent Org runs for root {current_id}: [{}]",
+                        live_runs
+                            .iter()
+                            .map(|run| run.id.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                if root_runs.len() == 1 {
+                    return Ok(root_runs.into_iter().next());
+                }
+                return Err(format!(
+                    "Agent Org run is ambiguous for root {current_id}; select one historical run explicitly for read-only access"
+                ));
             }
             if hop == MAX_PARENT_WALK_DEPTH {
                 tracing::warn!(
@@ -590,12 +1046,86 @@ impl AgentOrgRunStore {
                 );
                 return Ok(None);
             }
-            match parent_session_id_of(&current_id).map_err(|err| err.to_string())? {
+            let parent = conn
+                .query_row(
+                    "SELECT parent_session_id FROM agent_sessions WHERE session_id=?1",
+                    [&current_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|err| err.to_string())?
+                .flatten();
+            match parent {
                 Some(parent) => current_id = parent,
                 None => return Ok(None),
             }
         }
         Ok(None)
+    }
+
+    fn load_run_with_connection(
+        conn: &Connection,
+        run_id: &str,
+    ) -> Result<Option<AgentOrgRunRecord>, String> {
+        conn.query_row(
+            "SELECT id, org_id, coordinator_agent_id, root_session_id,
+                    org_snapshot_json, entry_mode, status, work_item_id,
+                    project_slug, routine_fire_id, summary, last_error,
+                    created_at, updated_at, completed_at,
+                    continued_from_run_id, originating_message_id
+             FROM agent_org_runs WHERE id=?1 LIMIT 1",
+            [run_id],
+            row_to_run,
+        )
+        .optional()
+        .map_err(|err| err.to_string())
+    }
+
+    fn load_runs_for_root_with_connection(
+        conn: &Connection,
+        root_session_id: &str,
+    ) -> Result<Vec<AgentOrgRunRecord>, String> {
+        let select = "SELECT id, org_id, coordinator_agent_id, root_session_id,
+                             org_snapshot_json, entry_mode, status, work_item_id,
+                             project_slug, routine_fire_id, summary, last_error,
+                             created_at, updated_at, completed_at,
+                             continued_from_run_id, originating_message_id
+                      FROM agent_org_runs";
+        let mut live_stmt = conn
+            .prepare(&format!(
+                "{select}
+                 WHERE root_session_id=?1
+                   AND status IN ('starting', 'running', 'paused')
+                 LIMIT 2"
+            ))
+            .map_err(|err| err.to_string())?;
+        let mut runs = live_stmt
+            .query_map([root_session_id], row_to_run)
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        let mut stmt = conn
+            .prepare(&format!(
+                "{select}
+                 WHERE root_session_id=?1
+                 ORDER BY created_at DESC, id DESC
+                 LIMIT 2"
+            ))
+            .map_err(|err| err.to_string())?;
+        let history = stmt
+            .query_map([root_session_id], row_to_run)
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        for run in history {
+            if runs.len() == 2 {
+                break;
+            }
+            if !runs.iter().any(|existing| existing.id == run.id) {
+                runs.push(run);
+            }
+        }
+        Ok(runs)
     }
 
     /// List every persisted run that has anchored a coordinator session,
@@ -624,7 +1154,9 @@ impl AgentOrgRunStore {
                         last_error,
                         created_at,
                         updated_at,
-                        completed_at
+                        completed_at,
+                        continued_from_run_id,
+                        originating_message_id
                  FROM agent_org_runs
                  WHERE root_session_id IS NOT NULL
                  ORDER BY updated_at DESC
@@ -639,6 +1171,98 @@ impl AgentOrgRunStore {
             out.push(row.map_err(|err| err.to_string())?);
         }
         Ok(out)
+    }
+
+    pub fn list_timeline(
+        root_session_id: &str,
+        cursor: Option<AgentOrgRunTimelineCursor>,
+        limit: Option<usize>,
+    ) -> Result<AgentOrgRunTimelinePage, String> {
+        let page_size = limit.unwrap_or(50).clamp(1, 100);
+        let fetch_limit = i64::try_from(page_size + 1).unwrap_or(101);
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let mut runs = match cursor {
+            Some(cursor) => {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id, status, summary, created_at, updated_at, completed_at,
+                                continued_from_run_id
+                         FROM agent_org_runs
+                         WHERE root_session_id=?1
+                           AND (created_at, id) < (?2, ?3)
+                         ORDER BY created_at DESC, id DESC
+                         LIMIT ?4",
+                    )
+                    .map_err(|err| err.to_string())?;
+                let rows = stmt
+                    .query_map(
+                        params![root_session_id, cursor.created_at, cursor.id, fetch_limit],
+                        Self::timeline_item_from_row,
+                    )
+                    .map_err(|err| err.to_string())?;
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|err| err.to_string())?
+            }
+            None => {
+                let mut stmt = conn
+                    .prepare(
+                        "SELECT id, status, summary, created_at, updated_at, completed_at,
+                                continued_from_run_id
+                         FROM agent_org_runs
+                         WHERE root_session_id=?1
+                         ORDER BY created_at DESC, id DESC
+                         LIMIT ?2",
+                    )
+                    .map_err(|err| err.to_string())?;
+                let rows = stmt
+                    .query_map(
+                        params![root_session_id, fetch_limit],
+                        Self::timeline_item_from_row,
+                    )
+                    .map_err(|err| err.to_string())?;
+                rows.collect::<Result<Vec<_>, _>>()
+                    .map_err(|err| err.to_string())?
+            }
+        };
+        let has_more = runs.len() > page_size;
+        if has_more {
+            runs.truncate(page_size);
+        }
+        let next_cursor = has_more && !runs.is_empty();
+        let next_cursor = next_cursor.then(|| {
+            let last = runs.last().expect("non-empty timeline page");
+            AgentOrgRunTimelineCursor {
+                created_at: last.created_at.clone(),
+                id: last.id.clone(),
+            }
+        });
+        Ok(AgentOrgRunTimelinePage {
+            runs,
+            has_more,
+            next_cursor,
+        })
+    }
+
+    fn timeline_item_from_row(
+        row: &rusqlite::Row<'_>,
+    ) -> rusqlite::Result<AgentOrgRunTimelineItem> {
+        let status_raw: String = row.get(1)?;
+        let status = AgentOrgRunStatus::parse(&status_raw).ok_or_else(|| {
+            rusqlite::Error::FromSqlConversionFailure(
+                1,
+                rusqlite::types::Type::Text,
+                format!("unknown AgentOrgRunStatus value: {status_raw:?}").into(),
+            )
+        })?;
+        Ok(AgentOrgRunTimelineItem {
+            id: row.get(0)?,
+            status,
+            summary: row.get(2)?,
+            created_at: row.get(3)?,
+            updated_at: row.get(4)?,
+            completed_at: row.get(5)?,
+            continued_from_run_id: row.get(6)?,
+        })
     }
 
     /// List runs currently in `running` status, newest-updated first.
@@ -663,7 +1287,9 @@ impl AgentOrgRunStore {
                         last_error,
                         created_at,
                         updated_at,
-                        completed_at
+                        completed_at,
+                        continued_from_run_id,
+                        originating_message_id
                  FROM agent_org_runs
                  WHERE root_session_id IS NOT NULL
                    AND status = ?1
@@ -779,6 +1405,7 @@ impl AgentOrgRunStore {
             format!("failed to delete agent_inbox_materializations rows for {run_id}: {err}")
         })?;
         for table in [
+            "agent_org_run_sessions",
             "agent_org_plan_approvals",
             "agent_org_recovery_attempts",
             "agent_org_task_events",
@@ -926,16 +1553,16 @@ impl AgentOrgRunStore {
             .collect())
     }
 
-    /// Canonical member ids captured in the immutable launch snapshot.
+    /// Canonical members captured in the immutable launch snapshot.
     ///
     /// Recovery must not consult the user's current Agent Org definition: a
     /// team can be edited while an older run is still alive. `None` is kept
     /// for historical rows that predate launch snapshots; callers may still
     /// classify a materialized session, but must not invent roster membership.
-    pub(crate) fn snapshot_member_ids_with_connection(
+    fn snapshot_member_agent_ids_with_connection(
         conn: &Connection,
         org_run_id: &str,
-    ) -> Result<Option<HashSet<String>>, String> {
+    ) -> Result<Option<HashMap<String, String>>, String> {
         let snapshot_json: Option<String> = conn
             .query_row(
                 "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
@@ -952,12 +1579,29 @@ impl AgentOrgRunStore {
             serde_json::from_str(&snapshot_json).map_err(|err| {
                 format!("failed to parse Agent Org launch snapshot for run {org_run_id}: {err}")
             })?;
-        Ok(Some(
-            flatten_members(&snapshot.children, None)
-                .into_iter()
-                .map(|member| member.member_id)
-                .collect(),
-        ))
+        let mut members = HashMap::new();
+        for member in flatten_members(&snapshot.children, None) {
+            if members
+                .insert(member.member_id.clone(), member.agent_id)
+                .is_some()
+            {
+                return Err(format!(
+                    "Agent Org run {org_run_id} snapshot has duplicate member id {}",
+                    member.member_id
+                ));
+            }
+        }
+        Ok(Some(members))
+    }
+
+    pub(crate) fn snapshot_member_ids_with_connection(
+        conn: &Connection,
+        org_run_id: &str,
+    ) -> Result<Option<HashSet<String>>, String> {
+        Ok(
+            Self::snapshot_member_agent_ids_with_connection(conn, org_run_id)?
+                .map(|members| members.into_keys().collect()),
+        )
     }
 
     pub fn list_descendant_worker_sessions(
@@ -971,18 +1615,6 @@ impl AgentOrgRunStore {
         conn: &Connection,
         org_run_id: &str,
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
-        let root_session_id: Option<String> = conn
-            .query_row(
-                "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
-                params![org_run_id],
-                |row| row.get::<_, Option<String>>(0),
-            )
-            .optional()
-            .map_err(|err| err.to_string())?
-            .flatten();
-        let Some(root) = root_session_id else {
-            return Ok(Vec::new());
-        };
         let interventions =
             AgentMemberInterventionStore::list_active_with_connection(conn, org_run_id)?
                 .into_iter()
@@ -991,153 +1623,160 @@ impl AgentOrgRunStore {
 
         let mut stmt = conn
             .prepare(
-                "WITH RECURSIVE descendants(session_id) AS (
-                     SELECT session_id
-                     FROM agent_sessions child
-                     WHERE child.parent_session_id = ?1
-                       AND NOT EXISTS (
-                           SELECT 1 FROM agent_org_runs nested
-                           WHERE nested.id <> ?2
-                             AND nested.root_session_id = child.session_id
-                       )
-                     UNION
-                     SELECT s.session_id
-                     FROM agent_sessions s
-                     JOIN descendants d ON s.parent_session_id = d.session_id
-                     WHERE NOT EXISTS (
-                         SELECT 1 FROM agent_org_runs nested
-                         WHERE nested.id <> ?2
-                           AND nested.root_session_id = s.session_id
-                     )
-                 ), ranked AS (
-                     SELECT s.agent_definition_id,
-                            s.org_member_id,
-                            s.session_id,
-                            s.status,
-                            s.updated_at,
-                            ROW_NUMBER() OVER (
-                                PARTITION BY CASE
-                                    WHEN s.org_member_id IS NOT NULL
-                                        THEN 'member:' || s.org_member_id
-                                    ELSE 'session:' || s.session_id
-                                END
-                                ORDER BY s.updated_at DESC, s.session_id DESC
-                            ) AS rank
-                     FROM agent_sessions s
-                     JOIN descendants d USING (session_id)
-                     WHERE s.agent_definition_id IS NOT NULL
-                 )
-                 SELECT agent_definition_id, org_member_id, session_id, status, updated_at
-                 FROM ranked
-                 WHERE rank = 1
-                 ORDER BY updated_at DESC, session_id DESC",
+                "SELECT s.agent_definition_id,
+                        mapping.member_id,
+                        s.session_id,
+                        s.parent_session_id,
+                        s.status,
+                        s.updated_at
+                 FROM agent_org_run_sessions mapping
+                 JOIN agent_sessions s ON s.session_id=mapping.session_id
+                 WHERE mapping.org_run_id=?1
+                   AND mapping.role='worker'
+                 ORDER BY s.updated_at DESC, s.session_id DESC",
             )
             .map_err(|err| err.to_string())?;
 
         let rows = stmt
-            .query_map(params![root.clone(), org_run_id], |row| {
-                let status_raw: String = row.get(3)?;
+            .query_map([org_run_id], |row| {
+                let status_raw: String = row.get(4)?;
                 let status =
                     crate::core::session::SessionStatus::parse(&status_raw).ok_or_else(|| {
                         rusqlite::Error::FromSqlConversionFailure(
-                            3,
+                            4,
                             rusqlite::types::Type::Text,
                             format!("unknown SessionStatus value: {status_raw:?}").into(),
                         )
                     })?;
-                let agent_definition_id: String = row.get(0)?;
-                let org_member_id: Option<String> = row.get(1)?;
-                let intervention = org_member_id
-                    .as_deref()
-                    .and_then(|member_id| interventions.get(member_id).cloned());
+                let member_id: String = row.get(1)?;
+                let intervention = interventions.get(&member_id).cloned();
                 Ok(WorkerSessionRuntime {
                     intervention,
-                    agent_definition_id: Some(agent_definition_id),
+                    agent_definition_id: row.get(0)?,
                     cli_agent_type: None,
-                    member_id: org_member_id,
+                    member_id: Some(member_id),
                     session_id: row.get(2)?,
-                    parent_session_id: Some(root.clone()),
+                    parent_session_id: row.get(3)?,
                     status,
-                    updated_at: row.get(4)?,
+                    updated_at: row.get(5)?,
                 })
             })
             .map_err(|err| err.to_string())?;
+        let mut out = rows
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        drop(stmt);
 
-        let mut out = Vec::new();
-        for row in rows {
-            out.push(row.map_err(|err| err.to_string())?);
-        }
-
-        let mut cli_stmt = conn
+        let root_session_id: Option<String> = conn
+            .query_row(
+                "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                [org_run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|err| err.to_string())?
+            .flatten();
+        let Some(root_session_id) = root_session_id else {
+            return Ok(out);
+        };
+        let mut legacy_stmt = conn
             .prepare(
-                "SELECT cli_agent_type, org_member_id, session_id, status, updated_at
-                 FROM code_sessions
-                 WHERE parent_session_id = ?1
-                   AND org_member_id IS NOT NULL
-                   AND cli_agent_type IS NOT NULL
-                 ORDER BY updated_at DESC, session_id DESC",
+                "SELECT s.agent_definition_id, s.org_member_id, s.session_id,
+                        s.parent_session_id, s.status, s.updated_at
+                 FROM agent_sessions s
+                 WHERE s.parent_session_id=?1
+                   AND s.agent_definition_id IS NOT NULL
+                   AND s.org_member_id IS NOT NULL
+                   AND s.org_member_id<>'coordinator'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_org_run_sessions ownership
+                       WHERE ownership.session_id=s.session_id
+                   )
+                 ORDER BY s.updated_at DESC, s.session_id DESC",
             )
             .map_err(|err| err.to_string())?;
-        let cli_rows = cli_stmt
-            .query_map(params![root.clone()], |row| {
-                let status_raw: String = row.get(3)?;
-                let status =
-                    crate::core::session::SessionStatus::parse(&status_raw).ok_or_else(|| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            3,
-                            rusqlite::types::Type::Text,
-                            format!("unknown CLI SessionStatus value: {status_raw:?}").into(),
-                        )
-                    })?;
-                let cli_agent_type: String = row.get(0)?;
-                let org_member_id: Option<String> = row.get(1)?;
-                let intervention = org_member_id
-                    .as_deref()
-                    .and_then(|member_id| interventions.get(member_id).cloned());
-                Ok(WorkerSessionRuntime {
-                    intervention,
-                    agent_definition_id: None,
-                    cli_agent_type: Some(cli_agent_type),
-                    member_id: org_member_id,
-                    session_id: row.get(2)?,
-                    parent_session_id: Some(root.clone()),
-                    status,
-                    updated_at: row.get(4)?,
-                })
+        let legacy_rows = legacy_stmt
+            .query_map([&root_session_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
             })
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_string())?;
-        for row in cli_rows {
-            out.push(row.map_err(|err| err.to_string())?);
+        if legacy_rows.is_empty() {
+            return Ok(out);
         }
-
+        let mut seen_members = out
+            .iter()
+            .filter_map(|session| session.member_id.clone())
+            .collect::<HashSet<_>>();
+        let legacy_rows = legacy_rows
+            .into_iter()
+            .filter(|(_, member_id, _, _, _, _)| !seen_members.contains(member_id))
+            .collect::<Vec<_>>();
+        if legacy_rows.is_empty() {
+            return Ok(out);
+        }
+        let root_run_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM (
+                     SELECT 1 FROM agent_org_runs WHERE root_session_id=?1 LIMIT 2
+                 )",
+                [&root_session_id],
+                |row| row.get(0),
+            )
+            .map_err(|err| err.to_string())?;
+        if root_run_count != 1 {
+            return Err(format!(
+                "unmapped Rust Agent Org workers under root {root_session_id} are ambiguous across {root_run_count} runs"
+            ));
+        }
+        let roster = Self::snapshot_member_agent_ids_with_connection(conn, org_run_id)?;
+        for (
+            agent_definition_id,
+            member_id,
+            session_id,
+            parent_session_id,
+            status_raw,
+            updated_at,
+        ) in legacy_rows
+        {
+            if roster
+                .as_ref()
+                .is_some_and(|roster| roster.get(&member_id) != Some(&agent_definition_id))
+                || !seen_members.insert(member_id.clone())
+            {
+                return Err(format!(
+                    "ambiguous unmapped Rust Agent Org worker run={org_run_id} member={member_id} session={session_id}"
+                ));
+            }
+            let status = SessionStatus::parse(&status_raw).ok_or_else(|| {
+                format!(
+                    "unknown SessionStatus value for legacy worker {session_id}: {status_raw:?}"
+                )
+            })?;
+            out.push(WorkerSessionRuntime {
+                intervention: interventions.get(&member_id).cloned(),
+                agent_definition_id: Some(agent_definition_id),
+                cli_agent_type: None,
+                member_id: Some(member_id),
+                session_id,
+                parent_session_id,
+                status,
+                updated_at,
+            });
+        }
         out.sort_by(|left, right| {
             right
                 .updated_at
                 .cmp(&left.updated_at)
-                // Historical databases can contain both a Rust and a CLI
-                // session for one member at the same timestamp. Rust is the
-                // only supported Agent Org transport, so it wins an exact tie.
-                .then_with(|| {
-                    left.cli_agent_type
-                        .is_some()
-                        .cmp(&right.cli_agent_type.is_some())
-                })
                 .then_with(|| right.session_id.cmp(&left.session_id))
-        });
-
-        // Rust and CLI sessions live in different tables, so neither table's
-        // window function can suppress an older duplicate from the other
-        // transport.  Apply the canonical-member rule once more after the
-        // combined freshness sort.  Historical rows without a member id are
-        // distinct sessions; do not guess that they belong to one member.
-        let mut seen_canonical_workers = HashSet::new();
-        out.retain(|session| {
-            let key = session
-                .member_id
-                .as_ref()
-                .map(|member_id| format!("member:{member_id}"))
-                .unwrap_or_else(|| format!("session:{}", session.session_id));
-            seen_canonical_workers.insert(key)
         });
         Ok(out)
     }

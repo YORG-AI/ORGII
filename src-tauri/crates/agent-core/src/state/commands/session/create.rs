@@ -6,6 +6,11 @@ use core_types::key_source::KeySource;
 use core_types::providers::NativeHarnessType;
 use project_management::projects::types::PERSONAL_ORG_ID;
 
+pub(crate) struct CreatedSession {
+    pub(crate) session_id: String,
+    pub(crate) agent_org_run: Option<crate::coordination::agent_org_runs::AgentOrgRunRecord>,
+}
+
 /// Default agent type when none is provided by the caller.
 const DEFAULT_AGENT_TYPE: &str = "sde";
 
@@ -48,7 +53,8 @@ pub(crate) async fn create_session_impl(
     agent_exec_mode: Option<String>,
     native_harness_type: Option<String>,
     parent_session_id: Option<String>,
-) -> Result<serde_json::Value, String> {
+    mut agent_org_run: Option<crate::coordination::agent_org_runs::CreateAgentOrgRunParams>,
+) -> Result<CreatedSession, String> {
     // Trace the incoming key_source so drift between frontend and
     // backend posture is visible in logs. The field is now persisted
     // end-to-end on the rust-agent path (`agent_sessions.key_source`
@@ -129,6 +135,9 @@ pub(crate) async fn create_session_impl(
         worktree_path,
         project_slug,
         agent_definition_id,
+        org_member_id: agent_org_run
+            .as_ref()
+            .map(|_| crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.to_string()),
         parent_session_id,
         key_source: resolved_key_source,
         // Persist the user's launch-time mode choice (from `SessionLaunchParams.mode`)
@@ -141,10 +150,24 @@ pub(crate) async fn create_session_impl(
         ..Default::default()
     };
 
-    tokio::task::spawn_blocking(move || session_persistence::upsert_session(&session))
-        .await
-        .map_err(|err| err.to_string())?
-        .map_err(|err| err.to_string())?;
+    if let Some(params) = agent_org_run.as_mut() {
+        params.root_session_id = Some(session_id.clone());
+    }
+    let persisted_run = tokio::task::spawn_blocking(move || match agent_org_run {
+        Some(params) => {
+            crate::coordination::agent_org_runs::AgentOrgRunStore::create_with_coordinator_session(
+                params,
+                Default::default(),
+                &session,
+            )
+            .map(Some)
+        }
+        None => session_persistence::upsert_session(&session)
+            .map(|()| None)
+            .map_err(|err| err.to_string()),
+    })
+    .await
+    .map_err(|err| err.to_string())??;
 
     tracing::info!("[agent_session] Created session: {}", session_id);
 
@@ -205,8 +228,8 @@ pub(crate) async fn create_session_impl(
         }
     }
 
-    Ok(serde_json::json!({
-        "sessionId": session_id,
-        "workspacePath": workspace_path,
-    }))
+    Ok(CreatedSession {
+        session_id,
+        agent_org_run: persisted_run,
+    })
 }

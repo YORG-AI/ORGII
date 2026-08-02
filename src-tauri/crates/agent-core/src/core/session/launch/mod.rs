@@ -18,11 +18,9 @@ use tauri::Manager;
 
 use crate::coordination::agent_org_runs::{
     AgentOrgRunEntryMode, AgentOrgRunStatus, AgentOrgRunStore, CreateAgentOrgRunParams,
-    COORDINATOR_MEMBER_ID,
 };
 use crate::definitions::orgs::{AgentOrgsStore, OrgMemberLaunchOverride};
 use crate::init::launch_spec::AgentLaunchSpec;
-use crate::session::persistence;
 use crate::session::IdeContext;
 use crate::state::AgentAppState;
 use project_management::projects::types as project_types;
@@ -465,6 +463,23 @@ pub(crate) async fn launch_rust_agent_run(
         .as_ref()
         .map(|entry| entry.branch.clone());
 
+    let agent_org_run_params = match (agent_org_id.as_ref(), coordinator_agent_id.as_ref()) {
+        (Some(org_id), Some(coordinator_id)) => Some(CreateAgentOrgRunParams {
+            org_id: org_id.clone(),
+            coordinator_agent_id: coordinator_id.clone(),
+            root_session_id: None,
+            org_snapshot: effective_org_definition
+                .as_ref()
+                .ok_or("Agent Org launch is missing resolved org definition")?
+                .clone(),
+            entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+            status: AgentOrgRunStatus::Running,
+            work_item_id: work_item_id.clone(),
+            project_slug: project_slug.clone(),
+            routine_fire_id: routine_fire_id.clone(),
+        }),
+        _ => None,
+    };
     let create_result = crate::state::commands::session::create::create_session_impl(
         None,
         workspace_path.clone(),
@@ -483,14 +498,11 @@ pub(crate) async fn launch_rust_agent_run(
         request.mode.clone(),
         request.resources.native_harness_type.clone(),
         request.parent_session_id.clone(),
+        agent_org_run_params,
     )
     .await?;
 
-    let session_id = create_result
-        .get("sessionId")
-        .and_then(|value| value.as_str())
-        .ok_or("create_session_impl did not return sessionId")?
-        .to_string();
+    let session_id = create_result.session_id.clone();
 
     if let (Some(project_slug_value), Some(work_item_id_value)) =
         (project_slug.as_deref(), work_item_id.as_deref())
@@ -504,63 +516,51 @@ pub(crate) async fn launch_rust_agent_run(
         )
         .await
         {
+            if let Some(run) = create_result.agent_org_run.as_ref() {
+                if let Err(delete_err) = AgentOrgRunStore::delete_by_id(&run.id) {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        error = %delete_err,
+                        "failed to remove Agent Org run after work-item lock failure"
+                    );
+                    return Err(format!(
+                        "{err}; Agent Org cleanup also failed, so the consistent Root Session and Run were retained: {delete_err}"
+                    ));
+                }
+            }
             cleanup_session_after_org_run_create_failure(session_id.clone()).await;
             return Err(err);
         }
     }
 
-    let agent_org_run_id = match (agent_org_id.as_ref(), coordinator_agent_id.as_ref()) {
-        (Some(org_id), Some(coordinator_id)) => {
-            let org_snapshot = effective_org_definition
-                .as_ref()
-                .ok_or("Agent Org launch is missing resolved org definition")?
-                .clone();
-            let run = AgentOrgRunStore::create(CreateAgentOrgRunParams {
-                org_id: org_id.clone(),
-                coordinator_agent_id: coordinator_id.clone(),
-                root_session_id: Some(session_id.clone()),
-                org_snapshot,
-                entry_mode: AgentOrgRunEntryMode::StandaloneSession,
-                status: AgentOrgRunStatus::Running,
-                work_item_id: work_item_id.clone(),
-                project_slug: project_slug.clone(),
-                routine_fire_id,
-            });
-            match run {
-                Ok(record) => {
-                    persistence::update_org_member_id(&session_id, COORDINATOR_MEMBER_ID)
-                        .map_err(|err| format!("failed to persist coordinator member_id: {err}"))?;
-                    if let Some(org) = effective_org_definition.as_ref() {
-                        spawn_agent_org_member_materialization(
-                            record.id.clone(),
-                            org.clone(),
-                            session_id.clone(),
-                            name.clone(),
-                            workspace_path.clone(),
-                            request.resources.model.clone(),
-                            request.resources.account_id.clone(),
-                            request.resources.key_source.clone(),
-                            request.mode.clone(),
-                            request.resources.native_harness_type.clone(),
-                            work_item_id.clone(),
-                            project_slug.clone(),
-                        );
-                    }
-                    if apply_member_overrides_for_future {
-                        if let Some(store) = org_store {
-                            store.apply_member_launch_overrides(org_id, &member_overrides)?;
-                        }
-                    }
-                    Some(record.id)
-                }
-                Err(err) => {
-                    cleanup_session_after_org_run_create_failure(session_id.clone()).await;
-                    return Err(err);
-                }
-            }
+    let agent_org_run_id = create_result
+        .agent_org_run
+        .as_ref()
+        .map(|record| record.id.clone());
+    if let (Some(record), Some(org)) = (
+        create_result.agent_org_run.as_ref(),
+        effective_org_definition.as_ref(),
+    ) {
+        spawn_agent_org_member_materialization(
+            record.id.clone(),
+            org.clone(),
+            session_id.clone(),
+            name.clone(),
+            workspace_path.clone(),
+            request.resources.model.clone(),
+            request.resources.account_id.clone(),
+            request.resources.key_source.clone(),
+            request.mode.clone(),
+            request.resources.native_harness_type.clone(),
+            work_item_id.clone(),
+            project_slug.clone(),
+        );
+    }
+    if apply_member_overrides_for_future {
+        if let (Some(store), Some(org_id)) = (org_store, agent_org_id.as_deref()) {
+            store.apply_member_launch_overrides(org_id, &member_overrides)?;
         }
-        _ => None,
-    };
+    }
 
     let created_at = chrono::Utc::now().to_rfc3339();
     let has_initial_content = !request.content.trim().is_empty();

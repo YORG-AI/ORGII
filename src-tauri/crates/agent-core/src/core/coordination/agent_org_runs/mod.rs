@@ -5,6 +5,7 @@
 
 mod finality;
 mod helpers;
+mod migration;
 mod progress;
 mod store;
 mod worker;
@@ -25,7 +26,7 @@ pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 
 use rusqlite::{Connection, Result as SqliteResult};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::definitions::orgs::{HierarchyMode, OrgDefinition, PlanApprovalPolicy};
 
@@ -407,6 +408,8 @@ pub struct AgentOrgRunRecord {
     pub created_at: String,
     pub updated_at: String,
     pub completed_at: Option<String>,
+    pub continued_from_run_id: Option<String>,
+    pub originating_message_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -422,35 +425,117 @@ pub struct CreateAgentOrgRunParams {
     pub routine_fire_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct AgentOrgRunLineage {
+    pub continued_from_run_id: Option<String>,
+    pub originating_message_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum AgentOrgRunSessionRole {
+    Coordinator,
+    Worker,
+}
+
+impl AgentOrgRunSessionRole {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Coordinator => "coordinator",
+            Self::Worker => "worker",
+        }
+    }
+
+    #[cfg(test)]
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "coordinator" => Some(Self::Coordinator),
+            "worker" => Some(Self::Worker),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg(test)]
+pub(crate) struct AgentOrgRunSessionRecord {
+    pub org_run_id: String,
+    pub member_id: String,
+    pub session_id: String,
+    pub role: AgentOrgRunSessionRole,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AgentOrgRunResolutionAccess {
+    ReadOnly,
+    Mutable,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct AgentOrgRunResolution {
+    pub active_turn_run_id: Option<String>,
+    pub selected_historical_run_id: Option<String>,
+}
+
+impl AgentOrgRunResolution {
+    pub(crate) fn mutable(active_turn_run_id: Option<String>) -> Self {
+        Self {
+            active_turn_run_id,
+            selected_historical_run_id: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn read_only(selected_historical_run_id: Option<String>) -> Self {
+        Self {
+            active_turn_run_id: None,
+            selected_historical_run_id,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgRunTimelineCursor {
+    pub created_at: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgRunTimelineItem {
+    pub id: String,
+    pub status: AgentOrgRunStatus,
+    pub summary: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub completed_at: Option<String>,
+    pub continued_from_run_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgRunTimelinePage {
+    pub runs: Vec<AgentOrgRunTimelineItem>,
+    pub has_more: bool,
+    pub next_cursor: Option<AgentOrgRunTimelineCursor>,
+}
+
 /// Initialize runtime Agent Org tables in `sessions.db`.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
-    conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_runs (
-            id TEXT PRIMARY KEY,
-            org_id TEXT NOT NULL,
-            coordinator_agent_id TEXT NOT NULL,
-            root_session_id TEXT,
-            org_snapshot_json TEXT,
-            entry_mode TEXT NOT NULL,
-            status TEXT NOT NULL,
-            work_item_id TEXT,
-            project_slug TEXT,
-            routine_fire_id TEXT,
-            summary TEXT,
-            last_error TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            completed_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_org_updated
-            ON agent_org_runs(org_id, updated_at);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_root_session
-            ON agent_org_runs(root_session_id);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_work_item
-            ON agent_org_runs(work_item_id);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_runs_status
-            ON agent_org_runs(status);",
-    )?;
+    let report = migration::init_schema(conn)?;
+    report.log();
     progress::init_schema(conn)?;
     Ok(())
+}
+
+#[cfg(test)]
+fn init_schema_with_report(
+    conn: &Connection,
+) -> SqliteResult<migration::AgentOrgRunMigrationReport> {
+    let report = migration::init_schema(conn)?;
+    progress::init_schema(conn)?;
+    Ok(report)
 }

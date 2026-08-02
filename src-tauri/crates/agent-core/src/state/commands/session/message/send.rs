@@ -134,7 +134,8 @@ pub(crate) async fn send_message_impl(
         Some(effective_model.clone()),
         effective_native_harness_type,
     )
-    .await?;
+    .await?
+    .with_agent_org_run_hint(intent_org_run_id.clone());
 
     let runtime = crate::init::init_session(state, launch_spec).await?;
 

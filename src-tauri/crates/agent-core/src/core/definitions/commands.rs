@@ -153,6 +153,26 @@ pub async fn agent_org_run_list(limit: Option<usize>) -> Result<Vec<InboxRunSumm
         })
         .collect())
 }
+
+#[tauri::command]
+pub async fn agent_org_run_timeline(
+    root_session_id: String,
+    cursor: Option<crate::core::coordination::agent_org_runs::AgentOrgRunTimelineCursor>,
+    limit: Option<usize>,
+) -> Result<crate::core::coordination::agent_org_runs::AgentOrgRunTimelinePage, String> {
+    if root_session_id.trim().is_empty() {
+        return Err("rootSessionId is required".to_string());
+    }
+    tokio::task::spawn_blocking(move || {
+        crate::core::coordination::agent_org_runs::AgentOrgRunStore::list_timeline(
+            &root_session_id,
+            cursor,
+            limit,
+        )
+    })
+    .await
+    .map_err(|err| format!("Agent Org run timeline worker failed: {err}"))?
+}
 // ─────────────────────────────────────────────────────────────────────────────
 // RPC contract §13 — Typed patch RPCs.
 //

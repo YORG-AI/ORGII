@@ -94,8 +94,9 @@ fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> Wak
         },
     )
     .expect("seed coordinator session");
-    crate::session::persistence::upsert_session(
-        &crate::session::persistence::UnifiedSessionRecord {
+    AgentOrgRunStore::materialize_rust_worker_sessions(
+        &run.id,
+        &[crate::session::persistence::UnifiedSessionRecord {
             session_id: session_id.clone(),
             name: "Planner".into(),
             status: "idle".into(),
@@ -107,9 +108,9 @@ fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> Wak
             agent_definition_id: Some("planner-agent".into()),
             key_source: KeySource::OwnKey,
             ..Default::default()
-        },
+        }],
     )
-    .expect("seed member session");
+    .expect("transactionally materialize member session");
     let task_id = "mode-task".to_string();
     AgentOrgTaskStore::create(CreateTaskParams {
         id: task_id.clone(),

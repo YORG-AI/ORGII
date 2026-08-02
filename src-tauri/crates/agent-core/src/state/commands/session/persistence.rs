@@ -173,7 +173,8 @@ fn load_agent_org_session_delete_plan(
                 "SELECT id, status
                  FROM agent_org_runs
                  WHERE root_session_id=?1
-                 ORDER BY id",
+                 ORDER BY id
+                 LIMIT 2",
             )
             .map_err(|err| err.to_string())?;
         let rows = stmt
@@ -190,8 +191,7 @@ fn load_agent_org_session_delete_plan(
     };
     if run_rows.len() != 1 {
         return Err(format!(
-            "Refusing to delete Agent Org root {root_session_id}: {} runs claim the same root",
-            run_rows.len()
+            "Refusing to delete Agent Org root {root_session_id}: at least 2 runs claim the same root"
         ));
     }
     let run_status = crate::coordination::agent_org_runs::AgentOrgRunStatus::parse(run_status_raw)
@@ -1275,6 +1275,13 @@ mod tests {
         seed_run_owned_rows("hierarchy-worker-run");
 
         let conn = get_connection().expect("sandbox DB");
+        conn.execute(
+            "INSERT INTO agent_org_run_sessions (
+                 org_run_id, member_id, session_id, role, created_at
+             ) VALUES ('hierarchy-worker-run', 'worker', ?1, 'worker', ?2)",
+            rusqlite::params![worker, "2026-07-16T00:00:00Z"],
+        )
+        .expect("seed exact worker mapping");
         assert!(
             load_agent_org_session_delete_plan(&conn, worker)
                 .expect("plan worker")
@@ -1285,6 +1292,7 @@ mod tests {
         session_persistence::delete_session(worker).expect("canonical single-session deletion");
 
         assert!(!row_exists("agent_sessions", "session_id", worker));
+        assert!(!row_exists("agent_org_run_sessions", "session_id", worker));
         assert!(row_exists("agent_sessions", "session_id", root));
         assert!(row_exists("agent_org_runs", "id", "hierarchy-worker-run"));
         assert!(row_exists(

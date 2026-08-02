@@ -33,6 +33,7 @@ pub(super) async fn try_reuse_existing(
     account_id: Option<&str>,
     requested_model: Option<&str>,
     workspace_root: &Path,
+    durable_agent_org_run_id: Option<&str>,
 ) -> Option<Arc<SessionRuntime>> {
     let session = state.get_session(session_id).await?;
     let existing = session.get_runtime().await?;
@@ -47,8 +48,13 @@ pub(super) async fn try_reuse_existing(
         None => true,
     };
     let project_matches = existing.workspace_state.read().working_dir() == workspace_root;
+    let ownership_matches = existing
+        .agent_org_context
+        .as_ref()
+        .map(|context| context.run_id.as_str())
+        == durable_agent_org_run_id;
 
-    if account_matches && model_matches && project_matches {
+    if account_matches && model_matches && project_matches && ownership_matches {
         Some(existing)
     } else {
         tracing::info!("[init] Session {} needs reinitialization", session_id);

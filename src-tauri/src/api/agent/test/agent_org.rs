@@ -5,8 +5,8 @@
 //! probes (driving an `AgentInboxStore` / `AgentOrgRunContext` helper
 //! directly, no live session, no LLM). The caller-path exceptions are
 //! `launch-coordinator`, which drives the canonical `session_launch_impl`,
-//! and `session-return-to-work`, which drives the production wake scheduler
-//! and inbox drain on a materialized member session. Each endpoint's
+//! `session-return-to-work`, which drives the production wake scheduler and
+//! inbox drain, and `session-delete/attempt`, which calls production deletion. Each endpoint's
 //! individual doc states which kind it is. Helper-isolation probes catch
 //! contract drift cheaply; the deterministic fake-provider return-to-work
 //! scenario catches regressions where the real turn processor stops draining
@@ -1783,7 +1783,8 @@ pub async fn test_agent_org_seed_stale_worker_run(
         })?;
 
         let mut worker_sessions = Vec::new();
-        for worker in workers {
+        let mut worker_records = Vec::new();
+        for (index, worker) in workers.into_iter().enumerate() {
             let Some(worker_obj) = worker.as_object() else {
                 return Err("each worker must be an object".to_string());
             };
@@ -1797,7 +1798,8 @@ pub async fn test_agent_org_seed_stale_worker_run(
                 .get("member_id")
                 .and_then(|value| value.as_str())
                 .filter(|value| !value.trim().is_empty())
-                .map(str::to_string);
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("worker-{index}"));
             let session_id = worker_obj
                 .get("session_id")
                 .and_then(|value| value.as_str())
@@ -1824,19 +1826,18 @@ pub async fn test_agent_org_seed_stale_worker_run(
                 .map(str::to_string)
                 .unwrap_or_else(|| root_session_id.clone());
 
-            upsert_session(&UnifiedSessionRecord {
+            worker_records.push(UnifiedSessionRecord {
                 session_id: session_id.clone(),
                 name: format!("stale-worker-{agent_definition_id}"),
                 status: status.as_str().to_string(),
                 session_type: session_type::ORG_MEMBER.to_string(),
                 parent_session_id: Some(parent_session_id),
                 agent_definition_id: Some(agent_definition_id.clone()),
-                org_member_id: member_id,
+                org_member_id: Some(member_id),
                 created_at: updated_at.clone(),
                 updated_at: updated_at.clone(),
                 ..Default::default()
-            })
-            .map_err(|err| err.to_string())?;
+            });
             worker_sessions.push(serde_json::json!({
                 "session_id": session_id,
                 "agent_definition_id": agent_definition_id,
@@ -1844,6 +1845,7 @@ pub async fn test_agent_org_seed_stale_worker_run(
                 "status": status.as_str(),
             }));
         }
+        AgentOrgRunStore::materialize_rust_worker_sessions(&run.id, &worker_records)?;
 
         Ok::<serde_json::Value, String>(serde_json::json!({
             "ok": true,
@@ -1905,35 +1907,94 @@ pub async fn test_agent_org_session_delete_snapshot(
     }
 
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        use rusqlite::OptionalExtension;
+        use std::collections::BTreeMap;
+
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let mut sessions = serde_json::Map::new();
-        for session_id in session_ids {
-            let exists = conn
+        for session_id in &session_ids {
+            let row = conn
                 .query_row(
-                    "SELECT EXISTS(
-                         SELECT 1 FROM agent_sessions WHERE session_id=?1
-                     )",
-                    [&session_id],
-                    |row| row.get::<_, bool>(0),
+                    "SELECT status, org_member_id, parent_session_id,
+                            agent_definition_id, updated_at
+                     FROM agent_sessions WHERE session_id=?1",
+                    [session_id],
+                    |row| {
+                        Ok(serde_json::json!({
+                            "status": row.get::<_, String>(0)?,
+                            "org_member_id": row.get::<_, Option<String>>(1)?,
+                            "parent_session_id": row.get::<_, Option<String>>(2)?,
+                            "agent_definition_id": row.get::<_, Option<String>>(3)?,
+                            "updated_at": row.get::<_, String>(4)?,
+                        }))
+                    },
                 )
+                .optional()
                 .map_err(|err| err.to_string())?;
-            sessions.insert(session_id, serde_json::Value::Bool(exists));
+            sessions.insert(session_id.clone(), row.unwrap_or(serde_json::Value::Null));
         }
         let mut runs = serde_json::Map::new();
-        for run_id in run_ids {
-            let exists = conn
+        for run_id in &run_ids {
+            let row = conn
                 .query_row(
-                    "SELECT EXISTS(SELECT 1 FROM agent_org_runs WHERE id=?1)",
-                    [&run_id],
-                    |row| row.get::<_, bool>(0),
+                    "SELECT status, root_session_id, updated_at, completed_at,
+                            continued_from_run_id, originating_message_id
+                     FROM agent_org_runs WHERE id=?1",
+                    [run_id],
+                    |row| {
+                        Ok(serde_json::json!({
+                            "status": row.get::<_, String>(0)?,
+                            "root_session_id": row.get::<_, Option<String>>(1)?,
+                            "updated_at": row.get::<_, String>(2)?,
+                            "completed_at": row.get::<_, Option<String>>(3)?,
+                            "continued_from_run_id": row.get::<_, Option<String>>(4)?,
+                            "originating_message_id": row.get::<_, Option<String>>(5)?,
+                        }))
+                    },
+                )
+                .optional()
+                .map_err(|err| err.to_string())?;
+            runs.insert(run_id.clone(), row.unwrap_or(serde_json::Value::Null));
+        }
+        let mut mappings = BTreeMap::new();
+        for session_id in &session_ids {
+            let mut stmt = conn
+                .prepare(
+                    "SELECT org_run_id, member_id, session_id, role, created_at
+                     FROM agent_org_run_sessions WHERE session_id=?1",
                 )
                 .map_err(|err| err.to_string())?;
-            runs.insert(run_id, serde_json::Value::Bool(exists));
+            let rows = stmt
+                .query_map([session_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                    ))
+                })
+                .map_err(|err| err.to_string())?;
+            for row in rows {
+                let (run_id, member_id, mapped_session_id, role, created_at) =
+                    row.map_err(|err| err.to_string())?;
+                mappings.insert(
+                    format!("{run_id}\0{member_id}\0{mapped_session_id}"),
+                    serde_json::json!({
+                        "org_run_id": run_id,
+                        "member_id": member_id,
+                        "session_id": mapped_session_id,
+                        "role": role,
+                        "created_at": created_at,
+                    }),
+                );
+            }
         }
         Ok(serde_json::json!({
             "ok": true,
             "sessions": sessions,
             "runs": runs,
+            "mappings": mappings.into_values().collect::<Vec<_>>(),
         }))
     })
     .await;
@@ -1945,6 +2006,41 @@ pub async fn test_agent_org_session_delete_snapshot(
         })),
         Ok(Err(err)) => Json(serde_json::json!({ "ok": false, "error": err })),
         Ok(Ok(value)) => Json(value),
+    }
+}
+
+/// Debug-only bridge to production `agent_delete_session`.
+pub async fn test_agent_org_session_delete_attempt(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use tauri::Manager;
+
+    let session_id = match body.get("session_id").and_then(|value| value.as_str()) {
+        Some(value) if !value.trim().is_empty() => value.to_string(),
+        _ => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": "session_id is required (non-empty string)"
+            }))
+        }
+    };
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({ "ok": false, "error": "AppHandle not initialized." }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+    match agent_core::state::commands::session::agent_delete_session(state, session_id.clone())
+        .await
+    {
+        Ok(receipt) => Json(serde_json::json!({
+            "ok": true,
+            "session_id": session_id,
+            "receipt": receipt,
+        })),
+        Err(error) => Json(serde_json::json!({
+            "ok": false,
+            "session_id": session_id,
+            "error": error,
+        })),
     }
 }
 

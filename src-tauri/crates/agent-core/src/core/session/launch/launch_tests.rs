@@ -3,12 +3,17 @@ use super::launch_helpers::{
     member_runtime_key_source, member_runtime_model, member_runtime_native_harness_type,
     member_runtime_tier, validate_launch_agent_definitions,
 };
+use super::{
+    launch_rust_agent_run, AgentRunLaunchRequest, AgentRunTarget, LaunchOrgContext,
+    LaunchProvenance, LaunchResourceSelection, WorkspaceLaunchTarget,
+};
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 use crate::definitions::builtin::SDE_AGENT_ID;
 use crate::definitions::orgs::{
-    HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
-    PlanApprovalPolicy,
+    AgentOrgsStore, HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride,
+    OrgMemberRuntimeConfig, PlanApprovalPolicy,
 };
+use crate::state::AgentAppState;
 use core_types::key_source::KeySource;
 use std::collections::HashMap;
 
@@ -169,23 +174,99 @@ fn launch_validation_rejects_agent_org_with_missing_member_definition() {
     assert!(error.contains("custom:deleted-worker"), "{error}");
 }
 
-#[test]
-fn launch_validation_rejects_cli_member_before_run_materialization() {
-    let _sandbox = test_helpers::test_env::sandbox();
-    let org = valid_org_with_children(vec![OrgMember {
-        id: "cli-worker".to_string(),
-        name: "CLI Worker".to_string(),
-        role: "Builder".to_string(),
-        agent_id: "cli:claude_code".to_string(),
-        runtime_config: None,
-        children: Vec::new(),
-    }]);
+#[tokio::test]
+async fn launch_validation_rejects_cli_participants_before_session_or_run_creation() {
+    let sandbox = test_helpers::test_env::sandbox();
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+        .expect("session snapshot schema");
+    crate::session::persistence::init(&conn).expect("unified session schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org runtime schemas");
 
-    let error = validate_launch_agent_definitions(Some(SDE_AGENT_ID), Some(&org))
-        .expect_err("CLI Agent Org members are not production-capable yet");
-    assert!(error.contains("cli-worker"), "{error}");
-    assert!(error.contains("cli:claude_code"), "{error}");
-    assert!(error.contains("inbox"), "{error}");
+    let store = AgentOrgsStore::new();
+    let state = AgentAppState::new();
+    for (label, cli_coordinator, expected_participant) in [
+        ("coordinator", true, "coordinator"),
+        ("worker", false, "cli-worker"),
+    ] {
+        let children = if cli_coordinator {
+            Vec::new()
+        } else {
+            vec![OrgMember {
+                id: "cli-worker".to_string(),
+                name: "CLI Worker".to_string(),
+                role: "Builder".to_string(),
+                agent_id: "cli:claude_code".to_string(),
+                runtime_config: None,
+                children: Vec::new(),
+            }]
+        };
+        let mut org = valid_org_with_children(children);
+        org.id = format!("test:cli-{label}-launch");
+        org.name = format!("CLI {label} Launch");
+        if cli_coordinator {
+            org.agent_id = "cli:claude_code".to_string();
+        }
+        store
+            .seed_for_test(org.clone())
+            .expect("seed unsupported CLI participant fixture");
+
+        let count_rows = || -> (i64, i64, i64) {
+            conn.query_row(
+                "SELECT (SELECT COUNT(*) FROM agent_sessions),
+                        (SELECT COUNT(*) FROM agent_org_runs),
+                        (SELECT COUNT(*) FROM agent_org_run_sessions)",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("count Agent Org persistence rows")
+        };
+        let before = count_rows();
+        let error = launch_rust_agent_run(
+            &state,
+            Some(&store),
+            AgentRunLaunchRequest {
+                content: "must reject before materialization".to_string(),
+                target: AgentRunTarget::AgentOrg {
+                    agent_org_id: org.id,
+                    agent_definition_id: None,
+                    member_overrides: HashMap::new(),
+                    apply_member_overrides_for_future: false,
+                },
+                resources: LaunchResourceSelection {
+                    key_source: None,
+                    account_id: None,
+                    model: None,
+                    native_harness_type: None,
+                },
+                workspace: WorkspaceLaunchTarget::LocalWorkspace {
+                    workspace_path: sandbox.path().to_string_lossy().into_owned(),
+                    additional_directories: Vec::new(),
+                },
+                org_context: LaunchOrgContext {
+                    org_id: project_management::projects::types::PERSONAL_ORG_ID.to_string(),
+                    project_id: None,
+                    project_name: None,
+                },
+                provenance: LaunchProvenance::UserSession,
+                mode: None,
+                name: None,
+                images: None,
+                ide_context: None,
+                parent_session_id: None,
+                sub_agent_ids: Vec::new(),
+            },
+        )
+        .await
+        .expect_err("CLI participant must fail before Root Session and Run creation");
+
+        assert!(error.contains(expected_participant), "{label}: {error}");
+        assert!(error.contains("cli:claude_code"), "{label}: {error}");
+        assert!(error.contains("inbox"), "{label}: {error}");
+        assert!(error.contains("task tools"), "{label}: {error}");
+        assert_eq!(count_rows(), before, "{label}: rejected launch mutated DB");
+    }
 }
 
 #[test]

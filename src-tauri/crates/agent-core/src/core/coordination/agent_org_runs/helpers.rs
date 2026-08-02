@@ -8,37 +8,6 @@ use super::{
     AgentOrgRunStatus, DEFAULT_COORDINATOR_DISPLAY_NAME,
 };
 
-/// Single-column lookup for the parent of `session_id` in persisted runtime
-/// session tables. Used by `context_for_session_with_parent_walk` to avoid
-/// pulling full session rows on every hop — the walk only needs the
-/// `parent_session_id` string.
-///
-/// Returns `Ok(None)` for both "session does not exist" and "session exists
-/// but has no parent". Both cases terminate the walk identically;
-/// distinguishing them would not change the resolver outcome.
-pub(super) fn parent_session_id_of(session_id: &str) -> SqliteResult<Option<String>> {
-    let conn = get_connection()?;
-    let parent = conn
-        .query_row(
-            "SELECT parent_session_id FROM agent_sessions WHERE session_id = ?1",
-            params![session_id],
-            |row| row.get::<_, Option<String>>(0),
-        )
-        .optional()?
-        .flatten();
-    if parent.is_some() {
-        return Ok(parent);
-    }
-
-    conn.query_row(
-        "SELECT parent_session_id FROM code_sessions WHERE session_id = ?1",
-        params![session_id],
-        |row| row.get::<_, Option<String>>(0),
-    )
-    .optional()
-    .map(|outer| outer.flatten())
-}
-
 pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>> {
     let conn = get_connection()?;
     conn.query_row(
@@ -56,41 +25,13 @@ pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>
                 last_error,
                 created_at,
                 updated_at,
-                completed_at
+                completed_at,
+                continued_from_run_id,
+                originating_message_id
          FROM agent_org_runs
          WHERE id = ?1
          LIMIT 1",
         params![run_id],
-        row_to_run,
-    )
-    .optional()
-}
-
-pub(super) fn load_by_root_session(
-    root_session_id: &str,
-) -> SqliteResult<Option<AgentOrgRunRecord>> {
-    let conn = get_connection()?;
-    conn.query_row(
-        "SELECT id,
-                org_id,
-                coordinator_agent_id,
-                root_session_id,
-                org_snapshot_json,
-                entry_mode,
-                status,
-                work_item_id,
-                project_slug,
-                routine_fire_id,
-                summary,
-                last_error,
-                created_at,
-                updated_at,
-                completed_at
-         FROM agent_org_runs
-         WHERE root_session_id = ?1
-         ORDER BY created_at DESC
-         LIMIT 1",
-        params![root_session_id],
         row_to_run,
     )
     .optional()
@@ -129,6 +70,8 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRec
         created_at: row.get(12)?,
         updated_at: row.get(13)?,
         completed_at: row.get(14)?,
+        continued_from_run_id: row.get(15)?,
+        originating_message_id: row.get(16)?,
     })
 }
 
@@ -211,8 +154,10 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             last_error,
             created_at,
             updated_at,
-            completed_at
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+            completed_at,
+            continued_from_run_id,
+            originating_message_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
         params![
             &run.id,
             &run.org_id,
@@ -229,6 +174,8 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             &run.created_at,
             &run.updated_at,
             run.completed_at.as_deref(),
+            run.continued_from_run_id.as_deref(),
+            run.originating_message_id.as_deref(),
         ],
     )?;
     Ok(())

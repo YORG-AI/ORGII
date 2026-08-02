@@ -111,6 +111,7 @@ struct UnifiedInitRequest<'a> {
     model_override: Option<&'a str>,
     /// Provider override for subscription-bound native harness sessions.
     native_harness_type: Option<NativeHarnessType>,
+    agent_org_run_hint: Option<&'a str>,
 }
 
 /// Build the `(ResolvedAgent, IntegrationsConfig, SessionOverrides)` triad
@@ -206,6 +207,7 @@ pub async fn init_session(
         account_id,
         model_override,
         native_harness_type,
+        agent_org_run_hint,
     } = spec;
     let (resolved, integrations, overrides) =
         resolve_for_session(state, &definition, workspace, model_override.as_deref())?;
@@ -219,6 +221,7 @@ pub async fn init_session(
         overrides,
         model_override: model_override.as_deref(),
         native_harness_type,
+        agent_org_run_hint: agent_org_run_hint.as_deref(),
     })
     .await
 }
@@ -235,19 +238,24 @@ pub async fn init_session(
 fn load_agent_org_context(
     state: &AgentAppState,
     session_id: &str,
-) -> Option<crate::coordination::agent_org_runs::AgentOrgRunContext> {
+    run_hint: Option<&str>,
+) -> Result<Option<crate::coordination::agent_org_runs::AgentOrgRunContext>, String> {
     let Some(handle) = state.app_handle.as_ref() else {
         tracing::debug!(
             session_id = %session_id,
             "[init] agent_org_context lookup skipped (no app_handle — headless context)"
         );
-        return None;
+        return Ok(None);
     };
     use tauri::Manager;
     let org_store = handle.state::<std::sync::Arc<crate::definitions::orgs::AgentOrgsStore>>();
-    match crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_session_with_parent_walk(
+    match crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_session(
         session_id,
         org_store.inner(),
+        crate::coordination::agent_org_runs::AgentOrgRunResolution::mutable(
+            run_hint.map(str::to_string),
+        ),
+        crate::coordination::agent_org_runs::AgentOrgRunResolutionAccess::Mutable,
     ) {
         Ok(Some(ctx)) => {
             // Surfacing this at info is intentional: the runtime visibility
@@ -263,14 +271,14 @@ fn load_agent_org_context(
                 member_count = ctx.members.len(),
                 "[init] loaded Agent Org context"
             );
-            Some(ctx)
+            Ok(Some(ctx))
         }
         Ok(None) => {
             tracing::debug!(
                 session_id = %session_id,
                 "[init] no Agent Org context for this session (parent walk found no anchored run)"
             );
-            None
+            Ok(None)
         }
         Err(err) => {
             tracing::warn!(
@@ -278,7 +286,7 @@ fn load_agent_org_context(
                 error = %err,
                 "[init] failed to load Agent Org context"
             );
-            None
+            Err(err)
         }
     }
 }
@@ -303,6 +311,7 @@ async fn ensure_session_initialized(
         overrides,
         model_override,
         native_harness_type,
+        agent_org_run_hint,
     } = request;
 
     let workspace_root = resolved.workspace().to_path_buf();
@@ -319,6 +328,7 @@ async fn ensure_session_initialized(
         _ if !resolved.selected_model_id.is_empty() => Some(resolved.selected_model_id.clone()),
         _ => None,
     };
+    let agent_org_context = load_agent_org_context(state, session_id, agent_org_run_hint)?;
 
     // Fast path: re-entrant init for an already-running session.
     if let Some(existing) = fast_path::try_reuse_existing(
@@ -327,6 +337,9 @@ async fn ensure_session_initialized(
         account_id,
         requested_model.as_deref(),
         &workspace_root,
+        agent_org_context
+            .as_ref()
+            .map(|context| context.run_id.as_str()),
     )
     .await
     {
@@ -451,8 +464,6 @@ async fn ensure_session_initialized(
     // member-submitted plans to the coordinator's inbox instead of the
     // user's Build button) see the same snapshot the overlay-assembly
     // step uses below.
-    let agent_org_context = load_agent_org_context(state, session_id);
-
     let agent_browser_config = {
         let controller = state.agent_browser.lock().await;
         controller.config()
@@ -461,9 +472,19 @@ async fn ensure_session_initialized(
     let session_record = crate::session::persistence::get_session(session_id)
         .ok()
         .flatten();
-    let agent_org_current_member_id = session_record
-        .as_ref()
-        .and_then(|record| record.org_member_id.clone());
+    let agent_org_current_member_id = match agent_org_context.as_ref() {
+        Some(context) if context.root_session_id.as_deref() == Some(session_id) => {
+            Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.to_string())
+        }
+        Some(_) => {
+            crate::coordination::agent_org_runs::AgentOrgRunStore::member_id_for_mapped_session(
+                session_id,
+            )?
+        }
+        None => session_record
+            .as_ref()
+            .and_then(|record| record.org_member_id.clone()),
+    };
     let session_org_id = session_record.and_then(|record| record.org_id);
 
     let mut readonly_extra_dirs = vec![crate::skills::loader::global_skills_dir()];

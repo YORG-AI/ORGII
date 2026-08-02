@@ -14,65 +14,36 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     run_id: &str,
     session_id: &str,
 ) -> Result<usize, String> {
-    use crate::coordination::agent_org_runs::{AgentOrgRunStatus, COORDINATOR_MEMBER_ID};
+    use crate::coordination::agent_org_runs::AgentOrgRunStatus;
     use crate::session::SessionStatus;
 
     let wakeable = SessionStatus::AGENT_ORG_WAKEABLE;
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "WITH RECURSIVE
-         run_anchor(root_session_id) AS (
-             SELECT root_session_id
-             FROM agent_org_runs
-             WHERE id=?4 AND status=?5 AND root_session_id IS NOT NULL
-         ),
-         descendants(session_id) AS (
-             SELECT root_session_id FROM run_anchor
-             UNION
-             SELECT child.session_id
-             FROM agent_sessions child
-             JOIN descendants parent ON child.parent_session_id=parent.session_id
-             WHERE NOT EXISTS (
-                 SELECT 1 FROM agent_org_runs nested
-                 WHERE nested.id<>?4
-                   AND nested.root_session_id=child.session_id
-             )
-         ),
-         ranked(session_id, member_rank) AS (
-             SELECT session.session_id,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY CASE
-                            WHEN session.session_id=anchor.root_session_id
-                                THEN 'coordinator'
-                            ELSE 'member:' || session.org_member_id
-                        END
-                        ORDER BY session.updated_at DESC, session.session_id DESC
-                    )
-             FROM agent_sessions session
-             JOIN descendants USING (session_id)
-             CROSS JOIN run_anchor anchor
-             WHERE session.session_id=anchor.root_session_id
-                OR (session.agent_definition_id IS NOT NULL
-                    AND session.org_member_id IS NOT NULL)
-         )
-         UPDATE agent_sessions
+        "UPDATE agent_sessions
          SET status=?1, updated_at=?2
          WHERE session_id=?3
            AND status IN (?6, ?7, ?8, ?9, ?10, ?11)
-           AND session_id IN (
-               SELECT session_id FROM ranked WHERE member_rank=1
+           AND EXISTS (
+               SELECT 1
+               FROM agent_org_run_sessions ownership
+               JOIN agent_org_runs run ON run.id=ownership.org_run_id
+               WHERE ownership.org_run_id=?4
+                 AND ownership.session_id=agent_sessions.session_id
+                 AND run.status=?5
            )
            AND NOT EXISTS (
                SELECT 1
                FROM agent_member_interventions intervention
                WHERE intervention.org_run_id=?4
-                 AND intervention.member_id=CASE
-                     WHEN agent_sessions.session_id=(SELECT root_session_id FROM run_anchor)
-                         THEN ?12
-                     ELSE agent_sessions.org_member_id
-                 END
+                 AND intervention.member_id=(
+                     SELECT ownership.member_id
+                     FROM agent_org_run_sessions ownership
+                     WHERE ownership.org_run_id=?4
+                       AND ownership.session_id=agent_sessions.session_id
+                 )
                  AND intervention.cleared_at IS NULL
-                 AND datetime(intervention.resume_after)>datetime(?13)
+                 AND datetime(intervention.resume_after)>datetime(?12)
            )",
         rusqlite::params![
             SessionStatus::Running.as_str(),
@@ -86,45 +57,37 @@ pub(super) fn promote_agent_org_wake_session_to_running(
             wakeable[3].as_str(),
             wakeable[4].as_str(),
             wakeable[5].as_str(),
-            COORDINATOR_MEMBER_ID,
             &now,
         ],
     )
     .map_err(|error| error.to_string())
 }
 
-/// Promote a direct Rust Agent Org turn unless deletion has established the
-/// run's terminal `cancelled` fence. Direct user turns intentionally retain
-/// their existing behavior for completed/failed historical runs; this guard
-/// only closes the race where a message was queued while hierarchy deletion
-/// was stopping the run.
+/// Promote a direct Rust Agent Org turn only while its exact owning run is
+/// mutable. Historical run selection is read-only and cannot revive a
+/// terminal run.
 pub(super) fn promote_agent_org_direct_session_to_running(
     conn: &rusqlite::Connection,
     run_id: &str,
     session_id: &str,
 ) -> Result<usize, String> {
-    use rusqlite::OptionalExtension;
-
-    let run_status = conn
-        .query_row(
-            "SELECT status FROM agent_org_runs WHERE id=?1",
-            [run_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()
-        .map_err(|error| error.to_string())?;
-    if run_status.as_deref() == Some("cancelled") || run_status.is_none() {
-        return Ok(0);
-    }
-
     conn.execute(
         "UPDATE agent_sessions
          SET status=?1, updated_at=?2
-         WHERE session_id=?3",
+         WHERE session_id=?3
+           AND EXISTS (
+               SELECT 1
+               FROM agent_org_run_sessions ownership
+               JOIN agent_org_runs run ON run.id=ownership.org_run_id
+               WHERE ownership.org_run_id=?4
+                 AND ownership.session_id=agent_sessions.session_id
+                 AND run.status='running'
+           )",
         rusqlite::params![
             crate::session::SessionStatus::Running.as_str(),
             chrono::Utc::now().to_rfc3339(),
             session_id,
+            run_id,
         ],
     )
     .map_err(|error| error.to_string())
@@ -151,9 +114,9 @@ pub(super) fn resolve_agent_org_wake_mode(
         .map_err(|error| error.to_string())?;
     let member_id: String = tx
         .query_row(
-            "SELECT org_member_id FROM agent_sessions
-             WHERE session_id=?1 AND org_member_id IS NOT NULL",
-            params![session_id],
+            "SELECT member_id FROM agent_org_run_sessions
+             WHERE org_run_id=?1 AND session_id=?2",
+            params![run_id, session_id],
             |row| row.get(0),
         )
         .optional()

@@ -5,7 +5,7 @@ use crate::core::session::SessionStatus;
 use crate::definitions::orgs::{
     AgentOrgsStore, HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy,
 };
-use rusqlite::params;
+use rusqlite::{params, OptionalExtension};
 
 #[test]
 fn enum_values_round_trip() {
@@ -95,6 +95,615 @@ fn create_run_for_root(org: &OrgDefinition, root_session_id: &str) -> AgentOrgRu
         routine_fire_id: None,
     })
     .expect("create run")
+}
+
+fn run_params(org: &OrgDefinition, root_session_id: &str) -> CreateAgentOrgRunParams {
+    CreateAgentOrgRunParams {
+        org_id: org.id.clone(),
+        coordinator_agent_id: org.agent_id.clone(),
+        root_session_id: Some(root_session_id.to_string()),
+        org_snapshot: org.clone(),
+        entry_mode: AgentOrgRunEntryMode::StandaloneSession,
+        status: AgentOrgRunStatus::Running,
+        work_item_id: None,
+        project_slug: None,
+        routine_fire_id: None,
+    }
+}
+
+fn set_run_status(run_id: &str, status: &str) {
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET status=?2, updated_at=?3 WHERE id=?1",
+        params![run_id, status, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("set test run status");
+}
+
+#[test]
+fn run_constraints_allow_history_but_reject_duplicate_live_and_origin_message() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let root = "root-run-constraints";
+    ensure_runtime_schemas();
+
+    let first = AgentOrgRunStore::create_with_lineage(
+        run_params(&org, root),
+        AgentOrgRunLineage {
+            continued_from_run_id: None,
+            originating_message_id: Some("message-one".to_string()),
+        },
+    )
+    .expect("create first run");
+    assert!(AgentOrgRunStore::create(run_params(&org, root)).is_err());
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let starting_result = conn.execute(
+        "INSERT INTO agent_org_runs (
+            id, org_id, coordinator_agent_id, root_session_id,
+            entry_mode, status, created_at, updated_at
+         ) VALUES ('starting-duplicate', ?1, ?2, ?3, 'standalone_session',
+                   'starting', ?4, ?4)",
+        params![
+            &org.id,
+            &org.agent_id,
+            root,
+            chrono::Utc::now().to_rfc3339()
+        ],
+    );
+    assert!(starting_result.is_err(), "starting must count as live");
+
+    set_run_status(&first.id, "completed");
+    let second = AgentOrgRunStore::create_with_lineage(
+        run_params(&org, root),
+        AgentOrgRunLineage {
+            continued_from_run_id: Some(first.id.clone()),
+            originating_message_id: Some("message-two".to_string()),
+        },
+    )
+    .expect("create sequential second run");
+    assert_eq!(
+        second.continued_from_run_id.as_deref(),
+        Some(first.id.as_str())
+    );
+
+    set_run_status(&second.id, "completed");
+    let duplicate_origin = AgentOrgRunStore::create_with_lineage(
+        run_params(&org, root),
+        AgentOrgRunLineage {
+            continued_from_run_id: Some(second.id.clone()),
+            originating_message_id: Some("message-one".to_string()),
+        },
+    );
+    assert!(duplicate_origin.is_err());
+
+    let coordinator_mappings: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_run_sessions
+             WHERE session_id=?1 AND role='coordinator'",
+            [root],
+            |row| row.get(0),
+        )
+        .expect("count coordinator mappings");
+    assert_eq!(coordinator_mappings, 2);
+    let sidebar_runs =
+        AgentOrgRunStore::list_runs_for_root_session_ids(&[root.to_string()]).unwrap();
+    assert_eq!(sidebar_runs.len(), 1);
+    assert_eq!(sidebar_runs[0].id, second.id);
+    let sidebar_plan = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN
+             WITH requested_roots(root_session_id) AS (VALUES (?1))
+             SELECT candidate.id FROM requested_roots requested
+             JOIN agent_org_runs candidate ON candidate.id=(
+                 SELECT latest.id FROM agent_org_runs latest
+                 WHERE latest.root_session_id=requested.root_session_id
+                 ORDER BY latest.updated_at DESC, latest.id DESC LIMIT 1
+             )",
+        )
+        .unwrap()
+        .query_map([root], |row| row.get::<_, String>(3))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(sidebar_plan
+        .iter()
+        .any(|detail| detail.contains("idx_agent_org_runs_root_updated")));
+    assert!(!sidebar_plan
+        .iter()
+        .any(|detail| detail.contains("SCAN candidate")));
+}
+
+#[test]
+fn coordinator_and_rust_worker_creation_are_transactional() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    ensure_runtime_schemas();
+    let root_session = UnifiedSessionRecord {
+        session_id: "root-atomic-create".to_string(),
+        name: "atomic coordinator".to_string(),
+        status: SessionStatus::Idle.as_str().to_string(),
+        session_type: "agent".to_string(),
+        agent_definition_id: Some(org.agent_id.clone()),
+        org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        ..Default::default()
+    };
+    let run = AgentOrgRunStore::create_with_coordinator_session(
+        run_params(&org, &root_session.session_id),
+        Default::default(),
+        &root_session,
+    )
+    .expect("atomically create coordinator, run, and mapping");
+    assert_eq!(
+        AgentOrgRunStore::mapping_for_session(&root_session.session_id)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let worker = UnifiedSessionRecord {
+        session_id: "worker-atomic-create".to_string(),
+        name: "atomic worker".to_string(),
+        status: SessionStatus::Idle.as_str().to_string(),
+        session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
+        agent_definition_id: Some("agent-w1".to_string()),
+        org_member_id: Some("member-w1".to_string()),
+        parent_session_id: Some(root_session.session_id.clone()),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        ..Default::default()
+    };
+    AgentOrgRunStore::materialize_rust_worker_sessions(&run.id, std::slice::from_ref(&worker))
+        .expect("atomically create Rust worker and mapping");
+    upsert_session(&UnifiedSessionRecord {
+        org_member_id: None,
+        ..worker.clone()
+    })
+    .expect("partial upsert preserves mapped member identity");
+    let drifted = UnifiedSessionRecord {
+        org_member_id: Some("member-w2".to_string()),
+        ..worker.clone()
+    };
+    assert!(upsert_session(&drifted).is_err());
+    assert_eq!(
+        crate::session::persistence::get_session(&worker.session_id)
+            .unwrap()
+            .unwrap()
+            .org_member_id
+            .as_deref(),
+        Some("member-w1")
+    );
+    assert_eq!(
+        AgentOrgRunStore::mapping_for_session(&worker.session_id).unwrap()[0].member_id,
+        "member-w1"
+    );
+
+    let duplicate = UnifiedSessionRecord {
+        session_id: "worker-mapping-must-rollback".to_string(),
+        ..worker.clone()
+    };
+    assert!(AgentOrgRunStore::materialize_rust_worker_sessions(&run.id, &[duplicate]).is_err());
+    let wrong_agent = UnifiedSessionRecord {
+        session_id: "worker-agent-must-match-snapshot".to_string(),
+        agent_definition_id: Some("wrong-agent".to_string()),
+        ..worker
+    };
+    assert!(AgentOrgRunStore::materialize_rust_worker_sessions(&run.id, &[wrong_agent]).is_err());
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let orphan_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_sessions
+             WHERE session_id IN ('worker-mapping-must-rollback',
+                                  'worker-agent-must-match-snapshot')",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count rolled back worker");
+    assert_eq!(orphan_count, 0, "mapping failure must roll back Session");
+
+    set_run_status(&run.id, "completed");
+    let coordinator_collision = AgentOrgRunStore::create_with_coordinator_session(
+        run_params(&org, "worker-atomic-create"),
+        Default::default(),
+        &UnifiedSessionRecord {
+            session_id: "worker-atomic-create".to_string(),
+            name: "must not become coordinator".to_string(),
+            status: SessionStatus::Idle.as_str().to_string(),
+            session_type: "agent".to_string(),
+            agent_definition_id: Some(org.agent_id.clone()),
+            org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            ..Default::default()
+        },
+    );
+    assert!(coordinator_collision.is_err());
+    let collision_runs: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runs
+             WHERE root_session_id='worker-atomic-create'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count rolled back coordinator run");
+    assert_eq!(collision_runs, 0);
+}
+
+#[test]
+fn exact_resolver_keeps_old_worker_on_old_run_and_rejects_conflicts() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let store = store_with_org(org.clone());
+    let root = "root-resolver-history";
+    let first = create_run_for_root(&org, root);
+    upsert_session_row(root, None);
+    upsert_session_row_for_member(
+        "worker-run-one",
+        Some(root),
+        Some("agent-w1"),
+        Some("member-w1"),
+        "idle",
+    );
+    set_run_status(&first.id, "completed");
+    let second = AgentOrgRunStore::create_with_lineage(
+        run_params(&org, root),
+        AgentOrgRunLineage {
+            continued_from_run_id: Some(first.id.clone()),
+            originating_message_id: Some("resolver-second-message".to_string()),
+        },
+    )
+    .expect("create live second run");
+
+    let unmapped_legacy = UnifiedSessionRecord {
+        session_id: "unmapped-worker-from-run-one".to_string(),
+        name: "unmapped legacy worker".to_string(),
+        status: "idle".to_string(),
+        session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
+        agent_definition_id: Some("agent-w1".to_string()),
+        org_member_id: Some("member-w1".to_string()),
+        parent_session_id: Some(root.to_string()),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        ..Default::default()
+    };
+    upsert_session(&unmapped_legacy).expect("seed unmapped legacy worker");
+    let ambiguous_legacy = AgentOrgRunStore::resolve_run_for_session(
+        &unmapped_legacy.session_id,
+        AgentOrgRunResolution::default(),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .expect_err("unmapped worker must not follow the root's unique live run");
+    assert!(ambiguous_legacy.contains("has no exact Run mapping"));
+    assert!(AgentOrgRunStore::list_descendant_worker_sessions(&second.id).is_err());
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_sessions SET parent_session_id='worker-run-one'
+         WHERE session_id='unmapped-worker-from-run-one'",
+        [],
+    )
+    .expect("move anomaly below an exact-mapped worker");
+    assert!(AgentOrgRunStore::resolve_run_for_session(
+        &unmapped_legacy.session_id,
+        AgentOrgRunResolution::default(),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .is_err());
+
+    let old_worker = AgentOrgRunStore::resolve_run_for_session(
+        "worker-run-one",
+        AgentOrgRunResolution::default(),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .expect("resolve exact old worker")
+    .expect("worker run");
+    assert_eq!(old_worker.id, first.id);
+
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+            session_id, turn_intent_id, org_run_id, source, status,
+            created_at, updated_at
+         ) VALUES (?1, 'conflicting-intent', ?2, 'agent_org', 'running', ?3, ?3)",
+        params!["worker-run-one", &second.id, &now],
+    )
+    .expect("seed conflicting active intent");
+    let conflict = AgentOrgRunStore::resolve_run_for_session(
+        "worker-run-one",
+        AgentOrgRunResolution::default(),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .expect_err("intent and mapping disagreement must fail");
+    assert!(conflict.contains("ownership conflict"));
+
+    set_run_status(&second.id, "completed");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE turn_intent_id='conflicting-intent'",
+        [],
+    )
+    .expect("close conflicting intent");
+    assert!(AgentOrgRunStore::context_for_session_with_parent_walk(root, &store).is_err());
+    let historical = AgentOrgRunStore::context_for_session(
+        root,
+        &store,
+        AgentOrgRunResolution::read_only(Some(first.id.clone())),
+        AgentOrgRunResolutionAccess::ReadOnly,
+    )
+    .expect("explicit historical read")
+    .expect("historical context");
+    assert_eq!(historical.run_id, first.id);
+    assert!(AgentOrgRunStore::context_for_session(
+        root,
+        &store,
+        AgentOrgRunResolution::read_only(Some(first.id)),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .is_err());
+
+    let foreign = create_run_for_root(&org, "foreign-root-resolver");
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+            session_id, turn_intent_id, org_run_id, source, status,
+            created_at, updated_at
+         ) VALUES (?1, 'cross-root-intent', ?2, 'agent_org', 'running', ?3, ?3)",
+        params![root, &foreign.id, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("seed cross-root active intent");
+    let cross_root = AgentOrgRunStore::resolve_run_for_session(
+        root,
+        AgentOrgRunResolution::default(),
+        AgentOrgRunResolutionAccess::Mutable,
+    )
+    .expect_err("active turn must not cross Agent Org roots");
+    assert!(cross_root.contains("ownership conflict"));
+}
+
+#[test]
+fn timeline_uses_stable_bounded_keyset_pagination() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let root = "root-timeline-keyset";
+    ensure_runtime_schemas();
+    let mut ids = Vec::new();
+    let mut predecessor = None;
+    for index in 0..3 {
+        let run = AgentOrgRunStore::create_with_lineage(
+            run_params(&org, root),
+            AgentOrgRunLineage {
+                continued_from_run_id: predecessor.clone(),
+                originating_message_id: Some(format!("timeline-message-{index}")),
+            },
+        )
+        .expect("create timeline run");
+        set_run_status(&run.id, "completed");
+        predecessor = Some(run.id.clone());
+        ids.push(run.id);
+    }
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET created_at='2026-01-01T00:00:00Z'
+         WHERE root_session_id=?1",
+        [root],
+    )
+    .expect("force timestamp ties");
+
+    let first_page = AgentOrgRunStore::list_timeline(root, None, Some(2)).unwrap();
+    assert_eq!(first_page.runs.len(), 2);
+    assert!(first_page.has_more);
+    let second_page =
+        AgentOrgRunStore::list_timeline(root, first_page.next_cursor.clone(), Some(2)).unwrap();
+    assert_eq!(second_page.runs.len(), 1);
+    assert!(!second_page.has_more);
+    let paged_ids = first_page
+        .runs
+        .iter()
+        .chain(second_page.runs.iter())
+        .map(|run| run.id.clone())
+        .collect::<std::collections::HashSet<_>>();
+    assert_eq!(paged_ids.len(), 3);
+    assert_eq!(paged_ids, ids.into_iter().collect());
+
+    let other_root_run = create_run_for_root(&org, "root-timeline-other");
+    for index in 3..105 {
+        let run = AgentOrgRunStore::create_with_lineage(
+            run_params(&org, root),
+            AgentOrgRunLineage {
+                continued_from_run_id: predecessor.clone(),
+                originating_message_id: Some(format!("timeline-message-{index}")),
+            },
+        )
+        .expect("create bounded timeline history");
+        set_run_status(&run.id, "completed");
+        predecessor = Some(run.id);
+    }
+
+    let default_page = AgentOrgRunStore::list_timeline(root, None, None).unwrap();
+    assert_eq!(default_page.runs.len(), 50);
+    assert!(default_page.has_more);
+    assert!(default_page
+        .runs
+        .iter()
+        .all(|run| run.id != other_root_run.id));
+    let capped_page = AgentOrgRunStore::list_timeline(root, None, Some(500)).unwrap();
+    assert_eq!(capped_page.runs.len(), 100);
+    assert!(capped_page.has_more);
+
+    let mut plan_stmt = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN
+             SELECT id FROM agent_org_runs
+             WHERE root_session_id=?1
+               AND (created_at, id) < (?2, ?3)
+             ORDER BY created_at DESC, id DESC LIMIT 50",
+        )
+        .unwrap();
+    let query_plan = plan_stmt
+        .query_map(
+            params![root, "2026-12-31T23:59:59Z", "timeline-cursor"],
+            |row| row.get::<_, String>(3),
+        )
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
+    assert!(
+        query_plan.iter().any(|detail| {
+            detail.contains("idx_agent_org_runs_root_timeline")
+                && detail.contains("(created_at,id)<")
+        }),
+        "cursor query must use a created_at range seek: {query_plan:?}"
+    );
+}
+
+#[test]
+fn migration_backfills_only_unambiguous_rust_and_reports_legacy_cli_boundedly() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let root = "root-migration-backfill";
+    let run = create_run_for_root(&org, root);
+    let no_snapshot_root = "root-migration-no-snapshot";
+    let no_snapshot_run = create_run_for_root(&org, no_snapshot_root);
+    let malformed_root = "root-migration-malformed-snapshot";
+    let malformed_run = create_run_for_root(&org, malformed_root);
+    let contradictory_root = "root-migration-contradictory-snapshot";
+    let _contradictory_run = create_run_for_root(&org, contradictory_root);
+    upsert_session_row(root, None);
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET org_snapshot_json=NULL WHERE id=?1",
+        [&no_snapshot_run.id],
+    )
+    .unwrap();
+    conn.execute(
+        "UPDATE agent_org_runs SET org_snapshot_json='{broken' WHERE id=?1",
+        [&malformed_run.id],
+    )
+    .unwrap();
+    conn.execute("DELETE FROM agent_org_run_sessions", [])
+        .expect("clear mappings for migration fixture");
+    for (session_id, parent) in [
+        ("ambiguous-worker-a", root),
+        ("ambiguous-worker-b", root),
+        ("no-snapshot-worker", no_snapshot_root),
+        ("malformed-snapshot-worker", malformed_root),
+        ("contradictory-snapshot-worker", contradictory_root),
+    ] {
+        let record = UnifiedSessionRecord {
+            session_id: session_id.to_string(),
+            name: session_id.to_string(),
+            status: "idle".to_string(),
+            session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
+            agent_definition_id: Some(
+                if session_id == "contradictory-snapshot-worker" {
+                    "agent-other"
+                } else {
+                    "agent-w1"
+                }
+                .to_string(),
+            ),
+            org_member_id: Some("member-w1".to_string()),
+            parent_session_id: Some(parent.to_string()),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+            ..Default::default()
+        };
+        upsert_session(&record).expect("seed ambiguous legacy Rust worker");
+    }
+    conn.execute(
+        "INSERT INTO code_sessions (
+            session_id, cli_agent_type, status, parent_session_id,
+            org_member_id, updated_at
+         ) VALUES ('legacy-cli-anomaly', 'claude_code', 'idle', ?1,
+                   'member-w1', ?2),
+                  (?1, 'claude_code', 'idle', NULL, 'coordinator', ?2)",
+        params![root, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("seed unsupported legacy CLI anomaly");
+
+    let report = init_schema_with_report(&conn).expect("run idempotent ownership migration");
+    assert_eq!(report.coordinator_mappings_backfilled, 4);
+    assert_eq!(report.worker_mappings_backfilled, 1);
+    assert_eq!(report.ambiguous_worker_sessions, 4);
+    assert_eq!(report.unsupported_cli_sessions, 2);
+    assert!(report.anomaly_samples.len() <= 20);
+    let worker_mappings: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_run_sessions WHERE role='worker'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(worker_mappings, 1);
+    assert_eq!(
+        AgentOrgRunStore::mapping_for_session("no-snapshot-worker")
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        AgentOrgRunStore::mapping_for_session("malformed-snapshot-worker")
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        AgentOrgRunStore::mapping_for_session("contradictory-snapshot-worker")
+            .unwrap()
+            .is_empty()
+    );
+    assert!(AgentOrgRunStore::mapping_for_session("legacy-cli-anomaly")
+        .unwrap()
+        .is_empty());
+    assert!(load_by_id(&run.id).unwrap().is_some());
+
+    let repeated = init_schema_with_report(&conn).expect("repeat migration safely");
+    assert_eq!(repeated.coordinator_mappings_backfilled, 0);
+    assert_eq!(repeated.worker_mappings_backfilled, 0);
+}
+
+#[test]
+fn migration_rejects_duplicate_live_roots_without_partial_mapping_writes() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let root = "root-duplicate-live-migration";
+    let first = create_run_for_root(&org, root);
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute("DELETE FROM agent_org_run_sessions", [])
+        .expect("clear mappings");
+    conn.execute("DROP INDEX idx_agent_org_runs_one_live_per_root", [])
+        .expect("simulate pre-constraint database");
+    conn.execute(
+        "INSERT INTO agent_org_runs (
+            id, org_id, coordinator_agent_id, root_session_id,
+            entry_mode, status, created_at, updated_at
+         ) VALUES ('duplicate-live-run', ?1, ?2, ?3,
+                   'standalone_session', 'paused', ?4, ?4)",
+        params![
+            &org.id,
+            &org.agent_id,
+            root,
+            chrono::Utc::now().to_rfc3339()
+        ],
+    )
+    .expect("seed duplicate live legacy row");
+
+    let error = init_schema_with_report(&conn).expect_err("duplicate live roots must abort");
+    assert!(error.to_string().contains("duplicate live Agent Org runs"));
+    let mapping_count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM agent_org_run_sessions", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(mapping_count, 0);
+    let run_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runs WHERE root_session_id=?1",
+            [root],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(run_count, 2);
+    assert!(load_by_id(&first.id).unwrap().is_some());
 }
 
 #[test]
@@ -430,7 +1039,26 @@ fn upsert_session_row_for_member(
         updated_at: chrono::Utc::now().to_rfc3339(),
         ..Default::default()
     };
-    upsert_session(&record).expect("upsert session row");
+    if agent_definition_id.is_some() && org_member_id.is_some() {
+        let parent = parent_session_id.expect("Rust Agent Org worker has a root parent");
+        let conn = database::db::get_connection().expect("test sqlite connection");
+        let run_id: Option<String> = conn
+            .query_row(
+                "SELECT id FROM agent_org_runs WHERE root_session_id=?1",
+                [parent],
+                |row| row.get(0),
+            )
+            .optional()
+            .expect("query owning fixture run");
+        if let Some(run_id) = run_id {
+            AgentOrgRunStore::materialize_rust_worker_sessions(&run_id, &[record])
+                .expect("transactionally materialize Rust worker fixture");
+        } else {
+            upsert_session(&record).expect("upsert unmapped legacy session row");
+        }
+    } else {
+        upsert_session(&record).expect("upsert session row");
+    }
 }
 
 fn stamp_coordinator_terminal_turn(session_id: &str) {
@@ -560,23 +1188,36 @@ fn context_for_session_preserves_org_hierarchy_mode() {
 }
 
 #[test]
-fn context_for_session_with_parent_walk_one_hop_subagent() {
+fn context_for_session_read_only_allows_unambiguous_legacy_worker() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let store = store_with_org(org.clone());
     let _run = create_run_for_root(&org, "root-session-2");
     upsert_session_row("root-session-2", None);
     upsert_session_row("worker-session-2", Some("root-session-2"));
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_sessions SET agent_definition_id='agent-w1', org_member_id='member-w1'
+         WHERE session_id='worker-session-2'",
+        [],
+    )
+    .expect("classify legacy Rust worker without mapping");
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("worker-session-2", &store)
-        .expect("walk ok")
-        .expect("context resolved via parent walk");
+    let ctx = AgentOrgRunStore::context_for_session_read_only_with_parent_walk(
+        "worker-session-2",
+        &store,
+    )
+    .expect("walk ok")
+    .expect("context resolved via parent walk");
     assert_eq!(ctx.run_id, _run.id);
     assert_eq!(ctx.coordinator_agent_id, "agent-coord");
+    assert!(
+        AgentOrgRunStore::context_for_session_with_parent_walk("worker-session-2", &store).is_err()
+    );
 }
 
 #[test]
-fn context_for_session_with_parent_walk_cli_member_session() {
+fn context_for_session_does_not_activate_legacy_cli_member_session() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let store = store_with_org(org.clone());
@@ -592,10 +1233,8 @@ fn context_for_session_with_parent_walk_cli_member_session() {
 
     let ctx =
         AgentOrgRunStore::context_for_session_with_parent_walk("cli-worker-session-walk", &store)
-            .expect("walk ok")
-            .expect("context resolved via CLI parent walk");
-    assert_eq!(ctx.run_id, _run.id);
-    assert_eq!(ctx.coordinator_agent_id, "agent-coord");
+            .expect("resolver remains diagnostic-safe");
+    assert!(ctx.is_none());
 }
 
 #[test]
@@ -685,7 +1324,7 @@ fn find_worker_session_by_member_id_returns_descendant_with_matching_member_id()
 }
 
 #[test]
-fn find_worker_session_by_member_id_returns_cli_member_session() {
+fn find_worker_session_by_member_id_ignores_legacy_cli_member_session() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let _store = store_with_org(org.clone());
@@ -707,20 +1346,15 @@ fn find_worker_session_by_member_id_returns_cli_member_session() {
     let sessions =
         AgentOrgRunStore::list_worker_sessions_by_member_ids(&run.id, &["member-w1".to_string()])
             .expect("query ok");
-    assert_eq!(sessions.len(), 1);
-    assert_eq!(sessions[0].session_id, "cli-worker-active");
-    assert_eq!(sessions[0].agent_definition_id, None);
-    assert_eq!(sessions[0].cli_agent_type.as_deref(), Some("claude_code"));
+    assert!(sessions.is_empty());
 
-    let info = AgentOrgRunStore::find_worker_session_by_member_id(&run.id, "member-w1")
-        .expect("query ok")
-        .expect("CLI worker found");
-    assert_eq!(info.session_id, "cli-worker-active");
-    assert_eq!(info.status, crate::core::session::SessionStatus::Running);
+    let info =
+        AgentOrgRunStore::find_worker_session_by_member_id(&run.id, "member-w1").expect("query ok");
+    assert!(info.is_none());
 }
 
 #[test]
-fn find_worker_session_by_member_id_picks_most_recent_when_multi_instance() {
+fn find_worker_session_by_member_id_uses_exact_mapping_not_fresher_unmapped_row() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
     let _store = store_with_org(org.clone());
@@ -734,25 +1368,23 @@ fn find_worker_session_by_member_id_picks_most_recent_when_multi_instance() {
         "completed",
     );
     std::thread::sleep(std::time::Duration::from_millis(2));
-    upsert_session_row_for_member(
-        "coord-w-new",
-        Some("coord-root-rotation"),
-        Some("agent-w1"),
-        Some("member-w1"),
-        "completed",
-    );
-    upsert_session_row_for_member(
-        "coord-shared-other-member",
-        Some("coord-root-rotation"),
-        Some("agent-w1"),
-        Some("member-other"),
-        "completed",
-    );
-
+    let unmapped = UnifiedSessionRecord {
+        session_id: "coord-w-new".to_string(),
+        name: "unmapped duplicate".to_string(),
+        status: "completed".to_string(),
+        session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
+        parent_session_id: Some("coord-root-rotation".to_string()),
+        agent_definition_id: Some("agent-w1".to_string()),
+        org_member_id: Some("member-w1".to_string()),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: chrono::Utc::now().to_rfc3339(),
+        ..Default::default()
+    };
+    upsert_session(&unmapped).expect("seed unmapped legacy duplicate");
     let info = AgentOrgRunStore::find_worker_session_by_member_id(&run.id, "member-w1")
         .expect("query ok")
         .expect("worker found");
-    assert_eq!(info.session_id, "coord-w-new");
+    assert_eq!(info.session_id, "coord-w-old");
 }
 
 #[test]

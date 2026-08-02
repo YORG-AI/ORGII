@@ -28,13 +28,14 @@ pub use ops::{
     mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
     register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id,
     update_agent_exec_mode, update_draft_text, update_model, update_model_and_account, update_name,
-    update_org_member_id, update_pinned, update_reply_target_event_id, update_status,
-    update_work_item_link, upsert_session,
+    update_pinned, update_reply_target_event_id, update_status, update_work_item_link,
+    upsert_session,
+};
+pub(crate) use ops::{
+    delete_session_with_connection, finish_session_delete, notify_session_upserted,
+    prepare_session_delete, upsert_session_with_connection,
 };
 pub(super) use record::{row_to_record, UNIFIED_SESSION_SELECT};
-pub(crate) use ops::{
-    delete_session_with_connection, finish_session_delete, prepare_session_delete,
-};
 pub use record::{session_type, UnifiedSessionRecord};
 pub use workspace::{
     clear_worktree_metadata, load_workspace, save_workspace, save_worktree_metadata,
