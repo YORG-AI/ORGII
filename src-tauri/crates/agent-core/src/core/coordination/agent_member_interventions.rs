@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use database::db::{get_connection, with_sessions_writer};
 
-use super::agent_org_runs::COORDINATOR_MEMBER_ID;
+use super::agent_org_runs::{is_run_writable_with_connection, COORDINATOR_MEMBER_ID};
 
 pub const DEFAULT_INTERVENTION_TTL_SECS: i64 = 180;
 
@@ -110,9 +110,13 @@ impl AgentMemberInterventionStore {
         let resume_after = (now + chrono::Duration::seconds(ttl_secs)).to_rfc3339();
         let status = MemberInterventionStatus::UserIntervention;
 
-        with_sessions_writer(|| -> Result<(), String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            conn.execute(
+        let record = with_sessions_writer(|| -> Result<AgentMemberInterventionRecord, String> {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            ensure_run_writable_for_intervention(&tx, &params.org_run_id)?;
+            tx.execute(
                 "INSERT INTO agent_member_interventions (
                 org_run_id,
                 member_id,
@@ -146,14 +150,26 @@ impl AgentMemberInterventionStore {
                 ],
             )
             .map_err(|err| err.to_string())?;
-            Ok(())
-        })?;
-
-        let record = Self::get(&params.org_run_id, &params.member_id)?.ok_or_else(|| {
-            format!(
-                "agent_member_interventions upsert did not return row for run={} member={}",
-                params.org_run_id, params.member_id
-            )
+            let record = tx
+                .query_row(
+                    "SELECT org_run_id,
+                            member_id,
+                            agent_id,
+                            session_id,
+                            status,
+                            reason,
+                            entered_at,
+                            last_user_activity_at,
+                            resume_after,
+                            cleared_at
+                     FROM agent_member_interventions
+                     WHERE org_run_id = ?1 AND member_id = ?2",
+                    params![params.org_run_id, params.member_id],
+                    row_to_intervention,
+                )
+                .map_err(|err| err.to_string())?;
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok(record)
         })?;
         crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&record.org_run_id);
         Ok(record)
@@ -195,6 +211,7 @@ impl AgentMemberInterventionStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
+            ensure_run_writable_for_intervention(&tx, org_run_id)?;
             let updated = tx
                 .execute(
                     "UPDATE agent_member_interventions
@@ -358,6 +375,15 @@ impl AgentMemberInterventionStore {
     }
 }
 
+fn ensure_run_writable_for_intervention(conn: &Connection, run_id: &str) -> Result<(), String> {
+    if is_run_writable_with_connection(conn, run_id)? {
+        return Ok(());
+    }
+    Err(format!(
+        "agent_org_run_not_writable: run {run_id} cannot accept member intervention work"
+    ))
+}
+
 fn resume_after_is_future(value: &str) -> bool {
     chrono::DateTime::parse_from_rfc3339(value)
         .map(|timestamp| timestamp.with_timezone(&chrono::Utc) > chrono::Utc::now())
@@ -394,10 +420,34 @@ mod tests {
     fn setup() -> test_helpers::test_env::SandboxGuard {
         let sandbox = test_helpers::test_env::sandbox();
         let conn = get_connection().expect("db connection");
+        crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
+        crate::coordination::agent_inbox::init_schema(&conn).expect("inbox schema");
         init_schema(&conn).expect("schema");
         conn.execute("DELETE FROM agent_member_interventions", [])
             .expect("clear");
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode,
+                 status, created_at, updated_at
+             ) VALUES ('run-1', 'org-1', 'agent-coordinator', 'root-1',
+                       'standalone_session', 'running', ?1, ?1)",
+            [&now],
+        )
+        .expect("seed writable run");
         sandbox
+    }
+
+    fn fence_run_without_changing_status(run_id: &str) {
+        let conn = get_connection().expect("db connection");
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_org_conversation_delete_fences (
+                 root_session_id, created_at, updated_at
+             ) SELECT root_session_id, ?2, ?2 FROM agent_org_runs WHERE id=?1",
+            params![run_id, now],
+        )
+        .expect("fence run");
     }
 
     #[test]
@@ -447,6 +497,71 @@ mod tests {
         .expect_err("coordinator must not enter member intervention");
 
         assert!(error.contains("cannot enter member intervention"));
+    }
+
+    #[test]
+    fn enter_rejects_fenced_non_running_and_missing_runs_without_orphans() {
+        let _sandbox = setup();
+        let params_for = |run_id: &str, member_id: &str| EnterMemberInterventionParams {
+            org_run_id: run_id.to_string(),
+            member_id: member_id.to_string(),
+            agent_id: "agent-a".into(),
+            session_id: format!("session-{member_id}"),
+            reason: Some("user".into()),
+            ttl_secs: 60,
+        };
+
+        fence_run_without_changing_status("run-1");
+        AgentMemberInterventionStore::enter(params_for("run-1", "member-fenced"))
+            .expect_err("fenced Run must reject intervention entry");
+
+        let conn = get_connection().expect("db connection");
+        conn.execute(
+            "DELETE FROM agent_org_conversation_delete_fences WHERE root_session_id='root-1'",
+            [],
+        )
+        .expect("remove test fence");
+        conn.execute(
+            "UPDATE agent_org_runs SET status='paused' WHERE id='run-1'",
+            [],
+        )
+        .expect("pause run");
+        AgentMemberInterventionStore::enter(params_for("run-1", "member-paused"))
+            .expect_err("non-running Run must reject intervention entry");
+        AgentMemberInterventionStore::enter(params_for("missing-run", "member-missing"))
+            .expect_err("missing Run must reject intervention entry");
+
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_member_interventions",
+                [],
+                |row| row.get(0),
+            )
+            .expect("count intervention rows");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn unread_boundary_does_not_release_a_fenced_intervention() {
+        let _sandbox = setup();
+        AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
+            org_run_id: "run-1".into(),
+            member_id: "member-a".into(),
+            agent_id: "agent-a".into(),
+            session_id: "session-a".into(),
+            reason: Some("user".into()),
+            ttl_secs: 60,
+        })
+        .expect("enter before fence");
+        fence_run_without_changing_status("run-1");
+
+        AgentMemberInterventionStore::clear_and_capture_unread_boundary("run-1", "member-a")
+            .expect_err("fenced Run must not be released into autonomous work");
+        assert!(AgentMemberInterventionStore::get("run-1", "member-a")
+            .expect("load retained intervention")
+            .expect("intervention remains")
+            .cleared_at
+            .is_none());
     }
 
     #[test]

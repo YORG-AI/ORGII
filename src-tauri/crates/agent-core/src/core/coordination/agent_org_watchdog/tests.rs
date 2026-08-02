@@ -2,9 +2,58 @@ use super::budget::{
     budget_disposition, coordinator_notice_allowed, rewake_budget_exhausted, BudgetDisposition,
 };
 use super::inspect::is_wakeable_status;
-use super::recover::{recover_listed_runs, run_best_effort_cleanup};
+use super::recover::{
+    dispatch_wakes_if_run_writable, execute_stall_recovery_plan, recover_listed_runs,
+    run_best_effort_cleanup,
+};
 use super::*;
 use crate::coordination::agent_org_runs::{AgentOrgRunEntryMode, AgentOrgRunRecord};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Barrier};
+
+#[derive(Default)]
+struct RecordingWakeHook {
+    calls: AtomicUsize,
+}
+
+impl InboxWakeHook for RecordingWakeHook {
+    fn wake_member(&self, _member_id: &str, _org_run_id: &str) {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+struct BlockingWakeHook {
+    calls: AtomicUsize,
+    entered: Barrier,
+    release: Barrier,
+}
+
+impl InboxWakeHook for BlockingWakeHook {
+    fn wake_member(&self, _member_id: &str, _org_run_id: &str) {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        self.entered.wait();
+        self.release.wait();
+    }
+}
+
+fn seed_running_run(conn: &Connection, run_id: &str, root_session_id: &str) {
+    crate::coordination::agent_org_runs::init_schema(conn).expect("run schema");
+    crate::coordination::agent_org_plan_approvals::init_schema(conn).expect("plan approval schema");
+    init_schema(conn).expect("watchdog schema");
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runs (
+             id, org_id, coordinator_agent_id, root_session_id,
+             org_snapshot_json, entry_mode, status, work_item_id,
+             project_slug, routine_fire_id, summary, last_error,
+             created_at, updated_at, completed_at
+         ) VALUES (?1, 'org', 'coordinator-agent', ?2,
+                   NULL, 'standalone_session', 'running', NULL,
+                   NULL, NULL, NULL, NULL, ?3, ?3, NULL)",
+        params![run_id, root_session_id, &now],
+    )
+    .expect("seed running run");
+}
 
 fn fake_run(id: &str) -> AgentOrgRunRecord {
     let now = Utc::now().to_rfc3339();
@@ -40,8 +89,8 @@ fn wakeable_status_includes_idle_and_terminal_but_not_running() {
 fn member_rewake_reservation_is_atomic_and_refundable() {
     let _sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("db");
-    init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    seed_running_run(&conn, &run_id, "root-reserved");
     let member_id = "member-reserved";
     let fingerprint = "unread-42";
 
@@ -68,8 +117,8 @@ fn member_rewake_reservation_is_atomic_and_refundable() {
 fn stale_rewake_refund_cannot_undo_newer_input() {
     let _sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("db");
-    init_schema(&conn).expect("schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    seed_running_run(&conn, &run_id, "root-new-input");
     let member_id = "member-new-input";
     let old = match reserve_member_rewake_dispatch(&run_id, member_id, "unread-1")
         .expect("reserve old fingerprint")
@@ -95,6 +144,122 @@ fn stale_rewake_refund_cannot_undo_newer_input() {
         budget_disposition(&run_id, MEMBER_REWAKE, member_id, "unread-2").expect("read budget"),
         BudgetDisposition::Backoff
     );
+}
+
+#[test]
+fn fenced_running_run_is_excluded_and_stale_recovery_is_a_noop() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let root_session_id = "root-fenced-watchdog";
+    let conn = get_connection().expect("db");
+    seed_running_run(&conn, &run_id, root_session_id);
+    drop(conn);
+
+    crate::coordination::agent_org_runs::establish_conversation_delete_fence(root_session_id)
+        .expect("establish durable root fence");
+    let conn = get_connection().expect("db");
+    conn.execute(
+        "UPDATE agent_org_runs SET status='running' WHERE id=?1",
+        params![&run_id],
+    )
+    .expect("keep run running to isolate root-fence behavior");
+
+    assert!(
+        AgentOrgRunStore::list_running_runs(usize::MAX)
+            .expect("list writable running runs")
+            .into_iter()
+            .all(|run| run.id != run_id),
+        "watchdog scan must exclude a fenced root"
+    );
+    assert!(
+        inspect_stalled_run(&run_id)
+            .expect("inspect fenced run")
+            .is_noop(),
+        "direct inspection must not derive recovery work for a fenced root"
+    );
+
+    let stale_plan = StallRecoveryPlan {
+        wake_member_ids: vec!["member-stale".to_string()],
+        ..StallRecoveryPlan::default()
+    };
+    let wake_hook = RecordingWakeHook::default();
+    assert_eq!(
+        execute_stall_recovery_plan(&run_id, stale_plan.clone(), &wake_hook)
+            .expect("execute stale plan"),
+        stale_plan
+    );
+    assert_eq!(wake_hook.calls.load(Ordering::SeqCst), 0);
+    assert!(matches!(
+        reserve_member_rewake_dispatch(&run_id, "member-stale", "unread-stale")
+            .expect("fenced reservation is deferred"),
+        MemberRewakeReservationOutcome::Deferred
+    ));
+    let recovery_attempts: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_recovery_attempts WHERE org_run_id=?1",
+            params![&run_id],
+            |row| row.get(0),
+        )
+        .expect("count recovery attempts");
+    assert_eq!(recovery_attempts, 0);
+}
+
+#[test]
+fn wake_callback_and_root_fence_have_one_serial_order() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = format!("run-{}", uuid::Uuid::new_v4());
+    let root_session_id = "root-watchdog-callback-race";
+    let conn = get_connection().expect("db");
+    seed_running_run(&conn, &run_id, root_session_id);
+    drop(conn);
+
+    let hook = Arc::new(BlockingWakeHook {
+        calls: AtomicUsize::new(0),
+        entered: Barrier::new(2),
+        release: Barrier::new(2),
+    });
+    let dispatch_hook = Arc::clone(&hook);
+    let dispatch_run_id = run_id.clone();
+    let dispatch = std::thread::spawn(move || {
+        dispatch_wakes_if_run_writable(
+            &dispatch_run_id,
+            std::iter::once("member-race"),
+            dispatch_hook.as_ref(),
+        )
+    });
+    hook.entered.wait();
+
+    let fence_started = Arc::new(Barrier::new(2));
+    let fence_started_in_thread = Arc::clone(&fence_started);
+    let fence = std::thread::spawn(move || {
+        fence_started_in_thread.wait();
+        crate::coordination::agent_org_runs::establish_conversation_delete_fence(root_session_id)
+    });
+    fence_started.wait();
+    let conn = get_connection().expect("read before callback release");
+    let fenced: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM agent_org_conversation_delete_fences WHERE root_session_id=?1)",
+            [root_session_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(!fenced, "fence must wait for the in-flight callback gate");
+    drop(conn);
+
+    hook.release.wait();
+    dispatch.join().unwrap().unwrap();
+    fence.join().unwrap().unwrap();
+    assert_eq!(hook.calls.load(Ordering::SeqCst), 1);
+    let conn = get_connection().expect("read committed fence");
+    let fenced: bool = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM agent_org_conversation_delete_fences WHERE root_session_id=?1)",
+            [root_session_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(fenced);
 }
 
 #[test]

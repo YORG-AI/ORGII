@@ -206,7 +206,7 @@ fn build_agent_org_run_view(
         .facts
         .run_status
         .ok_or_else(|| format!("Agent Org run {} no longer exists", context.run_id))?;
-    let run_status = run_status_value.as_str().to_string();
+    let run_status = project_run_status(run_status_value).to_string();
 
     let task_page = AgentOrgTaskStore::list_summary_page_with_connection(
         &tx,
@@ -335,6 +335,9 @@ pub(super) fn project_run_phase(
     pending_plan_approvals: &[AgentOrgPlanApprovalSummary],
 ) -> AgentOrgRunPhase {
     match run_status {
+        // Starting is intentionally projected through the existing wire shape;
+        // it has not begun dispatching work yet.
+        AgentOrgRunStatus::Starting => AgentOrgRunPhase::Coordinating,
         AgentOrgRunStatus::Paused => AgentOrgRunPhase::Paused,
         AgentOrgRunStatus::Completed => AgentOrgRunPhase::Completed,
         AgentOrgRunStatus::Failed => AgentOrgRunPhase::Failed,
@@ -376,6 +379,16 @@ pub(super) fn project_run_phase(
                 AgentOrgRunPhase::Coordinating
             }
         }
+    }
+}
+
+/// `starting` is an internal persistence phase added for deletion safety. The
+/// existing frontend wire contract has no such status, so project it as the
+/// pre-existing non-terminal `running` value until materialization completes.
+pub(super) fn project_run_status(status: AgentOrgRunStatus) -> &'static str {
+    match status {
+        AgentOrgRunStatus::Starting => AgentOrgRunStatus::Running.as_str(),
+        status => status.as_str(),
     }
 }
 

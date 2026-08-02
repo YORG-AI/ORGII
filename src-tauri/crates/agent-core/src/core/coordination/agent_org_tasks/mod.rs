@@ -13,7 +13,7 @@ use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, Connection, Result as SqliteResult};
 
 use crate::coordination::agent_org_runs::{
-    recovery_dispatch_recipient_is_available, AgentOrgRunStore,
+    is_run_writable_with_connection, recovery_dispatch_recipient_is_available, AgentOrgRunStore,
 };
 
 pub(super) mod graph;
@@ -819,16 +819,7 @@ pub(crate) fn enqueue_task_assignments_if_still_ready_for_recovery(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
-        let running: bool = tx
-            .query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
-                 )",
-                params![org_run_id],
-                |row| row.get(0),
-            )
-            .map_err(|err| err.to_string())?;
-        if !running {
+        if !is_run_writable_with_connection(&tx, org_run_id)? {
             tx.commit().map_err(|err| err.to_string())?;
             return Ok(Vec::new());
         }

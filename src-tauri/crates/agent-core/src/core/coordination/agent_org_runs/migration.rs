@@ -91,7 +91,12 @@ pub(super) fn init_schema(conn: &Connection) -> SqliteResult<AgentOrgRunMigratio
     }
 
     tx.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_run_sessions (
+        "CREATE TABLE IF NOT EXISTS agent_org_conversation_delete_fences (
+            root_session_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS agent_org_run_sessions (
             org_run_id TEXT NOT NULL REFERENCES agent_org_runs(id) ON DELETE CASCADE,
             member_id TEXT NOT NULL,
             session_id TEXT NOT NULL,

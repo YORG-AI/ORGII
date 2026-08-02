@@ -48,6 +48,10 @@ use super::turn::streaming::{
     broadcast_agent_error_structured, classify_streaming_error_message, StreamingError,
 };
 use crate::bus::broadcast_event;
+use crate::coordination::agent_org_runs::{
+    admit_agent_org_submission, AgentOrgSubmissionPolicy, AgentOrgSubmissionScope,
+    SharedAgentOrgSubmissionScope,
+};
 
 // ============================================
 // Scheduled Message
@@ -185,6 +189,7 @@ struct SchedulerInner {
 pub struct DialogScheduler {
     /// Session this scheduler belongs to.
     session_id: String,
+    submission_scope: SharedAgentOrgSubmissionScope,
     /// Channel capacity.
     capacity: usize,
     /// Lazily initialized sender. `None` until first `enqueue()`.
@@ -209,8 +214,23 @@ impl DialogScheduler {
     /// Once full, `enqueue` returns an error so the caller can surface
     /// "session queue full" to the user.
     pub fn new(session_id: impl Into<String>, capacity: usize) -> Self {
+        Self::new_with_submission_scope(
+            session_id,
+            capacity,
+            Arc::new(AgentOrgSubmissionPolicy::new(
+                AgentOrgSubmissionScope::Ordinary,
+            )),
+        )
+    }
+
+    pub(crate) fn new_with_submission_scope(
+        session_id: impl Into<String>,
+        capacity: usize,
+        submission_scope: SharedAgentOrgSubmissionScope,
+    ) -> Self {
         Self {
             session_id: session_id.into(),
+            submission_scope,
             capacity,
             inner: TokioMutex::new(None),
             pending: Arc::new(AtomicUsize::new(0)),
@@ -258,6 +278,8 @@ impl DialogScheduler {
     /// **Note**: This method is `async` because lazy initialization requires
     /// holding a lock to spawn the worker on first use.
     pub async fn enqueue(&self, mut msg: ScheduledMessage) -> Result<EnqueueResult, String> {
+        let _submission =
+            admit_agent_org_submission(&self.submission_scope, &self.session_id).await?;
         let tx = self.ensure_initialized().await;
 
         let message_id = msg.message_id.clone();
@@ -821,5 +843,57 @@ mod tests {
 
         assert_eq!(executed.load(Ordering::SeqCst), 1);
         assert_eq!(scheduler.pending_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn fenced_agent_org_rejects_turn_and_maintenance_enqueue() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().expect("test database");
+        crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode,
+                 status, created_at, updated_at
+             ) VALUES ('scheduler-fenced-run', 'org', 'coordinator',
+                       'scheduler-fenced-root', 'standalone_session', 'running', ?1, ?1)",
+            [&now],
+        )
+        .expect("seed Run");
+        conn.execute(
+            "INSERT INTO agent_org_conversation_delete_fences (
+                 root_session_id, created_at, updated_at
+             ) VALUES ('scheduler-fenced-root', ?1, ?1)",
+            [&now],
+        )
+        .expect("seed fence");
+        drop(conn);
+
+        let scope = Arc::new(AgentOrgSubmissionPolicy::new(
+            AgentOrgSubmissionScope::Run {
+                run_id: "scheduler-fenced-run".to_string(),
+            },
+        ));
+        let scheduler =
+            DialogScheduler::new_with_submission_scope("scheduler-fenced-root", 8, scope);
+        for kind in [ScheduledKind::Turn, ScheduledKind::Maintenance] {
+            let error = scheduler
+                .enqueue(ScheduledMessage {
+                    kind,
+                    message_id: format!("fenced-{kind:?}"),
+                    generation: 0,
+                    client_message_id: None,
+                    turn_intent_id: String::new(),
+                    org_run_id: Some("scheduler-fenced-run".to_string()),
+                    content: String::new(),
+                    execute: Box::new(|| Box::pin(async { Ok(String::new()) })),
+                })
+                .await
+                .expect_err("fenced enqueue must fail");
+            assert!(error.starts_with("conversation_deleting:"), "{error}");
+        }
+        assert_eq!(scheduler.pending_count(), 0);
+        assert!(!scheduler.is_processing());
     }
 }

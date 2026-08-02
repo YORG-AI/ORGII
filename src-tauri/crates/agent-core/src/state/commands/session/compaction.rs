@@ -129,6 +129,7 @@ pub async fn agent_session_manual_compact(
             state.inner(),
             &session_id,
             super::identity::IdentityOverrides::default(),
+            None,
         )
         .await
         {

@@ -777,9 +777,7 @@ pub(super) fn inspect_stalled_run_with_connection(
     conn: &Connection,
     run_id: &str,
 ) -> Result<StallRecoveryPlan, String> {
-    if AgentOrgRunStore::get_run_status_with_connection(conn, run_id)?
-        != Some(AgentOrgRunStatus::Running)
-    {
+    if !crate::coordination::agent_org_runs::is_run_writable_with_connection(conn, run_id)? {
         return Ok(StallRecoveryPlan::default());
     }
 

@@ -670,6 +670,16 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
+            "agent-org-runtime-submission-fence-production-command",
+            agent_org::agent_org_runtime_submission_fence_production_command
+        ),
+        scenario!(
+            "agent-org",
+            "ordinary-sde-agent-org-isolation-production-command",
+            agent_org::ordinary_sde_agent_org_isolation_production_command
+        ),
+        scenario!(
+            "agent-org",
             "agent-org-production-return-to-work-drains-visible-input",
             agent_org::production_return_to_work_drains_inbox_into_member_transcript
         ),

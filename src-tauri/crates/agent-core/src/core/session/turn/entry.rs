@@ -129,6 +129,61 @@ mod tests {
             "expected newline tail to become the user task"
         );
     }
+
+    #[tokio::test]
+    async fn process_message_rejects_fenced_agent_org_before_runtime_access() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().expect("test database");
+        crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                 id, org_id, coordinator_agent_id, root_session_id, entry_mode,
+                 status, created_at, updated_at
+             ) VALUES ('process-fenced-run', 'org', 'coordinator',
+                       'process-fenced-root', 'standalone_session', 'running', ?1, ?1)",
+            [&now],
+        )
+        .expect("seed Run");
+        conn.execute(
+            "INSERT INTO agent_org_conversation_delete_fences (
+                 root_session_id, created_at, updated_at
+             ) VALUES ('process-fenced-root', ?1, ?1)",
+            [&now],
+        )
+        .expect("seed fence");
+        drop(conn);
+
+        let session = std::sync::Arc::new(crate::state::AgentSession::new(
+            "process-fenced-root".to_string(),
+            crate::definitions::sde_agent(),
+        ));
+        session.set_agent_org_submission_scope(
+            crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Run {
+                run_id: "process-fenced-run".to_string(),
+            },
+        );
+        let error = super::process_message(
+            session,
+            super::TurnInput {
+                content: "blocked".to_string(),
+                display_text: None,
+                agent_mode: None,
+                images: None,
+                ide_context: None,
+                is_resume: false,
+                channel: None,
+                chat_id: None,
+                turn_id: None,
+                turn_intent_id: "process-fenced-intent".to_string(),
+            },
+            None,
+        )
+        .await
+        .expect_err("fenced process_message must fail before runtime access");
+        assert!(error.starts_with("conversation_deleting:"), "{error}");
+    }
 }
 
 // ============================================
@@ -149,6 +204,12 @@ pub async fn process_message(
     input: TurnInput,
     app_handle: Option<tauri::AppHandle>,
 ) -> Result<ProcessingResult, String> {
+    let submission_scope = session.agent_org_submission_scope();
+    let _submission = crate::coordination::agent_org_runs::admit_agent_org_submission(
+        &submission_scope,
+        &session.id,
+    )
+    .await?;
     let runtime = session
         .runtime
         .read()

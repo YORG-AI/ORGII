@@ -3,6 +3,7 @@
 //! A run records that an Agent Org launched through the normal Rust session
 //! stack, while the root session remains the transcript source of truth.
 
+mod deletion;
 mod finality;
 mod helpers;
 mod migration;
@@ -11,8 +12,27 @@ mod store;
 mod worker;
 
 #[cfg(test)]
+mod deletion_tests;
+#[cfg(test)]
 mod tests;
 
+#[cfg(debug_assertions)]
+#[doc(hidden)]
+pub use deletion::debug_establish_e2e_conversation_delete_fence;
+#[cfg(test)]
+pub(crate) use deletion::establish_conversation_delete_fence;
+pub(crate) use deletion::{
+    admit_agent_org_submission, admit_known_agent_org_submission, agent_org_submission_in_progress,
+    ensure_conversation_writable_with_connection,
+    establish_conversation_delete_fence_with_connection, exact_submission_scope,
+    is_run_writable_with_connection, recheck_agent_org_submission,
+    recheck_known_agent_org_submission, remove_conversation_delete_fence_with_connection,
+    submission_scope_for_loaded_session, AgentOrgSubmissionLease, AgentOrgSubmissionPolicy,
+    AgentOrgSubmissionScope, SharedAgentOrgSubmissionScope,
+};
+#[cfg(any(test, debug_assertions))]
+#[doc(hidden)]
+pub use deletion::{reset_submission_metrics, submission_metrics};
 pub(crate) use finality::guaranteed_current_turn_effects_with_connection;
 pub use finality::{
     AgentOrgFinalityAssessment, AgentOrgFinalityBlocker, AgentOrgFinalityDecision,
@@ -63,6 +83,10 @@ impl std::fmt::Display for AgentOrgRunEntryMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentOrgRunStatus {
+    /// The durable Run row exists, but its Rust sessions may still be
+    /// materializing. This is live and non-terminal for uniqueness and
+    /// deletion purposes, but it is not yet eligible for wake/recovery work.
+    Starting,
     Running,
     /// User-initiated pause. Non-terminal: the run can be resumed via
     /// `AgentOrgRunStore::mark_resumed`. Polling and member switching remain
@@ -78,6 +102,7 @@ pub enum AgentOrgRunStatus {
 impl AgentOrgRunStatus {
     pub fn as_str(self) -> &'static str {
         match self {
+            Self::Starting => "starting",
             Self::Running => "running",
             Self::Paused => "paused",
             Self::Completed => "completed",
@@ -89,6 +114,7 @@ impl AgentOrgRunStatus {
 
     pub fn parse(value: &str) -> Option<Self> {
         match value {
+            "starting" => Some(Self::Starting),
             "running" => Some(Self::Running),
             "paused" => Some(Self::Paused),
             "completed" => Some(Self::Completed),

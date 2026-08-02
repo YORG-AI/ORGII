@@ -37,6 +37,7 @@ const SEED_CLI_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed
 const SEED_RUST_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-run";
 const SESSION_DELETE_SNAPSHOT_PATH: &str = "/agent/test/agent-org/session-delete/snapshot";
 const SESSION_DELETE_ATTEMPT_PATH: &str = "/agent/test/agent-org/session-delete/attempt";
+const SUBMISSION_CONTROL_PATH: &str = "/agent/test/agent-org/submission-control";
 const TASKS_SEED_PATH: &str = "/agent/test/agent-org/tasks/seed";
 const TASKS_LIST_PATH: &str = "/agent/test/agent-org/tasks/list";
 const PAUSE_RUN_PATH: &str = "/agent/test/agent-org/run/pause";
@@ -3700,4 +3701,194 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         }
     }
     passed && cleanup_ok
+}
+
+pub async fn ordinary_sde_agent_org_isolation_production_command(cfg: &Config) -> bool {
+    let label = "ordinary-sde-agent-org-isolation-production-command";
+    if let Err(error) = post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({ "action": "reset_metrics" }),
+    )
+    .await
+    {
+        return harness::print_error(label, &error);
+    }
+
+    let suffix = unique_run_id("ordinary-isolation");
+    let session_id = format!("ordinary-sde-{suffix}");
+    let workspace = tmp_agent_org_workspace("ordinary-isolation");
+    let fake_model = format!("e2e-fake-provider-{suffix}");
+    let options = harness::SdeMessageOpts {
+        model_override: Some(&fake_model),
+        ..Default::default()
+    };
+    let response = match harness::send_sde_message_with_opts(
+        cfg,
+        "Reply with an ordinary SDE isolation marker.",
+        &session_id,
+        "build",
+        &workspace,
+        &options,
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+    let compact = post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({ "action": "manual_compact", "session_id": session_id }),
+    )
+    .await
+    .unwrap_or_default();
+    let channel = post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({
+            "action": "channel_message",
+            "session_id": session_id,
+            "model": fake_model,
+            "account_id": cfg.account_id,
+        }),
+    )
+    .await
+    .unwrap_or_default();
+    let gateway = post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({ "action": "gateway_message", "session_id": session_id }),
+    )
+    .await
+    .unwrap_or_default();
+    let metrics = match post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({ "action": "snapshot_metrics" }),
+    )
+    .await
+    {
+        Ok(response) => response,
+        Err(error) => return harness::print_error(label, &error),
+    };
+
+    harness::print_result(
+        label,
+        &metrics.to_string(),
+        &[
+            (
+                "ordinary SDE completed its production lazy-init/message path",
+                response.content.contains("E2E_FAKE_PROVIDER_REPLY"),
+            ),
+            (
+                "ordinary Manual Compact path remained available",
+                compact.get("ok").and_then(serde_json::Value::as_bool) == Some(true),
+            ),
+            (
+                "ordinary Channel path remained available",
+                channel.get("ok").and_then(serde_json::Value::as_bool) == Some(true),
+            ),
+            (
+                "ordinary Gateway path remained available",
+                gateway.get("ok").and_then(serde_json::Value::as_bool) == Some(true),
+            ),
+            (
+                "ordinary SDE issued zero Agent Org admission queries",
+                metrics.get("queries").and_then(serde_json::Value::as_u64) == Some(0),
+            ),
+            (
+                "ordinary SDE performed zero Agent Org lease mutations",
+                metrics
+                    .get("lease_mutations")
+                    .and_then(serde_json::Value::as_u64)
+                    == Some(0),
+            ),
+        ],
+    )
+}
+
+pub async fn agent_org_runtime_submission_fence_production_command(cfg: &Config) -> bool {
+    let label = "agent-org-runtime-submission-fence-production-command";
+    let fixture = unique_run_id("submission-fence");
+    let root_session_id = format!("root-{fixture}");
+    let worker_session_id = format!("worker-{fixture}");
+    let seed = match post_agent_org_json(
+        cfg,
+        SEED_RUST_MEMBER_RUN_PATH,
+        serde_json::json!({
+            "org_id": fixture,
+            "root_session_id": root_session_id,
+            "run_status": "running",
+            "root_status": "idle",
+            "workers": [{
+                "member_id": "m-submission-fence",
+                "agent_definition_id": "builtin:explore",
+                "session_id": worker_session_id,
+                "status": "pending"
+            }]
+        }),
+    )
+    .await
+    {
+        Ok(response) if response.get("ok").and_then(serde_json::Value::as_bool) == Some(true) => {
+            response
+        }
+        Ok(response) => return harness::print_error(label, &response.to_string()),
+        Err(error) => return harness::print_error(label, &error),
+    };
+    let run_id = seed
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let fenced = post_agent_org_json(
+        cfg,
+        SUBMISSION_CONTROL_PATH,
+        serde_json::json!({
+            "action": "fence_fixture",
+            "root_session_id": root_session_id,
+        }),
+    )
+    .await
+    .unwrap_or_default();
+    let wake = post_agent_org_json(
+        cfg,
+        SESSION_RETURN_TO_WORK_PATH,
+        serde_json::json!({ "session_id": worker_session_id }),
+    )
+    .await
+    .unwrap_or_default();
+    let state = post_agent_org_json(
+        cfg,
+        DURABLE_INVARIANTS_PATH,
+        serde_json::json!({ "org_run_id": run_id, "root_session_id": root_session_id }),
+    )
+    .await
+    .unwrap_or_default();
+    let cleanup = post_agent_org_json(
+        cfg,
+        SESSION_DELETE_ATTEMPT_PATH,
+        serde_json::json!({ "session_id": root_session_id }),
+    )
+    .await
+    .unwrap_or_default();
+
+    harness::print_result(
+        label,
+        &serde_json::json!({ "seed": seed, "fence": fenced, "wake": wake, "state": state, "cleanup": cleanup }).to_string(),
+        &[
+            ("fixture fence committed", fenced.get("ok").and_then(serde_json::Value::as_bool) == Some(true)),
+            (
+                "production Wake rejected the fenced Agent Org session",
+                wake.get("ok").and_then(serde_json::Value::as_bool) == Some(false)
+                    && wake
+                        .get("error")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|error| error.starts_with("agent_org_run_not_writable:")),
+            ),
+            ("fencing cancelled the live Run", state.get("runStatus").and_then(serde_json::Value::as_str) == Some("cancelled")),
+            ("production deletion removed the disposable fixture and fence", cleanup.get("ok").and_then(serde_json::Value::as_bool) == Some(true)),
+        ],
+    )
 }

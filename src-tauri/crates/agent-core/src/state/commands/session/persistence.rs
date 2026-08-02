@@ -104,46 +104,34 @@ pub async fn agent_delete_session(
         });
     };
 
-    let (plan, quiesced_runtime_session_ids) = if matches!(
-        plan.run_status,
-        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-    ) {
-        let fenced_plan =
-            tokio::task::spawn_blocking(move || establish_agent_org_delete_fence(&plan))
-                .await
-                .map_err(|err| format!("Agent Org deletion fence worker failed: {err}"))??;
-        let quiesced_runtime_session_ids = if fenced_plan.run_status
-            == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-        {
-            stop_agent_org_runtime_sessions(&state, &fenced_plan).await?
-        } else {
-            ensure_agent_org_runtime_sessions_idle(&state, &fenced_plan).await?;
-            HashSet::new()
-        };
-        let root_session_id = fenced_plan.root_session_id.clone();
-        let current_plan = tokio::task::spawn_blocking(move || {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            load_agent_org_session_delete_plan(&conn, &root_session_id)?.ok_or_else(|| {
-                format!(
-                    "Refusing to delete Agent Org root {root_session_id}: ownership disappeared while stopping"
-                )
-            })
-        })
+    let fenced_plan = tokio::task::spawn_blocking(move || establish_agent_org_delete_fence(&plan))
         .await
-        .map_err(|err| format!("Agent Org post-stop planning worker failed: {err}"))??;
-        if !agent_org_delete_topology_matches(&fenced_plan, &current_plan) {
-            return Err(format!(
-                "Refusing to delete Agent Org run {}: session hierarchy changed while stopping",
-                fenced_plan.run_id
-            ));
-        }
-        (current_plan, quiesced_runtime_session_ids)
+        .map_err(|err| format!("Agent Org deletion fence worker failed: {err}"))??;
+    let quiesced_runtime_session_ids = if fenced_plan.run_status
+        == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
+    {
+        stop_agent_org_runtime_sessions(&state, &fenced_plan).await?
     } else {
-        ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
-        (plan, HashSet::new())
+        wait_for_agent_org_runtime_sessions_idle(&state, &fenced_plan).await?;
+        HashSet::new()
     };
+    let root_session_id = fenced_plan.root_session_id.clone();
+    let plan = tokio::task::spawn_blocking(move || {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        load_agent_org_session_delete_plan(&conn, &root_session_id)?.ok_or_else(|| {
+            format!(
+                "Refusing to delete Agent Org root {root_session_id}: ownership disappeared while stopping"
+            )
+        })
+    })
+    .await
+    .map_err(|err| format!("Agent Org post-stop planning worker failed: {err}"))??;
+    if !agent_org_delete_topology_matches(&fenced_plan, &plan) {
+        return Err(format!(
+            "Refusing to delete Agent Org run {}: session hierarchy changed while stopping",
+            fenced_plan.run_id
+        ));
+    }
 
     validate_agent_org_delete_ready(&plan, &quiesced_runtime_session_ids)?;
     ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
@@ -418,12 +406,16 @@ fn establish_agent_org_delete_fence(
             ));
         }
 
+        let cancelled_run_ids =
+            crate::coordination::agent_org_runs::establish_conversation_delete_fence_with_connection(
+                &tx,
+                &current_plan.root_session_id,
+            )?;
         let changed = match current_plan.run_status {
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+            crate::coordination::agent_org_runs::AgentOrgRunStatus::Starting
+            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
             | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused => {
-                let changed =
-                    AgentOrgRunStore::cancel_for_delete_with_connection(&tx, &current_plan.run_id)?;
-                if !changed {
+                if !cancelled_run_ids.contains(&current_plan.run_id) {
                     return Err(format!(
                         "Refusing to delete Agent Org run {}: run status changed before cancellation",
                         current_plan.run_id
@@ -519,6 +511,16 @@ async fn agent_org_runtime_blockers(
     blockers
 }
 
+fn agent_org_submission_blockers(plan: &AgentOrgSessionDeletePlan) -> Vec<String> {
+    plan.sessions
+        .iter()
+        .filter(|node| {
+            crate::coordination::agent_org_runs::agent_org_submission_in_progress(&node.session_id)
+        })
+        .map(|node| format!("{}(submission_in_progress=true)", node.session_id))
+        .collect()
+}
+
 async fn stop_agent_org_runtime_sessions(
     state: &AgentAppState,
     plan: &AgentOrgSessionDeletePlan,
@@ -531,21 +533,22 @@ async fn stop_agent_org_runtime_sessions_with_timeout(
     plan: &AgentOrgSessionDeletePlan,
     timeout: Duration,
 ) -> Result<HashSet<String>, String> {
-    let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
-    let runtime_session_ids = runtime_sessions
-        .iter()
-        .map(|(session_id, _)| session_id.clone())
-        .collect::<HashSet<_>>();
-
-    for (_, session) in &runtime_sessions {
-        session
-            .cancel_active_turn(CancelReason::AgentOrgDelete)
-            .await;
-    }
-
+    let mut runtime_session_ids = HashSet::new();
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
-        let blockers = agent_org_runtime_blockers(&runtime_sessions).await;
+        // Initialization that held a submission lease may install its runtime
+        // after fencing began. Refresh the registry each pass so that late
+        // runtime is cancelled before its lease can let deletion continue.
+        let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
+        for (session_id, session) in &runtime_sessions {
+            if runtime_session_ids.insert(session_id.clone()) {
+                session
+                    .cancel_active_turn(CancelReason::AgentOrgDelete)
+                    .await;
+            }
+        }
+        let mut blockers = agent_org_runtime_blockers(&runtime_sessions).await;
+        blockers.extend(agent_org_submission_blockers(plan));
         if blockers.is_empty() {
             return Ok(runtime_session_ids);
         }
@@ -560,12 +563,36 @@ async fn stop_agent_org_runtime_sessions_with_timeout(
     }
 }
 
+async fn wait_for_agent_org_runtime_sessions_idle(
+    state: &AgentAppState,
+    plan: &AgentOrgSessionDeletePlan,
+) -> Result<(), String> {
+    let deadline = tokio::time::Instant::now() + AGENT_ORG_DELETE_STOP_TIMEOUT;
+    loop {
+        let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
+        let mut blockers = agent_org_runtime_blockers(&runtime_sessions).await;
+        blockers.extend(agent_org_submission_blockers(plan));
+        if blockers.is_empty() {
+            return Ok(());
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Timed out waiting for Agent Org run {} submissions before deletion: {}",
+                plan.run_id,
+                blockers.join(", ")
+            ));
+        }
+        tokio::time::sleep(AGENT_ORG_DELETE_STOP_POLL_INTERVAL).await;
+    }
+}
+
 async fn ensure_agent_org_runtime_sessions_idle(
     state: &AgentAppState,
     plan: &AgentOrgSessionDeletePlan,
 ) -> Result<(), String> {
     let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
-    let blockers = agent_org_runtime_blockers(&runtime_sessions).await;
+    let mut blockers = agent_org_runtime_blockers(&runtime_sessions).await;
+    blockers.extend(agent_org_submission_blockers(plan));
     if blockers.is_empty() {
         Ok(())
     } else {
@@ -617,6 +644,10 @@ fn delete_agent_org_session_hierarchy(
                 expected_plan.run_id
             ));
         }
+        crate::coordination::agent_org_runs::remove_conversation_delete_fence_with_connection(
+            &tx,
+            &expected_plan.root_session_id,
+        )?;
         ensure_agent_org_hierarchy_absent(&tx, expected_plan)?;
         tx.commit().map_err(|err| err.to_string())?;
         Ok::<_, String>(outcome)
@@ -1810,5 +1841,42 @@ mod tests {
         })
         .await
         .expect("maintenance finishes after the timeout assertion");
+    }
+
+    #[tokio::test]
+    async fn session_hierarchy_delete_waits_for_agent_org_submission_lease() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let root = "hierarchy-submission-lease-root";
+        let state = AgentAppState::new();
+        let plan = AgentOrgSessionDeletePlan {
+            run_id: "hierarchy-submission-lease-run".to_string(),
+            root_session_id: root.to_string(),
+            run_status: crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled,
+            sessions: vec![AgentOrgSessionDeleteNode {
+                session_id: root.to_string(),
+                parent_session_id: None,
+                status: SessionStatus::Pending,
+                depth: 0,
+            }],
+        };
+        let lease = crate::coordination::agent_org_runs::AgentOrgSubmissionLease::begin(root);
+
+        let error = stop_agent_org_runtime_sessions_with_timeout(
+            &state,
+            &plan,
+            std::time::Duration::from_millis(25),
+        )
+        .await
+        .expect_err("deletion must wait for an initializing submission");
+        assert!(error.contains("submission_in_progress=true"), "{error}");
+
+        drop(lease);
+        stop_agent_org_runtime_sessions_with_timeout(
+            &state,
+            &plan,
+            std::time::Duration::from_millis(25),
+        )
+        .await
+        .expect("deletion continues after the submission exits");
     }
 }

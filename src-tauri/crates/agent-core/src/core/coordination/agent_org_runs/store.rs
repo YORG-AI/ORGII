@@ -12,6 +12,7 @@ use crate::session::persistence::{
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
+use super::ensure_conversation_writable_with_connection;
 use super::finality::load_and_assess;
 use super::helpers::{
     context_for_run_record, flatten_members, insert_run, load_by_id, row_to_run,
@@ -184,6 +185,9 @@ impl AgentOrgRunStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
+            if let Some(root_session_id) = run.root_session_id.as_deref() {
+                ensure_conversation_writable_with_connection(&tx, root_session_id)?;
+            }
             Self::validate_lineage_with_connection(&tx, run)?;
             if let Some(session) = coordinator_session {
                 upsert_session_with_connection(&tx, session).map_err(|err| err.to_string())?;
@@ -332,16 +336,36 @@ impl AgentOrgRunStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
-            let expected_root: String = tx
+            let (expected_root, status_raw): (Option<String>, String) = tx
                 .query_row(
-                    "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                    "SELECT root_session_id, status FROM agent_org_runs WHERE id=?1",
                     [org_run_id],
-                    |row| row.get::<_, Option<String>>(0),
+                    |row| Ok((row.get::<_, Option<String>>(0)?, row.get(1)?)),
                 )
                 .optional()
                 .map_err(|err| err.to_string())?
-                .flatten()
+                .ok_or_else(|| format!("Agent Org run {org_run_id} was not found"))?;
+            let expected_root = expected_root
                 .ok_or_else(|| format!("Agent Org run {org_run_id} has no root session"))?;
+            // Pausing can win the race with detached launch materialization.
+            // A paused Run may finish persisting its topology, but no work is
+            // dispatched until resume. Check the fence first so deletion still
+            // produces its stable error after changing the Run to cancelled.
+            ensure_conversation_writable_with_connection(&tx, &expected_root)?;
+            let status = AgentOrgRunStatus::parse(&status_raw).ok_or_else(|| {
+                format!("unknown Agent Org run status {status_raw:?} for run {org_run_id}")
+            })?;
+            if !matches!(
+                status,
+                AgentOrgRunStatus::Starting
+                    | AgentOrgRunStatus::Running
+                    | AgentOrgRunStatus::Paused
+            ) {
+                return Err(format!(
+                    "agent_org_run_not_materializable: run {org_run_id} has status {}",
+                    status.as_str()
+                ));
+            }
             let roster = Self::snapshot_member_agent_ids_with_connection(&tx, org_run_id)?
                 .ok_or_else(|| format!("Agent Org run {org_run_id} has no launch snapshot"))?;
             for session in sessions {
@@ -481,8 +505,23 @@ impl AgentOrgRunStore {
         let paused = validate_status(AgentOrgRunStatus::Paused.as_str())?;
         let now = chrono::Utc::now().to_rfc3339();
         let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            let rows_changed = conn
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            let root_session_id = tx
+                .query_row(
+                    "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                    [run_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|err| err.to_string())?
+                .flatten();
+            if let Some(root_session_id) = root_session_id.as_deref() {
+                ensure_conversation_writable_with_connection(&tx, root_session_id)?;
+            }
+            let rows_changed = tx
                 .execute(
                     "UPDATE agent_org_runs
                      SET status = ?1,
@@ -492,6 +531,7 @@ impl AgentOrgRunStore {
                     params![running.as_str(), now, run_id, paused.as_str()],
                 )
                 .map_err(|err| err.to_string())?;
+            tx.commit().map_err(|err| err.to_string())?;
             Ok(rows_changed > 0)
         })?;
         if changed {
@@ -500,66 +540,42 @@ impl AgentOrgRunStore {
         Ok(changed)
     }
 
-    /// Establish the durable fence for a user-requested hierarchy deletion.
-    ///
-    /// `paused` remains resumable, so deletion must not use it as the final
-    /// stop signal. Moving a live run to `cancelled` prevents resume and wake
-    /// paths from starting new work while the caller drains Rust runtimes.
-    pub(crate) fn cancel_for_delete_with_connection(
-        conn: &Connection,
-        run_id: &str,
-    ) -> Result<bool, String> {
-        let now = chrono::Utc::now().to_rfc3339();
-        let changed = conn
-            .execute(
-                "UPDATE agent_org_runs
-                 SET status='cancelled',
-                     updated_at=?2,
-                     completed_at=COALESCE(completed_at, ?2)
-                 WHERE id=?1
-                   AND status IN ('running', 'paused')",
-                params![run_id, &now],
-            )
-            .map_err(|err| err.to_string())?
-            > 0;
-        conn.execute(
-            "UPDATE agent_org_plan_approvals
-             SET status='cancelled', decision_by='system', resolved_at=?2
-             WHERE org_run_id=?1 AND status='pending'",
-            params![run_id, &now],
-        )
-        .map_err(|err| err.to_string())?;
-        Ok(changed)
-    }
-
     pub fn mark_failed(run_id: &str, error_message: &str) -> Result<(), String> {
         let status = validate_status(AgentOrgRunStatus::Failed.as_str())?;
         let now = chrono::Utc::now().to_rfc3339();
-        with_sessions_writer(|| -> Result<(), String> {
+        let changed = with_sessions_writer(|| -> Result<bool, String> {
             let mut conn = get_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
-            tx.execute(
-                "UPDATE agent_org_runs
+            let changed = tx
+                .execute(
+                    "UPDATE agent_org_runs
                  SET status = ?1,
                      last_error = ?2,
                      updated_at = ?3,
                      completed_at = ?3
-                 WHERE id = ?4",
-                params![status.as_str(), error_message, now, run_id],
-            )
-            .map_err(|err| err.to_string())?;
-            tx.execute(
-                "UPDATE agent_org_plan_approvals
-                 SET status='cancelled', decision_by='system', resolved_at=?2
-                 WHERE org_run_id=?1 AND status='pending'",
-                params![run_id, &now],
-            )
-            .map_err(|err| err.to_string())?;
-            tx.commit().map_err(|err| err.to_string())
+                 WHERE id = ?4
+                   AND status IN ('starting', 'running', 'paused')",
+                    params![status.as_str(), error_message, now, run_id],
+                )
+                .map_err(|err| err.to_string())?
+                > 0;
+            if changed {
+                tx.execute(
+                    "UPDATE agent_org_plan_approvals
+                     SET status='cancelled', decision_by='system', resolved_at=?2
+                     WHERE org_run_id=?1 AND status='pending'",
+                    params![run_id, &now],
+                )
+                .map_err(|err| err.to_string())?;
+            }
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok(changed)
         })?;
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        if changed {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
+        }
         Ok(())
     }
 
@@ -801,6 +817,8 @@ impl AgentOrgRunStore {
         resolution: AgentOrgRunResolution,
         access: AgentOrgRunResolutionAccess,
     ) -> Result<Option<AgentOrgRunContext>, String> {
+        #[cfg(any(test, debug_assertions))]
+        super::deletion::record_submission_query();
         let Some(run) = Self::resolve_run_for_session(session_id, resolution, access)? else {
             return Ok(None);
         };
@@ -1013,7 +1031,9 @@ impl AgentOrgRunStore {
                     .filter(|run| {
                         matches!(
                             run.status,
-                            AgentOrgRunStatus::Running | AgentOrgRunStatus::Paused
+                            AgentOrgRunStatus::Starting
+                                | AgentOrgRunStatus::Running
+                                | AgentOrgRunStatus::Paused
                         )
                     })
                     .collect::<Vec<_>>();
@@ -1293,6 +1313,11 @@ impl AgentOrgRunStore {
                  FROM agent_org_runs
                  WHERE root_session_id IS NOT NULL
                    AND status = ?1
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM agent_org_conversation_delete_fences fence
+                       WHERE fence.root_session_id=agent_org_runs.root_session_id
+                   )
                  ORDER BY updated_at DESC
                  LIMIT ?2",
             )
@@ -1351,6 +1376,18 @@ impl AgentOrgRunStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
+            let root_session_id = tx
+                .query_row(
+                    "SELECT root_session_id FROM agent_org_runs WHERE id=?1",
+                    [run_id],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .optional()
+                .map_err(|err| err.to_string())?
+                .flatten();
+            if let Some(root_session_id) = root_session_id {
+                ensure_conversation_writable_with_connection(&tx, &root_session_id)?;
+            }
             let outcome = Self::delete_by_id_with_connection(&tx, run_id)?;
             tx.commit().map_err(|err| err.to_string())?;
             Ok(outcome)

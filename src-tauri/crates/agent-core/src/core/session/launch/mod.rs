@@ -216,6 +216,7 @@ async fn generate_title_before_first_turn(
 /// coupling this decoupling removes. The title task persists the name and
 /// emits `session:renamed` when it finishes; the first turn proceeds
 /// concurrently regardless of when (or whether) the title resolves.
+#[allow(clippy::too_many_arguments)]
 fn spawn_session_title_generation(
     state: AgentAppState,
     session_id: String,
@@ -224,8 +225,27 @@ fn spawn_session_title_generation(
     model: Option<String>,
     native_harness_type: Option<core_types::providers::NativeHarnessType>,
     content: String,
+    agent_org_run_id: Option<String>,
 ) {
+    let title_submission = agent_org_run_id
+        .as_ref()
+        .map(|_| crate::coordination::agent_org_runs::AgentOrgSubmissionLease::begin(&session_id));
     tokio::spawn(async move {
+        let _title_submission = title_submission;
+        if let Some(run_id) = agent_org_run_id.as_deref() {
+            if let Err(error) =
+                crate::coordination::agent_org_runs::recheck_known_agent_org_submission(run_id)
+                    .await
+            {
+                tracing::debug!(
+                    session_id = %session_id,
+                    run_id = %run_id,
+                    %error,
+                    "[session_title] skipped title generation for deleting Agent Org"
+                );
+                return;
+            }
+        }
         generate_title_before_first_turn(
             &state,
             &session_id,
@@ -645,6 +665,7 @@ pub(crate) async fn launch_rust_agent_run(
                 model_for_send.clone(),
                 native_harness_type_for_send,
                 content_for_send.clone(),
+                agent_org_run_id_for_background.clone(),
             );
             let send_result = send_initial_turn(
                 &state_for_background,
@@ -766,6 +787,7 @@ pub(crate) async fn launch_rust_agent_run(
                 model_for_send.clone(),
                 native_harness_type_for_send,
                 content_for_send.clone(),
+                agent_org_run_id_for_send.clone(),
             );
 
             // A plain (non-org) launch's first message IS the user's real

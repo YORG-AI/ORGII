@@ -239,7 +239,28 @@ fn load_agent_org_context(
     state: &AgentAppState,
     session_id: &str,
     run_hint: Option<&str>,
+    cached_context: Option<&crate::coordination::agent_org_runs::AgentOrgRunContext>,
+    cached_scope: Option<crate::coordination::agent_org_runs::AgentOrgSubmissionScope>,
+    persisted_session: Option<&crate::session::persistence::UnifiedSessionRecord>,
 ) -> Result<Option<crate::coordination::agent_org_runs::AgentOrgRunContext>, String> {
+    if run_hint.is_none() {
+        if let Some(context) = cached_context {
+            return Ok(Some(context.clone()));
+        }
+        if cached_scope
+            == Some(crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Ordinary)
+        {
+            return Ok(None);
+        }
+        if persisted_session.is_some_and(|record| {
+            record.session_type != crate::session::persistence::session_type::ORG_MEMBER
+                && record.org_member_id.is_none()
+        }) {
+            // A canonical ordinary row is conclusive. Do not make SDE/OS
+            // depend on Agent Org schema availability or fence I/O.
+            return Ok(None);
+        }
+    }
     let Some(handle) = state.app_handle.as_ref() else {
         tracing::debug!(
             session_id = %session_id,
@@ -328,7 +349,43 @@ async fn ensure_session_initialized(
         _ if !resolved.selected_model_id.is_empty() => Some(resolved.selected_model_id.clone()),
         _ => None,
     };
-    let agent_org_context = load_agent_org_context(state, session_id, agent_org_run_hint)?;
+    let cached_session = state.get_session(session_id).await;
+    let cached_runtime = match cached_session.as_ref() {
+        Some(session) => session.get_runtime().await,
+        None => None,
+    };
+    let mut persisted_session = if cached_runtime.is_none() {
+        crate::session::persistence::get_session(session_id)
+            .map_err(|err| format!("failed to load session ownership for {session_id}: {err}"))?
+    } else {
+        None
+    };
+    let agent_org_context = load_agent_org_context(
+        state,
+        session_id,
+        agent_org_run_hint,
+        cached_runtime
+            .as_ref()
+            .and_then(|runtime| runtime.agent_org_context.as_ref()),
+        cached_session
+            .as_ref()
+            .map(|session| session.agent_org_submission_scope().snapshot()),
+        persisted_session.as_ref(),
+    )?;
+    let submission_run_id = agent_org_run_hint.map(str::to_string).or_else(|| {
+        agent_org_context
+            .as_ref()
+            .map(|context| context.run_id.clone())
+    });
+    let submission_scope = match submission_run_id.as_ref() {
+        Some(run_id) => crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Run {
+            run_id: run_id.clone(),
+        },
+        None => crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Ordinary,
+    };
+    if let Some(session) = state.get_session(session_id).await {
+        session.set_agent_org_submission_scope(submission_scope.clone());
+    }
 
     // Fast path: re-entrant init for an already-running session.
     if let Some(existing) = fast_path::try_reuse_existing(
@@ -345,6 +402,16 @@ async fn ensure_session_initialized(
     {
         return Ok(existing);
     }
+
+    let _runtime_init_submission = match submission_run_id.as_deref() {
+        Some(run_id) => Some(
+            crate::coordination::agent_org_runs::admit_known_agent_org_submission(
+                session_id, run_id,
+            )
+            .await?,
+        ),
+        None => None,
+    };
 
     // Slow path: we're about to (re)build a runtime — model is now required.
     let model =
@@ -413,6 +480,7 @@ async fn ensure_session_initialized(
         .get_session(session_id)
         .await
         .ok_or_else(|| format!("Session {} missing after registration", session_id))?;
+    session_handle.set_agent_org_submission_scope(submission_scope);
 
     // Capability derivation — single pass over `resolved` for all gates.
     let cap_flags = capabilities::CapabilityFlags::from_resolved(&resolved);
@@ -469,9 +537,11 @@ async fn ensure_session_initialized(
         controller.config()
     };
 
-    let session_record = crate::session::persistence::get_session(session_id)
-        .ok()
-        .flatten();
+    if persisted_session.is_none() {
+        persisted_session = crate::session::persistence::get_session(session_id)
+            .map_err(|err| format!("failed to load session metadata for {session_id}: {err}"))?;
+    }
+    let session_record = persisted_session;
     let agent_org_current_member_id = match agent_org_context.as_ref() {
         Some(context) if context.root_session_id.as_deref() == Some(session_id) => {
             Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.to_string())
@@ -644,7 +714,7 @@ async fn ensure_session_initialized(
             agent_definition_id,
         },
     )
-    .await;
+    .await?;
 
     runtime_assemble::mark_running_for_gateway(state, cap_flags.has_gateway, &account_id).await;
     runtime_assemble::register_in_file_registry(session_id, &log_prefix, &model, &workspace_root);

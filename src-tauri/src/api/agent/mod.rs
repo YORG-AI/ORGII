@@ -34,11 +34,134 @@ pub use public::AgentStatusResponse;
 
 #[cfg(debug_assertions)]
 use axum::routing::post;
+#[cfg(debug_assertions)]
+use axum::Json;
 use axum::{routing::get, Router};
 
 // ============================================
 // Router
 // ============================================
+
+#[cfg(debug_assertions)]
+async fn test_agent_org_submission_control(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use agent_core::coordination::agent_org_runs::{
+        debug_establish_e2e_conversation_delete_fence, reset_submission_metrics, submission_metrics,
+    };
+
+    match body.get("action").and_then(serde_json::Value::as_str) {
+        Some("reset_metrics") => {
+            reset_submission_metrics();
+            Json(serde_json::json!({ "ok": true }))
+        }
+        Some("snapshot_metrics") => {
+            let (queries, lease_mutations) = submission_metrics();
+            Json(serde_json::json!({
+                "ok": true,
+                "queries": queries,
+                "lease_mutations": lease_mutations,
+            }))
+        }
+        Some("manual_compact" | "channel_message" | "gateway_message") => {
+            use tauri::Manager;
+            let Some(session_id) = body.get("session_id").and_then(serde_json::Value::as_str)
+            else {
+                return Json(serde_json::json!({ "ok": false, "error": "session_id is required" }));
+            };
+            if !session_id.starts_with("ordinary-sde-e2e-agent-org-fixture:ordinary-isolation-") {
+                return Json(
+                    serde_json::json!({ "ok": false, "error": "fixture session required" }),
+                );
+            }
+            let Some(handle) = crate::api::get_app_handle() else {
+                return Json(
+                    serde_json::json!({ "ok": false, "error": "AppHandle not initialized" }),
+                );
+            };
+            let state = handle.state::<agent_core::state::AgentAppState>();
+            if body.get("action").and_then(serde_json::Value::as_str) == Some("manual_compact") {
+                return match agent_core::state::commands::session::agent_session_manual_compact(
+                    state,
+                    session_id.to_string(),
+                    None,
+                )
+                .await
+                {
+                    Ok(result) => Json(serde_json::json!({ "ok": true, "result": result })),
+                    Err(error) => Json(serde_json::json!({ "ok": false, "error": error })),
+                };
+            }
+            if body.get("action").and_then(serde_json::Value::as_str) == Some("gateway_message") {
+                let Some(session) = state.get_session(session_id).await else {
+                    return Json(
+                        serde_json::json!({ "ok": false, "error": "fixture session not initialized" }),
+                    );
+                };
+                let mut message = agent_core::bus::InboundMessage::new(
+                    "e2e:ordinary-isolation",
+                    "fixture-sender",
+                    "fixture-chat",
+                    "ordinary gateway isolation marker",
+                );
+                message.session_key_override = Some(session_id.to_string());
+                return match agent_core::session::gateway_pipeline::process_gateway_message(
+                    message,
+                    session,
+                    None,
+                    Some(handle.clone()),
+                )
+                .await
+                {
+                    Ok(result) => Json(serde_json::json!({ "ok": true, "result": result })),
+                    Err(error) => Json(serde_json::json!({ "ok": false, "error": error })),
+                };
+            }
+            match agent_core::state::commands::session::channel::channel_process_message(
+                state,
+                "ordinary channel isolation marker".to_string(),
+                Some(session_id.to_string()),
+                body.get("model")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string),
+                body.get("account_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string),
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            {
+                Ok(result) => Json(serde_json::json!({ "ok": true, "result": result })),
+                Err(error) => Json(serde_json::json!({ "ok": false, "error": error })),
+            }
+        }
+        Some("fence_fixture") => {
+            let Some(root_session_id) = body
+                .get("root_session_id")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+            else {
+                return Json(serde_json::json!({
+                    "ok": false,
+                    "error": "root_session_id is required",
+                }));
+            };
+            match tokio::task::spawn_blocking(move || {
+                debug_establish_e2e_conversation_delete_fence(&root_session_id)
+            })
+            .await
+            {
+                Ok(Ok(())) => Json(serde_json::json!({ "ok": true })),
+                Ok(Err(error)) => Json(serde_json::json!({ "ok": false, "error": error })),
+                Err(error) => Json(serde_json::json!({ "ok": false, "error": error.to_string() })),
+            }
+        }
+        _ => Json(serde_json::json!({ "ok": false, "error": "unknown action" })),
+    }
+}
 
 /// Create the agent API routes.
 pub fn create_routes() -> Router {
@@ -729,6 +852,10 @@ pub fn create_routes() -> Router {
         .route(
             "/test/agent-org/session-delete/attempt",
             post(test::agent_org::test_agent_org_session_delete_attempt),
+        )
+        .route(
+            "/test/agent-org/submission-control",
+            post(test_agent_org_submission_control),
         )
         .route(
             "/test/agent-org/stale-workers/seed-cli-member",

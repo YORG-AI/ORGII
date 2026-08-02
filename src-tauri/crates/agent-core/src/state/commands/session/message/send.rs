@@ -84,6 +84,21 @@ pub(crate) async fn send_message_impl(
     intent_org_run_id: Option<String>,
     source: TurnIntentBridgeSource,
 ) -> Result<AgentResponse, String> {
+    let explicit_run_id = org_wake_run_id
+        .as_ref()
+        .or(intent_org_run_id.as_ref())
+        .cloned();
+    let explicit_submission = match explicit_run_id.as_deref() {
+        Some(run_id) => Some(
+            crate::coordination::agent_org_runs::admit_known_agent_org_submission(
+                &session_id,
+                run_id,
+            )
+            .await?,
+        ),
+        None => None,
+    };
+
     // Canonical user-intent id: callers that already mint one at the
     // submit boundary pass it through; legacy / internal callers that
     // don't (mobile remote, wake hook, plan-approval re-entry) get a
@@ -106,7 +121,8 @@ pub(crate) async fn send_message_impl(
     );
 
     // ── 1. Resolve session identity (unified — single code path) ─────────
-    let identity = resolve_session_identity(state, &session_id, overrides).await?;
+    let identity =
+        resolve_session_identity(state, &session_id, overrides, explicit_run_id.as_deref()).await?;
 
     // Goal loop: a real user submission becomes (or replaces) the
     // session's standing goal and resets the continuation counter.
@@ -124,6 +140,18 @@ pub(crate) async fn send_message_impl(
     let effective_account_id = identity.account_id;
     let effective_workspace_root = identity.workspace_root;
     let effective_native_harness_type = identity.native_harness_type;
+    let identity_agent_org_run_id = identity.agent_org_run_id;
+    let submission_run_id = explicit_run_id.or(identity_agent_org_run_id);
+    let _inferred_submission = match (explicit_submission.is_none(), submission_run_id.as_deref()) {
+        (true, Some(run_id)) => Some(
+            crate::coordination::agent_org_runs::admit_known_agent_org_submission(
+                &session_id,
+                run_id,
+            )
+            .await?,
+        ),
+        _ => None,
+    };
 
     // ── 2. Ensure session is initialized (lazy runtime creation) ─────────
     let launch_spec = crate::init::launch_spec::AgentLaunchSpec::from_session_sources(
@@ -135,7 +163,7 @@ pub(crate) async fn send_message_impl(
         effective_native_harness_type,
     )
     .await?
-    .with_agent_org_run_hint(intent_org_run_id.clone());
+    .with_agent_org_run_hint(submission_run_id);
 
     let runtime = crate::init::init_session(state, launch_spec).await?;
 

@@ -120,7 +120,13 @@ pub(super) struct AssembleParams {
 pub(super) async fn install_runtime(
     session_handle: &AgentSession,
     params: AssembleParams,
-) -> Arc<SessionRuntime> {
+) -> Result<Arc<SessionRuntime>, String> {
+    // The slow build may have overlapped deletion after its first check.
+    // Re-read the durable fence at the sole runtime installation boundary.
+    crate::coordination::agent_org_runs::recheck_agent_org_submission(
+        &session_handle.agent_org_submission_scope(),
+    )
+    .await?;
     let runtime = Arc::new(SessionRuntime {
         provider: params.provider,
         tool_registry: params.final_registry,
@@ -141,7 +147,7 @@ pub(super) async fn install_runtime(
         agent_definition_id: params.agent_definition_id,
     });
     session_handle.set_runtime(Arc::clone(&runtime)).await;
-    runtime
+    Ok(runtime)
 }
 
 /// Side-effect: mark the app as "running" + remember the active account.

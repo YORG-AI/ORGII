@@ -24,6 +24,12 @@ pub async fn process_gateway_message(
     ide_context: Option<&IdeContext>,
     app_handle: Option<tauri::AppHandle>,
 ) -> Result<Option<OutboundMessage>, String> {
+    let submission_scope = session.agent_org_submission_scope();
+    let _submission = crate::coordination::agent_org_runs::admit_agent_org_submission(
+        &submission_scope,
+        &session.id,
+    )
+    .await?;
     let preview: String = crate::utils::safe_truncate_chars_to_string(&msg.content, 80);
     info!(
         "Processing message from {}:{}: {}...",

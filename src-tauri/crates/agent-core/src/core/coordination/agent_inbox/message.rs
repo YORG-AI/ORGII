@@ -708,6 +708,13 @@ mod tests {
              CREATE TABLE IF NOT EXISTS agent_org_tasks (
                  id TEXT PRIMARY KEY,
                  org_run_id TEXT NOT NULL
+             );
+             CREATE TABLE IF NOT EXISTS agent_org_run_sessions (
+                 org_run_id TEXT NOT NULL,
+                 member_id TEXT NOT NULL,
+                 session_id TEXT NOT NULL,
+                 role TEXT NOT NULL,
+                 created_at TEXT NOT NULL
              );",
         )
         .expect("initialize minimal delivery-repair dependencies");
@@ -1560,6 +1567,13 @@ mod tests {
                 ],
             )
             .expect("seed healthy replacement member");
+            conn.execute(
+                "INSERT INTO agent_org_run_sessions (
+                     org_run_id, member_id, session_id, role, created_at
+                 ) VALUES (?1, ?2, ?3, 'worker', ?4)",
+                params![run_id, member_id, session_id, &now],
+            )
+            .expect("seed exact replacement-member ownership");
         }
 
         let row_a = AgentInboxStore::insert(InsertInboxParams {

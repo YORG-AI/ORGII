@@ -14,8 +14,12 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     run_id: &str,
     session_id: &str,
 ) -> Result<usize, String> {
-    use crate::coordination::agent_org_runs::AgentOrgRunStatus;
+    use crate::coordination::agent_org_runs::{is_run_writable_with_connection, AgentOrgRunStatus};
     use crate::session::SessionStatus;
+
+    if !is_run_writable_with_connection(conn, run_id)? {
+        return Ok(0);
+    }
 
     let wakeable = SessionStatus::AGENT_ORG_WAKEABLE;
     let now = chrono::Utc::now().to_rfc3339();
@@ -71,6 +75,10 @@ pub(super) fn promote_agent_org_direct_session_to_running(
     run_id: &str,
     session_id: &str,
 ) -> Result<usize, String> {
+    if !crate::coordination::agent_org_runs::is_run_writable_with_connection(conn, run_id)? {
+        return Ok(0);
+    }
+
     conn.execute(
         "UPDATE agent_sessions
          SET status=?1, updated_at=?2

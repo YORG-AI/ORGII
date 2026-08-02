@@ -15,7 +15,8 @@ use crate::coordination::agent_inbox::{
     AgentInboxStore, AgentMessage, InsertInboxParams, SYSTEM_SENDER_ID,
 };
 use crate::coordination::agent_org_runs::{
-    AgentOrgRunContext, AgentOrgRunStore, COORDINATOR_MEMBER_ID,
+    ensure_conversation_writable_with_connection, AgentOrgRunContext, AgentOrgRunStore,
+    COORDINATOR_MEMBER_ID,
 };
 use crate::state::control_flow::CancelReason;
 use crate::state::AgentAppState;
@@ -185,16 +186,23 @@ pub(super) fn resume_agent_org_context_sync(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
-        let status: Option<String> = tx
+        let run: Option<(Option<String>, String)> = tx
             .query_row(
-                "SELECT status FROM agent_org_runs WHERE id=?1",
+                "SELECT root_session_id, status FROM agent_org_runs WHERE id=?1",
                 params![&context.run_id],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()
             .map_err(|err| err.to_string())?;
-        let transitioned = status.as_deref() == Some("paused");
-        let run_is_running = transitioned || status.as_deref() == Some("running");
+        if let Some(root_session_id) = run
+            .as_ref()
+            .and_then(|(root_session_id, _)| root_session_id.as_deref())
+        {
+            ensure_conversation_writable_with_connection(&tx, root_session_id)?;
+        }
+        let status = run.as_ref().map(|(_, status)| status.as_str());
+        let transitioned = status == Some("paused");
+        let run_is_running = transitioned || status == Some("running");
         if transitioned {
             tx.execute(
                 "UPDATE agent_org_runs

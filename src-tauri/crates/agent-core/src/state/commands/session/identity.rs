@@ -32,6 +32,7 @@ pub(super) struct SessionIdentity {
     pub(super) account_id: Option<String>,
     pub(super) native_harness_type: Option<NativeHarnessType>,
     pub(super) workspace_root: PathBuf,
+    pub(super) agent_org_run_id: Option<String>,
 }
 
 /// Caller-supplied overrides. Fields that are `None` are resolved from
@@ -72,6 +73,7 @@ pub(super) async fn resolve_session_identity(
     state: &AgentAppState,
     session_id: &str,
     overrides: IdentityOverrides,
+    agent_org_run_hint: Option<&str>,
 ) -> Result<SessionIdentity, String> {
     let personal_ws = crate::definitions::prefix_lookup::uses_personal_workspace(session_id);
 
@@ -206,11 +208,56 @@ pub(super) async fn resolve_session_identity(
         }
     };
 
+    // Agent Org ownership follows the same precedence as runtime admission:
+    // reliable runtime context, then the already-loaded persisted type, and
+    // only a cold unknown falls back to PR1's exact mapping. Ordinary rows
+    // return without touching Agent Org tables.
+    let agent_org_run_id = if let Some(run_id) = agent_org_run_hint {
+        Some(run_id.to_string())
+    } else if let Some(runtime) = cached_runtime.as_ref() {
+        runtime
+            .agent_org_context
+            .as_ref()
+            .map(|context| context.run_id.clone())
+    } else {
+        let needs_exact_mapping = db_record
+            .as_ref()
+            .map(|record| {
+                record.session_type == session_persistence::session_type::ORG_MEMBER
+                    || record.org_member_id.is_some()
+            })
+            .unwrap_or(true);
+        if needs_exact_mapping {
+            let sid = session_id.to_string();
+            let record = db_record.clone();
+            let scope = tokio::task::spawn_blocking(move || match record {
+                Some(record) => {
+                    crate::coordination::agent_org_runs::submission_scope_for_loaded_session(
+                        &record,
+                    )
+                }
+                None => crate::coordination::agent_org_runs::exact_submission_scope(&sid),
+            })
+            .await
+            .map_err(|err| format!("Agent Org ownership task failed: {err}"))??;
+            match scope {
+                crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Run { run_id } => {
+                    Some(run_id)
+                }
+                crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Ordinary
+                | crate::coordination::agent_org_runs::AgentOrgSubmissionScope::Unknown => None,
+            }
+        } else {
+            None
+        }
+    };
+
     Ok(SessionIdentity {
         model,
         account_id,
         workspace_root,
         native_harness_type,
+        agent_org_run_id,
     })
 }
 

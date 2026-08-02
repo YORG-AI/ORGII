@@ -9,6 +9,7 @@ use super::budget::{
     RecoveryAttemptSnapshot,
 };
 use super::*;
+use crate::coordination::agent_org_runs::is_run_writable_with_connection;
 
 /// Provisional durable claim for one scheduler dispatch.
 ///
@@ -39,6 +40,10 @@ pub(crate) fn reserve_member_rewake_dispatch(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+        if !is_run_writable_with_connection(&tx, run_id)? {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(MemberRewakeReservationOutcome::Deferred);
+        }
         if !matches!(
             budget_disposition_with_connection(&tx, run_id, MEMBER_REWAKE, member_id, fingerprint,)?,
             BudgetDisposition::Allowed
@@ -96,8 +101,15 @@ pub(crate) fn commit_member_rewake_reservation(
     reservation: &MemberRewakeReservation,
 ) -> Result<(), String> {
     with_sessions_writer(|| -> Result<(), String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
-        conn.execute(
+        let mut conn = get_connection().map_err(|err| err.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|err| err.to_string())?;
+        if !is_run_writable_with_connection(&tx, &reservation.run_id)? {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(());
+        }
+        tx.execute(
             "UPDATE agent_org_recovery_attempts
              SET reservation_token=NULL
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3
@@ -110,7 +122,7 @@ pub(crate) fn commit_member_rewake_reservation(
             ],
         )
         .map_err(|err| err.to_string())?;
-        Ok(())
+        tx.commit().map_err(|err| err.to_string())
     })
 }
 
@@ -122,6 +134,10 @@ pub(crate) fn refund_member_rewake_reservation(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+        if !is_run_writable_with_connection(&tx, &reservation.run_id)? {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(false);
+        }
         let owns_current: bool = tx
             .query_row(
                 "SELECT EXISTS(

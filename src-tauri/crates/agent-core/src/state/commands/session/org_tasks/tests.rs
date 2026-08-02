@@ -24,6 +24,14 @@ use crate::coordination::agent_org_runs::{
 use crate::coordination::agent_org_tasks::{Task, TaskExecutionMode, TaskStatus, TaskSummary};
 use crate::definitions::orgs::HierarchyMode;
 
+#[test]
+fn starting_run_status_projects_through_the_existing_wire_contract() {
+    assert_eq!(
+        project_run_status(AgentOrgRunStatus::Starting),
+        AgentOrgRunStatus::Running.as_str()
+    );
+}
+
 fn context_with_shared_member_agent_id() -> AgentOrgRunContext {
     AgentOrgRunContext {
         run_id: "run-shared-agent".to_string(),
@@ -327,7 +335,7 @@ fn resume_wake_requires_unread_inbox() {
 #[test]
 fn terminal_group_message_writes_neither_inbox_nor_intervention_clear() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("completed");
+    let context = prepare_command_run("running");
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),
         member_id: "member-planner".to_string(),
@@ -337,6 +345,13 @@ fn terminal_group_message_writes_neither_inbox_nor_intervention_clear() {
         ttl_secs: 60,
     })
     .expect("enter intervention");
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET status='completed' WHERE id=?1",
+        [&context.run_id],
+    )
+    .expect("complete run after entering intervention");
+    drop(conn);
 
     let error = persist_group_chat_message(
         &context,
@@ -526,6 +541,44 @@ fn paused_resume_and_coordinator_seed_commit_or_rollback_together() {
 }
 
 #[test]
+fn resume_refuses_persistently_fenced_root_even_if_run_is_paused() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("paused");
+    let conn = get_connection().expect("db connection");
+    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
+        .expect("plan approval schema");
+    drop(conn);
+    crate::coordination::agent_org_runs::establish_conversation_delete_fence(
+        context
+            .root_session_id
+            .as_deref()
+            .expect("command fixture root"),
+    )
+    .expect("establish durable root fence");
+    let conn = get_connection().expect("db connection");
+    conn.execute(
+        "UPDATE agent_org_runs SET status='paused' WHERE id=?1",
+        params![&context.run_id],
+    )
+    .expect("keep run paused to isolate root-fence behavior");
+    drop(conn);
+
+    let error = resume_agent_org_context_sync(&context, true)
+        .expect_err("a fenced conversation cannot be resumed");
+    assert!(error.starts_with("conversation_deleting:"), "{error}");
+    let conn = get_connection().expect("db connection");
+    let status: String = conn
+        .query_row(
+            "SELECT status FROM agent_org_runs WHERE id=?1",
+            params![&context.run_id],
+            |row| row.get(0),
+        )
+        .expect("load fenced run status");
+    assert_eq!(status, "paused");
+    assert_eq!(inbox_count_for_member(&context, COORDINATOR_MEMBER_ID), 0);
+}
+
+#[test]
 fn explicit_resume_of_running_run_repairs_unread_without_duplicate_seed() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
@@ -648,10 +701,7 @@ fn return_to_work_rolls_back_intervention_clear_when_boundary_capture_fails() {
 #[test]
 fn group_chat_target_clear_exits_direct_intervention() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = get_connection().expect("db connection");
-    crate::coordination::agent_member_interventions::init_schema(&conn)
-        .expect("intervention schema");
-    let context = context_with_shared_member_agent_id();
+    let context = prepare_command_run("running");
 
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),

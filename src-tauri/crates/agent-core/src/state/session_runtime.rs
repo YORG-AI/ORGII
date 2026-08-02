@@ -4,6 +4,9 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::coordination::agent_org_runs::{
+    AgentOrgSubmissionPolicy, AgentOrgSubmissionScope, SharedAgentOrgSubmissionScope,
+};
 use crate::definitions::AgentDefinition;
 use crate::definitions::SessionMode;
 use crate::interaction::mode_switch::ModeSwitchManager;
@@ -106,6 +109,9 @@ pub struct AgentSession {
     pub id: String,
     /// The resolved agent definition (inheritance applied).
     pub definition: AgentDefinition,
+    /// Exact Agent Org ownership for runtime/dispatch admission. Durable
+    /// deletion-fence state is never cached here.
+    submission_scope: SharedAgentOrgSubmissionScope,
 
     // ── Runtime Resources ─────────────────────────────────────────────────
     /// Runtime resources (provider, tools, policy). Set after initialization.
@@ -253,6 +259,9 @@ impl AgentSession {
             .unwrap_or(false);
 
         let session_id_for_scheduler = id.clone();
+        let submission_scope = Arc::new(AgentOrgSubmissionPolicy::new(
+            AgentOrgSubmissionScope::Ordinary,
+        ));
 
         // Shared cancel flag: session + any manager that needs cancel-aware
         // waits (see *Manager::with_cancel_flag). Must be built before the
@@ -291,6 +300,7 @@ impl AgentSession {
         Self {
             id,
             definition,
+            submission_scope: Arc::clone(&submission_scope),
             runtime: tokio::sync::RwLock::new(None),
             compaction: tokio::sync::Mutex::new(CompactionState::default()),
             last_context_tokens: Arc::new(AtomicI64::new(0)),
@@ -310,7 +320,11 @@ impl AgentSession {
             last_active_at: tokio::sync::Mutex::new(Instant::now()),
             active_turn: tokio::sync::Mutex::new(None),
             active_turn_generation: Arc::new(parking_lot::RwLock::new(None)),
-            scheduler: DialogScheduler::new(session_id_for_scheduler, 32),
+            scheduler: DialogScheduler::new_with_submission_scope(
+                session_id_for_scheduler,
+                32,
+                submission_scope,
+            ),
             steering_queue: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             em_state: Arc::new(tokio::sync::Mutex::new(ExtractMemoriesState::default())),
             ad_state: Arc::new(tokio::sync::Mutex::new(AutoDreamState::default())),
@@ -330,8 +344,16 @@ impl AgentSession {
     }
 
     /// Attach (or replace) the runtime after initialization completes.
-    pub async fn set_runtime(&self, runtime: Arc<SessionRuntime>) {
+    pub(crate) async fn set_runtime(&self, runtime: Arc<SessionRuntime>) {
         *self.runtime.write().await = Some(runtime);
+    }
+
+    pub(crate) fn set_agent_org_submission_scope(&self, scope: AgentOrgSubmissionScope) {
+        self.submission_scope.store(scope);
+    }
+
+    pub(crate) fn agent_org_submission_scope(&self) -> SharedAgentOrgSubmissionScope {
+        Arc::clone(&self.submission_scope)
     }
 
     /// Return the current runtime, if initialized.

@@ -12,6 +12,7 @@ use super::inspect::{
     PendingMaterializationDisposition,
 };
 use super::*;
+use crate::coordination::agent_org_runs::is_run_writable_with_connection;
 
 pub fn spawn(app_handle: AppHandle) {
     tauri::async_runtime::spawn(async move {
@@ -123,14 +124,43 @@ pub fn recover_stalled_run(
     execute_stall_recovery_plan(run_id, plan, wake_hook.as_ref())
 }
 
+fn run_is_writable(run_id: &str) -> Result<bool, String> {
+    let conn = get_connection().map_err(|err| err.to_string())?;
+    is_run_writable_with_connection(&conn, run_id)
+}
+
+/// Serialize the final fire-and-forget callback with Root fencing. The
+/// production hook only schedules async work, so holding the writer gate here
+/// is brief; downstream wake promotion still performs its own durable check.
+pub(super) fn dispatch_wakes_if_run_writable<'a>(
+    run_id: &str,
+    member_ids: impl IntoIterator<Item = &'a str>,
+    wake_hook: &dyn InboxWakeHook,
+) -> Result<(), String> {
+    let member_ids = member_ids.into_iter().collect::<Vec<_>>();
+    with_sessions_writer(|| -> Result<(), String> {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        if is_run_writable_with_connection(&conn, run_id)? {
+            for member_id in member_ids {
+                wake_hook.wake_member(member_id, run_id);
+            }
+        }
+        Ok(())
+    })
+}
+
 /// Execute an advisory analyzer plan through a caller-supplied Wake hook.
 /// Keeping orchestration here makes the full reconcile → revalidate → persist
 /// → wake ordering directly testable without constructing a Tauri runtime.
-fn execute_stall_recovery_plan(
+pub(super) fn execute_stall_recovery_plan(
     run_id: &str,
     plan: StallRecoveryPlan,
     wake_hook: &dyn InboxWakeHook,
 ) -> Result<StallRecoveryPlan, String> {
+    if !run_is_writable(run_id)? {
+        return Ok(plan);
+    }
+
     // Reconcile first: when the run actually closes there is nothing
     // left to wake or repair. When reconciliation declines (e.g. the
     // coordinator root session is still open), fall through and deliver
@@ -184,20 +214,20 @@ fn execute_stall_recovery_plan(
     // Members without a derived action were selected only because the
     // analyzer observed unread durable input. Recheck that input rather than
     // waking from the stale plan alone.
-    if AgentOrgRunStore::get_run_status(run_id)? == Some(AgentOrgRunStatus::Running) {
-        for member_id in &plan.wake_member_ids {
-            if !action_member_ids.contains(member_id.as_str())
-                && has_unread_for_member(run_id, member_id)?
-            {
-                wake_member_ids.insert(member_id.clone());
-            }
+    for member_id in &plan.wake_member_ids {
+        if !action_member_ids.contains(member_id.as_str())
+            && has_unread_for_member(run_id, member_id)?
+        {
+            wake_member_ids.insert(member_id.clone());
         }
     }
 
     if !wake_member_ids.is_empty() {
-        for member_id in &wake_member_ids {
-            wake_hook.wake_member(member_id, run_id);
-        }
+        dispatch_wakes_if_run_writable(
+            run_id,
+            wake_member_ids.iter().map(String::as_str),
+            wake_hook,
+        )?;
     }
 
     if let Some(reason) = plan.coordinator_repair_reason.as_deref() {
@@ -214,7 +244,11 @@ fn execute_stall_recovery_plan(
             plan.coordinator_repair_inbox_fingerprint.as_deref(),
         )? {
             CoordinatorNoticeDispatch::Inserted | CoordinatorNoticeDispatch::ExistingUnread => {
-                wake_hook.wake_member(COORDINATOR_MEMBER_ID, run_id);
+                dispatch_wakes_if_run_writable(
+                    run_id,
+                    std::iter::once(COORDINATOR_MEMBER_ID),
+                    wake_hook,
+                )?;
             }
             CoordinatorNoticeDispatch::Deferred => {
                 tracing::debug!(
@@ -252,6 +286,10 @@ fn clear_coordinator_notice_budget_if_recovered(run_id: &str) -> Result<(), Stri
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+        if !is_run_writable_with_connection(&tx, run_id)? {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(());
+        }
         if !inspect_stalled_run_with_connection(&tx, run_id)?.coordinator_repair_active {
             tx.execute(
                 "DELETE FROM agent_org_recovery_attempts
@@ -291,16 +329,7 @@ fn insert_member_continuation_if_tasks_current(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
-        let running: bool = tx
-            .query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
-                 )",
-                params![run_id],
-                |row| row.get(0),
-            )
-            .map_err(|err| err.to_string())?;
-        if !running {
+        if !is_run_writable_with_connection(&tx, run_id)? {
             tx.commit().map_err(|err| err.to_string())?;
             return Ok(false);
         }
@@ -420,6 +449,10 @@ fn insert_coordinator_stall_notice(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|err| err.to_string())?;
+        if !is_run_writable_with_connection(&tx, run_id)? {
+            tx.commit().map_err(|err| err.to_string())?;
+            return Ok(CoordinatorNoticeDispatch::Stale);
+        }
         let current_plan = inspect_stalled_run_with_connection(&tx, run_id)?;
         if current_plan.coordinator_repair_fingerprint.as_deref() != Some(reason_fingerprint) {
             tx.commit().map_err(|err| err.to_string())?;
