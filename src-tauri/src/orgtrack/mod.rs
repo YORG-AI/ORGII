@@ -5,6 +5,7 @@ pub mod extraction_scheduler;
 pub mod history_commands;
 pub mod impact_indexer;
 pub mod importer;
+pub mod journey;
 pub mod paths;
 pub mod types;
 
@@ -28,16 +29,20 @@ use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use serde::Serialize;
 use types::OrgtrackTier;
 
-/// P1 read-only Journey entry point. It validates scope before touching storage.
-/// The persisted canonical graph is not optional: absent graph data is an error,
-/// never a synthesized partial response.
+/// Read-only Journey entry point: validates scope, then builds the canonical
+/// graph from persisted orgtrack canonical records. The canonical graph is not
+/// optional: absent scope data is an error, never a synthesized partial response.
 #[tauri::command]
 pub async fn journey_graph_query(scope: String) -> Result<orgtrack_graph::JourneyGraph, String> {
-    let _scope = orgtrack_graph::JourneyScope::parse(&scope)?;
-    Err(
-        "canonical Journey graph store is not initialized for this project; refusing partial data"
-            .to_string(),
-    )
+    record_orgtrack_command_call("journey_graph_query");
+    let parsed = orgtrack_graph::JourneyScope::parse(&scope)?;
+    tokio::task::spawn_blocking(move || {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let store = SqliteRecordStore::new(&conn);
+        journey::build_journey_graph(&store, &parsed)
+    })
+    .await
+    .map_err(|err| err.to_string())?
 }
 
 const ORGTRACK_CALL_LOG_WINDOW: Duration = Duration::from_secs(30);
