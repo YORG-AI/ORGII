@@ -579,6 +579,7 @@ export interface E2EHelpers {
     repoPath?: string;
     status?: string;
     orgId?: string;
+    agentOrgId?: string;
     touchedFiles?: string[];
   }) => Promise<Result<{ sessionId: string }>>;
   openWorkManagementTab: () => Promise<Result<{ tabId: string }>>;

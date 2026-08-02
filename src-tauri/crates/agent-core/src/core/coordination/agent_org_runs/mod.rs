@@ -19,13 +19,11 @@ mod tests;
 #[cfg(debug_assertions)]
 #[doc(hidden)]
 pub use deletion::debug_establish_e2e_conversation_delete_fence;
-#[cfg(test)]
-pub(crate) use deletion::establish_conversation_delete_fence;
 pub(crate) use deletion::{
     admit_agent_org_submission, admit_known_agent_org_submission, agent_org_submission_in_progress,
     ensure_conversation_writable_with_connection,
-    establish_conversation_delete_fence_with_connection, exact_submission_scope,
-    is_run_writable_with_connection, recheck_agent_org_submission,
+    ensure_session_conversation_writable_with_connection, establish_conversation_delete_fence,
+    exact_submission_scope, is_run_writable_with_connection, recheck_agent_org_submission,
     recheck_known_agent_org_submission, remove_conversation_delete_fence_with_connection,
     submission_scope_for_loaded_session, AgentOrgSubmissionLease, AgentOrgSubmissionPolicy,
     AgentOrgSubmissionScope, SharedAgentOrgSubmissionScope,
@@ -41,6 +39,7 @@ pub use finality::{
 };
 pub(crate) use progress::bump_work_revision_in_tx;
 pub use progress::AgentOrgRunProgress;
+pub(crate) use store::AgentOrgRunDeleteOutcome;
 pub use store::AgentOrgRunStore;
 pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};

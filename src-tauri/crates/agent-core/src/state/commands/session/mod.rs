@@ -7,6 +7,9 @@
 //! Heavy logic lives in sub-modules; this file keeps the `#[tauri::command]`
 //! wrappers thin so Tauri's code-gen can resolve them at `commands::*`.
 
+mod agent_org_delete;
+#[cfg(test)]
+mod agent_org_delete_tests;
 pub mod channel;
 mod coding;
 pub(crate) mod common;

@@ -152,7 +152,9 @@ pub fn delete_session_cascade(session_id: &str, tables: &[&str]) -> SqliteResult
     })
 }
 
-/// Transaction-aware form of [`delete_session_cascade`].
+/// Transaction-aware form of [`delete_session_cascade`]. Image files are left
+/// for the existing orphan-image housekeeping pass: deleting them here could
+/// race an image persisted just before its message row acquires the writer.
 ///
 /// The caller owns the transaction boundary. This is used when several Rust
 /// Agent Org sessions and their run-owned rows must commit or roll back as one
@@ -164,20 +166,6 @@ pub(crate) fn delete_session_cascade_with_connection(
     session_id: &str,
     tables: &[&str],
 ) -> SqliteResult<()> {
-    // Collect image file paths before deleting the rows. Infer the
-    // prefix from the first table that ends with "_messages".
-    let prefix = tables
-        .iter()
-        .find(|t| t.ends_with("_messages"))
-        .and_then(|t| t.strip_suffix("_messages"));
-
-    if let Some(prefix) = prefix {
-        let image_paths = collect_session_image_paths_with_connection(conn, prefix, session_id)?;
-        if !image_paths.is_empty() {
-            super::images::delete_image_files(&image_paths);
-        }
-    }
-
     delete_session_rows_with_connection(conn, session_id, tables)
 }
 

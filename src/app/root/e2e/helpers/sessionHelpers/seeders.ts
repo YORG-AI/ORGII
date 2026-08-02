@@ -22,7 +22,9 @@ import {
 } from "@src/store/session/planApprovalAtom";
 import {
   type Session,
+  sessionPaginationAtom,
   sessionsAtom,
+  syncSessionWithNativeRosters,
   upsertSession,
 } from "@src/store/session/sessionAtom";
 import { updateShellProcessAtom } from "@src/store/session/shellProcessAtom";
@@ -158,6 +160,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
     repoPath?: string;
     status?: string;
     orgId?: string;
+    agentOrgId?: string;
     touchedFiles?: string[];
   }): Promise<Result<{ sessionId: string }>> => {
     try {
@@ -181,6 +184,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
         user_input: input.name ?? existing?.user_input ?? input.sessionId,
         repoPath: input.repoPath ?? existing?.repoPath,
         orgId: input.orgId ?? existing?.orgId,
+        agentOrgId: input.agentOrgId ?? existing?.agentOrgId,
         touchedFiles: input.touchedFiles ?? existing?.touchedFiles,
         filesChanged:
           input.touchedFiles?.length ?? existing?.filesChanged ?? undefined,
@@ -188,6 +192,9 @@ export function createSessionSeederHelpers(store: E2EStore) {
         is_active: true,
       };
       upsertSession(session);
+      store.set(sessionPaginationAtom, (pagination) =>
+        syncSessionWithNativeRosters(pagination, session)
+      );
       return { ok: true, sessionId: input.sessionId };
     } catch (err) {
       return asError(err);

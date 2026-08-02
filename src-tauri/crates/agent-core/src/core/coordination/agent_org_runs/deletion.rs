@@ -321,6 +321,27 @@ pub(crate) fn ensure_run_conversation_writable_with_connection(
     ensure_conversation_writable_with_connection(conn, &root_session_id)
 }
 
+/// Resolve exact PR1 ownership before checking a Session's root fence.
+///
+/// This is used only by deletion planning, including direct Worker deletion;
+/// ordinary submission paths keep their PR2 fast path and never call it.
+pub(crate) fn ensure_session_conversation_writable_with_connection(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<(), String> {
+    match exact_submission_scope_with_connection(conn, session_id)? {
+        AgentOrgSubmissionScope::Unknown => Err(format!(
+            "Agent Org deletion ownership remained unknown for session {session_id}"
+        )),
+        AgentOrgSubmissionScope::Ordinary => {
+            ensure_conversation_writable_with_connection(conn, session_id)
+        }
+        AgentOrgSubmissionScope::Run { run_id } => {
+            ensure_run_conversation_writable_with_connection(conn, &run_id)
+        }
+    }
+}
+
 /// A Run is writable only while it is running and its root conversation is
 /// not fenced. Callers that scanned earlier must repeat this check in the
 /// transaction that performs their durable write.
@@ -426,7 +447,6 @@ pub(crate) fn establish_conversation_delete_fence_with_connection(
 /// Own the short, serialized transaction used to establish a deletion fence.
 /// Callers that must compare topology inside the same snapshot should instead
 /// use [`establish_conversation_delete_fence_with_connection`].
-#[cfg(test)]
 pub(crate) fn establish_conversation_delete_fence(root_session_id: &str) -> Result<(), String> {
     let root_session_id = root_session_id.to_string();
     let outcome = with_sessions_writer(|| -> Result<_, String> {

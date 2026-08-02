@@ -854,6 +854,22 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_session_delete_attempt),
         )
         .route(
+            "/test/agent-org/session-delete/fixture/seed-related",
+            post(test::agent_org_delete::seed_related_handler),
+        )
+        .route(
+            "/test/agent-org/session-delete/fixture/support-snapshot",
+            post(test::agent_org_delete::support_snapshot_handler),
+        )
+        .route(
+            "/test/agent-org/session-delete/fault/arm",
+            post(test::agent_org_delete::arm_fault_handler),
+        )
+        .route(
+            "/test/agent-org/session-delete/fault/disarm",
+            post(test::agent_org_delete::disarm_fault_handler),
+        )
+        .route(
             "/test/agent-org/submission-control",
             post(test_agent_org_submission_control),
         )

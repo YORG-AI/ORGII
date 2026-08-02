@@ -33,6 +33,7 @@ pub use crud::{
     update_status, update_work_item_link, update_worktree_merge_status, upsert_session,
     UnifiedSessionRecord,
 };
+#[allow(unused_imports)]
 pub(crate) use crud::{
     delete_session_with_connection, finish_session_delete, notify_session_upserted,
     prepare_session_delete, upsert_session_with_connection,

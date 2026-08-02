@@ -33,6 +33,7 @@
 //! More detail: `.cursor/skills/e2e-testing/SKILL.md`.
 
 mod agent_org;
+mod agent_org_session_delete;
 mod agent_org_tasks_and_exec_mode;
 mod channel;
 mod config;
@@ -695,6 +696,16 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "agent-org",
+            "agent-org-multi-run-root-delete-production-command",
+            agent_org_session_delete::multi_run_root_delete_production_command
+        ),
+        scenario!(
+            "agent-org",
+            "agent-org-multi-run-root-delete-rollback-retry",
+            agent_org_session_delete::multi_run_root_delete_rollback_retry
+        ),
+        scenario!(
+            "agent-org",
             "agent-org-run-view-task-counts-split-queued-active",
             agent_org::run_view_distinguishes_pending_and_in_progress_tasks
         ),
@@ -1146,6 +1157,9 @@ async fn main() {
         Ok(count) => println!("[e2e-cleanup] Scrubbed {count} residual Agent Org run(s)"),
         Err(err) => eprintln!("[e2e-cleanup] Agent Org startup sweep failed: {err}"),
     }
+    if let Err(err) = agent_org_session_delete::cleanup_fault_fixture(&cfg).await {
+        eprintln!("[e2e-cleanup] Agent Org delete-fault startup cleanup failed: {err}");
+    }
 
     let selected: Vec<&ScenarioDef> = if let Some(pos) = args.iter().position(|a| a == "--scenario")
     {
@@ -1188,6 +1202,9 @@ async fn main() {
         if let Err(err) = agent_org_tasks_and_exec_mode::cleanup_agent_org_fixture_runs(&cfg).await
         {
             eprintln!("[e2e-cleanup] Agent Org scenario sweep failed: {err}");
+        }
+        if let Err(err) = agent_org_session_delete::cleanup_fault_fixture(&cfg).await {
+            eprintln!("[e2e-cleanup] Agent Org delete-fault scenario cleanup failed: {err}");
         }
         let elapsed = start.elapsed();
         println!("  Time: {:.1}s", elapsed.as_secs_f64());

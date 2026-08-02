@@ -35,11 +35,9 @@ const DURABLE_INVARIANTS_PATH: &str = "/agent/test/agent-org/durable-invariants"
 const FIND_WORKER_SESSION_PATH: &str = "/agent/test/agent-org/find-worker-session";
 const SEED_CLI_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-cli-member";
 const SEED_RUST_MEMBER_RUN_PATH: &str = "/agent/test/agent-org/stale-workers/seed-run";
-const SESSION_DELETE_SNAPSHOT_PATH: &str = "/agent/test/agent-org/session-delete/snapshot";
 const SESSION_DELETE_ATTEMPT_PATH: &str = "/agent/test/agent-org/session-delete/attempt";
 const SUBMISSION_CONTROL_PATH: &str = "/agent/test/agent-org/submission-control";
 const TASKS_SEED_PATH: &str = "/agent/test/agent-org/tasks/seed";
-const TASKS_LIST_PATH: &str = "/agent/test/agent-org/tasks/list";
 const PAUSE_RUN_PATH: &str = "/agent/test/agent-org/run/pause";
 const RESUME_RUN_PATH: &str = "/agent/test/agent-org/run/resume";
 const SIMULATE_APP_RESTART_PATH: &str = "/agent/test/agent-org/simulate-app-restart";
@@ -255,7 +253,7 @@ pub(super) fn messages_array(resp: &serde_json::Value) -> Result<&Vec<serde_json
         .ok_or_else(|| "list-by-run response missing messages array".to_string())
 }
 
-async fn post_agent_org_json(
+pub(super) async fn post_agent_org_json(
     cfg: &Config,
     path: &str,
     body: serde_json::Value,
@@ -3464,119 +3462,6 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
         .and_then(serde_json::Value::as_str)
         == Some("completed");
 
-    let snapshot_body = serde_json::json!({
-        "session_ids": [
-            root_session_id,
-            historical_worker_session_id,
-            current_worker_session_id
-        ],
-        "run_ids": [historical_run_id, org_run_id]
-    });
-    let snapshot_before =
-        match post_agent_org_json(cfg, SESSION_DELETE_SNAPSHOT_PATH, snapshot_body.clone()).await {
-            Err(err) => return harness::print_error(label, &err),
-            Ok(json) => json,
-        };
-    let tasks_before = match post_agent_org_json(
-        cfg,
-        TASKS_LIST_PATH,
-        serde_json::json!({ "org_run_id": org_run_id }),
-    )
-    .await
-    {
-        Err(err) => return harness::print_error(label, &err),
-        Ok(json) => json,
-    };
-    let delete_attempt = match post_agent_org_json(
-        cfg,
-        SESSION_DELETE_ATTEMPT_PATH,
-        serde_json::json!({ "session_id": root_session_id }),
-    )
-    .await
-    {
-        Err(err) => return harness::print_error(label, &err),
-        Ok(json) => json,
-    };
-    let snapshot_after =
-        match post_agent_org_json(cfg, SESSION_DELETE_SNAPSHOT_PATH, snapshot_body).await {
-            Err(err) => return harness::print_error(label, &err),
-            Ok(json) => json,
-        };
-    let tasks_after = match post_agent_org_json(
-        cfg,
-        TASKS_LIST_PATH,
-        serde_json::json!({ "org_run_id": org_run_id }),
-    )
-    .await
-    {
-        Err(err) => return harness::print_error(label, &err),
-        Ok(json) => json,
-    };
-    let historical_view_after_delete = match post_agent_org_json(
-        cfg,
-        RUN_VIEW_PATH,
-        serde_json::json!({ "session_id": historical_worker_session_id }),
-    )
-    .await
-    {
-        Err(err) => return harness::print_error(label, &err),
-        Ok(json) => json,
-    };
-    let current_view_after_delete = match post_agent_org_json(
-        cfg,
-        RUN_VIEW_PATH,
-        serde_json::json!({ "session_id": current_worker_session_id }),
-    )
-    .await
-    {
-        Err(err) => return harness::print_error(label, &err),
-        Ok(json) => json,
-    };
-    let deletion_rejected = delete_attempt.get("ok").and_then(|value| value.as_bool())
-        == Some(false)
-        && delete_attempt
-            .get("error")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|error| error.contains("at least 2 runs claim the same root"));
-    let snapshot_has = |group: &str, id: &str| {
-        snapshot_before
-            .get(group)
-            .and_then(|value| value.get(id))
-            .is_some_and(serde_json::Value::is_object)
-    };
-    let snapshot_complete = [
-        &root_session_id,
-        &historical_worker_session_id,
-        &current_worker_session_id,
-    ]
-    .iter()
-    .all(|id| snapshot_has("sessions", id))
-        && [&historical_run_id, &org_run_id]
-            .iter()
-            .all(|id| snapshot_has("runs", id))
-        && snapshot_before
-            .get("mappings")
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|mappings| mappings.len() == 4);
-    let durable_state_unchanged = snapshot_complete
-        && snapshot_before == snapshot_after
-        && tasks_before == tasks_after
-        && tasks_before
-            .get("tasks")
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|tasks| tasks.len() == 1);
-    let exact_ownership_after_delete = run_view_has_exact_worker(
-        &historical_view_after_delete,
-        &historical_run_id,
-        member_id,
-        &historical_worker_session_id,
-    ) && run_view_has_exact_worker(
-        &current_view_after_delete,
-        &org_run_id,
-        member_id,
-        &current_worker_session_id,
-    );
-
     let resume_resp = match post_agent_org_json(
         cfg,
         RESUME_RUN_PATH,
@@ -3614,8 +3499,6 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
             "inv_before_restart": inv_before_restart,
             "inv_after_restart": inv_after_restart,
             "run_view_after_restart": run_view_resp,
-            "delete_attempt": delete_attempt,
-            "snapshot_before": snapshot_before,
             "resume": resume_resp,
             "inv_after_resume": inv_after_resume,
         })
@@ -3647,18 +3530,6 @@ pub async fn app_restart_transitions_running_runs_to_paused(cfg: &Config) -> boo
             (
                 "historical run stays completed",
                 historical_run_stayed_completed,
-            ),
-            (
-                "production multi-run deletion is rejected",
-                deletion_rejected,
-            ),
-            (
-                "delete rejection changes no durable rows",
-                durable_state_unchanged,
-            ),
-            (
-                "exact mappings survive delete rejection",
-                exact_ownership_after_delete,
             ),
             ("resume endpoint ok", resume_ok),
             ("resume transitioned=true", resume_transitioned),

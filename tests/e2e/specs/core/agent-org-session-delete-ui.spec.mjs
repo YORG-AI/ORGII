@@ -43,47 +43,68 @@ async function seedHierarchy({
   const rootSessionId = `sdeagent-e2e-delete-${label}-root-${RUN_ID}`;
   const firstWorkerId = `sdeagent-e2e-delete-${label}-worker-a-${RUN_ID}`;
   const secondWorkerId = `sdeagent-e2e-delete-${label}-worker-b-${RUN_ID}`;
+  const orgId = `e2e-agent-org-fixture:ui-delete-${label}-${RUN_ID}`;
+  const materializedWorkerStatus =
+    workerStatus === "completed" || workerStatus === "paused"
+      ? "pending"
+      : workerStatus;
   const workers = [
     {
       session_id: firstWorkerId,
       member_id: `${label}-worker-a`,
       agent_definition_id: "builtin:sde",
-      status: workerStatus,
+      status: materializedWorkerStatus,
     },
   ];
   if (nested) {
     workers.push({
       session_id: secondWorkerId,
-      parent_session_id: firstWorkerId,
       member_id: `${label}-worker-b`,
       agent_definition_id: "builtin:sde",
-      status: workerStatus,
+      status: materializedWorkerStatus,
     });
   }
   const seeded = await postJson(
     "/agent/test/agent-org/stale-workers/seed-run",
     {
-      org_id: `e2e-delete-${label}-${RUN_ID}`,
+      org_id: orgId,
       coordinator_agent_id: "builtin:sde",
       root_session_id: rootSessionId,
-      root_status: rootStatus,
-      run_status: runStatus,
+      root_status: runStatus === "completed" ? "paused" : rootStatus,
+      run_status: runStatus === "completed" ? "paused" : runStatus,
       workers,
     }
   );
+  if (runStatus === "completed") {
+    await postJson(
+      "/agent/test/agent-org/session-delete/fixture/seed-related",
+      {
+        root_session_id: rootSessionId,
+        root_final_status: rootStatus,
+        runs: workers.slice(0, 1).map((worker) => ({
+          org_run_id: seeded.org_run_id,
+          worker_session_id: worker.session_id,
+          member_id: worker.member_id,
+          final_status: "completed",
+        })),
+      }
+    );
+  }
   return {
     runId: seeded.org_run_id,
+    orgId,
     rootSessionId,
     workerSessionIds: workers.map((worker) => worker.session_id),
   };
 }
 
-async function refreshAndWaitForSidebarRow(sessionId) {
+async function refreshAndWaitForSidebarRow(sessionId, agentOrgId) {
   unwrap(
     await invokeE2E("seedSidebarSession", {
       sessionId,
       name: `Agent Org delete ${sessionId}`,
       status: "completed",
+      agentOrgId,
     }),
     `seedSidebarSession(${sessionId})`
   );
@@ -122,6 +143,10 @@ async function chooseDeleteFromRenderedSidebarMenu(sessionId) {
     throw new Error(`native sidebar menu did not open for ${sessionId}`);
   }
 
+  // `aria-pressed` flips when React requests the native menu; AppKit may need
+  // one more run-loop turn before it can receive System Events keystrokes.
+  await browser.pause(300);
+
   // WebDriver key actions target the WebView rather than the macOS menu
   // process. Native menus support type-to-select, so select the uniquely
   // named Delete item and confirm it with real OS key events.
@@ -141,7 +166,7 @@ async function persistenceSnapshot(sessionIds, runIds) {
 }
 
 async function deleteHierarchyAndAssertGone(hierarchy) {
-  await refreshAndWaitForSidebarRow(hierarchy.rootSessionId);
+  await refreshAndWaitForSidebarRow(hierarchy.rootSessionId, hierarchy.orgId);
   await openRenderedSidebarSession(hierarchy.rootSessionId);
 
   await chooseDeleteFromRenderedSidebarMenu(hierarchy.rootSessionId);
@@ -166,13 +191,13 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
     hierarchy.rootSessionId,
     ...hierarchy.workerSessionIds,
   ]) {
-    if (snapshot.sessions[sessionId] !== false) {
+    if (snapshot.sessions[sessionId] !== null) {
       throw new Error(
         `deleted Rust session remained durable: ${sessionId} ${JSON.stringify(snapshot)}`
       );
     }
   }
-  if (snapshot.runs[hierarchy.runId] !== false) {
+  if (snapshot.runs[hierarchy.runId] !== null) {
     throw new Error(
       `deleted run remained durable: ${JSON.stringify(snapshot)}`
     );
@@ -208,8 +233,10 @@ describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
       [unrelated.runId]
     );
     if (
-      snapshot.sessions[unrelated.rootSessionId] !== true ||
-      snapshot.runs[unrelated.runId] !== true
+      typeof snapshot.sessions[unrelated.rootSessionId] !== "object" ||
+      snapshot.sessions[unrelated.rootSessionId] === null ||
+      typeof snapshot.runs[unrelated.runId] !== "object" ||
+      snapshot.runs[unrelated.runId] === null
     ) {
       throw new Error(
         `unrelated Agent Org was modified: ${JSON.stringify(snapshot)}`
