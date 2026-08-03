@@ -225,8 +225,8 @@ export function useCloudSessionActions(
       // modal, the Chat Pane tab opens immediately with a play card (count +
       // ETA) and nothing transfers until the user hits Start. Only the
       // not-yet-covered remainder counts (a cached copy that just needs a
-      // delta stays gate-free). Background offline-sync bypasses this hook
-      // entirely (org policy never prompts).
+      // delta stays gate-free). Every replay import is interactive; the org's
+      // background-upload policy affects owner pushes, not downloads.
       if (!pausedEntry && !options?.skipDownloadGate) {
         const gateEndpointUrl = authRef.current?.supabaseUrl;
         const gateSession = gateEndpointUrl
@@ -690,7 +690,8 @@ export function useCloudSessionActions(
         // CURRENT local replay copy first runs the standard streamed import
         // — same sidebar spinner/percent, same pause/resume semantics, and
         // the fork then assembles from the local copy without a second
-        // download. With org offline sync on this pre-step is a no-op.
+        // download. An already-imported current copy makes this pre-step a
+        // no-op.
         const sourceEndpointUrl = authRef.current?.supabaseUrl;
         if (sourceEndpointUrl) {
           const existing = findImportedSession(

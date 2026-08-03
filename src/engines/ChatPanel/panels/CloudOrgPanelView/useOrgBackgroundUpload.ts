@@ -1,11 +1,10 @@
 /**
- * Admin control state for the org's "Offline sync" policy
- * (`cloud_set_org_offline_sync`, 0013).
+ * Admin control state for the org's "Background upload" policy.
  *
- * The current value reads from the org record's `offlineSyncEnabled`
- * (`list_my_orgs`, via `org2CloudOrgsAtom`); a successful save keeps the
- * committed value as an override until the refetched roster catches up —
- * the same idiom as `useOrgRuntimeTelemetry`.
+ * The server still exposes the 0013 policy through the legacy
+ * `cloud_set_org_offline_sync` RPC and `offlineSyncEnabled` roster field.
+ * Product code names the behavior by its single current purpose: allowing
+ * eligible own-session uploads without requiring the org to be active.
  */
 import { useAtom, useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -18,17 +17,18 @@ import {
 import { ensureFreshSession } from "@src/features/Org2Cloud/org2CloudClient";
 import { isFetchTransportError } from "@src/features/Org2Cloud/org2CloudFetchRetry";
 import {
+  isOrgBackgroundUploadEnabled,
   org2CloudOrgsAtom,
   useRefetchOrg2CloudOrgs,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
-import { setOrgOfflineSync } from "@src/features/Org2Cloud/org2CloudSyncClient";
+import { setOrgBackgroundUpload } from "@src/features/Org2Cloud/org2CloudSyncClient";
 
 import type { SelectValue } from "./cloudOrgPanelTypes";
 
-export const ORG_OFFLINE_SYNC_ON_VALUE = "on";
-export const ORG_OFFLINE_SYNC_OFF_VALUE = "off";
+export const ORG_BACKGROUND_UPLOAD_ON_VALUE = "on";
+export const ORG_BACKGROUND_UPLOAD_OFF_VALUE = "off";
 
-export interface OrgOfflineSyncState {
+export interface OrgBackgroundUploadState {
   /** Select value: `"on"` or `"off"`. */
   value: string;
   enabled: boolean;
@@ -37,7 +37,9 @@ export interface OrgOfflineSyncState {
   handleChange: (value: SelectValue) => Promise<void>;
 }
 
-export function useOrgOfflineSync(orgId: string): OrgOfflineSyncState {
+export function useOrgBackgroundUpload(
+  orgId: string
+): OrgBackgroundUploadState {
   const { t } = useTranslation("navigation");
   const [auth, setAuth] = useAtom(org2CloudAuthAtom);
   const orgs = useAtomValue(org2CloudOrgsAtom);
@@ -65,11 +67,13 @@ export function useOrgOfflineSync(orgId: string): OrgOfflineSyncState {
   const enabled =
     override?.orgId === orgId
       ? override.enabled
-      : (org?.offlineSyncEnabled ?? false);
+      : org
+        ? isOrgBackgroundUploadEnabled(org)
+        : false;
 
   const handleChange = useCallback(
     async (raw: SelectValue): Promise<void> => {
-      const next = String(raw) === ORG_OFFLINE_SYNC_ON_VALUE;
+      const next = String(raw) === ORG_BACKGROUND_UPLOAD_ON_VALUE;
       if (saving) return;
       setError(null);
       setSaving(true);
@@ -79,10 +83,10 @@ export function useOrgOfflineSync(orgId: string): OrgOfflineSyncState {
         const fresh = await ensureFreshSession(current);
         if (!fresh) throw new Error(t("cloud.orgPanel.loadError"));
         commitRefreshedAuth(setAuth, current, fresh);
-        await setOrgOfflineSync(fresh.accessToken, orgId, next);
+        await setOrgBackgroundUpload(fresh.accessToken, orgId, next);
         setOverride({ orgId, enabled: next });
-        // Converge the shared org record so the background scheduler and
-        // every other consumer see the change without reopening the panel.
+        // Converge the shared org record so the session push engine and every
+        // other consumer see the policy change without reopening the panel.
         void refetchOrgs();
       } catch (err) {
         setError(
@@ -100,7 +104,9 @@ export function useOrgOfflineSync(orgId: string): OrgOfflineSyncState {
   );
 
   return {
-    value: enabled ? ORG_OFFLINE_SYNC_ON_VALUE : ORG_OFFLINE_SYNC_OFF_VALUE,
+    value: enabled
+      ? ORG_BACKGROUND_UPLOAD_ON_VALUE
+      : ORG_BACKGROUND_UPLOAD_OFF_VALUE,
     enabled,
     saving,
     error,

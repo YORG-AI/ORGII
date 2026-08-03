@@ -1,14 +1,11 @@
 /**
  * localStorage-backed "hidden remote session" bookkeeping for cloud Team
  * Sessions. A viewer's row-menu "Remove" action deletes the local copy and
- * hides the teammate row WITHOUT touching the shared cloud record — and it
- * doubles as an offline-sync unsubscribe: the background scheduler must
- * never re-import a row the user explicitly removed (org policy would
- * otherwise pull the copy right back). A manual replay of the row is the
- * resubscribe: it clears the entry.
+ * hides the teammate row WITHOUT touching the shared cloud record. A manual
+ * replay of the row clears the entry and makes the row visible again.
  *
- * Lives in the feature layer because both the sidebar section (UI filter)
- * and the offline-sync scheduler (candidate filter) consume it.
+ * Lives in the feature layer because the sidebar and manual replay actions
+ * share this bookkeeping.
  */
 export const HIDDEN_REMOTE_SESSIONS_STORAGE_KEY =
   "orgii:org2-cloud-v1:hidden-remote-sessions";

@@ -28,10 +28,10 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 import type { SelectValue } from "./cloudOrgPanelTypes";
 import type { CloudOrgManagement } from "./useCloudOrgManagement";
 import {
-  ORG_OFFLINE_SYNC_OFF_VALUE,
-  ORG_OFFLINE_SYNC_ON_VALUE,
-  type OrgOfflineSyncState,
-} from "./useOrgOfflineSync";
+  ORG_BACKGROUND_UPLOAD_OFF_VALUE,
+  ORG_BACKGROUND_UPLOAD_ON_VALUE,
+  type OrgBackgroundUploadState,
+} from "./useOrgBackgroundUpload";
 import type { OrgRuntimeTelemetryState } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgSettingsSectionProps {
@@ -42,7 +42,7 @@ interface CloudOrgSettingsSectionProps {
   floorError: string | null;
   onFloorChange: (value: SelectValue) => Promise<void>;
   runtimeSharing: OrgRuntimeTelemetryState;
-  offlineSync: OrgOfflineSyncState;
+  backgroundUpload: OrgBackgroundUploadState;
   openCloudBillingPage: () => void;
   orgName: string;
   members: CloudOrgMember[];
@@ -60,7 +60,7 @@ export function CloudOrgSettingsSection({
   floorError,
   onFloorChange,
   runtimeSharing,
-  offlineSync,
+  backgroundUpload,
   openCloudBillingPage,
   orgName,
   members,
@@ -106,17 +106,17 @@ export function CloudOrgSettingsSection({
     [t]
   );
 
-  const offlineSyncOptions = useMemo(
+  const backgroundUploadOptions = useMemo(
     () => [
       {
-        value: ORG_OFFLINE_SYNC_OFF_VALUE,
-        label: t("cloud.offlineSync.off"),
-        dataTestId: "cloud-org-offline-sync-off",
+        value: ORG_BACKGROUND_UPLOAD_OFF_VALUE,
+        label: t("cloud.backgroundUpload.off"),
+        dataTestId: "cloud-org-background-upload-off",
       },
       {
-        value: ORG_OFFLINE_SYNC_ON_VALUE,
-        label: t("cloud.offlineSync.on"),
-        dataTestId: "cloud-org-offline-sync-on",
+        value: ORG_BACKGROUND_UPLOAD_ON_VALUE,
+        label: t("cloud.backgroundUpload.on"),
+        dataTestId: "cloud-org-background-upload-on",
       },
     ],
     [t]
@@ -336,35 +336,35 @@ export function CloudOrgSettingsSection({
 
         {isAdmin ? (
           <SectionRow
-            label={t("cloud.offlineSync.label")}
-            description={t("cloud.offlineSync.help")}
+            label={t("cloud.backgroundUpload.label")}
+            description={t("cloud.backgroundUpload.help")}
             align="start"
           >
             <div
               className="flex flex-col gap-2"
-              data-testid="cloud-org-offline-sync"
+              data-testid="cloud-org-background-upload"
             >
               <Select
-                value={offlineSync.value}
-                options={offlineSyncOptions}
-                onChange={(value) => void offlineSync.handleChange(value)}
+                value={backgroundUpload.value}
+                options={backgroundUploadOptions}
+                onChange={(value) => void backgroundUpload.handleChange(value)}
                 size="default"
                 style={SECTION_CONTROL_STYLE}
-                disabled={offlineSync.saving}
-                dataTestId="cloud-org-offline-sync-select"
+                disabled={backgroundUpload.saving}
+                dataTestId="cloud-org-background-upload-select"
               />
-              {offlineSync.error ? (
+              {backgroundUpload.error ? (
                 <span className="text-[12px] text-danger-6">
-                  {offlineSync.error}
+                  {backgroundUpload.error}
                 </span>
               ) : null}
             </div>
           </SectionRow>
-        ) : offlineSync.enabled ? (
+        ) : backgroundUpload.enabled ? (
           <SectionRow
-            dataTestId="cloud-org-offline-sync-member-note"
-            label={t("cloud.offlineSync.label")}
-            description={t("cloud.offlineSync.memberNote")}
+            dataTestId="cloud-org-background-upload-member-note"
+            label={t("cloud.backgroundUpload.label")}
+            description={t("cloud.backgroundUpload.memberNote")}
           />
         ) : null}
 

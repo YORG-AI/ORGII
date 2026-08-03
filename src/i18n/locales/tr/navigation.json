@@ -792,13 +792,6 @@
       "paused": "Duraklatıldı",
       "resume": "Devam et"
     },
-    "offlineSync": {
-      "label": "Çevrimdışı eşitleme",
-      "help": "Bu organizasyon etkin değilken bile uygun üye oturumlarını arka planda yüklemeye devam eder ve paylaşılan oturumları çevrimdışı tekrar için üye cihazlarına indirir.",
-      "on": "Açık",
-      "off": "Kapalı",
-      "memberNote": "Bir yönetici etkinleştirdi — uygun oturumlar arka planda yüklenir ve paylaşılan oturumlar bu cihaza otomatik indirilir."
-    },
     "channels": {
       "title": "Kanallar",
       "createAction": "Kanal oluştur",
@@ -924,6 +917,13 @@
         "loadOlder": "Önceki mesajları yükle",
         "unknownAuthor": "Takım arkadaşı"
       }
+    },
+    "backgroundUpload": {
+      "label": "Arka planda yükleme",
+      "help": "Bu organizasyon etkin değilken bile uygun üye oturumlarını organizasyonun minimum paylaşım düzeyine ve oturum ayarlarına göre arka planda yükler.",
+      "on": "Açık",
+      "off": "Kapalı",
+      "memberNote": "Bir yönetici etkinleştirdi — bu organizasyonu açmanız gerekmeden uygun oturumlar arka planda yüklenir."
     }
   }
 }

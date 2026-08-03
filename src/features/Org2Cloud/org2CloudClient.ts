@@ -259,8 +259,9 @@ const CloudOrgWireSchema = z.object({
     .object({ enabled: z.boolean(), intervalMinutes: z.number() })
     .nullish()
     .catch(undefined),
-  // 0013 org-level offline sync: absent (pre-0013 backends) ⇒ off.
-  // `.catch(undefined)` keeps a malformed value from failing the roster.
+  // 0013 legacy wire name for org-level background upload: absent
+  // (pre-0013 backends) ⇒ off. `.catch(undefined)` keeps a malformed value
+  // from failing the roster.
   offlineSyncEnabled: z.boolean().nullish().catch(undefined),
 });
 
@@ -273,7 +274,7 @@ export interface CloudOrg {
   homeEndpoint?: string;
   /** 0010 member-runtime telemetry record; absent/null ⇒ feature off. */
   runtimeTelemetry?: OrgRuntimeTelemetry | null;
-  /** 0013 org-level offline sync policy; absent ⇒ off. */
+  /** 0013 legacy wire field for background upload; absent ⇒ off. */
   offlineSyncEnabled?: boolean;
 }
 

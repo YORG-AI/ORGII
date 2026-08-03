@@ -173,11 +173,11 @@ export interface ForkSessionOptions extends RemoteSessionFetchOptions {
  * Local-copy-first sourcing: when a CURRENT imported replay of the source
  * already exists (cursor exactly matches the listing summary and the
  * persisted store really holds it — hollow copies never qualify), the fork
- * assembles from it instead of re-downloading the full history. With org
- * offline sync on, this makes Take Over instant and transfer-free for
- * every synced session. Copy-namespaced ids are stripped back to SOURCE
- * ids so the fork's own namespacing lands byte-identical to a
- * remote-fetched fork. Guest (share-token) forks keep the remote path.
+ * assembles from it instead of re-downloading the full history. This makes
+ * Take Over instant and transfer-free for any replay the user previously
+ * imported. Copy-namespaced ids are stripped back to SOURCE ids so the
+ * fork's own namespacing lands byte-identical to a remote-fetched fork.
+ * Guest (share-token) forks keep the remote path.
  */
 async function loadForkSourceFromLocalCopy(
   options: ForkSessionOptions

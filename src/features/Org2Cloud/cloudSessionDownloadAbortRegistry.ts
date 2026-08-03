@@ -1,9 +1,9 @@
 /**
  * Cancel handles for in-flight cloud session downloads, keyed by the remote
  * row id — the progress card's Cancel button reaches the right
- * AbortController regardless of which surface (manual replay, offline-sync
- * scheduler) started the transfer. Functions cannot live in Jotai state, so
- * this is a plain module registry mirroring the busy atom's keys.
+ * AbortController for the manual replay transfer. Functions cannot live in
+ * Jotai state, so this is a plain module registry mirroring the busy atom's
+ * keys.
  */
 const abortsByRowId = new Map<string, () => void>();
 

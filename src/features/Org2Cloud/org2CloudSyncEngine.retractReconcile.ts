@@ -1,10 +1,10 @@
 /**
  * Retract-only reconcile for orgs the user is NOT looking at (P2).
  *
- * Full session passes run for the active workspace and for offline-sync-
- * enabled background orgs. A session that loses admission in any remaining
+ * Full session passes run for the active workspace and for background-upload-
+ * enabled orgs. A session that loses admission in any remaining
  * inactive org would otherwise stay published until the user happens to
- * reopen it, which may be never; an offline-enabled org can also fall out of
+ * reopen it, which may be never; a background-upload org can also fall out of
  * the main target set after its final scope or tag disappears. This module
  * closes both holes with the cheapest sound sweep: once per engine run, for
  * each NON-ACTIVE org where THIS client holds persisted push markers, re-run

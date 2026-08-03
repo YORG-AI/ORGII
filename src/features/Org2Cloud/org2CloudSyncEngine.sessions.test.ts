@@ -556,7 +556,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(messageMock.warning).toHaveBeenCalledTimes(1);
   });
 
-  it("publishes sessions for an offline-enabled inactive org", async () => {
+  it("applies the org minimum while publishing a background org", async () => {
     store.set(sidebarActiveCloudOrgIdAtom, null);
     store.set(org2CloudOrgsAtom, [
       {
@@ -573,6 +573,10 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.listOrgSessions).toHaveBeenCalledWith("jwt-1", "corg-1");
     expect(client.upsertSessionMetadata).toHaveBeenCalledTimes(1);
     expect(client.upsertSessionMetadata.mock.calls[0][1]).toBe("corg-1");
+    expect(client.upsertSessionMetadata.mock.calls[0][3].accessMode).toBe(
+      "full_replay"
+    );
+    expect(client.rewriteSessionEvents).toHaveBeenCalledTimes(1);
   });
 
   it("treats the visible management org as active for retry and toast policy", async () => {
@@ -774,7 +778,7 @@ describe("Org2CloudSyncEngine session publishing", () => {
     expect(client.getOrgRepoScopes).toHaveBeenCalledTimes(1);
   });
 
-  it("hydrates and publishes only the active org when offline sync is off", async () => {
+  it("hydrates and publishes only the active org when background upload is off", async () => {
     store.set(org2CloudOrgsAtom, [
       { orgId: "corg-1", name: "Active Team", role: "member" },
       { orgId: "corg-2", name: "Inactive Team", role: "member" },

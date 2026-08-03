@@ -40,7 +40,7 @@ import {
 } from "./cloudOrgPanelTypes";
 import { useCloudOrgManagement } from "./useCloudOrgManagement";
 import { useCloudOrgPanelState } from "./useCloudOrgPanelState";
-import { useOrgOfflineSync } from "./useOrgOfflineSync";
+import { useOrgBackgroundUpload } from "./useOrgBackgroundUpload";
 import { useOrgRuntimeTelemetry } from "./useOrgRuntimeTelemetry";
 
 interface CloudOrgPanelViewProps {
@@ -66,7 +66,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
   const isOwner = org?.role === "owner";
   const panelState = useCloudOrgPanelState(orgId);
   const runtimeSharing = useOrgRuntimeTelemetry(orgId);
-  const offlineSync = useOrgOfflineSync(orgId);
+  const backgroundUpload = useOrgBackgroundUpload(orgId);
   const management = useCloudOrgManagement({
     orgId,
     orgName,
@@ -117,7 +117,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                     floorError={panelState.floorError}
                     onFloorChange={panelState.handleFloorChange}
                     runtimeSharing={runtimeSharing}
-                    offlineSync={offlineSync}
+                    backgroundUpload={backgroundUpload}
                     openCloudBillingPage={openCloudBillingPage}
                     orgName={orgName}
                     members={panelState.members}

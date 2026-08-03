@@ -794,13 +794,6 @@
       "paused": "Pausiert",
       "resume": "Fortsetzen"
     },
-    "offlineSync": {
-      "label": "Offline-Synchronisierung",
-      "help": "Lädt geeignete Mitgliedersitzungen auch dann im Hintergrund hoch, wenn diese Organisation inaktiv ist, und lädt geteilte Sitzungen zur Offline-Wiedergabe auf die Geräte der Mitglieder herunter.",
-      "on": "An",
-      "off": "Aus",
-      "memberNote": "Von einem Admin aktiviert — geeignete Sitzungen werden im Hintergrund hochgeladen und geteilte Sitzungen automatisch auf dieses Gerät geladen."
-    },
     "channels": {
       "title": "Kanäle",
       "createAction": "Kanal erstellen",
@@ -926,6 +919,13 @@
         "loadOlder": "Ältere Nachrichten laden",
         "unknownAuthor": "Teammitglied"
       }
+    },
+    "backgroundUpload": {
+      "label": "Hintergrund-Upload",
+      "help": "Lädt geeignete Mitgliedersitzungen gemäß der Mindestfreigabestufe der Organisation und den Sitzungseinstellungen im Hintergrund hoch, auch wenn diese Organisation nicht aktiv ist.",
+      "on": "An",
+      "off": "Aus",
+      "memberNote": "Von einem Admin aktiviert — geeignete Sitzungen werden im Hintergrund hochgeladen, ohne dass du diese Organisation öffnen musst."
     }
   }
 }

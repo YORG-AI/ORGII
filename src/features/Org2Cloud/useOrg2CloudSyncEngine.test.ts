@@ -10,7 +10,7 @@ describe("buildOrg2CloudSyncRosterKey", () => {
     role: "member",
   };
 
-  it("invalidates the lifecycle key when offline sync changes", () => {
+  it("invalidates the lifecycle key when background upload changes", () => {
     expect(buildOrg2CloudSyncRosterKey([org])).toBe(
       buildOrg2CloudSyncRosterKey([{ ...org, offlineSyncEnabled: false }])
     );

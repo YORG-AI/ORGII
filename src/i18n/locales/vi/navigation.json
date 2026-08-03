@@ -792,13 +792,6 @@
       "paused": "Đã tạm dừng",
       "resume": "Tiếp tục"
     },
-    "offlineSync": {
-      "label": "Đồng bộ ngoại tuyến",
-      "help": "Tiếp tục tải lên các phiên thành viên đủ điều kiện trong nền ngay cả khi tổ chức này không hoạt động, đồng thời tải các phiên chia sẻ về thiết bị để phát lại ngoại tuyến.",
-      "on": "Bật",
-      "off": "Tắt",
-      "memberNote": "Do quản trị viên bật — các phiên đủ điều kiện được tải lên trong nền và các phiên chia sẻ tự động tải về thiết bị này."
-    },
     "channels": {
       "title": "Kênh",
       "createAction": "Tạo kênh",
@@ -924,6 +917,13 @@
         "loadOlder": "Tải tin nhắn cũ hơn",
         "unknownAuthor": "Thành viên nhóm"
       }
+    },
+    "backgroundUpload": {
+      "label": "Tải lên trong nền",
+      "help": "Tải lên các phiên thành viên đủ điều kiện trong nền theo mức chia sẻ tối thiểu của tổ chức và cài đặt từng phiên, ngay cả khi tổ chức này không hoạt động.",
+      "on": "Bật",
+      "off": "Tắt",
+      "memberNote": "Do quản trị viên bật — các phiên đủ điều kiện được tải lên trong nền mà không cần mở tổ chức này."
     }
   }
 }

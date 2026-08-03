@@ -21,8 +21,8 @@ import {
   org2CloudAuthAtom,
   org2CloudAuthIdentityKey,
 } from "./org2CloudAuthAtom";
-import { org2CloudOfflineSyncScheduler } from "./org2CloudOfflineSync";
 import {
+  isOrgBackgroundUploadEnabled,
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
 } from "./org2CloudOrgsAtom";
@@ -31,19 +31,19 @@ import { org2CloudSyncEngine } from "./org2CloudSyncEngine";
 
 /**
  * Stable lifecycle key for org properties that change session-sync
- * eligibility. In particular, an admin toggling offline sync must schedule a
- * pass even when membership, role, and name are unchanged.
+ * eligibility. In particular, an admin toggling background upload must
+ * schedule a pass even when membership, role, and name are unchanged.
  */
 export function buildOrg2CloudSyncRosterKey(
   orgs: readonly Org2CloudOrg[]
 ): string {
   return JSON.stringify(
     orgs
-      .map(({ orgId, role, name, offlineSyncEnabled }) => ({
-        orgId,
-        role,
-        name,
-        offlineSyncEnabled: offlineSyncEnabled === true,
+      .map((org) => ({
+        orgId: org.orgId,
+        role: org.role,
+        name: org.name,
+        backgroundUploadEnabled: isOrgBackgroundUploadEnabled(org),
       }))
       .sort((left, right) => left.orgId.localeCompare(right.orgId))
   );
@@ -66,11 +66,9 @@ export function useOrg2CloudSyncEngine(): void {
     // passes.
     org2CloudSyncEngine.stop();
     memberRuntimePushScheduler.stop();
-    org2CloudOfflineSyncScheduler.stop();
     if (authIdentityKey) {
       org2CloudSyncEngine.start(getInstrumentedStore());
       memberRuntimePushScheduler.start(getInstrumentedStore());
-      org2CloudOfflineSyncScheduler.start(getInstrumentedStore());
     }
     return undefined;
   }, [authIdentityKey]);

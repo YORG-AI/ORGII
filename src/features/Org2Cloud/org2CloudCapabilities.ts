@@ -38,7 +38,7 @@ export interface CloudCapabilities {
   memberRuntime: boolean;
   /** 0012 per-round turn-index table/RPCs are present. */
   sessionTurnIndex: boolean;
-  /** 0013 org-level offline-sync policy flag/setter are present. */
+  /** 0013 legacy-named background-upload policy flag/setter are present. */
   offlineSync: boolean;
   /** 0014 org-channels tables/RPCs are present. */
   orgChannels: boolean;

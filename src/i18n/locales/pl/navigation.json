@@ -792,13 +792,6 @@
       "paused": "Wstrzymano",
       "resume": "Wznów"
     },
-    "offlineSync": {
-      "label": "Synchronizacja offline",
-      "help": "Przesyła kwalifikujące się sesje członków w tle nawet wtedy, gdy organizacja jest nieaktywna, i pobiera udostępnione sesje na urządzenia członków do odtwarzania offline.",
-      "on": "Włączone",
-      "off": "Wyłączone",
-      "memberNote": "Włączone przez administratora — kwalifikujące się sesje są przesyłane w tle, a udostępnione sesje automatycznie pobierane na to urządzenie."
-    },
     "channels": {
       "title": "Kanały",
       "createAction": "Utwórz kanał",
@@ -924,6 +917,13 @@
         "loadOlder": "Wczytaj wcześniejsze wiadomości",
         "unknownAuthor": "Członek zespołu"
       }
+    },
+    "backgroundUpload": {
+      "label": "Przesyłanie w tle",
+      "help": "Przesyła kwalifikujące się sesje członków w tle zgodnie z minimalnym poziomem udostępniania organizacji i ustawieniami sesji, nawet gdy organizacja jest nieaktywna.",
+      "on": "Włączone",
+      "off": "Wyłączone",
+      "memberNote": "Włączone przez administratora — kwalifikujące się sesje są przesyłane w tle bez otwierania tej organizacji."
     }
   }
 }

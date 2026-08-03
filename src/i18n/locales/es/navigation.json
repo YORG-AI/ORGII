@@ -794,13 +794,6 @@
       "paused": "En pausa",
       "resume": "Reanudar"
     },
-    "offlineSync": {
-      "label": "Sincronización sin conexión",
-      "help": "Mantiene en segundo plano la subida de las sesiones elegibles de los miembros aunque esta organización no esté activa y descarga las sesiones compartidas para reproducirlas sin conexión.",
-      "on": "Activado",
-      "off": "Desactivado",
-      "memberNote": "Activado por un administrador: las sesiones elegibles se suben en segundo plano y las sesiones compartidas se descargan automáticamente en este dispositivo."
-    },
     "channels": {
       "title": "Canales",
       "createAction": "Crear canal",
@@ -926,6 +919,13 @@
         "loadOlder": "Cargar mensajes anteriores",
         "unknownAuthor": "Compañero de equipo"
       }
+    },
+    "backgroundUpload": {
+      "label": "Carga en segundo plano",
+      "help": "Sube en segundo plano las sesiones elegibles según el nivel mínimo de uso compartido de la organización y la configuración de cada sesión, aunque la organización no esté activa.",
+      "on": "Activado",
+      "off": "Desactivado",
+      "memberNote": "Activado por un administrador: las sesiones elegibles se suben en segundo plano sin tener que abrir esta organización."
     }
   }
 }

@@ -8,7 +8,7 @@
  * directly via `listOrgSessions`).
  *
  * Per pass, the session plane visits the actively viewed org plus every org
- * whose admin enabled offline sync. For each visited org that has
+ * whose admin enabled background upload. For each visited org that has
  * locally-stored repo scopes (`org2CloudRepoScopesAtom`) and sync not disabled
  * (`org2CloudSyncEnabledAtom`), every OWN local session whose resolved repo
  * scope key matches a scope is a push CANDIDATE. Whether a candidate is
@@ -86,6 +86,7 @@ import { resolveOrgEndpoint } from "./org2CloudEndpointDirectory";
 import { setOrgEndpointDirectory } from "./org2CloudOrgEndpointRouter";
 import {
   buildCloudOrgSelectorValue,
+  isOrgBackgroundUploadEnabled,
   org2CloudOrgsAtom,
   sidebarActiveCloudOrgIdAtom,
 } from "./org2CloudOrgsAtom";
@@ -316,7 +317,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
     );
 
     // The session plane follows visible-org demand unless an admin explicitly
-    // enables offline sync. That policy keeps eligible member sessions
+    // enables background upload. That policy keeps eligible member sessions
     // publishing without requiring the org to be opened, while ordinary
     // inactive orgs still incur no session scan or scope RPC. Switching/opening
     // an org causes its Realtime subscription to request an immediate full
@@ -333,7 +334,7 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       ])
     );
     const sessionPushOrgs = orgs.filter(
-      (org) => this.isActiveOrg(org.orgId) || org.offlineSyncEnabled === true
+      (org) => this.isActiveOrg(org.orgId) || isOrgBackgroundUploadEnabled(org)
     );
     await this.repoScopeSync.hydrateRepoScopes(
       fresh,
@@ -725,11 +726,11 @@ export class Org2CloudSyncEngine extends Org2CloudSyncLifecycle {
       }
     }
 
-    // P2: retract-only reconcile for orgs the user is NOT looking at. Offline
-    // sync now gives opted-in background orgs a full session pass, but the
+    // P2: retract-only reconcile for orgs the user is NOT looking at.
+    // Background upload gives opted-in orgs a full session pass, but the
     // reconcile remains the safety net for every other inactive org — and for
-    // offline-enabled orgs excluded from `targets` after their final scope or
-    // tag disappears. Once per engine run: same admission decision, same
+    // background-upload orgs excluded from `targets` after their final scope
+    // or tag disappears. Once per engine run: same admission decision, same
     // server-confirmed scope boundary, only rows THIS client push-marked. See
     // the module header for the rails.
     if (this.reconciledGeneration !== generation) {

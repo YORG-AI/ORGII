@@ -794,13 +794,6 @@
       "paused": "En pause",
       "resume": "Reprendre"
     },
-    "offlineSync": {
-      "label": "Synchronisation hors ligne",
-      "help": "Continue d'envoyer en arrière-plan les sessions de membres éligibles même lorsque cette organisation est inactive, et télécharge les sessions partagées pour une consultation hors ligne.",
-      "on": "Activé",
-      "off": "Désactivé",
-      "memberNote": "Activé par un administrateur — les sessions éligibles sont envoyées en arrière-plan et les sessions partagées sont téléchargées automatiquement sur cet appareil."
-    },
     "channels": {
       "title": "Canaux",
       "createAction": "Créer un canal",
@@ -926,6 +919,13 @@
         "loadOlder": "Charger les messages précédents",
         "unknownAuthor": "Coéquipier"
       }
+    },
+    "backgroundUpload": {
+      "label": "Envoi en arrière-plan",
+      "help": "Envoie les sessions de membres éligibles selon le niveau de partage minimal de l'organisation et les réglages de chaque session, même lorsque cette organisation n'est pas active.",
+      "on": "Activé",
+      "off": "Désactivé",
+      "memberNote": "Activé par un administrateur — les sessions éligibles sont envoyées en arrière-plan sans devoir ouvrir cette organisation."
     }
   }
 }

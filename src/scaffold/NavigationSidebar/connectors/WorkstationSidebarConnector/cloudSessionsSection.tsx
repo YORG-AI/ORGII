@@ -244,9 +244,8 @@ export function useCloudSessionsSection({
     [rows]
   );
 
-  // Remove = unsubscribe, manual replay = resubscribe: starting a download
-  // for a hidden row clears its entry so offline sync may keep it fresh
-  // again from here on.
+  // Starting a manual replay for a hidden row clears its local hide marker so
+  // the imported replay and teammate row become visible again.
   const resubscribeRemoteRow = useCallback(
     (row: RemoteTeammateSessionMetadata) => {
       setHiddenRemoteSessionIds((current) => {

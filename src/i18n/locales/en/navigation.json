@@ -821,13 +821,6 @@
       "paused": "Paused",
       "resume": "Resume"
     },
-    "offlineSync": {
-      "label": "Offline sync",
-      "help": "Keep eligible member sessions uploading even when this organization is inactive, and download shared sessions to member devices for offline replay.",
-      "on": "On",
-      "off": "Off",
-      "memberNote": "Enabled by an admin — eligible sessions upload in the background, and shared sessions download to this device automatically."
-    },
     "channels": {
       "title": "Channels",
       "createAction": "Create channel",
@@ -953,6 +946,13 @@
         "loadOlder": "Load earlier messages",
         "unknownAuthor": "Teammate"
       }
+    },
+    "backgroundUpload": {
+      "label": "Background upload",
+      "help": "Upload eligible member sessions according to the organization's minimum sharing level and each session's settings, even when this organization is not active.",
+      "on": "On",
+      "off": "Off",
+      "memberNote": "Enabled by an admin — eligible sessions upload in the background without requiring you to open this organization."
     }
   }
 }

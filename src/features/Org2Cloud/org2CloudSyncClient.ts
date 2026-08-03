@@ -222,7 +222,7 @@ const CloudOrgSessionsSchema = z.object({
   // Per-row tolerance: one malformed row (a newer client's shape, a bad
   // owner payload) must cost that row, not the whole org listing — a failed
   // listing reads as "org has no sessions" downstream, which the sidebar,
-  // offline sync, and the retract sweep all treat as authoritative absence.
+  // background upload and the retract sweep treat as authoritative absence.
   sessions: z.array(z.unknown()).default([]),
   // 0005 backends return a keyset cursor when a bounded page has more rows;
   // absent on legacy backends and on the final page. `.catch(undefined)`
@@ -902,11 +902,11 @@ export async function deleteSession(
 }
 
 /**
- * Admin-only (0013): flip the org-wide offline-sync policy flag. Server
- * nudges the policy plane so open member clients refetch their roster and
- * observe the flip live.
+ * Admin-only (0013): flip the org-wide background-upload policy. The RPC
+ * keeps its legacy offline-sync name for wire compatibility. Server nudges
+ * the policy plane so open member clients refetch their roster live.
  */
-export async function setOrgOfflineSync(
+export async function setOrgBackgroundUpload(
   accessToken: string,
   orgId: string,
   enabled: boolean

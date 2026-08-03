@@ -9,7 +9,7 @@ import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 
 import { CloudOrgSettingsSection } from "./CloudOrgSettingsSection";
 import type { CloudOrgManagement } from "./useCloudOrgManagement";
-import type { OrgOfflineSyncState } from "./useOrgOfflineSync";
+import type { OrgBackgroundUploadState } from "./useOrgBackgroundUpload";
 import type { OrgRuntimeTelemetryState } from "./useOrgRuntimeTelemetry";
 
 vi.mock("react-i18next", () => ({
@@ -39,6 +39,11 @@ const translations: Record<string, string> = {
   "cloud.sharingFloor.memberNote": "Minimum sharing applies",
   "cloud.syncLevel.modeMetadata": "Metadata",
   "cloud.syncLevel.modeFullReplay": "Full replay",
+  "cloud.backgroundUpload.label": "Background upload",
+  "cloud.backgroundUpload.help": "Upload while inactive",
+  "cloud.backgroundUpload.on": "On",
+  "cloud.backgroundUpload.off": "Off",
+  "cloud.backgroundUpload.memberNote": "Uploads without opening this org",
 };
 
 const t = ((key: string) =>
@@ -85,19 +90,23 @@ function runtimeSharing(
   };
 }
 
-function offlineSync(): OrgOfflineSyncState {
+function backgroundUpload(
+  overrides: Partial<OrgBackgroundUploadState> = {}
+): OrgBackgroundUploadState {
   return {
     value: "off",
     enabled: false,
     saving: false,
     error: null,
     handleChange: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
   };
 }
 
 function renderSettings(
   overrides: Partial<CloudOrgManagement> = {},
-  runtimeSharingOverrides: Partial<OrgRuntimeTelemetryState> = {}
+  runtimeSharingOverrides: Partial<OrgRuntimeTelemetryState> = {},
+  backgroundUploadOverrides: Partial<OrgBackgroundUploadState> = {}
 ): DocumentFragment {
   const markup = renderToStaticMarkup(
     createElement(CloudOrgSettingsSection, {
@@ -112,7 +121,7 @@ function renderSettings(
       floorError: null,
       onFloorChange: vi.fn().mockResolvedValue(undefined),
       runtimeSharing: runtimeSharing(runtimeSharingOverrides),
-      offlineSync: offlineSync(),
+      backgroundUpload: backgroundUpload(backgroundUploadOverrides),
       openCloudBillingPage: vi.fn(),
       orgName: "Example team",
       members,
@@ -209,6 +218,37 @@ describe("CloudOrgSettingsSection layout", () => {
     expect(
       root.querySelector(
         '[data-testid="cloud-org-runtime-telemetry-member-note"]'
+      )
+    ).toBeNull();
+  });
+
+  it("shows the background-upload policy as an admin control or member note", () => {
+    const admin = renderSettings();
+    expect(
+      admin.querySelector('[data-testid="cloud-org-background-upload-select"]')
+    ).not.toBeNull();
+    expect(admin.textContent).toContain("Background upload");
+
+    const memberEnabled = renderSettings(
+      { isAdmin: false },
+      {},
+      { value: "on", enabled: true }
+    );
+    expect(
+      memberEnabled.querySelector(
+        '[data-testid="cloud-org-background-upload-member-note"]'
+      )
+    ).not.toBeNull();
+    expect(
+      memberEnabled.querySelector(
+        '[data-testid="cloud-org-background-upload-select"]'
+      )
+    ).toBeNull();
+
+    const memberOff = renderSettings({ isAdmin: false });
+    expect(
+      memberOff.querySelector(
+        '[data-testid="cloud-org-background-upload-member-note"]'
       )
     ).toBeNull();
   });

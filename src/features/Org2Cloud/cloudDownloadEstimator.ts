@@ -5,8 +5,7 @@
  * app observes real download rates on every completed import — an EMA of
  * events/second persisted per device turns the two into a pre-download
  * "about N seconds" estimate. Sessions whose estimate exceeds the gate
- * threshold ask the user before an INTERACTIVE download starts (background
- * offline-sync never prompts; it is org policy).
+ * threshold ask the user before an interactive download starts.
  */
 const RATE_STORAGE_KEY = "orgii:org2-cloud-v1:downloadRate";
 

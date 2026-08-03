@@ -67,8 +67,18 @@ export interface Org2CloudOrg {
    * push scheduler never runs for this org). Parsed tolerantly in
    * `listMyOrgs` — a malformed record degrades to absent. */
   runtimeTelemetry?: OrgRuntimeTelemetry | null;
-  /** 0013 org-level offline sync policy; absent ⇒ off. */
+  /**
+   * 0013 legacy wire name for the org-level background-upload policy;
+   * absent ⇒ off. Keep the field name until the server contract migrates.
+   */
   offlineSyncEnabled?: boolean;
+}
+
+/** Product-level meaning of the legacy 0013 roster field. */
+export function isOrgBackgroundUploadEnabled(
+  org: Pick<Org2CloudOrg, "offlineSyncEnabled">
+): boolean {
+  return org.offlineSyncEnabled === true;
 }
 
 export interface RefetchOrg2CloudOrgsOptions {
