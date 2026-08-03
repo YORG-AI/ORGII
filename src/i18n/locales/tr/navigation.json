@@ -794,10 +794,10 @@
     },
     "offlineSync": {
       "label": "Çevrimdışı eşitleme",
-      "help": "Bu organizasyondaki tüm paylaşılan oturumları her üyenin cihazına otomatik indirir — tekrarlar anında açılır ve çevrimdışı çalışır.",
+      "help": "Bu organizasyon etkin değilken bile uygun üye oturumlarını arka planda yüklemeye devam eder ve paylaşılan oturumları çevrimdışı tekrar için üye cihazlarına indirir.",
       "on": "Açık",
       "off": "Kapalı",
-      "memberNote": "Bir yönetici etkinleştirdi — paylaşılan oturumlar bu cihaza otomatik indirilir."
+      "memberNote": "Bir yönetici etkinleştirdi — uygun oturumlar arka planda yüklenir ve paylaşılan oturumlar bu cihaza otomatik indirilir."
     },
     "channels": {
       "title": "Kanallar",

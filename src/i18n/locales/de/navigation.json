@@ -796,10 +796,10 @@
     },
     "offlineSync": {
       "label": "Offline-Synchronisierung",
-      "help": "Lädt jede geteilte Sitzung dieser Organisation automatisch auf das Gerät jedes Mitglieds — Replays öffnen sofort und funktionieren offline.",
+      "help": "Lädt geeignete Mitgliedersitzungen auch dann im Hintergrund hoch, wenn diese Organisation inaktiv ist, und lädt geteilte Sitzungen zur Offline-Wiedergabe auf die Geräte der Mitglieder herunter.",
       "on": "An",
       "off": "Aus",
-      "memberNote": "Von einem Admin aktiviert — geteilte Sitzungen werden automatisch auf dieses Gerät geladen."
+      "memberNote": "Von einem Admin aktiviert — geeignete Sitzungen werden im Hintergrund hochgeladen und geteilte Sitzungen automatisch auf dieses Gerät geladen."
     },
     "channels": {
       "title": "Kanäle",

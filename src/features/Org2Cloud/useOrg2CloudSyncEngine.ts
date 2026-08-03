@@ -26,18 +26,35 @@ import {
   org2CloudOrgsAtom,
   org2CloudOrgsLoadedAtom,
 } from "./org2CloudOrgsAtom";
+import type { Org2CloudOrg } from "./org2CloudOrgsAtom";
 import { org2CloudSyncEngine } from "./org2CloudSyncEngine";
+
+/**
+ * Stable lifecycle key for org properties that change session-sync
+ * eligibility. In particular, an admin toggling offline sync must schedule a
+ * pass even when membership, role, and name are unchanged.
+ */
+export function buildOrg2CloudSyncRosterKey(
+  orgs: readonly Org2CloudOrg[]
+): string {
+  return JSON.stringify(
+    orgs
+      .map(({ orgId, role, name, offlineSyncEnabled }) => ({
+        orgId,
+        role,
+        name,
+        offlineSyncEnabled: offlineSyncEnabled === true,
+      }))
+      .sort((left, right) => left.orgId.localeCompare(right.orgId))
+  );
+}
 
 export function useOrg2CloudSyncEngine(): void {
   const auth = useAtomValue(org2CloudAuthAtom);
   const authIdentityKey = auth ? org2CloudAuthIdentityKey(auth) : null;
   const orgs = useAtomValue(org2CloudOrgsAtom);
   const orgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
-  const rosterKey = JSON.stringify(
-    orgs
-      .map(({ orgId, role, name }) => ({ orgId, role, name }))
-      .sort((left, right) => left.orgId.localeCompare(right.orgId))
-  );
+  const rosterKey = buildOrg2CloudSyncRosterKey(orgs);
 
   useEffect(() => {
     // stop() is idempotent and also covers the A→B switch (no null between):

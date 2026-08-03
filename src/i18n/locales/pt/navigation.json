@@ -796,10 +796,10 @@
     },
     "offlineSync": {
       "label": "Sincronização offline",
-      "help": "Baixa automaticamente todas as sessões compartilhadas desta organização no dispositivo de cada membro: os replays abrem na hora e funcionam offline.",
+      "help": "Mantém o envio das sessões elegíveis dos membros em segundo plano mesmo quando esta organização está inativa e baixa as sessões compartilhadas para reprodução offline.",
       "on": "Ativado",
       "off": "Desativado",
-      "memberNote": "Ativado por um administrador — as sessões compartilhadas são baixadas automaticamente neste dispositivo."
+      "memberNote": "Ativado por um administrador — as sessões elegíveis são enviadas em segundo plano e as sessões compartilhadas são baixadas automaticamente neste dispositivo."
     },
     "channels": {
       "title": "Canais",

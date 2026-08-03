@@ -794,10 +794,10 @@
     },
     "offlineSync": {
       "label": "Synchronizacja offline",
-      "help": "Automatycznie pobiera każdą udostępnioną sesję tej organizacji na urządzenie każdego członka — odtworzenia otwierają się natychmiast i działają offline.",
+      "help": "Przesyła kwalifikujące się sesje członków w tle nawet wtedy, gdy organizacja jest nieaktywna, i pobiera udostępnione sesje na urządzenia członków do odtwarzania offline.",
       "on": "Włączone",
       "off": "Wyłączone",
-      "memberNote": "Włączone przez administratora — udostępnione sesje pobierają się automatycznie na to urządzenie."
+      "memberNote": "Włączone przez administratora — kwalifikujące się sesje są przesyłane w tle, a udostępnione sesje automatycznie pobierane na to urządzenie."
     },
     "channels": {
       "title": "Kanały",

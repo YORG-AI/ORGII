@@ -86,6 +86,21 @@ note applying to the session as a whole; an event anchor means a round comment.
 Address Comments groups both scopes, selects both by default, permits
 scope-level selection, and carries the scope into the agent briefing.
 
+### Offline sync policy
+
+Offline sync has asymmetric inbound and outbound behavior. Eligible local
+sessions continue publishing to an offline-sync-enabled organization even
+when that organization is not the active UI scope; repo scopes, the local
+sync toggle, the sharing ladder, entitlement backoff, and server authorization
+remain mandatory. Local EventStore writes, login/roster changes, reconnect,
+visibility recovery, and explicit actions drive those pushes — the policy does
+not add a recurring scan or polling loop.
+
+Teammate replay prefetch remains demand-driven for the active organization.
+This keeps Realtime subscriptions and remote-session listings scoped to one
+organization while still making previously downloaded replays available
+offline. Selecting another organization activates its listing and prefetch.
+
 ### Presence
 
 Presence is ephemeral awareness, never the source of truth for membership,

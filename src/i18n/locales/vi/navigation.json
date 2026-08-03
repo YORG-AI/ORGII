@@ -794,10 +794,10 @@
     },
     "offlineSync": {
       "label": "Đồng bộ ngoại tuyến",
-      "help": "Tự động tải mọi phiên được chia sẻ của tổ chức này về thiết bị của từng thành viên — phát lại mở ngay lập tức và hoạt động ngoại tuyến.",
+      "help": "Tiếp tục tải lên các phiên thành viên đủ điều kiện trong nền ngay cả khi tổ chức này không hoạt động, đồng thời tải các phiên chia sẻ về thiết bị để phát lại ngoại tuyến.",
       "on": "Bật",
       "off": "Tắt",
-      "memberNote": "Do quản trị viên bật — các phiên chia sẻ được tự động tải về thiết bị này."
+      "memberNote": "Do quản trị viên bật — các phiên đủ điều kiện được tải lên trong nền và các phiên chia sẻ tự động tải về thiết bị này."
     },
     "channels": {
       "title": "Kênh",

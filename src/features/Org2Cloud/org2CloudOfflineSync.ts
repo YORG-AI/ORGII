@@ -1,5 +1,5 @@
 /**
- * Org-level offline sync (0013).
+ * Org-level offline sync download half (0013).
  *
  * When an org admin enables `offlineSyncEnabled`, member clients bulk-import
  * every replayable teammate session of the ACTIVE org in the background —
@@ -16,7 +16,9 @@
  * attempted at most once per REMOTE STATE (epoch/seq/count/tailHash
  * fingerprint), so a refresh only re-imports rows the owner actually
  * changed, and rows whose local cursor already matches are skipped without
- * any IPC.
+ * any IPC. The complementary upload half lives in `Org2CloudSyncEngine`:
+ * eligible own sessions keep publishing for offline-enabled orgs even while
+ * another org is active.
  */
 import { createStore } from "jotai";
 

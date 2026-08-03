@@ -796,10 +796,10 @@
     },
     "offlineSync": {
       "label": "Synchronisation hors ligne",
-      "help": "Télécharge automatiquement chaque session partagée de cette organisation sur l'appareil de chaque membre : les replays s'ouvrent instantanément et fonctionnent hors ligne.",
+      "help": "Continue d'envoyer en arrière-plan les sessions de membres éligibles même lorsque cette organisation est inactive, et télécharge les sessions partagées pour une consultation hors ligne.",
       "on": "Activé",
       "off": "Désactivé",
-      "memberNote": "Activé par un administrateur — les sessions partagées se téléchargent automatiquement sur cet appareil."
+      "memberNote": "Activé par un administrateur — les sessions éligibles sont envoyées en arrière-plan et les sessions partagées sont téléchargées automatiquement sur cet appareil."
     },
     "channels": {
       "title": "Canaux",

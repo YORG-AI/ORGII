@@ -796,10 +796,10 @@
     },
     "offlineSync": {
       "label": "Sincronización sin conexión",
-      "help": "Descarga automáticamente todas las sesiones compartidas de esta organización en el dispositivo de cada miembro: las reproducciones abren al instante y funcionan sin conexión.",
+      "help": "Mantiene en segundo plano la subida de las sesiones elegibles de los miembros aunque esta organización no esté activa y descarga las sesiones compartidas para reproducirlas sin conexión.",
       "on": "Activado",
       "off": "Desactivado",
-      "memberNote": "Activado por un administrador: las sesiones compartidas se descargan automáticamente en este dispositivo."
+      "memberNote": "Activado por un administrador: las sesiones elegibles se suben en segundo plano y las sesiones compartidas se descargan automáticamente en este dispositivo."
     },
     "channels": {
       "title": "Canales",

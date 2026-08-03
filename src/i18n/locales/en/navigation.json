@@ -823,10 +823,10 @@
     },
     "offlineSync": {
       "label": "Offline sync",
-      "help": "Automatically download every shared session in this organization to each member's device, so replays open instantly and work offline.",
+      "help": "Keep eligible member sessions uploading even when this organization is inactive, and download shared sessions to member devices for offline replay.",
       "on": "On",
       "off": "Off",
-      "memberNote": "Enabled by an admin — shared sessions download to this device automatically."
+      "memberNote": "Enabled by an admin — eligible sessions upload in the background, and shared sessions download to this device automatically."
     },
     "channels": {
       "title": "Channels",
