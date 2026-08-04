@@ -29,7 +29,7 @@ paint after loaded state reaches `ChatView`.
 
 ## Verdict
 
-**Draft / measurement pending.** The instrumentation is bounded and lifecycle-safe
-by inspection and unit coverage. It does not by itself prove that session switching
-is faster; a packaged desktop/WebView profile is still required before making a
-runtime performance claim.
+**Pass for bounded instrumentation; runtime measurement pending.** The trace is
+lifecycle-safe by inspection and unit coverage and can ship independently because
+the PR makes no speedup claim. A packaged desktop/WebView profile is still required
+before using the resulting data to claim a runtime performance improvement.
