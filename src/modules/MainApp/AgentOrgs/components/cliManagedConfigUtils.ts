@@ -2,10 +2,12 @@ import type { KeyVaultAccount } from "@src/hooks/keyVault";
 
 export function modelIdsFor(account: KeyVaultAccount | undefined): string[] {
   if (!account) return [];
-  const models =
-    account.enabledModels && account.enabledModels.length > 0
-      ? account.enabledModels
-      : (account.availableModels ?? []);
+  const available = account.availableModels ?? [];
+  const availableSet = new Set(available);
+  const enabledAvailable = (account.enabledModels ?? []).filter((model) =>
+    availableSet.has(model)
+  );
+  const models = enabledAvailable.length > 0 ? enabledAvailable : available;
   return Array.from(new Set(models.filter(Boolean)));
 }
 

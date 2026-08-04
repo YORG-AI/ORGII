@@ -22,10 +22,14 @@ export function isModelRunnableWithAccount(
 ): boolean {
   const key = keys.find((candidate) => candidate.id === accountId);
   if (!key || !keyIsUsable(key)) return false;
+  const available = new Set(key.available_models ?? []);
   const enabled = new Set(key.enabled_models ?? []);
-  if (enabled.has(model)) return true;
+  if (available.has(model) && enabled.has(model)) return true;
   return (key.model_variants ?? []).some(
-    (variant) => variant.model === model && enabled.has(variant.base_model)
+    (variant) =>
+      variant.model === model &&
+      available.has(variant.base_model) &&
+      enabled.has(variant.base_model)
   );
 }
 
@@ -36,10 +40,14 @@ export function isModelRunnableLocally(
   if (isOrgiiTierModel(model)) return true;
   return keys.some((key) => {
     if (!keyIsUsable(key)) return false;
+    const available = new Set(key.available_models ?? []);
     const enabled = new Set(key.enabled_models ?? []);
-    if (enabled.has(model)) return true;
+    if (available.has(model) && enabled.has(model)) return true;
     return (key.model_variants ?? []).some(
-      (variant) => variant.model === model && enabled.has(variant.base_model)
+      (variant) =>
+        variant.model === model &&
+        available.has(variant.base_model) &&
+        enabled.has(variant.base_model)
     );
   });
 }

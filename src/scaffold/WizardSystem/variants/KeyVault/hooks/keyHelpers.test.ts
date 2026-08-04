@@ -23,7 +23,7 @@ describe("keyHelpers", () => {
       validated: true,
     };
 
-    applyKey(detectedKey, {
+    const result = applyKey(detectedKey, {
       onChange: (update) => updates.push(update),
       setTokenDetected: (value) => {
         tokenDetected = value;
@@ -47,6 +47,7 @@ describe("keyHelpers", () => {
     expect(cursorSessionToken).toBe("cursor-native-token");
     expect(tokenError).toBeNull();
     expect(showKeySelection).toBe(false);
+    expect(result).toEqual({ applied: true, modelCount: 2 });
     expect(updates).toEqual([
       {
         auth_method: "oauth",
@@ -59,6 +60,41 @@ describe("keyHelpers", () => {
         validated: true,
       },
     ]);
+  });
+
+  it("returns the validation failure used by detection feedback", () => {
+    let tokenError: string | null = null;
+
+    const result = applyKey(
+      {
+        id: "expired-codex-oauth",
+        name: "OpenAI",
+        auth_method: "oauth",
+        session_token: "expired-token",
+        validated: false,
+        validation_message: "OAuth session expired",
+      },
+      {
+        onChange: () => {},
+        setTokenDetected: () => {},
+        setCursorSessionToken: () => {},
+        setTokenError: (value) => {
+          tokenError = value;
+        },
+        setShowKeySelection: () => {},
+        isCursor: false,
+        isOAuthAgent: true,
+        noValidTokenMsg: "No valid token",
+        validationFailedMsg: "Validation failed",
+      }
+    );
+
+    expect(result).toEqual({
+      applied: false,
+      modelCount: 0,
+      error: "OAuth session expired",
+    });
+    expect(tokenError).toBe("OAuth session expired");
   });
 
   it("clears stale extracted api key and base URL when applying an OAuth detection", () => {

@@ -10,6 +10,7 @@ import { getOAuthModelCatalog } from "@src/api/services/keyValidation";
 import { CLI_AGENT } from "@src/api/tauri/rpc/schemas/validation";
 import { LOCAL_MODEL_PROVIDER } from "@src/api/types/keys";
 
+import type { CredentialDetectionState } from "../hooks/credentialDetectionState";
 import { ApiKeyProviderSetup } from "./setup/ApiKeyProviderSetup";
 import { ClaudeCodeSetup } from "./setup/ClaudeCodeSetup";
 import { CodexSetup } from "./setup/CodexSetup";
@@ -35,6 +36,7 @@ interface AgentSetupRouterProps extends AgentSetupProps {
   setTokenDetected: (detected: boolean) => void;
   detectingToken: boolean;
   tokenError: string | null;
+  credentialDetection: CredentialDetectionState;
   setTokenError: (error: string | null) => void;
   clearTokenError: () => void;
   useGuidedSetup: boolean;
@@ -62,6 +64,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
   setTokenDetected,
   detectingToken,
   tokenError,
+  credentialDetection,
   setTokenError,
   clearTokenError,
   useGuidedSetup,
@@ -115,6 +118,7 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
           tokenDetected={tokenDetected}
           detectingToken={detectingToken}
           tokenError={tokenError}
+          credentialDetection={credentialDetection}
           onDetectToken={sharedProps.onAutoDetect ?? (() => {})}
           onClearTokenError={clearTokenError}
           preselectedMethod={isComplex ? setupMethod : undefined}

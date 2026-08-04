@@ -31,6 +31,7 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
   tokenDetected,
   detectingToken,
   tokenError,
+  credentialDetection,
   onDetectToken,
   onClearTokenError,
   onSessionCaptured,
@@ -61,6 +62,50 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
 
   const selectedMethod = (data.setup_method ?? "signin") as CodexMethod;
   const hideSelector = !!preselectedMethod;
+  const detectionAlert = useMemo(() => {
+    switch (credentialDetection.phase) {
+      case "detecting_credentials":
+        return {
+          type: "info" as const,
+          title: t("keyVault.quickActions.detectingKeys"),
+          body: t("keyVault.codexAutodetectDesc"),
+        };
+      case "loading_catalog":
+        return {
+          type: "info" as const,
+          title: t("keyVault.quickActions.detectingValidating"),
+          body: undefined,
+        };
+      case "selecting_credential":
+        return {
+          type: "info" as const,
+          title: t("keyVault.quickActions.multipleKeysFound"),
+          body: t("keyVault.quickActions.keysFoundMessage", {
+            count: credentialDetection.credentialCount ?? 0,
+            provider: "Codex",
+          }),
+        };
+      case "success":
+        return {
+          type: "success" as const,
+          title: t("keyVault.codexConnected"),
+          body: t("keyVault.quickActions.modelsAvailable", {
+            count: credentialDetection.modelCount ?? 0,
+          }),
+        };
+      case "error":
+        return {
+          type: "danger" as const,
+          title:
+            credentialDetection.message ??
+            tokenError ??
+            t("keyVault.failedToDetectKeys"),
+          body: t("keyVault.codexDetectErrorHint"),
+        };
+      case "idle":
+        return null;
+    }
+  }, [credentialDetection, t, tokenError]);
 
   const handleCredentialChange = useCallback(
     (value: string) => {
@@ -183,11 +228,31 @@ const CodexSetup: React.FC<CodexSetupProps> = ({
         </SectionContainer>
       )}
 
-      {(tokenDetected || data.validated) && selectedMethod !== "signin" && (
-        <InlineAlert type="success">{t("keyVault.codexConnected")}</InlineAlert>
+      {selectedMethod === "autodetect" && detectionAlert && (
+        <div
+          role={detectionAlert.type === "danger" ? "alert" : "status"}
+          aria-live={detectionAlert.type === "danger" ? "assertive" : "polite"}
+        >
+          <InlineAlert
+            type={detectionAlert.type}
+            title={detectionAlert.title}
+            onClose={
+              detectionAlert.type === "danger" ? onClearTokenError : undefined
+            }
+          >
+            {detectionAlert.body}
+          </InlineAlert>
+        </div>
       )}
 
-      {tokenError && selectedMethod !== "signin" && (
+      {(tokenDetected || data.validated) &&
+        selectedMethod === "enter_token" && (
+          <InlineAlert type="success">
+            {t("keyVault.codexConnected")}
+          </InlineAlert>
+        )}
+
+      {tokenError && selectedMethod === "enter_token" && (
         <InlineAlert
           type="danger"
           title={tokenError}

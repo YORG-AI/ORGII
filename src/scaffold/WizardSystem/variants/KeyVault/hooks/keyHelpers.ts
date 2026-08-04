@@ -35,6 +35,12 @@ export interface ApplyKeyCallbacks {
   validationFailedMsg: string;
 }
 
+export interface ApplyKeyResult {
+  applied: boolean;
+  modelCount: number;
+  error?: string;
+}
+
 export function normalizeDetectedQuotaInfo(
   quotaInfo: DetectedKey["quota_info"]
 ): WizardData["quota_info"] | undefined {
@@ -58,7 +64,7 @@ export function normalizeDetectedQuotaInfo(
 export function applyKey(
   cred: DetectedKey,
   callbacks: ApplyKeyCallbacks
-): void {
+): ApplyKeyResult {
   const {
     onChange,
     setTokenDetected,
@@ -75,8 +81,9 @@ export function applyKey(
   } = callbacks;
 
   if (!cred.validated) {
-    setTokenError(cred.validation_message || validationFailedMsg);
-    return;
+    const error = cred.validation_message || validationFailedMsg;
+    setTokenError(error);
+    return { applied: false, modelCount: 0, error };
   }
 
   const sessionToken = cred.session_token || cred.api_key;
@@ -110,7 +117,7 @@ export function applyKey(
 
   if (!sessionToken) {
     setTokenError(noValidTokenMsg);
-    return;
+    return { applied: false, modelCount: 0, error: noValidTokenMsg };
   }
 
   setTokenDetected(true);
@@ -173,6 +180,7 @@ export function applyKey(
   }
 
   setShowKeySelection(false);
+  return { applied: true, modelCount: modelsAvailable.length };
 }
 
 export interface ExtractCallbacks {

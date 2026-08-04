@@ -5,12 +5,13 @@ import { type KeyVaultAccount, useKeyVault } from "@src/hooks/keyVault";
 import type { ModelAccountInfo } from "./types";
 
 /**
- * Returns true if `account` has `modelId` enabled.
+ * Returns true if `account` currently exposes and has enabled `modelId`.
  *
- * Two ways an id counts as enabled:
- * - it is in `enabledModels` directly, or
+ * Two ways an id counts as selectable:
+ * - it is present in both `availableModels` and `enabledModels`, or
  * - it is a variant row from `modelVariants` (e.g. a backend-synthesized
- *   effort rung like `claude-opus-4-8-high`) whose BASE model is enabled —
+ *   effort rung like `claude-opus-4-8-high`) whose BASE model is available
+ *   and enabled —
  *   variant ids never appear in enabledModels themselves, so gating on
  *   enabledModels alone hides every synthesized effort ladder from the
  *   picker's variant-edit affordance.
@@ -23,10 +24,14 @@ export function accountHasModel(
   modelId: string
 ): boolean {
   if (!account.enabled) return false;
+  const available = new Set(account.availableModels ?? []);
   const enabled = new Set(account.enabledModels ?? []);
-  if (enabled.has(modelId)) return true;
+  if (available.has(modelId) && enabled.has(modelId)) return true;
   return (account.modelVariants ?? []).some(
-    (variant) => variant.model === modelId && enabled.has(variant.base_model)
+    (variant) =>
+      variant.model === modelId &&
+      available.has(variant.base_model) &&
+      enabled.has(variant.base_model)
   );
 }
 

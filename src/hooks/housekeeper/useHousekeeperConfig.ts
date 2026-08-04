@@ -20,8 +20,10 @@ export function getHousekeeperModelCandidates(
 ): string[] {
   if (!account) return [];
   const candidates: string[] = [];
-  for (const model of account.enabledModels ?? [])
-    pushUnique(candidates, model);
+  const available = new Set(account.availableModels ?? []);
+  for (const model of account.enabledModels ?? []) {
+    if (available.has(model)) pushUnique(candidates, model);
+  }
   for (const model of account.availableModels ?? [])
     pushUnique(candidates, model);
   for (const variant of account.modelVariants ?? []) {

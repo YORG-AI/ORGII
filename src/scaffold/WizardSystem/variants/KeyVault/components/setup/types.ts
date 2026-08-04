@@ -1,6 +1,7 @@
 /**
  * Shared types for agent setup components
  */
+import type { CredentialDetectionState } from "../../hooks/credentialDetectionState";
 import type { WizardData } from "../../types";
 
 export type InputMode = "direct" | "natural";
@@ -117,6 +118,7 @@ export interface CodexSetupProps extends AgentSetupProps {
   tokenDetected: boolean;
   detectingToken: boolean;
   tokenError: string | null;
+  credentialDetection: CredentialDetectionState;
   onDetectToken: () => void;
   onClearTokenError?: () => void;
   onSessionCaptured?: (values: CodexSessionValues) => void;

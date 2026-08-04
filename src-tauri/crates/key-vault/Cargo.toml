@@ -40,6 +40,7 @@ reqwest = { workspace = true }
 regex = "1.9.5"
 log = "0.4"
 tracing = "0.1.37"
+libc = "0.2"
 uuid = { version = "1", features = ["v4"] }
 dirs = "6.0"
 sha2 = "0.10"

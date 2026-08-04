@@ -4,7 +4,10 @@ import { KEY_SOURCE } from "@src/api/tauri/session";
 import { ORGII_ORCHESTRATOR } from "@src/assets/providers";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import type { KeyVaultAccount } from "@src/hooks/keyVault/types";
-import { isPairCompatible } from "@src/hooks/models/modelPairCompatibility";
+import {
+  type PairCompatibilityContext,
+  isPairCompatible,
+} from "@src/hooks/models/modelPairCompatibility";
 import { accountHasModel } from "@src/hooks/models/useModelAccountLookup";
 import type { RecentModelEntry } from "@src/store/session/recentModelEntriesAtom";
 import { recentEntriesEquivalent } from "@src/store/session/recentModelEntriesAtom";
@@ -54,6 +57,69 @@ interface UseUnifiedModelPaletteItemsParams {
   saveKey: UnifiedModelPaletteData["saveKey"];
   modelAliasVersion: number;
   tCommon: (key: string) => string;
+}
+
+interface ResolveCurrentModelEntryParams {
+  activeModelId: string | undefined;
+  advancedConfig: AdvancedConfig;
+  compatibleRecentEntries: RecentModelEntry[];
+  groupByModel: Map<string, readonly string[]>;
+  compatibilityContext: PairCompatibilityContext;
+}
+
+export function resolveCurrentModelEntry({
+  activeModelId,
+  advancedConfig,
+  compatibleRecentEntries,
+  groupByModel,
+  compatibilityContext,
+}: ResolveCurrentModelEntryParams): RecentModelEntry | null {
+  if (!activeModelId) return null;
+
+  const fromRecents = compatibleRecentEntries.find((entry) =>
+    entryMatchesActiveConfig(entry, advancedConfig)
+  );
+  if (fromRecents) return fromRecents;
+
+  const { accounts } = compatibilityContext;
+  const selectedAccount = advancedConfig.selectedAccountId
+    ? accounts.find((entry) => entry.id === advancedConfig.selectedAccountId)
+    : undefined;
+  const activeModelFamily = groupByModel.get(activeModelId) ?? [activeModelId];
+  const inferredAccount =
+    selectedAccount ??
+    accounts.find((account) => {
+      const selectedModelType =
+        advancedConfig.selectedSourceModelType ??
+        advancedConfig.listingModelType;
+      if (selectedModelType && account.modelType !== selectedModelType) {
+        return false;
+      }
+      if (
+        advancedConfig.selectedSourceLabel &&
+        account.name !== advancedConfig.selectedSourceLabel
+      ) {
+        return false;
+      }
+      return activeModelFamily.some((modelId) =>
+        accountHasModel(account, modelId)
+      );
+    });
+
+  const candidate: RecentModelEntry = {
+    modelId: activeModelId,
+    sourceType: advancedConfig.keySource ?? KEY_SOURCE.OWN,
+    accountId: inferredAccount?.id ?? advancedConfig.selectedAccountId,
+    accountName: advancedConfig.selectedSourceLabel ?? inferredAccount?.name,
+    modelType:
+      advancedConfig.selectedSourceModelType ??
+      advancedConfig.listingModelType ??
+      inferredAccount?.modelType ??
+      ORGII_ORCHESTRATOR,
+    cliAgentType: advancedConfig.cliAgentType,
+  };
+
+  return isPairCompatible(candidate, compatibilityContext) ? candidate : null;
 }
 
 export function useUnifiedModelPaletteItems({
@@ -117,59 +183,31 @@ export function useUnifiedModelPaletteItems({
 
   const MAX_RECENT_ITEMS = 3;
 
-  const currentModelEntry = useMemo((): RecentModelEntry | null => {
-    if (!activeModelId) return null;
-
-    const fromRecents = compatibleRecentEntries.find((entry) =>
-      entryMatchesActiveConfig(entry, advancedConfig)
-    );
-    if (fromRecents) return fromRecents;
-
-    const selectedAccount = advancedConfig.selectedAccountId
-      ? accounts.find((entry) => entry.id === advancedConfig.selectedAccountId)
-      : undefined;
-    const activeModelFamily = groupByModel.get(activeModelId) ?? [
+  const currentModelEntry = useMemo(
+    () =>
+      resolveCurrentModelEntry({
+        activeModelId,
+        advancedConfig,
+        compatibleRecentEntries,
+        groupByModel,
+        compatibilityContext: {
+          accounts,
+          orgiiPoolEnabled,
+          orgiiModelSet,
+          orgiiCategoryIds,
+        },
+      }),
+    [
       activeModelId,
-    ];
-    const inferredAccount =
-      selectedAccount ??
-      accounts.find((account) => {
-        const selectedModelType =
-          advancedConfig.selectedSourceModelType ??
-          advancedConfig.listingModelType;
-        if (selectedModelType && account.modelType !== selectedModelType) {
-          return false;
-        }
-        if (
-          advancedConfig.selectedSourceLabel &&
-          account.name !== advancedConfig.selectedSourceLabel
-        ) {
-          return false;
-        }
-        return activeModelFamily.some((modelId) =>
-          accountHasModel(account, modelId)
-        );
-      });
-
-    return {
-      modelId: activeModelId,
-      sourceType: advancedConfig.keySource ?? KEY_SOURCE.OWN,
-      accountId: inferredAccount?.id ?? advancedConfig.selectedAccountId,
-      accountName: advancedConfig.selectedSourceLabel ?? inferredAccount?.name,
-      modelType:
-        advancedConfig.selectedSourceModelType ??
-        advancedConfig.listingModelType ??
-        inferredAccount?.modelType ??
-        ORGII_ORCHESTRATOR,
-      cliAgentType: advancedConfig.cliAgentType,
-    };
-  }, [
-    activeModelId,
-    advancedConfig,
-    compatibleRecentEntries,
-    accounts,
-    groupByModel,
-  ]);
+      advancedConfig,
+      compatibleRecentEntries,
+      accounts,
+      groupByModel,
+      orgiiCategoryIds,
+      orgiiModelSet,
+      orgiiPoolEnabled,
+    ]
+  );
 
   const recentEntriesForDisplay = useMemo((): RecentModelEntry[] => {
     const entries: RecentModelEntry[] = [];

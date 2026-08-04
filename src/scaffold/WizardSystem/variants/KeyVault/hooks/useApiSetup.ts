@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useReducer, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DetectedKey } from "@src/api/types/keys";
@@ -14,6 +14,10 @@ import {
   getApiSetupProceedState,
   getResolvedCursorSessionToken,
 } from "./apiSetupDerived";
+import {
+  INITIAL_CREDENTIAL_DETECTION_STATE,
+  credentialDetectionReducer,
+} from "./credentialDetectionState";
 import { useApiSetupCursorToken } from "./useApiSetupCursorToken";
 import { useApiSetupExtraction } from "./useApiSetupExtraction";
 import { useApiSetupHealthCheck } from "./useApiSetupHealthCheck";
@@ -45,6 +49,10 @@ export function useApiSetup({ data, onChange }: UseApiSetupOptions) {
   const [detectingToken, setDetectingToken] = useState(false);
   const [tokenDetected, setTokenDetected] = useState(false);
   const [tokenError, setTokenError] = useState<string | null>(null);
+  const [credentialDetection, dispatchCredentialDetection] = useReducer(
+    credentialDetectionReducer,
+    INITIAL_CREDENTIAL_DETECTION_STATE
+  );
   const [inputMode, setInputMode] = useState<"direct" | "natural">("direct");
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -130,6 +138,7 @@ export function useApiSetup({ data, onChange }: UseApiSetupOptions) {
       setShowKeySelection,
       setDetectedKeys,
       setSelectedCredentialIndex,
+      dispatchCredentialDetection,
     });
 
   const handleExtract = useApiSetupExtraction({
@@ -175,6 +184,7 @@ export function useApiSetup({ data, onChange }: UseApiSetupOptions) {
     detectingToken,
     tokenDetected,
     tokenError,
+    credentialDetection,
     setTokenError,
     inputMode,
     setInputMode,
@@ -207,7 +217,10 @@ export function useApiSetup({ data, onChange }: UseApiSetupOptions) {
     handleAutoDetectToken,
     handleExtract,
     canProceed,
-    clearTokenError: () => setTokenError(null),
+    clearTokenError: () => {
+      setTokenError(null);
+      dispatchCredentialDetection({ type: "reset" });
+    },
     clearExtractError: () => setExtractError(null),
   };
 }

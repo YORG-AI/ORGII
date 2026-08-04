@@ -48,6 +48,16 @@ describe("accountHasModel", () => {
     expect(accountHasModel(account, "claude-opus-4-8-high")).toBe(false);
   });
 
+  it("rejects enabled ids that are no longer in the available catalog", () => {
+    const account = claudeAccount({
+      availableModels: ["claude-opus-4-7"],
+      enabledModels: ["claude-opus-4-8"],
+    });
+
+    expect(accountHasModel(account, "claude-opus-4-8")).toBe(false);
+    expect(accountHasModel(account, "claude-opus-4-8-high")).toBe(false);
+  });
+
   it("rejects unknown ids and disabled accounts", () => {
     expect(accountHasModel(claudeAccount(), "claude-opus-4-8-xhigh")).toBe(
       false
@@ -73,5 +83,16 @@ describe("buildAccountLookup", () => {
   it("does not leak variants of disabled base models", () => {
     const lookup = buildAccountLookup([claudeAccount({ enabledModels: [] })]);
     expect(lookup.has("claude-opus-4-8-high")).toBe(false);
+  });
+
+  it("does not count stale enabled ids from a different account catalog", () => {
+    const stale = claudeAccount({
+      id: "stale-key",
+      availableModels: ["claude-opus-4-7"],
+      enabledModels: ["claude-opus-4-8"],
+    });
+    const lookup = buildAccountLookup([claudeAccount(), stale]);
+
+    expect(lookup.get("claude-opus-4-8")?.totalKeys).toBe(1);
   });
 });

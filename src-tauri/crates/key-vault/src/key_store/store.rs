@@ -65,10 +65,13 @@ impl KeyStore {
     }
 
     /// Save or update a key
-    pub fn set(&mut self, mut key: ModelKey) {
+    pub fn set(&mut self, mut key: ModelKey) -> ModelKey {
+        key.normalize_enabled_models();
         key.updated_at = Utc::now();
+        let saved = key.clone();
         self.keys.insert(key.id.clone(), key);
         self.updated_at = Utc::now();
+        saved
     }
 
     /// Delete key by agent type and optional ID
