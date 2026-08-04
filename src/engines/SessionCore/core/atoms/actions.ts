@@ -14,6 +14,7 @@ import { atom } from "jotai";
 
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
 import { clearLoadedPayloads } from "@src/engines/SessionCore/payloads";
+import { markSessionSwitchTrace } from "@src/engines/SessionCore/performance/sessionSwitchPerformance";
 import { clearLoadedTurnRegistry } from "@src/engines/SessionCore/turns/loadedTurnRegistry";
 import { createLogger } from "@src/hooks/logger";
 import { messageQueueAtom } from "@src/store/ui/messageQueueAtom";
@@ -158,6 +159,11 @@ export const loadSessionAtom = atom(
       isFromCache = false,
       replace = false,
     } = payload;
+    markSessionSwitchTrace(sessionId, "state-commit-start", {
+      eventCount: events.length,
+      fromCache: isFromCache,
+      replace,
+    });
 
     // Preserve synthetic user events (injected by session launch) when the
     // sync hooks reload from SQLite/API before the backend has persisted the
@@ -445,6 +451,9 @@ export const loadSessionAtom = atom(
       set(replayBarValueAtom, REPLAY_CONFIG.MAX_VALUE);
       set(replayModeAtom, "follow");
     }
+    markSessionSwitchTrace(sessionId, "state-commit-complete", {
+      eventCount: mergedEvents.length,
+    });
   }
 );
 loadSessionAtom.debugLabel = "session/load";

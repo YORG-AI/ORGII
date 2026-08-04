@@ -10,6 +10,11 @@
 import { type Getter, type Setter, atom } from "jotai";
 
 import {
+  markSessionSwitchTrace,
+  startSessionSwitchTrace,
+} from "@src/engines/SessionCore/performance/sessionSwitchPerformance";
+
+import {
   type PanelState,
   type WorkStationLayoutState,
   closeOtherTabs as closeOtherTabsMutation,
@@ -76,11 +81,25 @@ function closePresentedTabs(
 export const focusTabAtom = atom(null, (get, set, request: TabFocusRequest) => {
   const layout = get(workstationLayoutAtom);
   if (!layout) return;
-  if (!layout.mainPane.tabs.some((tab) => tab.id === request.tabId)) return;
+  const targetTab = layout.mainPane.tabs.find(
+    (tab) => tab.id === request.tabId
+  );
+  if (!targetTab) return;
+  const targetSessionId =
+    targetTab.type === "chat-session" &&
+    layout.mainPane.activeTabId !== request.tabId
+      ? String(targetTab.data.sessionId ?? "")
+      : "";
+  if (targetSessionId) {
+    startSessionSwitchTrace(targetSessionId, "workstation-tab");
+  }
   set(
     workstationLayoutAtom,
     setMainPane(layout, switchTabMutation(layout.mainPane, request.tabId))
   );
+  if (targetSessionId) {
+    markSessionSwitchTrace(targetSessionId, "workstation-focus-persisted");
+  }
 });
 focusTabAtom.debugLabel = "focusTabAtom";
 

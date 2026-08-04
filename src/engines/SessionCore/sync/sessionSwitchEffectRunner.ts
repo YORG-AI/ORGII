@@ -1,3 +1,8 @@
+import {
+  finishSessionSwitchTrace,
+  markSessionSwitchTrace,
+  startSessionSwitchTrace,
+} from "../performance/sessionSwitchPerformance";
 import { runSessionSwitchOrchestrator } from "./sessionSwitchOrchestrator";
 import {
   disposeCurrentHandler,
@@ -43,18 +48,30 @@ export function runSessionSwitchEffect(
     logger,
   } = options;
 
+  startSessionSwitchTrace(sessionId, "pipeline-effect", {
+    joinExisting: true,
+  });
   const leavingSessionId = refs.prevSessionIdRef.current;
   refs.prevSessionIdRef.current = sessionId;
   refs.prevReloadEpochRef.current = reloadEpoch;
 
   resetSessionSwitchState(switchActions, sessionId, leavingSessionId);
   disposeCurrentHandler(refs);
+  markSessionSwitchTrace(sessionId, "switch-state-reset", {
+    leavingSessionId,
+    reloadEpoch,
+  });
 
   const adapter = getAdapterForSession(sessionId);
   const abortController = new AbortController();
   if (!adapter) {
     loadSessionWithoutAdapter(sessionId, abortController, loadActions, logger);
-    return () => abortController.abort();
+    return () => {
+      abortController.abort();
+      finishSessionSwitchTrace(sessionId, "aborted", {
+        reason: "sync-effect-cleanup",
+      });
+    };
   }
 
   refs.adapterRef.current = adapter;
@@ -66,6 +83,9 @@ export function runSessionSwitchEffect(
       logStatusChange
     )
   );
+  markSessionSwitchTrace(sessionId, "event-handler-ready", {
+    adapterCategory: adapter.category,
+  });
 
   runSessionSwitchOrchestrator({
     sessionId,
@@ -79,6 +99,9 @@ export function runSessionSwitchEffect(
 
   return () => {
     abortController.abort();
+    finishSessionSwitchTrace(sessionId, "aborted", {
+      reason: "sync-effect-cleanup",
+    });
     resetReloadGuardForSession(sessionId, refs);
   };
 }

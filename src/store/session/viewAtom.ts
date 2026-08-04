@@ -39,6 +39,10 @@ import {
   triggerSessionReloadAtom,
 } from "@src/engines/SessionCore/core/atoms/metadata";
 import {
+  markSessionSwitchTrace,
+  startSessionSwitchTrace,
+} from "@src/engines/SessionCore/performance/sessionSwitchPerformance";
+import {
   registerLiveSubagentSignalAtom,
   registerRuntimeStatusGateSessionAtoms,
 } from "@src/store/session/cliSessionStatusAtom";
@@ -235,9 +239,15 @@ export const claimPipelineSessionAtom = atom(
   (get, set, sessionId: string) => {
     const previousPipelineSessionId = get(activeSessionIdAtom);
 
+    startSessionSwitchTrace(sessionId, "secondary-claim", {
+      joinExisting: true,
+    });
+    markSessionSwitchTrace(sessionId, "state-clear-start");
     set(clearSessionAtom);
+    markSessionSwitchTrace(sessionId, "state-cleared");
     set(loadStatusAtom, "loading");
     set(activeSessionIdAtom, sessionId);
+    markSessionSwitchTrace(sessionId, "pipeline-selected");
     if (previousPipelineSessionId === sessionId) {
       set(triggerSessionReloadAtom, sessionId);
     }
@@ -288,7 +298,14 @@ export const jumpToSessionAtom = atom(
     const sessionId = isRich ? payload.sessionId : payload;
     const previousPipelineSessionId = get(activeSessionIdAtom);
 
+    if (sessionId) {
+      startSessionSwitchTrace(sessionId, "session-jump");
+      markSessionSwitchTrace(sessionId, "state-clear-start");
+    }
     set(clearSessionAtom);
+    if (sessionId) {
+      markSessionSwitchTrace(sessionId, "state-cleared");
+    }
     set(loadStatusAtom, sessionId ? "loading" : "idle");
     // WorkStation owns the navigation, so update its memory atom AND
     // the pipeline atom in a single underlying-storage write. When
@@ -302,6 +319,9 @@ export const jumpToSessionAtom = atom(
       repoPath: isRich ? payload.repoPath : current.repoPath,
     });
     set(activeSessionIdAtom, sessionId);
+    if (sessionId) {
+      markSessionSwitchTrace(sessionId, "pipeline-selected");
+    }
     if (sessionId && previousPipelineSessionId === sessionId) {
       set(triggerSessionReloadAtom, sessionId);
     }

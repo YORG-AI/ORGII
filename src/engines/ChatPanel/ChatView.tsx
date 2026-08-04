@@ -31,9 +31,14 @@ import Message from "@src/components/Message";
 import { useShowInteractArea } from "@src/contexts/workspace/ChatContext";
 import { forkExternalHistoryIntoOrgiiSession } from "@src/engines/ChatPanel/externalHistoryFork";
 import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events";
+import {
+  loadStatusAtom,
+  sessionIdAtom,
+} from "@src/engines/SessionCore/core/atoms/metadata";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { derivePlanApprovalViewState } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useTodoSync } from "@src/engines/SessionCore/hooks/session/useTodoSync";
+import { useSessionSwitchPaintTrace } from "@src/engines/SessionCore/performance/useSessionSwitchPaintTrace";
 import { ForkCancelledError } from "@src/features/TeamCollaboration/forkSession";
 import { useFileReviewSync } from "@src/hooks/fileReview";
 import { createLogger } from "@src/hooks/logger";
@@ -257,6 +262,12 @@ const ChatView: React.FC<ChatViewProps> = memo(
     const streamRetry =
       streamRetryStatus?.sessionId === sessionId ? streamRetryStatus : null;
     const snapshot = useAtomValue(derivedSnapshotAtom);
+    const loadedSessionId = useAtomValue(sessionIdAtom);
+    const loadStatus = useAtomValue(loadStatusAtom);
+    useSessionSwitchPaintTrace(
+      sessionId,
+      loadedSessionId === sessionId && loadStatus === "loaded"
+    );
     const canvasPreviewPill = useChatViewCanvasPreview(sessionId, snapshot);
     const currentPlanApproval = usePendingPlanApproval(sessionId);
     const chatEvents = snapshot?.chatEvents ?? EMPTY_CHAT_EVENTS;
