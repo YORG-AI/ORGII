@@ -132,6 +132,10 @@ data.json
 .orgii/*
 !.orgii/skills/
 .orgii/skills/*
+!.orgii/skills/architecture-audit/
+!.orgii/skills/architecture-audit/**
+!.orgii/skills/e2e-testing/
+!.orgii/skills/e2e-testing/**
 !.orgii/skills/org2-performance-guard/
 !.orgii/skills/org2-performance-guard/**
 !.orgii/skills/react-best-practices/
