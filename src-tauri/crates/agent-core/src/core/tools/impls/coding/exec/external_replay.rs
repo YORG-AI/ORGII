@@ -44,6 +44,16 @@ pub fn persist_external_shell_replays(events: &mut [SessionEvent]) {
             total.saturating_add(part.text.len() as u64)
         });
         let call_id = event.call_id.clone().unwrap_or_else(|| event.id.clone());
+        if expected_bytes <= SHELL_REPLAY_PREVIEW_BYTES as u64 {
+            // The bounded preview can hold the complete output, so creating a
+            // .slog file and three SQLite transactions would only turn a
+            // small, rebuildable history row into synchronous storage work.
+            // A Codex turn can contain hundreds of these calls; keeping them
+            // inline avoids one fsync chain per call while preserving every
+            // output byte needed by the UI.
+            event.shell_replay = Some(inline_complete_state(event, &call_id, &parts));
+            continue;
+        }
         let replay_root = resolve_replay_root();
         match persist_one(event, &call_id, &replay_root, &parts, expected_bytes) {
             Ok(state) => event.shell_replay = Some(state),
@@ -192,6 +202,33 @@ fn output_parts(event: &SessionEvent) -> Vec<OutputPart<'_>> {
     Vec::new()
 }
 
+fn inline_complete_state(
+    event: &SessionEvent,
+    call_id: &str,
+    parts: &[OutputPart<'_>],
+) -> ShellReplayState {
+    let mut output = String::new();
+    for part in parts {
+        output.push_str(part.text);
+    }
+    debug_assert!(output.len() <= SHELL_REPLAY_PREVIEW_BYTES);
+    ShellReplayState {
+        replay_ref: ShellReplayRef {
+            session_id: event.session_id.clone(),
+            call_id: call_id.to_string(),
+            format_version: SHELL_REPLAY_FORMAT_VERSION,
+        },
+        // Zero readable bytes intentionally tells range consumers that the
+        // complete output already lives in terminal_preview; there is no
+        // backing artifact to page.
+        bookmark: ShellReplayBookmark::default(),
+        terminal_preview: output,
+        status: ShellReplayStatus::Complete,
+        error: None,
+        completed_at: Some(event.created_at.clone()),
+    }
+}
+
 fn first_string_at_paths<'a>(value: &'a serde_json::Value, paths: &[&[&str]]) -> Option<&'a str> {
     paths.iter().find_map(|path| string_at_path(value, path))
 }
@@ -292,5 +329,33 @@ mod tests {
         assert_eq!(state.bookmark.visible_bytes, expected_bytes);
         assert!(state.terminal_preview.ends_with("TAIL"));
         assert!(state.terminal_preview.len() <= SHELL_REPLAY_PREVIEW_BYTES);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn small_external_shell_stays_complete_without_replay_storage() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().unwrap();
+        database::init_shell_replay_tables(&conn).unwrap();
+        let output = "small complete output".to_string();
+        let mut event = external_shell_event(output.clone());
+
+        persist_external_shell_replays(std::slice::from_mut(&mut event));
+
+        let state = event.shell_replay.as_ref().expect("inline replay state");
+        assert_eq!(state.status, ShellReplayStatus::Complete);
+        assert_eq!(state.bookmark.visible_bytes, 0);
+        assert_eq!(state.terminal_preview, output);
+        assert_eq!(state.error, None);
+        assert!(
+            load_replay_state(&event.session_id, "external-shell-call")
+                .unwrap()
+                .is_none(),
+            "a complete bounded preview must not create a replay artifact"
+        );
+        let stored_replays: i64 = conn
+            .query_row("SELECT COUNT(*) FROM shell_replays", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored_replays, 0);
     }
 }
