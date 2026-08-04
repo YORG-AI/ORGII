@@ -3922,6 +3922,7 @@ dependencies = [
  "dirs",
  "insta",
  "integrations",
+ "libc",
  "log",
  "nucleo-matcher",
  "orgtrack_core",

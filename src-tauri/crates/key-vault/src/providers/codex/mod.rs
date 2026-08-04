@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::Command;
+use tokio::process::{Child, Command};
 
 /// ChatGPT usage API endpoint
 const USAGE_API_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
@@ -21,6 +21,7 @@ const CODEX_MODELS_API_URL: &str = "https://chatgpt.com/backend-api/codex/models
 const CODEX_MODELS_CLIENT_VERSION: &str = "0.124.0";
 const CODEX_USER_AGENT: &str = "codex_cli_rs/0.124.0 (orgii, cli)";
 const APP_SERVER_TIMEOUT_SECS: u64 = 10;
+const APP_SERVER_SHUTDOWN_TIMEOUT_SECS: u64 = 2;
 
 #[derive(Debug, Deserialize)]
 struct CodexModelsResponse {
@@ -750,12 +751,20 @@ async fn run_codex_app_server_rpc<T: DeserializeOwned>(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    // The npm `codex` entry point forks the native Codex binary. Give the
+    // wrapper and every descendant a dedicated process group so timeout and
+    // normal completion can terminate the whole tree instead of orphaning the
+    // native app-server with our stdout/stderr pipes still open.
+    #[cfg(unix)]
+    child.process_group(0);
+
     #[cfg(windows)]
     child.creation_flags(app_platform::CREATE_NO_WINDOW);
 
     let mut child = child
         .spawn()
         .map_err(|err| format!("Failed to start Codex app-server via {codex_binary}: {err}"))?;
+    let child_pid = child.id();
 
     let mut stdin = child
         .stdin
@@ -808,26 +817,88 @@ async fn run_codex_app_server_rpc<T: DeserializeOwned>(
             Err(_) => Err(format!("Codex app-server {operation} timed out")),
         };
 
-    if let Err(err) = child.kill().await {
-        log::debug!(
-            "[CodexAppServer] Failed to kill Codex app-server after {}: {}",
-            operation,
-            err,
-        );
-    }
-    let _ = child.wait().await;
+    terminate_codex_app_server_tree(&mut child, child_pid, operation).await;
 
-    if let Some(task) = stderr_task {
-        if let Ok(stderr_output) = task.await {
-            if let Err(ref error_message) = result {
-                if !stderr_output.trim().is_empty() {
-                    result = Err(format!("{error_message}: {}", stderr_output.trim()));
+    if let Some(mut task) = stderr_task {
+        match tokio::time::timeout(
+            std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+            &mut task,
+        )
+        .await
+        {
+            Ok(Ok(stderr_output)) => {
+                if let Err(ref error_message) = result {
+                    if !stderr_output.trim().is_empty() {
+                        result = Err(format!("{error_message}: {}", stderr_output.trim()));
+                    }
                 }
+            }
+            Ok(Err(err)) => {
+                log::debug!(
+                    "[CodexAppServer] stderr reader failed after {}: {}",
+                    operation,
+                    err
+                );
+            }
+            Err(_) => {
+                task.abort();
+                log::warn!(
+                    "[CodexAppServer] stderr pipe did not close after {}; reader aborted",
+                    operation
+                );
             }
         }
     }
 
     result
+}
+
+async fn terminate_codex_app_server_tree(
+    child: &mut Child,
+    child_pid: Option<u32>,
+    operation: &str,
+) {
+    #[cfg(unix)]
+    if let Some(pid) = child_pid {
+        // SAFETY: the child was spawned as leader of a dedicated process
+        // group. A stale PID returns ESRCH; no Rust memory invariants apply.
+        unsafe {
+            libc::kill(-(pid as libc::pid_t), libc::SIGKILL);
+        }
+    }
+
+    #[cfg(windows)]
+    if let Some(pid) = child_pid {
+        let mut taskkill = Command::new("taskkill");
+        taskkill.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        taskkill.creation_flags(app_platform::CREATE_NO_WINDOW);
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+            taskkill.output(),
+        )
+        .await;
+    }
+
+    if let Err(err) = child.kill().await {
+        log::debug!(
+            "[CodexAppServer] Direct child already stopped after {}: {}",
+            operation,
+            err
+        );
+    }
+    if tokio::time::timeout(
+        std::time::Duration::from_secs(APP_SERVER_SHUTDOWN_TIMEOUT_SECS),
+        child.wait(),
+    )
+    .await
+    .is_err()
+    {
+        log::warn!(
+            "[CodexAppServer] Direct child did not exit after {} within {}s",
+            operation,
+            APP_SERVER_SHUTDOWN_TIMEOUT_SECS
+        );
+    }
 }
 
 async fn write_json_rpc_request<T: Serialize>(
@@ -1200,5 +1271,42 @@ mod model_discovery_tests {
         assert_eq!(models[0].default_effort.as_deref(), Some("high"));
         assert_eq!(models[0].supported_efforts, vec!["low", "high", "max"]);
         assert!(models[0].is_default);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn app_server_shutdown_terminates_wrapper_descendants() {
+        let mut command = Command::new("sh");
+        command
+            .args(["-c", "sleep 60 & helper=$!; echo $helper; wait"])
+            .process_group(0)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .kill_on_drop(true);
+        let mut child = command.spawn().expect("spawn wrapper process");
+        let child_pid = child.id();
+        let stdout = child.stdout.take().expect("wrapper stdout");
+        let mut reader = BufReader::new(stdout).lines();
+        let helper_pid: i32 = reader
+            .next_line()
+            .await
+            .expect("read helper pid")
+            .expect("helper pid line")
+            .trim()
+            .parse()
+            .expect("numeric helper pid");
+
+        terminate_codex_app_server_tree(&mut child, child_pid, "test shutdown").await;
+
+        let mut helper_alive = true;
+        for _ in 0..20 {
+            // SAFETY: signal 0 performs an existence check only.
+            helper_alive = unsafe { libc::kill(helper_pid, 0) == 0 };
+            if !helper_alive {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+        }
+        assert!(!helper_alive, "descendant process {helper_pid} survived");
     }
 }

@@ -18,7 +18,10 @@
  */
 import { useMemo } from "react";
 
-import { useModelAccountLookup } from "@src/hooks/models";
+import {
+  accountHasModel,
+  useModelAccountLookup,
+} from "@src/hooks/models/useModelAccountLookup";
 import { formatModelNameFull } from "@src/util/formatModelName";
 
 import { useAgentDefinitions } from "./useAgentDefinitions";
@@ -38,10 +41,9 @@ export function useWorkflowModelOptions(): WorkflowSelectOption[] {
 
   return useMemo(() => {
     const enabled = new Set<string>();
-    for (const acc of accounts) {
-      if (!acc.enabled) continue;
-      for (const modelId of acc.enabledModels ?? []) {
-        if (modelId) enabled.add(modelId);
+    for (const account of accounts) {
+      for (const modelId of account.enabledModels ?? []) {
+        if (accountHasModel(account, modelId)) enabled.add(modelId);
       }
     }
     return Array.from(enabled)

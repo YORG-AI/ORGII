@@ -28,6 +28,14 @@ describe("isModelRunnableLocally", () => {
     expect(isModelRunnableLocally("gpt-5.6-sol", [makeKey()])).toBe(false);
   });
 
+  it("rejects a stale enabled model removed from the available catalog", () => {
+    expect(
+      isModelRunnableLocally("gpt-5.6-sol", [
+        makeKey({ enabled_models: ["gpt-5.6-sol"] }),
+      ])
+    ).toBe(false);
+  });
+
   it("rejects when the only matching key is disabled", () => {
     expect(
       isModelRunnableLocally("deepseek-v4-pro", [makeKey({ enabled: false })])

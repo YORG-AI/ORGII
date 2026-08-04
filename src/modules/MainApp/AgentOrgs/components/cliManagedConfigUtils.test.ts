@@ -46,7 +46,7 @@ describe("modelIdsFor", () => {
   it("prefers enabled models and removes duplicates", () => {
     const value = account("key", {
       enabledModels: ["gpt-5", "gpt-5", "gpt-5-mini"],
-      availableModels: ["ignored"],
+      availableModels: ["gpt-5", "gpt-5-mini", "ignored"],
     });
 
     expect(modelIdsFor(value)).toEqual(["gpt-5", "gpt-5-mini"]);
@@ -65,8 +65,14 @@ describe("modelIdsFor", () => {
 describe("getManagedProxyDraftSelection", () => {
   it("does not carry a stale model onto a different compatible key", () => {
     const accounts = [
-      account("openai", { enabledModels: ["gpt-5"] }),
-      account("anthropic", { enabledModels: ["claude-sonnet"] }),
+      account("openai", {
+        availableModels: ["gpt-5"],
+        enabledModels: ["gpt-5"],
+      }),
+      account("anthropic", {
+        availableModels: ["claude-sonnet"],
+        enabledModels: ["claude-sonnet"],
+      }),
     ];
 
     expect(
@@ -76,7 +82,10 @@ describe("getManagedProxyDraftSelection", () => {
 
   it("keeps a saved model only when it belongs to the saved key", () => {
     const accounts = [
-      account("openai", { enabledModels: ["gpt-5", "gpt-5-mini"] }),
+      account("openai", {
+        availableModels: ["gpt-5", "gpt-5-mini"],
+        enabledModels: ["gpt-5", "gpt-5-mini"],
+      }),
     ];
 
     expect(

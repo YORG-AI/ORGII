@@ -59,6 +59,86 @@ fn test_key_crud() {
 }
 
 #[test]
+fn test_save_key_normalizes_enabled_models_to_available_catalog() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut key = ModelKey::new(ModelType::Codex);
+    key.available_models = vec!["gpt-5.5".to_string(), "gpt-5.4".to_string()];
+    key.enabled_models = vec![
+        "gpt-5.6-sol".to_string(),
+        "gpt-5.5".to_string(),
+        "gpt-5.5".to_string(),
+    ];
+
+    let saved = service.save_key(key).unwrap();
+
+    assert_eq!(saved.enabled_models, vec!["gpt-5.5".to_string()]);
+    assert_eq!(
+        service.get_key_by_id(&saved.id).unwrap().enabled_models,
+        vec!["gpt-5.5".to_string()]
+    );
+    let persisted: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(temp_dir.path().join("credentials.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        persisted["credentials"][&saved.id]["enabled_models"],
+        serde_json::json!(["gpt-5.5"]),
+        "serialized credentials must not retain unavailable enabled models"
+    );
+}
+
+#[test]
+fn test_load_normalizes_legacy_stale_enabled_models() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut key = ModelKey::new(ModelType::Codex);
+    let key_id = key.id.clone();
+    key.available_models = vec!["gpt-5.5".to_string()];
+    key.enabled_models = vec!["gpt-5.6-sol".to_string(), "gpt-5.5".to_string()];
+
+    let mut raw_store = KeyStore::default();
+    raw_store.keys.insert(key_id.clone(), key);
+    std::fs::write(
+        temp_dir.path().join("credentials.json"),
+        serde_json::to_string_pretty(&raw_store).unwrap(),
+    )
+    .unwrap();
+
+    let loaded = service.get_key_by_id(&key_id).unwrap();
+    assert_eq!(loaded.enabled_models, vec!["gpt-5.5".to_string()]);
+}
+
+#[test]
+fn test_model_refresh_removes_enabled_models_missing_from_new_catalog() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+
+    let mut key = ModelKey::new(ModelType::Codex);
+    key.available_models = vec!["gpt-5.6-sol".to_string(), "gpt-5.5".to_string()];
+    key.enabled_models = key.available_models.clone();
+    let saved = service.save_key(key).unwrap();
+
+    service
+        .update_key_health(
+            &saved.id,
+            HealthStatus::Valid,
+            None,
+            Some(vec!["gpt-5.5".to_string()]),
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+
+    let refreshed = service.get_key_by_id(&saved.id).unwrap();
+    assert_eq!(refreshed.available_models, vec!["gpt-5.5".to_string()]);
+    assert_eq!(refreshed.enabled_models, vec!["gpt-5.5".to_string()]);
+}
+
+#[test]
 fn retired_gemini_cli_credentials_do_not_corrupt_the_vault() {
     let temp_dir = tempdir().unwrap();
     let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
@@ -1181,6 +1261,7 @@ fn test_cross_type_env_zenmux_as_claude_code_uses_anthropic_endpoint() {
 
     let mut zenmux_key = ModelKey::new(ModelType::ZenmuxApi);
     zenmux_key.api_key = Some("sk-zenmux-test123".to_string());
+    zenmux_key.available_models = vec!["claude-sonnet-4-20250514".to_string()];
     zenmux_key.enabled_models = vec!["claude-sonnet-4-20250514".to_string()];
     let key_id = zenmux_key.id.clone();
     service.save_key(zenmux_key).unwrap();
@@ -1235,6 +1316,7 @@ fn test_cross_type_env_atlascloud_as_claude_code_uses_anthropic_endpoint() {
 
     let mut atlas_key = ModelKey::new(ModelType::AtlascloudApi);
     atlas_key.api_key = Some("atlas-test-key".to_string());
+    atlas_key.available_models = vec!["zai-org/glm-5.1".to_string()];
     atlas_key.enabled_models = vec!["zai-org/glm-5.1".to_string()];
     // The stored /v1 URL is OpenAI-protocol; the Anthropic export must
     // ignore it and use the bare host instead.

@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
-import { useCallback, useMemo } from "react";
+import type { Dispatch } from "react";
+import { useCallback, useMemo, useRef } from "react";
 
 import {
   autoDetectKey,
@@ -16,6 +17,11 @@ import {
   resolveSelectedEndpoint,
 } from "../config/providerEndpoints";
 import type { WizardData } from "../types";
+import {
+  type CredentialDetectionEvent,
+  getCredentialDetectionErrorMessage,
+  withCredentialDetectionTimeout,
+} from "./credentialDetectionState";
 import { applyKey } from "./keyHelpers";
 import { useProviderConfig } from "./useProviderConfig";
 
@@ -23,6 +29,7 @@ const log = createLogger("ApiSetup");
 
 /** Matches the `zen` entry of `OPENCODE_ENDPOINTS` in `provider_config.rs`. */
 const OPENCODE_ZEN_ENDPOINT_ID = "zen";
+const OAUTH_MODEL_CATALOG_TIMEOUT_MS = 30_000;
 
 /**
  * A Zen key authenticates against both OpenCode endpoints, but a Go key is
@@ -74,6 +81,7 @@ interface UseApiSetupTokenDetectionOptions {
   setShowKeySelection: (value: boolean) => void;
   setDetectedKeys: (value: DetectedKey[]) => void;
   setSelectedCredentialIndex: (value: number) => void;
+  dispatchCredentialDetection: Dispatch<CredentialDetectionEvent>;
 }
 
 export function useApiSetupTokenDetection({
@@ -93,7 +101,9 @@ export function useApiSetupTokenDetection({
   setShowKeySelection,
   setDetectedKeys,
   setSelectedCredentialIndex,
+  dispatchCredentialDetection,
 }: UseApiSetupTokenDetectionOptions) {
+  const detectionInFlightRef = useRef(false);
   // OpenCode's Zen/Go endpoints come from the Rust provider registry, same as
   // every other provider's — autodetect must not re-hardcode their URLs.
   const { config: openCodeConfig } = useProviderConfig(CLI_AGENT.OPENCODE);
@@ -106,7 +116,7 @@ export function useApiSetupTokenDetection({
     async (cred: DetectedKey) => {
       if (data.agent_type === "opencode" && cred.api_key) {
         const models = cred.available_models ?? [];
-        applyKey(cred, {
+        const result = applyKey(cred, {
           onChange,
           setTokenDetected,
           setCursorSessionToken,
@@ -118,23 +128,40 @@ export function useApiSetupTokenDetection({
           noValidTokenMsg: t("keyVault.noValidTokenFound"),
           validationFailedMsg: t("keyVault.quickActions.keyValidationFailed"),
         });
-        return;
+        dispatchCredentialDetection(
+          result.applied
+            ? { type: "succeeded", modelCount: result.modelCount }
+            : {
+                type: "failed",
+                message:
+                  result.error ??
+                  t("keyVault.quickActions.keyValidationFailed"),
+              }
+        );
+        return result;
       }
 
+      if (isClaudeCode || isCodex) {
+        dispatchCredentialDetection({ type: "catalog_requested" });
+      }
       const catalog =
         isClaudeCode || isCodex
-          ? await getOAuthModelCatalog(
-              isClaudeCode ? CLI_AGENT.CLAUDE_CODE : CLI_AGENT.CODEX,
-              {
-                accessToken: cred.session_token ?? cred.api_key ?? undefined,
-                refreshToken: isClaudeCode
-                  ? cred.env_vars?.CLAUDE_CODE_REFRESH_TOKEN
-                  : cred.env_vars?.OPENAI_REFRESH_TOKEN,
-                idToken: cred.env_vars?.OPENAI_ID_TOKEN,
-              }
+          ? await withCredentialDetectionTimeout(
+              getOAuthModelCatalog(
+                isClaudeCode ? CLI_AGENT.CLAUDE_CODE : CLI_AGENT.CODEX,
+                {
+                  accessToken: cred.session_token ?? cred.api_key ?? undefined,
+                  refreshToken: isClaudeCode
+                    ? cred.env_vars?.CLAUDE_CODE_REFRESH_TOKEN
+                    : cred.env_vars?.OPENAI_REFRESH_TOKEN,
+                  idToken: cred.env_vars?.OPENAI_ID_TOKEN,
+                }
+              ),
+              OAUTH_MODEL_CATALOG_TIMEOUT_MS,
+              t("common:errors.api.messages.timeout")
             )
           : undefined;
-      applyKey(cred, {
+      const result = applyKey(cred, {
         onChange,
         setTokenDetected,
         setCursorSessionToken,
@@ -146,9 +173,20 @@ export function useApiSetupTokenDetection({
         noValidTokenMsg: t("keyVault.noValidTokenFound"),
         validationFailedMsg: t("keyVault.quickActions.keyValidationFailed"),
       });
+      dispatchCredentialDetection(
+        result.applied
+          ? { type: "succeeded", modelCount: result.modelCount }
+          : {
+              type: "failed",
+              message:
+                result.error ?? t("keyVault.quickActions.keyValidationFailed"),
+            }
+      );
+      return result;
     },
     [
       data.agent_type,
+      dispatchCredentialDetection,
       isClaudeCode,
       isCodex,
       isOAuthAgent,
@@ -163,15 +201,20 @@ export function useApiSetupTokenDetection({
   );
 
   const handleAutoDetectToken = useCallback(async () => {
+    if (detectionInFlightRef.current) return;
+    detectionInFlightRef.current = true;
     setDetectingToken(true);
     setTokenError(null);
     setTokenDetected(false);
+    dispatchCredentialDetection({ type: "begin" });
 
     try {
       const result = await autoDetectKey(data.agent_type);
 
       if (!result.success) {
-        setTokenError(result.message || t("keyVault.couldNotDetectKeys"));
+        const message = result.message || t("keyVault.couldNotDetectKeys");
+        setTokenError(message);
+        dispatchCredentialDetection({ type: "failed", message });
         return;
       }
 
@@ -200,7 +243,9 @@ export function useApiSetupTokenDetection({
         : keys;
 
       if (candidateKeys.length === 0) {
-        setTokenError(t("keyVault.couldNotDetectKeys"));
+        const message = t("keyVault.couldNotDetectKeys");
+        setTokenError(message);
+        dispatchCredentialDetection({ type: "failed", message });
         return;
       }
 
@@ -225,14 +270,24 @@ export function useApiSetupTokenDetection({
                 : 0
         );
         setShowKeySelection(true);
+        dispatchCredentialDetection({
+          type: "credentials_found",
+          count: candidateKeys.length,
+        });
         return;
       }
 
-      applySelectedKey(candidateKeys[0]);
+      await applySelectedKey(candidateKeys[0]);
     } catch (err) {
       log.error("[ApiSetup] Failed to auto-detect credentials:", err);
-      setTokenError(t("keyVault.failedToDetectKeys"));
+      const message = getCredentialDetectionErrorMessage(
+        err,
+        t("keyVault.failedToDetectKeys")
+      );
+      setTokenError(message);
+      dispatchCredentialDetection({ type: "failed", message });
     } finally {
+      detectionInFlightRef.current = false;
       setDetectingToken(false);
     }
   }, [
@@ -240,6 +295,7 @@ export function useApiSetupTokenDetection({
     data.extracted_base_url,
     openCodeEndpoints,
     applySelectedKey,
+    dispatchCredentialDetection,
     isClaudeCode,
     setDetectedKeys,
     setDetectingToken,
@@ -250,12 +306,45 @@ export function useApiSetupTokenDetection({
     t,
   ]);
 
-  const handleConfirmKeySelection = useCallback(() => {
+  const handleConfirmKeySelection = useCallback(async () => {
+    if (detectionInFlightRef.current) return;
     const selected = detectedKeys[selectedCredentialIndex];
-    if (selected) {
-      applySelectedKey(selected);
+    if (!selected) {
+      const message = t("keyVault.quickActions.noValidKeys");
+      setTokenError(message);
+      setShowKeySelection(false);
+      dispatchCredentialDetection({ type: "failed", message });
+      return;
     }
-  }, [detectedKeys, selectedCredentialIndex, applySelectedKey]);
+
+    detectionInFlightRef.current = true;
+    setShowKeySelection(false);
+    setDetectingToken(true);
+    setTokenError(null);
+    try {
+      await applySelectedKey(selected);
+    } catch (err) {
+      log.error("[ApiSetup] Failed to apply detected credential:", err);
+      const message = getCredentialDetectionErrorMessage(
+        err,
+        t("keyVault.failedToDetectKeys")
+      );
+      setTokenError(message);
+      dispatchCredentialDetection({ type: "failed", message });
+    } finally {
+      detectionInFlightRef.current = false;
+      setDetectingToken(false);
+    }
+  }, [
+    applySelectedKey,
+    detectedKeys,
+    dispatchCredentialDetection,
+    selectedCredentialIndex,
+    setDetectingToken,
+    setShowKeySelection,
+    setTokenError,
+    t,
+  ]);
 
   return { handleAutoDetectToken, handleConfirmKeySelection };
 }

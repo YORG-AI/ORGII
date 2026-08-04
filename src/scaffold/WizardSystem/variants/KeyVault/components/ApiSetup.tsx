@@ -419,6 +419,7 @@ const ApiSetup: React.FC<ApiSetupProps> = ({
               setTokenDetected={hook.setTokenDetected}
               detectingToken={hook.detectingToken}
               tokenError={hook.tokenError}
+              credentialDetection={hook.credentialDetection}
               setTokenError={hook.setTokenError}
               clearTokenError={hook.clearTokenError}
               useGuidedSetup={hook.useGuidedSetup}

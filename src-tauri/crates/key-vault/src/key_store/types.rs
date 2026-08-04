@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 // Deserializer is used by the flexible_datetime modules below
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 // Custom serde for flexible datetime parsing (naive timestamps without timezone)
@@ -542,6 +542,20 @@ impl ModelKey {
             rate_limit_reset_at: None,
             enabled: true,
         }
+    }
+
+    /// Restore the persisted model-selection invariant after catalog changes:
+    /// every enabled model must still exist in the provider's available-model
+    /// catalog. Preserve user ordering while also removing duplicate rows.
+    ///
+    /// This is deliberately owned by `ModelKey`, rather than individual UI or
+    /// runtime consumers, so old credentials and every write path converge on
+    /// the same representation.
+    pub fn normalize_enabled_models(&mut self) {
+        let available: HashSet<&str> = self.available_models.iter().map(String::as_str).collect();
+        let mut seen = HashSet::new();
+        self.enabled_models
+            .retain(|model| available.contains(model.as_str()) && seen.insert(model.clone()));
     }
 
     /// Mask sensitive data for display

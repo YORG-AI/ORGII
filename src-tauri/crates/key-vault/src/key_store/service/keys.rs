@@ -86,11 +86,7 @@ impl KeyService {
 
     /// Save or update a key
     pub fn save_key(&self, key: ModelKey) -> Result<ModelKey, String> {
-        self.update_store(|store| {
-            let entry = key.clone();
-            store.set(key);
-            entry
-        })
+        self.update_store(|store| store.set(key))
     }
 
     /// Record behaviorally-observed reasoning capability for `model` on key
@@ -236,6 +232,10 @@ impl KeyService {
                 if let Some(enabled) = enabled_models {
                     entry.enabled_models = enabled;
                 }
+                // A successful model refresh is authoritative. Removed models
+                // must not survive in enabled_models when callers omit that
+                // optional field, and caller-provided lists are normalized too.
+                entry.normalize_enabled_models();
                 if let Some(quota) = quota_info {
                     entry.quota_info = Some(quota);
                 }

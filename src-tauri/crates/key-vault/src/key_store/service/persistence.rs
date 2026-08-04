@@ -171,7 +171,11 @@ fn deserialize_key_store(contents: &str) -> Result<LoadedKeyStore, serde_json::E
         }
 
         match serde_json::from_value::<ModelKey>(raw.clone()) {
-            Ok(key) => {
+            Ok(mut key) => {
+                // Older catalog refreshes could leave removed model ids in
+                // enabled_models. Normalize on hydration so every reader sees
+                // a consistent account even before the next persisted write.
+                key.normalize_enabled_models();
                 store.keys.insert(storage_id, key);
             }
             Err(error) => invalid_credentials.push(InvalidStoredCredential {
