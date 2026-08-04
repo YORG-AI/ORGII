@@ -100,8 +100,8 @@ export const STATUS_I18N_KEYS: Record<string, string> = {
 };
 
 export const ROLE_I18N_KEYS: Record<string, string> = {
-  coding: "workItems.agentWorkflow.roleCoding",
-  sde: "workItems.agentWorkflow.roleCoding",
+  coding: "workItems.agentWorkflow.roleSde",
+  sde: "workItems.agentWorkflow.roleSde",
   review: "workItems.agentWorkflow.roleReview",
   follow_up: "workItems.agentWorkflow.roleFollowUp",
 };
