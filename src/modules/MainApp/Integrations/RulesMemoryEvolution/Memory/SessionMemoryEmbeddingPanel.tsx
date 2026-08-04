@@ -42,17 +42,11 @@ const PROVIDER_LABELS: Record<SessionMemoryEmbeddingProvider, string> = {
   embedding_api: "sessionMemoryEmbedding.providers.embeddingApi",
 };
 
-function isFreshVerifiedCredential(key: KeyInfo): boolean {
-  if (!key.enabled || !key.has_api_key || key.health_status !== "valid") {
-    return false;
-  }
-  const validatedAt = key.last_validated_at
-    ? Date.parse(key.last_validated_at)
-    : Number.NaN;
-  return (
-    Number.isFinite(validatedAt) &&
-    Date.now() - validatedAt <= 24 * 60 * 60 * 1_000
-  );
+function isVerifiedCredential(key: KeyInfo): boolean {
+  // API keys are long-lived credentials. Once a successful verification marks
+  // one valid, time passing alone must not make the semantic-memory UI reject
+  // it; only a real authentication failure changes health_status to invalid.
+  return key.enabled && key.has_api_key && key.health_status === "valid";
 }
 
 const SessionMemoryEmbeddingPanel: React.FC = () => {
@@ -117,7 +111,7 @@ const SessionMemoryEmbeddingPanel: React.FC = () => {
     ? sessionMemoryEmbeddingFingerprint(savedConfig)
     : fingerprint;
   const fingerprintChanged = fingerprint !== savedFingerprint;
-  const credential = keys.find(isFreshVerifiedCredential) ?? null;
+  const credential = keys.find(isVerifiedCredential) ?? null;
   const credentialReady = credential != null;
   const latestCredential = [...keys].sort((left, right) =>
     (right.last_validated_at ?? "").localeCompare(left.last_validated_at ?? "")

@@ -126,6 +126,8 @@ impl OpenAIEmbeddingProvider {
 pub(crate) struct OpenAIEmbedRequest {
     pub input: Vec<String>,
     pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimensions: Option<usize>,
 }
 
 #[derive(Deserialize)]
@@ -147,6 +149,7 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
         let request = OpenAIEmbedRequest {
             input: vec![self.bounded(text)],
             model: self.model.clone(),
+            dimensions: Some(self.dimensions),
         };
 
         let response = self
@@ -184,6 +187,7 @@ impl EmbeddingProvider for OpenAIEmbeddingProvider {
         let request = OpenAIEmbedRequest {
             input: texts.iter().map(|text| self.bounded(text)).collect(),
             model: self.model.clone(),
+            dimensions: Some(self.dimensions),
         };
 
         let response = self
@@ -244,12 +248,14 @@ mod tests {
         let request = OpenAIEmbedRequest {
             input: vec![provider.bounded(&"a".repeat(2_000))],
             model: provider.model.clone(),
+            dimensions: Some(provider.dimensions),
         };
         let value = serde_json::to_value(request).expect("serialize request");
 
         assert_eq!(value["model"], "test-model");
         assert_eq!(value["input"][0].as_str().map(str::len), Some(1_024));
-        assert_eq!(value.as_object().map(|value| value.len()), Some(2));
+        assert_eq!(value["dimensions"], 3);
+        assert_eq!(value.as_object().map(|value| value.len()), Some(3));
     }
 
     #[test]

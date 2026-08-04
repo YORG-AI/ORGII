@@ -82,15 +82,34 @@ impl AutoEmbeddingProvider {
         Ok(())
     }
     fn validated_remote_credential() -> Option<key_vault::key_store::ModelKey> {
-        // ZenMux is the built-in remote embedding transport. Deliberately do
-        // not fall back to another provider/key when its credential is absent.
+        // Validation is persistent: a key that was validated once stays usable
+        // regardless of how long ago that was. There is no freshness window —
+        // demotion only happens on an actual 401/403 embedding response.
         //
-        // Validation is persistent: a key that was validated once stays
-        // usable regardless of how long ago that was. There is no freshness
-        // window — demotion only happens when an actual embedding call fails
-        // with an auth error (see `demote_remote_credential_on_auth_error`).
-        let key = KEY_SERVICE.get_key(&ModelType::ZenmuxApi, None)?;
-        (key.enabled && key.health_status == HealthStatus::Valid).then_some(key)
+        // The embedding-specific vault entry is preferred. If it is absent,
+        // reuse an already validated ZenMux provider only when it advertises an
+        // embedding model, so arbitrary chat-only credentials are never used.
+        let usable = |key: &key_vault::key_store::ModelKey| {
+            key.enabled && key.health_status == HealthStatus::Valid
+        };
+        if let Some(key) = KEY_SERVICE
+            .get_all_keys_for_agent(&ModelType::EmbeddingApi)
+            .into_iter()
+            .find(usable)
+        {
+            return Some(key);
+        }
+        KEY_SERVICE
+            .get_all_keys_for_agent(&ModelType::ZenmuxApi)
+            .into_iter()
+            .find(|key| {
+                usable(key)
+                    && key
+                        .enabled_models
+                        .iter()
+                        .chain(key.available_models.iter())
+                        .any(|model| model.to_ascii_lowercase().contains("embedding"))
+            })
     }
 
     /// Inspect a call-time error and, if it is an auth failure (401/403),
@@ -173,7 +192,9 @@ mod tests {
     use super::*;
     #[test]
     fn auth_error_classification() {
-        assert!(is_auth_error("OpenAI embedding API returned 401 Unauthorized: bad key"));
+        assert!(is_auth_error(
+            "OpenAI embedding API returned 401 Unauthorized: bad key"
+        ));
         assert!(is_auth_error("HTTP 403 Forbidden"));
         assert!(!is_auth_error("OpenAI embedding API returned 500: oops"));
         assert!(!is_auth_error("request timed out"));
