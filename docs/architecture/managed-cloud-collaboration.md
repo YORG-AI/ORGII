@@ -94,7 +94,12 @@ scopes, session ownership/admission, the administrator sharing minimum,
 per-session choices above that minimum, entitlement backoff, and server
 authorization remain mandatory. Local EventStore writes, login/roster
 changes, reconnect, visibility recovery, and explicit actions drive those
-pushes — the policy does not add a recurring scan or polling loop.
+pushes. Inactive-org policy broadcasts are not kept subscribed, so the shared
+roster also refetches on focus/visibility return and through one five-minute,
+visible-only safety timeout. That timeout is single-flight, pauses while
+hidden, and refreshes only `list_my_orgs`; it does not scan or upload sessions
+itself. The sync engine remains event-driven and decides whether a roster
+change requires a session pass.
 
 The policy does not download teammate replays. Remote-session listing stays
 demand-driven for the active organization, and replay import remains an
