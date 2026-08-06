@@ -1,36 +1,44 @@
 # Frontend UI Audit — GitHub Detail Loading
 
-## Scope
+**File:** `src/modules/shared/components/GitHubDetailSkeleton/index.tsx` (116 LOC)
+**Date:** 2026-08-06
+**Auditor:** Codex PR audit
 
-Initial loading for dedicated GitHub Issue and Pull Request tabs in both the
-chat pane and WorkStation, including lazy-renderer loading and first-detail
-fetches.
+## D1 — Raw HTML vs Design System
 
-The configured `frontend-ui-audit` skill file was unavailable at both documented
-locations, so this report applies the repository's audit format and the existing
-GitHub Issue/PR detail conventions directly.
+| Line   | Element                        | Verdict          | Reason                                                                                                                                                 | Suggested change |
+| ------ | ------------------------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------- |
+| 10–12  | `SkeletonBar` layout primitive | keep with reason | The raw `div` is decorative, non-interactive, and hidden from assistive technology; a design-system input or button would provide incorrect semantics. | —                |
+| 65–103 | Skeleton `section` elements    | keep with reason | Native sections mirror the eventual detail hierarchy and contain no interaction; no design-system component covers a semantic loading region.          | —                |
 
-## Findings
+## D2 — Arbitrary Tailwind Value vs Token
 
-| Line                                | Element                       | Verdict          | Reason                                                                                                                                                           | Suggested change                                                                              |
-| ----------------------------------- | ----------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `GitHubDetailSkeleton/index.tsx:19` | Shared GitHub detail skeleton | abstract         | Issue and PR tabs need the same stable first-paint contract across chat and WorkStation; one kind-aware component prevents host-specific loading markup.         | Keep lazy-module and initial-data fallbacks routed through this shared component.             |
-| `GitHubDetailSkeleton/index.tsx:24` | Loading semantics             | keep with reason | `role="status"`, `aria-busy`, a localized accessible label, hidden decorative blocks, and reduced-motion support expose loading without spinner churn.           | Keep the skeleton non-interactive and preserve the motion-reduction path.                     |
-| `GitHubDetailSkeleton/index.tsx:50` | Detail content width          | keep with reason | `max-w-[920px]` intentionally matches the canonical Work Item thread column, preventing a width jump when an Issue skeleton resolves to real content.            | Retain the established detail-column width until a shared layout token is added.              |
-| `surfaceRenderers.tsx:95`           | Chat-pane lazy fallbacks      | fix              | `fallback={null}` painted an empty pane while the Issue/PR renderer chunk loaded and did not reserve the eventual detail hierarchy.                              | Render the matching GitHub detail skeleton immediately.                                       |
-| `UnifiedTabContent.tsx:34`          | WorkStation lazy fallbacks    | fix              | The generic full-pane loading placeholder used a centered spinner for dedicated GitHub detail tabs.                                                              | Select the Issue/PR skeleton by tab type while preserving other tab fallbacks.                |
-| `PrDetailPanel.tsx:442`             | PR first-fetch boundary       | fix              | Fresh PR state begins with `loading=false` and `detail=null`; painting the real layout before the effect flips loading caused the reported content flash.        | Treat unresolved, error-free detail as initial loading from the first render.                 |
-| `GitHubIssuePanelView.tsx:17`       | Issue first-fetch boundary    | keep with reason | Cold/persisted Issue tabs with a resolvable remote use the skeleton, while seeded issue data, explicit errors, and non-loadable empty states retain their paths. | Keep cached/seeded issue content immediate and use the skeleton only while a request can run. |
+| Line   | Value                         | Verdict          | Reason                                                                                                                                                          | Suggested change |
+| ------ | ----------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 24–107 | Skeleton surfaces and borders | keep with reason | The component uses project tokens (`chat-pane`, `primary-container`, `fill-2`, and `border-*`) and introduces no arbitrary CSS-variable or raw-color utilities. | —                |
 
-## Verdict counts
+## D3 — Hardcoded Sizes / Colors
 
-- fix: 3
-- keep with reason: 3
-- abstract: 1
+| Line   | Value                   | Verdict          | Reason                                                                                                                                                             | Suggested change                                                                     |
+| ------ | ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| 50     | `max-w-[920px]`         | abstract         | The same canonical detail-column width appears in the work-item thread token and another content surface; a one-file replacement would not remove the duplication. | Promote the 920px detail-column width to a shared layout token in a dedicated sweep. |
+| 31–107 | Skeleton bar dimensions | keep with reason | The widths intentionally vary to mimic the issue/PR hierarchy and prevent a uniform artificial grid; all values use the Tailwind spacing and fraction scales.      | —                                                                                    |
 
-## Accessibility and visual-system notes
+## D4 — Accessibility
 
-The skeleton uses existing semantic color, border, radius, spacing, and surface
-tokens. It is announced as a localized busy status, all placeholder geometry is
-decorative, and pulse animation is disabled under reduced-motion preferences.
-No new interactive controls or arbitrary colors were introduced.
+| Line          | Element                    | Verdict          | Reason                                                                                                                             | Suggested change |
+| ------------- | -------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 23–29         | Loading root               | keep with reason | The frame exposes `role="status"`, `aria-busy`, and a localized accessible label before any detail content is available.           | —                |
+| 10–12, 31–107 | Decorative bars and motion | keep with reason | Bars are hidden from assistive technology, the frame contains no fake controls, and pulse animation has a reduced-motion override. | —                |
+
+## D5 — Visual Patterns Observed
+
+- Pattern: one kind-aware skeleton now owns the first-paint hierarchy for issue and PR details in both ChatPanel and WorkStation.
+- Pattern: lazy-module fallbacks and cold-data fallbacks reuse the same component, so loading no longer changes shape between the two phases.
+- Pattern: the 920px canonical detail width has reached three repository occurrences and is a future shared-layout-token candidate.
+
+## Summary
+
+- 0 fixes recommended
+- 6 kept with documented reason
+- 1 abstract candidate (>= 3 occurrences)
