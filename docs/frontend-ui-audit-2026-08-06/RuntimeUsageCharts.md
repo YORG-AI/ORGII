@@ -1,26 +1,41 @@
-# Runtime usage charts UI audit
+# Frontend UI Audit — Runtime Usage Charts
 
-## Scope
+**File:** `src/modules/shared/dataSource/TeamRuntimeToday.tsx` (378 LOC)
+**Date:** 2026-08-06
+**Auditor:** Codex PR audit
 
-- `src/modules/shared/dataSource/TeamRuntimeToday.tsx`
-- `src/modules/shared/dataSource/TeamMemberDetail.tsx`
+## D1 — Raw HTML vs Design System
 
-The configured `frontend-ui-audit` skill file was unavailable, so this report
-uses the repository's documented audit columns and manually checks design-system
-reuse, arbitrary Tailwind values, accessibility, and duplicated visual patterns.
+| Line    | Element                         | Verdict          | Reason                                                                                                                                                          | Suggested change |
+| ------- | ------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 284–328 | Per-member usage `<button>` row | keep with reason | The full-width row combines avatar, name, selected state, tokens, and cost; the design-system `Button` does not cover this multi-column toggle-row composition. | —                |
+| 258–280 | Lazy chart fallback             | keep with reason | The raw `div` is a non-interactive, assistive-technology-hidden placeholder for the existing chart surface.                                                     | —                |
 
-## Findings
+## D2 — Arbitrary Tailwind Value vs Token
 
-| Line                       | Element                              | Verdict          | Reason                                                                                                                                                                                                               | Suggested change |
-| -------------------------- | ------------------------------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `TeamRuntimeToday.tsx:258` | Rolling usage chart section          | keep with reason | Reuses the existing lazy-loaded `UsageTrendChart`, shared section heading classes, semantic color tokens, and existing localized range/title strings. The standard `h-72` fallback adds no arbitrary Tailwind value. | None.            |
-| `TeamRuntimeToday.tsx:284` | Per-member usage breakdown           | keep with reason | Reuses `SectionContainer`, `Avatar`, existing typography/border/fill tokens, and native buttons. `aria-pressed` exposes the selected member filter to assistive technology.                                          | None.            |
-| `TeamMemberDetail.tsx:315` | Source filter visibility in 24h mode | keep with reason | Reuses the existing `TabPill`; hiding it for the all-source hourly snapshot prevents a control from implying unsupported per-source hourly data.                                                                     | None.            |
-| `TeamMemberDetail.tsx:336` | Usage range selector                 | keep with reason | Reuses the shared `Select` and existing localized `24h` label, keeps the default daily controls intact, and adds a stable test id without introducing a parallel range component.                                    | None.            |
+| Line    | Value                     | Verdict          | Reason                                                                                                           | Suggested change |
+| ------- | ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 255–328 | Chart and member surfaces | keep with reason | Backgrounds, borders, and text use project semantic tokens; no raw color or CSS-variable utility was introduced. | —                |
+
+## D3 — Hardcoded Sizes / Colors
+
+| Line | Value                 | Verdict          | Reason                                                                                                 | Suggested change |
+| ---- | --------------------- | ---------------- | ------------------------------------------------------------------------------------------------------ | ---------------- |
+| 267  | `h-72` chart fallback | keep with reason | The fallback uses the standard Tailwind spacing scale and reserves the existing chart's stable height. | —                |
+
+## D4 — Accessibility
+
+| Line    | Element            | Verdict          | Reason                                                                                                                                                    | Suggested change |
+| ------- | ------------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| 284–328 | Member filter rows | keep with reason | Each row is a native keyboard-focusable button with a visible member name and `aria-pressed` state; the selected background is not the only state signal. | —                |
+
+## D5 — Visual Patterns Observed
+
+- Pattern: rolling usage reuses the lazy-loaded `UsageTrendChart`, existing section-heading classes, `SectionContainer`, and shared number formatting.
+- Pattern: chart and per-member breakdown use the same localized rolling-24-hour range label and the same roster snapshot, avoiding parallel controls or data surfaces.
 
 ## Summary
 
-- fix: 0
-- keep with reason: 4
-- abstract: 0
-- systematic sweep candidates: 0
+- 0 fixes recommended
+- 5 kept with documented reason
+- 0 abstract candidates (>= 3 occurrences)
