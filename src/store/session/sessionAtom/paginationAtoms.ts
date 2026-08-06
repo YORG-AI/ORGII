@@ -59,6 +59,15 @@ export interface SidebarStreamCursor {
 export interface CategoryPaginationState {
   /** IDs that this stream has actually returned in the current generation. */
   sessionIds: readonly string[];
+  /**
+   * Backend-confirmed creations that this client must render immediately,
+   * before the owning stream returns them on its next page/refresh.
+   *
+   * Kept separate from `sessionIds` so local registration never pretends to
+   * advance or rewrite the authoritative keyset window. Existing roster loads
+   * remove IDs from this overlay once the backend has acknowledged them.
+   */
+  localSessionIds: readonly string[];
   /** Native keyset cursor. Imported sources keep this null. */
   cursor: SidebarStreamCursor | null;
   phase: SidebarStreamPhase;
@@ -87,6 +96,7 @@ export function emptyDateBucketPagination(): DateBucketPaginationMap {
 
 const DEFAULT_STATE: CategoryPaginationState = {
   sessionIds: [],
+  localSessionIds: [],
   cursor: null,
   phase: "ready",
   generation: 0,

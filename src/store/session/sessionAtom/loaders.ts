@@ -64,6 +64,7 @@ import {
 } from "./paginationAtoms";
 import { persistSessions } from "./persistence";
 import {
+  acknowledgeCreatedSessionsInNativeRoster,
   sidebarCategoryForSession,
   syncSessionWithNativeRosters,
 } from "./sidebarRoster";
@@ -553,6 +554,11 @@ const performSidebarSessionLoad = async (options?: SidebarLoadOptions) => {
       generation,
       dateBuckets,
     });
+    if (!isImportedHistoryListCategory(category)) {
+      store.set(sessionPaginationAtom, (previous) =>
+        acknowledgeCreatedSessionsInNativeRoster(previous, primarySessions)
+      );
+    }
   };
 
   const nativeTasks = enabledCategories
@@ -729,6 +735,11 @@ export function refreshRecentNativeSessions(): Promise<void> {
       .get(sessionsAtom)
       .map((session) => [session.session_id, session] as const)
   );
+  const locallyRegisteredIds = new Set(
+    BASE_SESSION_LIST_CATEGORIES.flatMap((category) =>
+      store.get(sessionPaginationAtom)[category].localSessionIds.slice()
+    )
+  );
   const refresh = (async () => {
     const response = await sessionAggregateList({
       includeExternalHistory: false,
@@ -748,6 +759,7 @@ export function refreshRecentNativeSessions(): Promise<void> {
       const previous = previousById.get(session.session_id);
       return (
         !previous ||
+        locallyRegisteredIds.has(session.session_id) ||
         sidebarCategoryForSession(previous) !==
           sidebarCategoryForSession(session)
       );
@@ -756,7 +768,9 @@ export function refreshRecentNativeSessions(): Promise<void> {
       store.set(sessionPaginationAtom, (previous) =>
         membershipChanges.reduce(
           (pagination, session) =>
-            syncSessionWithNativeRosters(pagination, session),
+            syncSessionWithNativeRosters(pagination, session, {
+              promoteLocalCreation: true,
+            }),
           previous
         )
       );
@@ -926,6 +940,11 @@ export const loadMoreCategory = async (
       generation,
       dateBuckets,
     });
+    if (!imported) {
+      store.set(sessionPaginationAtom, (previous) =>
+        acknowledgeCreatedSessionsInNativeRoster(previous, primarySessions)
+      );
+    }
     persistSessions(store.get(sessionsAtom));
     const newIds = new Set(newSessionIds);
     return {
@@ -949,13 +968,6 @@ export const loadMoreCategory = async (
     };
   }
 };
-
-export function syncSidebarSessionRoster(session: Session): void {
-  const store = getStore();
-  store.set(sessionPaginationAtom, (previous) =>
-    syncSessionWithNativeRosters(previous, session)
-  );
-}
 
 export const __TESTS_ONLY = {
   createSidebarLoadCoordinator,

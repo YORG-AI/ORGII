@@ -13,9 +13,10 @@ import {
   loadSidebarSessions,
   loadSidebarSessionsByIds,
   refreshRecentNativeSessions,
-  syncSidebarSessionRoster,
 } from "../loaders";
+import { registerCreatedSession, syncSidebarSessionRoster } from "../mutations";
 import { sessionPaginationAtom } from "../paginationAtoms";
+import { createSidebarRosterMatcher } from "../sidebarRoster";
 
 const mocks = vi.hoisted(() => ({
   externalHistorySidebarList: vi.fn(),
@@ -76,6 +77,174 @@ describe("loadSidebarSessions", () => {
 
   it("keeps legacy sidebar callers on the canonical roster coordinator", () => {
     expect(loadSidebarSessions).toBe(loadSessionRoster);
+  });
+
+  it("makes a newly launched session visible through the loaded roster", () => {
+    const current = mocks.store?.get(sessionPaginationAtom);
+    if (!current || !mocks.store) throw new Error("missing test store");
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-existing"],
+        cursor: {
+          updatedAt: "2026-08-05T10:00:00Z",
+          sessionId: "sdeagent-existing",
+        },
+        phase: "ready",
+        generation: 1,
+      },
+    });
+    const launchedSession = {
+      session_id: "sdeagent-new",
+      name: "New session",
+      status: "running",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T11:00:00Z",
+      updated_at: "2026-08-05T11:00:00Z",
+    };
+
+    registerCreatedSession(launchedSession);
+
+    const pagination = mocks.store.get(sessionPaginationAtom);
+    const storedSession = mocks.store
+      .get(sessionsAtom)
+      .find((session) => session.session_id === launchedSession.session_id);
+    expect(storedSession).toEqual(launchedSession);
+    expect(pagination.standalone_agent.sessionIds).toEqual([
+      "sdeagent-existing",
+    ]);
+    expect(pagination.standalone_agent.localSessionIds).toEqual([
+      "sdeagent-new",
+    ]);
+    expect(createSidebarRosterMatcher(pagination)(launchedSession)).toBe(true);
+    expect(mocks.nativeSidebarSessionPage).not.toHaveBeenCalled();
+    expect(mocks.sessionAggregateList).not.toHaveBeenCalled();
+  });
+
+  it("promotes a recent local creation when the safety refresh confirms it", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    const current = mocks.store.get(sessionPaginationAtom);
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-page-tail"],
+        cursor: {
+          updatedAt: "2026-08-05T10:00:00Z",
+          sessionId: "sdeagent-page-tail",
+        },
+        generation: 1,
+      },
+    });
+    const created = {
+      session_id: "sdeagent-created-ahead-of-cursor",
+      status: "running",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T11:00:00Z",
+      updated_at: "2026-08-05T11:00:00Z",
+    };
+    registerCreatedSession(created);
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [created] });
+
+    await refreshRecentNativeSessions();
+
+    const pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.localSessionIds).toEqual([]);
+    expect(pagination.standalone_agent.sessionIds).toEqual([
+      created.session_id,
+      "sdeagent-page-tail",
+    ]);
+    expect(createSidebarRosterMatcher(pagination)(created)).toBe(true);
+  });
+
+  it("keeps a local creation visible until a native refresh acknowledges it", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    const created = {
+      session_id: "sdeagent-created-during-refresh",
+      status: "running",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T12:00:00Z",
+      updated_at: "2026-08-05T12:00:00Z",
+    };
+    registerCreatedSession(created);
+    mocks.externalHistorySidebarList.mockResolvedValue({ sources: [] });
+    mocks.nativeSidebarSessionPage.mockImplementation(async (stream: string) =>
+      stream === "standaloneAgent"
+        ? {
+            sessions: [
+              {
+                session_id: "sdeagent-existing",
+                status: "completed",
+                category: "rust_agent",
+                created_at: "2026-08-05T10:00:00Z",
+                updated_at: "2026-08-05T10:00:00Z",
+              },
+            ],
+            nextCursor: null,
+            hasMore: false,
+          }
+        : { sessions: [], nextCursor: null, hasMore: false }
+    );
+
+    await loadSessionRoster({ forceRefresh: true });
+
+    let pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.localSessionIds).toEqual([
+      created.session_id,
+    ]);
+    expect(createSidebarRosterMatcher(pagination)(created)).toBe(true);
+
+    mocks.nativeSidebarSessionPage.mockImplementation(async (stream: string) =>
+      stream === "standaloneAgent"
+        ? { sessions: [created], nextCursor: null, hasMore: false }
+        : { sessions: [], nextCursor: null, hasMore: false }
+    );
+    await loadSessionRoster({ forceRefresh: true });
+
+    pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.localSessionIds).toEqual([]);
+    expect(pagination.standalone_agent.sessionIds).toContain(
+      created.session_id
+    );
+    expect(createSidebarRosterMatcher(pagination)(created)).toBe(true);
+  });
+
+  it("does not drop a local creation that remains behind the server page cursor", async () => {
+    if (!mocks.store) throw new Error("missing test store");
+    const current = mocks.store.get(sessionPaginationAtom);
+    mocks.store.set(sessionPaginationAtom, {
+      ...current,
+      standalone_agent: {
+        ...current.standalone_agent,
+        sessionIds: ["sdeagent-page-tail"],
+        cursor: {
+          updatedAt: "2026-08-05T10:00:00Z",
+          sessionId: "sdeagent-page-tail",
+        },
+        generation: 1,
+      },
+    });
+    const created = {
+      session_id: "sdeagent-created-behind-cursor",
+      status: "running",
+      category: "rust_agent" as const,
+      created_at: "2026-08-05T09:00:00Z",
+      updated_at: "2026-08-05T09:00:00Z",
+    };
+    registerCreatedSession(created);
+    mocks.sessionAggregateList.mockResolvedValue({ sessions: [created] });
+
+    await refreshRecentNativeSessions();
+
+    const pagination = mocks.store.get(sessionPaginationAtom);
+    expect(pagination.standalone_agent.sessionIds).toEqual([
+      "sdeagent-page-tail",
+    ]);
+    expect(pagination.standalone_agent.localSessionIds).toEqual([
+      created.session_id,
+    ]);
+    expect(createSidebarRosterMatcher(pagination)(created)).toBe(true);
   });
 
   it("keeps healthy imported sources listed when one source's store fails", async () => {

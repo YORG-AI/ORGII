@@ -22,8 +22,8 @@ import {
 } from "@src/store/session/planApprovalAtom";
 import {
   type Session,
+  registerCreatedSession,
   sessionsAtom,
-  upsertSession,
 } from "@src/store/session/sessionAtom";
 import { updateShellProcessAtom } from "@src/store/session/shellProcessAtom";
 import { updateSubagentJobAtom } from "@src/store/session/subagentJobAtom";
@@ -187,7 +187,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
         category: existing?.category ?? "rust_agent",
         is_active: true,
       };
-      upsertSession(session);
+      registerCreatedSession(session);
       return { ok: true, sessionId: input.sessionId };
     } catch (err) {
       return asError(err);
@@ -235,7 +235,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
         model: "composer-2",
         is_active: true,
       };
-      upsertSession(session);
+      registerCreatedSession(session);
       store.set(stationModeAtom, "my-station");
       store.set(chatPanelMaximizedAtom, true);
       store.set(chatWidthAtom, 560);

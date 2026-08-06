@@ -17,8 +17,8 @@ import type { WorkspaceSnapshot } from "@src/services/context/workspaceSnapshot"
 import {
   SESSION_TARGET_KIND,
   type Session,
-  type SessionStatus,
   type SessionTargetKind,
+  buildCreatedSessionRecord,
 } from "@src/store/session";
 import type {
   SessionLaunchOrgContext,
@@ -319,51 +319,15 @@ export function buildSessionFromLaunchResult(options: {
     result,
   } = options;
 
-  return {
-    session_id: result.sessionId,
-    status: result.status as SessionStatus,
-    created_at: result.createdAt,
-    updated_at: result.createdAt,
-    user_input: result.userInput || result.name,
-    repo_name: effectiveSource?.repoName ?? "",
-    name: result.name,
-    branch:
-      result.worktreeBranch || result.branch || effectiveSource?.branch || "",
-    is_active: !isBackgroundLaunch,
-    category: result.category as
-      | typeof DISPATCH_CATEGORY.RUST_AGENT
-      | typeof DISPATCH_CATEGORY.CLI_AGENT,
-    model: result.model ?? undefined,
-    cliAgentType: result.cliAgentType ?? launchCliAgentType ?? undefined,
+  return buildCreatedSessionRecord({
+    result,
+    repoName: effectiveSource?.repoName,
+    fallbackRepoPath: effectiveSource?.repoPath,
+    fallbackBranch: effectiveSource?.branch,
+    fallbackCliAgentType: launchCliAgentType ?? undefined,
+    isActive: !isBackgroundLaunch,
     agentExecMode,
-    ...(result.agentOrgId
-      ? { agentIconId: AGENT_ORG_ICON_ID, agentOrgId: result.agentOrgId }
-      : {}),
-    ...(result.accountId ? { accountId: result.accountId } : {}),
-    ...((result.orgId ?? launchOrgContext?.orgId)
-      ? { orgId: result.orgId ?? launchOrgContext?.orgId }
-      : {}),
-    ...((result.projectId ?? launchOrgContext?.projectId)
-      ? { projectId: result.projectId ?? launchOrgContext?.projectId }
-      : {}),
-    ...((result.projectName ?? launchOrgContext?.projectName)
-      ? { projectName: result.projectName ?? launchOrgContext?.projectName }
-      : {}),
-    ...((result.projectSlug ?? launchOrgContext?.projectSlug)
-      ? { projectSlug: result.projectSlug ?? launchOrgContext?.projectSlug }
-      : {}),
-    ...((result.workItemId ?? launchOrgContext?.workItemId)
-      ? { workItemId: result.workItemId ?? launchOrgContext?.workItemId }
-      : {}),
-    ...((result.agentRole ?? launchOrgContext?.agentRole)
-      ? { agentRole: result.agentRole ?? launchOrgContext?.agentRole }
-      : {}),
-    ...((result.productMode ?? launchOrgContext?.productMode)
-      ? { productMode: result.productMode ?? launchOrgContext?.productMode }
-      : {}),
-    ...(result.background ? { background: true } : {}),
-    ...(result.worktreePath ? { worktreePath: result.worktreePath } : {}),
-    ...(result.worktreeBranch ? { worktreeBranch: result.worktreeBranch } : {}),
-    ...(result.workspacePath ? { repoPath: result.workspacePath } : {}),
-  };
+    agentIconId: result.agentOrgId ? AGENT_ORG_ICON_ID : undefined,
+    context: launchOrgContext,
+  });
 }

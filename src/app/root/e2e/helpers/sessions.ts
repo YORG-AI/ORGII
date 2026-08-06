@@ -46,7 +46,10 @@ import {
 } from "@src/store/session/planApprovalAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { loadSessions } from "@src/store/session/sessionAtom/loaders";
-import { upsertSession } from "@src/store/session/sessionAtom/mutations";
+import {
+  registerCreatedSession,
+  upsertSession,
+} from "@src/store/session/sessionAtom/mutations";
 import { sessionPaginationAtom } from "@src/store/session/sessionAtom/paginationAtoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import {
@@ -420,6 +423,12 @@ export function createSessionHelpers(store: E2EStore) {
             ? result.session_id
             : null;
       if (sessionId) {
+        const launchedSession = await rpc.agentSession.getSession({
+          sessionId,
+        });
+        if (launchedSession) {
+          registerCreatedSession(toStoreSession(launchedSession));
+        }
         store.set(activeSessionIdAtom, sessionId);
         store.set(workstationActiveSessionIdAtom, sessionId);
         await waitForSessionSurface(sessionId);
@@ -748,7 +757,7 @@ export function createSessionHelpers(store: E2EStore) {
         name: input.name ?? input.userInput ?? input.sessionId,
         category: input.category ?? "cli_agent",
       });
-      upsertSession(session);
+      registerCreatedSession(session);
       await saveEvents(
         input.sessionId,
         input.events as unknown as SessionEvent[]

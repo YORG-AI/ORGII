@@ -10,7 +10,7 @@ import { cacheAdapter } from "@src/engines/SessionCore/storage/cacheAdapter";
 import { loadOwnSessionInitialEvents } from "@src/engines/SessionCore/sync/sessionSyncUtils";
 import { createLogger } from "@src/hooks/logger";
 import type { Session } from "@src/store/session";
-import { sessionsAtom, upsertSession } from "@src/store/session";
+import { registerCreatedSession, sessionsAtom } from "@src/store/session";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
 import type { ActivityChunk } from "@src/types/session/session";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -391,7 +391,7 @@ export async function importSessionExportFile(
     pinned: false,
     error_message: JSON.stringify(importMetadata),
   };
-  upsertSession(importedSession);
+  registerCreatedSession(importedSession);
   persistSessions(getInstrumentedStore().get(sessionsAtom));
   return { ...preview, importedEventCount: remappedEvents.length };
 }

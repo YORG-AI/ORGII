@@ -6,6 +6,7 @@
  * lock that contract for the mutation entry points:
  *
  *   - `upsertSession` (insert + update)
+ *   - `registerCreatedSession` (entity + Sidebar roster registration)
  *   - `updateSessionStatus`
  *   - `applyImportedSessionTimestamps` — the one sanctioned override,
  *     narrowed to imported replay copies whose clock is the source's
@@ -28,13 +29,16 @@ async function loadModule() {
   createInstrumentedStore();
   const mutations = await import("../mutations");
   const atoms = await import("../atoms");
+  const paginationAtoms = await import("../paginationAtoms");
   const { getInstrumentedStore } =
     await import("@src/util/core/state/instrumentedStore");
   return {
     upsertSession: mutations.upsertSession,
+    registerCreatedSession: mutations.registerCreatedSession,
     updateSessionStatus: mutations.updateSessionStatus,
     applyImportedSessionTimestamps: mutations.applyImportedSessionTimestamps,
     sessionsAtom: atoms.sessionsAtom,
+    sessionPaginationAtom: paginationAtoms.sessionPaginationAtom,
     store: getInstrumentedStore(),
   };
 }
@@ -126,6 +130,68 @@ describe("upsertSession", () => {
     expect(after.name).toBe("after");
     // Spread preserves untouched fields.
     expect(after.model).toBe("claude-opus");
+  });
+});
+
+describe("registerCreatedSession", () => {
+  it("registers entity and local roster membership idempotently", async () => {
+    const {
+      registerCreatedSession,
+      sessionPaginationAtom,
+      sessionsAtom,
+      store,
+    } = await loadModule();
+    const initial = store.get(sessionPaginationAtom);
+    store.set(sessionPaginationAtom, {
+      ...initial,
+      standalone_agent: {
+        ...initial.standalone_agent,
+        sessionIds: ["existing"],
+        cursor: {
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          sessionId: "existing",
+        },
+        generation: 1,
+      },
+    });
+    const created = makeSession({ session_id: "created" });
+
+    registerCreatedSession(created);
+    registerCreatedSession(created);
+
+    expect(
+      store
+        .get(sessionsAtom)
+        .filter((session) => session.session_id === created.session_id)
+    ).toHaveLength(1);
+    expect(
+      store.get(sessionPaginationAtom).standalone_agent.localSessionIds
+    ).toEqual(["created"]);
+    expect(
+      store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(["existing"]);
+  });
+
+  it("caches child sessions without placing them in the top-level roster", async () => {
+    const {
+      registerCreatedSession,
+      sessionPaginationAtom,
+      sessionsAtom,
+      store,
+    } = await loadModule();
+    const child = makeSession({
+      session_id: "parent:subagent:child",
+      parentSessionId: "parent",
+    });
+
+    registerCreatedSession(child);
+
+    expect(store.get(sessionsAtom)).toContainEqual(child);
+    expect(
+      Object.values(store.get(sessionPaginationAtom)).flatMap(
+        (state) => state.localSessionIds
+      )
+    ).not.toContain(child.session_id);
   });
 });
 
@@ -228,12 +294,17 @@ describe("updateSessionStatus", () => {
 
 describe("removeSession", () => {
   it("drops the session and disposes its rust-agent streaming state", async () => {
-    const { upsertSession, sessionsAtom, store } = await loadModule();
+    const {
+      registerCreatedSession,
+      sessionPaginationAtom,
+      sessionsAtom,
+      store,
+    } = await loadModule();
     const mutations = await import("../mutations");
     const streamHelpers =
       await import("@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers");
 
-    upsertSession(makeSession({ session_id: "sess-x" }));
+    registerCreatedSession(makeSession({ session_id: "sess-x" }));
 
     // Seed per-turn streaming-stop state that only the deletion path can free.
     streamHelpers.noteSessionStreamingTurn("sess-x", "turn-1");
@@ -250,5 +321,10 @@ describe("removeSession", () => {
     expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
       false
     );
+    expect(
+      Object.values(store.get(sessionPaginationAtom)).flatMap(
+        (state) => state.localSessionIds
+      )
+    ).not.toContain("sess-x");
   });
 });

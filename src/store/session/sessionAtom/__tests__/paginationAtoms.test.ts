@@ -29,30 +29,35 @@ describe("session pagination categories", () => {
 
     expect(state["external_history:codex_app"]).toEqual({
       sessionIds: [],
+      localSessionIds: [],
       cursor: null,
       phase: "ready",
       generation: 0,
     });
     expect(state["external_history:claude_code"]).toEqual({
       sessionIds: [],
+      localSessionIds: [],
       cursor: null,
       phase: "ready",
       generation: 0,
     });
     expect(state["external_history:opencode"]).toEqual({
       sessionIds: [],
+      localSessionIds: [],
       cursor: null,
       phase: "ready",
       generation: 0,
     });
     expect(state["external_history:windsurf"]).toEqual({
       sessionIds: [],
+      localSessionIds: [],
       cursor: null,
       phase: "ready",
       generation: 0,
     });
     expect(state["external_history:warp"]).toEqual({
       sessionIds: [],
+      localSessionIds: [],
       cursor: null,
       phase: "ready",
       generation: 0,

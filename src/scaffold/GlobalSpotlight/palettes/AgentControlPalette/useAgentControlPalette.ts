@@ -49,10 +49,10 @@ import type {
 import {
   EMPTY_ADE_MANAGER_EVENTS_ATOM,
   buildControlPrompt,
+  registerAdeManagerSession,
   resolveControlModel,
   resolveControlModelLabel,
   toAdeManagerActivityItem,
-  upsertAdeManagerSession,
 } from "./utils";
 
 function useAdeManagerActivity(
@@ -222,7 +222,7 @@ export function useAgentControlPalette({
           });
           controlSessionIdRef.current = result.sessionId;
           setControlSessionId(result.sessionId);
-          upsertAdeManagerSession(result);
+          registerAdeManagerSession(result);
         }
 
         setRunStatus("running");

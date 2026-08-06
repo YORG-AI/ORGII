@@ -6,7 +6,10 @@ import {
   resetPaginationState,
 } from "../paginationAtoms";
 import {
+  acknowledgeCreatedSessionsInNativeRoster,
   createSidebarRosterMatcher,
+  registerCreatedSessionWithNativeRoster,
+  removeSessionFromRosters,
   sidebarCategoryForSession,
   syncSessionWithNativeRosters,
 } from "../sidebarRoster";
@@ -129,5 +132,63 @@ describe("sidebar roster ownership", () => {
         makeSession("sdeagent-10", { pinned: false })
       )
     ).toBe(true);
+  });
+
+  it("keeps confirmed local creations separate until the backend acknowledges them", () => {
+    const cursor = {
+      updatedAt: "2026-07-30T00:00:00Z",
+      sessionId: "sdeagent-10",
+    };
+    const base = withStandaloneRoster(["sdeagent-10"], 1);
+    const created = makeSession("sdeagent-created", {
+      // A known creation must stay visible even when timestamp precision puts
+      // it at or behind the current keyset cursor.
+      updated_at: "2026-07-29T23:59:59Z",
+    });
+
+    const registered = registerCreatedSessionWithNativeRoster(base, created);
+    const registeredAgain = registerCreatedSessionWithNativeRoster(
+      registered,
+      created
+    );
+
+    expect(registeredAgain.standalone_agent.sessionIds).toEqual([
+      "sdeagent-10",
+    ]);
+    expect(registeredAgain.standalone_agent.localSessionIds).toEqual([
+      created.session_id,
+    ]);
+    expect(registeredAgain.standalone_agent.cursor).toEqual(cursor);
+    expect(createSidebarRosterMatcher(registeredAgain)(created)).toBe(true);
+
+    const pinnedGenerationLoaded = {
+      ...registeredAgain,
+      pinned_native: {
+        ...registeredAgain.pinned_native,
+        generation: 1,
+      },
+      standalone_agent: {
+        ...registeredAgain.standalone_agent,
+        generation: 0,
+      },
+    };
+    expect(
+      createSidebarRosterMatcher(pinnedGenerationLoaded)({
+        ...created,
+        pinned: true,
+      })
+    ).toBe(true);
+
+    const acknowledged = acknowledgeCreatedSessionsInNativeRoster(
+      registeredAgain,
+      [created]
+    );
+    expect(acknowledged.standalone_agent.localSessionIds).toEqual([]);
+
+    const deleted = removeSessionFromRosters(
+      registeredAgain,
+      created.session_id
+    );
+    expect(deleted.standalone_agent.localSessionIds).toEqual([]);
   });
 });

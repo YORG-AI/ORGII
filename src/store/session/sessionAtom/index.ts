@@ -8,6 +8,7 @@
 
 export * from "./types";
 export * from "./atoms";
+export * from "./createdSession";
 export * from "./loaders";
 export * from "./mutations";
 export * from "./helpers";

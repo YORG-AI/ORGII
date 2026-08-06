@@ -23,6 +23,7 @@ function streamState(
 ): CategoryPaginationState {
   return {
     sessionIds: [],
+    localSessionIds: [],
     cursor: null,
     phase,
     generation: 1,

@@ -26,10 +26,10 @@ export const SESSION_CACHE_INVALIDATED_EVENT = "session-cache-invalidated";
 // Core Atoms
 // ============================================
 
-// Hydrated synchronously from localStorage so the sidebar renders the
-// previous list on cold start without waiting for a network round-trip.
-// `loadSessions()` swaps in fresh data shortly after — see
-// `loaders.ts`.
+// Entity cache, not the Sidebar's authoritative roster. It is hydrated
+// synchronously from localStorage so known sessions can render on cold start;
+// paginated list membership lives in `sessionPaginationAtom` and is combined
+// with these records by the Sidebar projection.
 export const sessionsAtom = atom<Session[]>(loadPersistedSessions());
 sessionsAtom.debugLabel = "sessionsAtom";
 

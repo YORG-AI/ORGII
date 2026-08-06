@@ -26,12 +26,12 @@ import {
   activeSessionIdAtom,
   dispatchCategoryAtom,
   loadSidebarSessions,
+  registerCreatedSession,
   selectedAgentDefinitionIdAtom,
   selectedAgentOrgIdAtom,
   sessionCreatorDraftAtom,
   sessionSourceAtom,
   sessionTargetKindAtom,
-  upsertSession,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
 import { lastUserMessageAtom } from "@src/store/session/cliSessionStatusAtom";
@@ -251,16 +251,15 @@ export function useSessionLaunch(
         clearImages?.();
       }
 
-      upsertSession(
-        buildSessionFromLaunchResult({
-          agentExecMode,
-          effectiveSource,
-          isBackgroundLaunch,
-          launchCliAgentType: launchParams.platform,
-          launchOrgContext: resolvedWorkItemContext ?? undefined,
-          result,
-        })
-      );
+      const launchedSession = buildSessionFromLaunchResult({
+        agentExecMode,
+        effectiveSource,
+        isBackgroundLaunch,
+        launchCliAgentType: launchParams.platform,
+        launchOrgContext: resolvedWorkItemContext ?? undefined,
+        result,
+      });
+      registerCreatedSession(launchedSession);
       void autoTagLaunchedSessionToActiveCloudOrg({
         sessionId: result.sessionId,
         repoPath: effectiveSource?.repoPath ?? null,

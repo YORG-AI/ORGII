@@ -14,6 +14,7 @@ import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import { recordGuestImportedSession } from "@src/store/session/sessionAtom/guestImportRegistry";
 import {
   applyImportedSessionTimestamps,
+  registerCreatedSession,
   upsertSession,
 } from "@src/store/session/sessionAtom/mutations";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
@@ -1004,7 +1005,7 @@ async function importRemoteSessionInner(
     throwIfAborted(options.signal);
     // No await after the final abort check: the session row, guest registry
     // and persisted list commit synchronously as one local critical section.
-    upsertSession(importedRow);
+    registerCreatedSession(importedRow);
     // Re-import of an existing copy: upsertSession pins timestamps against
     // careless reconcile writes, but this row's clock belongs to the source.
     applyImportedSessionTimestamps(localSessionId, {

@@ -20,7 +20,7 @@ import { loadSharedLocalKeys } from "@src/hooks/keyVault/sharedLocalKeyStore";
 import { COLLAB_SESSION_ACCESS_MODE } from "@src/store/collaboration/types";
 import { lastModelPairMapAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
-import { upsertSession } from "@src/store/session/sessionAtom/mutations";
+import { registerCreatedSession } from "@src/store/session/sessionAtom/mutations";
 import { persistSessions } from "@src/store/session/sessionAtom/persistence";
 import type {
   Session,
@@ -342,7 +342,7 @@ export async function forkSession(
       remoteSession.forkedFrom?.rootSessionId ?? remoteSession.sourceSessionId,
   };
   const name = buildForkedSessionName(remoteSession.title);
-  upsertSession({
+  registerCreatedSession({
     session_id: localSessionId,
     status: "completed",
     created_at: now,

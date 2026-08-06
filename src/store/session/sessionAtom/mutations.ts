@@ -11,8 +11,9 @@
  *
  *   1. `loadSessions()` — full list replace from `session_aggregate_list`
  *      (and the supplementary Cursor IDE row read).
- *   2. Insert path of `upsertSession()` — for a brand-new session,
- *      whose timestamps still originate from the launch RPC response.
+ *   2. Insert path of `registerCreatedSession()` / `upsertSession()` — for a
+ *      brand-new session whose timestamps still originate from its creation
+ *      boundary.
  *   3. `markSessionActive()` — explicitly bumped on a real *user
  *      action* (currently only "send a prompt"). This is NOT a
  *      reconcile-driven write; it represents activity the user just
@@ -32,11 +33,14 @@
  * intentional escape hatch for "the user just did something, bump
  * the row".
  */
+import { atom } from "jotai";
+
 import { disposeSessionStreamingState } from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
 import {
   sessionFlatListLastLoadedBySignatureAtom,
@@ -44,9 +48,57 @@ import {
   sessionsAtom,
 } from "./atoms";
 import { removeGuestImportedSession } from "./guestImportRegistry";
+import { sessionPaginationAtom } from "./paginationAtoms";
+import {
+  registerCreatedSessionWithNativeRoster,
+  removeSessionFromRosters,
+  syncSessionWithNativeRosters,
+} from "./sidebarRoster";
 import type { Session, SessionStatus } from "./types";
 
 const getStore = () => getInstrumentedStore();
+
+function upsertSessionInList(prev: Session[], session: Session): Session[] {
+  const existingIndex = prev.findIndex(
+    (existingSession) => existingSession.session_id === session.session_id
+  );
+
+  if (existingIndex < 0) return [session, ...prev];
+
+  const existing = prev[existingIndex];
+  const updated = [...prev];
+  updated[existingIndex] = {
+    ...existing,
+    ...session,
+    parentSessionId: session.parentSessionId ?? existing.parentSessionId,
+    orgMemberId: session.orgMemberId ?? existing.orgMemberId,
+    agentOrgId: session.agentOrgId ?? existing.agentOrgId,
+    agentOrgName: session.agentOrgName ?? existing.agentOrgName,
+    agentDefinitionId: session.agentDefinitionId ?? existing.agentDefinitionId,
+    agentIconId: session.agentIconId ?? existing.agentIconId,
+    agentDisplayName: session.agentDisplayName ?? existing.agentDisplayName,
+    // Backend-owned. Pin to the prior values so a careless caller spreading
+    // a synthesized timestamp cannot drift list ordering.
+    created_at: existing.created_at,
+    updated_at: existing.updated_at,
+    created_time: existing.created_time,
+    updated_time: existing.updated_time,
+  };
+  return updated;
+}
+
+const registerCreatedSessionStateAtom = atom(
+  null,
+  (_get, set, session: Session) => {
+    set(sessionsAtom, (prev) => upsertSessionInList(prev, session));
+    if (isPrimarySessionListSession(session)) {
+      set(sessionPaginationAtom, (previous) =>
+        registerCreatedSessionWithNativeRoster(previous, session)
+      );
+    }
+  }
+);
+registerCreatedSessionStateAtom.debugLabel = "registerCreatedSessionState";
 
 /**
  * Add or update a session in the store.
@@ -60,41 +112,26 @@ const getStore = () => getInstrumentedStore();
  */
 export const upsertSession = (session: Session) => {
   const store = getStore();
-  store.set(sessionsAtom, (prev) => {
-    const existingIndex = prev.findIndex(
-      (existingSession) => existingSession.session_id === session.session_id
-    );
-
-    if (existingIndex >= 0) {
-      const existing = prev[existingIndex];
-      const updated = [...prev];
-      updated[existingIndex] = {
-        ...existing,
-        ...session,
-        parentSessionId: session.parentSessionId ?? existing.parentSessionId,
-        orgMemberId: session.orgMemberId ?? existing.orgMemberId,
-        agentOrgId: session.agentOrgId ?? existing.agentOrgId,
-        agentOrgName: session.agentOrgName ?? existing.agentOrgName,
-        agentDefinitionId:
-          session.agentDefinitionId ?? existing.agentDefinitionId,
-        agentIconId: session.agentIconId ?? existing.agentIconId,
-        agentDisplayName: session.agentDisplayName ?? existing.agentDisplayName,
-        // Backend-owned. Pin to the prior values so a careless caller
-        // spreading a synthesized timestamp can't drift the field.
-        // `*_time` are aliases populated alongside `*_at` from the
-        // same RPC fields — kept in lockstep for the same reason.
-        created_at: existing.created_at,
-        updated_at: existing.updated_at,
-        created_time: existing.created_time,
-        updated_time: existing.updated_time,
-      };
-      return updated;
-    } else {
-      const newList = [session, ...prev];
-      return newList;
-    }
-  });
+  store.set(sessionsAtom, (prev) => upsertSessionInList(prev, session));
 };
+
+/**
+ * Commit a newly created/imported session to every client-side projection.
+ *
+ * Call this only after the owning persistence boundary succeeds. Cache-only
+ * reconciliation of an existing row must continue to use `upsertSession`.
+ */
+export const registerCreatedSession = (session: Session) => {
+  getStore().set(registerCreatedSessionStateAtom, session);
+};
+
+/** Keep an existing native row visible while its roster category changes. */
+export function syncSidebarSessionRoster(session: Session): void {
+  const store = getStore();
+  store.set(sessionPaginationAtom, (previous) =>
+    syncSessionWithNativeRosters(previous, session)
+  );
+}
 
 /**
  * Bump a session's activity timestamps to "now".
@@ -177,6 +214,9 @@ export const removeSession = (sessionId: string) => {
   const store = getStore();
   store.set(sessionsAtom, (prev) =>
     prev.filter((session) => session.session_id !== sessionId)
+  );
+  store.set(sessionPaginationAtom, (previous) =>
+    removeSessionFromRosters(previous, sessionId)
   );
   // A removed session has no live viewers, so free its per-session caches.
   // Without this they accumulate one entry per session for the app lifetime —

@@ -104,6 +104,7 @@ describe("launchPayload", () => {
         projectSlug: "runtime",
         workItemId: "RUN-12",
         agentRole: "reviewer",
+        productMode: "project",
       },
     });
 
@@ -113,6 +114,7 @@ describe("launchPayload", () => {
     expect(session.projectSlug).toBe("runtime");
     expect(session.workItemId).toBe("RUN-12");
     expect(session.agentRole).toBe("reviewer");
+    expect(session.productMode).toBe("project");
   });
 
   it("hydrates optimistic session org context from launch fallback before readback", () => {
@@ -127,6 +129,7 @@ describe("launchPayload", () => {
         projectSlug: "runtime",
         workItemId: "RUN-12",
         agentRole: "custom",
+        productMode: "project",
       },
       result: {
         sessionId: "agent-1",
@@ -145,6 +148,7 @@ describe("launchPayload", () => {
     expect(session.projectSlug).toBe("runtime");
     expect(session.workItemId).toBe("RUN-12");
     expect(session.agentRole).toBe("custom");
+    expect(session.productMode).toBe("project");
   });
 
   it("passes selected CLI agent type as the launch platform", () => {
@@ -521,6 +525,26 @@ describe("launchPayload", () => {
 
     expect(source).toContain("void emitOpenWorkspace(");
     expect(source).not.toContain("await emitOpenWorkspace(");
+  });
+
+  it("registers a launched session with the Sidebar roster before navigation", () => {
+    const launchHookPath = fileURLToPath(
+      new URL(
+        "../useSessionCreator/useSessionLaunch/index.tsx",
+        import.meta.url
+      )
+    );
+    const source = readFileSync(launchHookPath, "utf8");
+    const registrationIndex = source.indexOf(
+      "registerCreatedSession(launchedSession);"
+    );
+    const navigationIndex = source.indexOf(
+      "navigateToLaunchedSession(result.sessionId, sessionUsesHostedKey);"
+    );
+
+    expect(registrationIndex).toBeGreaterThan(-1);
+    expect(navigationIndex).toBeGreaterThan(registrationIndex);
+    expect(source).not.toContain("syncSidebarSessionRoster(launchedSession)");
   });
 });
 

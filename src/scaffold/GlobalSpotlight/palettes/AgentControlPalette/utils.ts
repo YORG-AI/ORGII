@@ -9,7 +9,10 @@ import {
 import { extractArgsSummary } from "@src/engines/ChatPanel/blocks/ToolCallBlock/helpers/argsSummary";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
-import { upsertSession } from "@src/store/session/sessionAtom";
+import {
+  buildCreatedSessionRecord,
+  registerCreatedSession,
+} from "@src/store/session/sessionAtom";
 import { BUILTIN_ADE_MANAGER_DEF_ID } from "@src/util/session/sessionDispatch";
 
 import {
@@ -132,25 +135,19 @@ export function toAdeManagerActivityItem(
   return null;
 }
 
-export function upsertAdeManagerSession(result: SessionLaunchResult): void {
-  upsertSession({
-    session_id: result.sessionId,
-    status: result.status,
-    created_at: result.createdAt,
-    updated_at: result.createdAt,
-    user_input: result.userInput || result.name,
-    name: result.name || ADE_MANAGER_SESSION_NAME,
-    branch: result.branch ?? "",
-    is_active: true,
-    category: DISPATCH_CATEGORY.RUST_AGENT,
-    model: result.model ?? undefined,
-    agentExecMode: ADE_MANAGER_AGENT_EXEC_MODE,
-    agentDefinitionId: BUILTIN_ADE_MANAGER_DEF_ID,
-    agentIconId: ADE_MANAGER_AGENT_ICON_ID,
-    agentDisplayName: ADE_MANAGER_AGENT_NAME,
-    ...(result.accountId ? { accountId: result.accountId } : {}),
-    ...(result.background ? { background: true } : {}),
-    ...(result.workspacePath ? { repoPath: result.workspacePath } : {}),
-    ...(result.worktreePath ? { worktreePath: result.worktreePath } : {}),
-  });
+export function registerAdeManagerSession(result: SessionLaunchResult): void {
+  registerCreatedSession(
+    buildCreatedSessionRecord({
+      result: {
+        ...result,
+        name: result.name || ADE_MANAGER_SESSION_NAME,
+        category: DISPATCH_CATEGORY.RUST_AGENT,
+      },
+      isActive: true,
+      agentExecMode: ADE_MANAGER_AGENT_EXEC_MODE,
+      agentDefinitionId: BUILTIN_ADE_MANAGER_DEF_ID,
+      agentIconId: ADE_MANAGER_AGENT_ICON_ID,
+      agentDisplayName: ADE_MANAGER_AGENT_NAME,
+    })
+  );
 }

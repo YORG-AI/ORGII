@@ -51,6 +51,11 @@ export function createSidebarRosterMatcher(
   for (const [category, state] of Object.entries(pagination) as Array<
     [SessionListCategory, SessionPaginationMap[SessionListCategory]]
   >) {
+    if (isNativeCategory(category)) {
+      for (const sessionId of state.localSessionIds) {
+        nativeIds.add(sessionId);
+      }
+    }
     if (state.generation > 0) {
       idsByCategory.set(category, new Set(state.sessionIds));
       if (isNativeCategory(category)) {
@@ -77,6 +82,90 @@ export function createSidebarRosterMatcher(
   };
 }
 
+/**
+ * Register a backend-confirmed local creation without mutating the server
+ * page/cursor. The overlay survives an older in-flight roster response and is
+ * removed only after a native roster read returns the same ID.
+ */
+export function registerCreatedSessionWithNativeRoster(
+  pagination: SessionPaginationMap,
+  session: Session
+): SessionPaginationMap {
+  const target = sidebarCategoryForSession(session);
+  if (!target || !isNativeCategory(target)) return pagination;
+
+  const alreadyKnown = BASE_SESSION_LIST_CATEGORIES.some((category) => {
+    const state = pagination[category];
+    return (
+      state.sessionIds.includes(session.session_id) ||
+      state.localSessionIds.includes(session.session_id)
+    );
+  });
+  if (alreadyKnown) return pagination;
+
+  return {
+    ...pagination,
+    [target]: {
+      ...pagination[target],
+      localSessionIds: [
+        session.session_id,
+        ...pagination[target].localSessionIds,
+      ],
+    },
+  };
+}
+
+/** Remove locally registered IDs once a native roster response confirms them. */
+export function acknowledgeCreatedSessionsInNativeRoster(
+  pagination: SessionPaginationMap,
+  sessions: readonly Session[]
+): SessionPaginationMap {
+  const confirmedIds = new Set(sessions.map((session) => session.session_id));
+  if (confirmedIds.size === 0) return pagination;
+
+  let next = pagination;
+  for (const category of BASE_SESSION_LIST_CATEGORIES) {
+    const state = next[category];
+    const localSessionIds = state.localSessionIds.filter(
+      (sessionId) => !confirmedIds.has(sessionId)
+    );
+    if (localSessionIds.length === state.localSessionIds.length) continue;
+    if (next === pagination) next = { ...pagination };
+    next = {
+      ...next,
+      [category]: { ...state, localSessionIds },
+    };
+  }
+  return next;
+}
+
+/** Evict a deleted session from both server-page and local overlay rosters. */
+export function removeSessionFromRosters(
+  pagination: SessionPaginationMap,
+  sessionId: string
+): SessionPaginationMap {
+  let next = pagination;
+  for (const category of Object.keys(pagination) as SessionListCategory[]) {
+    const state = next[category];
+    const sessionIds = state.sessionIds.filter((id) => id !== sessionId);
+    const localSessionIds = state.localSessionIds.filter(
+      (id) => id !== sessionId
+    );
+    if (
+      sessionIds.length === state.sessionIds.length &&
+      localSessionIds.length === state.localSessionIds.length
+    ) {
+      continue;
+    }
+    if (next === pagination) next = { ...pagination };
+    next = {
+      ...next,
+      [category]: { ...state, sessionIds, localSessionIds },
+    };
+  }
+  return next;
+}
+
 function isNativeCategory(
   category: SessionListCategory
 ): category is BaseSessionListCategory {
@@ -95,15 +184,28 @@ function isNativeCategory(
  */
 export function syncSessionWithNativeRosters(
   pagination: SessionPaginationMap,
-  session: Session
+  session: Session,
+  options: { promoteLocalCreation?: boolean } = {}
 ): SessionPaginationMap {
   const target = sidebarCategoryForSession(session);
   if (!target || !isNativeCategory(target)) return pagination;
 
-  const alreadyLoaded = BASE_SESSION_LIST_CATEGORIES.some((category) =>
+  const loadedByServer = BASE_SESSION_LIST_CATEGORIES.some((category) =>
     pagination[category].sessionIds.includes(session.session_id)
   );
-  if (alreadyLoaded || pagination[target].generation === 0) {
+  const locallyRegistered = BASE_SESSION_LIST_CATEGORIES.some((category) => {
+    const state = pagination[category];
+    return state.localSessionIds.includes(session.session_id);
+  });
+  if (loadedByServer) {
+    return locallyRegistered && options.promoteLocalCreation
+      ? acknowledgeCreatedSessionsInNativeRoster(pagination, [session])
+      : pagination;
+  }
+  if (
+    (locallyRegistered && !options.promoteLocalCreation) ||
+    pagination[target].generation === 0
+  ) {
     return pagination;
   }
 
@@ -124,11 +226,14 @@ export function syncSessionWithNativeRosters(
     }
   }
 
-  return {
+  const synced = {
     ...pagination,
     [target]: {
       ...pagination[target],
       sessionIds: [session.session_id, ...pagination[target].sessionIds],
     },
   };
+  return locallyRegistered
+    ? acknowledgeCreatedSessionsInNativeRoster(synced, [session])
+    : synced;
 }

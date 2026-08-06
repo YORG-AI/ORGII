@@ -37,8 +37,10 @@ import {
   type Session,
   type SessionStatus,
   activeSessionIdAtom,
+  buildCreatedSessionRecord,
   loadSessions,
   markSessionActive,
+  registerCreatedSession,
   sessionsAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
@@ -184,6 +186,20 @@ export const SessionService = {
     try {
       const result = await sessionLaunch(
         launchParams as Parameters<typeof sessionLaunch>[0]
+      );
+      registerCreatedSession(
+        buildCreatedSessionRecord({
+          result,
+          fallbackRepoPath: params.projectRepoPath || params.repoPath,
+          agentExecMode: params.mode,
+          agentDefinitionId: params.agentDefinitionId,
+          parentSessionId: params.parentSessionId,
+          context: {
+            projectSlug: params.projectSlug,
+            workItemId: params.workItemId,
+            agentRole: params.agentRole,
+          },
+        })
       );
       logger.info(
         `Created and started ${category} session: ${result.sessionId}`
