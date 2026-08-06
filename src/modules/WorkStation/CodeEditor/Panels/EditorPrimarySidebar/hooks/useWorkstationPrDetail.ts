@@ -400,6 +400,7 @@ export function useWorkstationPrDetail({
         ...prev,
         refreshing: false,
         submittingReview: true,
+        error: null,
       }));
       try {
         const review = await createPrReviewLocal(
@@ -419,10 +420,15 @@ export function useWorkstationPrDetail({
           submittingReview: false,
         }));
         loadDetail(pr, { reconcile: true });
-      } catch {
+      } catch (error) {
         if (mountedRef.current) {
-          setSelectedPr((prev) => ({ ...prev, submittingReview: false }));
+          setSelectedPr((prev) => ({
+            ...prev,
+            submittingReview: false,
+            error: error instanceof Error ? error.message : String(error),
+          }));
         }
+        throw error;
       }
     },
     [repoFullName, pr, setSelectedPr, loadDetail]

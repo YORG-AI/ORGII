@@ -216,6 +216,89 @@ describe("PrConversationTab", () => {
     }
   });
 
+  it("keeps the review modal and draft open when submission fails", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const onSubmitReview = vi
+      .fn()
+      .mockRejectedValue(new Error("review failed"));
+
+    try {
+      await act(async () => {
+        root.render(
+          createElement(PrConversationTab, {
+            detail: null,
+            identity: {
+              number: 42,
+              title: "Retry a failed review",
+              url: "https://github.com/org/repo/pull/42",
+              status: "open",
+              headBranch: "feature/review-retry",
+            },
+            conversation: [],
+            reviews: [],
+            reviewComments: [],
+            loading: false,
+            submittingComment: false,
+            submittingReview: false,
+            onAddComment: vi.fn().mockResolvedValue(undefined),
+            onSubmitReview,
+          })
+        );
+      });
+
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="pr-submit-review"]')
+          ?.click();
+      });
+
+      const dialog =
+        document.body.querySelector<HTMLElement>('[role="dialog"]');
+      await act(async () => {
+        dialog
+          ?.querySelector<HTMLInputElement>('input[value="REQUEST_CHANGES"]')
+          ?.click();
+      });
+      const reviewComment = dialog?.querySelector<HTMLTextAreaElement>(
+        '[data-testid="pr-review-comment"]'
+      );
+      await act(async () => {
+        const valueSetter = Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value"
+        )?.set;
+        valueSetter?.call(reviewComment, "Please preserve this failed draft.");
+        reviewComment?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      const submitButton = Array.from(
+        dialog?.querySelectorAll<HTMLButtonElement>("button") ?? []
+      ).find((button) => button.textContent?.trim() === "Submit review");
+
+      await act(async () => {
+        submitButton?.click();
+        await Promise.resolve();
+      });
+
+      expect(onSubmitReview).toHaveBeenCalledWith(
+        "REQUEST_CHANGES",
+        "Please preserve this failed draft."
+      );
+      expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(
+        document.body.querySelector<HTMLTextAreaElement>(
+          '[data-testid="pr-review-comment"]'
+        )?.value
+      ).toBe("Please preserve this failed draft.");
+    } finally {
+      await act(async () => {
+        root.unmount();
+      });
+      container.remove();
+    }
+  });
+
   it("restores a controlled conversation draft", () => {
     const markup = renderToStaticMarkup(
       createElement(PrConversationTab, {

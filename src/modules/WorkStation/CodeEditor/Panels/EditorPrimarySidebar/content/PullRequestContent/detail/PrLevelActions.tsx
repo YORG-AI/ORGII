@@ -1,4 +1,3 @@
-import type { TFunction } from "i18next";
 import {
   CircleDot,
   GitMerge,
@@ -47,50 +46,6 @@ interface PrLevelActionsProps {
   ) => Promise<void>;
   onStateChange: (state: "open" | "closed") => Promise<void>;
   onRequestedReviewersChange: (reviewers: string[]) => Promise<void>;
-}
-
-const ACTION_LABEL_KEYS: Record<string, string> = {
-  "Merge pull request": "merge",
-  "Squash and merge": "squash",
-  "Rebase and merge": "rebase",
-  "Enable auto-merge": "enableAutoMerge",
-  "Merge when ready": "mergeWhenReady",
-  "Disable auto-merge": "disableAutoMerge",
-  "Remove from merge queue": "removeFromMergeQueue",
-  Merged: "merged",
-  Closed: "closed",
-  Draft: "draft",
-  "In merge queue": "inMergeQueue",
-  "Approval required": "approvalRequired",
-  "Changes requested": "changesRequested",
-  "Resolve conflicts": "resolveConflicts",
-  "Checks failed": "checksFailed",
-  "Checks pending": "checksPending",
-  "Merge blocked": "mergeBlocked",
-};
-
-const ACTION_TOOLTIP_KEYS: Record<string, string> = {
-  "Merge this pull request on GitHub": "merge",
-  "This pull request is already merged": "alreadyMerged",
-  "Reopen this pull request before merging": "reopenBeforeMerging",
-  "Mark this pull request ready for review before merging": "markReady",
-  "GitHub will merge this pull request through the merge queue": "mergeQueue",
-  "GitHub requires review approval before merging": "approvalRequired",
-  "Requested changes must be resolved before merging": "changesRequested",
-  "Resolve merge conflicts before merging": "resolveConflicts",
-  "Required checks must pass before merging": "checksFailed",
-  "Wait for required checks or enable auto-merge": "checksPending",
-  "GitHub reports unmet merge requirements": "mergeBlocked",
-};
-
-function localizedActionLabel(t: TFunction, label: string): string {
-  const key = ACTION_LABEL_KEYS[label];
-  return key ? t(`git.pr.actions.${key}`, label) : label;
-}
-
-function localizedActionTooltip(t: TFunction, tooltip: string): string {
-  const key = ACTION_TOOLTIP_KEYS[tooltip];
-  return key ? t(`git.pr.actions.tooltips.${key}`, tooltip) : tooltip;
 }
 
 export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
@@ -230,12 +185,15 @@ export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
               onClick={() => void toggleAutoMerge()}
               dataTestId="pr-auto-merge-action"
             >
-              {localizedActionLabel(t, presentation.autoMergeAction.label)}
+              {t(
+                `git.pr.actions.${presentation.autoMergeAction.labelKey}`,
+                presentation.autoMergeAction.label
+              )}
             </DropdownItem>
             <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           </>
         ) : null}
-        {presentation.methods.map(({ method, label }) => (
+        {presentation.methods.map(({ method, label, labelKey }) => (
           <DropdownItem
             key={method}
             icon={<GitMerge size={DROPDOWN_ITEM.iconSize} aria-hidden />}
@@ -243,7 +201,7 @@ export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
             onClick={() => void merge(method)}
             dataTestId={`pr-merge-${method}`}
           >
-            {localizedActionLabel(t, label)}
+            {t(`git.pr.actions.${labelKey}`, label)}
           </DropdownItem>
         ))}
       </div>
@@ -268,7 +226,10 @@ export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
         icon={<GitMerge size={14} aria-hidden />}
         loading={pending}
         disabled={primaryDisabled}
-        title={localizedActionTooltip(t, presentation.tooltip)}
+        title={t(
+          `git.pr.actions.tooltips.${presentation.tooltipKey}`,
+          presentation.tooltip
+        )}
         onClick={runPrimaryMergeAction}
         dropdownMenu={
           <Dropdown
@@ -292,14 +253,14 @@ export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
         aria-expanded={mergeMenuVisible}
         data-testid="pr-merge-action"
       >
-        {localizedActionLabel(
-          t,
-          presentation.autoMergeAction?.kind === "disable" ||
-            (!presentation.directMergeAvailable &&
-              presentation.autoMergeAction?.kind === "enable")
-            ? presentation.autoMergeAction.label
-            : presentation.label
-        )}
+        {presentation.autoMergeAction?.kind === "disable" ||
+        (!presentation.directMergeAvailable &&
+          presentation.autoMergeAction?.kind === "enable")
+          ? t(
+              `git.pr.actions.${presentation.autoMergeAction.labelKey}`,
+              presentation.autoMergeAction.label
+            )
+          : t(`git.pr.actions.${presentation.labelKey}`, presentation.label)}
       </Button>
 
       <Dropdown

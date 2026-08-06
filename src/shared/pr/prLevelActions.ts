@@ -9,6 +9,7 @@ import { normalizePrStatus } from "./prStatus";
 export interface PullRequestMergeMethodOption {
   method: PullRequestMergeMethod;
   label: string;
+  labelKey: "merge" | "squash" | "rebase";
 }
 
 export interface PullRequestAutoMergeAction {
@@ -18,12 +19,46 @@ export interface PullRequestAutoMergeAction {
     | "Merge when ready"
     | "Disable auto-merge"
     | "Remove from merge queue";
+  labelKey:
+    | "enableAutoMerge"
+    | "mergeWhenReady"
+    | "disableAutoMerge"
+    | "removeFromMergeQueue";
 }
+
+export type PullRequestActionLabelKey =
+  | PullRequestMergeMethodOption["labelKey"]
+  | PullRequestAutoMergeAction["labelKey"]
+  | "merged"
+  | "closed"
+  | "draft"
+  | "inMergeQueue"
+  | "approvalRequired"
+  | "changesRequested"
+  | "resolveConflicts"
+  | "checksFailed"
+  | "checksPending"
+  | "mergeBlocked";
+
+export type PullRequestActionTooltipKey =
+  | "merge"
+  | "alreadyMerged"
+  | "reopenBeforeMerging"
+  | "markReady"
+  | "mergeQueue"
+  | "approvalRequired"
+  | "changesRequested"
+  | "resolveConflicts"
+  | "checksFailed"
+  | "checksPending"
+  | "mergeBlocked";
 
 export interface PullRequestActionPresentation {
   status: string;
   label: string;
+  labelKey: PullRequestActionLabelKey;
   tooltip: string;
+  tooltipKey: PullRequestActionTooltipKey;
   directMergeAvailable: boolean;
   methods: PullRequestMergeMethodOption[];
   defaultMethod: PullRequestMergeMethod;
@@ -31,9 +66,9 @@ export interface PullRequestActionPresentation {
 }
 
 const MERGE_METHODS: PullRequestMergeMethodOption[] = [
-  { method: "merge", label: "Merge pull request" },
-  { method: "squash", label: "Squash and merge" },
-  { method: "rebase", label: "Rebase and merge" },
+  { method: "merge", label: "Merge pull request", labelKey: "merge" },
+  { method: "squash", label: "Squash and merge", labelKey: "squash" },
+  { method: "rebase", label: "Rebase and merge", labelKey: "rebase" },
 ];
 
 function readRecord(
@@ -151,48 +186,84 @@ export function presentPullRequestActions({
 
   let label =
     methods.find((method) => method.method === defaultMethod)?.label ?? "Merge";
+  let labelKey: PullRequestActionLabelKey =
+    methods.find((method) => method.method === defaultMethod)?.labelKey ??
+    "merge";
   let tooltip = "Merge this pull request on GitHub";
+  let tooltipKey: PullRequestActionTooltipKey = "merge";
   if (status === "merged") {
     label = "Merged";
+    labelKey = "merged";
     tooltip = "This pull request is already merged";
+    tooltipKey = "alreadyMerged";
   } else if (status === "closed") {
     label = "Closed";
+    labelKey = "closed";
     tooltip = "Reopen this pull request before merging";
+    tooltipKey = "reopenBeforeMerging";
   } else if (status === "draft") {
     label = "Draft";
+    labelKey = "draft";
     tooltip = "Mark this pull request ready for review before merging";
+    tooltipKey = "markReady";
   } else if (inMergeQueue) {
     label = "In merge queue";
+    labelKey = "inMergeQueue";
     tooltip = "GitHub will merge this pull request through the merge queue";
+    tooltipKey = "mergeQueue";
   } else if (reviewDecision === "REVIEW_REQUIRED") {
     label = "Approval required";
+    labelKey = "approvalRequired";
     tooltip = "GitHub requires review approval before merging";
+    tooltipKey = "approvalRequired";
   } else if (reviewDecision === "CHANGES_REQUESTED") {
     label = "Changes requested";
+    labelKey = "changesRequested";
     tooltip = "Requested changes must be resolved before merging";
+    tooltipKey = "changesRequested";
   } else if (hasConflicts) {
     label = "Resolve conflicts";
+    labelKey = "resolveConflicts";
     tooltip = "Resolve merge conflicts before merging";
+    tooltipKey = "resolveConflicts";
   } else if (checks?.state === "failure") {
     label = "Checks failed";
+    labelKey = "checksFailed";
     tooltip = "Required checks must pass before merging";
+    tooltipKey = "checksFailed";
   } else if (checks?.state === "pending") {
     label = "Checks pending";
+    labelKey = "checksPending";
     tooltip = "Wait for required checks or enable auto-merge";
+    tooltipKey = "checksPending";
   } else if (policyBlocked) {
     label = "Merge blocked";
+    labelKey = "mergeBlocked";
     tooltip = "GitHub reports unmet merge requirements";
+    tooltipKey = "mergeBlocked";
   }
 
   const autoMergeAction =
     status !== "open"
       ? null
       : inMergeQueue
-        ? ({ kind: "disable", label: "Remove from merge queue" } as const)
+        ? ({
+            kind: "disable",
+            label: "Remove from merge queue",
+            labelKey: "removeFromMergeQueue",
+          } as const)
         : autoMergeEnabled
-          ? ({ kind: "disable", label: "Disable auto-merge" } as const)
+          ? ({
+              kind: "disable",
+              label: "Disable auto-merge",
+              labelKey: "disableAutoMerge",
+            } as const)
           : mergeQueueRequired
-            ? ({ kind: "enable", label: "Merge when ready" } as const)
+            ? ({
+                kind: "enable",
+                label: "Merge when ready",
+                labelKey: "mergeWhenReady",
+              } as const)
             : autoMergeAllowed &&
                 !directMergeAvailable &&
                 !hasConflicts &&
@@ -200,13 +271,16 @@ export function presentPullRequestActions({
               ? ({
                   kind: "enable",
                   label: "Enable auto-merge",
+                  labelKey: "enableAutoMerge",
                 } as const)
               : null;
 
   return {
     status,
     label,
+    labelKey,
     tooltip,
+    tooltipKey,
     directMergeAvailable,
     methods,
     defaultMethod,

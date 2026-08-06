@@ -527,6 +527,7 @@ export const PrDetailPanel: React.FC<PrDetailPanelProps> = ({
         >
           {activeTab === "conversation" && (
             <PrConversationTab
+              key={`${repoFullName ?? "unknown"}#${currentIdentity.number}`}
               levelActions={
                 <PrLevelActions
                   identity={currentIdentity}

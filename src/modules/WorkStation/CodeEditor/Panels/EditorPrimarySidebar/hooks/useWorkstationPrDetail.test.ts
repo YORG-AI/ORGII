@@ -595,6 +595,50 @@ describe("useWorkstationPrDetail cache mutations", () => {
     );
   });
 
+  it("rejects a failed review submission and publishes the error", async () => {
+    const REVIEW_PR: PrIdentity = { ...PR, number: 111_107 };
+    const scopeKey = workstationPrScopeKey(
+      REPO_ID,
+      REPO_PATH,
+      REVIEW_PR.number
+    );
+    apiMocks.getPRLocal.mockResolvedValue({
+      head: { sha: "displayed-head" },
+      base: { ref: "develop" },
+    });
+    apiMocks.createPrReviewLocal.mockRejectedValueOnce(
+      new Error("review failed")
+    );
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: REVIEW_PR })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationPrDetailCallbackAtomFamily(scopeKey))
+          .submitReview !== null
+    );
+
+    let submitted: Promise<void> | undefined;
+    await act(async () => {
+      submitted = store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .submitReview?.("REQUEST_CHANGES", "Please retry.");
+      await expect(submitted).rejects.toThrow("review failed");
+    });
+
+    const state = store.get(workstationSelectedPrAtomFamily(scopeKey));
+    expect(state.error).toBe("review failed");
+    expect(state.submittingReview).toBe(false);
+  });
+
   it("publishes one shared dispatcher for PR-level merge, auto-merge, state, and reviewer mutations", async () => {
     const ACTION_PR: PrIdentity = { ...PR, number: 111_105 };
     const scopeKey = workstationPrScopeKey(

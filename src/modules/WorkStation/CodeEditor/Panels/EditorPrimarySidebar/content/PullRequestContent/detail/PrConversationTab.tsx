@@ -175,6 +175,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const [reviewDecision, setReviewDecision] =
     useState<PrReviewEvent>("COMMENT");
   const [reviewBody, setReviewBody] = useState("");
+  const reviewSubmissionRef = useRef(false);
   const draft = controlledDraft ?? internalDraft;
   const updateDraft = useCallback(
     (nextDraft: string) => {
@@ -271,14 +272,23 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const handleReview = useCallback(async () => {
     const body = reviewBody.trim();
     if (
+      reviewSubmissionRef.current ||
       submittingReview ||
       (reviewDecision !== "APPROVE" && body.length === 0)
     ) {
       return;
     }
-    await onSubmitReview(reviewDecision, body);
-    setReviewModalVisible(false);
-    resetReviewModal();
+    reviewSubmissionRef.current = true;
+    try {
+      await onSubmitReview(reviewDecision, body);
+      setReviewModalVisible(false);
+      resetReviewModal();
+    } catch {
+      // The owning hook publishes the request error. Keep this modal and its
+      // independent draft open so the user can retry without retyping.
+    } finally {
+      reviewSubmissionRef.current = false;
+    }
   }, [
     onSubmitReview,
     resetReviewModal,

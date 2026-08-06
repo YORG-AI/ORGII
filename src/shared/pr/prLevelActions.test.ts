@@ -30,10 +30,13 @@ describe("PR-level action presentation", () => {
 
     expect(presentation.directMergeAvailable).toBe(true);
     expect(presentation.defaultMethod).toBe("squash");
-    expect(presentation.methods.map(({ method }) => method)).toEqual([
-      "squash",
-      "rebase",
+    expect(
+      presentation.methods.map(({ method, labelKey }) => ({ method, labelKey }))
+    ).toEqual([
+      { method: "squash", labelKey: "squash" },
+      { method: "rebase", labelKey: "rebase" },
     ]);
+    expect(presentation.tooltipKey).toBe("merge");
     expect(presentation.autoMergeAction).toBeNull();
   });
 
@@ -50,9 +53,11 @@ describe("PR-level action presentation", () => {
 
     expect(presentation.directMergeAvailable).toBe(false);
     expect(presentation.label).toBe("Checks pending");
+    expect(presentation.labelKey).toBe("checksPending");
     expect(presentation.autoMergeAction).toEqual({
       kind: "enable",
       label: "Enable auto-merge",
+      labelKey: "enableAutoMerge",
     });
   });
 
@@ -73,6 +78,7 @@ describe("PR-level action presentation", () => {
     expect(presentation.autoMergeAction).toEqual({
       kind: "disable",
       label: "Disable auto-merge",
+      labelKey: "disableAutoMerge",
     });
   });
 
@@ -134,10 +140,12 @@ describe("PR-level action presentation", () => {
     expect(waiting.autoMergeAction).toEqual({
       kind: "enable",
       label: "Merge when ready",
+      labelKey: "mergeWhenReady",
     });
     expect(queued.autoMergeAction).toEqual({
       kind: "disable",
       label: "Remove from merge queue",
+      labelKey: "removeFromMergeQueue",
     });
   });
 
