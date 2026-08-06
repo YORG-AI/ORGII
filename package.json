@@ -1,6 +1,6 @@
 {
   "name": "orgii",
-  "version": "1.1.24+journey.20260731",
+  "version": "1.1.24+journey.20260806.1",
   "description": "Self-evolving agentic development framework — ORGII desktop app",
   "main": "src/index.tsx",
   "scripts": {

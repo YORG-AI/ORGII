@@ -1,6 +1,6 @@
 //! Core session execution — spawns CLI agent, parses stdout, broadcasts events.
 
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -135,8 +135,9 @@ fn opencode_zenmux_model_id(session_model: Option<&str>, selected_key: &ModelKey
 }
 
 /// Append the user-configured supplier slug (`model:slug`) to the resolved
-/// model id so aggregator routing pins the upstream supplier. An explicit
-/// `:` suffix on the model (caller-provided slug) wins and is left untouched.
+/// model id so aggregator routing pins the upstream supplier. Bare
+/// `google-vertex` remains persisted-only until its exact wire identifier is
+/// verified. An explicit `:` suffix on the model (caller-provided slug) wins.
 fn apply_model_slug(model: &str, selected_key: &ModelKey) -> String {
     if model.contains(':') {
         return model.to_string();
@@ -144,7 +145,7 @@ fn apply_model_slug(model: &str, selected_key: &ModelKey) -> String {
     selected_key
         .model_slugs
         .iter()
-        .find(|slug| slug.model == model)
+        .find(|slug| slug.model == model && slug.slug != "google-vertex")
         .map(|slug| format!("{}:{}", model, slug.slug))
         .unwrap_or_else(|| model.to_string())
 }
@@ -413,7 +414,10 @@ pub async fn run_session(
         } else {
             None
         };
-    let additional_dirs: &[String] = session.additional_directories.as_deref().unwrap_or(&[]);
+    let session_additional_dirs = session.additional_directories.as_deref().unwrap_or(&[]);
+    let global_paths = agent_core::security::global_path_exemptions::global_paths();
+    let effective_additional_dirs =
+        effective_additional_dirs(session_additional_dirs, &global_paths);
     let launch_profile = resolve_cli_launch_profile(&agent)?;
     let mut cmd_parts = build_command_with_launch_profile(CliCommandBuildRequest {
         agent: &agent,
@@ -425,7 +429,7 @@ pub async fn run_session(
         endpoint: endpoint_for_cli,
         mode,
         repo_path,
-        additional_dirs,
+        additional_dirs: &effective_additional_dirs,
     });
 
     if matches!(agent, ModelType::Codex) && session.key_source == KeySource::HostedKey {
@@ -1838,6 +1842,32 @@ pub async fn run_session(
     Ok(())
 }
 
+/// Merge durable global grants into one launch-only `--add-dir` list without
+/// changing the session's persisted additional directories.
+pub(super) fn effective_additional_dirs(
+    session_dirs: &[String],
+    global_paths: &[PathBuf],
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut effective = Vec::with_capacity(session_dirs.len() + global_paths.len());
+
+    for path in session_dirs
+        .iter()
+        .map(PathBuf::from)
+        .chain(global_paths.iter().cloned())
+    {
+        if path.as_os_str().is_empty() {
+            continue;
+        }
+        let canonical = path.canonicalize().unwrap_or(path);
+        if seen.insert(canonical.clone()) {
+            effective.push(canonical.to_string_lossy().into_owned());
+        }
+    }
+
+    effective
+}
+
 /// Resolve the built-in SDE agent definition and return just its skills
 /// config — the CLI runner's only consumer of `ResolvedAgent` (see §11.4
 /// row 17). Failures fall back to the default skills shape (enabled,
@@ -1954,9 +1984,15 @@ mod tests {
             "deepseek/deepseek-v4-flash:deepseek"
         );
         // Unconfigured model passes through untouched.
-        assert_eq!(apply_model_slug("anthropic/claude-sonnet-4.5", &key), "anthropic/claude-sonnet-4.5");
+        assert_eq!(
+            apply_model_slug("anthropic/claude-sonnet-4.5", &key),
+            "anthropic/claude-sonnet-4.5"
+        );
         // Model without a slug entry stays bare.
-        assert_eq!(apply_model_slug("deepseek/deepseek-chat", &key), "deepseek/deepseek-chat");
+        assert_eq!(
+            apply_model_slug("deepseek/deepseek-chat", &key),
+            "deepseek/deepseek-chat"
+        );
     }
 
     #[test]

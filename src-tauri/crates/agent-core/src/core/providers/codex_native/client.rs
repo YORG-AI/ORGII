@@ -38,6 +38,7 @@ pub struct CodexNativeClient {
     pub(super) client: Client,
     pub(super) config: ProviderConfig,
     pub(super) default_model: String,
+    pub(super) account_id: Option<String>,
     pub(super) refresh_config: Option<CodexOAuthRefreshConfig>,
     auth_state: RwLock<CodexAuthState>,
 }
@@ -52,6 +53,16 @@ impl CodexNativeClient {
         default_model: String,
         refresh_config: Option<CodexOAuthRefreshConfig>,
     ) -> Self {
+        let account_id = refresh_config.as_ref().map(|config| config.key_id.clone());
+        Self::new_with_account_and_refresh(config, default_model, account_id, refresh_config)
+    }
+
+    pub fn new_with_account_and_refresh(
+        config: ProviderConfig,
+        default_model: String,
+        account_id: Option<String>,
+        refresh_config: Option<CodexOAuthRefreshConfig>,
+    ) -> Self {
         let client = build_http_client(std::time::Duration::from_secs(300));
         let auth_state = RwLock::new(CodexAuthState {
             access_token: config.api_key.clone(),
@@ -62,6 +73,7 @@ impl CodexNativeClient {
             client,
             config,
             default_model,
+            account_id,
             refresh_config,
             auth_state,
         }
@@ -135,14 +147,17 @@ impl CodexNativeClient {
         tools: Option<&[Value]>,
         model: &str,
         stream: bool,
+        account_id: Option<&str>,
     ) -> ResponsesRequest {
         let (instructions, input) = Self::convert_messages(messages);
         let (converted_tools, tool_choice) = convert_tools_with_choice(tools);
         let parsed = crate::providers::thinking_mode::parse_model_variant(
             Self::strip_codex_provider_prefix(model),
         );
-        let reasoning = Self::codex_reasoning_effort(parsed.level)
-            .map(|effort| serde_json::json!({ "effort": effort }));
+        let reasoning = Self::codex_reasoning_effort(
+            crate::providers::thinking_mode::resolve_effective_reasoning_effort(model, account_id),
+        )
+        .map(|effort| serde_json::json!({ "effort": effort }));
         let service_tier = (parsed.fast
             && Self::codex_supports_fast_service_tier(&parsed.base_model))
         .then(|| CODEX_FAST_SERVICE_TIER.to_string());
@@ -255,6 +270,7 @@ mod tests {
             None,
             "gpt-5.5-medium-fast",
             true,
+            None,
         );
 
         assert_eq!(req.model, "gpt-5.5");
@@ -269,8 +285,13 @@ mod tests {
 
     #[test]
     fn build_responses_request_keeps_provider_native_suffixes() {
-        let req =
-            CodexNativeClient::build_responses_request(&[], None, "gpt-5.4-mini-medium-fast", true);
+        let req = CodexNativeClient::build_responses_request(
+            &[],
+            None,
+            "gpt-5.4-mini-medium-fast",
+            true,
+            None,
+        );
 
         assert_eq!(req.model, "gpt-5.4-mini");
         assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "medium");
@@ -279,8 +300,13 @@ mod tests {
 
     #[test]
     fn build_responses_request_strips_openai_provider_prefix_for_codex_backend() {
-        let req =
-            CodexNativeClient::build_responses_request(&[], None, "openai/gpt-5.4-mini", true);
+        let req = CodexNativeClient::build_responses_request(
+            &[],
+            None,
+            "openai/gpt-5.4-mini",
+            true,
+            None,
+        );
 
         assert_eq!(req.model, "gpt-5.4-mini");
         assert!(req.reasoning.is_none());
@@ -294,6 +320,7 @@ mod tests {
             None,
             "openai/gpt-5.5-medium-fast",
             true,
+            None,
         );
 
         assert_eq!(req.model, "gpt-5.5");
@@ -303,7 +330,8 @@ mod tests {
 
     #[test]
     fn build_responses_request_serializes_reasoning_and_service_tier() {
-        let req = CodexNativeClient::build_responses_request(&[], None, "gpt-5.5-xhigh-fast", true);
+        let req =
+            CodexNativeClient::build_responses_request(&[], None, "gpt-5.5-xhigh-fast", true, None);
 
         let value = serde_json::to_value(req).expect("serialize request");
         assert_eq!(value["model"], "gpt-5.5");

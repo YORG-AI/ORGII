@@ -255,7 +255,7 @@ fn project_env_omits_additional_dirs_when_empty() {
     // otherwise the prompt cache ping-pongs and every turn
     // pays cold-cache cost.
     let tmp = std::env::temp_dir();
-    let out = build_project_environment(&tmp, &[]);
+    let out = build_project_environment(&tmp, &[], &[]);
     assert!(
         !out.contains("Additional working directories"),
         "empty additional_dirs must not emit the block: {out}"
@@ -271,13 +271,36 @@ fn project_env_lists_each_additional_dir() {
     let a = std::path::PathBuf::from("/tmp/pr-f-alpha");
     let b = std::path::PathBuf::from("/tmp/pr-f-beta");
     let dirs: Vec<&std::path::Path> = vec![a.as_path(), b.as_path()];
-    let out = build_project_environment(&tmp, &dirs);
+    let out = build_project_environment(&tmp, &dirs, &[]);
     assert!(
         out.contains("- Additional working directories:"),
         "header must be present: {out}"
     );
     assert!(out.contains("/tmp/pr-f-alpha"), "first path missing: {out}");
     assert!(out.contains("/tmp/pr-f-beta"), "second path missing: {out}");
+}
+
+#[test]
+fn project_env_omits_global_paths_when_empty() {
+    let tmp = std::env::temp_dir();
+    let out = build_project_environment(&tmp, &[], &[]);
+    assert!(
+        !out.contains("Globally permitted paths"),
+        "empty global grants must not emit a block: {out}"
+    );
+}
+
+#[test]
+fn project_env_lists_global_paths_separately_from_session_dirs() {
+    let tmp = std::env::temp_dir();
+    let session_path = std::path::PathBuf::from("/tmp/pr-f-session-extra");
+    let global_path = std::path::PathBuf::from("/tmp/pr-f-global-grant");
+    let out = build_project_environment(&tmp, &[session_path.as_path()], &[global_path]);
+
+    assert!(out.contains("- Additional working directories:"));
+    assert!(out.contains("- Globally permitted paths:"));
+    assert!(out.contains("/tmp/pr-f-global-grant"));
+    assert!(out.contains("workspace-external paths authorized for structured tools"));
 }
 
 #[test]

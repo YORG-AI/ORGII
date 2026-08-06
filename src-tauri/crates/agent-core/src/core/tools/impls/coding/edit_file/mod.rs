@@ -14,6 +14,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::security::SecurityPolicy;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, Tool, ToolError};
@@ -66,6 +67,7 @@ pub struct EditTool {
     /// Live session workspace — merged with the static extras at call
     /// time so `/add-dir` mutations land without registry rebuilds.
     workspace_state: Option<WorkspaceStateHandle>,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl EditTool {
@@ -88,6 +90,11 @@ impl EditTool {
     /// tool registry.
     pub fn with_workspace_state(mut self, state: WorkspaceStateHandle) -> Self {
         self.workspace_state = Some(state);
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
         self
     }
 }
@@ -182,13 +189,19 @@ impl Tool for EditTool {
         } else {
             None
         };
-        let resolved = crate::tool_infra::file::resolve_path_with_extras(
+        let resolved = crate::security::global_path_exemptions::authorize_path(
             &file_path,
             allowed_dir.as_deref(),
             &extras,
+            self.security_policy.as_deref(),
         )
         .map_err(|err| {
-            if err.contains("outside the allowed directory") || err.contains("null byte") {
+            if err.contains("outside the allowed directory")
+                || err.contains("null byte")
+                || err.contains("forbidden location")
+                || err.contains("Path traversal")
+                || err.contains("URL-encoded path traversal")
+            {
                 ToolError::PermissionDenied(err)
             } else {
                 ToolError::ExecutionFailed(err)

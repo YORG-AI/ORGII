@@ -4,6 +4,7 @@ use std::sync::Arc;
 use serde_json::json;
 
 use super::*;
+use crate::security::{AutonomyLevel, CommandRiskRules, SecurityPolicy};
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::traits::Tool;
 
@@ -44,6 +45,50 @@ fn manage_code_map_schema_exposes_lifecycle_actions() {
         .get("required")
         .and_then(|value| value.as_array())
         .is_some_and(|required| required.iter().any(|value| value == "action")));
+}
+
+#[tokio::test]
+async fn explicit_relative_workspace_uses_selected_workspace_base_under_open_policy() {
+    let workspace = tempfile::tempdir().unwrap();
+    let selected = workspace.path().join("selected");
+    std::fs::create_dir(&selected).unwrap();
+    let workspace_state = Arc::new(parking_lot::RwLock::new(SessionWorkspace::new(
+        workspace.path().to_path_buf(),
+    )));
+    let tool = ManageCodeMapTool::new(workspace.path().to_path_buf(), None, workspace_state);
+
+    assert_eq!(
+        tool.authorize_workspace_path(PathBuf::from("selected"))
+            .await
+            .unwrap(),
+        selected.canonicalize().unwrap()
+    );
+}
+
+#[tokio::test]
+async fn explicit_forbidden_workspace_is_denied_under_open_policy() {
+    let workspace = tempfile::tempdir().unwrap();
+    let forbidden = tempfile::tempdir().unwrap();
+    let workspace_state = Arc::new(parking_lot::RwLock::new(SessionWorkspace::new(
+        workspace.path().to_path_buf(),
+    )));
+    let policy = Arc::new(SecurityPolicy::new(
+        AutonomyLevel::Full,
+        false,
+        Vec::new(),
+        Vec::new(),
+        vec![forbidden.path().to_string_lossy().into_owned()],
+        false,
+        CommandRiskRules::default(),
+    ));
+    let tool = ManageCodeMapTool::new(workspace.path().to_path_buf(), None, workspace_state)
+        .with_security_policy(policy);
+
+    assert!(matches!(
+        tool.authorize_workspace_path(forbidden.path().to_path_buf())
+            .await,
+        Err(ToolError::PermissionDenied(_))
+    ));
 }
 
 #[tokio::test]

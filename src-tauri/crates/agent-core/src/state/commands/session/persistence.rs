@@ -44,10 +44,98 @@ pub async fn agent_list_all_sessions() -> Result<Vec<serde_json::Value>, String>
     .await
 }
 
-/// Delete a session and all related data.
+/// Delete a session and all related data, including external relationships.
 #[tauri::command]
-pub async fn agent_delete_session(session_id: String) -> Result<(), String> {
-    shared::spawn_blocking_cmd(move || session_persistence::delete_session(&session_id)).await
+pub async fn agent_delete_session(
+    state: tauri::State<'_, AgentAppState>,
+    session_id: String,
+) -> Result<(), String> {
+    delete_session_with_relationship_cleanup(&state, &session_id).await
+}
+
+/// Remove the Work Item relation while preserving the session and Project
+/// context. This is intentionally separate from deletion so UI callers do
+/// not need to reconstruct a project-only link after an unlink action.
+#[tauri::command]
+pub async fn agent_unlink_session_from_work_item(session_id: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || unlink_session_from_work_item(&session_id))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+/// Unlink a session from its Work Item without dropping its project context.
+///
+/// The Work Item is updated first. If its atomic write fails, the canonical
+/// SQL relation is deliberately left intact so callers can retry without
+/// losing the only pointer to the linked Work Item.
+pub fn unlink_session_from_work_item(session_id: &str) -> Result<bool, String> {
+    let session = session_persistence::get_session(session_id).map_err(|err| err.to_string())?;
+    let Some(session) = session else {
+        return Ok(false);
+    };
+
+    let work_item_id = session
+        .work_item_id
+        .as_deref()
+        .filter(|id| !id.trim().is_empty());
+    let Some(work_item_id) = work_item_id else {
+        // Repair legacy project-only rows that stored an empty string instead
+        // of SQL NULL without manufacturing a Work Item mutation.
+        return session_persistence::clear_work_item_link(session_id)
+            .map_err(|err| err.to_string());
+    };
+    let project_slug = session
+        .project_slug
+        .as_deref()
+        .filter(|slug| !slug.trim().is_empty())
+        .ok_or_else(|| {
+            format!("Session {session_id} has work_item_id {work_item_id} but no project_slug")
+        })?;
+
+    let removed_link =
+        remove_linked_session_from_work_item(project_slug, work_item_id, session_id)?;
+    match session_persistence::clear_work_item_link(session_id) {
+        Ok(true) => Ok(true),
+        Ok(false) => {
+            restore_linked_session_on_work_item(project_slug, work_item_id, removed_link)?;
+            Err(format!(
+                "Session not found while unlinking from Work Item: {session_id}"
+            ))
+        }
+        Err(err) => {
+            restore_linked_session_on_work_item(project_slug, work_item_id, removed_link)?;
+            Err(err.to_string())
+        }
+    }
+}
+
+/// Perform the ordered teardown used by the user-visible delete command.
+///
+/// Relationship cleanup is fail-closed: a Work Item sync failure prevents
+/// binding/runtime/cascade cleanup, leaving the canonical session record
+/// available for an operator or retry to repair.
+pub async fn delete_session_with_relationship_cleanup(
+    state: &AgentAppState,
+    session_id: &str,
+) -> Result<(), String> {
+    let session_id_owned = session_id.to_string();
+    tokio::task::spawn_blocking(move || unlink_session_from_work_item(&session_id_owned))
+        .await
+        .map_err(|err| format!("Session unlink task failed: {err}"))??;
+
+    state
+        .gateway_bindings
+        .clear_by_target(session_id)
+        .await
+        .map_err(|err| format!("Failed to clear Gateway bindings for {session_id}: {err}"))?;
+
+    state
+        .cancel_session(session_id, CancelReason::ProgrammaticShutdown)
+        .await;
+    state.remove_session(session_id).await;
+
+    let session_id_owned = session_id.to_string();
+    shared::spawn_blocking_cmd(move || session_persistence::delete_session(&session_id_owned)).await
 }
 
 /// Clear all messages for a session.
@@ -345,16 +433,45 @@ fn remove_linked_session_from_work_item(
     project_slug: &str,
     work_item_id: &str,
     session_id: &str,
+) -> Result<LinkedSession, String> {
+    let removed = project_management::projects::io::update_work_item_atomic(
+        project_slug,
+        work_item_id,
+        |frontmatter, _body| {
+            let removed = frontmatter
+                .linked_sessions
+                .iter()
+                .position(|linked| linked.session_id == session_id)
+                .map(|index| frontmatter.linked_sessions.remove(index));
+            if removed.is_some() {
+                frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
+            }
+            Ok(removed)
+        },
+    )?;
+
+    removed.ok_or_else(|| {
+        format!(
+            "Session {session_id} references Work Item {work_item_id} in project {project_slug}, but that Work Item does not link back to the session"
+        )
+    })
+}
+
+fn restore_linked_session_on_work_item(
+    project_slug: &str,
+    work_item_id: &str,
+    removed_link: LinkedSession,
 ) -> Result<(), String> {
     project_management::projects::io::update_work_item_atomic(
         project_slug,
         work_item_id,
         |frontmatter, _body| {
-            let original_len = frontmatter.linked_sessions.len();
-            frontmatter
+            if !frontmatter
                 .linked_sessions
-                .retain(|linked| linked.session_id != session_id);
-            if frontmatter.linked_sessions.len() != original_len {
+                .iter()
+                .any(|linked| linked.session_id == removed_link.session_id)
+            {
+                frontmatter.linked_sessions.push(removed_link);
                 frontmatter.updated_at = chrono::Utc::now().to_rfc3339();
             }
             Ok(())
@@ -462,5 +579,65 @@ fn parse_agent_role(raw: Option<&str>) -> AgentRole {
         "custom" => AgentRole::Custom,
         "sub_agent" => AgentRole::SubAgent,
         _ => AgentRole::Coding,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gateway::SessionKey;
+    use crate::session::persistence::UnifiedSessionRecord;
+    use core_types::key_source::KeySource;
+    use test_helpers::test_env;
+
+    fn seed_incomplete_session(session_id: &str) {
+        let conn = database::db::get_connection().expect("test sqlite connection");
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        session_persistence::init(&conn).expect("session persistence migrations");
+        session_persistence::upsert_session(&UnifiedSessionRecord {
+            session_id: session_id.to_string(),
+            name: "partially linked session".to_string(),
+            status: SessionStatus::Idle.as_str().to_string(),
+            created_at: "2026-08-05T00:00:00Z".to_string(),
+            updated_at: "2026-08-05T00:00:00Z".to_string(),
+            session_type: session_persistence::session_type::GENERIC.to_string(),
+            key_source: KeySource::OwnKey,
+            project_slug: Some("missing-project".to_string()),
+            work_item_id: Some("WI-404".to_string()),
+            ..Default::default()
+        })
+        .expect("seed canonical session");
+    }
+
+    #[tokio::test]
+    async fn delete_fails_closed_before_clearing_bindings_for_partial_relation() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "sid-delete-fail-closed";
+        seed_incomplete_session(session_id);
+
+        let state = AgentAppState::new();
+        let binding_key = SessionKey("telegram:delete-fail-closed".to_string());
+        state
+            .gateway_bindings
+            .set(binding_key.clone(), session_id.to_string())
+            .await;
+
+        let err = delete_session_with_relationship_cleanup(&state, session_id)
+            .await
+            .expect_err("partial Work Item relation must stop deletion");
+        assert!(
+            !err.is_empty(),
+            "the incomplete external relation must surface an error"
+        );
+        assert!(
+            session_persistence::get_session(session_id)
+                .expect("read session")
+                .is_some(),
+            "hard cascade must not run after relationship cleanup fails"
+        );
+        assert!(
+            state.gateway_bindings.get(&binding_key).await.is_some(),
+            "binding cleanup must not run after relationship cleanup fails"
+        );
     }
 }

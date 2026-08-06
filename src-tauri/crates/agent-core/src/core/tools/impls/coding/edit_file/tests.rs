@@ -1,7 +1,43 @@
+use crate::security::{AutonomyLevel, CommandRiskRules, SecurityPolicy};
 use crate::tools::impls::coding::edit_file::{
     is_notebook_path,
     strategies::{levenshtein, replace},
+    EditTool,
 };
+use crate::tools::traits::{Tool, ToolError};
+use std::sync::Arc;
+
+#[tokio::test]
+async fn edit_file_rejects_policy_forbidden_path() {
+    let workspace = tempfile::tempdir().unwrap();
+    let forbidden = workspace.path().join("forbidden");
+    std::fs::create_dir_all(&forbidden).unwrap();
+    let policy = Arc::new(SecurityPolicy::new(
+        AutonomyLevel::Full,
+        true,
+        Vec::new(),
+        Vec::new(),
+        vec![forbidden.to_string_lossy().into_owned()],
+        false,
+        CommandRiskRules::default(),
+    ));
+    let tool = EditTool::new()
+        .with_workspace(workspace.path().to_path_buf())
+        .with_security_policy(policy);
+
+    let err = tool
+        .execute(
+            serde_json::json!({
+                "file_path": forbidden.join("blocked.txt").to_string_lossy(),
+                "content": "blocked",
+            }),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(matches!(err, ToolError::PermissionDenied(_)));
+}
 
 #[test]
 fn notebook_paths_are_rejected_by_plain_edit_tool() {

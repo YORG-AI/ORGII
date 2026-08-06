@@ -130,6 +130,7 @@ impl PromptSection for EnvironmentSection {
         Some(build_project_environment(
             ws.working_dir(),
             &additional_dirs,
+            &ctx.config.global_permitted_paths,
         ))
     }
 }

@@ -157,6 +157,8 @@ fn test_model_variant_info_to_variant_preserves_context_window() {
         reasoning: None,
         fast: false,
         context_window: Some(128_000),
+        context_window_override: None,
+        reasoning_effort_override: None,
     };
     assert_eq!(ModelVariant::from(with_ctx).context_window, Some(128_000));
 
@@ -166,6 +168,8 @@ fn test_model_variant_info_to_variant_preserves_context_window() {
         reasoning: None,
         fast: false,
         context_window: None,
+        context_window_override: None,
+        reasoning_effort_override: None,
     };
     assert_eq!(ModelVariant::from(without_ctx).context_window, None);
 
@@ -175,8 +179,58 @@ fn test_model_variant_info_to_variant_preserves_context_window() {
         reasoning: None,
         fast: false,
         context_window: Some(0),
+        context_window_override: None,
+        reasoning_effort_override: None,
     };
     assert_eq!(ModelVariant::from(zero_ctx).context_window, None);
+}
+
+#[test]
+fn runtime_settings_request_distinguishes_omitted_null_and_value() {
+    use crate::commands::crud::{RuntimeSettingPatch, UpdateModelRuntimeSettingsRequest};
+
+    let omitted: UpdateModelRuntimeSettingsRequest = serde_json::from_value(serde_json::json!({
+        "key_id": "key-1",
+        "model": "gpt-4o"
+    }))
+    .unwrap();
+    assert_eq!(
+        omitted.context_window_override,
+        RuntimeSettingPatch::Unchanged
+    );
+    assert_eq!(
+        omitted.reasoning_effort_override,
+        RuntimeSettingPatch::Unchanged
+    );
+
+    let cleared: UpdateModelRuntimeSettingsRequest = serde_json::from_value(serde_json::json!({
+        "key_id": "key-1",
+        "model": "gpt-4o",
+        "context_window_override": null,
+        "reasoning_effort_override": null
+    }))
+    .unwrap();
+    assert_eq!(cleared.context_window_override, RuntimeSettingPatch::Clear);
+    assert_eq!(
+        cleared.reasoning_effort_override,
+        RuntimeSettingPatch::Clear
+    );
+
+    let set: UpdateModelRuntimeSettingsRequest = serde_json::from_value(serde_json::json!({
+        "key_id": "key-1",
+        "model": "gpt-4o",
+        "context_window_override": 96000,
+        "reasoning_effort_override": "high"
+    }))
+    .unwrap();
+    assert_eq!(
+        set.context_window_override,
+        RuntimeSettingPatch::Set(96_000)
+    );
+    assert_eq!(
+        set.reasoning_effort_override,
+        RuntimeSettingPatch::Set(crate::key_store::ReasoningEffort::High)
+    );
 }
 
 #[test]
@@ -198,6 +252,8 @@ fn claude_native_key_info_exposes_output_config_effort_variants() {
         reasoning: Some("always_on".to_string()),
         fast: false,
         context_window: Some(200_000),
+        context_window_override: None,
+        reasoning_effort_override: None,
     }];
 
     let info = KeyInfo::from(key);
@@ -324,6 +380,8 @@ fn relay_claude_code_key_gets_no_synthesized_effort_variants() {
         reasoning: None,
         fast: false,
         context_window: Some(128_000),
+        context_window_override: None,
+        reasoning_effort_override: None,
     }];
 
     let info = KeyInfo::from(key);
@@ -347,6 +405,8 @@ fn third_party_anthropic_protocol_key_keeps_record_rows_untouched() {
         reasoning: None,
         fast: false,
         context_window: Some(131_072),
+        context_window_override: None,
+        reasoning_effort_override: None,
     }];
 
     let info = KeyInfo::from(key);

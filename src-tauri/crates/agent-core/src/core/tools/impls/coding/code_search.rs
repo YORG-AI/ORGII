@@ -13,6 +13,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex as TokioMutex;
 
 use super::action_router::ActionRouter;
+use crate::security::SecurityPolicy;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{optional_int, optional_string, required_string, Tool, ToolError};
@@ -58,6 +59,7 @@ pub struct SearchTool {
     restrict_to_workspace: bool,
     /// Optional router for Workstation mode.
     router: Option<ActionRouter>,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl SearchTool {
@@ -68,6 +70,7 @@ impl SearchTool {
             workspace_state: None,
             restrict_to_workspace: false,
             router: None,
+            security_policy: None,
         }
     }
 
@@ -81,6 +84,11 @@ impl SearchTool {
         self
     }
 
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
+        self
+    }
+
     pub fn with_workspace_state(
         mut self,
         workspace_state: Arc<parking_lot::RwLock<SessionWorkspace>>,
@@ -91,10 +99,10 @@ impl SearchTool {
 
     /// Resolve repo paths: explicit `repo_paths`/`repo_path` > active IDE repo > current workspace.
     ///
-    /// Explicit paths are validated against the live session workspace only
-    /// when the agent policy sets `workspace_only` (threaded via
-    /// [`Self::with_restrict_to_workspace`]). Search is read-only; under the
-    /// default-open policy any local path is fair game, same as `read_file`.
+    /// Every selected root is validated against the policy's forbidden paths.
+    /// Workspace/global containment applies only in restricted mode; under the
+    /// default-open policy this read-only tool may search any non-forbidden
+    /// local path, same as `read_file`.
     async fn resolve_repos(&self, params: &Value) -> Result<Vec<PathBuf>, ToolError> {
         let explicit_repo_path = optional_string(params, "repo_path");
         let explicit_repo_paths = optional_string_array(params, "repo_paths")?;
@@ -135,20 +143,48 @@ impl SearchTool {
             })]
         };
 
-        if self.restrict_to_workspace {
-            if let Some(ref workspace) = self.workspace_state {
-                let extra: Vec<PathBuf> =
-                    self.active_repo.lock().await.clone().into_iter().collect();
-                for path in &paths {
-                    workspace
-                        .read()
-                        .is_path_allowed(path, &extra)
-                        .map_err(ToolError::PermissionDenied)?;
-                }
-            }
-        }
+        let workspace_only = self
+            .security_policy
+            .as_ref()
+            .is_some_and(|policy| policy.workspace_only);
+        let containment_required = self.restrict_to_workspace || workspace_only;
+        let current_workspace = self
+            .workspace_state
+            .as_ref()
+            .map(|workspace| workspace.read().working_dir().to_path_buf());
+        let mut extra = self
+            .workspace_state
+            .as_ref()
+            .map(|workspace| workspace.read().effective_roots())
+            .unwrap_or_default();
+        extra.extend(self.active_repo.lock().await.clone());
 
-        Ok(paths)
+        paths
+            .into_iter()
+            .map(|path| {
+                crate::security::global_path_exemptions::authorize_path(
+                    &path.to_string_lossy(),
+                    containment_required
+                        .then_some(current_workspace.as_deref())
+                        .flatten(),
+                    &extra,
+                    self.security_policy.as_deref(),
+                )
+                .map_err(|err| {
+                    if err.contains("outside the allowed directory")
+                        || err.contains("null byte")
+                        || err.contains("forbidden location")
+                        || err.contains("Path traversal")
+                        || err.contains("URL-encoded path traversal")
+                    {
+                        ToolError::PermissionDenied(err)
+                    } else {
+                        ToolError::ExecutionFailed(err)
+                    }
+                })
+                .map(|authorized| authorized.canonicalize().unwrap_or(authorized))
+            })
+            .collect()
     }
 }
 

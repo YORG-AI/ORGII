@@ -507,6 +507,32 @@ pub struct ModelVariant {
     /// `None` when the provider did not report one (official OpenAI/Anthropic).
     #[serde(default)]
     pub context_window: Option<u64>,
+    /// User-selected context window. This is intentionally distinct from the
+    /// provider-reported `context_window` above so discovery refreshes cannot
+    /// overwrite an explicit runtime setting.
+    #[serde(default)]
+    pub context_window_override: Option<u64>,
+    /// User-selected reasoning effort for this model (Auto when absent).
+    /// This must not be used for provider capability observations; those stay
+    /// in `reasoning`.
+    #[serde(default)]
+    pub reasoning_effort_override: Option<ReasoningEffort>,
+}
+
+/// Canonical user-selectable effort used by the Key Vault runtime setting.
+/// `Auto` is deliberately not representable: clearing the optional field is
+/// the only persisted representation of provider/model default behaviour.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffort {
+    None,
+    Baseline,
+    Low,
+    Medium,
+    High,
+    ExtraHigh,
+    Max,
+    Ultracode,
 }
 
 /// A user-configured ZenMux/aggregator supplier slug pin for one model.
@@ -520,6 +546,22 @@ pub struct ModelSlug {
     pub model: String,
     /// Supplier slug (e.g. `deepseek`).
     pub slug: String,
+}
+
+impl ModelSlug {
+    pub const SUPPORTED_SLUGS: [&str; 7] = [
+        "amazon-bedrock",
+        "google-vertex",
+        "anthropic",
+        "openai",
+        "bigmodel",
+        "deepseek",
+        "x-ai",
+    ];
+
+    pub fn is_supported_slug(slug: &str) -> bool {
+        Self::SUPPORTED_SLUGS.contains(&slug.trim())
+    }
 }
 
 /// A user-chosen default variant for one base model family. `base_model` is

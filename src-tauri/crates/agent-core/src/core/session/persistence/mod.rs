@@ -12,7 +12,9 @@
 
 mod compaction_lineage;
 mod crud;
+mod journey_metadata;
 mod messages;
+mod work_item_links;
 
 // Re-exports kept at the `session::persistence::` surface — these are
 // the items that real call sites actually name through the
@@ -25,13 +27,18 @@ mod messages;
 pub use crud::{
     backfill_agent_definition_id, clear_worktree_metadata, delete_session,
     finalize_terminal_turn_status, get_child_sessions, get_parent_session, get_session,
-    list_sessions, load_workspace, mark_stale_running_sessions_abandoned,
-    reconcile_sessions_with_terminal_turn_markers, save_workspace, save_worktree_metadata,
-    session_type, update_account_id, update_agent_exec_mode, update_draft_text, update_model,
-    update_model_and_account, update_name, update_org_member_id, update_pinned,
-    update_project_link, update_reply_target_event_id, update_status, update_work_item_link,
-    update_worktree_merge_status, upsert_session, UnifiedSessionRecord,
+    list_sessions, load_workspace,
+    mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
+    save_workspace, save_worktree_metadata, session_type, update_account_id,
+    update_agent_exec_mode, update_draft_text, update_model, update_model_and_account, update_name,
+    update_org_member_id, update_pinned, update_project_link, update_reply_target_event_id,
+    update_status, update_work_item_link, update_worktree_merge_status, upsert_session,
+    UnifiedSessionRecord,
 };
+pub use journey_metadata::{
+    get_explicit_journey_metadata, upsert_explicit_journey_metadata, ExplicitJourneyMetadata,
+};
+pub use work_item_links::clear_work_item_link;
 
 pub use compaction_lineage::{
     ensure_schema as ensure_compaction_lineage_schema, get_compaction_boundary,
@@ -64,6 +71,8 @@ pub fn init(conn: &Connection) -> SqliteResult<()> {
     messages::ensure_session_memory_index_schema(conn)?;
 
     messages::ensure_context_metadata_schema(conn)?;
+    crate::security::global_path_exemptions::init_schema(conn)?;
+    crate::integrations::gateway::browse::init_schema(conn)?;
     compaction_lineage::ensure_schema(conn)?;
 
     Ok(())

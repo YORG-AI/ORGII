@@ -64,7 +64,7 @@ pub fn read_all_projects_scoped(org_id: Option<&str>) -> Result<Vec<ProjectData>
 
     if let Some(org_id) = org_id {
         let mut stmt = map_db(connection.prepare(
-            "SELECT id, name, slug, org_id, status, priority, health, lead, description,
+            "SELECT id, name, slug, org_id, workspace_id, status, priority, health, lead, description,
                     short_id_prefix, next_work_item_id, start_date, target_date,
                     linked_repos_json, agent_defaults_json, created_at, updated_at
              FROM projects
@@ -79,7 +79,7 @@ pub fn read_all_projects_scoped(org_id: Option<&str>) -> Result<Vec<ProjectData>
     }
 
     let mut stmt = map_db(connection.prepare(
-        "SELECT id, name, slug, org_id, status, priority, health, lead, description,
+        "SELECT id, name, slug, org_id, workspace_id, status, priority, health, lead, description,
                 short_id_prefix, next_work_item_id, start_date, target_date,
                 linked_repos_json, agent_defaults_json, created_at, updated_at
          FROM projects
@@ -103,7 +103,7 @@ pub fn read_project_scoped(slug: &str, org_id: Option<&str>) -> Result<ProjectDa
         map_db(
             connection
                 .query_row(
-                    "SELECT id, name, slug, org_id, status, priority, health, lead, description,
+                    "SELECT id, name, slug, org_id, workspace_id, status, priority, health, lead, description,
                             short_id_prefix, next_work_item_id, start_date, target_date,
                             linked_repos_json, agent_defaults_json, created_at, updated_at
                      FROM projects WHERE slug = ?1 AND org_id = ?2",
@@ -116,7 +116,7 @@ pub fn read_project_scoped(slug: &str, org_id: Option<&str>) -> Result<ProjectDa
         map_db(
             connection
                 .query_row(
-                    "SELECT id, name, slug, org_id, status, priority, health, lead, description,
+                    "SELECT id, name, slug, org_id, workspace_id, status, priority, health, lead, description,
                             short_id_prefix, next_work_item_id, start_date, target_date,
                             linked_repos_json, agent_defaults_json, created_at, updated_at
                      FROM projects WHERE slug = ?1",
@@ -188,18 +188,19 @@ pub fn write_project(
 
     map_db(connection.execute(
         "INSERT INTO projects (
-            id, name, slug, org_id, status, priority, health, lead, description,
+            id, name, slug, org_id, workspace_id, status, priority, health, lead, description,
             short_id_prefix, next_work_item_id, start_date, target_date,
             linked_repos_json, agent_defaults_json, created_at, updated_at
          ) VALUES (
-            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
-            ?10, ?11, ?12, ?13,
-            ?14, ?15, ?16, ?17
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+            ?11, ?12, ?13, ?14,
+            ?15, ?16, ?17, ?18
          )
          ON CONFLICT(id) DO UPDATE SET
             name = excluded.name,
             slug = excluded.slug,
             org_id = excluded.org_id,
+            workspace_id = excluded.workspace_id,
             status = excluded.status,
             priority = excluded.priority,
             health = excluded.health,
@@ -217,6 +218,7 @@ pub fn write_project(
             next_meta.name,
             slug,
             next_meta.org_id,
+            next_meta.workspace_id,
             next_meta.status,
             next_meta.priority,
             next_meta.health,
@@ -258,19 +260,20 @@ fn row_to_project_data(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectData>
     let name: String = row.get(1)?;
     let slug: String = row.get(2)?;
     let org_id: String = row.get(3)?;
-    let status: String = row.get(4)?;
-    let priority: String = row.get(5)?;
-    let health: String = row.get(6)?;
-    let lead: Option<String> = row.get(7)?;
-    let description: String = row.get::<_, Option<String>>(8)?.unwrap_or_default();
-    let short_id_prefix: String = row.get(9)?;
-    let next_work_item_id: i64 = row.get(10)?;
-    let start_date: Option<String> = row.get(11)?;
-    let target_date: Option<String> = row.get(12)?;
-    let linked_repos_json: String = row.get(13)?;
-    let agent_defaults_json: Option<String> = row.get(14)?;
-    let created_at_ms: i64 = row.get(15)?;
-    let updated_at_ms: i64 = row.get(16)?;
+    let workspace_id: Option<String> = row.get(4)?;
+    let status: String = row.get(5)?;
+    let priority: String = row.get(6)?;
+    let health: String = row.get(7)?;
+    let lead: Option<String> = row.get(8)?;
+    let description: String = row.get::<_, Option<String>>(9)?.unwrap_or_default();
+    let short_id_prefix: String = row.get(10)?;
+    let next_work_item_id: i64 = row.get(11)?;
+    let start_date: Option<String> = row.get(12)?;
+    let target_date: Option<String> = row.get(13)?;
+    let linked_repos_json: String = row.get(14)?;
+    let agent_defaults_json: Option<String> = row.get(15)?;
+    let created_at_ms: i64 = row.get(16)?;
+    let updated_at_ms: i64 = row.get(17)?;
 
     // `linked_repos_json` is a DB-stored JSON array of repo paths. Silent
     // empty fallback would make a project's repo links disappear from the
@@ -313,6 +316,7 @@ fn row_to_project_data(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectData>
         id,
         name,
         org_id,
+        workspace_id,
         status,
         priority,
         health,
@@ -347,6 +351,7 @@ mod tests {
             id: meta_id.to_string(),
             name: name.to_string(),
             org_id: "personal-org".to_string(),
+            workspace_id: None,
             status: "active".to_string(),
             priority: "none".to_string(),
             health: "no_updates".to_string(),
@@ -375,10 +380,62 @@ mod tests {
         let back = read_project("project-one").expect("read");
         assert_eq!(back.meta.id, "s1");
         assert_eq!(back.meta.name, "Project One");
+        assert_eq!(back.meta.workspace_id, None);
         assert_eq!(back.description, "Hello world");
         assert_eq!(back.meta.linked_repos, vec!["github.com/example/repo"]);
         // Auto-derived prefix from name "Project One" → "STO".
         assert_eq!(back.meta.work_item_prefix, "STO");
+    }
+
+    #[test]
+    fn workspace_id_round_trips_without_repo_inference() {
+        let _sandbox = test_env::sandbox();
+        let (slug, mut meta) = fixture(
+            "workspace-project",
+            "Workspace Project",
+            "workspace-project",
+        );
+        meta.workspace_id = Some("workspace-explicit".to_string());
+        write_project(&slug, &meta, "", true).expect("write");
+
+        let back = read_project(&slug).expect("read");
+        assert_eq!(
+            back.meta.workspace_id.as_deref(),
+            Some("workspace-explicit")
+        );
+    }
+
+    #[test]
+    fn workspace_id_survives_unrelated_edits_and_can_be_explicitly_unlinked() {
+        let _sandbox = test_env::sandbox();
+        let (slug, mut meta) = fixture(
+            "workspace-project",
+            "Workspace Project",
+            "workspace-project",
+        );
+        meta.workspace_id = Some("workspace-explicit".to_string());
+        write_project(&slug, &meta, "", true).expect("create with workspace");
+
+        let mut unrelated_edit = read_project(&slug)
+            .expect("read before unrelated edit")
+            .meta;
+        unrelated_edit.priority = "high".to_string();
+        write_project(&slug, &unrelated_edit, "", false).expect("save unrelated edit");
+
+        let mut linked = read_project(&slug).expect("read preserved workspace").meta;
+        assert_eq!(linked.workspace_id.as_deref(), Some("workspace-explicit"));
+        assert_eq!(linked.priority, "high");
+
+        linked.workspace_id = None;
+        write_project(&slug, &linked, "", false).expect("explicit unlink");
+
+        assert_eq!(
+            read_project(&slug)
+                .expect("read explicitly unlinked project")
+                .meta
+                .workspace_id,
+            None
+        );
     }
 
     #[test]

@@ -3,8 +3,10 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use super::{allowed_roots, live_allowed_dir, map_err, WorkspaceStateHandle};
+use super::{allowed_roots, authorize_path, live_allowed_dir, map_err, WorkspaceStateHandle};
+use crate::security::SecurityPolicy;
 use crate::tools::impls::coding::action_router::ActionRouter;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{required_string, Tool, ToolError};
@@ -17,6 +19,7 @@ pub struct ListDirTool {
     additional_allowed_dirs: Vec<PathBuf>,
     workspace_state: Option<WorkspaceStateHandle>,
     router: Option<ActionRouter>,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl ListDirTool {
@@ -26,11 +29,17 @@ impl ListDirTool {
             additional_allowed_dirs: Vec::new(),
             workspace_state: None,
             router: None,
+            security_policy: None,
         }
     }
 
     pub fn with_router(mut self, router: ActionRouter) -> Self {
         self.router = Some(router);
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
         self
     }
 
@@ -103,13 +112,24 @@ impl Tool for ListDirTool {
     ) -> Result<String, ToolError> {
         let raw_path = required_string(&params, "path")?;
 
+        let allowed = self.current_allowed_dir();
+        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
+        let (authorized_path, authorized_roots) = authorize_path(
+            &raw_path,
+            allowed.as_deref(),
+            &extras,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_err)?;
+        let authorized_path = authorized_path.to_string_lossy().into_owned();
+
         if let Some(ref router) = self.router {
             if router.should_route() {
                 if let Some(result) = router
                     .try_execute(
                         "file.listDir",
                         serde_json::json!({
-                            "path": raw_path,
+                            "path": &authorized_path,
                         }),
                     )
                     .await?
@@ -119,12 +139,13 @@ impl Tool for ListDirTool {
             }
         }
 
-        let allowed = self.current_allowed_dir();
-        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
-        let entries =
-            crate::tool_infra::file::list_dir_with_extras(&raw_path, allowed.as_deref(), &extras)
-                .await
-                .map_err(map_err)?;
+        let entries = crate::tool_infra::file::list_dir_with_extras(
+            &authorized_path,
+            allowed.as_deref(),
+            &authorized_roots,
+        )
+        .await
+        .map_err(map_err)?;
 
         let formatted: Vec<String> = entries
             .iter()

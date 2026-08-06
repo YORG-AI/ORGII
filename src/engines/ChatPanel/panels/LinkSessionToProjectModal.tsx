@@ -95,6 +95,7 @@ export default function LinkSessionToProjectModal({
           id: `proj-${slug}`,
           name,
           org_id: STORY_PERSONAL_ORG_FILTER_ID,
+          workspace_id: undefined,
           status: "backlog",
           priority: "none",
           health: "no_updates",

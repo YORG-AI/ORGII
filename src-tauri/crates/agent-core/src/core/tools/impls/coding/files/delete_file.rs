@@ -3,8 +3,10 @@
 use async_trait::async_trait;
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use super::{allowed_roots, live_allowed_dir, map_err, WorkspaceStateHandle};
+use super::{allowed_roots, authorize_path, live_allowed_dir, map_err, WorkspaceStateHandle};
+use crate::security::SecurityPolicy;
 use crate::tools::impls::coding::action_router::ActionRouter;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{required_string, Tool, ToolError};
@@ -17,6 +19,7 @@ pub struct DeleteFileTool {
     additional_allowed_dirs: Vec<PathBuf>,
     workspace_state: Option<WorkspaceStateHandle>,
     router: Option<ActionRouter>,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl DeleteFileTool {
@@ -26,11 +29,17 @@ impl DeleteFileTool {
             additional_allowed_dirs: Vec::new(),
             workspace_state: None,
             router: None,
+            security_policy: None,
         }
     }
 
     pub fn with_router(mut self, router: ActionRouter) -> Self {
         self.router = Some(router);
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
         self
     }
 
@@ -99,10 +108,24 @@ impl Tool for DeleteFileTool {
     ) -> Result<String, ToolError> {
         let raw_path = required_string(&params, "path")?;
 
+        let allowed = self.current_allowed_dir();
+        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
+        let (authorized_path, authorized_roots) = authorize_path(
+            &raw_path,
+            allowed.as_deref(),
+            &extras,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_err)?;
+        let authorized_path = authorized_path.to_string_lossy().into_owned();
+
         if let Some(ref router) = self.router {
             if router.should_route() {
                 if let Some(result) = router
-                    .try_execute("file.delete", serde_json::json!({ "path": raw_path }))
+                    .try_execute(
+                        "file.delete",
+                        serde_json::json!({ "path": &authorized_path }),
+                    )
                     .await?
                 {
                     return Ok(result);
@@ -110,12 +133,10 @@ impl Tool for DeleteFileTool {
             }
         }
 
-        let allowed = self.current_allowed_dir();
-        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
         let resolved = crate::tool_infra::file::resolve_path_with_extras(
-            &raw_path,
+            &authorized_path,
             allowed.as_deref(),
-            &extras,
+            &authorized_roots,
         )
         .map_err(map_err)?;
 
@@ -140,6 +161,7 @@ impl Tool for DeleteFileTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::{AutonomyLevel, CommandRiskRules, SecurityPolicy};
     use tempfile::TempDir;
 
     #[tokio::test]
@@ -204,5 +226,35 @@ mod tests {
             err
         );
         assert!(outside_file.exists());
+    }
+
+    #[tokio::test]
+    async fn forbidden_path_is_rejected_before_deletion() {
+        let repo = TempDir::new().unwrap();
+        let forbidden = TempDir::new().unwrap();
+        let target = forbidden.path().join("secret.txt");
+        std::fs::write(&target, "secret").unwrap();
+        let policy = Arc::new(SecurityPolicy::new(
+            AutonomyLevel::Full,
+            true,
+            Vec::new(),
+            Vec::new(),
+            vec![forbidden.path().to_string_lossy().into_owned()],
+            true,
+            CommandRiskRules::default(),
+        ));
+
+        let tool =
+            DeleteFileTool::new(Some(repo.path().to_path_buf())).with_security_policy(policy);
+        let err = tool
+            .execute(
+                serde_json::json!({ "path": target.to_string_lossy() }),
+                &crate::tools::call_context::CallContext::default(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ToolError::PermissionDenied(_)));
+        assert!(target.exists());
     }
 }

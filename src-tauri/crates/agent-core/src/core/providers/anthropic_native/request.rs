@@ -65,7 +65,10 @@ pub(super) fn prepare_request(
         .as_deref()
         .map(|tools| convert_tools(tools, skip_cache_write));
 
-    let caps = crate::providers::model_capabilities::resolve(&resolved_model, None);
+    let caps = crate::providers::model_capabilities::resolve(
+        &resolved_model,
+        client.account_id.as_deref(),
+    );
     let directive = if tool_choice_override.is_some() || clean_tools.is_some() {
         // When tools are present (including structured output), use Auto
         // directive — we want the model to respond, not suppress thinking.
@@ -76,7 +79,10 @@ pub(super) fn prepare_request(
     };
     let outcome = build_thinking_params(
         &resolved_model,
-        parsed.level,
+        crate::providers::thinking_mode::resolve_effective_reasoning_effort(
+            model,
+            client.account_id.as_deref(),
+        ),
         parsed.thinking,
         directive,
         &caps,
@@ -290,6 +296,8 @@ pub(super) fn apply_headers(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::providers::registry::{self, provider_id};
+    use crate::providers::traits::ProviderConfig;
 
     #[test]
     fn claude_oauth_metadata_matches_claude_code_shape() {
@@ -318,6 +326,43 @@ mod tests {
     #[test]
     fn api_key_requests_do_not_include_claude_oauth_metadata() {
         assert!(claude_oauth_metadata(AnthropicAuthMode::ApiKey, "sess-1").is_none());
+    }
+
+    #[test]
+    fn zenmux_claude_messages_request_targets_anthropic_and_serializes_cache_control() {
+        crate::test_support::install_crypto_provider_for_tests();
+        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
+        let client = AnthropicClient::new(
+            ProviderConfig {
+                api_key: "test-key".to_string(),
+                api_base: Some("https://zenmux.ai/api/anthropic".to_string()),
+                extra_headers: Default::default(),
+                is_azure: false,
+            },
+            spec,
+            "anthropic/claude-opus-4.8".to_string(),
+        );
+        let messages = vec![
+            json!({"role": "system", "content": "Stable system context"}),
+            json!({"role": "user", "content": "Return exactly: ok"}),
+        ];
+
+        let prepared = prepare_request(
+            &client,
+            &messages,
+            None,
+            "anthropic/claude-opus-4.8",
+            64,
+            0.0,
+            false,
+            false,
+        );
+        let body = serde_json::to_value(&prepared.body).expect("Messages request serializes");
+
+        assert_eq!(prepared.url, "https://zenmux.ai/api/anthropic/v1/messages");
+        assert_eq!(body["model"], "anthropic/claude-opus-4.8");
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(body["system"][0]["cache_control"]["ttl"], "1h");
     }
 
     #[test]

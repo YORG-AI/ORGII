@@ -19,7 +19,7 @@ use crate::state::{AgentAppState, AgentSession};
 use crate::tools::impls::orchestration::channel::REINJECT_CHANNEL;
 
 use super::idle_reset::{has_active_processes, perform_idle_reset};
-use super::slash::handle_command;
+use super::slash::{handle_browse_selection, handle_command};
 
 /// Resolve the (account_id, model) pair for channel-launched sessions.
 /// Priority: explicit `gateway.account_id`/`gateway.model` in the
@@ -114,6 +114,31 @@ impl InboundMessageHandler for GatewayInboundHandler {
         let session_key = SessionKey::from_inbound(&msg, &channels_cfg);
         if let Some(cmd) = parse_command(&msg.content) {
             return handle_command(&state, &msg, &session_key, cmd).await;
+        }
+
+        // Bare numeric input is ordinary conversation unless this chat has a
+        // durable browse snapshot. That check is intentionally state-based,
+        // not a guess from message text, path, or title.
+        if let Some(number) = exact_positive_number(&msg.content) {
+            let browse_key = session_key.clone();
+            let has_browse_state = tokio::task::spawn_blocking(move || {
+                crate::integrations::gateway::browse::load(&browse_key).map(|state| state.is_some())
+            })
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or(false);
+            if has_browse_state {
+                let reply_text = handle_browse_selection(&state, &session_key, number).await;
+                let reply = OutboundMessage::new(&msg.channel, &msg.chat_id, &reply_text);
+                {
+                    let bus = state.bus.lock().await;
+                    bus.publish_outbound(reply.clone());
+                }
+                #[cfg(debug_assertions)]
+                push_debug_outbound(&state, &reply).await;
+                return Ok(None);
+            }
         }
 
         // ── Idle reset check (lazy trigger) ──────────────────────────────
@@ -227,6 +252,27 @@ impl InboundMessageHandler for GatewayInboundHandler {
             .map_err(|err| format!("Failed to re-inject to OS session: {}", err))?;
 
         Ok(None)
+    }
+}
+
+fn exact_positive_number(content: &str) -> Option<usize> {
+    let trimmed = content.trim();
+    (!trimmed.is_empty() && trimmed.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| trimmed.parse::<usize>().ok())
+        .flatten()
+        .filter(|number| *number > 0)
+}
+
+#[cfg(test)]
+mod browse_input_tests {
+    use super::exact_positive_number;
+
+    #[test]
+    fn accepts_only_bare_positive_integer_input() {
+        assert_eq!(exact_positive_number(" 12 "), Some(12));
+        assert_eq!(exact_positive_number("0"), None);
+        assert_eq!(exact_positive_number("1 hello"), None);
+        assert_eq!(exact_positive_number("/1"), None);
     }
 }
 

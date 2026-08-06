@@ -379,6 +379,7 @@ mod tests {
             id: meta_id.to_string(),
             name: name.to_string(),
             org_id: "personal-org".to_string(),
+            workspace_id: None,
             status: String::new(),
             priority: "none".to_string(),
             health: "no_updates".to_string(),

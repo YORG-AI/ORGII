@@ -18,6 +18,11 @@ pub struct ProjectMeta {
     pub name: String,
     #[serde(default = "default_org_id")]
     pub org_id: String,
+    /// Explicit Multi-repo Workspace preset owning this project. `None` is
+    /// intentionally meaningful for legacy projects: callers must render it
+    /// under the Unlinked Workspace read model instead of inferring a match.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_id: Option<String>,
     #[serde(default)]
     pub status: String,
     #[serde(default = "default_priority")]

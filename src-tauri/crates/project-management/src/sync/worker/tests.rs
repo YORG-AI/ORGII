@@ -489,6 +489,7 @@ fn project_meta(slug: &str, sync_kind: Option<&str>) -> ProjectMeta {
         id: format!("p_{}", slug),
         name: slug.to_string(),
         org_id: "personal-org".to_string(),
+        workspace_id: None,
         status: "active".to_string(),
         priority: "none".to_string(),
         health: "no_updates".to_string(),

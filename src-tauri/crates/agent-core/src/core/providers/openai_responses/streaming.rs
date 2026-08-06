@@ -27,8 +27,15 @@ impl LLMProvider for OpenAIResponsesClient {
         max_tokens: u32,
         _temperature: f32,
     ) -> Result<LLMResponse, ProviderError> {
-        let request_body =
-            Self::build_responses_request(messages, tools, model, max_tokens, _temperature, false);
+        let request_body = Self::build_responses_request(
+            messages,
+            tools,
+            model,
+            max_tokens,
+            _temperature,
+            false,
+            self.account_id.as_deref(),
+        );
 
         let url = self.responses_url();
         info!(
@@ -80,8 +87,15 @@ impl LLMProvider for OpenAIResponsesClient {
     ) -> Result<LLMResponse, ProviderError> {
         use futures_util::StreamExt;
 
-        let request_body =
-            Self::build_responses_request(messages, tools, model, max_tokens, _temperature, true);
+        let request_body = Self::build_responses_request(
+            messages,
+            tools,
+            model,
+            max_tokens,
+            _temperature,
+            true,
+            self.account_id.as_deref(),
+        );
 
         let url = self.responses_url();
         info!(

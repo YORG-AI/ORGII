@@ -26,6 +26,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
+import { type WorkspaceRecord, workspaceApi } from "@src/api/tauri/workspace";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
@@ -108,6 +109,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
   const [availableOrgs, setAvailableOrgs] = useState<ProjectOrg[]>([]);
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
   const [editorResetKey, setEditorResetKey] = useState(0);
 
   // Read draft from atom (survives tab switches)
@@ -143,6 +145,21 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       initialisedRef.current = true;
     }
   }, [tabId, draftsMap, setDraft, repoPath, orgId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void workspaceApi
+      .listWorkspaces()
+      .then((items) => {
+        if (!cancelled) setWorkspaces(items);
+      })
+      .catch((error) =>
+        logger.warn("Failed to list project workspaces", error)
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,6 +226,8 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       if (updates.linkedRepos !== undefined)
         mapped.linkedRepoPaths =
           updates.linkedRepos?.map((repo) => repo.id) || [];
+      if (updates.workspaceId !== undefined)
+        mapped.workspaceId = updates.workspaceId;
       if (updates.startDate !== undefined) mapped.startDate = updates.startDate;
       if (updates.targetDate !== undefined)
         mapped.targetDate = updates.targetDate;
@@ -234,6 +253,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     status: draft.status as ProjectData["status"],
     priority: draft.priority as ProjectData["priority"],
     health: draft.health as ProjectData["health"],
+    workspaceId: draft.workspaceId,
     lead: draft.leadId ? { id: draft.leadId, name: "" } : undefined,
     members: draft.memberIds.map((id) => ({ id, name: "" })),
     teams: draft.teamIds.map((id) => ({ id, name: "" })),
@@ -273,6 +293,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           id: `proj-${slug}`,
           name,
           org_id: draft.orgId,
+          workspace_id: draft.workspaceId,
           status: draft.status || "backlog",
           priority: draft.priority || "none",
           health: draft.health || "no_updates",
@@ -325,6 +346,22 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     [availableOrgs]
   );
 
+  const workspaceOptions = useMemo<SelectOption[]>(
+    () => [
+      {
+        value: "",
+        label: "Unlinked Workspace",
+        triggerLabel: "Unlinked Workspace",
+      },
+      ...workspaces.map((workspace) => ({
+        value: workspace.workspaceId,
+        label: workspace.name,
+        triggerLabel: workspace.name,
+      })),
+    ],
+    [workspaces]
+  );
+
   const selectedOrgLabel =
     orgOptions.find((option) => option.value === draft.orgId)?.triggerLabel ??
     scopeBreadcrumbLabel ??
@@ -334,6 +371,14 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
     (value: string | number | (string | number)[]) => {
       if (Array.isArray(value)) return;
       updateDraft({ orgId: String(value) });
+    },
+    [updateDraft]
+  );
+
+  const handleWorkspaceChange = useCallback(
+    (value: string | number | (string | number)[]) => {
+      if (Array.isArray(value)) return;
+      updateDraft({ workspaceId: String(value) || undefined });
     },
     [updateDraft]
   );
@@ -393,7 +438,24 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           <WorkItemContentStack
             className="h-full w-full"
             titleContent={titleSection}
-            pathContent={orgBreadcrumbPill}
+            pathContent={
+              <div className="flex min-w-0 items-center gap-2">
+                {orgBreadcrumbPill}
+                <Select
+                  value={draft.workspaceId ?? ""}
+                  options={workspaceOptions}
+                  onChange={handleWorkspaceChange}
+                  placeholder="Unlinked Workspace"
+                  size="small"
+                  radius="pill"
+                  showSearch
+                  dropdownWidthMode="min-match"
+                  dropdownMinWidth={220}
+                  panelZIndex={10000}
+                  className="w-auto max-w-[240px] [&_.select-selector]:!h-7 [&_.select-selector]:!rounded-full [&_.select-selector]:!bg-bg-2 [&_.select-selector]:!px-3 [&_.select-selector]:!text-[13px] [&_.select-selector]:!font-medium [&_.select-suffix]:!hidden"
+                />
+              </div>
+            }
             propertiesContent={propertyPills}
             descriptionContent={
               !aiGenerateMode ? (

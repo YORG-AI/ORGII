@@ -421,6 +421,10 @@ export interface SessionLaunchParams {
   worktreePath?: string;
   projectSlug?: string;
   parentSessionId?: string;
+  /** Explicit canonical Journey workspace identity for rust_agent launches. Never derived from workspacePath. */
+  journeyWorkspaceId?: string;
+  /** Explicit canonical Journey tags for rust_agent launches. Omit to preserve historical Unknown. */
+  journeyTopicTags?: string[];
 
   /**
    * Extra workspace folders granted at launch time (multi-root IDE

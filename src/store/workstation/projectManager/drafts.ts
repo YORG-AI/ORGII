@@ -66,6 +66,8 @@ export interface ProjectDraft {
   name: string;
   summary: string;
   orgId: string;
+  /** Explicit Workspace preset association; undefined means unlinked. */
+  workspaceId?: string;
   /** Markdown description */
   description: string;
   status: string;

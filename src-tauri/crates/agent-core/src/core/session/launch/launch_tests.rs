@@ -9,7 +9,11 @@ use crate::definitions::orgs::{
     HierarchyMode, OrgDefinition, OrgMember, OrgMemberLaunchOverride, OrgMemberRuntimeConfig,
 };
 use core_types::key_source::KeySource;
+use key_vault::ModelType;
 use std::collections::HashMap;
+use std::path::PathBuf;
+
+use super::launch_org::global_additional_dirs_for_cli_member;
 
 #[test]
 fn launch_validation_rejects_missing_agent_definition_before_session_create() {
@@ -20,6 +24,24 @@ fn launch_validation_rejects_missing_agent_definition_before_session_create() {
 
     assert!(error.contains("custom:missing-launch-agent"), "{error}");
     assert!(error.contains("does not exist"), "{error}");
+}
+
+#[test]
+fn global_grants_propagate_only_to_cli_members_with_add_dir_support() {
+    let grants = vec![PathBuf::from("/global/one"), PathBuf::from("/global/two")];
+
+    assert_eq!(
+        global_additional_dirs_for_cli_member(&ModelType::ClaudeCode, &grants),
+        Some(vec!["/global/one".to_string(), "/global/two".to_string()])
+    );
+    assert_eq!(
+        global_additional_dirs_for_cli_member(&ModelType::Codex, &grants),
+        Some(vec!["/global/one".to_string(), "/global/two".to_string()])
+    );
+    assert_eq!(
+        global_additional_dirs_for_cli_member(&ModelType::CursorCli, &grants),
+        None
+    );
 }
 
 fn valid_org_with_children(children: Vec<OrgMember>) -> OrgDefinition {

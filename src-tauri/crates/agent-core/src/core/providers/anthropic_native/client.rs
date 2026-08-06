@@ -55,6 +55,7 @@ pub struct AnthropicClient {
     /// on every request is an anomaly signal to server-side heuristics.
     /// Clients are constructed per session, so instance scope fits.
     pub(super) oauth_session_id: String,
+    pub(super) account_id: Option<String>,
     auth_state: RwLock<AnthropicAuthState>,
 }
 
@@ -89,6 +90,25 @@ impl AnthropicClient {
         auth_mode: AnthropicAuthMode,
         refresh_config: Option<ClaudeOAuthRefreshConfig>,
     ) -> Self {
+        let account_id = refresh_config.as_ref().map(|config| config.key_id.clone());
+        Self::new_with_auth_mode_account_and_refresh(
+            config,
+            provider_spec,
+            default_model,
+            auth_mode,
+            account_id,
+            refresh_config,
+        )
+    }
+
+    pub fn new_with_auth_mode_account_and_refresh(
+        config: ProviderConfig,
+        provider_spec: &'static ProviderSpec,
+        default_model: String,
+        auth_mode: AnthropicAuthMode,
+        account_id: Option<String>,
+        refresh_config: Option<ClaudeOAuthRefreshConfig>,
+    ) -> Self {
         let client = build_http_client(std::time::Duration::from_secs(300));
         let auth_state = RwLock::new(AnthropicAuthState {
             access_token: config.api_key.clone(),
@@ -102,6 +122,7 @@ impl AnthropicClient {
             auth_mode,
             refresh_config,
             oauth_session_id: uuid::Uuid::new_v4().to_string(),
+            account_id,
             auth_state,
         }
     }

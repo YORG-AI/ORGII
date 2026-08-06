@@ -1909,6 +1909,8 @@ mod tests {
             reasoning: None,
             fast: true,
             context_window: None,
+            context_window_override: None,
+            reasoning_effort_override: None,
         }];
 
         let error = select_prompt_polish_model(&key, None).unwrap_err();

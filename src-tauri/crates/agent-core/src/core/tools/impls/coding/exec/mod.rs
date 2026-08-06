@@ -495,20 +495,38 @@ impl Tool for ExecTool {
         };
 
         let work_dir = if let Some(ref dir) = custom_dir {
-            let path = PathBuf::from(dir);
-            // Path syntax (null bytes, `..`, forbidden list) — command
-            // policy owns this. Containment is decided below by the
-            // live SessionWorkspace, the single path-authorization source.
-            if let Some(ref policy) = self.security_policy {
-                policy
-                    .validate_path_syntax(dir)
-                    .map_err(ToolError::PermissionDenied)?;
-            }
             let workspace_only = self
                 .security_policy
                 .as_ref()
                 .is_some_and(|policy| policy.workspace_only);
-            if self.restrict_to_workspace || workspace_only {
+            let containment_required = self.restrict_to_workspace || workspace_only;
+            let path = if let Some(policy) = self.security_policy.as_deref() {
+                let mut extra = self
+                    .workspace_state
+                    .as_ref()
+                    .map(|workspace| workspace.read().effective_roots())
+                    .unwrap_or_default();
+                extra.extend(self.active_repo.lock().await.clone());
+                crate::security::global_path_exemptions::authorize_path(
+                    dir,
+                    containment_required.then_some(&current_workspace_dir),
+                    &extra,
+                    Some(policy),
+                )
+                .map_err(|err| {
+                    if err.contains("outside the allowed directory")
+                        || err.contains("null byte")
+                        || err.contains("forbidden location")
+                        || err.contains("Path traversal")
+                        || err.contains("URL-encoded path traversal")
+                    {
+                        ToolError::PermissionDenied(err)
+                    } else {
+                        ToolError::ExecutionFailed(err)
+                    }
+                })?
+            } else if containment_required {
+                let path = PathBuf::from(dir);
                 if let Some(ref workspace) = self.workspace_state {
                     let extra: Vec<PathBuf> =
                         self.active_repo.lock().await.clone().into_iter().collect();
@@ -521,7 +539,10 @@ impl Tool for ExecTool {
                         "Working directory is outside workspace".to_string(),
                     ));
                 }
-            }
+                path
+            } else {
+                PathBuf::from(dir)
+            };
             Some(path)
         } else {
             None
@@ -643,6 +664,7 @@ impl Tool for ExecTool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::{AutonomyLevel, CommandRiskRules};
     use serde_json::json;
     use std::path::Path;
 
@@ -720,6 +742,35 @@ mod tests {
             .expect("empty working_dir should fall back to default workspace");
 
         assert!(result.contains("hello"), "unexpected output: {result}");
+    }
+
+    #[tokio::test]
+    async fn explicit_working_directory_respects_policy_forbidden_paths() {
+        let workspace = tempfile::tempdir().expect("workspace tmpdir");
+        let forbidden = workspace.path().join("forbidden");
+        std::fs::create_dir_all(&forbidden).unwrap();
+        let policy = Arc::new(SecurityPolicy::new(
+            AutonomyLevel::Full,
+            true,
+            Vec::new(),
+            Vec::new(),
+            vec![forbidden.to_string_lossy().into_owned()],
+            false,
+            CommandRiskRules::default(),
+        ));
+        let tool = fresh_tool(workspace.path()).with_security_policy(policy);
+
+        let result = tool
+            .execute_text(
+                json!({
+                    "command": "/bin/pwd",
+                    "working_dir": forbidden.to_string_lossy(),
+                }),
+                &crate::tools::call_context::CallContext::default(),
+            )
+            .await;
+
+        assert!(matches!(result, Err(ToolError::PermissionDenied(_))));
     }
 
     #[tokio::test]

@@ -76,6 +76,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
         read = read.with_readonly_extra_dir(directory.clone());
     }
     read = read.with_workspace_state(Arc::clone(&deps.workspace));
+    if let Some(ref policy) = deps.security_policy {
+        read = read.with_security_policy(Arc::clone(policy));
+    }
     if let Some(router) = make_router() {
         read = read.with_router(router);
     }
@@ -86,6 +89,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
         list_dir = list_dir.with_scratchpad(scratch.clone());
     }
     list_dir = list_dir.with_workspace_state(Arc::clone(&deps.workspace));
+    if let Some(ref policy) = deps.security_policy {
+        list_dir = list_dir.with_security_policy(Arc::clone(policy));
+    }
     if let Some(router) = make_router() {
         list_dir = list_dir.with_router(router);
     }
@@ -146,6 +152,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
     let mut search = SearchTool::new(working_dir.clone())
         .with_workspace_state(Arc::clone(&deps.workspace))
         .with_restrict_to_workspace(deps.restrict_to_workspace);
+    if let Some(ref policy) = deps.security_policy {
+        search = search.with_security_policy(Arc::clone(policy));
+    }
     if let Some(router) = make_router() {
         search = search.with_router(router);
     }
@@ -154,19 +163,30 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
     // ── Code Map ──
     register_if_enabled(
         registry,
-        Box::new(CodeMapTool::new(
-            working_dir.clone(),
-            Arc::clone(&deps.workspace),
-        )),
+        Box::new({
+            let mut code_map = CodeMapTool::new(working_dir.clone(), Arc::clone(&deps.workspace))
+                .with_restrict_to_workspace(deps.restrict_to_workspace);
+            if let Some(ref policy) = deps.security_policy {
+                code_map = code_map.with_security_policy(Arc::clone(policy));
+            }
+            code_map
+        }),
         disabled,
     );
     register_if_enabled(
         registry,
-        Box::new(ManageCodeMapTool::new(
-            working_dir.clone(),
-            deps.app_handle.clone(),
-            Arc::clone(&deps.workspace),
-        )),
+        Box::new({
+            let mut manage_code_map = ManageCodeMapTool::new(
+                working_dir.clone(),
+                deps.app_handle.clone(),
+                Arc::clone(&deps.workspace),
+            )
+            .with_restrict_to_workspace(deps.restrict_to_workspace);
+            if let Some(ref policy) = deps.security_policy {
+                manage_code_map = manage_code_map.with_security_policy(Arc::clone(policy));
+            }
+            manage_code_map
+        }),
         disabled,
     );
 
@@ -179,6 +199,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
         edit = edit.with_scratchpad(scratch.clone());
     }
     edit = edit.with_workspace_state(Arc::clone(&deps.workspace));
+    if let Some(ref policy) = deps.security_policy {
+        edit = edit.with_security_policy(Arc::clone(policy));
+    }
     register_if_enabled(registry, Box::new(edit), disabled);
 
     // ── Write env file (privileged consumer of `manage_secrets` tokens) ──
@@ -188,11 +211,18 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
     if let Some(ref broker) = deps.secret_broker {
         register_if_enabled(
             registry,
-            Box::new(WriteEnvFileTool::new(
-                Some(Arc::clone(&deps.workspace)),
-                deps.scratchpad_dir.clone(),
-                Arc::clone(broker),
-            )),
+            Box::new({
+                let tool = WriteEnvFileTool::new(
+                    Some(Arc::clone(&deps.workspace)),
+                    deps.scratchpad_dir.clone(),
+                    Arc::clone(broker),
+                );
+                if let Some(policy) = deps.security_policy.as_ref() {
+                    tool.with_security_policy(Arc::clone(policy))
+                } else {
+                    tool
+                }
+            }),
             disabled,
         );
     }
@@ -203,6 +233,9 @@ pub fn register(registry: &mut ToolRegistry, deps: &ToolDeps, disabled: &HashSet
         delete_file = delete_file.with_scratchpad(scratch.clone());
     }
     delete_file = delete_file.with_workspace_state(Arc::clone(&deps.workspace));
+    if let Some(ref policy) = deps.security_policy {
+        delete_file = delete_file.with_security_policy(Arc::clone(policy));
+    }
     if let Some(router) = make_router() {
         delete_file = delete_file.with_router(router);
     }

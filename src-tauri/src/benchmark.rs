@@ -1201,6 +1201,8 @@ fn benchmark_launch_params(
         worktree_path: launch.worktree_path.clone(),
         project_slug: launch.project_slug.clone(),
         parent_session_id,
+        journey_workspace_id: None,
+        journey_topic_tags: Vec::new(),
         additional_directories: launch.additional_directories.clone(),
     }
 }

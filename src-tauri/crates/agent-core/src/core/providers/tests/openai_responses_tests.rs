@@ -56,8 +56,15 @@ fn extract_gpt5_version_non_gpt5() {
 
 #[test]
 fn build_request_omits_temperature_for_gpt5_4() {
-    let req =
-        OpenAIResponsesClient::build_responses_request(&[], None, "gpt-5.4-pro", 4096, 0.7, false);
+    let req = OpenAIResponsesClient::build_responses_request(
+        &[],
+        None,
+        "gpt-5.4-pro",
+        4096,
+        0.7,
+        false,
+        None,
+    );
     assert!(
         req.temperature.is_none(),
         "GPT-5.4 should not have temperature"
@@ -66,22 +73,43 @@ fn build_request_omits_temperature_for_gpt5_4() {
 
 #[test]
 fn build_request_omits_temperature_for_o1() {
-    let req =
-        OpenAIResponsesClient::build_responses_request(&[], None, "o1-preview", 4096, 0.7, false);
+    let req = OpenAIResponsesClient::build_responses_request(
+        &[],
+        None,
+        "o1-preview",
+        4096,
+        0.7,
+        false,
+        None,
+    );
     assert!(req.temperature.is_none(), "o1 should not have temperature");
 }
 
 #[test]
 fn build_request_omits_temperature_for_o3() {
-    let req =
-        OpenAIResponsesClient::build_responses_request(&[], None, "o3-mini", 4096, 0.7, false);
+    let req = OpenAIResponsesClient::build_responses_request(
+        &[],
+        None,
+        "o3-mini",
+        4096,
+        0.7,
+        false,
+        None,
+    );
     assert!(req.temperature.is_none(), "o3 should not have temperature");
 }
 
 #[test]
 fn build_request_omits_temperature_for_gpt5_3() {
-    let req =
-        OpenAIResponsesClient::build_responses_request(&[], None, "gpt-5.3", 4096, 0.7, false);
+    let req = OpenAIResponsesClient::build_responses_request(
+        &[],
+        None,
+        "gpt-5.3",
+        4096,
+        0.7,
+        false,
+        None,
+    );
     assert!(
         req.temperature.is_none(),
         "temperature should never be sent"
@@ -110,7 +138,7 @@ fn tool_msg_with_image() -> Value {
 fn build_request_always_lifts_tool_images() {
     let messages = vec![tool_msg_with_image()];
     let req = OpenAIResponsesClient::build_responses_request(
-        &messages, None, "gpt-5.4", 4096, 0.7, false,
+        &messages, None, "gpt-5.4", 4096, 0.7, false, None,
     );
     let input = &req.input;
     assert_eq!(input.len(), 2, "function_call_output + follow-up user");
@@ -134,8 +162,9 @@ fn build_request_lifts_tool_images_for_any_model_name() {
         "azure-prod-deploy",
         "internal-qwen-vl",
     ] {
-        let req =
-            OpenAIResponsesClient::build_responses_request(&messages, None, name, 4096, 0.7, false);
+        let req = OpenAIResponsesClient::build_responses_request(
+            &messages, None, name, 4096, 0.7, false, None,
+        );
         assert_eq!(
             req.input.len(),
             2,

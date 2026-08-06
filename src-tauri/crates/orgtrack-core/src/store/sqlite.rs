@@ -49,6 +49,12 @@ impl<'conn> SqliteRecordStore<'conn> {
                 updated_at          TEXT,
                 completed_at        TEXT,
                 branch              TEXT,
+                project_id          TEXT,
+                workspace_id        TEXT,
+                work_item_id        TEXT,
+                agent_identity      TEXT,
+                agent_band          TEXT,
+                topic_tags_json     TEXT NOT NULL DEFAULT '[]',
                 payload_json        TEXT NOT NULL
             );
             CREATE INDEX IF NOT EXISTS idx_orgtrack_core_sessions_source
@@ -109,6 +115,7 @@ impl<'conn> SqliteRecordStore<'conn> {
                 source          TEXT NOT NULL,
                 session_id      TEXT NOT NULL,
                 source_event_id TEXT,
+                execution_turn_id TEXT,
                 sequence_index  INTEGER NOT NULL,
                 workspace_path  TEXT,
                 file_path       TEXT NOT NULL,
@@ -177,7 +184,30 @@ impl<'conn> SqliteRecordStore<'conn> {
             CREATE INDEX IF NOT EXISTS idx_orgtrack_core_checkpoint_file_states_checkpoint
                 ON orgtrack_core_checkpoint_file_states(checkpoint_id, file_path);
             ",
-        )
+        )?;
+        // Schema-only upgrade: historical metadata stays NULL/empty.
+        for (table, column, definition) in [
+            ("orgtrack_core_sessions", "project_id", "TEXT"),
+            ("orgtrack_core_sessions", "workspace_id", "TEXT"),
+            ("orgtrack_core_sessions", "work_item_id", "TEXT"),
+            ("orgtrack_core_sessions", "agent_identity", "TEXT"),
+            ("orgtrack_core_sessions", "agent_band", "TEXT"),
+            (
+                "orgtrack_core_sessions",
+                "topic_tags_json",
+                "TEXT NOT NULL DEFAULT '[]'",
+            ),
+            ("orgtrack_core_edit_artifacts", "execution_turn_id", "TEXT"),
+        ] {
+            ensure_column(conn, table, column, definition)?;
+        }
+        conn.execute_batch(
+            "CREATE INDEX IF NOT EXISTS idx_orgtrack_core_sessions_project
+                ON orgtrack_core_sessions(project_id);
+             CREATE INDEX IF NOT EXISTS idx_orgtrack_core_edit_artifacts_execution_turn
+                ON orgtrack_core_edit_artifacts(session_id, execution_turn_id);",
+        )?;
+        Ok(())
     }
 
     pub fn init_source_cache_tables(conn: &Connection) -> rusqlite::Result<()> {
@@ -384,8 +414,9 @@ impl RecordStore for SqliteRecordStore<'_> {
             .execute(
                 "INSERT INTO orgtrack_core_sessions (
                     session_id, source, source_session_id, workspace_path, title,
-                    created_at, updated_at, completed_at, branch, payload_json
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                    created_at, updated_at, completed_at, branch, project_id, workspace_id,
+                    work_item_id, agent_identity, agent_band, topic_tags_json, payload_json
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)
                 ON CONFLICT(session_id) DO UPDATE SET
                     source=excluded.source,
                     source_session_id=excluded.source_session_id,
@@ -395,6 +426,12 @@ impl RecordStore for SqliteRecordStore<'_> {
                     updated_at=excluded.updated_at,
                     completed_at=excluded.completed_at,
                     branch=excluded.branch,
+                    project_id=excluded.project_id,
+                    workspace_id=excluded.workspace_id,
+                    work_item_id=excluded.work_item_id,
+                    agent_identity=excluded.agent_identity,
+                    agent_band=excluded.agent_band,
+                    topic_tags_json=excluded.topic_tags_json,
                     payload_json=excluded.payload_json",
                 params![
                     record.session_id,
@@ -406,6 +443,12 @@ impl RecordStore for SqliteRecordStore<'_> {
                     record.updated_at,
                     record.completed_at,
                     record.branch,
+                    record.journey.project_id,
+                    record.journey.workspace_id,
+                    record.journey.work_item_id,
+                    record.journey.agent_identity,
+                    record.journey.agent_band,
+                    Self::to_json(&record.journey.topic_tags)?,
                     payload
                 ],
             )
@@ -484,13 +527,14 @@ impl RecordStore for SqliteRecordStore<'_> {
         self.conn
             .execute(
                 "INSERT INTO orgtrack_core_edit_artifacts (
-                    record_id, source, session_id, source_event_id, sequence_index,
+                    record_id, source, session_id, source_event_id, execution_turn_id, sequence_index,
                     workspace_path, file_path, path_hash, quality, payload_json
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                 ON CONFLICT(record_id) DO UPDATE SET
                     source=excluded.source,
                     session_id=excluded.session_id,
                     source_event_id=excluded.source_event_id,
+                    execution_turn_id=excluded.execution_turn_id,
                     sequence_index=excluded.sequence_index,
                     workspace_path=excluded.workspace_path,
                     file_path=excluded.file_path,
@@ -502,6 +546,7 @@ impl RecordStore for SqliteRecordStore<'_> {
                     record.source,
                     record.session_id,
                     record.source_event_id,
+                    record.execution_turn_id,
                     record.sequence_index,
                     record.workspace_path,
                     record.file_path,
@@ -934,7 +979,8 @@ impl RecordStore for SqliteRecordStore<'_> {
 mod tests {
     use super::*;
     use crate::canonical::{
-        AgentMetadata, ArtifactQuality, SessionEditArtifactRecord, SessionEditKind,
+        AgentMetadata, ArtifactQuality, JourneyMetadata, SessionEditArtifactRecord,
+        SessionEditKind, SessionRecord,
     };
     use crate::privacy::ORGTRACK_SCHEMA_VERSION;
 
@@ -955,6 +1001,7 @@ mod tests {
             session_id: "session-1".to_string(),
             source_event_id: Some("event-1".to_string()),
             turn_id: Some("turn-1".to_string()),
+            execution_turn_id: Some("execution-turn-1".to_string()),
             sequence_index: 1,
             timestamp: Some("2026-06-15T00:00:00Z".to_string()),
             workspace_path: Some("/repo".to_string()),
@@ -978,6 +1025,10 @@ mod tests {
             .expect("list edit artifacts");
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].record_id, "edit-1");
+        assert_eq!(
+            records[0].execution_turn_id.as_deref(),
+            Some("execution-turn-1")
+        );
 
         store
             .delete_session_artifacts("cursor_ide", "session-1")
@@ -986,5 +1037,55 @@ mod tests {
             .list_edit_artifacts(Some("cursor_ide"), Some("session-1"))
             .expect("list edit artifacts after delete");
         assert!(records.is_empty());
+    }
+
+    #[test]
+    fn journey_metadata_is_durable_and_absent_values_remain_empty() {
+        let store = fixture_store();
+        let record = SessionRecord {
+            schema_version: ORGTRACK_SCHEMA_VERSION,
+            source: "test".to_string(),
+            source_session_id: "source-1".to_string(),
+            session_id: "session-1".to_string(),
+            title: "test".to_string(),
+            status: None,
+            created_at: None,
+            updated_at: None,
+            completed_at: None,
+            workspace_path: None,
+            branch: None,
+            parent_session_id: None,
+            org_member_id: None,
+            metadata: AgentMetadata::default(),
+            journey: JourneyMetadata {
+                project_id: Some("project-1".to_string()),
+                workspace_id: None,
+                work_item_id: Some("work-1".to_string()),
+                agent_identity: Some("agent-1".to_string()),
+                agent_band: None,
+                topic_tags: vec!["explicit".to_string()],
+            },
+        };
+        store.upsert_session(&record).expect("upsert session");
+        let (project_id, workspace_id, work_item_id, agent_identity, agent_band, tags):
+            (Option<String>, Option<String>, Option<String>, Option<String>, Option<String>, String) =
+            store.conn.query_row(
+                "SELECT project_id, workspace_id, work_item_id, agent_identity, agent_band, topic_tags_json
+                 FROM orgtrack_core_sessions WHERE session_id = ?1",
+                ["session-1"],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
+            ).expect("read durable journey metadata");
+        assert_eq!(project_id.as_deref(), Some("project-1"));
+        assert_eq!(workspace_id, None);
+        assert_eq!(work_item_id.as_deref(), Some("work-1"));
+        assert_eq!(agent_identity.as_deref(), Some("agent-1"));
+        assert_eq!(agent_band, None);
+        assert_eq!(tags, r#"["explicit"]"#);
+
+        let loaded = store
+            .list_sessions(None)
+            .expect("read durable journey metadata");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].journey, record.journey);
     }
 }

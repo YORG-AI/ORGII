@@ -1,5 +1,7 @@
 //! Processing context and result types, IDE context, system prompt builder.
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
 use super::enums::AgentExecMode;
@@ -305,6 +307,9 @@ pub struct SystemPromptConfig {
     pub load_workspace_rules: bool,
     pub agent_soul: Option<String>,
     pub workspace: Option<SessionWorkspace>,
+    /// Fresh durable, workspace-external grants shown separately from
+    /// session-local additional working directories.
+    pub global_permitted_paths: Vec<PathBuf>,
     pub channel: Option<String>,
     pub chat_id: Option<String>,
     pub agent_mode: Option<AgentExecMode>,

@@ -32,6 +32,7 @@ pub enum PromptCacheInvalidationReason {
     WorkspaceSnapshotChanged,
     SkillCatalogChanged,
     LearningsChanged,
+    GlobalPathExemptionsChanged,
     Compaction,
     Resume,
 }
@@ -44,6 +45,9 @@ impl PromptCacheInvalidationReason {
             PromptCacheInvalidationReason::WorkspaceSnapshotChanged => "workspace_snapshot_changed",
             PromptCacheInvalidationReason::SkillCatalogChanged => "skill_catalog_changed",
             PromptCacheInvalidationReason::LearningsChanged => "learnings_changed",
+            PromptCacheInvalidationReason::GlobalPathExemptionsChanged => {
+                "global_path_exemptions_changed"
+            }
             PromptCacheInvalidationReason::Compaction => "compaction",
             PromptCacheInvalidationReason::Resume => "resume",
         }

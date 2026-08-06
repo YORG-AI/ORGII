@@ -77,6 +77,13 @@ pub struct SessionLaunchParams {
     pub worktree_path: Option<String>,
     pub project_slug: Option<String>,
     pub parent_session_id: Option<String>,
+    /// Optional canonical Journey workspace identity. This is independent of
+    /// `workspace_path`, which is never converted into an identity.
+    pub journey_workspace_id: Option<String>,
+    /// Explicit Journey tags. Omitted tags remain historically unknown; the
+    /// backend does not derive them from content or session metadata.
+    #[serde(default)]
+    pub journey_topic_tags: Vec<String>,
 
     /// Extra workspace folders granted at launch time (multi-root IDE
     /// workspaces). Each path is injected into the session's
@@ -223,6 +230,8 @@ async fn launch_rust_agent(
             ide_context: params.ide_context,
             parent_session_id: params.parent_session_id,
             sub_agent_ids: Vec::new(),
+            journey_workspace_id: params.journey_workspace_id,
+            journey_topic_tags: params.journey_topic_tags,
         },
     )
     .await?;
@@ -295,6 +304,13 @@ async fn launch_cli_agent(
     name: String,
 ) -> Result<SessionLaunchResult, String> {
     use crate::foundation::session_bridge::{launch_cli_agent, CliLaunchParams};
+
+    if params.journey_workspace_id.is_some() || !params.journey_topic_tags.is_empty() {
+        return Err(
+            "session_launch: explicit Journey metadata is currently supported only for rust_agent sessions"
+                .to_string(),
+        );
+    }
 
     let platform = params
         .platform

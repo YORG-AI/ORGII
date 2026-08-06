@@ -20,6 +20,7 @@ use super::learnings::{
     self, LearningCategory, LearningListFilter, LearningSource, LearningStatus, GLOBAL_AGENT_SCOPE,
 };
 use crate::foundation::db_bridge::get_connection;
+use crate::security::global_path_exemptions::{self, GlobalPathExemption};
 use crate::session::prompt::cache::PromptCacheInvalidationReason;
 use crate::state::AgentAppState;
 
@@ -473,6 +474,63 @@ pub struct WorkspaceMemoryStatus {
     pub sessions_since_consolidation: usize,
     pub lock_held: bool,
     pub memory_dir: String,
+}
+
+// ========================================================================
+// Global path exemptions (Security configuration surfaced in Memory UI)
+// ========================================================================
+
+/// List global workspace-containment exemptions. This command intentionally
+/// lives alongside the Memory UI surface, but it persists security state — it
+/// is not a fifth memory scope.
+#[tauri::command]
+pub async fn global_path_exemptions_list() -> Result<Vec<GlobalPathExemption>, String> {
+    tokio::task::spawn_blocking(global_path_exemptions::list)
+        .await
+        .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Grant every native session workspace-external access to one existing,
+/// canonical directory. Explicit forbidden paths remain higher priority.
+#[tauri::command]
+pub async fn global_path_exemptions_add(
+    state: tauri::State<'_, AgentAppState>,
+    path: String,
+) -> Result<GlobalPathExemption, String> {
+    let exemption = tokio::task::spawn_blocking(move || global_path_exemptions::add(&path))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))??;
+    state
+        .invalidate_prompt_caches(PromptCacheInvalidationReason::GlobalPathExemptionsChanged)
+        .await;
+    crate::bus::broadcast_event(
+        "security:global_path_exemptions_changed",
+        serde_json::json!({ "action": "added", "id": exemption.id }),
+    );
+    Ok(exemption)
+}
+
+/// Revoke a global path exemption. Native sessions observe the change on their
+/// next structured filesystem or explicit-root operation.
+#[tauri::command]
+pub async fn global_path_exemptions_remove(
+    state: tauri::State<'_, AgentAppState>,
+    id: String,
+) -> Result<bool, String> {
+    let event_id = id.clone();
+    let removed = tokio::task::spawn_blocking(move || global_path_exemptions::remove(&id))
+        .await
+        .map_err(|err| format!("Task join error: {err}"))??;
+    if removed {
+        state
+            .invalidate_prompt_caches(PromptCacheInvalidationReason::GlobalPathExemptionsChanged)
+            .await;
+        crate::bus::broadcast_event(
+            "security:global_path_exemptions_changed",
+            serde_json::json!({ "action": "removed", "id": event_id }),
+        );
+    }
+    Ok(removed)
 }
 
 /// List all workspace memory files for a workspace.

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ZENMUX_PROVIDER_SLUGS } from "@src/api/tauri/rpc/schemas/validation";
 import Tooltip from "@src/components/Tooltip";
 
 interface ModelSlugEditorProps {
@@ -46,13 +47,10 @@ const ModelSlugEditor: React.FC<ModelSlugEditorProps> = ({
       >
         {t("modelsTable.supplierSlug")}
       </label>
-      <input
+      <select
         id={`model-slug-${model}`}
         data-testid="model-slug-input"
-        type="text"
         value={draft}
-        placeholder={t("modelsTable.supplierSlugPlaceholder")}
-        spellCheck={false}
         onChange={(event) => setDraft(event.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => {
@@ -67,8 +65,15 @@ const ModelSlugEditor: React.FC<ModelSlugEditorProps> = ({
             event.currentTarget.blur();
           }
         }}
-        className="h-[24px] min-w-0 flex-1 rounded border border-border-2 bg-fill-1 px-1.5 text-[12px] leading-none text-text-1 outline-none placeholder:text-text-4 focus:border-accent-4"
-      />
+        className="focus:border-accent-4 h-[24px] min-w-0 flex-1 rounded border border-border-2 bg-fill-1 px-1.5 text-[12px] leading-none text-text-1 outline-none"
+      >
+        <option value="">{t("modelsTable.supplierSlugPlaceholder")}</option>
+        {ZENMUX_PROVIDER_SLUGS.map((providerSlug) => (
+          <option key={providerSlug} value={providerSlug}>
+            {providerSlug}
+          </option>
+        ))}
+      </select>
       <Tooltip
         content={t("modelsTable.supplierSlugHint", {
           model: `${model}:${draft.trim() || "…"}`,

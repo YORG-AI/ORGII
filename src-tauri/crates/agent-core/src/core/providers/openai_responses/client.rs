@@ -24,16 +24,26 @@ pub struct OpenAIResponsesClient {
     pub(super) client: Client,
     pub(super) config: ProviderConfig,
     pub(super) default_model: String,
+    pub(super) account_id: Option<String>,
 }
 
 impl OpenAIResponsesClient {
     pub fn new(config: ProviderConfig, default_model: String) -> Self {
+        Self::new_with_account(config, default_model, None)
+    }
+
+    pub fn new_with_account(
+        config: ProviderConfig,
+        default_model: String,
+        account_id: Option<String>,
+    ) -> Self {
         let client = build_http_client(std::time::Duration::from_secs(300));
 
         Self {
             client,
             config,
             default_model,
+            account_id,
         }
     }
 
@@ -77,6 +87,7 @@ impl OpenAIResponsesClient {
         max_tokens: u32,
         _temperature: f32,
         stream: bool,
+        account_id: Option<&str>,
     ) -> ResponsesRequest {
         let (instructions, input) = convert_messages(messages);
         let (converted_tools, tool_choice) = convert_tools_with_choice(tools);
@@ -92,8 +103,12 @@ impl OpenAIResponsesClient {
             crate::providers::registry::provider_id::OPENAI,
         );
         let reasoning = if mode == crate::providers::thinking_mode::ThinkingMode::OpenAiEffort {
-            crate::providers::thinking_mode::openai_effort(parsed.level)
-                .map(|effort| serde_json::json!({ "effort": effort }))
+            crate::providers::thinking_mode::openai_effort(
+                crate::providers::thinking_mode::resolve_effective_reasoning_effort(
+                    model, account_id,
+                ),
+            )
+            .map(|effort| serde_json::json!({ "effort": effort }))
         } else {
             None
         };
@@ -140,6 +155,7 @@ mod tests {
             1024,
             0.0,
             false,
+            None,
         );
         assert_eq!(req.model, "gpt-5.5");
         assert_eq!(req.reasoning.as_ref().unwrap()["effort"], "high");
@@ -147,16 +163,30 @@ mod tests {
 
     #[test]
     fn build_responses_request_default_omits_reasoning() {
-        let req =
-            OpenAIResponsesClient::build_responses_request(&[], None, "gpt-5.5", 1024, 0.0, false);
+        let req = OpenAIResponsesClient::build_responses_request(
+            &[],
+            None,
+            "gpt-5.5",
+            1024,
+            0.0,
+            false,
+            None,
+        );
         assert_eq!(req.model, "gpt-5.5");
         assert!(req.reasoning.is_none());
     }
 
     #[test]
     fn build_responses_request_non_reasoning_omits_reasoning() {
-        let req =
-            OpenAIResponsesClient::build_responses_request(&[], None, "gpt-4o", 1024, 0.0, false);
+        let req = OpenAIResponsesClient::build_responses_request(
+            &[],
+            None,
+            "gpt-4o",
+            1024,
+            0.0,
+            false,
+            None,
+        );
         assert_eq!(req.model, "gpt-4o");
         assert!(req.reasoning.is_none());
     }

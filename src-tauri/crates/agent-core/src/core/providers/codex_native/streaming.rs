@@ -62,7 +62,8 @@ impl LLMProvider for CodexNativeClient {
     ) -> Result<LLMResponse, ProviderError> {
         use futures_util::StreamExt;
 
-        let request_body = Self::build_responses_request(messages, tools, model, true);
+        let request_body =
+            Self::build_responses_request(messages, tools, model, true, self.account_id.as_deref());
 
         let url = self.responses_url();
         info!(

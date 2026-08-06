@@ -37,7 +37,7 @@ impl OpenAiAdaptiveClient {
         let chat_account_id = account_id.clone();
         Self {
             spec,
-            account_id,
+            account_id: account_id.clone(),
             custom_base_url,
             default_model: default_model.clone(),
             chat_client: OpenAICompatClient::new_with_account(
@@ -46,7 +46,11 @@ impl OpenAiAdaptiveClient {
                 default_model.clone(),
                 chat_account_id,
             ),
-            responses_client: OpenAIResponsesClient::new(config, default_model),
+            responses_client: OpenAIResponsesClient::new_with_account(
+                config,
+                default_model,
+                account_id.clone(),
+            ),
         }
     }
 

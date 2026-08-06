@@ -9,7 +9,7 @@ use std::time::Duration;
 use core_types::providers::{CODEX_ID_TOKEN_ENV_KEY, CODEX_REFRESH_TOKEN_ENV_KEY};
 
 use super::store::KeyStore;
-use super::types::{AuthMethod, HealthStatus, ModelKey, ModelType};
+use super::types::{AuthMethod, HealthStatus, ModelKey, ModelType, ReasoningEffort};
 
 const CLAUDE_CODE_TOKEN_URL: &str = "https://platform.claude.com/v1/oauth/token";
 const CLAUDE_CODE_REFRESH_TOKEN_URL_OVERRIDE_ENV: &str = "CLAUDE_CODE_REFRESH_TOKEN_URL_OVERRIDE";
@@ -305,10 +305,81 @@ impl KeyService {
                     reasoning: Some(reasoning.to_string()),
                     fast: false,
                     context_window: None,
+                    context_window_override: None,
+                    reasoning_effort_override: None,
                 });
             }
             entry.updated_at = chrono::Utc::now();
             Ok(())
+        })?
+    }
+
+    /// Patch user-owned runtime settings for one model without replacing the
+    /// provider-discovered model variants list. Each field is tri-state:
+    /// omitted leaves it alone, null clears it (Auto), and a value sets it.
+    pub fn update_model_runtime_settings(
+        &self,
+        key_id: &str,
+        model: &str,
+        context_window_override: Option<Option<u64>>,
+        reasoning_effort_override: Option<Option<ReasoningEffort>>,
+    ) -> Result<ModelKey, String> {
+        if context_window_override.is_none() && reasoning_effort_override.is_none() {
+            return self
+                .get_key_by_id(key_id)
+                .ok_or_else(|| format!("Key '{key_id}' not found"));
+        }
+
+        let model = model.trim();
+        if model.is_empty() {
+            return Err("Model must not be empty".to_string());
+        }
+        if let Some(Some(context_window)) = context_window_override {
+            if context_window == 0 {
+                return Err("context_window_override must be positive".to_string());
+            }
+        }
+        self.update_store(|store| {
+            let Some(entry) = store.keys.get_mut(key_id) else {
+                return Err(format!("Key '{key_id}' not found"));
+            };
+            let variant_index = entry
+                .model_variants
+                .iter()
+                .position(|variant| variant.model == model);
+            let variant = if let Some(index) = variant_index {
+                &mut entry.model_variants[index]
+            } else {
+                if !entry
+                    .available_models
+                    .iter()
+                    .any(|available| available == model)
+                {
+                    return Err(format!("Model '{model}' not found on key '{key_id}'"));
+                }
+                entry.model_variants.push(crate::key_store::ModelVariant {
+                    model: model.to_string(),
+                    base_model: model.to_string(),
+                    reasoning: None,
+                    fast: false,
+                    context_window: None,
+                    context_window_override: None,
+                    reasoning_effort_override: None,
+                });
+                entry
+                    .model_variants
+                    .last_mut()
+                    .expect("pushed model variant must exist")
+            };
+
+            if let Some(value) = context_window_override {
+                variant.context_window_override = value;
+            }
+            if let Some(value) = reasoning_effort_override {
+                variant.reasoning_effort_override = value;
+            }
+            entry.updated_at = Utc::now();
+            Ok(entry.clone())
         })?
     }
 
@@ -1346,6 +1417,8 @@ impl KeyService {
                                 reasoning: None,
                                 fast: false,
                                 context_window: Some(*ctx),
+                                context_window_override: None,
+                                reasoning_effort_override: None,
                             });
                         }
                     }

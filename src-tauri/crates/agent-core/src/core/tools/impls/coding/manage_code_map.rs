@@ -13,6 +13,7 @@ use serde_json::{json, Value};
 use tauri::AppHandle;
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::security::SecurityPolicy;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{optional_bool, optional_string, required_string, Tool, ToolError};
@@ -22,6 +23,8 @@ pub struct ManageCodeMapTool {
     active_repo: TokioMutex<Option<PathBuf>>,
     app_handle: Option<AppHandle>,
     workspace_state: Arc<parking_lot::RwLock<SessionWorkspace>>,
+    restrict_to_workspace: bool,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl ManageCodeMapTool {
@@ -35,7 +38,19 @@ impl ManageCodeMapTool {
             active_repo: TokioMutex::new(None),
             app_handle,
             workspace_state,
+            restrict_to_workspace: false,
+            security_policy: None,
         }
+    }
+
+    pub fn with_restrict_to_workspace(mut self, restricted: bool) -> Self {
+        self.restrict_to_workspace = restricted;
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
+        self
     }
 
     async fn resolve_workspace_path(&self, params: &Value) -> Result<PathBuf, ToolError> {
@@ -53,13 +68,35 @@ impl ManageCodeMapTool {
     }
 
     async fn authorize_workspace_path(&self, path: PathBuf) -> Result<PathBuf, ToolError> {
-        let extra_allowed: Vec<PathBuf> =
-            self.active_repo.lock().await.clone().into_iter().collect();
-        self.workspace_state
-            .read()
-            .is_path_allowed(&path, &extra_allowed)
-            .map_err(ToolError::PermissionDenied)?;
-        Ok(path)
+        let workspace_only = self
+            .security_policy
+            .as_ref()
+            .is_some_and(|policy| policy.workspace_only);
+        let containment_required = self.restrict_to_workspace || workspace_only;
+        let current_workspace = self.workspace_state.read().working_dir().to_path_buf();
+        let mut extra = self.workspace_state.read().effective_roots();
+        extra.extend(self.active_repo.lock().await.clone());
+
+        // Preserve the legacy selected-workspace base for explicit relative
+        // paths without making open policy enforce containment.
+        if let Some(policy) = self.security_policy.as_deref() {
+            policy
+                .validate_path_syntax(&path.to_string_lossy())
+                .map_err(map_path_error)?;
+        }
+        let resolved_input = if path.is_absolute() {
+            path.clone()
+        } else {
+            current_workspace.join(path)
+        };
+        crate::security::global_path_exemptions::authorize_path(
+            &resolved_input.to_string_lossy(),
+            containment_required.then_some(current_workspace.as_path()),
+            &extra,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_path_error)
+        .map(|authorized| authorized.canonicalize().unwrap_or(authorized))
     }
 
     async fn execute_status(&self, params: &Value) -> Result<String, ToolError> {
@@ -112,6 +149,19 @@ impl ManageCodeMapTool {
             "status": status,
             "nextStep": "The local Code Map index was cleared. Use index or reindex before running symbol graph queries."
         }))
+    }
+}
+
+fn map_path_error(err: String) -> ToolError {
+    if err.contains("outside the allowed directory")
+        || err.contains("null byte")
+        || err.contains("forbidden location")
+        || err.contains("Path traversal")
+        || err.contains("URL-encoded path traversal")
+    {
+        ToolError::PermissionDenied(err)
+    } else {
+        ToolError::ExecutionFailed(err)
     }
 }
 

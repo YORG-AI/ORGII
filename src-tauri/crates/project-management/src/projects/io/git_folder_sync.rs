@@ -618,6 +618,7 @@ mod tests {
             id: id.to_string(),
             name: name.to_string(),
             org_id: org_id.to_string(),
+            workspace_id: None,
             status: "planned".to_string(),
             priority: "none".to_string(),
             health: "no_updates".to_string(),

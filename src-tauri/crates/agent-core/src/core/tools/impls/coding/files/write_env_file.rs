@@ -34,12 +34,12 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::foundation::tool_infra::file::resolve_path_with_extras;
 use crate::interaction::secret_broker::{Resolve, SecretBroker};
+use crate::security::SecurityPolicy;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{Tool, ToolError};
 
-use super::{allowed_roots, WorkspaceStateHandle};
+use super::{allowed_roots, authorize_path, map_err, WorkspaceStateHandle};
 
 use zeroize::Zeroizing;
 
@@ -51,6 +51,7 @@ pub struct WriteEnvFileTool {
     workspace_state: Option<WorkspaceStateHandle>,
     scratchpad_dir: Option<PathBuf>,
     broker: Arc<SecretBroker>,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl WriteEnvFileTool {
@@ -63,7 +64,16 @@ impl WriteEnvFileTool {
             workspace_state,
             scratchpad_dir,
             broker,
+            security_policy: None,
         }
+    }
+
+    /// Preserve the same raw and resolved forbidden-path checks as the
+    /// other structured filesystem tools. Global grants never override this
+    /// policy; they only become additional candidate roots after these checks.
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
+        self
     }
 
     fn allowed_dir(&self) -> Option<PathBuf> {
@@ -158,8 +168,13 @@ impl Tool for WriteEnvFileTool {
         let allowed_dir = self.allowed_dir();
         let static_dirs: Vec<PathBuf> = self.scratchpad_dir.iter().cloned().collect();
         let extras: Vec<PathBuf> = allowed_roots(&static_dirs, self.workspace_state.as_ref());
-        let resolved = resolve_path_with_extras(path_str, allowed_dir.as_deref(), &extras)
-            .map_err(ToolError::PermissionDenied)?;
+        let (resolved, _) = authorize_path(
+            path_str,
+            allowed_dir.as_deref(),
+            &extras,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_err)?;
 
         ensure_dotenv_basename(&resolved)?;
 
@@ -298,7 +313,15 @@ fn is_git_tracked(path: &Path) -> bool {
 #[cfg(unix)]
 fn write_file_secure(path: &Path, body: &[u8]) -> Result<(), String> {
     use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    // `OpenOptionsExt::mode` applies only to newly-created files. Tighten an
+    // existing dotenv before replacing it so secret writes always land in a
+    // owner-only file.
+    if path.exists() {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|err| format!("Failed to secure '{}': {err}", path.display()))?;
+    }
 
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -380,5 +403,168 @@ mod tests {
             ToolError::ExecutionFailed(msg) => assert!(msg.contains("expired")),
             other => panic!("unexpected: {:?}", other),
         }
+    }
+
+    #[tokio::test]
+    async fn global_exemption_authorization_still_obeys_forbidden_policy() {
+        use crate::security::{AutonomyLevel, CommandRiskRules};
+
+        let workspace = tempfile::tempdir().unwrap();
+        let globally_granted = tempfile::tempdir().unwrap();
+        let target = globally_granted.path().join(".env.local");
+        let policy = Arc::new(SecurityPolicy::permissive());
+
+        // Exercise the same authorization helper used by the tool with an
+        // explicit global root; durable DB state is intentionally not needed
+        // for this focused path-ordering test.
+        let allowed = crate::security::global_path_exemptions::authorize_path_with_global_roots(
+            target.to_str().unwrap(),
+            Some(workspace.path()),
+            &[],
+            Some(&policy),
+            &[globally_granted.path().canonicalize().unwrap()],
+        )
+        .unwrap();
+        assert_eq!(allowed, target);
+
+        let forbidden_policy = Arc::new(SecurityPolicy::new(
+            AutonomyLevel::Full,
+            true,
+            Vec::new(),
+            Vec::new(),
+            vec![globally_granted.path().to_string_lossy().into_owned()],
+            true,
+            CommandRiskRules::default(),
+        ));
+        assert!(
+            crate::security::global_path_exemptions::authorize_path_with_global_roots(
+                target.to_str().unwrap(),
+                Some(workspace.path()),
+                &[],
+                Some(&forbidden_policy),
+                &[globally_granted.path().canonicalize().unwrap()],
+            )
+            .is_err()
+        );
+    }
+
+    async fn mint_secret(broker: &Arc<SecretBroker>) -> String {
+        let recv = broker
+            .ask("session", "request", "API_KEY", "api_key", "prompt", None)
+            .await;
+        broker.submit("request", "top-secret".into()).await;
+        match recv.await.unwrap() {
+            crate::interaction::secret_broker::SecretCapture::Submitted { token } => token,
+            other => panic!("unexpected capture result: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_rejects_forbidden_target_before_resolving_secret() {
+        use crate::security::{AutonomyLevel, CommandRiskRules};
+
+        let workspace = tempfile::tempdir().unwrap();
+        let target = workspace.path().join(".env");
+        let broker = Arc::new(SecretBroker::new());
+        let token = mint_secret(&broker).await;
+        let policy = Arc::new(SecurityPolicy::new(
+            AutonomyLevel::Full,
+            true,
+            Vec::new(),
+            Vec::new(),
+            vec![workspace.path().to_string_lossy().into_owned()],
+            true,
+            CommandRiskRules::default(),
+        ));
+        let tool =
+            WriteEnvFileTool::new(None, None, Arc::clone(&broker)).with_security_policy(policy);
+
+        let err = tool
+            .execute_text(
+                json!({
+                    "path": target,
+                    "content": format!("API_KEY={{{{secret:{token}}}}}\n"),
+                }),
+                &crate::tools::traits::CallContext::default(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ToolError::PermissionDenied(_)));
+        assert!(!target.exists());
+        assert!(matches!(
+            broker.resolve(&token).await,
+            Resolve::Plaintext(_)
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn execute_writes_secrets_to_owner_only_dotenv_and_consumes_token() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let workspace = tempfile::tempdir().unwrap();
+        let target = workspace.path().join(".env.local");
+        std::fs::write(&target, "OLD=value\n").unwrap();
+        std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        let broker = Arc::new(SecretBroker::new());
+        let token = mint_secret(&broker).await;
+        let tool = WriteEnvFileTool::new(None, None, Arc::clone(&broker));
+        tool.execute_text(
+            json!({
+                "path": target,
+                "content": format!("API_KEY={{{{secret:{token}}}}}\n"),
+                "acknowledge_tracked": false,
+            }),
+            &crate::tools::traits::CallContext::default(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "API_KEY=top-secret\n"
+        );
+        assert_eq!(
+            std::fs::metadata(&target).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(matches!(broker.resolve(&token).await, Resolve::Expired));
+    }
+
+    #[tokio::test]
+    async fn execute_requires_acknowledgement_before_overwriting_tracked_dotenv() {
+        let workspace = tempfile::tempdir().unwrap();
+        let target = workspace.path().join(".env");
+        std::fs::write(&target, "EXISTING=value\n").unwrap();
+        let init = std::process::Command::new("git")
+            .arg("init")
+            .arg("-q")
+            .current_dir(workspace.path())
+            .status()
+            .unwrap();
+        assert!(init.success());
+        let add = std::process::Command::new("git")
+            .args(["add", ".env"])
+            .current_dir(workspace.path())
+            .status()
+            .unwrap();
+        assert!(add.success());
+
+        let tool = WriteEnvFileTool::new(None, None, Arc::new(SecretBroker::new()));
+        let err = tool
+            .execute_text(
+                json!({ "path": target, "content": "NEW=value\n" }),
+                &crate::tools::traits::CallContext::default(),
+            )
+            .await
+            .unwrap_err();
+
+        assert!(matches!(err, ToolError::PermissionDenied(_)));
+        assert_eq!(
+            std::fs::read_to_string(&target).unwrap(),
+            "EXISTING=value\n"
+        );
     }
 }

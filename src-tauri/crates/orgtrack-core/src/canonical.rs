@@ -71,6 +71,25 @@ pub struct SessionRecord {
     pub parent_session_id: Option<String>,
     pub org_member_id: Option<String>,
     pub metadata: AgentMetadata,
+    /// Explicit Journey associations supplied by the session producer. They
+    /// are never reconstructed from names, paths, branches, or event order.
+    #[serde(default)]
+    pub journey: JourneyMetadata,
+}
+
+/// Optional durable metadata consumed by the read-only Journey projector.
+/// `topic_tags` has no automatic producer yet; it remains empty until an
+/// explicit producer supplies it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyMetadata {
+    pub project_id: Option<String>,
+    pub workspace_id: Option<String>,
+    pub work_item_id: Option<String>,
+    pub agent_identity: Option<String>,
+    pub agent_band: Option<String>,
+    #[serde(default)]
+    pub topic_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,6 +184,10 @@ pub struct SessionEditArtifactRecord {
     pub session_id: String,
     pub source_event_id: Option<String>,
     pub turn_id: Option<String>,
+    /// Exact event-provided execution turn. Journey does not read the legacy
+    /// `turn_id` or derive turns from `sequence_index`.
+    #[serde(default)]
+    pub execution_turn_id: Option<String>,
     pub sequence_index: i64,
     pub timestamp: Option<String>,
     pub workspace_path: Option<String>,

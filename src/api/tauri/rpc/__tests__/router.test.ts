@@ -44,6 +44,144 @@ describe("typed RPC router", () => {
     expect(invokeMock).not.toHaveBeenCalled();
   });
 
+  it("routes session deletion through the relationship-cleanup command", async () => {
+    invokeMock.mockResolvedValue(undefined);
+
+    await rpc.agentSession.deleteSession({ sessionId: "session-delete-1" });
+
+    expect(invokeMock).toHaveBeenCalledWith("agent_delete_session", {
+      sessionId: "session-delete-1",
+    });
+  });
+
+  it("routes Work Item unlink through the fail-closed lifecycle command", async () => {
+    invokeMock.mockResolvedValue(true);
+
+    await expect(
+      rpc.agentSession.unlinkSessionFromWorkItem({
+        sessionId: "session-unlink-1",
+      })
+    ).resolves.toBe(true);
+
+    expect(invokeMock).toHaveBeenCalledWith(
+      "agent_unlink_session_from_work_item",
+      {
+        sessionId: "session-unlink-1",
+      }
+    );
+  });
+
+  it("preserves omitted, null, and value runtime settings in the narrow key mutation", async () => {
+    invokeMock.mockResolvedValue({ id: "key-1" });
+
+    await rpc.validation.updateModelRuntimeSettings({
+      request: { key_id: "key-1", model: "gpt-5.5" },
+    });
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "update_model_runtime_settings",
+      {
+        request: { key_id: "key-1", model: "gpt-5.5" },
+      }
+    );
+
+    await rpc.validation.updateModelRuntimeSettings({
+      request: {
+        key_id: "key-1",
+        model: "gpt-5.5",
+        reasoning_effort_override: null,
+      },
+    });
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "update_model_runtime_settings",
+      {
+        request: {
+          key_id: "key-1",
+          model: "gpt-5.5",
+          reasoning_effort_override: null,
+        },
+      }
+    );
+
+    await rpc.validation.updateModelRuntimeSettings({
+      request: {
+        key_id: "key-1",
+        model: "gpt-5.5",
+        context_window_override: 128000,
+      },
+    });
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "update_model_runtime_settings",
+      {
+        request: {
+          key_id: "key-1",
+          model: "gpt-5.5",
+          context_window_override: 128000,
+        },
+      }
+    );
+  });
+
+  it("transforms Rust global path exemption access to the frontend DTO", async () => {
+    invokeMock.mockResolvedValue([
+      {
+        id: "grant-1",
+        canonicalPath: "/tmp/exempt",
+        access: "read_write",
+        recursive: true,
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:00Z",
+      },
+    ]);
+
+    await expect(rpc.globalPathExemptions.list()).resolves.toEqual([
+      {
+        id: "grant-1",
+        canonicalPath: "/tmp/exempt",
+        access: "readWrite",
+        recursive: true,
+        createdAt: "2026-08-05T00:00:00Z",
+        updatedAt: "2026-08-05T00:00:00Z",
+      },
+    ]);
+    expect(invokeMock).toHaveBeenCalledWith("global_path_exemptions_list", {});
+  });
+
+  it("binds global path exemption mutation parameters to their Rust names", async () => {
+    invokeMock.mockResolvedValueOnce({
+      id: "grant-agents",
+      canonical_path: "/home/panshuainan/.agents",
+      access: "read_write",
+      recursive: true,
+      created_at: "2026-08-05T00:00:00Z",
+      updated_at: "2026-08-05T00:00:00Z",
+    });
+
+    await expect(
+      rpc.globalPathExemptions.add({ path: "/home/panshuainan/.agents" })
+    ).resolves.toEqual({
+      id: "grant-agents",
+      canonicalPath: "/home/panshuainan/.agents",
+      access: "readWrite",
+      recursive: true,
+      createdAt: "2026-08-05T00:00:00Z",
+      updatedAt: "2026-08-05T00:00:00Z",
+    });
+    expect(invokeMock).toHaveBeenLastCalledWith("global_path_exemptions_add", {
+      path: "/home/panshuainan/.agents",
+    });
+
+    invokeMock.mockResolvedValueOnce(true);
+    await expect(
+      rpc.globalPathExemptions.remove({ id: "grant-agents" })
+    ).resolves.toBe(true);
+    expect(invokeMock).toHaveBeenLastCalledWith(
+      "global_path_exemptions_remove",
+      {
+        id: "grant-agents",
+      }
+    );
+  });
+
   it("accepts effective tools output with omitted serde-default fields", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error");
     invokeMock.mockResolvedValue({

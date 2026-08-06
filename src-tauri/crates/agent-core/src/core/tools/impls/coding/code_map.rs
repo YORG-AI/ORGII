@@ -14,6 +14,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::security::SecurityPolicy;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params_described, Tool, ToolError};
@@ -95,6 +96,8 @@ pub struct CodeMapTool {
     default_workspace: PathBuf,
     active_repo: TokioMutex<Option<PathBuf>>,
     workspace_state: Arc<parking_lot::RwLock<SessionWorkspace>>,
+    restrict_to_workspace: bool,
+    security_policy: Option<Arc<SecurityPolicy>>,
 }
 
 impl CodeMapTool {
@@ -106,7 +109,19 @@ impl CodeMapTool {
             default_workspace,
             active_repo: TokioMutex::new(None),
             workspace_state,
+            restrict_to_workspace: false,
+            security_policy: None,
         }
+    }
+
+    pub fn with_restrict_to_workspace(mut self, restricted: bool) -> Self {
+        self.restrict_to_workspace = restricted;
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
+        self
     }
 
     async fn resolve_workspace(&self, explicit: Option<PathBuf>) -> Result<PathBuf, ToolError> {
@@ -124,13 +139,40 @@ impl CodeMapTool {
     }
 
     async fn authorize_workspace_path(&self, path: PathBuf) -> Result<PathBuf, ToolError> {
-        let extra_allowed: Vec<PathBuf> =
-            self.active_repo.lock().await.clone().into_iter().collect();
-        self.workspace_state
-            .read()
-            .is_path_allowed(&path, &extra_allowed)
-            .map_err(ToolError::PermissionDenied)?;
-        Ok(path)
+        self.authorize_path(&path).await
+    }
+
+    async fn authorize_path(&self, path: &PathBuf) -> Result<PathBuf, ToolError> {
+        let workspace_only = self
+            .security_policy
+            .as_ref()
+            .is_some_and(|policy| policy.workspace_only);
+        let containment_required = self.restrict_to_workspace || workspace_only;
+        let current_workspace = self.workspace_state.read().working_dir().to_path_buf();
+        let mut extra = self.workspace_state.read().effective_roots();
+        extra.extend(self.active_repo.lock().await.clone());
+
+        // Code Map has always interpreted explicit relative paths from the
+        // selected workspace. Keep that base even when open policy does not
+        // require workspace containment.
+        if let Some(policy) = self.security_policy.as_deref() {
+            policy
+                .validate_path_syntax(&path.to_string_lossy())
+                .map_err(map_path_error)?;
+        }
+        let resolved_input = if path.is_absolute() {
+            path.clone()
+        } else {
+            current_workspace.join(path)
+        };
+        crate::security::global_path_exemptions::authorize_path(
+            &resolved_input.to_string_lossy(),
+            containment_required.then_some(current_workspace.as_path()),
+            &extra,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_path_error)
+        .map(|authorized| authorized.canonicalize().unwrap_or(authorized))
     }
 
     async fn resolve_file_path(
@@ -146,13 +188,20 @@ impl CodeMapTool {
         } else {
             workspace_path.join(file_path)
         };
-        let extra_allowed: Vec<PathBuf> =
-            self.active_repo.lock().await.clone().into_iter().collect();
-        self.workspace_state
-            .read()
-            .is_path_allowed(&resolved, &extra_allowed)
-            .map_err(ToolError::PermissionDenied)?;
-        Ok(Some(resolved))
+        self.authorize_path(&resolved).await.map(Some)
+    }
+}
+
+fn map_path_error(err: String) -> ToolError {
+    if err.contains("outside the allowed directory")
+        || err.contains("null byte")
+        || err.contains("forbidden location")
+        || err.contains("Path traversal")
+        || err.contains("URL-encoded path traversal")
+    {
+        ToolError::PermissionDenied(err)
+    } else {
+        ToolError::ExecutionFailed(err)
     }
 }
 

@@ -134,6 +134,7 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
           id: `proj-${slug}`,
           name,
           org_id: orgId,
+          workspace_id: undefined,
           status: "backlog",
           priority: "none",
           health: "no_updates",

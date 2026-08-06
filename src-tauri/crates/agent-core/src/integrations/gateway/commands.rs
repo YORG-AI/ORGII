@@ -33,6 +33,16 @@ pub enum GatewayCommand {
     SessionCurrent,
     /// List recent sessions that can be bound to this chat.
     SessionList,
+    /// Start the durable Workspace -> Project -> Work Item -> Session tree.
+    SessionTree,
+    /// Start a durable snapshot of recent terminal sessions.
+    SessionRecent,
+    /// Move the current browse snapshot forward one page.
+    BrowseNext,
+    /// Move the current browse snapshot backward one page.
+    BrowsePrev,
+    /// Return from the current browse level to its parent.
+    BrowseBack,
     /// Switch this chat to an existing ORG2 session id.
     SessionSwitch(String),
     /// Create a fresh versioned session and bind this chat to it immediately.
@@ -93,6 +103,9 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
             (!rest.is_empty()).then(|| rest.to_string()),
         )),
         "/compact" => bare_command(rest, GatewayCommand::Compact),
+        "/next" => bare_command(rest, GatewayCommand::BrowseNext),
+        "/prev" => bare_command(rest, GatewayCommand::BrowsePrev),
+        "/0" => bare_command(rest, GatewayCommand::BrowseBack),
         "/session" | "/ctx" => parse_session_command(rest),
         "/newsession" => parse_newsession_command(rest),
         "/help" | "/commands" => bare_command(rest, GatewayCommand::Help),
@@ -189,6 +202,14 @@ fn parse_session_command(rest: &str) -> Option<GatewayCommand> {
                 None
             }
         }
+        "tree" => bare_command(
+            &parts.collect::<Vec<_>>().join(" "),
+            GatewayCommand::SessionTree,
+        ),
+        "recent" => bare_command(
+            &parts.collect::<Vec<_>>().join(" "),
+            GatewayCommand::SessionRecent,
+        ),
         "new" => {
             let rest = parts.collect::<Vec<_>>().join(" ");
             if rest.trim().is_empty() {
@@ -321,6 +342,11 @@ mod tests {
             Some(GatewayCommand::SessionCurrent)
         );
         assert_eq!(parse("/session list"), Some(GatewayCommand::SessionList));
+        assert_eq!(parse("/session tree"), Some(GatewayCommand::SessionTree));
+        assert_eq!(
+            parse("/session recent"),
+            Some(GatewayCommand::SessionRecent)
+        );
         assert_eq!(parse("/session new"), Some(GatewayCommand::SessionNew));
         assert_eq!(
             parse("/newsession 测试会话 请回答 ok"),
@@ -352,6 +378,13 @@ mod tests {
             })
         );
         assert_eq!(parse("/ctx ls"), Some(GatewayCommand::SessionList));
+    }
+
+    #[test]
+    fn parses_browse_paging_commands() {
+        assert_eq!(parse("/next"), Some(GatewayCommand::BrowseNext));
+        assert_eq!(parse("/prev"), Some(GatewayCommand::BrowsePrev));
+        assert_eq!(parse("/0"), Some(GatewayCommand::BrowseBack));
     }
 
     #[test]

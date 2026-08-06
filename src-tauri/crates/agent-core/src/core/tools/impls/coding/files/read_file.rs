@@ -5,11 +5,13 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::specialization::skills::builtin;
 
-use super::{allowed_roots, live_allowed_dir, map_err, WorkspaceStateHandle};
+use super::{allowed_roots, authorize_path, live_allowed_dir, map_err, WorkspaceStateHandle};
+use crate::security::SecurityPolicy;
 use crate::tools::impls::coding::action_router::ActionRouter;
 use crate::tools::names as tool_names;
 use crate::tools::traits::{optional_int, required_string, Tool, ToolError};
@@ -92,6 +94,7 @@ pub struct ReadFileTool {
     additional_allowed_dirs: Vec<PathBuf>,
     workspace_state: Option<WorkspaceStateHandle>,
     router: Option<ActionRouter>,
+    security_policy: Option<Arc<SecurityPolicy>>,
     read_cache: Mutex<ReadFileCache>,
 }
 
@@ -102,12 +105,18 @@ impl ReadFileTool {
             additional_allowed_dirs: Vec::new(),
             workspace_state: None,
             router: None,
+            security_policy: None,
             read_cache: Mutex::new(ReadFileCache::default()),
         }
     }
 
     pub fn with_router(mut self, router: ActionRouter) -> Self {
         self.router = Some(router);
+        self
+    }
+
+    pub fn with_security_policy(mut self, policy: Arc<SecurityPolicy>) -> Self {
+        self.security_policy = Some(policy);
         self
     }
 
@@ -241,10 +250,21 @@ impl Tool for ReadFileTool {
             return Ok(output);
         }
 
+        let allowed = self.current_allowed_dir();
+        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
+        let (authorized_path, authorized_roots) = authorize_path(
+            &raw_path,
+            allowed.as_deref(),
+            &extras,
+            self.security_policy.as_deref(),
+        )
+        .map_err(map_err)?;
+        let authorized_path = authorized_path.to_string_lossy().into_owned();
+
         if let Some(ref router) = self.router {
             if router.should_route() {
                 if let Some(result) = router
-                    .try_execute("file.read", serde_json::json!({ "path": raw_path }))
+                    .try_execute("file.read", serde_json::json!({ "path": &authorized_path }))
                     .await?
                 {
                     let action = classify_read_action(&raw_path, &result);
@@ -253,12 +273,13 @@ impl Tool for ReadFileTool {
             }
         }
 
-        let allowed = self.current_allowed_dir();
-        let extras = allowed_roots(&self.additional_allowed_dirs, self.workspace_state.as_ref());
-        let stat =
-            crate::tool_infra::file::stat_file_with_extras(&raw_path, allowed.as_deref(), &extras)
-                .await
-                .map_err(map_err)?;
+        let stat = crate::tool_infra::file::stat_file_with_extras(
+            &authorized_path,
+            allowed.as_deref(),
+            &authorized_roots,
+        )
+        .await
+        .map_err(map_err)?;
         let cache_key = ReadCacheKey {
             resolved_path: stat.resolved_path.clone(),
             offset,
@@ -274,9 +295,9 @@ impl Tool for ReadFileTool {
         }
 
         let result = crate::tool_infra::file::read_file_in_range_with_extras(
-            &raw_path,
+            &authorized_path,
             allowed.as_deref(),
-            &extras,
+            &authorized_roots,
             offset,
             limit,
         )

@@ -179,6 +179,7 @@ pub async fn prompt_dump(
         load_workspace_rules: runtime.resolved.load_workspace_rules,
         agent_soul: live_soul,
         workspace: live_workspace,
+        global_permitted_paths: crate::security::global_path_exemptions::global_paths(),
         channel: None,
         chat_id: None,
         agent_mode: None,

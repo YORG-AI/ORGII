@@ -51,6 +51,9 @@ pub struct CliLaunchParams {
     pub isolate: bool,
     pub background: bool,
     pub key_source: Option<String>,
+    /// Explicit additional directories for CLI implementations that support
+    /// their own `--add-dir` flag. This bridge never infers capability from
+    /// shell text or promises support for generic/Cursor CLIs.
     pub additional_directories: Option<Vec<String>>,
     pub parent_session_id: Option<String>,
     pub org_member_id: Option<String>,

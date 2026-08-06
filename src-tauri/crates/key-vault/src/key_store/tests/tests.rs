@@ -1,6 +1,6 @@
 use crate::key_store::{
     AuthMethod, CliOAuthTokenSync, CliOAuthTokenSyncOutcome, HealthStatus, KeyService, KeyStore,
-    ModelKey, ModelType, KEY_SERVICE,
+    ModelKey, ModelType, ModelVariant, ReasoningEffort, KEY_SERVICE,
 };
 use chrono::{TimeZone, Utc};
 use std::collections::HashMap;
@@ -70,6 +70,22 @@ fn test_mask_api_key() {
 
     cred.api_key = Some("short".to_string());
     assert_eq!(cred.mask_api_key(), Some("*****".to_string()));
+}
+
+#[test]
+fn legacy_model_variant_json_decodes_with_auto_runtime_settings() {
+    let legacy = r#"{
+        "model": "gpt-4o",
+        "base_model": "gpt-4o",
+        "reasoning": null,
+        "fast": false,
+        "context_window": 128000
+    }"#;
+
+    let variant: ModelVariant = serde_json::from_str(legacy).expect("legacy variant decodes");
+    assert_eq!(variant.context_window, Some(128_000));
+    assert_eq!(variant.context_window_override, None);
+    assert_eq!(variant.reasoning_effort_override, None);
 }
 
 /// E2E test using real credentials file
@@ -273,6 +289,103 @@ fn test_update_key_health_clears_stale_context_window_when_provider_omits_it() {
     assert_eq!(
         variant.context_window, None,
         "missing context_length in a fresh provider response must clear stale override"
+    );
+}
+
+#[test]
+fn test_refresh_updates_reported_context_but_preserves_runtime_overrides() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    let mut credential = ModelKey::new(ModelType::OpenaiApi);
+    credential.model_variants = vec![ModelVariant {
+        model: "gpt-4o".to_string(),
+        base_model: "gpt-4o".to_string(),
+        reasoning: None,
+        fast: false,
+        context_window: Some(128_000),
+        context_window_override: Some(96_000),
+        reasoning_effort_override: Some(ReasoningEffort::High),
+    }];
+    let saved = service.save_key(credential).unwrap();
+
+    let contexts = HashMap::from([("gpt-4o".to_string(), 256_000)]);
+    service
+        .update_key_health(
+            &saved.id,
+            HealthStatus::Valid,
+            None,
+            Some(vec!["gpt-4o".to_string()]),
+            None,
+            None,
+            Some(&contexts),
+        )
+        .unwrap();
+
+    let refreshed = service.get_key_by_id(&saved.id).unwrap();
+    let variant = refreshed.model_variants.first().unwrap();
+    assert_eq!(variant.context_window, Some(256_000));
+    assert_eq!(variant.context_window_override, Some(96_000));
+    assert_eq!(
+        variant.reasoning_effort_override,
+        Some(ReasoningEffort::High)
+    );
+}
+
+#[test]
+fn test_runtime_settings_patch_has_tri_state_semantics() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    let mut credential = ModelKey::new(ModelType::OpenaiApi);
+    credential.model_variants = vec![ModelVariant {
+        model: "gpt-4o".to_string(),
+        base_model: "gpt-4o".to_string(),
+        reasoning: None,
+        fast: false,
+        context_window: Some(128_000),
+        context_window_override: Some(64_000),
+        reasoning_effort_override: Some(ReasoningEffort::Low),
+    }];
+    let saved = service.save_key(credential).unwrap();
+
+    // Omitted fields leave both existing values unchanged.
+    service
+        .update_model_runtime_settings(&saved.id, "gpt-4o", None, None)
+        .unwrap();
+    let unchanged = service.get_key_by_id(&saved.id).unwrap();
+    let variant = unchanged.model_variants.first().unwrap();
+    assert_eq!(variant.context_window_override, Some(64_000));
+    assert_eq!(
+        variant.reasoning_effort_override,
+        Some(ReasoningEffort::Low)
+    );
+
+    // Null clears only the selected field back to Auto.
+    service
+        .update_model_runtime_settings(&saved.id, "gpt-4o", Some(None), None)
+        .unwrap();
+    let cleared = service.get_key_by_id(&saved.id).unwrap();
+    let variant = cleared.model_variants.first().unwrap();
+    assert_eq!(variant.context_window_override, None);
+    assert_eq!(
+        variant.reasoning_effort_override,
+        Some(ReasoningEffort::Low)
+    );
+
+    // A value updates only the requested setting.
+    service
+        .update_model_runtime_settings(
+            &saved.id,
+            "gpt-4o",
+            Some(Some(96_000)),
+            Some(Some(ReasoningEffort::ExtraHigh)),
+        )
+        .unwrap();
+    let updated = service.get_key_by_id(&saved.id).unwrap();
+    let variant = updated.model_variants.first().unwrap();
+    assert_eq!(variant.context_window_override, Some(96_000));
+    assert_eq!(
+        variant.reasoning_effort_override,
+        Some(ReasoningEffort::ExtraHigh)
     );
 }
 

@@ -110,11 +110,15 @@ export function useAdvancedConfig(): UseAdvancedConfigResult {
         : undefined;
 
     // Apply the account's configured supplier slug (e.g. `:deepseek`) to the
-    // selected model so aggregator routing pins the upstream supplier. An
-    // explicit slug already embedded in the model id wins and is left as-is.
+    // selected model so aggregator routing pins the upstream supplier. Bare
+    // google-vertex remains persisted-only until its exact wire identifier is
+    // verified. An explicit slug already embedded in the model id wins.
     const baseModel = lastModelSelection.model;
     const slugEntry = selectedAccount?.modelSlugs?.find(
-      (entry) => entry.model === baseModel && !baseModel.includes(":")
+      (entry) =>
+        entry.model === baseModel &&
+        entry.slug !== "google-vertex" &&
+        !baseModel.includes(":")
     );
     const model = slugEntry ? `${baseModel}:${slugEntry.slug}` : baseModel;
 

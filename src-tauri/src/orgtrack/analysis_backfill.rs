@@ -360,6 +360,7 @@ fn cursor_row_to_session_record(row: cursor_ide_history::CursorIdeSessionRow) ->
             display_name: Some("Cursor IDE".to_string()),
             ..AgentMetadata::default()
         },
+        journey: Default::default(),
     }
 }
 
@@ -391,6 +392,7 @@ fn imported_row_to_session_record(row: ImportedHistorySessionRow) -> SessionReco
             display_name: Some(source.to_string()),
             ..AgentMetadata::default()
         },
+        journey: Default::default(),
     }
 }
 
@@ -473,6 +475,7 @@ fn analyze_session(store: &SqliteRecordStore<'_>, session: &SessionRecord) -> Re
             session_id: session.session_id.clone(),
             source_event_id: Some(event_id.clone()),
             turn_id: None,
+            execution_turn_id: None,
             sequence_index: sequence_index as i64,
             timestamp: None,
             workspace_path: session.workspace_path.clone(),
@@ -772,6 +775,7 @@ mod gate_tests {
             parent_session_id: None,
             org_member_id: None,
             metadata: AgentMetadata::default(),
+            journey: Default::default(),
         }
     }
 

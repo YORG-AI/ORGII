@@ -221,6 +221,7 @@ mod tests {
             parent_session_id: None,
             org_member_id: None,
             metadata: AgentMetadata::default(),
+            journey: Default::default(),
         };
         let final_diffs = vec![SessionFinalDiffRecord {
             schema_version: 1,

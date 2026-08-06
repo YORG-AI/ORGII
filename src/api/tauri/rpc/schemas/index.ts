@@ -17,6 +17,7 @@ export * as integrations from "./integrations";
 export * as sessionAggregate from "./sessionAggregate";
 export * as learning from "./learning";
 export * as workspaceMemory from "./workspaceMemory";
+export * as globalPathExemptions from "./globalPathExemptions";
 export * as lineage from "./lineage";
 export * as searchRegex from "./searchRegex";
 export * as searchSymbol from "./searchSymbol";

@@ -402,6 +402,27 @@ pub fn update_project_link(
     })
 }
 
+/// Remove only the Work Item portion of a session's canonical project
+/// relation. Project metadata intentionally remains available for project
+/// scoped UI and routing after the session is unlinked from a Work Item.
+pub fn clear_work_item_link(session_id: &str) -> SqliteResult<bool> {
+    with_sessions_writer(|| {
+        let conn = get_connection()?;
+        clear_work_item_link_with_conn(&conn, session_id)
+    })
+}
+
+fn clear_work_item_link_with_conn(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> SqliteResult<bool> {
+    let updated = conn.execute(
+        "UPDATE agent_sessions SET work_item_id = NULL WHERE session_id = ?1",
+        [session_id],
+    )?;
+    Ok(updated > 0)
+}
+
 /// Set the canonical Agent Org roster member id for a session.
 pub fn update_org_member_id(session_id: &str, org_member_id: &str) -> SqliteResult<bool> {
     with_sessions_writer(|| {
@@ -946,6 +967,31 @@ mod tests {
         assert_eq!(back.project_slug.as_deref(), Some("runtime"));
         assert_eq!(back.work_item_id.as_deref(), Some("RUN-12"));
         assert_eq!(back.agent_role.as_deref(), Some("reviewer"));
+    }
+
+    #[test]
+    fn clear_work_item_link_preserves_project_and_rename_metadata() {
+        let conn = rusqlite::Connection::open_in_memory().unwrap();
+        conn.execute_batch(TEST_SCHEMA).unwrap();
+
+        let mut record = make_record("sid-unlink", KeySource::OwnKey);
+        record.name = "Renamed session".to_string();
+        record.org_id = Some("org-platform".to_string());
+        record.project_id = Some("project-runtime".to_string());
+        record.project_name = Some("Runtime".to_string());
+        record.project_slug = Some("runtime".to_string());
+        record.work_item_id = Some("RUN-12".to_string());
+        upsert_into(&conn, &record);
+
+        assert!(clear_work_item_link_with_conn(&conn, "sid-unlink").unwrap());
+        let back = select_one(&conn, "sid-unlink");
+        assert_eq!(back.name, "Renamed session");
+        assert_eq!(back.project_slug.as_deref(), Some("runtime"));
+        assert_eq!(back.project_id.as_deref(), Some("project-runtime"));
+        assert!(
+            back.work_item_id.is_none(),
+            "project-only links use SQL NULL"
+        );
     }
 
     /// Mirror of `key_source_is_immutable_on_conflict` for the P3

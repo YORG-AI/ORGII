@@ -56,6 +56,10 @@ pub(crate) struct AgentRunLaunchRequest {
     pub ide_context: Option<IdeContext>,
     pub parent_session_id: Option<String>,
     pub sub_agent_ids: Vec<String>,
+    /// Explicit Journey metadata only. This request never derives tags from
+    /// prompt text, display names, workspace paths, or timestamps.
+    pub journey_workspace_id: Option<String>,
+    pub journey_topic_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -324,6 +328,8 @@ pub async fn launch_agent_session(
             ide_context: None,
             parent_session_id: None,
             sub_agent_ids: sub_agent_ids.to_vec(),
+            journey_workspace_id: None,
+            journey_topic_tags: Vec::new(),
         },
     )
     .await?;
@@ -456,6 +462,8 @@ pub(crate) async fn launch_rust_agent_run(
         request.mode.clone(),
         request.resources.native_harness_type.clone(),
         request.parent_session_id.clone(),
+        request.journey_workspace_id.clone(),
+        request.journey_topic_tags.clone(),
     )
     .await?;
 

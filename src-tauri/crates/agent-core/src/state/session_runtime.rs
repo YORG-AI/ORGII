@@ -361,6 +361,9 @@ impl AgentSession {
             PromptCacheInvalidationReason::LearningsChanged => {
                 self.learnings_prompt_cache.lock().await.clear();
             }
+            PromptCacheInvalidationReason::GlobalPathExemptionsChanged => {
+                self.prompt_cache.lock().await.clear();
+            }
             PromptCacheInvalidationReason::Compaction => {
                 self.prompt_cache_break_tracker.lock().await.clear();
             }

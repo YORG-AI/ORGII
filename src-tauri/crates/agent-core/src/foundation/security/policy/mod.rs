@@ -52,6 +52,7 @@ pub const READ_ONLY_DENY_TOOLS: &[&str] = &[
     crate::tools::names::RUN_SHELL,
     crate::tools::names::AWAIT_OUTPUT,
     crate::tools::names::EDIT_FILE,
+    crate::tools::names::WRITE_ENV_FILE,
     crate::tools::names::DELETE_FILE,
     crate::tools::names::APPLY_PATCH,
     crate::tools::names::WORKTREE,
@@ -532,6 +533,7 @@ mod tests {
         let tools = AutonomyLevel::ReadOnly.deny_tools();
         assert!(tools.contains(&"run_shell".to_string()));
         assert!(tools.contains(&"edit_file".to_string()));
+        assert!(tools.contains(&"write_env_file".to_string()));
         assert!(tools.contains(&"apply_patch".to_string()));
     }
 

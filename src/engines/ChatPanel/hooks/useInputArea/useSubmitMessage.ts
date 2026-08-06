@@ -562,6 +562,7 @@ async function dispatchBuiltinSlashCommand(text: string): Promise<boolean> {
         id: slug,
         name: arg || "未命名项目",
         org_id: "personal",
+        workspace_id: undefined,
         status: "active",
         priority: "medium",
         health: "green",

@@ -230,6 +230,8 @@ pub(super) fn build_channel_environment(
     // surface in the OS Agent system prompt the same way they do for
     // SDE — otherwise the LLM has no idea those paths exist.
     let additional_dirs_block = render_channel_additional_dirs_block(config);
+    let mut global_paths_block = String::new();
+    append_global_permitted_paths(&mut global_paths_block, &config.global_permitted_paths);
 
     format!(
         "## Environment\n\n\
@@ -238,6 +240,7 @@ pub(super) fn build_channel_environment(
          - **Home directory:** {home}\n\
          - **Agent workspace:** {ws}\n\
          {additional_dirs}\
+         {global_paths}\
          - **Command timeout:** 60s\n\
          {ide_context}\n\n\
          ## Tooling\n\n\
@@ -253,6 +256,11 @@ pub(super) fn build_channel_environment(
             String::new()
         } else {
             format!("{}\n         ", additional_dirs_block)
+        },
+        global_paths = if global_paths_block.is_empty() {
+            String::new()
+        } else {
+            format!("{}         ", global_paths_block)
         },
         ide_context = ide_context_str,
         tool_summary = tool_summary_str,
@@ -358,6 +366,7 @@ static GIT_BRANCH_CACHE: OnceLock<GitBranchCache> = OnceLock::new();
 pub(super) fn build_project_environment(
     workspace_path: &Path,
     additional_dirs: &[&Path],
+    global_permitted_paths: &[std::path::PathBuf],
 ) -> String {
     let mut ctx = String::from("## Environment\n\n");
     ctx.push_str(&format!("- Platform: {}\n", std::env::consts::OS));
@@ -384,6 +393,8 @@ pub(super) fn build_project_environment(
             ctx.push_str(&format!("  - `{}`\n", dir.display()));
         }
     }
+
+    append_global_permitted_paths(&mut ctx, global_permitted_paths);
 
     let is_git = workspace_path.join(".git").exists();
     ctx.push_str(&format!(
@@ -422,6 +433,20 @@ pub(super) fn build_project_environment(
     }
 
     ctx
+}
+
+fn append_global_permitted_paths(ctx: &mut String, paths: &[std::path::PathBuf]) {
+    if paths.is_empty() {
+        return;
+    }
+
+    ctx.push_str("- Globally permitted paths:\n");
+    for path in paths {
+        ctx.push_str(&format!("  - `{}`\n", path.display()));
+    }
+    ctx.push_str(
+        "  - Workspace-external paths authorized for structured tools, subject to policy and OS restrictions.\n",
+    );
 }
 
 pub(super) fn build_rules_section(rules: &[(String, String)]) -> String {

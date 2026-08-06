@@ -5,6 +5,7 @@ pub mod extraction_scheduler;
 pub mod history_commands;
 pub mod impact_indexer;
 pub mod importer;
+#[path = "journey_canonical.rs"]
 pub mod journey;
 pub mod paths;
 pub mod types;
@@ -601,6 +602,7 @@ pub async fn debug_seed_final_diff(
             parent_session_id: None,
             org_member_id: None,
             metadata: AgentMetadata::default(),
+            journey: Default::default(),
         })?;
         let record_id = record_id(&["debug_seed_final_diff", &session_id, &file_path]);
         let words: Vec<&str> = diff.lines().collect();

@@ -260,6 +260,29 @@ impl BindingStore {
             .cloned()
     }
 
+    /// Remove every binding whose target is `session_id` from SQLite and the
+    /// in-memory cache. The DB delete happens while the cache write lock is
+    /// held, so a concurrent rebind cannot leave one tier pointing at a
+    /// deleted session. A DB failure leaves memory untouched for retry.
+    pub async fn clear_by_target(&self, session_id: &str) -> SqliteResult<usize> {
+        let target_session_id = session_id.to_string();
+        let mut guard = self.inner.write().await;
+        let removed = tokio::task::spawn_blocking(move || -> SqliteResult<usize> {
+            let conn = database::db::get_connection()?;
+            ensure_table(&conn)?;
+            delete_bindings_by_target(&conn, &target_session_id)
+        })
+        .await
+        .map_err(|err| {
+            rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::other(
+                err.to_string(),
+            )))
+        })??;
+
+        remove_bindings_by_target_from_cache(&mut guard, session_id);
+        Ok(removed)
+    }
+
     /// Remove the binding for `key` (both memory and DB). Used by `/new`
     /// and `/reset` commands so the next message re-routes via the LLM.
     pub async fn clear(&self, key: &SessionKey) {
@@ -288,6 +311,20 @@ impl BindingStore {
         let guard = self.inner.read().await;
         guard.values().cloned().collect()
     }
+}
+
+fn delete_bindings_by_target(conn: &Connection, target_session_id: &str) -> SqliteResult<usize> {
+    conn.execute(
+        "DELETE FROM gateway_bindings WHERE target_session_id = ?1",
+        [target_session_id],
+    )
+}
+
+fn remove_bindings_by_target_from_cache(
+    bindings: &mut HashMap<String, SessionBinding>,
+    target_session_id: &str,
+) {
+    bindings.retain(|_, binding| binding.target_session_id != target_session_id);
 }
 
 /// Create the `gateway_bindings` table if it does not exist.
@@ -426,6 +463,89 @@ mod tests {
         let hit = store.find_by_target("osagent-discord-1").await.unwrap();
         assert_eq!(hit.session_key.as_str(), "discord:1");
         assert!(store.find_by_target("osagent-nope").await.is_none());
+    }
+
+    #[test]
+    fn clear_by_target_helpers_remove_only_matching_db_and_cache_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        ensure_table(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO gateway_bindings (session_key, target_session_id, updated_at) VALUES (?1, ?2, ?3)",
+            params!["telegram:target", "session-target", "now"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO gateway_bindings (session_key, target_session_id, updated_at) VALUES (?1, ?2, ?3)",
+            params!["telegram:other", "session-other", "now"],
+        )
+        .unwrap();
+
+        assert_eq!(
+            delete_bindings_by_target(&conn, "session-target").unwrap(),
+            1
+        );
+        let remaining: String = conn
+            .query_row(
+                "SELECT target_session_id FROM gateway_bindings",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(remaining, "session-other");
+
+        let mut cache = HashMap::from([
+            (
+                "telegram:target".to_string(),
+                SessionBinding {
+                    session_key: SessionKey("telegram:target".to_string()),
+                    target_session_id: "session-target".to_string(),
+                    updated_at: "now".to_string(),
+                    last_activity_at: "now".to_string(),
+                },
+            ),
+            (
+                "telegram:other".to_string(),
+                SessionBinding {
+                    session_key: SessionKey("telegram:other".to_string()),
+                    target_session_id: "session-other".to_string(),
+                    updated_at: "now".to_string(),
+                    last_activity_at: "now".to_string(),
+                },
+            ),
+        ]);
+        remove_bindings_by_target_from_cache(&mut cache, "session-target");
+        assert_eq!(cache.len(), 1);
+        assert!(cache.contains_key("telegram:other"));
+    }
+
+    #[tokio::test]
+    async fn clear_by_target_removes_matching_bindings_from_db_and_cache() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        let store = BindingStore::new();
+        let target_key = SessionKey("telegram:target".into());
+        let other_key = SessionKey("telegram:other".into());
+
+        store
+            .set(target_key.clone(), "session-target".to_string())
+            .await;
+        store
+            .set(other_key.clone(), "session-other".to_string())
+            .await;
+
+        assert_eq!(store.clear_by_target("session-target").await.unwrap(), 1);
+        assert!(store.get(&target_key).await.is_none());
+        assert_eq!(
+            store.get(&other_key).await.unwrap().target_session_id,
+            "session-other"
+        );
+
+        let reloaded = BindingStore::new();
+        reloaded.load_from_db().await.unwrap();
+        assert!(reloaded.get(&target_key).await.is_none());
+        assert_eq!(
+            reloaded.get(&other_key).await.unwrap().target_session_id,
+            "session-other"
+        );
     }
 
     #[test]

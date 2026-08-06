@@ -18,9 +18,10 @@ pub use read_file::ReadFileTool;
 pub use write_env_file::WriteEnvFileTool;
 
 use parking_lot::RwLock;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use crate::security::SecurityPolicy;
 use crate::session::workspace::SessionWorkspace;
 use crate::tools::traits::ToolError;
 
@@ -65,9 +66,36 @@ pub(super) fn live_allowed_dir(
         .or_else(|| fallback.cloned())
 }
 
+/// Apply the file-tool authorization order shared by native structured file
+/// tools. Global exemptions are consulted by the underlying helper on every
+/// call, so removing one takes effect before the next tool invocation.
+pub(super) fn authorize_path(
+    raw: &str,
+    allowed_dir: Option<&Path>,
+    additional_allowed_dirs: &[PathBuf],
+    policy: Option<&SecurityPolicy>,
+) -> Result<(PathBuf, Vec<PathBuf>), String> {
+    let global_roots = crate::security::global_path_exemptions::global_paths();
+    let mut authorized_roots = additional_allowed_dirs.to_vec();
+    authorized_roots.extend(global_roots.iter().cloned());
+    let path = crate::security::global_path_exemptions::authorize_path_with_global_roots(
+        raw,
+        allowed_dir,
+        additional_allowed_dirs,
+        policy,
+        &global_roots,
+    )?;
+    Ok((path, authorized_roots))
+}
+
 /// Map `tool_service` String errors to `ToolError`.
 pub(super) fn map_err(err: String) -> ToolError {
-    if err.contains("outside the allowed directory") || err.contains("null byte") {
+    if err.contains("outside the allowed directory")
+        || err.contains("null byte")
+        || err.contains("forbidden location")
+        || err.contains("Path traversal")
+        || err.contains("URL-encoded path traversal")
+    {
         ToolError::PermissionDenied(err)
     } else {
         ToolError::ExecutionFailed(err)

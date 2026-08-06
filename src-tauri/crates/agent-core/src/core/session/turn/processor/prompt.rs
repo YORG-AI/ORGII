@@ -53,6 +53,7 @@ impl UnifiedMessageProcessor {
             load_workspace_rules: self.runtime.resolved.load_workspace_rules,
             agent_soul: self.runtime.agent_soul.clone(),
             workspace: live_workspace,
+            global_permitted_paths: crate::security::global_path_exemptions::global_paths(),
             channel: self.channel.clone(),
             chat_id: self.chat_id.clone(),
             agent_mode: self.agent_mode,

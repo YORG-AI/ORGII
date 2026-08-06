@@ -10,6 +10,7 @@ fn context(sequence_index: i64) -> EditArtifactContext {
         session_id: "session-1".to_string(),
         source_event_id: Some(format!("event-{sequence_index}")),
         turn_id: None,
+        execution_turn_id: None,
         sequence_index,
         timestamp: None,
         workspace_path: Some("/repo".to_string()),

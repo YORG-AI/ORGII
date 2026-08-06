@@ -308,6 +308,8 @@ pub async fn test_agent_org_launch_coordinator(
         worktree_path: None,
         project_slug: None,
         parent_session_id: None,
+        journey_workspace_id: None,
+        journey_topic_tags: Vec::new(),
         additional_directories: Vec::new(),
     };
 

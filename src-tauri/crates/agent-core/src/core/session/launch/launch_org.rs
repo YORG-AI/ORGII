@@ -4,6 +4,8 @@
 //! Agent Org run, covering both Rust-native and CLI agent members.
 
 use core_types::key_source::KeySource;
+use key_vault::ModelType;
+use std::path::PathBuf;
 
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::definitions::orgs::{parse_cli_agent_org_reference, OrgDefinition};
@@ -17,6 +19,25 @@ use super::launch_helpers::{
     flatten_org_members, member_runtime_account_id, member_runtime_key_source,
     member_runtime_model, member_runtime_native_harness_type, member_runtime_tier,
 };
+
+/// Return durable global grants only for CLI implementations with an explicit
+/// `--add-dir` capability. This is a launch snapshot: it is not a claim that
+/// a later grant removal revokes an already-created external CLI session.
+pub(super) fn global_additional_dirs_for_cli_member(
+    cli_agent: &ModelType,
+    global_paths: &[PathBuf],
+) -> Option<Vec<String>> {
+    if !matches!(cli_agent, ModelType::ClaudeCode | ModelType::Codex) {
+        return None;
+    }
+
+    let dirs: Vec<String> = global_paths
+        .iter()
+        .filter(|path| !path.as_os_str().is_empty())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    (!dirs.is_empty()).then_some(dirs)
+}
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn spawn_agent_org_member_materialization(
@@ -118,6 +139,9 @@ pub(super) async fn materialize_org_member_sessions(
         .transpose()?;
     let agent_exec_mode = agent_exec_mode.filter(|mode| !mode.trim().is_empty());
     let org_run_id = org_run_id.to_string();
+    // External CLIs do not share the native structured-tool policy surface.
+    // Pass global grants only to implementations that declare `--add-dir`.
+    let global_paths = crate::security::global_path_exemptions::global_paths();
     let mut created_session_ids = Vec::with_capacity(rust_members.len() + cli_members.len());
     let mut created_rust_session_ids = Vec::new();
     let mut created_cli_session_ids = Vec::new();
@@ -210,10 +234,11 @@ pub(super) async fn materialize_org_member_sessions(
     }
 
     for member in cli_members {
-        let cli_agent_type = parse_cli_agent_org_reference(&member.agent_id)
-            .ok_or_else(|| format!("invalid CLI Agent Org reference: {}", member.agent_id))?
-            .as_str()
-            .to_string();
+        let cli_agent = parse_cli_agent_org_reference(&member.agent_id)
+            .ok_or_else(|| format!("invalid CLI Agent Org reference: {}", member.agent_id))?;
+        let cli_agent_type = cli_agent.as_str().to_string();
+        let additional_directories =
+            global_additional_dirs_for_cli_member(&cli_agent, &global_paths);
         let member_config = member.runtime_config.as_ref();
         let member_key_source = member_runtime_key_source(member_config, &key_source)?;
         let outcome = crate::foundation::session_bridge::launch_cli_agent(
@@ -229,7 +254,7 @@ pub(super) async fn materialize_org_member_sessions(
                 isolate: false,
                 background: true,
                 key_source: Some(member_key_source.as_ref().to_string()),
-                additional_directories: None,
+                additional_directories,
                 parent_session_id: Some(root_session_id.clone()),
                 org_member_id: Some(member.id.clone()),
                 org_id: project_management::projects::types::PERSONAL_ORG_ID.to_string(),

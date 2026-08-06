@@ -15,6 +15,7 @@ pub struct EditArtifactContext {
     pub session_id: String,
     pub source_event_id: Option<String>,
     pub turn_id: Option<String>,
+    pub execution_turn_id: Option<String>,
     pub sequence_index: i64,
     pub timestamp: Option<String>,
     pub workspace_path: Option<String>,
@@ -68,6 +69,13 @@ pub fn artifacts_from_extracted_edit(
             session_id: context.session_id.clone(),
             source_event_id: context.source_event_id.clone(),
             turn_id: context.turn_id.clone(),
+            // Older explicit event producers use `turn_id`; preserve that
+            // exact association under the durable Journey field. No ordering
+            // or content-derived fallback is allowed.
+            execution_turn_id: context
+                .execution_turn_id
+                .clone()
+                .or_else(|| context.turn_id.clone()),
             sequence_index: context.sequence_index,
             timestamp: context.timestamp.clone(),
             workspace_path: context.workspace_path.clone(),

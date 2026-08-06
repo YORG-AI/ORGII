@@ -245,6 +245,7 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE TABLE IF NOT EXISTS projects (
             id                  TEXT PRIMARY KEY,
             org_id              TEXT NOT NULL DEFAULT 'personal-org' REFERENCES project_orgs(id) ON DELETE RESTRICT,
+            workspace_id        TEXT,
             name                TEXT NOT NULL,
             slug                TEXT NOT NULL,
             status              TEXT NOT NULL DEFAULT 'active',
@@ -422,6 +423,7 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
         "#,
     )?;
     ensure_workitems_deleted_at_column(conn)?;
+    ensure_projects_workspace_id_column(conn)?;
     ensure_projects_sync_columns(conn)?;
     ensure_routine_definitions_durable_columns(conn)?;
     ensure_routine_fires_durable_columns(conn)?;
@@ -450,6 +452,17 @@ fn init_local_tables(conn: &Connection) -> SqliteResult<()> {
 
 fn ensure_workitems_deleted_at_column(conn: &Connection) -> SqliteResult<()> {
     ensure_column(conn, "workitems", "deleted_at", "INTEGER")
+}
+
+/// Add the explicit Project-to-Workspace relation without assigning any
+/// legacy row. A NULL value is the durable Unlinked Workspace state.
+fn ensure_projects_workspace_id_column(conn: &Connection) -> SqliteResult<()> {
+    ensure_column(conn, "projects", "workspace_id", "TEXT")?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_projects_workspace_id ON projects(workspace_id)",
+        [],
+    )?;
+    Ok(())
 }
 
 /// Backfill the project-sync columns on DBs created before they were
@@ -725,6 +738,7 @@ mod tests {
 
         for expected in [
             "org_id",
+            "workspace_id",
             "sync_kind",
             "sync_config_json",
             "sync_last_pull_at",
@@ -783,6 +797,7 @@ mod tests {
             .map(Result::unwrap)
             .collect();
         for expected in [
+            "workspace_id",
             "sync_kind",
             "sync_config_json",
             "sync_connection_id",

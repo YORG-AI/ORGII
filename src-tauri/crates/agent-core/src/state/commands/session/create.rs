@@ -48,6 +48,8 @@ pub(crate) async fn create_session_impl(
     agent_exec_mode: Option<String>,
     native_harness_type: Option<String>,
     parent_session_id: Option<String>,
+    journey_workspace_id: Option<String>,
+    journey_topic_tags: Vec<String>,
 ) -> Result<serde_json::Value, String> {
     // Trace the incoming key_source so drift between frontend and
     // backend posture is visible in logs. The field is now persisted
@@ -145,6 +147,22 @@ pub(crate) async fn create_session_impl(
         .await
         .map_err(|err| err.to_string())?
         .map_err(|err| err.to_string())?;
+
+    if journey_workspace_id.is_some() || !journey_topic_tags.is_empty() {
+        let session_id_for_metadata = session_id.clone();
+        tokio::task::spawn_blocking(move || {
+            session_persistence::upsert_explicit_journey_metadata(
+                &session_id_for_metadata,
+                &session_persistence::ExplicitJourneyMetadata {
+                    workspace_id: journey_workspace_id,
+                    topic_tags: journey_topic_tags,
+                },
+            )
+        })
+        .await
+        .map_err(|err| err.to_string())?
+        .map_err(|err| err.to_string())?;
+    }
 
     tracing::info!("[agent_session] Created session: {}", session_id);
 

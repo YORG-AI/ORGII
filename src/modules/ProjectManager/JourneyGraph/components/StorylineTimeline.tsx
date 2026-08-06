@@ -1,7 +1,5 @@
 import React from "react";
 
-import type { StorylineViewModel } from "../viewModel";
-import { EvidenceSource } from "./EvidenceSource";
 import {
   CURVE_KINDS,
   LANE_HEIGHT,
@@ -13,6 +11,8 @@ import {
   layoutStoryline,
   parseTimestampMs,
 } from "../timelineLayout";
+import type { StorylineViewModel } from "../viewModel";
+import { EvidenceSource } from "./EvidenceSource";
 
 /** Marker color per node kind (dark-theme harmonic palette). */
 const KIND_COLOR: Record<string, string> = {
@@ -36,7 +36,9 @@ const CURVE_DASH: Record<string, string> = {
 const CARD_WIDTH = 156;
 const CARD_HEIGHT = 52;
 
-export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({ viewModel }) => {
+export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
+  viewModel,
+}) => {
   const layout = layoutStoryline(viewModel);
   const { axis, lanes, curves, uncurved, unpositioned } = layout;
 
@@ -45,20 +47,32 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
   const ticks = axis.points.filter((_, index) => index % tickStep === 0);
 
   return (
-    <section aria-label="Storyline timeline" className="space-y-4" data-testid="storyline-timeline">
+    <section
+      aria-label="Storyline timeline"
+      className="space-y-4"
+      data-testid="storyline-timeline"
+    >
       <p className="text-xs text-text-3">
-        Real-time x-axis uses display timestamps only; long idle spans are compressed and labeled.
-        Connector curves are factual edges (forkedFrom / resumedFrom / compactedTo).
+        Real-time x-axis uses display timestamps only; long idle spans are
+        compressed and labeled. Connector curves are factual edges (forkedFrom /
+        resumedFrom / compactedTo).
       </p>
 
       <div className="overflow-x-auto">
-        <div className="relative" style={{ width: layout.totalWidth, height: layout.totalHeight }}>
+        <div
+          className="relative"
+          style={{ width: layout.totalWidth, height: layout.totalHeight }}
+        >
           {/* Lane labels (fixed left column). */}
           {lanes.map(({ lane, y }) => (
             <div
               key={lane.id}
               className="absolute top-0 truncate pr-2 text-xs font-medium text-text-2"
-              style={{ left: 0, top: y + LANE_HEIGHT / 2 - 8, width: LANE_LABEL_WIDTH - 8 }}
+              style={{
+                left: 0,
+                top: y + LANE_HEIGHT / 2 - 8,
+                width: LANE_LABEL_WIDTH - 8,
+              }}
               data-testid="storyline-lane"
             >
               {lane.label}
@@ -76,11 +90,17 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
           >
             {/* Idle compression bands (global: any gap above the idle threshold). */}
             {axis.idleBands.map((band) => (
-              <g key={`${band.fromComp}-${band.toComp}`} data-testid="storyline-idle-gap">
+              <g
+                key={`${band.fromComp}-${band.toComp}`}
+                data-testid="storyline-idle-gap"
+              >
                 <rect
                   x={PAD_LEFT + band.fromComp * axis.pxPerComp}
                   y={0}
-                  width={Math.max(2, (band.toComp - band.fromComp) * axis.pxPerComp)}
+                  width={Math.max(
+                    2,
+                    (band.toComp - band.fromComp) * axis.pxPerComp
+                  )}
                   height={layout.totalHeight}
                   fill="#E2B357"
                   fillOpacity={0.04}
@@ -90,7 +110,10 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
                   rx={3}
                 />
                 <text
-                  x={PAD_LEFT + ((band.fromComp + band.toComp) / 2) * axis.pxPerComp}
+                  x={
+                    PAD_LEFT +
+                    ((band.fromComp + band.toComp) / 2) * axis.pxPerComp
+                  }
                   y={PAD_TOP - 26}
                   textAnchor="middle"
                   fontSize={10}
@@ -129,7 +152,10 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
 
             {/* Connector curves (factual edges only; endpoints must be placed). */}
             {curves.map(({ connector, path, fromX, fromY, toX, toY }) => (
-              <g key={`${connector.kind}-${connector.from}-${connector.to}-${connector.sourceRef}`} data-testid="storyline-curve">
+              <g
+                key={`${connector.kind}-${connector.from}-${connector.to}-${connector.sourceRef}`}
+                data-testid="storyline-curve"
+              >
                 <path
                   d={path}
                   fill="none"
@@ -138,7 +164,13 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
                   strokeDasharray={CURVE_DASH[connector.kind] ?? ""}
                   strokeOpacity={0.85}
                 />
-                <circle cx={toX} cy={toY} r={3} fill={CURVE_COLOR[connector.kind] ?? "#95A7E0"} stroke="none" />
+                <circle
+                  cx={toX}
+                  cy={toY}
+                  r={3}
+                  fill={CURVE_COLOR[connector.kind] ?? "#95A7E0"}
+                  stroke="none"
+                />
               </g>
             ))}
 
@@ -146,7 +178,10 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
             {lanes.map(({ lane, y, placed, fadeTail }) => {
               const yCenter = y + LANE_HEIGHT / 2;
               const firstX = placed.length > 0 ? placed[0].x : PAD_LEFT;
-              const lastX = placed.length > 0 ? placed[placed.length - 1].x : PAD_LEFT + 120;
+              const lastX =
+                placed.length > 0
+                  ? placed[placed.length - 1].x
+                  : PAD_LEFT + 120;
               return (
                 <g key={lane.id}>
                   <line
@@ -175,9 +210,15 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
                     <line
                       x1={lastX}
                       y1={yCenter}
-                      x2={Math.min(lastX + 46, layout.totalWidth - LANE_LABEL_WIDTH)}
+                      x2={Math.min(
+                        lastX + 46,
+                        layout.totalWidth - LANE_LABEL_WIDTH
+                      )}
                       y2={yCenter}
-                      stroke={KIND_COLOR[placed[placed.length - 1].milestone.kind] ?? "#95A7E0"}
+                      stroke={
+                        KIND_COLOR[placed[placed.length - 1].milestone.kind] ??
+                        "#95A7E0"
+                      }
                       strokeOpacity={0.22}
                       strokeWidth={1.4}
                       strokeDasharray="3 5"
@@ -195,23 +236,51 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
               .filter(({ showLabel }) => showLabel)
               .map(({ milestone, x }) => {
                 const yCenter = y + LANE_HEIGHT / 2;
-                const left = Math.min(Math.max(x - CARD_WIDTH / 2, 4), layout.totalWidth - LANE_LABEL_WIDTH - CARD_WIDTH - 4);
+                const left = Math.min(
+                  Math.max(x - CARD_WIDTH / 2, 4),
+                  layout.totalWidth - LANE_LABEL_WIDTH - CARD_WIDTH - 4
+                );
                 return (
                   <div
                     key={milestone.id}
                     className="absolute rounded border border-border-2 bg-bg-1 px-2 py-1 text-[10px] leading-tight shadow-sm"
-                    style={{ left: LANE_LABEL_WIDTH + left, top: yCenter - CARD_HEIGHT - 6, width: CARD_WIDTH, zIndex: 10 }}
+                    style={{
+                      left: LANE_LABEL_WIDTH + left,
+                      top: yCenter - CARD_HEIGHT - 6,
+                      width: CARD_WIDTH,
+                      zIndex: 10,
+                    }}
                     data-testid="storyline-milestone-card"
                   >
                     <div className="truncate font-medium text-text-1">
-                      <span style={{ color: KIND_COLOR[milestone.kind] ?? "#95A7E0" }}>●</span>{" "}
+                      <span
+                        style={{
+                          color: KIND_COLOR[milestone.kind] ?? "#95A7E0",
+                        }}
+                      >
+                        ●
+                      </span>{" "}
                       {milestone.kind}: {milestone.title}
                     </div>
                     <div className="truncate text-text-3">
                       {milestone.displayTimestamp}
-                      {milestone.sequence !== null ? ` · turn ${milestone.sequence}` : ""}
+                      {milestone.sequence !== null
+                        ? ` · turn ${milestone.sequence}`
+                        : ""}
                     </div>
-                    <EvidenceSource evidenceClass={milestone.evidenceClass} sourceRef={milestone.sourceRef} />
+                    {milestone.evidenceClass === "canonical" &&
+                      milestone.topicTags.length > 0 && (
+                        <div
+                          className="truncate text-text-3"
+                          data-testid="storyline-topic-tags"
+                        >
+                          {milestone.topicTags.join(" · ")}
+                        </div>
+                      )}
+                    <EvidenceSource
+                      evidenceClass={milestone.evidenceClass}
+                      sourceRef={milestone.sourceRef}
+                    />
                   </div>
                 );
               })
@@ -223,16 +292,49 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-text-3">
         {["forkedFrom", "resumedFrom", "compactedTo"].map((kind) => (
           <span key={kind} className="inline-flex items-center gap-1">
-            <svg width={22} height={6}><line x1={0} y1={3} x2={22} y2={3} stroke={CURVE_COLOR[kind]} strokeWidth={2} strokeDasharray={CURVE_DASH[kind]} /></svg>
+            <svg width={22} height={6}>
+              <line
+                x1={0}
+                y1={3}
+                x2={22}
+                y2={3}
+                stroke={CURVE_COLOR[kind]}
+                strokeWidth={2}
+                strokeDasharray={CURVE_DASH[kind]}
+              />
+            </svg>
             {kind}
           </span>
         ))}
         <span className="inline-flex items-center gap-1">
-          <svg width={22} height={6}><line x1={0} y1={3} x2={22} y2={3} stroke="currentColor" strokeOpacity={0.5} strokeWidth={2} strokeDasharray="3 5" /></svg>
+          <svg width={22} height={6}>
+            <line
+              x1={0}
+              y1={3}
+              x2={22}
+              y2={3}
+              stroke="currentColor"
+              strokeOpacity={0.5}
+              strokeWidth={2}
+              strokeDasharray="3 5"
+            />
+          </svg>
           stale lane tail
         </span>
         <span className="inline-flex items-center gap-1">
-          <svg width={22} height={6}><rect x={0} y={0} width={22} height={6} rx={2} fill="#E2B357" fillOpacity={0.25} stroke="#E2B357" strokeDasharray="4 4" /></svg>
+          <svg width={22} height={6}>
+            <rect
+              x={0}
+              y={0}
+              width={22}
+              height={6}
+              rx={2}
+              fill="#E2B357"
+              fillOpacity={0.25}
+              stroke="#E2B357"
+              strokeDasharray="4 4"
+            />
+          </svg>
           idle compression
         </span>
       </div>
@@ -247,7 +349,10 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
               data-testid="storyline-connector"
             >
               {connector.kind}: {connector.from} to {connector.to}{" "}
-              <EvidenceSource evidenceClass={connector.evidenceClass} sourceRef={connector.sourceRef} />
+              <EvidenceSource
+                evidenceClass={connector.evidenceClass}
+                sourceRef={connector.sourceRef}
+              />
             </div>
           ))}
         </div>
@@ -256,13 +361,18 @@ export const StorylineTimeline: React.FC<{ viewModel: StorylineViewModel }> = ({
       {/* Facts without a display time stay visible but unpositioned (fail-closed). */}
       {unpositioned.length > 0 && (
         <div className="border border-border-2 p-3">
-          <h3 className="text-sm font-medium text-text-1">Facts without display time</h3>
+          <h3 className="text-sm font-medium text-text-1">
+            Facts without display time
+          </h3>
           {unpositioned.map((item) => (
             <div key={item.id} className="mt-2 text-xs">
               <span>
                 {item.kind}: {item.title}{" "}
               </span>
-              <EvidenceSource evidenceClass={item.evidenceClass} sourceRef={item.sourceRef} />
+              <EvidenceSource
+                evidenceClass={item.evidenceClass}
+                sourceRef={item.sourceRef}
+              />
             </div>
           ))}
         </div>

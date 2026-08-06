@@ -185,6 +185,7 @@ mod tests {
                 id: "project-1".to_string(),
                 name: "Demo".to_string(),
                 org_id: "personal-org".to_string(),
+                workspace_id: None,
                 status: "active".to_string(),
                 priority: "none".to_string(),
                 health: "no_updates".to_string(),

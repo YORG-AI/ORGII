@@ -32,6 +32,7 @@
 //! sessions for transcript hygiene.
 
 pub mod binding;
+pub mod browse;
 mod channels_ops;
 pub mod commands;
 pub mod message_merge;

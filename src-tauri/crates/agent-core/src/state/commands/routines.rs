@@ -543,6 +543,8 @@ fn routine_to_launch_request(
         images: None,
         ide_context: None,
         parent_session_id: None,
+        journey_workspace_id: None,
+        journey_topic_tags: Vec::new(),
         sub_agent_ids: Vec::new(),
     }
 }

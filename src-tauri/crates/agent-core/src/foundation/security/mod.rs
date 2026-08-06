@@ -8,6 +8,7 @@
 //! - **[`AutonomyLevel`]**: ReadOnly / Full access modes
 
 pub mod config;
+pub mod global_path_exemptions;
 pub mod policy;
 
 // Items kept at the `security::` surface:

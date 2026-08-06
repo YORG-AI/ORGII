@@ -6,15 +6,22 @@
  *
  * Meant to be rendered inside a <PropertiesPanel> shell.
  */
-import { Calendar, Circle, MoreHorizontal } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import {
+  BriefcaseBusiness,
+  Calendar,
+  Circle,
+  MoreHorizontal,
+} from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { type WorkspaceRecord, workspaceApi } from "@src/api/tauri/workspace";
 import Button from "@src/components/Button";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
   type FieldRowVariant,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import Select, { type SelectOption } from "@src/components/Select";
 import { getProjectPropertyContextMenuItems } from "@src/modules/ProjectManager/Projects/projectContextMenu";
 import WorkItemContextMenu from "@src/modules/ProjectManager/WorkItems/components/WorkItemContextMenu";
 import { DateQuickAssignDropdown } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/DateQuickAssignDropdown";
@@ -63,6 +70,7 @@ export const PROJECT_PROPERTY_CONCISE_FIELDS: ProjectPropertyFieldKey[] = [
   "lead",
   "targetDate",
   "linkedRepos",
+  "workspace",
 ];
 
 const DEFAULT_VISIBLE_FIELDS: ProjectPropertyFieldKey[] = [
@@ -74,6 +82,7 @@ const DEFAULT_VISIBLE_FIELDS: ProjectPropertyFieldKey[] = [
   "teams",
   "labels",
   "linkedRepos",
+  "workspace",
   "startDate",
   "targetDate",
   "completion",
@@ -112,9 +121,26 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
     handleTeamToggle,
     handleLabelToggle,
     handleLinkedRepoToggle,
+    handleWorkspaceChange,
     handleDateChange,
     formatDate,
   } = usePropertiesPanel({ project, onUpdate, containerRef });
+  const [workspaces, setWorkspaces] = useState<WorkspaceRecord[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void workspaceApi
+      .listWorkspaces()
+      .then((items) => {
+        if (!cancelled) setWorkspaces(items);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaces([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const linkedRepoCount = project.linkedRepos?.length ?? 0;
   const linkedRepoLabel =
@@ -128,6 +154,21 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
         name: getRepoDisplayName(repo),
       })),
     [availableRepos]
+  );
+  const workspaceOptions = useMemo<SelectOption[]>(
+    () => [
+      {
+        value: "",
+        label: "Unlinked Workspace",
+        triggerLabel: "Unlinked Workspace",
+      },
+      ...workspaces.map((workspace) => ({
+        value: workspace.workspaceId,
+        label: workspace.name,
+        triggerLabel: workspace.name,
+      })),
+    ],
+    [workspaces]
   );
 
   const visibleFieldSet = useMemo(
@@ -193,6 +234,10 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
         if (repo) handleLinkedRepoToggle(repo);
         return;
       }
+      if (field === "workspace") {
+        handleWorkspaceChange(value || undefined);
+        return;
+      }
       togglePicker(field);
     },
     [
@@ -208,6 +253,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
       handlePriorityChange,
       handleStatusChange,
       handleTeamToggle,
+      handleWorkspaceChange,
       togglePicker,
     ]
   );
@@ -282,6 +328,49 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           fieldVariant={fieldVariant}
           visibleFields={visibleFieldSet}
         />
+
+        {(visibleFieldSet.has("workspace") || openPicker === "workspace") && (
+          <div
+            className={
+              fieldVariant === "pill"
+                ? "relative flex min-h-7 min-w-0 max-w-[240px] items-center"
+                : "relative flex min-h-[36px] w-full items-center"
+            }
+          >
+            <FieldRow
+              icon={<BriefcaseBusiness size={DROPDOWN_ITEM.iconSize} />}
+              label="Workspace"
+              value={
+                workspaceOptions.find(
+                  (option) => option.value === (project.workspaceId ?? "")
+                )?.triggerLabel ?? "Unlinked Workspace"
+              }
+              isSelected={!!project.workspaceId}
+              isActive={openPicker === "workspace"}
+              variant={fieldVariant}
+              onClick={() => togglePicker("workspace")}
+            />
+            {openPicker === "workspace" && (
+              <div
+                className="absolute left-0 right-0 top-full z-20 mt-1 min-w-[220px]"
+                data-property-dropdown
+              >
+                <Select
+                  value={project.workspaceId ?? ""}
+                  options={workspaceOptions}
+                  onChange={(value) => {
+                    if (!Array.isArray(value)) {
+                      handleWorkspaceChange(String(value) || undefined);
+                    }
+                  }}
+                  showSearch
+                  dropdownWidthMode="min-match"
+                  panelZIndex={10000}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Start Date */}
         {(visibleFieldSet.has("startDate") || openPicker === "startDate") && (

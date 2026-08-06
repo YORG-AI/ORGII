@@ -30,7 +30,7 @@ use std::sync::Mutex;
 use core_types::extracted::ExtractedData;
 use database::db::get_connection;
 use orgtrack_core::canonical::{
-    AgentMetadata, SessionDiffChunkRecord, SessionRecord, SOURCE_ORGII_RUST_AGENTS,
+    AgentMetadata, JourneyMetadata, SessionDiffChunkRecord, SessionRecord, SOURCE_ORGII_RUST_AGENTS,
 };
 use orgtrack_core::edit_extraction::{
     artifacts_from_extracted_edit, final_diff_from_chunks, EditArtifactContext,
@@ -721,6 +721,7 @@ fn persist_runtime_edit_artifacts(
             session_id: session.session_id.clone(),
             source_event_id: Some(event.id.clone()),
             turn_id: event.thread_id.clone(),
+            execution_turn_id: event.thread_id.clone(),
             sequence_index: sequence_index as i64,
             timestamp: Some(event.created_at.clone()),
             workspace_path: event
@@ -779,6 +780,7 @@ fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, St
                 origin: Some(SOURCE_ORGII_RUST_AGENTS.to_string()),
                 ..AgentMetadata::default()
             },
+            journey: JourneyMetadata::default(),
         });
     };
 
@@ -817,6 +819,7 @@ fn runtime_artifact_session_record(session_id: &str) -> Result<SessionRecord, St
             display_name: Some(record.name),
             ..AgentMetadata::default()
         },
+        journey: JourneyMetadata::default(),
     })
 }
 

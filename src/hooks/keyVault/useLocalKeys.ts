@@ -106,6 +106,49 @@ export function upsertSharedLocalKey(key: KeyInfo): void {
   });
 }
 
+/** Merge one model's runtime settings without replacing newer account data. */
+export function mergeSharedLocalKeyModelRuntimeSettings(
+  key: KeyInfo,
+  model: string,
+  changedField: "context_window_override" | "reasoning_effort_override"
+): void {
+  updateSharedAllKeys((prev) => {
+    const current = prev.find((entry) => entry.id === key.id);
+    if (!current) {
+      return [...prev, key];
+    }
+
+    const returnedVariant = key.model_variants?.find(
+      (variant) => variant.model === model
+    );
+    if (!returnedVariant) return prev;
+
+    const currentVariants = current.model_variants ?? [];
+    const variantIndex = currentVariants.findIndex(
+      (variant) => variant.model === model
+    );
+    const nextVariant = {
+      ...(variantIndex >= 0 ? currentVariants[variantIndex] : returnedVariant),
+    };
+    if (changedField === "context_window_override") {
+      nextVariant.context_window_override =
+        returnedVariant.context_window_override;
+    } else {
+      nextVariant.reasoning_effort_override =
+        returnedVariant.reasoning_effort_override;
+    }
+    const nextVariants = [...currentVariants];
+    if (variantIndex >= 0) nextVariants[variantIndex] = nextVariant;
+    else nextVariants.push(nextVariant);
+
+    const next = prev.map((entry) =>
+      entry.id === key.id ? { ...current, model_variants: nextVariants } : entry
+    );
+    replaceModelAliasesFromKeys(next);
+    return next;
+  });
+}
+
 // ============================================
 // Hook Implementation
 // ============================================

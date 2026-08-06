@@ -3,6 +3,7 @@ use super::launch_profiles::{
     bare_command_for_agent, default_args_for_mode, default_env_for_mode, defaults_for_agent,
     CliPermissionMode, ResolvedCliLaunchProfile,
 };
+use super::session::effective_additional_dirs;
 use key_vault::key_store::ModelType;
 use std::path::Path;
 
@@ -308,6 +309,67 @@ fn build_cursor_cli_ignores_additional_dirs() {
     );
     assert!(!cmd.contains(&"--add-dir".to_string()));
     assert!(!cmd.contains(&"/repo/extra".to_string()));
+}
+
+#[test]
+fn global_dirs_are_deduped_with_session_dirs_for_supported_clis() {
+    let session_dir = tempfile::tempdir().unwrap();
+    let global_dir = tempfile::tempdir().unwrap();
+    let session_dirs = vec![session_dir.path().to_string_lossy().into_owned()];
+    let effective = effective_additional_dirs(
+        &session_dirs,
+        &[
+            session_dir.path().canonicalize().unwrap(),
+            global_dir.path().canonicalize().unwrap(),
+        ],
+    );
+    let codex = build_command!(
+        ModelType::Codex,
+        task = "task",
+        additional_dirs = &effective,
+    );
+    let claude = build_command!(
+        ModelType::ClaudeCode,
+        task = "task",
+        additional_dirs = &effective,
+    );
+    let expected = vec![
+        session_dir
+            .path()
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+        global_dir
+            .path()
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned(),
+    ];
+
+    for cmd in [&codex, &claude] {
+        let add_dirs: Vec<String> = cmd
+            .windows(2)
+            .filter(|args| args[0] == "--add-dir")
+            .map(|args| args[1].clone())
+            .collect();
+        assert_eq!(add_dirs, expected);
+    }
+}
+
+#[test]
+fn cursor_receives_no_global_dirs() {
+    let global_dir = tempfile::tempdir().unwrap();
+    let effective = effective_additional_dirs(&[], &[global_dir.path().canonicalize().unwrap()]);
+    let cmd = build_command!(
+        ModelType::CursorCli,
+        task = "task",
+        additional_dirs = &effective,
+    );
+
+    assert!(!cmd.contains(&"--add-dir".to_string()));
+    assert!(!cmd.contains(&global_dir.path().to_string_lossy().into_owned()));
 }
 
 #[test]

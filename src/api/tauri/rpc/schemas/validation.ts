@@ -211,6 +211,42 @@ export const ModelVariantInfoSchema = z.object({
   reasoning: z.string().nullable().optional(),
   fast: z.boolean().default(false),
   context_window: z.number().int().positive().nullable().optional(),
+  context_window_override: z.number().int().positive().nullable().optional(),
+  reasoning_effort_override: z
+    .enum([
+      "none",
+      "baseline",
+      "low",
+      "medium",
+      "high",
+      "extra_high",
+      "max",
+      "ultracode",
+    ])
+    .nullable()
+    .optional(),
+});
+
+/** Omitted leaves a field unchanged; null clears the user runtime override. */
+export const UpdateModelRuntimeSettingsInput = z.object({
+  request: z.object({
+    key_id: z.string().min(1),
+    model: z.string().min(1),
+    context_window_override: z.number().int().positive().nullable().optional(),
+    reasoning_effort_override: z
+      .enum([
+        "none",
+        "baseline",
+        "low",
+        "medium",
+        "high",
+        "extra_high",
+        "max",
+        "ultracode",
+      ])
+      .nullable()
+      .optional(),
+  }),
 });
 
 export const DefaultVariantInfoSchema = z.object({
@@ -218,9 +254,19 @@ export const DefaultVariantInfoSchema = z.object({
   model: z.string(),
 });
 
+export const ZENMUX_PROVIDER_SLUGS = [
+  "amazon-bedrock",
+  "google-vertex",
+  "anthropic",
+  "openai",
+  "bigmodel",
+  "deepseek",
+  "x-ai",
+] as const;
+
 export const ModelSlugInfoSchema = z.object({
   model: z.string(),
-  slug: z.string(),
+  slug: z.enum(ZENMUX_PROVIDER_SLUGS),
 });
 
 export const ProviderProtocolSchema = z.enum(["openai", "anthropic"]);

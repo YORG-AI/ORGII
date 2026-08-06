@@ -28,6 +28,8 @@ export interface ProjectMeta {
   id: string;
   name: string;
   org_id: string;
+  /** Explicit multi-repo Workspace preset. Omitted means Unlinked Workspace. */
+  workspace_id?: string;
   status: string;
   priority: string;
   health: string;

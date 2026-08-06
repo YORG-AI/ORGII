@@ -4,10 +4,12 @@
 use crate::bus::{InboundMessage, OutboundMessage};
 use crate::definitions::OS_AGENT_ID;
 use crate::gateway::{GatewayCommand, SessionKey};
+use crate::integrations::gateway::browse::{self, BrowseLevel, BrowseOption, BrowseState};
 use crate::session::session_id::{next_version_for, os_session_id_base, with_version};
 use crate::state::AgentAppState;
 use crate::tools::impls::orchestration::channel::REINJECT_CHANNEL;
 use core_types::key_source::KeySource;
+use rusqlite::OptionalExtension;
 use tracing::info;
 
 #[cfg(debug_assertions)]
@@ -25,11 +27,19 @@ pub(super) async fn handle_command(
     let reply_text = match cmd {
         GatewayCommand::NewSession => {
             state.gateway_bindings.clear(session_key).await;
+            if let Err(err) = clear_browse_state(session_key).await {
+                return Err(format!("Could not clear project-tree navigation: {err}"));
+            }
             info!("[gateway] Cleared binding for {}", session_key.as_str());
             "Conversation reset. The next message starts a fresh session.".to_string()
         }
         GatewayCommand::SessionCurrent => build_session_current(state, session_key).await,
         GatewayCommand::SessionList => build_session_list(state, session_key).await,
+        GatewayCommand::SessionTree => start_browse_tree(session_key).await,
+        GatewayCommand::SessionRecent => start_browse_recent(session_key).await,
+        GatewayCommand::BrowseNext => move_browse_page(session_key, true).await,
+        GatewayCommand::BrowsePrev => move_browse_page(session_key, false).await,
+        GatewayCommand::BrowseBack => browse_back(session_key).await,
         GatewayCommand::SessionSwitch(target) => switch_session(state, session_key, &target).await,
         GatewayCommand::SessionNew => {
             create_and_switch_session(state, msg, session_key, None).await
@@ -144,6 +154,386 @@ pub(super) async fn handle_command(
     Ok(None)
 }
 
+/// Handle an exact positive integer only after the dispatcher has confirmed
+/// that this chat owns a durable browse snapshot. This never creates a turn.
+pub(super) async fn handle_browse_selection(
+    state: &AgentAppState,
+    session_key: &SessionKey,
+    number: usize,
+) -> String {
+    let loaded = tokio::task::spawn_blocking({
+        let key = session_key.clone();
+        move || browse::load(&key).map_err(|err| err.to_string())
+    })
+    .await
+    .map_err(|err| err.to_string());
+    let Ok(Ok(Some(snapshot))) = loaded else {
+        return "Browse state is unavailable; use `/session tree` to start again.".to_string();
+    };
+    let Some(selected) = browse::selection(&snapshot, number) else {
+        return format!(
+            "Choose a number shown on this page (1-{}).",
+            browse::page_slice(&snapshot).len()
+        );
+    };
+
+    match selected {
+        BrowseOption::Workspace { workspace_id } => {
+            start_browse_projects(session_key, workspace_id).await
+        }
+        BrowseOption::Project { project_slug, .. } => {
+            start_browse_work_items(session_key, snapshot.workspace_id, project_slug).await
+        }
+        BrowseOption::WorkItem { work_item_id, .. } => {
+            let Some(project_slug) = snapshot.project_slug else {
+                return "Browse snapshot is missing its project scope; use `/session tree` again."
+                    .to_string();
+            };
+            start_browse_sessions(
+                session_key,
+                snapshot.workspace_id,
+                project_slug,
+                work_item_id,
+            )
+            .await
+        }
+        BrowseOption::Session {
+            session_id,
+            terminal_turn_id,
+            terminal_turn_status,
+        } => {
+            bind_browse_leaf(
+                state,
+                session_key,
+                &snapshot,
+                &session_id,
+                &terminal_turn_id,
+                &terminal_turn_status,
+            )
+            .await
+        }
+    }
+}
+
+async fn clear_browse_state(session_key: &SessionKey) -> Result<(), String> {
+    let key = session_key.clone();
+    tokio::task::spawn_blocking(move || browse::clear(&key).map_err(|err| err.to_string()))
+        .await
+        .map_err(|err| err.to_string())?
+}
+
+async fn start_browse_tree(session_key: &SessionKey) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let projects = project_management::projects::io::read_all_projects()?;
+        let mut workspace_ids: Vec<Option<String>> = projects
+            .into_iter()
+            .map(|project| project.meta.workspace_id)
+            .collect();
+        workspace_ids.sort();
+        workspace_ids.dedup();
+        let options = workspace_ids
+            .into_iter()
+            .map(|workspace_id| BrowseOption::Workspace { workspace_id })
+            .collect();
+        let state = browse::new_state(&key, BrowseLevel::Workspace, None, None, None, options);
+        browse::save(&state).map_err(|err| err.to_string())?;
+        Ok::<_, String>(render_browse(&state, "Workspaces"))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not load project tree: {err}"))
+}
+
+async fn start_browse_projects(session_key: &SessionKey, workspace_id: Option<String>) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let projects = project_management::projects::io::read_all_projects()?;
+        let mut options: Vec<_> = projects
+            .into_iter()
+            .filter(|project| project.meta.workspace_id == workspace_id)
+            .map(|project| BrowseOption::Project {
+                project_slug: project.slug,
+                name: project.meta.name,
+            })
+            .collect();
+        options.sort_by(|a, b| browse_option_label(a).cmp(&browse_option_label(b)));
+        let state = browse::new_state(
+            &key,
+            BrowseLevel::Project,
+            workspace_id.clone(),
+            None,
+            None,
+            options,
+        );
+        browse::save(&state).map_err(|err| err.to_string())?;
+        let heading = workspace_id.as_deref().unwrap_or("Unlinked workspace");
+        Ok::<_, String>(render_browse(&state, &format!("Projects in {heading}")))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not load projects: {err}"))
+}
+
+async fn start_browse_work_items(
+    session_key: &SessionKey,
+    workspace_id: Option<String>,
+    project_slug: String,
+) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let mut options: Vec<_> =
+            project_management::projects::io::read_all_work_items(&project_slug)?
+                .into_iter()
+                .filter(|item| item.frontmatter.deleted_at.is_none())
+                .map(|item| BrowseOption::WorkItem {
+                    work_item_id: item.frontmatter.short_id,
+                    title: item.frontmatter.title,
+                })
+                .collect();
+        options.sort_by(|a, b| browse_option_label(a).cmp(&browse_option_label(b)));
+        let state = browse::new_state(
+            &key,
+            BrowseLevel::WorkItem,
+            workspace_id,
+            Some(project_slug.clone()),
+            None,
+            options,
+        );
+        browse::save(&state).map_err(|err| err.to_string())?;
+        Ok::<_, String>(render_browse(
+            &state,
+            &format!("Work Items in {project_slug}"),
+        ))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not load work items: {err}"))
+}
+
+async fn start_browse_sessions(
+    session_key: &SessionKey,
+    workspace_id: Option<String>,
+    project_slug: String,
+    work_item_id: String,
+) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let options = terminal_session_options(Some(&project_slug), Some(&work_item_id))?;
+        let state = browse::new_state(
+            &key,
+            BrowseLevel::Session,
+            workspace_id,
+            Some(project_slug.clone()),
+            Some(work_item_id.clone()),
+            options,
+        );
+        browse::save(&state).map_err(|err| err.to_string())?;
+        Ok::<_, String>(render_browse(
+            &state,
+            &format!("Completed sessions for {project_slug} / {work_item_id}"),
+        ))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not load sessions: {err}"))
+}
+
+async fn start_browse_recent(session_key: &SessionKey) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let options = terminal_session_options(None, None)?;
+        let state = browse::new_state(&key, BrowseLevel::Session, None, None, None, options);
+        browse::save(&state).map_err(|err| err.to_string())?;
+        Ok::<_, String>(render_browse(&state, "Recent completed sessions"))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not load recent sessions: {err}"))
+}
+
+async fn move_browse_page(session_key: &SessionKey, forward: bool) -> String {
+    let key = session_key.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let Some(mut state) = browse::load(&key).map_err(|err| err.to_string())? else {
+            return Ok::<_, String>(
+                "No project-tree navigation is active. Use `/session tree`.".to_string(),
+            );
+        };
+        let page = if forward {
+            state.page.saturating_add(1)
+        } else {
+            state.page.saturating_sub(1)
+        };
+        browse::set_page(&mut state, page);
+        browse::save(&state).map_err(|err| err.to_string())?;
+        Ok(render_browse(&state, browse_heading(&state)))
+    })
+    .await;
+    result
+        .unwrap_or_else(|err| Err(err.to_string()))
+        .unwrap_or_else(|err| format!("Could not change browse page: {err}"))
+}
+
+async fn browse_back(session_key: &SessionKey) -> String {
+    let key = session_key.clone();
+    let state = tokio::task::spawn_blocking(move || browse::load(&key)).await;
+    let Ok(Ok(Some(state))) = state else {
+        return "No project-tree navigation is active. Use `/session tree`.".to_string();
+    };
+    match state.level {
+        BrowseLevel::Workspace => render_browse(&state, "Workspaces"),
+        BrowseLevel::Project => start_browse_tree(session_key).await,
+        BrowseLevel::WorkItem => start_browse_projects(session_key, state.workspace_id).await,
+        BrowseLevel::Session => match (state.project_slug, state.work_item_id) {
+            (Some(project_slug), Some(_)) => {
+                start_browse_work_items(session_key, state.workspace_id, project_slug).await
+            }
+            _ => start_browse_tree(session_key).await,
+        },
+    }
+}
+
+async fn bind_browse_leaf(
+    state: &AgentAppState,
+    session_key: &SessionKey,
+    snapshot: &BrowseState,
+    session_id: &str,
+    terminal_turn_id: &str,
+    terminal_turn_status: &str,
+) -> String {
+    let session_id = session_id.to_string();
+    let session_id_for_validation = session_id.clone();
+    let expected_project = snapshot.project_slug.clone();
+    let expected_item = snapshot.work_item_id.clone();
+    let expected_turn_id = terminal_turn_id.to_string();
+    let expected_status = terminal_turn_status.to_string();
+    let checked = tokio::task::spawn_blocking(move || {
+        let Some(record) = crate::session::persistence::get_session(&session_id_for_validation)
+            .map_err(|err| err.to_string())?
+        else {
+            return Ok::<_, String>(false);
+        };
+        if expected_project.is_some() && record.project_slug != expected_project {
+            return Ok(false);
+        }
+        if expected_item.is_some() && record.work_item_id != expected_item {
+            return Ok(false);
+        }
+        let conn = database::db::get_connection().map_err(|err| err.to_string())?;
+        let marker = conn
+            .query_row(
+                "SELECT last_terminal_turn_id, last_terminal_turn_status
+                 FROM agent_sessions WHERE session_id = ?1",
+                [&session_id_for_validation],
+                |row| {
+                    Ok((
+                        row.get::<_, Option<String>>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|err| err.to_string())?;
+        Ok(marker == Some((Some(expected_turn_id), Some(expected_status))))
+    })
+    .await;
+    match checked {
+        Ok(Ok(true)) => {
+            state.gateway_bindings.set(session_key.clone(), session_id.clone()).await;
+            format!("Bound this chat to `{session_id}`. Latest completed terminal turn: `{terminal_turn_id}` ({terminal_turn_status}).")
+        }
+        Ok(Ok(false)) => "That session is no longer valid for this browse snapshot. Use `/session tree` or `/session recent` to refresh.".to_string(),
+        Ok(Err(err)) => format!("Could not validate session: {err}"),
+        Err(err) => format!("Could not validate session: {err}"),
+    }
+}
+
+fn terminal_session_options(
+    project_slug: Option<&str>,
+    work_item_id: Option<&str>,
+) -> Result<Vec<BrowseOption>, String> {
+    let conn = database::db::get_connection().map_err(|err| err.to_string())?;
+    let mut sql = String::from(
+        "SELECT session_id, last_terminal_turn_id, last_terminal_turn_status
+         FROM agent_sessions
+         WHERE last_terminal_turn_id IS NOT NULL
+           AND last_terminal_turn_status IN ('completed', 'cancelled', 'failed')",
+    );
+    if project_slug.is_some() {
+        sql.push_str(" AND project_slug = ?1 AND work_item_id = ?2");
+    }
+    sql.push_str(" ORDER BY last_terminal_turn_at DESC, updated_at DESC LIMIT 64");
+    let mut stmt = conn.prepare(&sql).map_err(|err| err.to_string())?;
+    let mut rows = if let (Some(project_slug), Some(work_item_id)) = (project_slug, work_item_id) {
+        stmt.query(rusqlite::params![project_slug, work_item_id])
+    } else {
+        stmt.query([])
+    }
+    .map_err(|err| err.to_string())?;
+    let mut options = Vec::new();
+    while let Some(row) = rows.next().map_err(|err| err.to_string())? {
+        options.push(BrowseOption::Session {
+            session_id: row.get(0).map_err(|err| err.to_string())?,
+            terminal_turn_id: row.get(1).map_err(|err| err.to_string())?,
+            terminal_turn_status: row.get(2).map_err(|err| err.to_string())?,
+        });
+    }
+    Ok(options)
+}
+
+fn render_browse(state: &BrowseState, heading: &str) -> String {
+    let mut lines = vec![format!("**{heading}**")];
+    let page = browse::page_slice(state);
+    if page.is_empty() {
+        lines.push("No options at this level.".to_string());
+    } else {
+        for (index, option) in page.iter().enumerate() {
+            lines.push(format!("{}. {}", index + 1, browse_option_label(option)));
+        }
+    }
+    lines.push(format!(
+        "Page {}/{} · `/next` `/prev` · `/0` back",
+        state.page + 1,
+        browse::page_count(state)
+    ));
+    lines.join("\n")
+}
+
+fn browse_heading(state: &BrowseState) -> &str {
+    match state.level {
+        BrowseLevel::Workspace => "Workspaces",
+        BrowseLevel::Project => "Projects",
+        BrowseLevel::WorkItem => "Work Items",
+        BrowseLevel::Session => "Completed sessions",
+    }
+}
+
+fn browse_option_label(option: &BrowseOption) -> String {
+    match option {
+        BrowseOption::Workspace { workspace_id } => workspace_id
+            .clone()
+            .unwrap_or_else(|| "Unlinked workspace".to_string()),
+        BrowseOption::Project { project_slug, name } => format!("{project_slug} · {name}"),
+        BrowseOption::WorkItem {
+            work_item_id,
+            title,
+        } => format!("{work_item_id} · {title}"),
+        BrowseOption::Session {
+            session_id,
+            terminal_turn_id,
+            terminal_turn_status,
+        } => {
+            format!("{session_id} · terminal `{terminal_turn_id}` ({terminal_turn_status})")
+        }
+    }
+}
+
 async fn build_session_current(state: &AgentAppState, session_key: &SessionKey) -> String {
     match state.gateway_bindings.get(session_key).await {
         Some(binding) => {
@@ -190,7 +580,6 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
         } else {
             ""
         };
-        let recent = recent_session_preview(&s.session_id);
         blocks.push(format!(
             "**#{:02} · {}{}**\n{}\n`{}`\n{}\n{}",
             idx + 1,
@@ -198,8 +587,8 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
             current_badge,
             human_session_context(&s),
             s.session_id,
-            human_session_relation(&s, &recent),
-            recent,
+            human_session_relation(&s),
+            terminal_turn_summary(&s.session_id),
         ));
     }
     blocks.push(
@@ -219,9 +608,6 @@ fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) ->
     let name = s.name.trim();
     if !name.is_empty() && name != s.session_id {
         return crate::utils::safe_truncate_chars_to_string(name, 48);
-    }
-    if let Some(title) = recent_user_title(&s.session_id) {
-        return title;
     }
     if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
         return format!("{} 讨论", compact_channel_name(channel));
@@ -248,10 +634,7 @@ fn human_session_context(s: &crate::session::persistence::UnifiedSessionRecord) 
     parts.join(" · ")
 }
 
-fn human_session_relation(
-    s: &crate::session::persistence::UnifiedSessionRecord,
-    recent: &str,
-) -> String {
+fn human_session_relation(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
     let mut parts = Vec::new();
     if let Some(project) = s.project_slug.as_deref().filter(|x| !x.trim().is_empty()) {
         parts.push(format!("项目 `{}`", project));
@@ -260,11 +643,7 @@ fn human_session_relation(
         parts.push(format!("任务 `{}`", item));
     }
     if parts.is_empty() {
-        if recent.contains("WI-") || recent.contains("任务") {
-            parts.push("可能关联任务（未绑定）".to_string());
-        } else {
-            parts.push("未绑定项目/任务".to_string());
-        }
+        parts.push("未绑定项目/任务".to_string());
     }
     parts.join(" · ")
 }
@@ -277,48 +656,35 @@ fn human_time_hint(ts: &str) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-fn recent_user_title(session_id: &str) -> Option<String> {
-    crate::session::persistence::load_messages(session_id)
-        .ok()?
-        .into_iter()
-        .rev()
-        .find(|row| row.role == "user" && !row.content.trim().is_empty())
-        .map(|row| {
-            let text = row.content.replace('\n', " ");
-            crate::utils::safe_truncate_chars_to_string(text.trim(), 32)
-        })
-        .filter(|s| !s.trim().is_empty())
-}
+/// The only "recent" turn signal exposed by browse surfaces.  It comes from
+/// the terminal marker written by the turn lifecycle, not a message timestamp
+/// or transcript scan, so in-progress output is never presented as complete.
+fn terminal_turn_summary(session_id: &str) -> String {
+    use rusqlite::OptionalExtension;
 
-fn recent_session_preview(session_id: &str) -> String {
-    match crate::session::persistence::load_messages(session_id) {
-        Ok(rows) => rows
-            .into_iter()
-            .rev()
-            .find_map(|row| {
-                let text = row.content.replace('\n', " ");
-                let text = text.trim();
-                if text.is_empty() {
-                    None
-                } else {
-                    Some(format!(
-                        "最近：{}：{}",
-                        role_label(&row.role),
-                        crate::utils::safe_truncate_chars_to_string(text, 88)
-                    ))
-                }
-            })
-            .unwrap_or_else(|| "最近：暂无文本消息".to_string()),
-        Err(_) => "最近：不可用".to_string(),
-    }
-}
+    let terminal = (|| {
+        let conn = database::db::get_connection()?;
+        conn.query_row(
+            "SELECT last_terminal_turn_id, last_terminal_turn_status
+             FROM agent_sessions WHERE session_id = ?1",
+            [session_id],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                ))
+            },
+        )
+        .optional()
+    })();
 
-fn role_label(role: &str) -> &str {
-    match role {
-        "user" => "用户",
-        "assistant" => "助手",
-        "system" => "系统",
-        other => other,
+    match terminal {
+        Ok(Some((turn_id, status))) => match (turn_id, status) {
+            (Some(turn_id), Some(status)) => format!("最新结束轮次：`{turn_id}`（{status}）"),
+            _ => "最新结束轮次：暂无".to_string(),
+        },
+        Ok(None) => "最新结束轮次：不可用".to_string(),
+        Err(_) => "最新结束轮次：不可用".to_string(),
     }
 }
 
@@ -342,7 +708,7 @@ async fn switch_session(state: &AgentAppState, session_key: &SessionKey, target:
                 "Switched this chat to `{}`.\n{}\n\n{}",
                 sid,
                 session_meta_line(&sid),
-                recent_session_summary(&sid, 6)
+                terminal_turn_summary(&sid)
             )
         }
         Ok(None) => format!("Session not found: `{}`", sid),
@@ -536,14 +902,12 @@ async fn update_session_project(session_id: &str, project_slug: &str) -> Result<
     let slug = project_slug.to_string();
     tokio::task::spawn_blocking(move || {
         let project = project_management::projects::io::read_project(&slug)?;
-        let ok = crate::session::persistence::update_work_item_link(
+        let ok = crate::session::persistence::update_project_link(
             &sid,
             &project.meta.org_id,
-            Some(&project.meta.id),
-            Some(&project.meta.name),
+            &project.meta.id,
+            &project.meta.name,
             &slug,
-            "",
-            Some("orchestrator"),
         )
         .map_err(|err| err.to_string())?;
         if ok {
@@ -617,35 +981,6 @@ fn session_project_suffix(project_slug: Option<&str>, work_item_id: Option<&str>
         }
         (Some(p), _) if !p.is_empty() => format!(" · project `{}`", p),
         _ => String::new(),
-    }
-}
-
-fn recent_session_summary(session_id: &str, limit: usize) -> String {
-    match crate::session::persistence::load_messages(session_id) {
-        Ok(rows) => {
-            let mut lines =
-                vec!["Recent context (deterministic last-message summary):".to_string()];
-            let selected: Vec<_> = rows.into_iter().rev().take(limit).collect();
-            if selected.is_empty() {
-                return "Recent context: (empty)".to_string();
-            }
-            for row in selected.into_iter().rev() {
-                let role = row.role;
-                let text = crate::utils::safe_truncate_chars_to_string(
-                    &row.content.replace('\n', " "),
-                    160,
-                );
-                if !text.trim().is_empty() {
-                    lines.push(format!("- {}: {}", role, text));
-                }
-            }
-            if lines.len() == 1 {
-                "Recent context: (no text messages)".to_string()
-            } else {
-                lines.join("\n")
-            }
-        }
-        Err(err) => format!("Recent context unavailable: {}", err),
     }
 }
 
@@ -824,7 +1159,10 @@ fn build_help_text() -> String {
         "**Session switching**",
         "`/session current` — show the active channel-bound ORG2 session (alias: `/ctx current`).",
         "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
-        "`/session switch <session_id>` — bind this Feishu chat to an existing session and show recent context (alias: `/session use <session_id>`).",
+        "`/session switch <session_id>` — bind this Feishu chat to an existing session and show its completed terminal turn (alias: `/session use <session_id>`).",
+        "`/session tree` — browse Workspace → Project → Work Item → completed Session without an LLM.",
+        "`/session recent` — browse recent completed sessions without an LLM.",
+        "`/next` / `/prev` — change a tree page; `/0` goes up one level; send a shown number to choose it.",
         "`/session new [name]` — create and bind a fresh session immediately.",
         "`/newsession <name> [prompt]` — create a named ORG2 session; with prompt, dispatch it into that session.",
         "`/session search <query>` — semantic search across indexed Session Memory summaries (embedding + rerank).",
@@ -857,6 +1195,8 @@ mod help_text_tests {
             "/model",
             "/session current",
             "/session switch",
+            "/session tree",
+            "/session recent",
         ] {
             assert!(text.contains(cmd), "help cheat-sheet missing {cmd}: {text}");
         }

@@ -5,7 +5,7 @@ use regex::Regex;
 
 use crate::key_store::{
     AuthMethod, DefaultVariant, HealthStatus, ModelKey, ModelType, ModelVariant, ProviderProtocol,
-    KEY_SERVICE,
+    ReasoningEffort, KEY_SERVICE,
 };
 // Re-exported here so consumers keep the established
 // `key_vault::commands::` path (matching `model_supports_output_config_effort`).
@@ -43,6 +43,10 @@ pub struct ModelVariantInfo {
     /// doesn't erase the value written by `update_key_health`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context_window: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_window_override: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort_override: Option<ReasoningEffort>,
 }
 
 impl From<ModelVariantInfo> for ModelVariant {
@@ -53,6 +57,8 @@ impl From<ModelVariantInfo> for ModelVariant {
             reasoning: v.reasoning,
             fast: v.fast,
             context_window: v.context_window.filter(|ctx| *ctx > 0),
+            context_window_override: v.context_window_override.filter(|ctx| *ctx > 0),
+            reasoning_effort_override: v.reasoning_effort_override,
         }
     }
 }
@@ -404,6 +410,8 @@ fn effort_variants_for_base_model(
             reasoning: Some((*reasoning).to_string()),
             fast: false,
             context_window,
+            context_window_override: None,
+            reasoning_effort_override: None,
         });
         if has_thinking_toggle {
             variants.push(ModelVariantInfo {
@@ -412,6 +420,8 @@ fn effort_variants_for_base_model(
                 reasoning: Some((*reasoning).to_string()),
                 fast: false,
                 context_window,
+                context_window_override: None,
+                reasoning_effort_override: None,
             });
         }
     }
@@ -436,6 +446,8 @@ fn codex_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInf
             reasoning: Some(effort.to_string()),
             fast: false,
             context_window: None,
+            context_window_override: None,
+            reasoning_effort_override: None,
         });
         if supports_fast {
             out.push(ModelVariantInfo {
@@ -444,6 +456,8 @@ fn codex_effort_variants_for_base_model(base_model: &str) -> Vec<ModelVariantInf
                 reasoning: Some(effort.to_string()),
                 fast: true,
                 context_window: None,
+                context_window_override: None,
+                reasoning_effort_override: None,
             });
         }
     }
@@ -517,6 +531,8 @@ fn model_variants_for_key(entry: &ModelKey) -> Vec<ModelVariantInfo> {
             reasoning: variant.reasoning.clone(),
             fast: variant.fast,
             context_window: variant.context_window.filter(|ctx| *ctx > 0),
+            context_window_override: variant.context_window_override.filter(|ctx| *ctx > 0),
+            reasoning_effort_override: variant.reasoning_effort_override,
         })
         .collect();
 
@@ -686,6 +702,57 @@ pub struct SaveKeyRequest {
     pub enabled: Option<bool>,
 }
 
+/// Narrow per-model runtime settings mutation.
+#[derive(serde::Deserialize)]
+pub struct UpdateModelRuntimeSettingsRequest {
+    pub key_id: String,
+    pub model: String,
+    #[serde(default)]
+    pub context_window_override: RuntimeSettingPatch<u64>,
+    #[serde(default)]
+    pub reasoning_effort_override: RuntimeSettingPatch<ReasoningEffort>,
+}
+
+/// Presence-aware JSON patch field. Omission uses `Default`; an explicit JSON
+/// null deserializes as `Clear`, and a non-null JSON value as `Set`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeSettingPatch<T> {
+    Unchanged,
+    Clear,
+    Set(T),
+}
+
+impl<T> RuntimeSettingPatch<T> {
+    fn into_option_option(self) -> Option<Option<T>> {
+        match self {
+            Self::Unchanged => None,
+            Self::Clear => Some(None),
+            Self::Set(value) => Some(Some(value)),
+        }
+    }
+}
+
+impl<T> Default for RuntimeSettingPatch<T> {
+    fn default() -> Self {
+        Self::Unchanged
+    }
+}
+
+impl<'de, T> serde::Deserialize<'de> for RuntimeSettingPatch<T>
+where
+    T: serde::Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(match Option::<T>::deserialize(deserializer)? {
+            Some(value) => Self::Set(value),
+            None => Self::Clear,
+        })
+    }
+}
+
 /// Full key response (unmasked, for internal use)
 #[derive(serde::Serialize)]
 pub struct FullKeyResponse {
@@ -736,6 +803,8 @@ impl From<ModelKey> for FullKeyResponse {
                     reasoning: variant.reasoning,
                     fast: variant.fast,
                     context_window: variant.context_window.filter(|ctx| *ctx > 0),
+                    context_window_override: variant.context_window_override.filter(|ctx| *ctx > 0),
+                    reasoning_effort_override: variant.reasoning_effort_override,
                 })
                 .collect(),
             default_variants: entry
@@ -913,6 +982,16 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
                 .collect();
         }
         if let Some(slugs) = request.model_slugs {
+            if let Some(slug) = slugs
+                .iter()
+                .find(|slug| !crate::key_store::ModelSlug::is_supported_slug(&slug.slug))
+            {
+                return Err(format!(
+                    "Unsupported provider slug '{}'. Supported values: {}",
+                    slug.slug,
+                    crate::key_store::ModelSlug::SUPPORTED_SLUGS.join(", ")
+                ));
+            }
             // Deduplicate by base model; later entries win.
             let mut seen = std::collections::HashSet::new();
             entry.model_slugs = slugs
@@ -1008,6 +1087,27 @@ pub async fn save_key(request: SaveKeyRequest) -> Result<KeyInfo, String> {
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))?
+}
+
+/// Update only user-owned runtime settings for one discovered model. This
+/// intentionally does not accept `model_variants`, which are provider-owned
+/// discovery data and must not be replaced to edit a single setting.
+#[tauri::command]
+pub async fn update_model_runtime_settings(
+    request: UpdateModelRuntimeSettingsRequest,
+) -> Result<KeyInfo, String> {
+    tokio::task::spawn_blocking(move || {
+        KEY_SERVICE
+            .update_model_runtime_settings(
+                &request.key_id,
+                &request.model,
+                request.context_window_override.into_option_option(),
+                request.reasoning_effort_override.into_option_option(),
+            )
+            .map(KeyInfo::from)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
 }
 
 /// Delete a key by agent type and optional ID

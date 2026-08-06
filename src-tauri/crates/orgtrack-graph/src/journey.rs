@@ -52,6 +52,17 @@ pub struct JourneyNode {
     pub evidence_class: EvidenceClass,
     pub source_ref: String,
     pub display_timestamp: Option<String>,
+    #[serde(default)]
+    pub metadata: JourneyNodeMetadata,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JourneyNodeMetadata {
+    pub agent_identity: Option<String>,
+    pub agent_band: Option<String>,
+    #[serde(default)]
+    pub topic_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -105,19 +116,22 @@ pub struct CanonicalProject {
 #[derive(Debug, Clone)]
 pub struct CanonicalWorkItem {
     pub id: String,
-    pub project_id: String,
+    pub project_id: Option<String>,
     pub source_ref: String,
 }
 #[derive(Debug, Clone)]
 pub struct CanonicalSession {
     pub id: String,
-    pub project_id: String,
+    pub project_id: Option<String>,
     pub work_item_id: Option<String>,
     pub resumed_from: Option<String>,
     pub compacted_to: Option<String>,
     pub forked_from: Option<SessionParent>,
     pub source_ref: String,
     pub display_timestamp: Option<String>,
+    pub agent_identity: Option<String>,
+    pub agent_band: Option<String>,
+    pub topic_tags: Vec<String>,
 }
 #[derive(Debug, Clone)]
 pub struct SessionParent {
@@ -127,7 +141,7 @@ pub struct SessionParent {
 #[derive(Debug, Clone)]
 pub struct CanonicalTurn {
     pub session_id: String,
-    pub sequence: u64,
+    pub id: String,
     pub source_ref: String,
     pub display_timestamp: Option<String>,
 }
@@ -168,6 +182,7 @@ fn node(
         evidence_class: EvidenceClass::Canonical,
         source_ref,
         display_timestamp,
+        metadata: JourneyNodeMetadata::default(),
     }
 }
 fn edge(from: String, to: String, kind: JourneyEdgeKind, source_ref: String) -> JourneyEdge {
@@ -221,10 +236,6 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
     }
     for w in &input.work_items {
         require_id(&w.id, "work item id")?;
-        let pid = format!("project/{}", w.project_id);
-        if !ids.contains(&pid) {
-            return Err(format!("work item {} has unknown project", w.id));
-        }
         let wid = format!("work_item/{}", w.id);
         add_node(
             &mut graph,
@@ -237,19 +248,22 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
                 None,
             ),
         )?;
-        graph.edges.push(edge(
-            pid,
-            wid,
-            JourneyEdgeKind::Contains,
-            w.source_ref.clone(),
-        ));
+        if let Some(project_id) = &w.project_id {
+            let pid = format!("project/{project_id}");
+            if !ids.contains(&pid) {
+                return Err(format!("work item {} has unknown project", w.id));
+            }
+            graph.edges.push(edge(
+                pid,
+                wid,
+                JourneyEdgeKind::Contains,
+                w.source_ref.clone(),
+            ));
+        }
     }
     let session_ids: HashSet<_> = input.sessions.iter().map(|s| s.id.as_str()).collect();
     for s in &input.sessions {
         require_id(&s.id, "session id")?;
-        if !ids.contains(&format!("project/{}", s.project_id)) {
-            return Err(format!("session {} has unknown project", s.id));
-        }
         if let Some(w) = &s.work_item_id {
             if !ids.contains(&format!("work_item/{w}")) {
                 return Err(format!("session {} has unknown work item", s.id));
@@ -267,23 +281,29 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
             }
         }
         let sid = format!("session/{}", s.id);
-        add_node(
-            &mut graph,
-            &mut ids,
-            &mut coverage,
-            node(
-                sid.clone(),
-                JourneyNodeKind::Session,
-                s.source_ref.clone(),
-                s.display_timestamp.clone(),
-            ),
-        )?;
-        graph.edges.push(edge(
-            format!("project/{}", s.project_id),
+        let mut session_node = node(
             sid.clone(),
-            JourneyEdgeKind::Contains,
+            JourneyNodeKind::Session,
             s.source_ref.clone(),
-        ));
+            s.display_timestamp.clone(),
+        );
+        session_node.metadata = JourneyNodeMetadata {
+            agent_identity: s.agent_identity.clone(),
+            agent_band: s.agent_band.clone(),
+            topic_tags: s.topic_tags.clone(),
+        };
+        add_node(&mut graph, &mut ids, &mut coverage, session_node)?;
+        if let Some(project_id) = &s.project_id {
+            if !ids.contains(&format!("project/{project_id}")) {
+                return Err(format!("session {} has unknown project", s.id));
+            }
+            graph.edges.push(edge(
+                format!("project/{project_id}"),
+                sid.clone(),
+                JourneyEdgeKind::Contains,
+                s.source_ref.clone(),
+            ));
+        }
         if let Some(w) = &s.work_item_id {
             graph.edges.push(edge(
                 format!("work_item/{w}"),
@@ -317,13 +337,13 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
             ));
         }
     }
-    let mut previous = std::collections::BTreeMap::<&str, (u64, String)>::new();
     for t in &input.turns {
         if !session_ids.contains(t.session_id.as_str()) {
             return Err(format!("turn has unknown session {}", t.session_id));
         }
         require_id(&t.source_ref, "turn source reference")?;
-        let tid = format!("turn/{}/{}", t.session_id, t.sequence);
+        require_id(&t.id, "execution turn id")?;
+        let tid = format!("turn/{}/{}", t.session_id, t.id);
         add_node(
             &mut graph,
             &mut ids,
@@ -342,24 +362,6 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
             JourneyEdgeKind::Contains,
             t.source_ref.clone(),
         ));
-        if let Some((sequence, previous_id)) = previous.get(t.session_id.as_str()) {
-            if t.sequence <= *sequence {
-                return Err(format!(
-                    "turn sequence is not strictly increasing for {}",
-                    t.session_id
-                ));
-            }
-            graph.edges.push(edge(
-                previous_id.clone(),
-                tid,
-                JourneyEdgeKind::NextTurn,
-                t.source_ref.clone(),
-            ));
-        }
-        previous.insert(
-            t.session_id.as_str(),
-            (t.sequence, format!("turn/{}/{}", t.session_id, t.sequence)),
-        );
     }
     for a in &input.artifacts {
         if !session_ids.contains(a.session_id.as_str()) {

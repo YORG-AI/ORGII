@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 use tempfile::TempDir;
 
+use crate::security::{AutonomyLevel, CommandRiskRules, SecurityPolicy};
 use crate::tools::impls::coding::code_search::SearchTool;
 use crate::tools::traits::Tool;
+use std::sync::Arc;
 
 fn make_tool(repo: &str) -> SearchTool {
     SearchTool::new(PathBuf::from(repo))
@@ -193,6 +195,38 @@ async fn explicit_repo_path_overrides_default() {
         err.contains("/explicit/override/path"),
         "Should use explicit path in error: {err}"
     );
+}
+
+#[tokio::test]
+async fn explicit_forbidden_repo_path_is_denied_under_open_policy() {
+    let workspace = TempDir::new().expect("workspace temp dir");
+    let forbidden = TempDir::new().expect("forbidden temp dir");
+    let policy = Arc::new(SecurityPolicy::new(
+        AutonomyLevel::Full,
+        true,
+        Vec::new(),
+        Vec::new(),
+        vec![forbidden.path().to_string_lossy().into_owned()],
+        false,
+        CommandRiskRules::default(),
+    ));
+    let tool = SearchTool::new(workspace.path().to_path_buf()).with_security_policy(policy);
+
+    let result = tool
+        .execute(
+            serde_json::json!({
+                "action": "grep",
+                "pattern": "needle",
+                "repo_path": forbidden.path().to_string_lossy(),
+            }),
+            &crate::tools::call_context::CallContext::default(),
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::tools::traits::ToolError::PermissionDenied(_))
+    ));
 }
 
 #[tokio::test]

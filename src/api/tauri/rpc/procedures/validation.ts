@@ -48,6 +48,11 @@ export const validation = {
     .output(schemas.validation.KeyInfoSchema)
     .build(),
 
+  updateModelRuntimeSettings: defineProcedure("update_model_runtime_settings")
+    .input(schemas.validation.UpdateModelRuntimeSettingsInput)
+    .output(schemas.validation.KeyInfoSchema)
+    .build(),
+
   deleteKey: defineProcedure("delete_key")
     .input(schemas.validation.DeleteKeyInput)
     .output(z.boolean())

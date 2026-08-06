@@ -1,7 +1,7 @@
 // Tests for ModelType predicate methods and ModelKey edge cases.
 // These complement the conversion tests already in tests.rs.
 
-use crate::key_store::{AuthMethod, HealthStatus, ModelKey, ModelType};
+use crate::key_store::{AuthMethod, HealthStatus, ModelKey, ModelSlug, ModelType};
 
 // ---------------------------------------------------------------------------
 // ModelType::is_cli_agent / is_api_key_provider
@@ -186,6 +186,18 @@ fn model_key_new_has_sensible_defaults() {
     assert_eq!(key.auth_method, AuthMethod::ApiKey);
     assert!(key.available_models.is_empty());
     assert!(key.enabled_models.is_empty());
+    assert!(key.model_slugs.is_empty());
+}
+
+#[test]
+fn model_slug_defaults_empty_and_accepts_only_supported_provider_slugs() {
+    let key = ModelKey::new(ModelType::ZenmuxApi);
+    assert!(key.model_slugs.is_empty());
+
+    for slug in ModelSlug::SUPPORTED_SLUGS {
+        assert!(ModelSlug::is_supported_slug(slug));
+    }
+    assert!(!ModelSlug::is_supported_slug("unsupported-provider"));
 }
 
 // ---------------------------------------------------------------------------
