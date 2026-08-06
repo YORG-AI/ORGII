@@ -2,12 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { REPO_KIND, type Repo } from "@src/store/repo";
 
-import type { ManagedPrItem } from "../WorkManagement/githubManagedItemModel";
-import {
-  type TeamInboxPullRequestsSnapshot,
-  retainTeamInboxPullRequestsSnapshot,
-  selectTeamInboxPullRequestRepos,
-} from "./useTeamInboxPullRequests";
+import { selectTeamInboxPullRequestRepos } from "./useTeamInboxPullRequests";
 
 const repos: Repo[] = [
   {
@@ -78,71 +73,5 @@ describe("selectTeamInboxPullRequestRepos", () => {
       )
     ).toEqual([]);
     expect(matcher).not.toHaveBeenCalled();
-  });
-});
-
-describe("retainTeamInboxPullRequestsSnapshot", () => {
-  it("preserves the existing list reference when revalidation is unchanged", () => {
-    const items = [
-      { id: 42, title: "Same PR", timeAgo: "1m" },
-    ] as ManagedPrItem[];
-    const current: TeamInboxPullRequestsSnapshot = {
-      scopeKey: "local|repo-a",
-      items,
-      error: null,
-      loaded: true,
-    };
-
-    const next = retainTeamInboxPullRequestsSnapshot({
-      current,
-      scopeKey: "local|repo-a",
-      items: [{ id: 42, title: "Same PR", timeAgo: "2m" }] as ManagedPrItem[],
-      error: null,
-      loading: false,
-    });
-
-    expect(next).toBe(current);
-    expect(next.items).toBe(items);
-  });
-
-  it("publishes a new snapshot when a pull request really changes", () => {
-    const current: TeamInboxPullRequestsSnapshot = {
-      scopeKey: "local|repo-a",
-      items: [{ id: 42, title: "Before" }] as ManagedPrItem[],
-      error: null,
-      loaded: true,
-    };
-
-    const next = retainTeamInboxPullRequestsSnapshot({
-      current,
-      scopeKey: "local|repo-a",
-      items: [{ id: 42, title: "After" }] as ManagedPrItem[],
-      error: null,
-      loading: false,
-    });
-
-    expect(next).not.toBe(current);
-    expect(next.items[0]?.title).toBe("After");
-  });
-
-  it("bounds retained pull request rows", () => {
-    const items = Array.from({ length: 600 }, (_, id) => ({
-      id,
-    })) as ManagedPrItem[];
-
-    const next = retainTeamInboxPullRequestsSnapshot({
-      current: {
-        scopeKey: null,
-        items: [],
-        error: null,
-        loaded: false,
-      },
-      scopeKey: "local|many-repos",
-      items,
-      error: null,
-      loading: false,
-    });
-
-    expect(next.items).toHaveLength(500);
   });
 });

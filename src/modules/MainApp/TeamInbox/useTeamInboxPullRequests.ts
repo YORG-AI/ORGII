@@ -1,6 +1,5 @@
-import { atom, useAtom, useAtomValue } from "jotai";
-import isEqual from "lodash/isEqual";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAtomValue } from "jotai";
+import { useCallback, useMemo, useState } from "react";
 
 import type { PullRequestListState } from "@src/api/tauri/github";
 import { sidebarActiveCloudOrgIdAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -25,76 +24,12 @@ import { type Repo, reposAtom } from "@src/store/repo";
 
 const OPEN_PR_STATES: PullRequestListState[] = ["open"];
 const NO_ISSUE_STATES: GitHubIssuePageState[] = [];
-const MAX_RETAINED_TEAM_INBOX_PULL_REQUESTS = 500;
 
 export interface TeamInboxPullRequestsState {
   items: ManagedPrItem[];
   loading: boolean;
   error: string | null;
   refresh: () => void;
-}
-
-export interface TeamInboxPullRequestsSnapshot {
-  scopeKey: string | null;
-  items: ManagedPrItem[];
-  error: string | null;
-  loaded: boolean;
-}
-
-const EMPTY_TEAM_INBOX_PULL_REQUESTS_SNAPSHOT: TeamInboxPullRequestsSnapshot = {
-  scopeKey: null,
-  items: [],
-  error: null,
-  loaded: false,
-};
-
-// Store-local and bounded: survives an Inbox surface remount without leaking
-// GitHub rows across app stores or retaining every repository ever opened.
-const teamInboxPullRequestsSnapshotAtom = atom<TeamInboxPullRequestsSnapshot>(
-  EMPTY_TEAM_INBOX_PULL_REQUESTS_SNAPSHOT
-);
-
-function samePullRequestItems(
-  left: readonly ManagedPrItem[],
-  right: readonly ManagedPrItem[]
-): boolean {
-  if (left.length !== right.length) return false;
-  return left.every((item, index) => {
-    const candidate = right[index];
-    if (!candidate) return false;
-    const { timeAgo: _leftTimeAgo, ...leftData } = item;
-    const { timeAgo: _rightTimeAgo, ...rightData } = candidate;
-    return isEqual(leftData, rightData);
-  });
-}
-
-export function retainTeamInboxPullRequestsSnapshot({
-  current,
-  scopeKey,
-  items,
-  error,
-  loading,
-}: {
-  current: TeamInboxPullRequestsSnapshot;
-  scopeKey: string;
-  items: ManagedPrItem[];
-  error: string | null;
-  loading: boolean;
-}): TeamInboxPullRequestsSnapshot {
-  const boundedItems = items.slice(0, MAX_RETAINED_TEAM_INBOX_PULL_REQUESTS);
-  const sameScope = current.scopeKey === scopeKey;
-  const itemsUnchanged =
-    sameScope && samePullRequestItems(current.items, boundedItems);
-  const loaded = boundedItems.length > 0 || !loading;
-  if (itemsUnchanged && current.error === error && current.loaded === loaded) {
-    return current;
-  }
-  return {
-    scopeKey,
-    items: itemsUnchanged ? current.items : boundedItems,
-    error,
-    loaded,
-  };
 }
 
 type TeamInboxRepoScopeMatcher = (
@@ -140,22 +75,6 @@ export function useTeamInboxPullRequests(): TeamInboxPullRequestsState {
     () => new Set(scopedRepos.map((repo) => repo.id)),
     [scopedRepos]
   );
-  const scopeKey = useMemo(
-    () =>
-      [
-        activeCloudOrgId ?? "local",
-        ...scopedRepos
-          .map(
-            (repo) =>
-              `${repo.id}:${repo.repo_url ?? repo.fs_uri ?? repo.path ?? ""}`
-          )
-          .sort(),
-      ].join("|"),
-    [activeCloudOrgId, scopedRepos]
-  );
-  const [retainedSnapshot, setRetainedSnapshot] = useAtom(
-    teamInboxPullRequestsSnapshotAtom
-  );
   const { repoSources, repoPrMap, loading, loadError } =
     useGitHubWorkItemsLoadLifecycle({
       repos: scopedRepos,
@@ -175,31 +94,14 @@ export function useTeamInboxPullRequests(): TeamInboxPullRequestsState {
         .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
     [repoPrMap, repoSources, scopedRepoIds]
   );
-  useEffect(() => {
-    if (loading && items.length === 0) return;
-    setRetainedSnapshot((current) =>
-      retainTeamInboxPullRequestsSnapshot({
-        current,
-        scopeKey,
-        items,
-        error: loadError,
-        loading,
-      })
-    );
-  }, [items, loadError, loading, scopeKey, setRetainedSnapshot]);
   const refresh = useCallback(() => {
     setRefreshNonce((current) => current + 1);
   }, []);
 
-  const visibleSnapshot =
-    retainedSnapshot.scopeKey === scopeKey
-      ? retainedSnapshot
-      : EMPTY_TEAM_INBOX_PULL_REQUESTS_SNAPSHOT;
-
   return {
-    items: visibleSnapshot.items,
-    loading: !visibleSnapshot.loaded && loading,
-    error: loadError ?? visibleSnapshot.error,
+    items,
+    loading,
+    error: loadError,
     refresh,
   };
 }

@@ -1,3 +1,7 @@
+import { useStore } from "jotai";
+import type { Store } from "jotai/vanilla/store";
+import isEqual from "lodash/isEqual";
+import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
@@ -13,6 +17,7 @@ import type {
   PullRequestListState,
 } from "@src/api/tauri/github";
 import {
+  GITHUB_LIST_CACHE_TTL_MS,
   coalesceGitHubListRequest,
   getCachedIssues,
   getCachedPrs,
@@ -26,6 +31,7 @@ import { parseGithubRepoFullName } from "@src/services/git/operations/createPull
 import { fetchIssues } from "@src/services/git/operations/githubIssues";
 import { REPO_KIND } from "@src/store/repo";
 import type { Repo } from "@src/store/repo/types";
+import { StoreScopedSnapshotCache } from "@src/util/cache/storeScopedSnapshotCache";
 import { mapWithConcurrency } from "@src/util/collections/mapWithConcurrency";
 
 import type {
@@ -40,6 +46,10 @@ import {
 export const ISSUE_PAGE_SIZE = 50;
 const PR_PAGE_SIZE = 50;
 const GITHUB_SOURCE_CONCURRENCY = 4;
+const MAX_RETAINED_GITHUB_LIST_SCOPES = 4;
+const MAX_RETAINED_GITHUB_REPOS = 8;
+const MAX_RETAINED_ISSUES_PER_STATE = 100;
+const MAX_RETAINED_PRS_PER_STATE = 100;
 
 export interface RepoIssueState {
   openIssues: GitHubIssue[];
@@ -60,6 +70,24 @@ export interface RepoPrState {
   openError: string | null;
   closedError: string | null;
 }
+
+export interface GitHubWorkItemsLifecycleSnapshot {
+  viewerLogin: string;
+  repoSources: GitHubRepoSource[];
+  repoIssueMap: Record<string, RepoIssueState>;
+  repoPrMap: Record<string, RepoPrState>;
+  loadError: string | null;
+}
+
+const retainedLifecycleSnapshots = new StoreScopedSnapshotCache<
+  string,
+  GitHubWorkItemsLifecycleSnapshot
+>(MAX_RETAINED_GITHUB_LIST_SCOPES, GITHUB_LIST_CACHE_TTL_MS);
+const resolvedViewerByStore = new WeakMap<Store, string>();
+const permissionRequestsByStore = new WeakMap<
+  Store,
+  Map<string, Promise<GitHubRepoPermissions | null>>
+>();
 
 interface RepoIssueLoadResult extends RepoIssueState {
   source: GitHubRepoSource;
@@ -96,6 +124,81 @@ export const EMPTY_REPO_PRS: RepoPrState = {
 
 export function getRepoIssueMapKey(source: GitHubRepoSource): string {
   return source.repoFullName;
+}
+
+export function getGitHubLifecycleRetentionKey(
+  repos: readonly Repo[],
+  scope: Extract<GitHubQueryScope, "issue" | "pr">
+): string {
+  return JSON.stringify([
+    scope,
+    ...repos
+      .filter((repo) => repo.kind === REPO_KIND.GIT && repo.path)
+      .map((repo) => [repo.id, repo.path, repo.repo_url ?? "", repo.name])
+      .sort(([leftId], [rightId]) => leftId.localeCompare(rightId)),
+  ]);
+}
+
+function boundedIssueState(state: RepoIssueState): RepoIssueState {
+  return {
+    ...state,
+    openIssues: state.openIssues.slice(0, MAX_RETAINED_ISSUES_PER_STATE),
+    closedIssues: state.closedIssues.slice(0, MAX_RETAINED_ISSUES_PER_STATE),
+  };
+}
+
+function boundedPrState(state: RepoPrState): RepoPrState {
+  return {
+    ...state,
+    openPrs: state.openPrs.slice(0, MAX_RETAINED_PRS_PER_STATE),
+    closedPrs: state.closedPrs.slice(0, MAX_RETAINED_PRS_PER_STATE),
+  };
+}
+
+export function retainGitHubWorkItemsLifecycleSnapshot({
+  current,
+  viewerLogin,
+  repoSources,
+  repoIssueMap,
+  repoPrMap,
+  loadError,
+}: {
+  current?: GitHubWorkItemsLifecycleSnapshot;
+  viewerLogin: string;
+  repoSources: GitHubRepoSource[];
+  repoIssueMap: Record<string, RepoIssueState>;
+  repoPrMap: Record<string, RepoPrState>;
+  loadError: string | null;
+}): GitHubWorkItemsLifecycleSnapshot {
+  const boundedSources = repoSources.slice(0, MAX_RETAINED_GITHUB_REPOS);
+  const retainedRepoNames = new Set(
+    boundedSources.map((source) => source.repoFullName)
+  );
+  const boundedIssueMap = Object.fromEntries(
+    Object.entries(repoIssueMap)
+      .filter(([repoFullName]) => retainedRepoNames.has(repoFullName))
+      .map(([repoFullName, state]) => [repoFullName, boundedIssueState(state)])
+  );
+  const boundedPrMap = Object.fromEntries(
+    Object.entries(repoPrMap)
+      .filter(([repoFullName]) => retainedRepoNames.has(repoFullName))
+      .map(([repoFullName, state]) => [repoFullName, boundedPrState(state)])
+  );
+  const next = {
+    viewerLogin,
+    repoSources: boundedSources,
+    repoIssueMap: boundedIssueMap,
+    repoPrMap: boundedPrMap,
+    loadError,
+  };
+  return current && isEqual(current, next) ? current : next;
+}
+
+function setIfChanged<T>(
+  setValue: Dispatch<SetStateAction<T>>,
+  nextValue: T
+): void {
+  setValue((current) => (isEqual(current, nextValue) ? current : nextValue));
 }
 
 export function mergeUniqueIssues(
@@ -174,9 +277,13 @@ export async function loadRepoPermissions(
   const key = `${viewerLogin.toLowerCase()}:${source.repoFullName}`;
   let permissionRequest = permissionRequests.get(key);
   if (!permissionRequest) {
-    permissionRequest = getGitHubRepoPermissionsLocal(
-      source.repoFullName
-    ).catch(() => null);
+    permissionRequest = getGitHubRepoPermissionsLocal(source.repoFullName)
+      .catch(() => null)
+      .finally(() => {
+        if (permissionRequests.get(key) === permissionRequest) {
+          permissionRequests.delete(key);
+        }
+      });
     permissionRequests.set(key, permissionRequest);
   }
   return [source.repoFullName, await permissionRequest];
@@ -303,37 +410,86 @@ export function useGitHubWorkItemsLoadLifecycle({
   allReposValue?: string;
   currentWorkstationValue?: string;
 }) {
-  const [repoSources, setRepoSources] = useState<GitHubRepoSource[]>([]);
-  const [repoIssueMap, setRepoIssueMap] = useState<
-    Record<string, RepoIssueState>
-  >({});
-  const [repoPrMap, setRepoPrMap] = useState<Record<string, RepoPrState>>({});
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const handledRefreshNonceRef = useRef(0);
-  const permissionRequestsRef = useRef<
-    Map<string, Promise<GitHubRepoPermissions | null>>
-  >(new Map());
-  const permissionViewerRef = useRef<string | null>(null);
+  const store = useStore();
   const gitRepos = useMemo(
     () => repos.filter((repo) => repo.kind === REPO_KIND.GIT && repo.path),
     [repos]
   );
+  const retentionKey = useMemo(
+    () => getGitHubLifecycleRetentionKey(gitRepos, scope),
+    [gitRepos, scope]
+  );
+  const retainedSnapshot = useMemo(() => {
+    const currentViewer = resolvedViewerByStore.get(store);
+    const snapshot = retainedLifecycleSnapshots.get(store, retentionKey);
+    return snapshot && snapshot.viewerLogin === currentViewer ? snapshot : null;
+  }, [retentionKey, store]);
+  const [repoSources, setRepoSources] = useState<GitHubRepoSource[]>(
+    () => retainedSnapshot?.repoSources ?? []
+  );
+  const [repoIssueMap, setRepoIssueMap] = useState<
+    Record<string, RepoIssueState>
+  >(() => retainedSnapshot?.repoIssueMap ?? {});
+  const [repoPrMap, setRepoPrMap] = useState<Record<string, RepoPrState>>(
+    () => retainedSnapshot?.repoPrMap ?? {}
+  );
+  const [loading, setLoading] = useState(() => !retainedSnapshot);
+  const [loadError, setLoadError] = useState<string | null>(
+    () => retainedSnapshot?.loadError ?? null
+  );
+  const loadedRef = useRef(Boolean(retainedSnapshot));
+  const handledRefreshNonceRef = useRef(0);
+  const permissionRequests = useMemo(() => {
+    let requests = permissionRequestsByStore.get(store);
+    if (!requests) {
+      requests = new Map();
+      permissionRequestsByStore.set(store, requests);
+    }
+    return requests;
+  }, [store]);
+  const permissionViewerRef = useRef<string | null>(
+    retainedSnapshot?.viewerLogin ?? null
+  );
+
+  useEffect(() => {
+    const viewerLogin = permissionViewerRef.current;
+    if (!viewerLogin || !loadedRef.current || loading) return;
+    const current = retainedLifecycleSnapshots.get(store, retentionKey);
+    retainedLifecycleSnapshots.set(
+      store,
+      retentionKey,
+      retainGitHubWorkItemsLifecycleSnapshot({
+        current,
+        viewerLogin,
+        repoSources,
+        repoIssueMap,
+        repoPrMap,
+        loadError,
+      })
+    );
+  }, [
+    loadError,
+    loading,
+    repoIssueMap,
+    repoPrMap,
+    repoSources,
+    retentionKey,
+    store,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
     const forceRefresh = refreshNonce !== handledRefreshNonceRef.current;
     handledRefreshNonceRef.current = refreshNonce;
-    if (forceRefresh) permissionRequestsRef.current.clear();
     void (async () => {
-      setLoading(true);
+      if (forceRefresh || !loadedRef.current) setLoading(true);
       setLoadError(null);
       if (gitRepos.length === 0) {
-        permissionRequestsRef.current.clear();
         permissionViewerRef.current = null;
-        setRepoSources([]);
-        setRepoIssueMap({});
-        setRepoPrMap({});
+        loadedRef.current = true;
+        setIfChanged(setRepoSources, []);
+        setIfChanged(setRepoIssueMap, {});
+        setIfChanged(setRepoPrMap, {});
         setLoading(false);
         return;
       }
@@ -358,33 +514,34 @@ export function useGitHubWorkItemsLoadLifecycle({
         .map((source) => ({ ...source, viewerLogin: viewerResult.login }));
       if (cancelled) return;
       if (!viewerResult.login) {
-        permissionRequestsRef.current.clear();
         permissionViewerRef.current = null;
-        setRepoSources(resolvedSources);
-        setRepoIssueMap({});
-        setRepoPrMap({});
+        resolvedViewerByStore.delete(store);
+        retainedLifecycleSnapshots.delete(store, retentionKey);
+        loadedRef.current = false;
+        setIfChanged(setRepoSources, resolvedSources);
+        setIfChanged(setRepoIssueMap, {});
+        setIfChanged(setRepoPrMap, {});
         setLoadError(
           viewerLoginError ?? "GitHub viewer identity is unavailable"
         );
         setLoading(false);
         return;
       }
+      const viewerChanged =
+        permissionViewerRef.current !== null &&
+        permissionViewerRef.current !== viewerResult.login;
       if (permissionViewerRef.current !== viewerResult.login) {
-        permissionRequestsRef.current.clear();
         permissionViewerRef.current = viewerResult.login;
       }
-      const permissionKeyPrefix = `${viewerResult.login.toLowerCase()}:`;
-      const activePermissionKeys = new Set(
-        resolvedSources.map(
-          (source) => `${permissionKeyPrefix}${source.repoFullName}`
-        )
-      );
-      for (const key of permissionRequestsRef.current.keys()) {
-        if (!activePermissionKeys.has(key)) {
-          permissionRequestsRef.current.delete(key);
-        }
+      resolvedViewerByStore.set(store, viewerResult.login);
+      if (viewerChanged) {
+        retainedLifecycleSnapshots.delete(store, retentionKey);
+        setIfChanged(setRepoSources, []);
+        setIfChanged(setRepoIssueMap, {});
+        setIfChanged(setRepoPrMap, {});
       }
-      setRepoIssueMap(
+      setIfChanged(
+        setRepoIssueMap,
         scope === "issue"
           ? Object.fromEntries(
               resolvedSources.map((source) => [
@@ -394,7 +551,8 @@ export function useGitHubWorkItemsLoadLifecycle({
             )
           : {}
       );
-      setRepoPrMap(
+      setIfChanged(
+        setRepoPrMap,
         scope === "pr"
           ? Object.fromEntries(
               resolvedSources.map((source) => [
@@ -405,7 +563,8 @@ export function useGitHubWorkItemsLoadLifecycle({
           : {}
       );
       if (resolvedSources.length === 0) {
-        setRepoSources([]);
+        loadedRef.current = true;
+        setIfChanged(setRepoSources, []);
         setLoading(false);
         return;
       }
@@ -418,11 +577,7 @@ export function useGitHubWorkItemsLoadLifecycle({
       });
       const [permissionResults, issueResults, prResults] = await Promise.all([
         mapWithConcurrency(sourcesToLoad, GITHUB_SOURCE_CONCURRENCY, (source) =>
-          loadRepoPermissions(
-            source,
-            viewerResult.login,
-            permissionRequestsRef.current
-          )
+          loadRepoPermissions(source, viewerResult.login, permissionRequests)
         ),
         scope === "issue"
           ? mapWithConcurrency(
@@ -443,14 +598,17 @@ export function useGitHubWorkItemsLoadLifecycle({
       ]);
       if (cancelled) return;
       const permissionByRepo = new Map(permissionResults);
-      setRepoSources(
+      loadedRef.current = true;
+      setIfChanged(
+        setRepoSources,
         resolvedSources.map((source) => ({
           ...source,
           permissions: permissionByRepo.get(source.repoFullName) ?? null,
         }))
       );
       if (scope === "issue") {
-        setRepoIssueMap(
+        setIfChanged(
+          setRepoIssueMap,
           Object.fromEntries(
             issueResults.map(({ source, error: _error, ...state }) => [
               getRepoIssueMapKey(source),
@@ -479,7 +637,7 @@ export function useGitHubWorkItemsLoadLifecycle({
                     closedError: result.error,
                   };
           }
-          return next;
+          return isEqual(current, next) ? current : next;
         });
       }
       setLoadError(
@@ -498,11 +656,14 @@ export function useGitHubWorkItemsLoadLifecycle({
     currentWorkstationValue,
     gitRepos,
     issueStates,
+    permissionRequests,
     prStates,
     refreshNonce,
     scope,
     selectedRepo,
     selectedRepoPath,
+    store,
+    retentionKey,
   ]);
 
   const updateIssueMap = useCallback(
@@ -510,7 +671,11 @@ export function useGitHubWorkItemsLoadLifecycle({
       update: (
         current: Record<string, RepoIssueState>
       ) => Record<string, RepoIssueState>
-    ) => setRepoIssueMap(update),
+    ) =>
+      setRepoIssueMap((current) => {
+        const next = update(current);
+        return isEqual(current, next) ? current : next;
+      }),
     []
   );
   const updatePrMap = useCallback(
@@ -518,7 +683,11 @@ export function useGitHubWorkItemsLoadLifecycle({
       update: (
         current: Record<string, RepoPrState>
       ) => Record<string, RepoPrState>
-    ) => setRepoPrMap(update),
+    ) =>
+      setRepoPrMap((current) => {
+        const next = update(current);
+        return isEqual(current, next) ? current : next;
+      }),
     []
   );
   const setListError = useCallback((error: string | null) => {
