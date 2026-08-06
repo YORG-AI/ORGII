@@ -379,6 +379,16 @@ describe("WorkItemContent description editing", () => {
 
   beforeAll(() => {
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserverMock {
+        observe() {}
+
+        unobserve() {}
+
+        disconnect() {}
+      }
+    );
   });
 
   beforeEach(() => {
@@ -397,6 +407,7 @@ describe("WorkItemContent description editing", () => {
 
   afterAll(() => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+    vi.unstubAllGlobals();
   });
 
   function changeDescription(value: string, testId = "description-editor") {
