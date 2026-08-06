@@ -1,5 +1,6 @@
 import { createLogger } from "@src/hooks/logger";
 
+import { pruneUnreferencedSharedTabs } from "./lifecycle";
 import {
   type WorkStationTab,
   type WorkStationTabType,
@@ -217,7 +218,7 @@ function migrateLegacyV2(): WorkstationTabsStateV3 {
     (tab) => getWorkstationTabOwnership(tab.type) === "workspace-local"
   );
   state.shared.tabs = shared;
-  if (local.length > 0) {
+  if (tabs.length > 0) {
     const activeId =
       typeof panel.activeTabId === "string" ? panel.activeTabId : null;
     state.legacySeed = {
@@ -238,8 +239,9 @@ function migrateLegacyV2(): WorkstationTabsStateV3 {
       })),
     };
   }
-  persistWorkstationTabsState(state);
-  return state;
+  const migrated = pruneUnreferencedSharedTabs(state);
+  persistWorkstationTabsState(migrated);
+  return migrated;
 }
 
 export function loadWorkstationTabsState(): WorkstationTabsStateV3 {
@@ -258,7 +260,7 @@ export function loadWorkstationTabsState(): WorkstationTabsStateV3 {
     );
   }
   const rawLegacySeed = readJson(WORKSTATION_V3_LEGACY_SEED_KEY);
-  return {
+  return pruneUnreferencedSharedTabs({
     version: 3,
     shared: { tabs: sanitizeSharedTabs(readJson(WORKSTATION_V3_SHARED_KEY)) },
     globalWorkspace: sanitizeWorkspaceState(
@@ -266,30 +268,59 @@ export function loadWorkstationTabsState(): WorkstationTabsStateV3 {
     ),
     sessionWorkspaces,
     legacySeed: rawLegacySeed ? sanitizeWorkspaceState(rawLegacySeed) : null,
-  };
+  });
 }
 
 export function persistWorkstationTabsState(
-  state: WorkstationTabsStateV3
+  state: WorkstationTabsStateV3,
+  previous?: WorkstationTabsStateV3
 ): boolean {
   if (!hasLocalStorage()) return false;
   const sessionIds = Object.keys(state.sessionWorkspaces);
-  const writes = [
-    writeJson(WORKSTATION_V3_SHARED_KEY, state.shared),
-    writeJson(WORKSTATION_V3_GLOBAL_KEY, state.globalWorkspace),
-    state.legacySeed
-      ? writeJson(WORKSTATION_V3_LEGACY_SEED_KEY, state.legacySeed)
-      : (() => {
-          localStorage.removeItem(WORKSTATION_V3_LEGACY_SEED_KEY);
-          return true;
-        })(),
-    ...sessionIds.map((id) =>
-      writeJson(sessionStorageKey(id), state.sessionWorkspaces[id])
-    ),
-  ];
+  const previousSessionIds = previous
+    ? Object.keys(previous.sessionWorkspaces)
+    : [];
+  const writes: boolean[] = [];
+
+  if (!previous || state.shared !== previous.shared) {
+    writes.push(writeJson(WORKSTATION_V3_SHARED_KEY, state.shared));
+  }
+  if (!previous || state.globalWorkspace !== previous.globalWorkspace) {
+    writes.push(writeJson(WORKSTATION_V3_GLOBAL_KEY, state.globalWorkspace));
+  }
+  if (!previous || state.legacySeed !== previous.legacySeed) {
+    if (state.legacySeed) {
+      writes.push(writeJson(WORKSTATION_V3_LEGACY_SEED_KEY, state.legacySeed));
+    } else {
+      localStorage.removeItem(WORKSTATION_V3_LEGACY_SEED_KEY);
+    }
+  }
+  for (const id of sessionIds) {
+    if (
+      !previous ||
+      state.sessionWorkspaces[id] !== previous.sessionWorkspaces[id]
+    ) {
+      writes.push(
+        writeJson(sessionStorageKey(id), state.sessionWorkspaces[id])
+      );
+    }
+  }
+  if (previous) {
+    const liveIds = new Set(sessionIds);
+    for (const id of previousSessionIds) {
+      if (!liveIds.has(id)) deletePersistedWorkstationWorkspace(id);
+    }
+  }
   if (writes.some((ok) => !ok)) return false;
+
+  const manifestChanged =
+    !previous ||
+    sessionIds.length !== previousSessionIds.length ||
+    sessionIds.some((id, index) => id !== previousSessionIds[index]);
   const manifest: ManifestV3 = { version: 3, sessionIds };
-  const committed = writeJson(WORKSTATION_V3_MANIFEST_KEY, manifest);
+  const committed = manifestChanged
+    ? writeJson(WORKSTATION_V3_MANIFEST_KEY, manifest)
+    : true;
   // Keep v2 as a recovery source until its workspace-local seed has been
   // successfully claimed by an explicit session.
   if (committed && state.legacySeed === null) {

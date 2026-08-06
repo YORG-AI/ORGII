@@ -36,7 +36,9 @@ Contexts for Workstation pages. Each provides session/state management.
 | `BrowserContext`    | Browser tab sessions         |
 | `EditorContext`     | Editor repo selection        |
 | `FilesContext`      | Document files management    |
-| `TerminalContext`   | Terminal sessions            |
+
+Terminal sessions are owned by the workstation terminal atoms rather than a
+parallel React context.
 
 ### `session/` - Session Contexts
 
@@ -101,7 +103,7 @@ Reorganized on 2026-01-29:
 
 - Moved `GitStatusContext/` → `git/GitStatusContext/`
 - Moved `MultiRepoGitStatusContext` → `git/`
-- Moved `AutomationContext`, `BrowserContext`, `EditorContext`, `FilesContext`, `TerminalContext` → `workstation/`
+- Moved `AutomationContext`, `BrowserContext`, `EditorContext`, `FilesContext` → `workstation/`
 - Moved `SessionListContext`, `RecentFilesContext` → `session/`
 - Moved `ToolbarThemeContext` → `ui/`
 - Kept `workspace/` as-is (already organized)

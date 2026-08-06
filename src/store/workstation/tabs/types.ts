@@ -208,15 +208,13 @@ export interface WorkstationTabsStateV3 {
 export type WorkstationTabOwnership = "workspace-local" | "shared-resource";
 
 /**
- * Closing most shared tabs only hides them from the current task workspace.
- * Browser and Terminal tabs are different: they own live sessions, so an
- * explicit user close must tear the resource down globally as well.
+ * Shared tabs are either durable resource projections (Browser / Terminal)
+ * or ordinary shared presentation records. Ordinary records have no owner
+ * outside the WorkStation tab graph and are collected with their last ref.
  */
-export function closesSharedResourceOnDismiss(
-  type: WorkStationTabType
-): boolean {
-  return type === "browser-session" || type === "terminal";
-}
+export type WorkstationSharedTabRetention =
+  | "resource-owned"
+  | "while-referenced";
 
 /**
  * Exhaustive ownership policy. There is intentionally no default: adding a
@@ -268,6 +266,123 @@ export function getWorkstationTabOwnership(
     case "agent-config":
     case "start":
       return "shared-resource";
+  }
+}
+
+/**
+ * Exhaustive retention policy for shared tabs. Workspace-local tabs return
+ * `null` because their lifetime is already bounded by their workspace.
+ */
+export function getWorkstationSharedTabRetention(
+  type: WorkStationTabType
+): WorkstationSharedTabRetention | null {
+  switch (type) {
+    case "file":
+    case "directory":
+    case "explorer":
+    case "git-diff":
+    case "source-control":
+    case "timeline-diff":
+    case "git-log":
+    case "git-commit-detail":
+    case "git-stash-detail":
+    case "terminal-content":
+    case "dom-component-preview":
+    case "output":
+    case "search":
+    case "lint-scan":
+    case "ai-impact":
+    case "search-sessions":
+    case "url-preview":
+    case "subagent-detail":
+    case "canvas-preview":
+    case "github-issue-detail":
+    case "github-pr-detail":
+      return null;
+
+    case "browser-session":
+    case "terminal":
+      return "resource-owned";
+
+    case "settings":
+    case "benchmark":
+    case "devtools":
+    case "project-dashboard":
+    case "project-work-items":
+    case "project-linear-projects":
+    case "project-linear-work-items":
+    case "project-settings":
+    case "project-org":
+    case "project-org-settings":
+    case "project-git-sync-review":
+    case "project-workitems":
+    case "workItem-detail":
+    case "chat-session":
+    case "agent-config":
+    case "start":
+      return "while-referenced";
+  }
+}
+
+/** Whether an explicit dismiss must close the live shared resource globally. */
+export function closesSharedResourceOnDismiss(
+  type: WorkStationTabType
+): boolean {
+  return getWorkstationSharedTabRetention(type) === "resource-owned";
+}
+
+export type WorkstationTabRepoAffinity = "repo-scoped" | "repo-independent";
+
+/**
+ * Exhaustive repository-switch policy. New tab types must declare whether a
+ * repo switch swaps them with the repo cache or leaves them in place.
+ */
+export function getWorkstationTabRepoAffinity(
+  type: WorkStationTabType
+): WorkstationTabRepoAffinity {
+  switch (type) {
+    case "file":
+    case "directory":
+    case "git-diff":
+    case "source-control":
+    case "timeline-diff":
+    case "git-log":
+    case "git-commit-detail":
+    case "git-stash-detail":
+    case "terminal-content":
+    case "dom-component-preview":
+    case "search":
+    case "lint-scan":
+    case "github-issue-detail":
+    case "github-pr-detail":
+      return "repo-scoped";
+
+    case "explorer":
+    case "terminal":
+    case "output":
+    case "settings":
+    case "ai-impact":
+    case "search-sessions":
+    case "benchmark":
+    case "url-preview":
+    case "browser-session":
+    case "devtools":
+    case "project-dashboard":
+    case "project-work-items":
+    case "project-linear-projects":
+    case "project-linear-work-items":
+    case "project-settings":
+    case "project-org":
+    case "project-org-settings":
+    case "project-git-sync-review":
+    case "project-workitems":
+    case "workItem-detail":
+    case "chat-session":
+    case "subagent-detail":
+    case "agent-config":
+    case "canvas-preview":
+    case "start":
+      return "repo-independent";
   }
 }
 
@@ -452,13 +567,13 @@ export interface AgentConfigTabData {
 }
 
 // ============================================
-// Editor Cache Types (Per-Repo for FILES only)
+// Editor Cache Types (Per-Repo scoped tabs)
 // ============================================
 
 /**
- * Cached FILE tabs for a single repo
+ * Cached repository-scoped tabs for a single repo.
  *
- * IMPORTANT: Only FILE tabs are cached per-repo.
+ * IMPORTANT: Only repository-scoped tabs are cached per-repo.
  * Terminal and Browser tabs are GLOBAL and NOT affected by repo switching.
  *
  * When switching repos:
@@ -468,7 +583,7 @@ export interface AgentConfigTabData {
 export interface EditorRepoCache {
   /** Repo path (key) */
   repoPath: string;
-  /** File tabs only (type: "file", "git-diff", "source-control", "timeline-diff") */
+  /** Repository-scoped editor tabs. Kept as `fileTabs` for storage compatibility. */
   fileTabs: WorkStationTab[];
   /** Active file tab ID (null if no file tab was active) */
   activeFileTabId: string | null;
@@ -485,9 +600,10 @@ export type EditorCacheMap = Record<string, EditorRepoCache>;
 // Tab Type Classification
 // ============================================
 
-/** Tab types that are FILE tabs (cached per-repo) */
+/** Tab types cached per repository. Name retained for API/storage compatibility. */
 export const FILE_TAB_TYPES = [
   "file",
+  "directory",
   "git-diff",
   "source-control",
   "timeline-diff",
@@ -496,20 +612,25 @@ export const FILE_TAB_TYPES = [
   "git-stash-detail",
   "terminal-content",
   "dom-component-preview",
+  "search",
+  "lint-scan",
+  "github-issue-detail",
+  "github-pr-detail",
 ] as const;
 
 /** Tab types that are TOOL tabs (global, not cached per-repo) */
 export const TOOL_TAB_TYPES = [
+  "explorer",
   "terminal",
   "output",
   "settings",
-  "search",
-  "lint-scan",
   "ai-impact",
   "search-sessions",
+  "benchmark",
   "url-preview",
   // Browser tabs
   "browser-session",
+  "devtools",
   // Project Manager tabs
   "project-dashboard",
   "project-work-items",
@@ -518,15 +639,13 @@ export const TOOL_TAB_TYPES = [
   "project-settings",
   "project-org",
   "project-org-settings",
+  "project-git-sync-review",
   "project-workitems",
   "workItem-detail",
   "chat-session",
   "subagent-detail",
   "agent-config",
-  // GitHub Issues detail
-  "github-issue-detail",
-  // GitHub Pull Request detail
-  "github-pr-detail",
+  "canvas-preview",
   // Start page launcher
   "start",
 ] as const;

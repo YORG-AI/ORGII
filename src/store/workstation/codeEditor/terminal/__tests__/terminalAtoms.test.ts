@@ -7,6 +7,7 @@
 import { createStore } from "jotai/vanilla";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
 import {
   notifyTerminalCreationCooldown,
   tryBeginTerminalCreation,
@@ -14,17 +15,20 @@ import {
 
 import {
   activeTerminalIdAtom,
+  closeAllTerminalSessionsAtom,
   closeTerminalSessionAtom,
   createAgentSessionTerminalAtom,
   editorActiveTerminalSessionAtom,
   editorAddTerminalSessionAtom,
   initializedTerminalIdsAtom,
   markTerminalInitializedAtom,
+  markTerminalSurfaceOpenedAtom,
   removeAgentSessionTerminalAtom,
   renameTerminalSessionAtom,
   setActiveTerminalAtom,
   terminalSessionCountAtom,
   terminalSessionsAtom,
+  terminalSurfaceLifecycleAtom,
   updateTerminalSessionInfoAtom,
 } from "../index";
 
@@ -51,6 +55,7 @@ describe("terminal atoms", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTauriReady).mockReturnValue(false);
     vi.mocked(tryBeginTerminalCreation).mockReturnValue(true);
     store = createStore();
     // Initialize with a clean state
@@ -59,6 +64,10 @@ describe("terminal atoms", () => {
     ]);
     store.set(activeTerminalIdAtom, "initial-1");
     store.set(initializedTerminalIdsAtom, new Set(["initial-1"]));
+    store.set(terminalSurfaceLifecycleAtom, {
+      generation: 0,
+      phase: "open",
+    });
   });
 
   describe("editorAddTerminalSessionAtom", () => {
@@ -156,6 +165,78 @@ describe("terminal atoms", () => {
       // Should switch to first remaining
       expect(activeId).toBe(sessions[0].id);
       expect(sessions[0].isActive).toBe(true);
+    });
+  });
+
+  describe("WorkStation Terminal surface teardown", () => {
+    it("rotates WorkStation sessions immediately and preserves other terminal owners", async () => {
+      store.set(terminalSessionsAtom, [
+        { id: "workstation-old", name: "Old", isActive: true },
+        { id: "chatpanel-live", name: "Chat", isActive: false },
+        { id: "agent-pty-live", name: "Agent PTY", isActive: false },
+      ]);
+      store.set(activeTerminalIdAtom, "workstation-old");
+      store.set(
+        initializedTerminalIdsAtom,
+        new Set(["workstation-old", "chatpanel-live", "agent-pty-live"])
+      );
+
+      await store.set(closeAllTerminalSessionsAtom);
+
+      const sessions = store.get(terminalSessionsAtom);
+      expect(sessions.map(({ id }) => id)).toContain("chatpanel-live");
+      expect(sessions.map(({ id }) => id)).toContain("agent-pty-live");
+      expect(sessions.map(({ id }) => id)).not.toContain("workstation-old");
+      const fresh = sessions.find(
+        (session) =>
+          session.id !== "chatpanel-live" && session.id !== "agent-pty-live"
+      );
+      expect(fresh?.id).toMatch(/^terminal-/);
+      expect(store.get(activeTerminalIdAtom)).toBe(fresh?.id);
+      expect(store.get(terminalSurfaceLifecycleAtom).phase).toBe("closed");
+
+      const persisted = JSON.parse(
+        localStorage.getItem("work_station_terminal_state")!
+      );
+      expect(persisted.sessions.map(({ id }: { id: string }) => id)).toEqual([
+        fresh?.id,
+      ]);
+    });
+
+    it("discards a stale teardown completion after rapid reopen", async () => {
+      let resolveClose!: () => void;
+      const closeGate = new Promise<void>((resolve) => {
+        resolveClose = resolve;
+      });
+      vi.mocked(isTauriReady).mockReturnValue(true);
+      vi.mocked(invokeTauri).mockImplementation(() => closeGate as never);
+      store.set(terminalSessionsAtom, [
+        { id: "workstation-old", name: "Old", isActive: true },
+      ]);
+      store.set(activeTerminalIdAtom, "workstation-old");
+
+      const closing = store.set(closeAllTerminalSessionsAtom);
+      const freshId = store.get(activeTerminalIdAtom);
+      const closingGeneration = store.get(
+        terminalSurfaceLifecycleAtom
+      ).generation;
+      expect(store.get(terminalSurfaceLifecycleAtom).phase).toBe("closing");
+      expect(freshId).not.toBe("workstation-old");
+
+      store.set(markTerminalSurfaceOpenedAtom);
+      expect(store.get(terminalSurfaceLifecycleAtom)).toEqual({
+        generation: closingGeneration + 1,
+        phase: "open",
+      });
+
+      resolveClose();
+      await closing;
+
+      expect(store.get(terminalSurfaceLifecycleAtom).phase).toBe("open");
+      expect(store.get(activeTerminalIdAtom)).toBe(freshId);
+      expect(store.get(terminalSessionsAtom).map(({ id }) => id)).toContain(
+        freshId
+      );
     });
   });
 

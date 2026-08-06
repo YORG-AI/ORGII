@@ -25,6 +25,8 @@ export type {
   WorkstationSharedState,
   WorkstationTabsStateV3,
   WorkstationTabOwnership,
+  WorkstationSharedTabRetention,
+  WorkstationTabRepoAffinity,
   TimelineDiffCommitInfo,
   // Editor cache types
   EditorRepoCache,
@@ -39,6 +41,8 @@ export {
   FILE_TAB_TYPES,
   TOOL_TAB_TYPES,
   getWorkstationTabOwnership,
+  getWorkstationSharedTabRetention,
+  getWorkstationTabRepoAffinity,
   closesSharedResourceOnDismiss,
 } from "./types";
 
@@ -59,6 +63,8 @@ export {
   closeWorkstationTabAtom,
   removeSharedWorkstationTabsAtom,
   removeSharedWorkstationTabAtom,
+  removeSessionWorkstationTabsAtom,
+  removeProjectOrgWorkstationTabsAtom,
   focusWorkstationTabAtom,
   updateWorkstationTabDataAtom,
   reorderWorkstationTabsAtom,

@@ -3,9 +3,6 @@ import type { DeleteSessionReceipt } from "@src/api/tauri/agent";
 interface RustSessionDeleteCleanup {
   removeSession: (sessionId: string) => void;
   removeForkRelayEntry: (sessionId: string) => void;
-  disposeWorkstationWorkspace: (sessionId: string) => void;
-  clearPendingFileOpens: (sessionId: string) => void;
-  clearPendingCodeEditorTab: (sessionId: string) => void;
   evictEventStore: (sessionId: string) => Promise<void>;
 }
 
@@ -36,9 +33,6 @@ export async function applyRustSessionDeleteReceipt({
     if (deletedSessionId === requestedSessionId) continue;
     cleanup.removeSession(deletedSessionId);
     cleanup.removeForkRelayEntry(deletedSessionId);
-    cleanup.disposeWorkstationWorkspace(deletedSessionId);
-    cleanup.clearPendingFileOpens(deletedSessionId);
-    cleanup.clearPendingCodeEditorTab(deletedSessionId);
   }
 
   if (isAgentOrgRoot || deletedSessionIds.length > 1) {

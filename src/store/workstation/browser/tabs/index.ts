@@ -13,9 +13,10 @@
  * it never removes browser resources or makes a workspace switch look like a
  * browser-tab close.
  */
-import { atom } from "jotai";
+import { type Setter, atom } from "jotai";
 
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
+import { closeBrowserSessionsAtom } from "@src/store/workstation/browser/sessionState";
 import type { PanelState } from "@src/store/workstation/tabs";
 import {
   removeSharedWorkstationTabAtom,
@@ -26,6 +27,7 @@ import {
 import {
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
+  closeTab as closeTabMutation,
   openTab as openTabMutation,
   reorderTabs as reorderTabsMutation,
   switchTab as switchTabMutation,
@@ -34,6 +36,10 @@ import type {
   WorkStationTab,
   WorkStationTabType,
 } from "@src/store/workstation/tabs/types";
+
+import { NEW_PRIVATE_TAB_TITLE, NEW_TAB_TITLE } from "../sessionTitles";
+
+export { NEW_PRIVATE_TAB_TITLE, NEW_TAB_TITLE } from "../sessionTitles";
 
 // ============================================
 // Types
@@ -72,16 +78,14 @@ export function extractSessionId(tabId: string): string {
  * "no real title yet" by every display site so URL-derived fallbacks
  * win, and translated to the user's locale when shown as-is.
  *
- * IMPORTANT: these strings must stay in English on disk — they're the
+ * IMPORTANT: the exported values must stay in English on disk — they're the
  * wire / localStorage representation. The i18n layer maps them to the
  * locale-specific label at render time
  * (`common:controlTower.sidebar.newTab` /
  * `common:controlTower.sidebar.newPrivateTab`). Changing them here
- * would invalidate every persisted browser session.
+ * would invalidate every persisted browser session. Their definitions live
+ * in `sessionTitles.ts` so the session owner does not import this tab module.
  */
-export const NEW_TAB_TITLE = "New Tab";
-export const NEW_PRIVATE_TAB_TITLE = "New Private Tab";
-
 /** True when `title` is one of the placeholder sentinels above. */
 export function isPlaceholderBrowserSessionTitle(
   title: string | undefined
@@ -335,13 +339,45 @@ export const removeBrowserResourceTabAtom = atom(
     set(removeSharedWorkstationTabAtom, tabId);
   }
 );
+removeBrowserResourceTabAtom.debugLabel = "removeBrowserResourceTabAtom";
+
+export const removeBrowserResourceTabsAtom = atom(
+  null,
+  (_get, set, tabIds: readonly string[]) => {
+    set(removeSharedWorkstationTabsAtom, tabIds);
+  }
+);
+removeBrowserResourceTabsAtom.debugLabel = "removeBrowserResourceTabsAtom";
+
+function closeBrowserResources(
+  set: Setter,
+  tabs: readonly WorkStationTab[]
+): void {
+  if (tabs.length === 0) return;
+  const sessionIds = tabs.flatMap((tab) => {
+    const sessionId = tab.data.sessionId;
+    return typeof sessionId === "string" && sessionId ? [sessionId] : [];
+  });
+  if (sessionIds.length > 0) set(closeBrowserSessionsAtom, sessionIds);
+  set(
+    removeBrowserResourceTabsAtom,
+    tabs.map((tab) => tab.id)
+  );
+}
 
 /**
- * Close a browser tab in the current workspace. The live BrowserContext owner
- * observes the disappearance and then removes the global resource explicitly.
+ * Close a browser resource at its authoritative session owner and remove every
+ * WorkStation projection. The reverse sync remains only as a crash fallback.
  */
-export const closeBrowserTabAtom = atom(null, (_get, set, tabId: string) => {
-  set(removeBrowserResourceTabAtom, tabId);
+export const closeBrowserTabAtom = atom(null, (get, set, tabId: string) => {
+  const visibleState = get(browserTabsAtom);
+  if (visibleState.tabs.some((tab) => tab.id === tabId)) {
+    set(browserTabsAtom, closeTabMutation(visibleState, tabId));
+  }
+  const tab = get(workstationTabsStateAtom).shared.tabs.find(
+    (candidate) => candidate.id === tabId && isBrowserFamilyTab(candidate)
+  );
+  if (tab) closeBrowserResources(set, [tab]);
 });
 
 /**
@@ -375,11 +411,10 @@ export const closeOtherBrowserTabsAtom = atom(
   (get, set, tabId: string) => {
     const state = get(browserTabsAtom);
     const next = closeOtherTabsMutation(state, tabId);
-    const nextIds = new Set(next.tabs.map((tab) => tab.id));
-    set(
-      removeSharedWorkstationTabsAtom,
-      state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
-    );
+    const liveIds = new Set(next.tabs.map((tab) => tab.id));
+    const removed = state.tabs.filter((tab) => !liveIds.has(tab.id));
+    set(browserTabsAtom, next);
+    closeBrowserResources(set, removed);
   }
 );
 
@@ -389,11 +424,10 @@ export const closeOtherBrowserTabsAtom = atom(
 export const closeSavedBrowserTabsAtom = atom(null, (get, set) => {
   const state = get(browserTabsAtom);
   const next = closeSavedTabsMutation(state);
-  const nextIds = new Set(next.tabs.map((tab) => tab.id));
-  set(
-    removeSharedWorkstationTabsAtom,
-    state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
-  );
+  const liveIds = new Set(next.tabs.map((tab) => tab.id));
+  const removed = state.tabs.filter((tab) => !liveIds.has(tab.id));
+  set(browserTabsAtom, next);
+  closeBrowserResources(set, removed);
 });
 
 /**

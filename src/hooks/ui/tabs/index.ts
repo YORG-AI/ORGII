@@ -9,10 +9,9 @@ export {
   useGlobalShortcutTabs,
   useGlobalTabCounts,
 } from "./useGlobalTabs";
-// Tab sync functions (for browser/terminal/editor contexts)
+// Tab sync functions (for browser/editor/document contexts)
 export {
   useSyncBrowserTabs,
-  useSyncTerminalSessions,
   useSyncEditorRepos,
   useSyncDocumentFiles,
 } from "./useSyncGlobalTabs";

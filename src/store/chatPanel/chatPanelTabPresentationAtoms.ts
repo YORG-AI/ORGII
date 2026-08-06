@@ -1,6 +1,6 @@
 import { atom } from "jotai";
 
-import { sessionByIdAtom } from "@src/store/session/sessionAtom";
+import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
 import {
   activeSessionIdAtom,
   jumpToSessionAtom,

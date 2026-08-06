@@ -14,5 +14,6 @@ export {
   closeProjectOrgWorkStationTabsAtom,
   closeOtherTabsAtom,
   closeSavedTabsAtom,
+  closeAllWorkstationTabsAtom,
   reorderTabAtom,
 } from "./atoms";

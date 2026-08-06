@@ -14,8 +14,6 @@ import { useCallback, useMemo } from "react";
 import {
   // Types
   type EditorRepoCache,
-  // Constants
-  FILE_TAB_TYPES,
   MAX_EDITOR_CACHE_REPOS,
   MAX_FILE_TABS_PER_REPO,
   type WorkStationTab,
@@ -26,6 +24,7 @@ import {
   // Editor cache atoms
   editorCacheAtom,
   editorCacheSizeAtom,
+  getWorkstationTabRepoAffinity,
   mainPaneStateAtom,
   saveRepoCacheAtom,
   switchActiveRepoAtom,
@@ -41,14 +40,14 @@ import {
  * Check if a tab is a file tab (cached per-repo)
  */
 function isFileTab(tab: WorkStationTab): boolean {
-  return FILE_TAB_TYPES.includes(tab.type as (typeof FILE_TAB_TYPES)[number]);
+  return getWorkstationTabRepoAffinity(tab.type) === "repo-scoped";
 }
 
 /**
  * Check if a tab is a tool tab (global, not cached)
  */
 function isToolTab(tab: WorkStationTab): boolean {
-  return !isFileTab(tab);
+  return getWorkstationTabRepoAffinity(tab.type) === "repo-independent";
 }
 
 // ============================================

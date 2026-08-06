@@ -159,7 +159,7 @@ describe("v2 migration", () => {
     expect(localStorage.getItem(WORKSTATION_V3_LEGACY_SEED_KEY)).not.toBeNull();
   });
 
-  it("does not expose a seed when v2 contains only shared resources", () => {
+  it("preserves a shared-only v2 layout in the claimable seed", () => {
     localStorage.setItem(
       LAYOUT_STORAGE_KEY,
       JSON.stringify({
@@ -172,9 +172,18 @@ describe("v2 migration", () => {
 
     const migrated = loadWorkstationTabsState();
 
-    expect(migrated.shared.tabs).toHaveLength(1);
-    expect(migrated.legacySeed).toBeNull();
-    expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).toBeNull();
+    expect(migrated.shared.tabs.map((item) => item.id)).toEqual([
+      "settings:main",
+    ]);
+    expect(migrated.legacySeed?.tabs).toEqual([]);
+    expect(migrated.legacySeed?.activeTabRef).toEqual({
+      partition: "shared",
+      tabId: "settings:main",
+    });
+    expect(migrated.legacySeed?.tabOrder).toEqual([
+      { partition: "shared", tabId: "settings:main" },
+    ]);
+    expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).not.toBeNull();
   });
 
   it("prefers committed v3 state over a leftover v2 recovery source", () => {
@@ -228,6 +237,10 @@ describe("v3 persistence keys", () => {
     const state = emptyWorkstationTabsState();
     state.shared.tabs = [tab("settings:main", "settings")];
     state.sessionWorkspaces.A = workspace([tab("file:/same.ts")]);
+    state.sessionWorkspaces.A.tabOrder.unshift({
+      partition: "shared",
+      tabId: "settings:main",
+    });
     state.sessionWorkspaces.B = workspace([
       tab("file:/same.ts", "file", {
         data: { owner: "B" },
@@ -242,6 +255,27 @@ describe("v3 persistence keys", () => {
     ]);
     expect(loaded.sessionWorkspaces.A.tabs[0].data).toEqual({});
     expect(loaded.sessionWorkspaces.B.tabs[0].data).toEqual({ owner: "B" });
+  });
+
+  it("writes only changed scopes after the initial commit", () => {
+    const previous = emptyWorkstationTabsState();
+    previous.globalWorkspace = workspace([tab("file:/global.ts")]);
+    previous.sessionWorkspaces.A = workspace([tab("file:/a.ts")]);
+    previous.sessionWorkspaces.B = workspace([tab("file:/b.ts")]);
+    expect(persistWorkstationTabsState(previous)).toBe(true);
+
+    const setItem = vi.spyOn(localStorage, "setItem");
+    const next = {
+      ...previous,
+      sessionWorkspaces: {
+        ...previous.sessionWorkspaces,
+        A: workspace([tab("file:/a-next.ts")]),
+      },
+    };
+
+    expect(persistWorkstationTabsState(next, previous)).toBe(true);
+
+    expect(setItem.mock.calls.map(([key]) => key)).toEqual([sessionKey("A")]);
   });
 
   it("removes only the requested persisted session workspace", () => {

@@ -1,9 +1,8 @@
 /**
  * TerminalCore Component
  *
- * Reusable terminal component that can work with:
- * 1. TerminalContext (for main terminal page)
- * 2. Prop-based state (for simulator or standalone use)
+ * Reusable prop-driven terminal component for Workstation, ChatPanel, or
+ * standalone surfaces. Session ownership lives in the caller's atom layer.
  *
  * Features:
  * - Multiple sessions (tabs)

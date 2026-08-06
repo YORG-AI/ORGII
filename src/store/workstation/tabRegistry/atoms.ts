@@ -12,11 +12,13 @@ import { type Getter, type Setter, atom } from "jotai";
 import {
   type PanelState,
   type WorkStationLayoutState,
+  closeAllTabs as closeAllTabsMutation,
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
   closeTab as closeTabMutation,
   closeWorkstationTabsAtom,
   presentedWorkstationWorkspaceKeyAtom,
+  removeProjectOrgWorkstationTabsAtom,
   reorderTabs as reorderTabsMutation,
   switchTab as switchTabMutation,
   workstationLayoutAtom,
@@ -115,19 +117,8 @@ closeActiveWorkStationTabAtom.debugLabel = "closeActiveWorkStationTabAtom";
 /** Close every WorkStation surface whose durable payload belongs to an org. */
 export const closeProjectOrgWorkStationTabsAtom = atom(
   null,
-  (get, set, orgId: string) => {
-    const layout = get(workstationLayoutAtom);
-    if (!layout) return;
-    const tabIds = layout.mainPane.tabs
-      .filter((tab) => tab.data.orgId === orgId)
-      .map((tab) => tab.id);
-    if (tabIds.length === 0) return;
-
-    let nextPane = layout.mainPane;
-    for (const tabId of tabIds) {
-      nextPane = closeTabMutation(nextPane, tabId);
-    }
-    closePresentedTabs(get, set, nextPane, layout.mainPane);
+  (_get, set, orgId: string) => {
+    set(removeProjectOrgWorkstationTabsAtom, orgId);
   }
 );
 closeProjectOrgWorkStationTabsAtom.debugLabel =
@@ -181,3 +172,15 @@ export const closeSavedTabsAtom = atom(null, (get, set) => {
   );
 });
 closeSavedTabsAtom.debugLabel = "closeSavedTabsAtom";
+
+export const closeAllWorkstationTabsAtom = atom(null, (get, set) => {
+  const layout = get(workstationLayoutAtom);
+  if (!layout) return;
+  closePresentedTabs(
+    get,
+    set,
+    closeAllTabsMutation(layout.mainPane),
+    layout.mainPane
+  );
+});
+closeAllWorkstationTabsAtom.debugLabel = "closeAllWorkstationTabsAtom";

@@ -6,9 +6,6 @@ function cleanupSpies() {
   return {
     removeSession: vi.fn(),
     removeForkRelayEntry: vi.fn(),
-    disposeWorkstationWorkspace: vi.fn(),
-    clearPendingFileOpens: vi.fn(),
-    clearPendingCodeEditorTab: vi.fn(),
     evictEventStore: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -31,9 +28,6 @@ describe("applyRustSessionDeleteReceipt", () => {
     for (const cleanupFn of [
       cleanup.removeSession,
       cleanup.removeForkRelayEntry,
-      cleanup.disposeWorkstationWorkspace,
-      cleanup.clearPendingFileOpens,
-      cleanup.clearPendingCodeEditorTab,
     ]) {
       expect(cleanupFn.mock.calls).toEqual([["worker-a"], ["worker-b"]]);
     }
@@ -60,9 +54,6 @@ describe("applyRustSessionDeleteReceipt", () => {
     expect(deletedActiveSession).toBe(true);
     expect(cleanup.removeSession).not.toHaveBeenCalled();
     expect(cleanup.removeForkRelayEntry).not.toHaveBeenCalled();
-    expect(cleanup.disposeWorkstationWorkspace).not.toHaveBeenCalled();
-    expect(cleanup.clearPendingFileOpens).not.toHaveBeenCalled();
-    expect(cleanup.clearPendingCodeEditorTab).not.toHaveBeenCalled();
     expect(cleanup.evictEventStore).not.toHaveBeenCalled();
   });
 

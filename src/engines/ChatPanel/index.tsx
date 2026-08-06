@@ -28,7 +28,6 @@ import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewCon
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
   closeOrganizationChatPanelTabAtom,
-  closeProjectOrgChatPanelTabsAtom,
   closeRevokedCloudChannelChatPanelTabsAtom,
   isChatPanelTabStationAvailable,
   openRuntimeInChatPanelTabAtom,
@@ -39,6 +38,7 @@ import {
   toggleActiveChatPanelMaximizedAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
+import { invalidateProjectOrgPresentationAtom } from "@src/store/projectOrgPresentationLifecycleAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
 import {
   type SessionContinuation,
@@ -150,7 +150,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
     const cloudOrgsLoaded = useAtomValue(org2CloudOrgsLoadedAtom);
     const closeOrganizationTab = useSetAtom(closeOrganizationChatPanelTabAtom);
-    const closeProjectOrgTabs = useSetAtom(closeProjectOrgChatPanelTabsAtom);
+    const closeProjectOrgTabs = useSetAtom(
+      invalidateProjectOrgPresentationAtom
+    );
     const closeRevokedCloudChannelTabs = useSetAtom(
       closeRevokedCloudChannelChatPanelTabsAtom
     );
