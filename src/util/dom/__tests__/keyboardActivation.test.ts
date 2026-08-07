@@ -32,16 +32,26 @@ describe("createKeyboardActivationHandler", () => {
     expect(action).toHaveBeenCalledTimes(1);
   });
 
-  it("does not run the action on unrelated keys", () => {
+  it("runs the action on Space and prevents default scrolling", () => {
     const action = vi.fn();
+    const preventDefault = vi.fn();
     const handler = createKeyboardActivationHandler(action);
 
-    handler({
-      key: "Escape",
-      preventDefault: vi.fn(),
-    } as unknown as KeyboardEvent);
+    handler({ key: " ", preventDefault } as unknown as KeyboardEvent);
+
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not run the action on unrelated keys", () => {
+    const action = vi.fn();
+    const preventDefault = vi.fn();
+    const handler = createKeyboardActivationHandler(action);
+
+    handler({ key: "Escape", preventDefault } as unknown as KeyboardEvent);
 
     expect(action).not.toHaveBeenCalled();
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });
 

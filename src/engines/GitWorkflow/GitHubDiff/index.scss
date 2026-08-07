@@ -341,6 +341,11 @@
     background: var(--color-bg-4);
     color: var(--color-text-2);
   }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-primary-6);
+    outline-offset: -2px;
+  }
 }
 
 .diff-collapsed-icon {

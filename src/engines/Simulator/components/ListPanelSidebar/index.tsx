@@ -25,6 +25,7 @@ import { type GitFileStatus } from "@src/config/gitStatus";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { createKeyboardActivationHandler } from "@src/util/dom/keyboardActivation";
 
 import type {
   ListPanelContentProps,
@@ -140,6 +141,11 @@ const DefaultListItem: React.FC<DefaultItemProps> = ({
     [onCheckChange]
   );
 
+  const handleKeyDown = useMemo(
+    () => createKeyboardActivationHandler(onClick),
+    [onClick]
+  );
+
   // Build full path for display
   const displayPath = item.secondaryText
     ? `${item.secondaryText}/${item.name}`
@@ -147,12 +153,15 @@ const DefaultListItem: React.FC<DefaultItemProps> = ({
 
   return (
     <div
-      className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors ${
+      className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6/30 ${
         isSelected
           ? `${SURFACE_TOKENS.selected} text-primary-6 ${SURFACE_TOKENS.selectedHover}`
           : `text-text-1 ${SURFACE_TOKENS.hover}`
       }`}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
     >
       {/* Checkbox (optional) */}
       {showCheckbox && (
