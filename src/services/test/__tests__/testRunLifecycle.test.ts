@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { TestEvent, TestRunState, TestRunSummary } from "@src/types/testing";
+import type {
+  TestEvent,
+  TestRunState,
+  TestRunSummary,
+} from "@src/types/testing";
 
 import { nextRunState, stopTargetRunId } from "../testRunLifecycle";
 
@@ -47,7 +51,11 @@ describe("nextRunState", () => {
       type: "run_finished",
       summary: createSummary(),
     });
-    expect(next).toEqual({ runId: "run-1", status: "completed", progress: 100 });
+    expect(next).toEqual({
+      runId: "run-1",
+      status: "completed",
+      progress: 100,
+    });
   });
 
   it("ignores run_finished from a stale parallel run", () => {
