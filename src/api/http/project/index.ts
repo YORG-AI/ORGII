@@ -32,6 +32,7 @@ export {
   buildMemberMap,
   enrichedWorkItemToUI,
   projectDataToUI,
+  standaloneWorkItemDataToEnriched,
   uiWorkItemToFrontmatter,
   workItemDataToUI,
 } from "./adapters";
@@ -49,6 +50,13 @@ export const projectApi = {
   configureOrgGitFolderSync: client.configureOrgGitFolderSync,
   syncOrgGitFolder: client.syncOrgGitFolder,
   resolveOrgGitFolderConflict: client.resolveOrgGitFolderConflict,
+  // Collab sync bridge (design §16.8)
+  configureOrgCollabSync: client.configureOrgCollabSync,
+  collabLeaveCleanup: client.collabLeaveCleanup,
+  drainCollabOutbox: client.drainCollabOutbox,
+  listCollabOutboxPendingIds: client.listCollabOutboxPendingIds,
+  ackCollabOutbox: client.ackCollabOutbox,
+  applyCollabRemote: client.applyCollabRemote,
   // Projects
   readProjects: client.readProjects,
   readProject: client.readProject,

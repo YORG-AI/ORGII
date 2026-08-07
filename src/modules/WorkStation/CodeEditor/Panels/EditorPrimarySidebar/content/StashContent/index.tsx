@@ -22,7 +22,12 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { StashEntry } from "@src/api/http/git/types";
-import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
+import {
+  TREE_ROW_INSET_CLASS,
+  TREE_ROW_ROUNDED_CLASS,
+  TreeRowBase,
+  type TreeRowNode,
+} from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useWorkStationTabs } from "@src/hooks/workStation/tabs/useWorkStationTabs";
 import {
@@ -360,7 +365,7 @@ export const StashContent: React.FC<StashContentProps> = memo(
       <div className="mb-1">
         {/* Section header */}
         <div
-          className={`group/header flex h-[28px] w-full items-center gap-1.5 px-3 ${PRIMARY_SIDEBAR_HOVER.row}`}
+          className={`group/header ${TREE_ROW_INSET_CLASS} flex h-[28px] items-center gap-1.5 px-2 ${TREE_ROW_ROUNDED_CLASS} ${PRIMARY_SIDEBAR_HOVER.row}`}
         >
           <button
             className="flex items-center gap-1.5"

@@ -22,6 +22,8 @@ export interface ExternalCliSourceProbe {
   historyPaths: string[];
   status: string;
   importable: boolean;
+  /** On-disk store format ORGII parses: "jsonl", "sqlite", or "" (not imported). */
+  storeKind: string;
 }
 
 export async function externalCliSourcesDetect(): Promise<

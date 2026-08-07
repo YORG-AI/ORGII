@@ -17,7 +17,6 @@ import {
 } from "@src/store/ui/workStationAtom";
 
 import BrowserStatusBar from "./BrowserStatusBar";
-import DatabaseStatusBar from "./DatabaseStatusBar";
 import { EditorStatusBar } from "./EditorStatusBar";
 import ProjectStatusBar from "./ProjectStatusBar";
 
@@ -70,18 +69,6 @@ export const StatusBarRenderer: React.FC<StatusBarRendererProps> = memo(
       );
     }
 
-    if (state.appType === "data") {
-      return (
-        <DatabaseStatusBar
-          repoName={state.repoName}
-          branchName={state.branchName}
-          onRepoClick={callbacks.onRepoClick}
-          onBranchClick={callbacks.onBranchClick}
-          className={className}
-        />
-      );
-    }
-
     return (
       <EditorStatusBar
         cursor={state.cursor}
@@ -93,6 +80,7 @@ export const StatusBarRenderer: React.FC<StatusBarRendererProps> = memo(
         lspStatus={state.lspStatus}
         onRepoClick={callbacks.onRepoClick}
         onBranchClick={callbacks.onBranchClick}
+        onWorktreeClick={callbacks.onWorktreeClick}
         className={className}
       />
     );

@@ -1,5 +1,6 @@
 .wp__chat__history,
-.session-replay-messages {
+.session-replay-messages,
+.chat-history-portal {
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
@@ -13,15 +14,16 @@
 
   // Derived font-size tokens — all relative to --chat-font-size
   --chat-block-xs-size: calc(
-    var(--chat-font-size, 14px) - 3px
-  ); // 11px — labels, badges, section headers
+    var(--chat-font-size, 14px) - 2px
+  ); // labels, badges, section headers
   --chat-block-content-size: var(
     --chat-code-font-size,
     13px
   ); // code/content areas
-  --chat-block-title-size: calc(
-    var(--chat-font-size, 14px) - 1px
-  ); // 13px — block headers, meta
+  --chat-block-title-size: var(
+    --chat-font-size,
+    14px
+  ); // block headers, meta (same as base)
   --chat-block-md-size: var(--chat-font-size, 14px); // main body text
 
   &::-webkit-scrollbar {
@@ -306,9 +308,9 @@
     }
   }
 
-  // Chat block header — uses --chat-block-title-size (1px smaller than main text)
+  // Chat block header — uses --chat-block-title-size (same as main text)
   .chat-block-header {
-    font-size: var(--chat-block-title-size, 13px);
+    font-size: var(--chat-block-title-size, 14px);
   }
 
   // Chat block icon — sized to match block title text
@@ -318,8 +320,8 @@
     justify-content: center;
     flex-shrink: 0;
     align-self: center;
-    width: var(--chat-block-title-size, 13px);
-    height: var(--chat-block-title-size, 13px);
+    width: var(--chat-block-title-size, 14px);
+    height: var(--chat-block-title-size, 14px);
 
     svg {
       width: 100%;

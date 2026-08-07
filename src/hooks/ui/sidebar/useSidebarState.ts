@@ -31,6 +31,8 @@ import {
 export interface UseSidebarStateReturn {
   /** Current sidebar width in pixels (0 if collapsed) */
   width: number;
+  /** Persisted expanded width, even while the sidebar is collapsed. */
+  expandedWidth: number;
   /** Whether sidebar is collapsed */
   isCollapsed: boolean;
   /** Whether currently dragging */
@@ -200,6 +202,7 @@ export function useSidebarState(): UseSidebarStateReturn {
 
   return {
     width,
+    expandedWidth: globalWidth,
     isCollapsed,
     isDragging,
     handleMouseDown,

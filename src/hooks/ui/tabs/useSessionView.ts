@@ -73,12 +73,14 @@ export function useSessionView(): UseSessionViewReturn {
     (sessionId: string, sessionName?: string, repoPath?: string): void => {
       // Single atom write — `jumpToSessionAtom` accepts the rich
       // payload form so we don't double-flush sessionViewAtom.
-      setChatPanelMaximized(false);
+      // Preserve the user's current chat/workstation layout. In particular,
+      // switching sessions while chat is maximized must not reopen the
+      // workstation surface.
       navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
       jumpToSession({ sessionId, sessionName, repoPath });
       navigate(ROUTES.workStation.base.path);
     },
-    [jumpToSession, navigate, navigateChatPanel, setChatPanelMaximized]
+    [jumpToSession, navigate, navigateChatPanel]
   );
 
   const closeSession = useCallback((): void => {

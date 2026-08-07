@@ -1,14 +1,15 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { projectApi } from "@src/api/http/project";
 import type { ProjectOrg } from "@src/api/http/project";
+import { COLLAB_SYNC_PROVIDER } from "@src/features/Org2Cloud/org2CloudProjectOrgAlias";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { useCollabOutboxPending } from "@src/hooks/project/useCollabOutboxPending";
 import { cachedLinearProjectsApi } from "@src/modules/ProjectManager/LinearProjects/linearProjectsCache";
 import { linearIssueToWorkItem } from "@src/modules/ProjectManager/LinearProjects/utils";
-import { collabOrgsAtom } from "@src/store/collaboration/collabOrgsAtom";
 import {
   PROJECT_ORG_SURFACE_VIEW,
   STORY_ORG_SCOPE,
@@ -22,7 +23,6 @@ import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs/factor
 import { toChatPanelProject, toChatPanelWorkItem } from "./chatPanelMapping";
 import { buildByOrgMenuItems } from "./groupingBuilders";
 import {
-  getProjectsCloudOrgId,
   getProjectsLinearLoadOrgId,
   getProjectsLinearOrgGroupId,
   getProjectsLinearOrgId,
@@ -51,7 +51,6 @@ import { toWorkItemPriority, toWorkItemStatus } from "./workItemMapping";
 const logger = createLogger("ProjectsWorkItemSidebar");
 
 export {
-  getProjectsCloudOrgId,
   getProjectsLinearLoadOrgId,
   getProjectsLinearOrgGroupId,
   getProjectsLinearOrgId,
@@ -72,7 +71,6 @@ export function useProjectsWorkItemMenuItems({
 }: UseProjectsWorkItemMenuItemsParams): UseProjectsWorkItemMenuItemsResult {
   const { t } = useTranslation(["projects", "common", "navigation"]);
   const setLayout = useSetAtom(workstationLayoutAtom);
-  const collabOrgs = useAtomValue(collabOrgsAtom);
   const [localOrgs, setLocalOrgs] = useState<ProjectOrg[]>([]);
   const [localProjects, setLocalProjects] = useState<SidebarProject[]>([]);
   const [workItems, setWorkItems] = useState<SidebarWorkItem[]>([]);
@@ -85,28 +83,33 @@ export function useProjectsWorkItemMenuItems({
   >(new Map());
   const [loading, setLoading] = useState(false);
 
+  /** Org ids accepted by the selector filter. */
+  const selectedOrgIdSet = useMemo(() => {
+    if (!selectedOrgId) return null;
+    return new Set([selectedOrgId]);
+  }, [selectedOrgId]);
+
   const scopedLocalProjects = useMemo(
     () =>
-      selectedOrgId
-        ? localProjects.filter((project) => project.orgId === selectedOrgId)
+      selectedOrgIdSet
+        ? localProjects.filter((project) => selectedOrgIdSet.has(project.orgId))
         : localProjects,
-    [localProjects, selectedOrgId]
+    [localProjects, selectedOrgIdSet]
   );
   const scopedWorkItems = useMemo(
     () =>
-      selectedOrgId
-        ? workItems.filter((workItem) => workItem.orgId === selectedOrgId)
+      selectedOrgIdSet
+        ? workItems.filter((workItem) => selectedOrgIdSet.has(workItem.orgId))
         : workItems,
-    [selectedOrgId, workItems]
+    [selectedOrgIdSet, workItems]
   );
   const scopedLocalOrgs = useMemo(
     () =>
-      selectedOrgId
-        ? localOrgs.filter((org) => org.id === selectedOrgId)
+      selectedOrgIdSet
+        ? localOrgs.filter((org) => selectedOrgIdSet.has(org.id))
         : localOrgs,
-    [localOrgs, selectedOrgId]
+    [localOrgs, selectedOrgIdSet]
   );
-
   const loadLocalWorkItems = useCallback(async () => {
     if (!enabled) return;
     setLoading(true);
@@ -321,14 +324,6 @@ export function useProjectsWorkItemMenuItems({
     return map;
   }, [scopedLocalOrgs, scopedLocalProjects, t]);
 
-  const cloudOrgMap = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>();
-    for (const org of collabOrgs) {
-      map.set(org.id, { id: org.id, name: org.name });
-    }
-    return map;
-  }, [collabOrgs]);
-
   const linearOrgMap = useMemo(() => {
     const map = new Map<string, LinearOrgRecord>();
     for (const org of linearOrgs) {
@@ -342,6 +337,17 @@ export function useProjectsWorkItemMenuItems({
     [scopedWorkItems]
   );
 
+  const collabOrgIds = useMemo(
+    () =>
+      localOrgs
+        .filter((org) => org.sync_provider === COLLAB_SYNC_PROVIDER)
+        .map((org) => org.id)
+        .sort(),
+    [localOrgs]
+  );
+  const { pendingProjectIds, pendingWorkItemIds } =
+    useCollabOutboxPending(collabOrgIds);
+
   const menuItems = useMemo(
     () =>
       buildByOrgMenuItems({
@@ -350,8 +356,20 @@ export function useProjectsWorkItemMenuItems({
         searchQuery,
         t,
         localProjects: scopedLocalProjects,
+        pendingSync: {
+          projectIds: pendingProjectIds,
+          workItemIds: pendingWorkItemIds,
+        },
       }),
-    [allWorkItems, groupVisibleCounts, searchQuery, t, scopedLocalProjects]
+    [
+      allWorkItems,
+      groupVisibleCounts,
+      searchQuery,
+      t,
+      scopedLocalProjects,
+      pendingProjectIds,
+      pendingWorkItemIds,
+    ]
   );
 
   const openLocalOrg = useCallback(
@@ -415,7 +433,6 @@ export function useProjectsWorkItemMenuItems({
     workItemMap,
     linearWorkItemMap,
     localOrgMap,
-    cloudOrgMap,
     linearOrgMap,
     loading,
     getLoadMoreGroupId: isProjectsWorkItemLoadMoreId,

@@ -22,6 +22,7 @@ import { holdSessionQueueForStopAtom } from "@src/store/ui/messageQueueAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { streamingDeltaContentAtom } from "../core/atoms";
+import { discardStreamingDeltaBuffer } from "../core/atoms/streamingDeltaBuffer";
 
 export type TimelineBoundaryReason = "stop" | "force-send" | "rewind";
 
@@ -89,6 +90,9 @@ export function clearLiveStreamingForSession(sessionId: string): void {
   const store = getInstrumentedStore();
   markSessionStreamingStopped(sessionId);
   store.set(streamRetryStatusAtom, null);
+  // Cancel buffered chunks first so a queued trailing flush cannot
+  // resurrect the content cleared below.
+  discardStreamingDeltaBuffer(sessionId);
   store.set(streamingDeltaContentAtom, (prev) => {
     if (!prev.has(sessionId)) return prev;
     const next = new Map(prev);

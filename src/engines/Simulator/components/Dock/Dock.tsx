@@ -7,7 +7,7 @@
 import type { LucideIcon } from "lucide-react";
 import React, { memo } from "react";
 
-import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/GeneralLayoutTour";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 
 import {
   CompactDockIconColumn,

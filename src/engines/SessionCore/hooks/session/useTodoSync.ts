@@ -34,6 +34,7 @@ import {
   sessionTodoMapAtom,
   updateTodosForSessionAtom,
 } from "@src/store/ui/todoAtom";
+import { preserveTodoContent } from "@src/store/ui/todoMerge";
 
 import {
   type RawPersistedTodoItem,
@@ -70,6 +71,11 @@ export type { RawPersistedTodoItem };
 export const normalizePersistedTodo = normalizePersistedTodoCore;
 export const normalizePersistedTodoList = normalizePersistedTodoListCore;
 
+function eventMatchesSession(event: SessionEvent, sessionId: string): boolean {
+  const eventSid = event.sessionId;
+  return !eventSid || eventSid === sessionId;
+}
+
 export function findLatestManageTodoEvent(
   events: readonly SessionEvent[],
   sessionId: string,
@@ -79,8 +85,7 @@ export function findLatestManageTodoEvent(
   for (let index = limit; index >= 0; index--) {
     const event = events[index];
     if (!isManageTodoEvent(event)) continue;
-    const eventSid = event.sessionId;
-    if (eventSid && eventSid !== sessionId) continue;
+    if (!eventMatchesSession(event, sessionId)) continue;
     return event;
   }
   return null;
@@ -113,7 +118,7 @@ function extractTodosFromEvent(event: SessionEvent): TodoItem[] {
     context: "chat" as const,
   });
 
-  return todoData.todos.map((todo) => {
+  return todoData.todos.map((todo, idx) => {
     const raw = todo as unknown as Record<string, unknown>;
     const activeForm =
       typeof raw.activeForm === "string" && raw.activeForm.length > 0
@@ -123,13 +128,34 @@ function extractTodosFromEvent(event: SessionEvent): TodoItem[] {
       ? (raw.blockedBy as number[])
       : todo.blockedBy;
     return {
-      id: todo.id || crypto.randomUUID(),
+      id: todo.id || `event-todo-${idx}`,
       content: sanitizeTodoDisplayText(todo.content || ""),
       activeForm: activeForm ? sanitizeTodoDisplayText(activeForm) : undefined,
       status: (todo.status || "pending") as TodoItem["status"],
       ...(blockedBy && blockedBy.length > 0 ? { blockedBy } : {}),
     };
   });
+}
+
+export function extractTodosFromManageTodoSequence(
+  events: readonly SessionEvent[],
+  sessionId: string,
+  maxIndex = events.length - 1
+): TodoItem[] {
+  const limit = Math.min(maxIndex, events.length - 1);
+  let todos: TodoItem[] = [];
+
+  for (let index = 0; index <= limit; index++) {
+    const event = events[index];
+    if (!isManageTodoEvent(event)) continue;
+    if (!eventMatchesSession(event, sessionId)) continue;
+
+    const nextTodos = extractTodosFromEvent(event);
+    if (nextTodos.length === 0) continue;
+    todos = preserveTodoContent(todos, nextTodos);
+  }
+
+  return todos;
 }
 
 // ============================================
@@ -253,7 +279,11 @@ export function useTodoSync(sessionId?: string): void {
 
     if (!latestTodoEvent) return;
 
-    const todos = extractTodosFromEvent(latestTodoEvent);
+    const todos = extractTodosFromManageTodoSequence(
+      replayEvents,
+      sessionId,
+      maxIndex
+    );
     if (todos.length === 0) return;
 
     const snapshot = serializeTodoSnapshot(todos);

@@ -41,16 +41,16 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
     : isActive
       ? isPrivateTab
         ? "font-medium text-warning-6"
-        : "font-medium text-text-1"
+        : "text-text-1"
       : "text-text-1";
 
   const rowStateClasses = isActive
     ? isPrivateTab
       ? "bg-bg-1 text-warning-6"
-      : "bg-bg-1 text-text-1"
+      : "bg-sidebar-selected text-text-1"
     : theme
       ? "text-text-1"
-      : "text-text-1 hover:bg-fill-2";
+      : "text-text-1 hover:bg-sidebar-selected";
 
   const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     if (!canSecondaryClickClose || !onClose) return;

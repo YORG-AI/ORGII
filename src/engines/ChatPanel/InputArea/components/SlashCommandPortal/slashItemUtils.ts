@@ -26,7 +26,6 @@ export function normalizeSkillDescription(skill: InstalledSkill): string {
  *
  * Path patterns:
  *   ~/.cursor/skills-cursor/<name>/SKILL.md   → "Cursor Skills"
- *   ~/.gemini/skills/<name>/SKILL.md           → "Gemini Skills"
  *   ~/.hermes/skills/<name>/SKILL.md           → "Hermes Skills"
  *   ~/.orgii/skills/<name>/SKILL.md            → "ORGII Skills"
  *   /repo/path/.orgii/skills/<name>/SKILL.md   → repo folder name (last segment)
@@ -47,7 +46,8 @@ export function resolveSkillGroup(skill: InstalledSkill): string {
     if (normalized.startsWith(`${home}/.codex/skills`)) return "Codex Skills";
     if (normalized.startsWith(`${home}/.opencode/skills`))
       return "OpenCode Skills";
-    if (normalized.startsWith(`${home}/.gemini/skills`)) return "Gemini Skills";
+    if (normalized.startsWith(`${home}/.gemini/antigravity-cli/skills`))
+      return "Antigravity Skills";
     if (normalized.startsWith(`${home}/.agents/skills`)) return "Agent Skills";
     if (normalized.startsWith(`${home}/.hermes/skills`)) return "Hermes Skills";
     if (normalized.startsWith(`${home}/.openclaw/skills`))

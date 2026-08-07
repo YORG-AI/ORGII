@@ -45,7 +45,7 @@ use std::{
     collections::HashMap,
     io::{BufReader, Read, Write},
     sync::{
-        atomic::{AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering},
         Arc, Mutex,
     },
 };
@@ -143,6 +143,17 @@ pub struct PtySession {
     pub last_output_at: Arc<Mutex<Option<DateTime<Utc>>>>,
     /// Bounded redacted text snapshot of recent PTY output for agent inspection.
     pub redacted_output: Arc<Mutex<String>>,
+    /// True while no webview listener is attached. The reader skips event
+    /// emission and does not grow `unacked_bytes`; output still accrues in
+    /// `redacted_output` for the next attach.
+    pub detached: Arc<AtomicBool>,
+    /// Total PTY bytes represented in `redacted_output` (stream offset of its
+    /// end). Read/written only while holding the `redacted_output` lock so
+    /// snapshot text and offset stay consistent.
+    pub covers_seq: Arc<AtomicU64>,
+    /// Bytes read while detached since the last attach; tells the frontend
+    /// whether its client-side buffer missed output.
+    pub missed_while_detached: Arc<AtomicUsize>,
 }
 
 /// Global state container for all PTY sessions.
@@ -381,6 +392,87 @@ pub async fn get_pty_output_snapshot(
         output,
         unacked_bytes,
     })
+}
+
+/// Response for `attach_pty_stream`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachPtyStream {
+    /// Bounded, redacted snapshot of recent output (restore base).
+    pub output: String,
+    /// Stream offset covered by `output`. Live `pty-output` chunks whose
+    /// `seq` is below this are already contained in the snapshot and must
+    /// not be written again.
+    pub covers_seq: u64,
+    /// True when output was produced while no listener was attached — the
+    /// frontend's client-side buffer (if any) is missing data and the
+    /// snapshot must be used instead.
+    pub missed_output: bool,
+}
+
+/// Attach the webview's event stream to a PTY session.
+///
+/// Called by the frontend after it has registered its `pty-output` listener
+/// and before it writes the restore snapshot. Atomically:
+/// - clears detached mode (event emission resumes),
+/// - resets the flow-control window (a fresh listener starts with no debt —
+///   this is what un-parks a reader stalled by ACKs lost to a dead listener),
+/// - returns the snapshot together with the stream offset it covers.
+#[tauri::command]
+pub async fn attach_pty_stream(
+    session_id: String,
+    state: State<'_, PtyState>,
+) -> Result<AttachPtyStream, String> {
+    let sessions = state.inner().sessions.lock().await;
+    let session = sessions
+        .get(&session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+
+    // Resume emission before snapshotting: chunks emitted from here on are
+    // deduplicated by covers_seq, whereas chunks read after a
+    // snapshot-then-attach ordering would be in neither the snapshot nor the
+    // event stream (lost).
+    session.detached.store(false, Ordering::Relaxed);
+    let missed_output = session.missed_while_detached.swap(0, Ordering::Relaxed) > 0;
+    session.unacked_bytes.store(0, Ordering::Relaxed);
+    session.ack_notify.notify_one();
+
+    let (output, covers_seq) = {
+        let snapshot = session
+            .redacted_output
+            .lock()
+            .expect("redacted_output mutex poisoned");
+        (snapshot.clone(), session.covers_seq.load(Ordering::Relaxed))
+    };
+
+    Ok(AttachPtyStream {
+        output,
+        covers_seq,
+        missed_output,
+    })
+}
+
+/// Detach the webview's event stream from a PTY session.
+///
+/// Called by the frontend when the terminal component unmounts while the
+/// session keeps running. The reader stops emitting events (nobody is
+/// listening) and stops accounting flow-control debt, so a background CLI
+/// can keep producing output indefinitely without stalling on a window that
+/// nothing will ever ACK. Missing a detach (e.g. webview hot reload) is
+/// self-healing: the reader force-detaches after a stall timeout.
+#[tauri::command]
+pub async fn detach_pty_stream(
+    session_id: String,
+    state: State<'_, PtyState>,
+) -> Result<(), String> {
+    let sessions = state.inner().sessions.lock().await;
+    // A detach may race session exit — silently succeed if already gone.
+    if let Some(session) = sessions.get(&session_id) {
+        session.detached.store(true, Ordering::Relaxed);
+        session.unacked_bytes.store(0, Ordering::Relaxed);
+        // Wake a parked reader so it observes detached mode and resumes.
+        session.ack_notify.notify_one();
+    }
+    Ok(())
 }
 
 // ============================================

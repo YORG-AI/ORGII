@@ -17,6 +17,23 @@ pub use commands::*;
 #[cfg(test)]
 pub(crate) use data::infer_install_method;
 
+/// Return whether the central CLI registry allows an API provider for an agent.
+///
+/// Runtime integrations should use this instead of duplicating provider lists.
+pub fn is_cli_provider_compatible(agent_name: &str, provider_name: &str) -> bool {
+    data::cli_agent_registry()
+        .into_iter()
+        .find(|agent| agent.name == agent_name)
+        .is_some_and(|agent| agent.compatible_api_providers.contains(&provider_name))
+}
+
+pub fn cli_agent_display_name(agent_name: &str) -> Option<&'static str> {
+    data::cli_agent_registry()
+        .into_iter()
+        .find(|agent| agent.name == agent_name)
+        .map(|agent| agent.display_name)
+}
+
 // ============================================
 // Shared types (serialized to frontend via JSON)
 // ============================================
@@ -134,4 +151,18 @@ pub struct AvailableApiProvider {
     /// Whether ORGII Rust agents (OS Agent, SDE Agent) can use this provider.
     /// True for all API providers (they use OpenAI-compatible REST APIs).
     pub supports_rust_agents: bool,
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::{cli_agent_display_name, is_cli_provider_compatible};
+
+    #[test]
+    fn compatibility_comes_from_the_central_cli_registry() {
+        assert!(is_cli_provider_compatible("codex", "openai_api"));
+        assert!(is_cli_provider_compatible("claude_code", "anthropic_api"));
+        assert!(!is_cli_provider_compatible("unknown", "openai_api"));
+        assert_eq!(cli_agent_display_name("opencode"), Some("OpenCode"));
+        assert_eq!(cli_agent_display_name("unknown"), None);
+    }
 }

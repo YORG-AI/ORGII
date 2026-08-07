@@ -176,7 +176,7 @@ interface SlashItemRowProps {
   item: SlashItem;
   isActive: boolean;
   onMouseEnter: () => void;
-  onClick: () => void;
+  onClick: (event?: React.MouseEvent<HTMLElement>) => void;
 }
 
 export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
@@ -190,6 +190,7 @@ export const SlashItemRow: React.FC<SlashItemRowProps> = React.memo(
         data-testid="slash-command-item"
         data-slash-category={item.category}
         data-slash-name={item.name}
+        data-slash-source={item.source}
       >
         <MenuItemRow
           icon={Icon}

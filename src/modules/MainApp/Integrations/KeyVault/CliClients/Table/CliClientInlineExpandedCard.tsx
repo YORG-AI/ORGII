@@ -1,5 +1,5 @@
-import { ExternalLink, Plus } from "lucide-react";
-import React, { useMemo } from "react";
+import { ExternalLink, Plus, RefreshCw } from "lucide-react";
+import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { formatAgentType } from "@src/assets/providers";
@@ -10,10 +10,11 @@ import {
   METHOD_DISPLAY_LABELS,
 } from "@src/config/cliAgents";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import { useRefreshSpin } from "@src/hooks/ui";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
-import { InfoRow } from "../../../shared/InfoRow";
 import { AccountSourceBreadcrumb } from "../../Models/Table/AccountSourceBreadcrumb";
 import {
   InlineCardBody,
@@ -47,6 +48,7 @@ interface CliClientInlineExpandedCardProps {
   activeTab: CliClientInlineTab;
   onActiveTabChange: (tab: CliClientInlineTab) => void;
   onRefresh?: () => Promise<void>;
+  refreshing?: boolean;
   onAdd?: () => void;
   cliAgents?: CliAgentsHandlers;
 }
@@ -79,8 +81,25 @@ function StatusValue({
 
 const CliClientInlineExpandedCard: React.FC<
   CliClientInlineExpandedCardProps
-> = ({ agent, accounts, activeTab, onActiveTabChange, onAdd, cliAgents }) => {
+> = ({
+  agent,
+  accounts,
+  activeTab,
+  onActiveTabChange,
+  onRefresh,
+  refreshing = false,
+  onAdd,
+  cliAgents,
+}) => {
   const { t } = useTranslation("integrations");
+  const handleRefresh = useCallback(() => {
+    void onRefresh?.();
+  }, [onRefresh]);
+  const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
+    handleRefresh,
+    refreshing,
+    `cli-client-${agent.name}`
+  );
 
   const subscriptionAccounts = useMemo(
     () => accounts.filter((account) => account.modelType === agent.name),
@@ -278,8 +297,19 @@ const CliClientInlineExpandedCard: React.FC<
       />
       <InlineCardBody>{tabContent}</InlineCardBody>
       {effectiveActiveTab !== CLI_CLIENT_INLINE_TAB.CLIENT &&
-      (agent.docsUrl || onAdd) ? (
+      (onRefresh || agent.docsUrl || onAdd) ? (
         <InlineCardFooter>
+          {onRefresh ? (
+            <Button
+              variant="secondary"
+              size="small"
+              icon={<RefreshCw size={14} className={spinClass} />}
+              onClick={handleRefreshClick}
+              disabled={refreshing}
+            >
+              {t("common:actions.rescan")}
+            </Button>
+          ) : null}
           {agent.docsUrl ? (
             <Button
               variant="secondary"

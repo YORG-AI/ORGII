@@ -205,6 +205,10 @@ pub(super) struct ApiErrorResponse {
 #[derive(Debug, Deserialize)]
 pub(super) struct ApiError {
     pub message: Option<String>,
+    /// OpenAI-style machine-readable error type (for example
+    /// `usage_limit_reached` or `invalid_request_error`).
+    #[serde(rename = "type")]
+    pub error_type: Option<String>,
     /// Google-style status string (e.g. "RESOURCE_EXHAUSTED", "NOT_FOUND")
     pub status: Option<String>,
     /// Google-style numeric error code

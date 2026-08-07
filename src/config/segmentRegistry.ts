@@ -15,6 +15,7 @@ import {
   CalendarArrowUp,
   ChartNoAxesGantt,
   ClipboardList,
+  Cloud,
   Code,
   CreditCard,
   Database,
@@ -23,7 +24,6 @@ import {
   FolderOpen,
   Globe,
   Hammer,
-  History,
   Home,
   Inbox,
   Key,
@@ -36,6 +36,7 @@ import {
   RulerDimensionLine,
   Settings2,
   Settings as SettingsIcon,
+  ShieldCheck,
   Sparkles,
   Toolbox,
   Unplug,
@@ -154,8 +155,13 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
 
   // settings sections
   general: { labelKey: "settings:sections.general", icon: Settings2 },
+  collaboration: {
+    labelKey: "settings:sections.collaboration",
+    icon: Cloud,
+  },
   appearance: { labelKey: "settings:sections.appearance", icon: Palette },
   editor: { labelKey: "settings:sections.editorAndWorkspace", icon: Code },
+  security: { labelKey: "settings:sections.security", icon: ShieldCheck },
   update: { labelKey: "settings:sections.appUpdate", icon: Package },
   monitor: { labelKey: "settings:sections.monitor", icon: Activity },
 
@@ -189,9 +195,6 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   earnings: { labelKey: "navigation:labels.earnings", icon: FileText },
   boost: { labelKey: "navigation:labels.boost", icon: Sparkles },
   profile: { labelKey: "navigation:routes.myProfile", icon: Sparkles },
-
-  // journey (Dev Record remains at journey/record; map archived)
-  record: { labelKey: "navigation:routes.devRecord", icon: History },
 };
 
 // ============================================================================

@@ -180,6 +180,10 @@ const creatorDefaultModelMapAtom = atom<LastModelPairMap>(cachedMap);
  *
  * **Creator-only.** Do not read from in-session UI.
  */
+export const lastModelPairMapAtom = atom(
+  (get): LastModelPairMap => get(creatorDefaultModelMapAtom)
+);
+
 export const creatorDefaultModelPairAtom = atom(
   (get): RecentModelEntry | null => {
     const map = get(creatorDefaultModelMapAtom);

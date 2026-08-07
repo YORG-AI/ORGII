@@ -19,12 +19,13 @@ use crate::sources::imported_history::{
     ImportedHistorySessionRow, ImportedToolCall,
 };
 
-const WINDSURF_SESSION_PREFIX: &str = "windsurfapp-";
+pub const WINDSURF_SESSION_PREFIX: &str = "windsurfapp-";
 const WINDSURF_PROVIDER_SLUG: &str = "windsurf";
 const SQLITE_IN_QUERY_CHUNK_SIZE: usize = 500;
 const BUBBLE_TYPE_USER: i64 = 1;
 const BUBBLE_TYPE_ASSISTANT: i64 = 2;
-const WINDSURF_METADATA_PARSER_VERSION: i64 = 1;
+// Version 3 adds per-composer impact and explicit subagent parent mapping.
+const WINDSURF_METADATA_PARSER_VERSION: i64 = 3;
 
 pub type WindsurfHistorySessionRow = ImportedHistorySessionRow;
 pub type WindsurfHistorySessionPage = ImportedHistorySessionPage;
@@ -80,7 +81,13 @@ struct RawComposerData {
     full_conversation_headers_only: Vec<RawComposerHeader>,
     tracked_git_repos: Vec<RawTrackedGitRepo>,
     workspace_identifier: Option<RawWorkspaceIdentifier>,
-    subagent_info: Option<Value>,
+    subagent_info: Option<RawSubagentInfo>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(default, rename_all = "camelCase")]
+struct RawSubagentInfo {
+    parent_composer_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -131,6 +138,7 @@ struct WindsurfComposerMeta {
     source_fingerprint: String,
     composer: RawComposerData,
     listable: bool,
+    impact: ImportedHistoryImpactStats,
 }
 
 pub fn list_windsurf_history_sessions_paginated(
@@ -196,6 +204,9 @@ fn list_windsurf_composer_meta_from_conn(
         .query_map([], |row| row.get::<_, Option<String>>(0))
         .map_err(|err| format!("Failed to query Windsurf composers: {err}"))?;
 
+    // A single `state.vscdb` backs every composer, so fold its WAL/`-shm`
+    // sidecars into each composer's fingerprint once.
+    let sidecar_signature = imported_paths::sqlite_sidecar_signature(db_path);
     let mut metas = Vec::new();
     for row in rows {
         let Some(value) =
@@ -209,39 +220,66 @@ fn list_windsurf_composer_meta_from_conn(
         if composer.composer_id.trim().is_empty() {
             continue;
         }
-        let listable = is_listable_composer(conn, &composer)?;
+        let bubbles = load_bubbles_by_id(
+            conn,
+            &composer.composer_id,
+            &composer.full_conversation_headers_only,
+        )?;
+        let chunks = bubbles_to_chunks(
+            conn,
+            &format!("{WINDSURF_SESSION_PREFIX}{}", composer.composer_id),
+            &bubbles,
+        );
+        let listable = is_listable_composer(&composer, &chunks);
+        let impact = imported_history::impact_from_edit_chunks(&chunks);
+        let source_fingerprint = windsurf_source_fingerprint(&composer, &sidecar_signature);
         metas.push(WindsurfComposerMeta {
             source_session_id: composer.composer_id.clone(),
             source_path: db_path.to_string_lossy().to_string(),
             source_record_key: composer.composer_id.clone(),
             source_mtime_ms,
             source_size_bytes,
-            source_fingerprint: source_mtime_ms.to_string(),
+            source_fingerprint,
             composer,
             listable,
+            impact,
         });
     }
     Ok(metas)
 }
 
-fn is_listable_composer(conn: &Connection, composer: &RawComposerData) -> Result<bool, String> {
+/// Content-aware change fingerprint for a Windsurf composer.
+///
+/// The `state.vscdb` mtime alone can stay flat across a same-mtime rewrite, so
+/// this folds the composer's own identity/status/timestamp/token/turn-count
+/// fields together with the shared WAL/`-shm` sidecar signature.
+fn windsurf_source_fingerprint(composer: &RawComposerData, sidecar_signature: &str) -> String {
+    [
+        composer.composer_id.as_str(),
+        composer.name.as_str(),
+        composer.status.as_str(),
+        &composer.created_at.to_string(),
+        &composer.last_updated_at.to_string(),
+        &composer.context_tokens_used.to_string(),
+        &composer.full_conversation_headers_only.len().to_string(),
+        composer
+            .subagent_info
+            .as_ref()
+            .map(|info| info.parent_composer_id.as_str())
+            .unwrap_or_default(),
+        sidecar_signature,
+    ]
+    .join("|")
+}
+
+fn is_listable_composer(composer: &RawComposerData, chunks: &[ActivityChunk]) -> bool {
     if composer.composer_id.trim().is_empty() || composer.name.trim().is_empty() {
-        return Ok(false);
+        return false;
     }
     if composer.subagent_info.is_some() || composer.full_conversation_headers_only.is_empty() {
-        return Ok(false);
+        return false;
     }
-    let bubbles = load_bubbles_by_id(
-        conn,
-        &composer.composer_id,
-        &composer.full_conversation_headers_only,
-    )?;
-    Ok(!bubbles_to_chunks(
-        conn,
-        &format!("{WINDSURF_SESSION_PREFIX}{}", composer.composer_id),
-        &bubbles,
-    )
-    .is_empty())
+    !chunks.is_empty()
 }
 
 fn composer_meta_to_cache_input(meta: WindsurfComposerMeta) -> ImportedHistoryCacheInput {
@@ -255,6 +293,18 @@ fn composer_meta_to_cache_input(meta: WindsurfComposerMeta) -> ImportedHistoryCa
     } else {
         meta.composer.created_at
     };
+    let parent_session_id = meta
+        .composer
+        .subagent_info
+        .as_ref()
+        .map(|info| info.parent_composer_id.trim())
+        .filter(|parent_id| !parent_id.is_empty() && *parent_id != meta.source_session_id)
+        .map(|parent_id| format!("{WINDSURF_SESSION_PREFIX}{parent_id}"));
+    let name = if meta.composer.name.trim().is_empty() && parent_session_id.is_some() {
+        "Subagent".to_string()
+    } else {
+        imported_history::truncate_name(&meta.composer.name, 200)
+    };
     ImportedHistoryCacheInput {
         source: SOURCE_WINDSURF,
         source_session_id: meta.source_session_id.clone(),
@@ -265,7 +315,7 @@ fn composer_meta_to_cache_input(meta: WindsurfComposerMeta) -> ImportedHistoryCa
         source_size_bytes: meta.source_size_bytes,
         source_fingerprint: meta.source_fingerprint,
         parser_version: WINDSURF_METADATA_PARSER_VERSION,
-        name: imported_history::truncate_name(&meta.composer.name, 200),
+        name,
         created_at_ms: meta.composer.created_at,
         updated_at_ms,
         model,
@@ -273,10 +323,10 @@ fn composer_meta_to_cache_input(meta: WindsurfComposerMeta) -> ImportedHistoryCa
         output_tokens: 0,
         repo_path: metadata.repo_path,
         branch: metadata.branch,
-        impact: ImportedHistoryImpactStats::default(),
+        impact: meta.impact,
         listable: meta.listable,
         source_metadata_json: None,
-        parent_session_id: None,
+        parent_session_id,
     }
 }
 
@@ -513,12 +563,19 @@ fn assistant_tool_bubble_to_chunk(
         &call,
         &output,
     );
-    if !tool_data.status.trim().is_empty() {
-        if let Some(result_obj) = chunk.result.as_object_mut() {
+    if let Some(result_obj) = chunk.result.as_object_mut() {
+        if !tool_data.status.trim().is_empty() {
             result_obj.insert(
                 "status".to_string(),
                 Value::String(tool_data.status.clone()),
             );
+        }
+        if let Some(source_result) = result.as_object() {
+            for key in ["old_content", "new_content"] {
+                if let Some(value) = source_result.get(key) {
+                    result_obj.insert(key.to_string(), value.clone());
+                }
+            }
         }
     }
     Some(chunk)

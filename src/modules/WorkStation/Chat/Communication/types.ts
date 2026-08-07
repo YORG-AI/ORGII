@@ -8,7 +8,7 @@
  * - "message"            → Messages timeline
  * - "thinking"           → Messages timeline
  * - "todo"               → Todo tab and Messages timeline
- * - "other_interactions" → interactions tab (ask_user, approval, next-step,
+ * - "other_interactions" → interactions tab (ask_user, approval,
  *                          mode-switch)
  *
  * No hardcoded event category arrays — Rust alias_map owns the mapping.
@@ -59,8 +59,8 @@ export interface SimulatorMessagesState extends SimulatorAppBaseState {
   todoMessages: MessageEntry[];
   /**
    * Interactive agent ↔ user widgets (AppSubtool::OtherInteractions):
-   * ask_user_questions, ask_user_permissions, suggest_mode_switch,
-   * suggest_next_steps. Rendered in their own tab and also included in
+   * ask_user_questions, ask_user_permissions, suggest_mode_switch.
+   * Rendered in their own tab and also included in
    * the aggregate Messages timeline.
    */
   interactionMessages: MessageEntry[];

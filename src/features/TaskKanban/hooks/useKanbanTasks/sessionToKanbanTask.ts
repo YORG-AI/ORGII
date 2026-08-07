@@ -1,3 +1,4 @@
+import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
 import { formatAgentType } from "@src/assets/providers";
 import { KANBAN_RESULT_STATUS } from "@src/features/KanbanBoard/types";
 import type { Session } from "@src/store/session";
@@ -40,13 +41,24 @@ function getCategoryTag(session: Session): string {
 }
 
 function getAgentLabel(session: Session, categoryTag: string): string {
+  const importedSource = getImportedHistorySourceBySessionId(
+    session.session_id
+  );
+  if (importedSource) return importedSource.displayName;
+  if (session.cliAgentType === "claude_code") return "Claude CLI";
   if (session.cliAgentType) return formatAgentType(session.cliAgentType);
   return session.agentDisplayName || categoryTag;
 }
 
 function getWorkspaceName(session: Session): string | undefined {
-  const workspacePath = session.worktreePath || session.repoPath;
-  if (!workspacePath) return session.repo_name;
+  const repoName = session.repo_name?.trim();
+  if (repoName) return repoName;
+
+  // A worktree's basename is an internal generated identifier (for example,
+  // `sdeagent-97c3d918-5dec`), not the workspace the user selected. Prefer the
+  // persisted repo root and keep worktreePath only as a legacy fallback.
+  const workspacePath = session.repoPath || session.worktreePath;
+  if (!workspacePath) return undefined;
 
   return workspacePath.split(/[\\/]/).filter(Boolean).pop() || workspacePath;
 }
@@ -78,20 +90,14 @@ export function sessionToKanbanTask(
   const resultStatus = getResultStatus(session, columnId);
   const agentLabel = getAgentLabel(session, categoryTag);
 
-  // Rust agent sessions render as single-line title-only cards to match
-  // CLI/Cursor cards. Their `user_input` would otherwise duplicate the
-  // auto-generated `name` (or a near-identical first prompt) below the title.
-  const isRustAgent = isAgentSession(session.session_id);
-
   return {
     id: session.session_id,
     title: stripPillReferences(
       session.name || session.user_input?.slice(0, 120) || session.session_id
     ),
-    description:
-      !isRustAgent && session.user_input
-        ? stripPillReferences(session.user_input)
-        : undefined,
+    // Session names are commonly generated from the first user message, so
+    // repeating `user_input` as a description produces duplicate card copy.
+    description: undefined,
     status: columnId as KanbanTask["status"],
     assignee: agentLabel,
     tags,
@@ -99,6 +105,7 @@ export function sessionToKanbanTask(
     agentIconId: session.agentIconId,
     cliAgentType: session.cliAgentType,
     modelName: session.model,
+    totalTokens: session.totalTokens,
     workspaceName: getWorkspaceName(session),
     created_at: session.created_at,
     updated_at: session.updated_at,

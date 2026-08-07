@@ -197,7 +197,7 @@ pub async fn cache_load_session_events(session_id: String) -> Result<Vec<Session
     Ok(prepare_loaded_events(&session_id, events))
 }
 
-/// Search events via FTS5, returning SessionEvents directly.
+/// Search events via LIKE substring matching, returning SessionEvents directly.
 #[tauri::command]
 pub async fn cache_search_session_events(
     session_id: String,

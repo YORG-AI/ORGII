@@ -5,7 +5,6 @@ import type { WorkstationSidebarKey } from "./types";
 
 const WORKSTATION_SIDEBAR_MEMORY_LABEL: Record<WorkstationSidebarKey, string> =
   {
-    folders: "Folders sidebar",
     projects: "Projects sidebar",
     workstation: "Session sidebar",
   };

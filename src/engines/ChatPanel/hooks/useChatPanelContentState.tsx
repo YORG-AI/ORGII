@@ -7,7 +7,7 @@ import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelContentMode,
   type ChatPanelCreateTarget,
-  type ChatPanelSelectedCollabOrg,
+  type ChatPanelSelectedCloudOrg,
   type ChatPanelSelectedProject,
   type ChatPanelSelectedProjectOrg,
   type ChatPanelSelectedWorkItem,
@@ -20,18 +20,13 @@ interface UseChatPanelContentStateOptions {
   createTarget: ChatPanelCreateTarget;
   currentSessionId: string | null;
   exploreOpen: boolean;
-  manageIssuesOpen: boolean;
-  isChatFocus: boolean;
   panelTitle: string;
-  collabOrgHeaderTitle?: string;
-  collabOrgHeaderTitleContent?: React.ReactNode;
-  selectedCollabOrg: ChatPanelSelectedCollabOrg | null;
+  cloudOrgHeaderTitle?: string;
+  selectedCloudOrg: ChatPanelSelectedCloudOrg | null;
   selectedProject: ChatPanelSelectedProject | null;
   selectedProjectOrg: ChatPanelSelectedProjectOrg | null;
   selectedWorkItem: ChatPanelSelectedWorkItem | null;
   selectedWorkspace: ChatPanelSelectedWorkspace | null;
-  workspaceDashboardOpen: boolean;
-  showChatFocusToggle: boolean;
   sidebarCollapsed: boolean;
   sessionCreatorAvailable: boolean;
   sessionSidebarVisible: boolean;
@@ -44,11 +39,9 @@ export interface ChatPanelContentState {
   isProjectTarget: boolean;
   isWorkItemTarget: boolean;
   showBenchmarkSessionGroupContent: boolean;
-  showCollabOrgContent: boolean;
+  showCloudOrgContent: boolean;
   showCreatorPresenceInHeader: boolean;
-  showEmptyChatFocusRestoreButton: boolean;
   showExploreContent: boolean;
-  showManageIssuesContent: boolean;
   showExplicitNonSessionContent: boolean;
   showHeader: boolean;
   showNewSessionButton: boolean;
@@ -60,7 +53,6 @@ export interface ChatPanelContentState {
   showSessionContent: boolean;
   showWorkItemAgentSwitchInHeader: boolean;
   showWorkItemContent: boolean;
-  showWorkspaceDashboardContent: boolean;
   showWorkspaceOverviewContent: boolean;
 }
 
@@ -70,18 +62,13 @@ export function useChatPanelContentState({
   createTarget,
   currentSessionId,
   exploreOpen,
-  manageIssuesOpen,
-  isChatFocus,
   panelTitle,
-  collabOrgHeaderTitle,
-  collabOrgHeaderTitleContent,
-  selectedCollabOrg,
+  cloudOrgHeaderTitle,
+  selectedCloudOrg,
   selectedProject,
   selectedProjectOrg,
   selectedWorkItem,
   selectedWorkspace,
-  workspaceDashboardOpen,
-  showChatFocusToggle,
   sidebarCollapsed,
   sessionCreatorAvailable,
   sessionSidebarVisible,
@@ -116,40 +103,21 @@ export function useChatPanelContentState({
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent;
-  const showWorkspaceDashboardContent =
-    workspaceDashboardOpen &&
-    !showBenchmarkSessionGroupContent &&
-    !showSessionContent &&
-    !showWorkItemContent &&
-    !showProjectContent &&
-    !showProjectOrgContent;
   const showExploreContent =
     exploreOpen &&
     !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent &&
-    !showProjectOrgContent &&
-    !showWorkspaceDashboardContent;
-  const showManageIssuesContent =
-    manageIssuesOpen &&
+    !showProjectOrgContent;
+  const showCloudOrgContent =
+    Boolean(selectedCloudOrg) &&
     !showBenchmarkSessionGroupContent &&
     !showSessionContent &&
     !showWorkItemContent &&
     !showProjectContent &&
     !showProjectOrgContent &&
-    !showWorkspaceDashboardContent &&
     !showExploreContent;
-  const showCollabOrgContent =
-    Boolean(selectedCollabOrg) &&
-    !showBenchmarkSessionGroupContent &&
-    !showSessionContent &&
-    !showWorkItemContent &&
-    !showProjectContent &&
-    !showProjectOrgContent &&
-    !showWorkspaceDashboardContent &&
-    !showExploreContent &&
-    !showManageIssuesContent;
   const showWorkspaceOverviewContent =
     Boolean(selectedWorkspace) &&
     !showBenchmarkSessionGroupContent &&
@@ -157,10 +125,8 @@ export function useChatPanelContentState({
     !showWorkItemContent &&
     !showProjectContent &&
     !showProjectOrgContent &&
-    !showWorkspaceDashboardContent &&
     !showExploreContent &&
-    !showManageIssuesContent &&
-    !showCollabOrgContent;
+    !showCloudOrgContent;
   const showExplicitNonSessionContent =
     contentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION;
   const showNonSessionContent =
@@ -168,10 +134,8 @@ export function useChatPanelContentState({
     !showWorkItemContent &&
     !showProjectContent &&
     !showProjectOrgContent &&
-    !showWorkspaceDashboardContent &&
     !showExploreContent &&
-    !showManageIssuesContent &&
-    !showCollabOrgContent &&
+    !showCloudOrgContent &&
     !showWorkspaceOverviewContent &&
     !showSessionContent;
   const showPanelContent =
@@ -180,10 +144,8 @@ export function useChatPanelContentState({
     showWorkItemContent ||
     showProjectContent ||
     showProjectOrgContent ||
-    showWorkspaceDashboardContent ||
     showExploreContent ||
-    showManageIssuesContent ||
-    showCollabOrgContent ||
+    showCloudOrgContent ||
     showWorkspaceOverviewContent ||
     showExplicitNonSessionContent;
   const showHeader =
@@ -191,10 +153,8 @@ export function useChatPanelContentState({
     showWorkItemContent ||
     showProjectContent ||
     showProjectOrgContent ||
-    showWorkspaceDashboardContent ||
     showExploreContent ||
-    showManageIssuesContent ||
-    showCollabOrgContent ||
+    showCloudOrgContent ||
     showWorkspaceOverviewContent ||
     showExplicitNonSessionContent ||
     (active && (showSessionContent || viewMode === "workStation"));
@@ -215,20 +175,15 @@ export function useChatPanelContentState({
         ? projectTitle
         : selectedProjectOrg
           ? projectOrgTitle
-          : showWorkspaceDashboardContent
-            ? t("navigation:launchpad.dashboard")
-            : showExploreContent
-              ? t("navigation:explore.title", { defaultValue: "Explore" })
-              : showManageIssuesContent
-                ? t("chat.manageIssues.title")
-                : showCollabOrgContent
-                  ? (collabOrgHeaderTitle ??
-                    t("navigation:collaboration.orgDemoTitle"))
-                  : createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-                    ? t("navigation:collaboration.addOrg")
-                    : selectedWorkspace
-                      ? workspaceTitle
-                      : panelTitle;
+          : showExploreContent
+            ? t("navigation:explore.title", { defaultValue: "Explore" })
+            : showCloudOrgContent
+              ? (cloudOrgHeaderTitle ?? t("navigation:cloud.title"))
+              : createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+                ? t("navigation:collaboration.addOrg")
+                : selectedWorkspace
+                  ? workspaceTitle
+                  : panelTitle;
 
   const headerTitleContent =
     showWorkItemContent && selectedWorkItem ? (
@@ -255,12 +210,8 @@ export function useChatPanelContentState({
       <ChatPanelHeaderBreadcrumb
         items={[{ key: "org", label: selectedProjectOrg.orgName }]}
       />
-    ) : showCollabOrgContent && collabOrgHeaderTitleContent ? (
-      collabOrgHeaderTitleContent
-    ) : showWorkspaceDashboardContent ||
-      showExploreContent ||
-      showManageIssuesContent ||
-      showCollabOrgContent ||
+    ) : showExploreContent ||
+      showCloudOrgContent ||
       showWorkspaceOverviewContent ? (
       <ChatPanelHeaderBreadcrumb
         items={[{ key: "surface", label: headerTitle }]}
@@ -282,9 +233,8 @@ export function useChatPanelContentState({
     !selectedProject &&
     !selectedProjectOrg &&
     !selectedWorkspace &&
-    !selectedCollabOrg &&
+    !selectedCloudOrg &&
     !showExploreContent &&
-    !showManageIssuesContent &&
     !isProjectTarget &&
     !isWorkItemTarget &&
     !isCollabOrgTarget;
@@ -294,9 +244,8 @@ export function useChatPanelContentState({
     !selectedProject &&
     !selectedProjectOrg &&
     !selectedWorkspace &&
-    !selectedCollabOrg &&
+    !selectedCloudOrg &&
     !showExploreContent &&
-    !showManageIssuesContent &&
     isWorkItemTarget &&
     sessionCreatorAvailable;
   const showProjectAgentSwitchInHeader =
@@ -305,35 +254,19 @@ export function useChatPanelContentState({
     !selectedProject &&
     !selectedProjectOrg &&
     !selectedWorkspace &&
-    !selectedCollabOrg &&
+    !selectedCloudOrg &&
     !showExploreContent &&
-    !showManageIssuesContent &&
     createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT &&
     sessionCreatorAvailable;
-  const showEmptyChatFocusRestoreButton =
-    !showBenchmarkSessionGroupContent &&
-    !showSessionContent &&
-    !selectedWorkItem &&
-    !selectedProject &&
-    !selectedProjectOrg &&
-    !selectedWorkspace &&
-    !selectedCollabOrg &&
-    !showExploreContent &&
-    !showManageIssuesContent &&
-    isChatFocus &&
-    showChatFocusToggle;
-
   return {
     headerTitle,
     headerTitleContent,
     isProjectTarget,
     isWorkItemTarget,
     showBenchmarkSessionGroupContent,
-    showCollabOrgContent,
+    showCloudOrgContent,
     showCreatorPresenceInHeader,
-    showEmptyChatFocusRestoreButton,
     showExploreContent,
-    showManageIssuesContent,
     showExplicitNonSessionContent,
     showHeader,
     showNewSessionButton,
@@ -345,7 +278,6 @@ export function useChatPanelContentState({
     showSessionContent,
     showWorkItemAgentSwitchInHeader,
     showWorkItemContent,
-    showWorkspaceDashboardContent,
     showWorkspaceOverviewContent,
   };
 }

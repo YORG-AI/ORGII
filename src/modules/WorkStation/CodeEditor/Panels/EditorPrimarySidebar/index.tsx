@@ -151,6 +151,10 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
     // ============================================
     // Simple callbacks
     // ============================================
+    const handleBackToFiles = useCallback(() => {
+      handleTabChange("files");
+    }, [handleTabChange]);
+
     const handleToggleSearchFilters = useCallback(() => {
       setShowSearchFilters((prev) => !prev);
     }, []);
@@ -302,6 +306,7 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
       showFilters: showSearchFilters,
       searchPanelRef,
       actions: searchActions,
+      onBack: handleBackToFiles,
       onOpenInTab: handleOpenSearchTab,
     });
 
@@ -310,6 +315,7 @@ export const EditorPrimarySidebar: React.FC<EditorPrimarySidebarProps> = memo(
       repoPath,
       isActive: viewMode === "testing",
       showFilter: showTestingFilter,
+      onBack: handleBackToFiles,
       onToggleFilter: handleToggleTestingFilter,
     });
 

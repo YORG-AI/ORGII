@@ -31,10 +31,6 @@
     "closeCanvas": "Canvas schließen",
     "generatingCanvas": "Canvas wird generiert…",
     "noContent": "Kein Inhalt",
-    "noIssueSelected": "Kein Issue ausgewählt",
-    "selectIssueHint": "Wählen Sie ein Issue im Issues-Bereich der Seitenleiste aus.",
-    "noPrSelected": "Kein Pull request ausgewählt",
-    "selectPrHint": "Wählen Sie einen Pull request im Pull-request-Bereich der Seitenleiste aus.",
     "reload": "Neu laden",
     "urlPreviewRequiresTauri": "URL-Vorschau erfordert Tauri",
     "openInExternalBrowser": "Stattdessen im externen Browser öffnen",
@@ -78,6 +74,11 @@
       "other": "Geheimnis"
     }
   },
+  "secretScan": {
+    "title": "Mögliches Geheimnis erkannt",
+    "message": "Diese Nachricht scheint sensible Anmeldedaten zu enthalten:\n\n{{items}}\n\nBeim Senden wird das Geheimnis im Chatverlauf gespeichert und an das Modell übermittelt. Trotzdem senden?",
+    "sendAnyway": "Trotzdem senden"
+  },
   "actions": {
     "save": "Speichern",
     "cancel": "Abbrechen",
@@ -107,6 +108,7 @@
     "retry": "Erneut versuchen",
     "regenerate": "Neu generieren",
     "refresh": "Aktualisieren",
+    "rescan": "Erneut scannen",
     "reload": "Neu laden",
     "reviewNextFile": "Nächste Datei prüfen",
     "reviewPreviousFile": "Vorherige Datei prüfen",
@@ -206,9 +208,8 @@
     "openWorkspace": "Workspace öffnen",
     "skipThisVersion": "Diese Version überspringen",
     "later": "Später",
-    "updateAiBlame": "AI Blame aktualisieren",
     "link": "Verknüpfen",
-    "fetchPr": "Fetch PR"
+    "copyName": "Namen kopieren"
   },
   "refreshToast": {
     "successName": "{{name}} aktualisiert",
@@ -410,7 +411,28 @@
     "nearby": "In der Nähe",
     "renowned": "Bekannt",
     "dragToReorder": "Ziehen, um die Nachrichtenreihenfolge zu ändern",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "Sitzungszuordnung",
+    "sessionBlameSubagent": "Unteragent: {{name}}",
+    "sessionBlameMainSession": "Hauptsitzung",
+    "sessionBlameAction": {
+      "read": "Lesen",
+      "write": "Schreiben",
+      "create": "Erstellen",
+      "delete": "Löschen",
+      "rename": "Umbenennen",
+      "search": "Suchen"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "Unbekannte Sicherheit",
+      "session_only": "Nur Sitzung",
+      "correlated": "Korreliert",
+      "exact": "Exakte Zuordnung"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "Historische Sitzungen werden indiziert {{indexed}}/{{total}}",
+      "partial": "Historischer Index unvollständig ({{failed}} fehlgeschlagen)",
+      "failed": "Indizierung historischer Sitzungen fehlgeschlagen"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "Dateien",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Vorschau nicht verfügbar",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "Nachrichten durchsuchen...",
@@ -1019,6 +1039,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "Branch: {{branch}}",
     "branchTooltipSwitching": "Branch: {{branch}} (wird gewechselt…)",
+    "switchWorkspaceTooltip": "Workspace wechseln",
+    "switchWorktreeTooltip": "Worktree wechseln",
+    "switchBranchTooltip": "Branch wechseln",
+    "gitActionsTooltip": "Git-Aktionen",
     "switchToSessionRepo": "Zu {{name}} wechseln",
     "embeddingProgress": "Embedding: {{count}} Chunks verarbeitet",
     "embeddingProgressWithPercent": "Embedding: {{count}} Chunks verarbeitet ({{percent}}%)",
@@ -1031,6 +1055,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "Extern",
       "tooltip": "Ports: {{workspace}} Workspace, {{external}} extern",
+      "viewPortsTooltip": "Belegte Ports anzeigen",
       "noWorkspacePorts": "Keine Workspace-Ports erkannt",
       "externalLabel": "extern",
       "unknownProcess": "Unbekannter Prozess",
@@ -1150,9 +1175,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token ist erforderlich",
       "createTokenButton": "Token erstellen",
-      "openGitSettingsButton": "Git-Einstellungen öffnen",
+      "openGitSettingsButton": "Einstellungen öffnen",
       "configureInSettings": "Git in den Einstellungen konfigurieren",
-      "configureInSettingsDesc": "Füge GitHub App-Zugriff hinzu, speichere ein Token oder scanne lokale Zugangsdaten unter Einstellungen → Integrationen → Git und versuche diese Git-Operation erneut."
+      "configureInSettingsDesc": "Füge GitHub App-Zugriff hinzu, speichere ein Token oder scanne lokale Zugangsdaten unter Einstellungen → Verbindungen und versuche diese Git-Operation erneut."
     },
     "actions": {
       "publish": "Publish",
@@ -1359,7 +1384,9 @@
         "delete": "Löschen",
         "deleteTemplate": "{branch} löschen",
         "createSessionWith": "Sitzungs-Branch wechseln",
-        "createSessionWithTemplate": "Sitzungs-Branch zu {branch} wechseln"
+        "createSessionWithTemplate": "Sitzungs-Branch zu {branch} wechseln",
+        "switchWorktree": "Worktree wechseln",
+        "switchWorktreeTemplate": "Zu {worktree} wechseln"
       },
       "actions": {
         "createNew": "Neuen Branch erstellen",
@@ -1370,7 +1397,8 @@
         "refresh": "Branch aktualisieren",
         "checkoutDetachedSuccess": "Im detached HEAD-Zustand am aktuellen Commit",
         "checkoutDetachedFailed": "Checkout detached HEAD fehlgeschlagen",
-        "removeWorktree": "Worktree entfernen"
+        "removeWorktree": "Worktree entfernen",
+        "newWorktree": "Neuer Worktree..."
       },
       "messages": {
         "deletedCount_one": "{{count}} Branch gelöscht",
@@ -1385,7 +1413,9 @@
         "basedOn": "Basierend auf",
         "worktrees": "Worktrees",
         "worktreeInUse": "In Verwendung",
-        "checkedOutInWorktree": "In Worktree ausgecheckt: {{path}}"
+        "checkedOutInWorktree": "In Worktree ausgecheckt: {{path}}",
+        "mainWorktreeSection": "Haupt-Worktree",
+        "linkedWorktrees": "Verknüpfte Worktrees"
       },
       "placeholders": {
         "checkout": "Branch",
@@ -1494,7 +1524,8 @@
         "workspace": "Suchen oder Ordnerpfad eingeben",
         "branch": "Branch suchen...",
         "source": "Quelle suchen...",
-        "actions": "Aktionen suchen..."
+        "actions": "Aktionen suchen...",
+        "worktree": "Worktree suchen..."
       },
       "groups": {
         "agentSession": "Agent Session",
@@ -1525,6 +1556,11 @@
           "label": "Agent-Sessions suchen",
           "pillLabel": "Sessions suchen",
           "placeholder": "Agent-Sessions suchen..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Workspace wechseln"
@@ -1623,11 +1659,8 @@
     "chatRight": "Chat rechts",
     "pageSettings": "Seiteneinstellungen",
     "pageLayout": "Seitenlayout",
-    "layoutMode": "Layoutmodus",
     "inset": "Eingesetzt",
     "full": "Vollständig",
-    "compact": "Kompakt",
-    "comfort": "Komfort",
     "theme": "Design",
     "primaryPanel": "Seitenleiste",
     "sidebarPosition": "Seitenleistenposition",
@@ -1689,15 +1722,13 @@
     "disableChatPagination": "Chat-Paginierung ausschalten",
     "useModelPickerSpotlight": "Spotlight-Modellauswahl verwenden",
     "useModelPickerDropdown": "Dropdown-Modellauswahl verwenden",
-    "useCompactWorkstationLayout": "Kompaktes Workstation-Layout verwenden",
-    "useComfortWorkstationLayout": "Komfortables Workstation-Layout verwenden",
     "moveWorkstationSidebarLeft": "Workstation-Seitenleiste nach links verschieben",
     "moveWorkstationSidebarRight": "Workstation-Seitenleiste nach rechts verschieben",
     "enableDockAutoHide": "Workstation-Dock automatisch ausblenden",
     "disableDockAutoHide": "Workstation-Dock sichtbar halten",
     "openMyStation": "Zu My Station wechseln",
     "openAgentStation": "Zu Agent Station wechseln",
-    "openOpsControl": "Zu Ops Control wechseln",
+    "openKanban": "Zu Kanban wechseln",
     "changeLanguage": "Sprache ändern",
     "switchToSystemTheme": "Systemdesign folgen",
     "detectUpdate": "Nach Updates suchen",
@@ -1862,15 +1893,6 @@
     "lastActive": "Zuletzt aktiv: {{date}}",
     "activeNow": "Jetzt aktiv: {{ides}}",
     "active": "Aktiv",
-    "tabs": {
-      "activity": "Aktivität",
-      "focus": "Fokus",
-      "languages": "Sprachen",
-      "heatmap": "Heatmap",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI Sitzungen",
     "cliPrompt": "Prompt",
     "cliMessages": "Nachrichten",
@@ -1952,12 +1974,15 @@
     "removeWorktreeMessage": "Dies entfernt den Worktree checkout vom Datenträger. Branch und commits bleiben erhalten.",
     "removeWorktreeSuccess": "Worktree entfernt",
     "removeWorktreeFailed": "Worktree konnte nicht entfernt werden",
+    "emptyState": {
+      "viewSourceControl": "Source Control anzeigen",
+      "viewIssues": "Issues anzeigen",
+      "viewGitHistory": "Git-Verlauf anzeigen",
+      "viewPullRequests": "Pull Requests anzeigen"
+    },
     "pill": {
       "focus": "Fokus",
       "allChanges": "Alle Änderungen"
-    },
-    "sessionFilter": {
-      "allSessions": "Alle Sitzungen"
     }
   },
   "contextInfo": {

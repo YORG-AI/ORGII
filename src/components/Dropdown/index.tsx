@@ -41,6 +41,7 @@ import DropdownMenuSurface from "./DropdownMenuSurface";
 import DropdownOptionsContent from "./DropdownOptionsContent";
 import DropdownTriggerWrapper from "./DropdownTriggerWrapper";
 import { defaultFilter, flattenOptions } from "./optionUtils";
+import { subscribeToDropdownOutsideMouseDown } from "./outsideClick";
 import {
   type DropdownCoordinates,
   calculateDropdownPosition,
@@ -277,8 +278,7 @@ const Dropdown: React.FC<DropdownProps> = ({
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    return subscribeToDropdownOutsideMouseDown(document, handleClickOutside);
   }, [visible, trigger, setVisible, isOptionsMode, resetHighlight]);
 
   const handleMouseEnter = useCallback(() => {

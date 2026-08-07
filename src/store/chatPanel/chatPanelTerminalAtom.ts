@@ -16,6 +16,7 @@
  */
 import { atom } from "jotai";
 
+import { cliAgentTuiRelease } from "@src/api/tauri/agent/cliTerminalSession";
 import { clearTerminalBufferCache } from "@src/components/TerminalInteractive/bufferCache";
 import {
   TERMINAL_AGENT_STATUS,
@@ -54,6 +55,8 @@ interface CreateChatPanelTerminalOptions {
   cliAgentType?: TerminalSession["cliAgentType"];
   agentCommand?: string;
   expectedProcess?: string;
+  /** Managed session row backing this TUI terminal (runner = 'tui'). */
+  agentSessionId?: string;
 }
 
 export const createChatPanelTerminalAtom = atom(
@@ -69,6 +72,7 @@ export const createChatPanelTerminalAtom = atom(
       cliAgentType,
       agentCommand,
       expectedProcess,
+      agentSessionId,
     } = typeof options === "string" ? { name: options } : options;
     const newId = `${CHAT_PANEL_TERMINAL_PREFIX}${crypto.randomUUID()}`;
     const newSession: TerminalSession = {
@@ -79,6 +83,7 @@ export const createChatPanelTerminalAtom = atom(
       cliAgentType,
       agentCommand,
       expectedProcess,
+      agentSessionId,
       agentStatus: agentCommand ? TERMINAL_AGENT_STATUS.STARTING : undefined,
     };
     set(terminalSessionsAtom, (prev) => [...prev, newSession]);
@@ -94,8 +99,18 @@ createChatPanelTerminalAtom.debugLabel = "createChatPanelTerminal";
 
 export const destroyChatPanelTerminalAtom = atom(
   null,
-  async (_get, set, sessionId: string): Promise<void> => {
+  async (get, set, sessionId: string): Promise<void> => {
     if (!isChatPanelTerminalId(sessionId)) return;
+
+    // Park the backing managed session before the PTY (and its exit
+    // listener) are torn down — the component-level pty-exit handler may
+    // already be unmounted when a tab is closed.
+    const backingAgentSessionId = get(terminalSessionsAtom).find(
+      (session) => session.id === sessionId
+    )?.agentSessionId;
+    if (backingAgentSessionId) {
+      void cliAgentTuiRelease(backingAgentSessionId);
+    }
 
     // Kill PTY
     if (isTauriReady()) {

@@ -248,7 +248,7 @@ export const SidebarRamMonitorButton: React.FC = React.memo(() => {
       align: "right",
       gap: DROPDOWN_PANEL.triggerGap,
     });
-  const buttonActiveClassName = isOpen ? "text-primary-6" : "text-text-2";
+  const buttonActiveClassName = isOpen ? "text-text-1" : "text-text-2";
   const triggerTitle = tSettings("monitor.performanceMonitor");
 
   return (
@@ -257,7 +257,9 @@ export const SidebarRamMonitorButton: React.FC = React.memo(() => {
         <button
           type="button"
           className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
-            isOpen ? "bg-bg-1" : "bg-transparent hover:bg-fill-2"
+            isOpen
+              ? "bg-sidebar-selected"
+              : "bg-transparent hover:bg-sidebar-selected"
           }`}
           onClick={toggle}
           onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}

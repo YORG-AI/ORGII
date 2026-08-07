@@ -38,24 +38,6 @@ export const workStationStatusBarHiddenPersistAtom = atom(
   }
 );
 
-function getStoredDockAutoHide(): boolean {
-  const stored = getStoredValue("dock_auto_hide");
-  return stored === "true";
-}
-
-export const workStationDockAutoHideAtom = atom<boolean>(
-  getStoredDockAutoHide()
-);
-workStationDockAutoHideAtom.debugLabel = "workStationDockAutoHideAtom";
-
-export const workStationDockAutoHidePersistAtom = atom(
-  (get) => get(workStationDockAutoHideAtom),
-  (_get, set, value: boolean) => {
-    set(workStationDockAutoHideAtom, value);
-    setStoredValue("dock_auto_hide", String(value));
-  }
-);
-
 /** Agent Station chrome frame: steady border normally, breathing light while follow/play is active. Default on. */
 export const workStationFollowAgentHighlightEnabledAtom = atom<boolean>(true);
 workStationFollowAgentHighlightEnabledAtom.debugLabel =

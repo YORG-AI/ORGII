@@ -5,20 +5,18 @@
  * and reports keys that exist in English but are missing in other languages.
  *
  * Usage:
- *   node scripts/quality/check-missing-i18n-keys.mjs [--namespace market] [--fix]
+ *   node scripts/quality/check-missing-i18n-keys.mjs [--namespace market] [--prefix cloud] [--fix]
  *
  * Options:
  *   --namespace <ns>  Check only a specific namespace (e.g., "market", "common")
+ *   --prefix <path>    Check only a key subtree (e.g., "cloud")
  *   --fix             Copy missing keys from English into other locale files
  *   --verbose         Show all keys, not just missing ones
  */
-import { readFileSync, writeFileSync, readdirSync } from "fs";
-import { join, basename } from "path";
+import { readFileSync, readdirSync, writeFileSync } from "fs";
+import { basename, join } from "path";
 
-const LOCALES_DIR = join(
-  import.meta.dirname,
-  "../../src/i18n/locales"
-);
+const LOCALES_DIR = join(import.meta.dirname, "../../src/i18n/locales");
 
 const SOURCE_LANG = "en";
 
@@ -26,8 +24,16 @@ const args = process.argv.slice(2);
 const nsFilter = args.includes("--namespace")
   ? args[args.indexOf("--namespace") + 1]
   : null;
+const prefixFilter = args.includes("--prefix")
+  ? args[args.indexOf("--prefix") + 1]
+  : null;
 const shouldFix = args.includes("--fix");
 const verbose = args.includes("--verbose");
+
+// Locale files may carry a UTF-8 BOM; strip it so JSON.parse doesn't choke.
+function readJson(filePath) {
+  return JSON.parse(readFileSync(filePath, "utf-8").replace(/^﻿/, ""));
+}
 
 function flattenKeys(obj, prefix = "") {
   const keys = [];
@@ -81,8 +87,13 @@ for (const ns of namespaceFiles) {
   if (nsFilter && ns !== nsFilter) continue;
 
   const enPath = join(sourceDir, `${ns}.json`);
-  const enData = JSON.parse(readFileSync(enPath, "utf-8"));
-  const enKeys = flattenKeys(enData);
+  const enData = readJson(enPath);
+  const enKeys = flattenKeys(enData).filter(
+    (key) =>
+      !prefixFilter ||
+      key === prefixFilter ||
+      key.startsWith(`${prefixFilter}.`)
+  );
 
   let nsMissing = 0;
 
@@ -90,7 +101,7 @@ for (const ns of namespaceFiles) {
     const langPath = join(LOCALES_DIR, lang, `${ns}.json`);
     let langData;
     try {
-      langData = JSON.parse(readFileSync(langPath, "utf-8"));
+      langData = readJson(langPath);
     } catch {
       console.error(`  ✗ ${lang}/${ns}.json — file missing or invalid`);
       continue;
@@ -100,9 +111,7 @@ for (const ns of namespaceFiles) {
     const missing = enKeys.filter((key) => !langKeys.has(key));
 
     if (missing.length > 0) {
-      console.log(
-        `\n  ${lang}/${ns}.json — ${missing.length} missing key(s):`
-      );
+      console.log(`\n  ${lang}/${ns}.json — ${missing.length} missing key(s):`);
       for (const key of missing) {
         const enValue = getNestedValue(enData, key);
         console.log(`    - ${key}: ${JSON.stringify(enValue)}`);
@@ -116,7 +125,9 @@ for (const ns of namespaceFiles) {
 
       if (shouldFix && missing.length > 0) {
         writeFileSync(langPath, JSON.stringify(langData, null, 2) + "\n");
-        console.log(`    → Fixed: wrote ${missing.length} key(s) to ${lang}/${ns}.json`);
+        console.log(
+          `    → Fixed: wrote ${missing.length} key(s) to ${lang}/${ns}.json`
+        );
       }
     } else if (verbose) {
       console.log(`  ✓ ${lang}/${ns}.json — all ${enKeys.length} keys present`);

@@ -1,6 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { getCommandSymbolList } from "../commandParser";
+import { getCommandSymbolList, truncateCommandPreview } from "../commandParser";
+
+describe("truncateCommandPreview", () => {
+  it("keeps short commands unchanged", () => {
+    expect(truncateCommandPreview("npm test")).toBe("npm test");
+  });
+
+  it("truncates after four lines", () => {
+    expect(truncateCommandPreview("one\ntwo\nthree\nfour\nfive")).toBe(
+      "one\ntwo\nthree\nfour..."
+    );
+  });
+
+  it("truncates at 200 characters when that limit comes first", () => {
+    const command = "x".repeat(201);
+    expect(truncateCommandPreview(command)).toBe(`${"x".repeat(200)}...`);
+  });
+});
 
 describe("getCommandSymbolList", () => {
   it("returns the executable of a simple command", () => {

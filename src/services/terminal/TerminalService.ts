@@ -16,7 +16,7 @@
 import { Command } from "@tauri-apps/plugin-shell";
 
 import { createLogger } from "@src/hooks/logger";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
   activeTerminalIdAtom,
   closeTerminalSessionAtom,
@@ -92,10 +92,15 @@ async function writeToPty(command: string, sessionId: string): Promise<void> {
 /**
  * Ensure terminal is ready and return session ID
  */
-async function ensureTerminalReady(): Promise<string> {
+async function ensureTerminalReady(
+  preferredSessionId?: string,
+  openTerminal = true
+): Promise<string> {
   // Bottom-panel Terminal is intentionally hidden while the standalone Terminal tab is the single source of truth.
   // PanelService.showBottomPanel("terminal");
-  await WorkStationViewService.openTerminalTab();
+  if (openTerminal) {
+    await WorkStationViewService.openTerminalTab();
+  }
 
   const store = getStore();
   const activeId = store.get(activeTerminalIdAtom);
@@ -103,23 +108,27 @@ async function ensureTerminalReady(): Promise<string> {
   const sessions = store.get(terminalSessionsAtom);
 
   // Check if we have an active initialized session
+  const requestedId = preferredSessionId ?? activeId;
   const hasValidSession =
-    sessions.length > 0 && activeId && initialized.has(activeId);
+    sessions.some((session) => session.id === requestedId) &&
+    requestedId &&
+    initialized.has(requestedId);
 
   if (hasValidSession) {
     await delay(100); // Small delay to ensure PTY is ready
-    return activeId;
+    return requestedId;
   }
 
   // No valid session - wait for one to be available
   // (UI creates session on mount, or we can create one)
-  for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 25; attempt++) {
     await delay(200);
     const currentActiveId = store.get(activeTerminalIdAtom);
     const currentInitialized = store.get(initializedTerminalIdsAtom);
+    const candidateId = preferredSessionId ?? currentActiveId;
 
-    if (currentActiveId && currentInitialized.has(currentActiveId)) {
-      return currentActiveId;
+    if (candidateId && currentInitialized.has(candidateId)) {
+      return candidateId;
     }
   }
 
@@ -141,6 +150,36 @@ export const TerminalService = {
   },
 
   /**
+   * Execute a command in a dedicated visible terminal session. This avoids
+   * interrupting a user's running process and is used for interactive setup
+   * flows that require the user to see and approve the CLI's native prompt.
+   */
+  async executeInNewSession(
+    command: string,
+    options?: {
+      shell?: string;
+      args?: string[];
+      name?: string;
+      profileId?: string;
+      env?: Record<string, string>;
+      cwd?: string;
+    }
+  ): Promise<string> {
+    await WorkStationViewService.openTerminalTab({
+      forceCodeEditorSurface: true,
+    });
+    const store = getStore();
+    const sessionId = store.set(editorAddTerminalSessionAtom, {
+      ...options,
+      bypassCreationCooldown: true,
+    });
+    store.set(setActiveTerminalAtom, sessionId);
+    await ensureTerminalReady(sessionId, false);
+    await writeToPty(command, sessionId);
+    return sessionId;
+  },
+
+  /**
    * Focus/show the terminal panel
    */
   focus(): void {
@@ -158,6 +197,7 @@ export const TerminalService = {
     name?: string;
     profileId?: string;
     env?: Record<string, string>;
+    cwd?: string;
   }): string {
     // Bottom-panel Terminal is intentionally hidden while the standalone Terminal tab is the single source of truth.
     // PanelService.showBottomPanel("terminal");

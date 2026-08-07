@@ -39,6 +39,7 @@ export type SecondLayerId = "files" | "sessions" | "projects";
 export interface MenuItem {
   id: MenuItemId;
   label: string;
+  translationKey: string;
   icon: LucideIcon;
   hasSecondLayer: boolean;
   shortcut?: string;
@@ -73,20 +74,24 @@ export const ICON_CONFIG = {
 
 export interface SecondLayerConfig {
   title: string;
+  translationKey: string;
   icon: LucideIcon;
 }
 
 export const SECOND_LAYER_CONFIG: Record<SecondLayerId, SecondLayerConfig> = {
   files: {
     title: "Files & Folders",
+    translationKey: "creator.contextMenu.filesAndFolders",
     icon: ICON_CONFIG.files,
   },
   sessions: {
-    title: "Sessions",
+    title: "Agent Session",
+    translationKey: "creator.contextMenu.agentSession",
     icon: ICON_CONFIG.sessions,
   },
   projects: {
     title: "Work Items",
+    translationKey: "creator.contextMenu.workItems",
     icon: ICON_CONFIG.projects,
   },
 };
@@ -99,18 +104,21 @@ export const MENU_ITEMS: MenuItem[] = [
   {
     id: "files",
     label: "Files & Folders",
+    translationKey: "creator.contextMenu.filesAndFolders",
     icon: ICON_CONFIG.files,
     hasSecondLayer: true,
   },
   {
     id: "sessions",
-    label: "Sessions",
+    label: "Agent Session",
+    translationKey: "creator.contextMenu.agentSession",
     icon: ICON_CONFIG.sessions,
     hasSecondLayer: true,
   },
   {
     id: "projects",
     label: "Work Items",
+    translationKey: "creator.contextMenu.workItems",
     icon: ICON_CONFIG.projects,
     hasSecondLayer: true,
   },

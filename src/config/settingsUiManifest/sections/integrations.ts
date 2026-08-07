@@ -1,4 +1,4 @@
-import { AppWindow, UserRoundCog } from "lucide-react";
+import { AppWindow, Sparkles, UserRoundCog } from "lucide-react";
 
 import type { SettingsKey } from "@src/config/settingsSchema";
 import { AGENT_BROWSER_SETTING_KEYS } from "@src/config/settingsSchema/registry/agentBrowser";
@@ -26,6 +26,23 @@ export const INTEGRATIONS_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     headingTitleKey: "modelsTabs.myRoles",
     icon: UserRoundCog,
     coveredKeys: [...MY_ROLE_SETTING_KEYS],
+  },
+  {
+    id: "housekeeper",
+    tab: "integrations",
+    labelKey: "categories.housekeeper",
+    headingTitleKey: "categories.housekeeper",
+    icon: Sparkles,
+    coveredKeys: [
+      "housekeeper.enabled",
+      "housekeeper.accountId",
+      "housekeeper.model",
+      "housekeeper.contextLimitTokens",
+      "housekeeper.features.promptPolish",
+      "housekeeper.features.stepExplain",
+      "housekeeper.features.uiControl",
+      "housekeeper.features.contextCompact",
+    ],
   },
   {
     id: "built-in-tools-computer-use",

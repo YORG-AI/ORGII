@@ -42,10 +42,6 @@ export const tabRegistryAtom = atom<TabRegistryEntry[]>((get) => {
 });
 tabRegistryAtom.debugLabel = "tabRegistryAtom";
 
-function isClosableTab(entry: TabRegistryEntry): boolean {
-  return entry.tab.closable !== false && entry.tab.pinned !== true;
-}
-
 // ============================================
 // Writers
 // ============================================
@@ -80,7 +76,7 @@ closeTabAtom.debugLabel = "closeTabAtom";
 
 /**
  * Close the currently active tab. Returns `true` when a tab was closed,
- * `false` otherwise (e.g. when the active tab is pinned / non-closable).
+ * `false` otherwise (e.g. when there is no active tab).
  */
 export const closeActiveWorkStationTabAtom = atom(null, (get, set) => {
   const layout = get(workstationLayoutAtom);
@@ -89,7 +85,6 @@ export const closeActiveWorkStationTabAtom = atom(null, (get, set) => {
   if (!activeTabId) return false;
   const active = tabs.find((tab) => tab.id === activeTabId);
   if (!active) return false;
-  if (!isClosableTab({ tab: active, isActive: true })) return false;
   set(closeTabAtom, { tabId: active.id });
   return true;
 });

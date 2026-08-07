@@ -55,6 +55,8 @@ export interface CategoryTableContentProps {
   ) => void;
   onRevalidateAccount?: (accountId: string) => Promise<void>;
   refreshingAccountId?: string | null;
+  onRefreshModels?: () => Promise<void>;
+  refreshingAllModels?: boolean;
   modelsActiveTab?: string;
   onModelsTabChange?: (tab: string) => void;
   rulesActiveTab?: "rules" | "memory" | "evolution";
@@ -186,6 +188,8 @@ export const CategoryTableContent: React.FC<CategoryTableContentProps> = (
           onDisconnectAccount={props.onDisconnectAccount}
           onRevalidateAccount={props.onRevalidateAccount}
           refreshingAccountId={props.refreshingAccountId}
+          onRefreshModels={props.onRefreshModels}
+          refreshingAllModels={props.refreshingAllModels}
           selectedRowId={props.selectedRowId}
           modelsActiveTab={props.modelsActiveTab}
           onModelsTabChange={props.onModelsTabChange}

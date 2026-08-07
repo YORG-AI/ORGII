@@ -1,42 +1,86 @@
 import { describe, expect, it } from "vitest";
 
-import { projectDataToUI } from "./adapters";
-import type { ProjectData } from "./types";
+import { standaloneWorkItemDataToEnriched } from "./adapters";
+import type { LinkedSession, WorkItemData } from "./types";
 
-function project(workspaceId?: string): ProjectData {
+function buildStandaloneItem(
+  overrides: Partial<WorkItemData["frontmatter"]> = {}
+): WorkItemData {
   return {
-    slug: "workspace-project",
-    description: "",
-    meta: {
-      id: "project-1",
-      name: "Workspace Project",
-      org_id: "personal-org",
-      workspace_id: workspaceId,
-      status: "active",
+    frontmatter: {
+      id: "T-1",
+      short_id: "T-1",
+      title: "Org surface work item",
+      status: "planned",
       priority: "none",
-      health: "no_updates",
-      members: [],
       labels: [],
-      linked_repos: ["/unrelated/repo"],
-      created_at: "2026-08-05T00:00:00Z",
-      updated_at: "2026-08-05T00:00:00Z",
-      next_work_item_id: 1,
-      work_item_prefix: "WSP",
-      work_item_prefix_custom: false,
+      created_at: "2026-07-01T00:00:00.000Z",
+      updated_at: "2026-07-01T00:00:00.000Z",
+      starred: false,
+      todos: [],
+      ...overrides,
     },
+    body: "Item body",
+    filename: "T-1.md",
   };
 }
 
-describe("projectDataToUI workspace association", () => {
-  const context = { labelMap: new Map(), memberMap: new Map() };
+describe("standaloneWorkItemDataToEnriched", () => {
+  it("maps the fields the collab org panel consumes", () => {
+    const linkedSession: LinkedSession = {
+      session_id: "session-1",
+      session_type: "native",
+      agent_role: "custom",
+      started_at: "2026-07-01T00:00:00.000Z",
+      status: "running",
+      cost_usd: 0,
+      total_tokens: 0,
+      result_preview: "Plan",
+    };
+    const enriched = standaloneWorkItemDataToEnriched(
+      buildStandaloneItem({
+        assignee: "member-1",
+        assignee_type: "human",
+        linked_sessions: [linkedSession],
+        execution_lock: { lockedByMemberId: "member-2" },
+      })
+    );
 
-  it("preserves an explicit workspace ID", () => {
-    expect(
-      projectDataToUI(project("workspace-explicit"), context).workspaceId
-    ).toBe("workspace-explicit");
+    expect(enriched.id).toBe("T-1");
+    expect(enriched.shortId).toBe("T-1");
+    expect(enriched.title).toBe("Org surface work item");
+    expect(enriched.status).toBe("planned");
+    expect(enriched.priority).toBe("none");
+    // Standalone rows have no project — the panel renders the shortId.
+    expect(enriched.project).toBeUndefined();
+    // No member file to resolve against → raw id as the display name.
+    expect(enriched.assignee).toEqual(
+      expect.objectContaining({ id: "member-1", name: "member-1" })
+    );
+    expect(enriched.linkedSessions).toEqual([linkedSession]);
+    expect(enriched.executionLock).toEqual(
+      expect.objectContaining({ lockedByMemberId: "member-2" })
+    );
+    expect(enriched.deletedAt).toBeUndefined();
   });
 
-  it("keeps legacy projects unlinked even when they have linked repos", () => {
-    expect(projectDataToUI(project(), context).workspaceId).toBeUndefined();
+  it("keeps deletedAt so soft-deleted rows can be filtered out", () => {
+    const enriched = standaloneWorkItemDataToEnriched(
+      buildStandaloneItem({ deleted_at: "2026-07-02T00:00:00.000Z" })
+    );
+
+    expect(enriched.deletedAt).toBe("2026-07-02T00:00:00.000Z");
+  });
+
+  it("defaults optional collections to empty arrays", () => {
+    const enriched = standaloneWorkItemDataToEnriched(buildStandaloneItem());
+
+    expect(enriched.labels).toEqual([]);
+    expect(enriched.linkedSessions).toEqual([]);
+    expect(enriched.comments).toEqual([]);
+    expect(enriched.history).toEqual([]);
+    expect(enriched.followUpItems).toEqual([]);
+    expect(enriched.workProducts).toEqual([]);
+    expect(enriched.assignee).toBeUndefined();
   });
 });

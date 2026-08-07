@@ -6,6 +6,7 @@
  * can be reused outside the Code Editor (e.g. Control Tower peek).
  */
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { useRefreshSpin } from "@src/hooks/ui";
@@ -37,6 +38,7 @@ export function useSourceControlActions({
   onRefresh,
   refreshLoading = false,
 }: UseSourceControlActionsOptions): SectionHeaderAction[] {
+  const { t } = useTranslation("common");
   const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
     useRefreshSpin(onRefresh, refreshLoading);
 
@@ -51,7 +53,7 @@ export function useSourceControlActions({
             className={showFilter ? "text-primary-6" : ""}
           />
         ),
-        tooltip: "Filter",
+        tooltip: t("actions.filter", "Filter"),
         onClick: onToggleFilter,
       },
       {
@@ -83,7 +85,7 @@ export function useSourceControlActions({
             className={refreshSpinClass}
           />
         ),
-        tooltip: "",
+        tooltip: t("actions.refresh", "Refresh"),
         onClick: handleRefreshClick,
       },
     ];
@@ -96,5 +98,6 @@ export function useSourceControlActions({
     onToggleViewMode,
     refreshSpinClass,
     handleRefreshClick,
+    t,
   ]);
 }

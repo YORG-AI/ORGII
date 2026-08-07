@@ -206,63 +206,6 @@ fn project_link_persists_project_metadata_and_clears_work_item() {
 }
 
 #[test]
-fn unlink_rejects_incomplete_relation_without_clearing_canonical_link() {
-    let _sandbox = test_env::sandbox();
-    seed_session("sid-unlink-fail-closed", SessionStatus::Idle);
-
-    let mut record = super::ops::get_session("sid-unlink-fail-closed")
-        .expect("get seed")
-        .expect("seed exists");
-    record.name = "Renamed before unlink".to_string();
-    record.work_item_id = Some("RUN-12".to_string());
-    record.project_slug = None;
-    upsert_session(&record).expect("seed incomplete canonical relation");
-
-    let err = crate::state::commands::session::persistence::unlink_session_from_work_item(
-        "sid-unlink-fail-closed",
-    )
-    .expect_err("missing project context must fail closed");
-    assert!(err.contains("no project_slug"));
-
-    let after = super::ops::get_session("sid-unlink-fail-closed")
-        .expect("get after failed unlink")
-        .expect("session must remain for retry");
-    assert_eq!(after.name, "Renamed before unlink");
-    assert_eq!(after.work_item_id.as_deref(), Some("RUN-12"));
-}
-
-#[test]
-fn unlink_rejects_missing_work_item_without_clearing_canonical_link() {
-    let _sandbox = test_env::sandbox();
-    seed_session("sid-unlink-missing-work-item", SessionStatus::Idle);
-
-    let mut record = super::ops::get_session("sid-unlink-missing-work-item")
-        .expect("get seed")
-        .expect("seed exists");
-    record.work_item_id = Some("RUN-404".to_string());
-    record.project_slug = Some("project-that-does-not-exist".to_string());
-    upsert_session(&record).expect("seed partial relation");
-
-    let err = crate::state::commands::session::persistence::unlink_session_from_work_item(
-        "sid-unlink-missing-work-item",
-    )
-    .expect_err("missing Work Item must fail closed");
-    assert!(
-        !err.is_empty(),
-        "the incomplete external relation must surface an error"
-    );
-
-    let after = super::ops::get_session("sid-unlink-missing-work-item")
-        .expect("get after failed unlink")
-        .expect("session must remain for retry");
-    assert_eq!(after.work_item_id.as_deref(), Some("RUN-404"));
-    assert_eq!(
-        after.project_slug.as_deref(),
-        Some("project-that-does-not-exist")
-    );
-}
-
-#[test]
 fn reconcile_repairs_running_rows_with_terminal_turn_markers() {
     let _sandbox = test_env::sandbox();
 

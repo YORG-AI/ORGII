@@ -11,11 +11,12 @@ import type {
 import { useSessionDiscovery } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
-import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import {
+  chatPanelMaximizedAtom,
+  chatStatusBarVisibleAtom,
+} from "@src/store/ui/chatPanelAtom";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
-import CursorModePill from "./components/CursorModePill";
-import CursorModelPill from "./components/CursorModelPill";
 import EditModeHeader from "./components/EditModeHeader";
 import {
   EditImagePreviews,
@@ -86,16 +87,7 @@ const InputArea: React.FC<InputAreaProps> = memo((props) => {
   const isCursorIde = sessionId ? isCursorIdeSession(sessionId) : false;
 
   if (isCursorIde && !isEditMode && sessionId) {
-    return (
-      <SessionReadOnlyBar
-        pills={
-          <>
-            <CursorModelPill sessionId={sessionId} />
-            <CursorModePill sessionId={sessionId} />
-          </>
-        }
-      />
-    );
+    return <SessionReadOnlyBar />;
   }
 
   return <InputAreaInteractive {...props} />;
@@ -174,6 +166,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       slashLoading,
       slashQuery,
       prefetchSlashItems,
+      addressCommentsFlyout,
       fileInputRef,
       handleUploadClick,
       handleFileUpload,
@@ -219,6 +212,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     const mentionTreePosition = chatPanelPosition === "left" ? "right" : "left";
     const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
     const isChatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
+    const statusBarVisible = useAtomValue(chatStatusBarVisibleAtom);
 
     const {
       showPlusSlashMenu,
@@ -329,17 +323,11 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       observeCompact(isCursorCompactRow);
     }, [isCursorCompactRow, observeCompact]);
 
-    const modelPill =
-      isCursorIde && sessionId ? (
-        <CursorModelPill sessionId={sessionId} />
-      ) : (
-        <ModelPill />
-      );
+    // Cursor IDE sessions are read-only; no interactive model/mode pill.
+    const modelPill = isCursorIde && sessionId ? null : <ModelPill />;
     const modePill =
-      isCursorIde && sessionId ? (
-        <CursorModePill sessionId={sessionId} />
-      ) : (
-        <ModePill resetToDefaultOnClick />
+      isCursorIde && sessionId ? null : (
+        <ModePill hideWhenDefault resetToDefaultOnClick />
       );
     const clearReplyInfo = useCallback(
       () => setReplyInfo({ isReply: false }),
@@ -400,6 +388,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
               isDragOver,
               isEditMode,
               quietEditSurface,
+              disableBreathing: statusBarVisible,
             })}
           >
             {isEditMode && !quietEditSurface && showEditHeader && (
@@ -548,6 +537,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           showSlashMenu={showSlashMenu}
           filteredSlashItems={filteredSlashItems}
           slashLoading={slashLoading}
+          addressCommentsFlyout={addressCommentsFlyout}
           currentMode={currentMode}
           slashQuery={slashQuery}
           onSlashCommandClose={handleSlashCommandClose}

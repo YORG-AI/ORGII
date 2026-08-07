@@ -10,7 +10,11 @@ export { default as SessionGroupPage } from "./SessionGroupPage";
 export { default as SessionTable } from "./SessionTable";
 export type { HintWithInfoProps } from "./HintWithInfo";
 export type { SessionGroupPageProps } from "./SessionGroupPage";
-export type { SessionTableItem } from "./SessionTable";
+export type {
+  SessionTableColumnKey,
+  SessionTableItem,
+  SessionTableProps,
+} from "./SessionTable";
 export {
   mapKanbanTaskToSessionTableItem,
   type SessionTableDateTimeLabelOptions,
@@ -43,6 +47,8 @@ export { default as InfoCard } from "./InfoCard";
 export type { InfoCardProps, InfoCardRow } from "./InfoCard";
 export { default as InlineInfoCard } from "./InlineInfoCard";
 export type { InlineInfoCardProps } from "./InlineInfoCard";
+export { InfoRow } from "./InfoRow";
+export { default as InlineExpandedSplitCard } from "./InlineExpandedSplitCard";
 export {
   default as InlineOptionCard,
   InlineOptionPill,

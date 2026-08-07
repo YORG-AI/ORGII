@@ -31,10 +31,6 @@
     "closeCanvas": "캔버스 닫기",
     "generatingCanvas": "캔버스 생성 중…",
     "noContent": "콘텐츠 없음",
-    "noIssueSelected": "선택된 이슈 없음",
-    "selectIssueHint": "사이드바의 Issues 패널에서 이슈를 선택하세요.",
-    "noPrSelected": "선택된 Pull request 없음",
-    "selectPrHint": "사이드바의 Pull request 패널에서 Pull request를 선택하세요.",
     "reload": "새로 고침",
     "urlPreviewRequiresTauri": "URL 미리보기에는 Tauri가 필요합니다",
     "openInExternalBrowser": "대신 외부 브라우저에서 여세요",
@@ -78,6 +74,11 @@
       "other": "시크릿"
     }
   },
+  "secretScan": {
+    "title": "비밀 정보가 감지되었을 수 있음",
+    "message": "이 메시지에 민감한 자격 증명이 포함된 것 같습니다:\n\n{{items}}\n\n보내면 비밀 정보가 채팅 기록에 저장되고 모델로 전송됩니다. 그래도 보내시겠습니까?",
+    "sendAnyway": "그래도 보내기"
+  },
   "actions": {
     "save": "저장",
     "cancel": "취소",
@@ -107,6 +108,7 @@
     "retry": "재시도",
     "regenerate": "다시 생성",
     "refresh": "새로고침",
+    "rescan": "다시 스캔",
     "reload": "다시 로드",
     "reviewNextFile": "다음 파일 검토",
     "reviewPreviousFile": "이전 파일 검토",
@@ -206,9 +208,8 @@
     "openWorkspace": "Workspace 열기",
     "skipThisVersion": "이 버전 건너뛰기",
     "later": "나중에",
-    "updateAiBlame": "AI Blame 업데이트",
     "link": "연결",
-    "fetchPr": "Fetch PR"
+    "copyName": "이름 복사"
   },
   "refreshToast": {
     "successName": "{{name}} 새로고침됨",
@@ -410,7 +411,28 @@
     "nearby": "근처",
     "renowned": "유명한",
     "dragToReorder": "드래그하여 메시지 순서 변경",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "세션 귀속",
+    "sessionBlameSubagent": "하위 에이전트: {{name}}",
+    "sessionBlameMainSession": "기본 세션",
+    "sessionBlameAction": {
+      "read": "읽기",
+      "write": "쓰기",
+      "create": "생성",
+      "delete": "삭제",
+      "rename": "이름 변경",
+      "search": "검색"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "신뢰도 알 수 없음",
+      "session_only": "세션만",
+      "correlated": "연결됨",
+      "exact": "정확한 귀속"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "이전 세션 색인 중 {{indexed}}/{{total}}",
+      "partial": "이전 색인이 불완전합니다({{failed}}개 실패)",
+      "failed": "이전 세션 색인에 실패했습니다"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "파일",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "미리보기를 사용할 수 없습니다",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "메시지 검색...",
@@ -1020,6 +1040,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "브랜치: {{branch}}",
     "branchTooltipSwitching": "브랜치: {{branch}} (전환 중…)",
+    "switchWorkspaceTooltip": "Workspace 전환",
+    "switchWorktreeTooltip": "Worktree 전환",
+    "switchBranchTooltip": "브랜치 전환",
+    "gitActionsTooltip": "Git 작업",
     "switchToSessionRepo": "{{name}}(으)로 전환",
     "embeddingProgress": "Embedding: {{count}}개 청크 처리됨",
     "embeddingProgressWithPercent": "Embedding: {{count}}개 청크 처리됨 ({{percent}}%)",
@@ -1032,6 +1056,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "외부",
       "tooltip": "포트: Workspace {{workspace}}, 외부 {{external}}",
+      "viewPortsTooltip": "사용 중인 포트 보기",
       "noWorkspacePorts": "Workspace 포트가 감지되지 않았습니다",
       "externalLabel": "외부",
       "unknownProcess": "알 수 없는 프로세스",
@@ -1151,9 +1176,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token is required",
       "createTokenButton": "Token 만들기",
-      "openGitSettingsButton": "Git 설정 열기",
+      "openGitSettingsButton": "설정 열기",
       "configureInSettings": "설정에서 Git 구성",
-      "configureInSettingsDesc": "설정 → 통합 → Git에서 GitHub App 액세스를 추가하거나 token을 저장하거나 로컬 자격 증명을 스캔한 다음 이 Git 작업을 다시 시도하세요."
+      "configureInSettingsDesc": "설정 → 연결에서 GitHub App 액세스를 추가하거나 token을 저장하거나 로컬 자격 증명을 스캔한 다음 이 Git 작업을 다시 시도하세요."
     },
     "actions": {
       "publish": "Publish",
@@ -1360,7 +1385,9 @@
         "delete": "삭제",
         "deleteTemplate": "{branch} 삭제",
         "createSessionWith": "세션 Branch 전환",
-        "createSessionWithTemplate": "세션 Branch를 {branch}(으)로 전환"
+        "createSessionWithTemplate": "세션 Branch를 {branch}(으)로 전환",
+        "switchWorktree": "Worktree 전환",
+        "switchWorktreeTemplate": "{worktree}(으)로 전환"
       },
       "actions": {
         "createNew": "새 브랜치 만들기",
@@ -1371,7 +1398,8 @@
         "refresh": "브랜치 새로 고침",
         "checkoutDetachedSuccess": "현재 커밋에서 detached HEAD 상태입니다",
         "checkoutDetachedFailed": "detached HEAD 체크아웃 실패",
-        "removeWorktree": "Worktree 제거"
+        "removeWorktree": "Worktree 제거",
+        "newWorktree": "새 Worktree..."
       },
       "messages": {
         "deletedCount_one": "브랜치 {{count}}개 삭제됨",
@@ -1386,7 +1414,9 @@
         "basedOn": "기준",
         "worktrees": "Worktrees",
         "worktreeInUse": "사용 중",
-        "checkedOutInWorktree": "Worktree에서 체크아웃됨: {{path}}"
+        "checkedOutInWorktree": "Worktree에서 체크아웃됨: {{path}}",
+        "mainWorktreeSection": "메인 Worktree",
+        "linkedWorktrees": "연결된 Worktree"
       },
       "placeholders": {
         "checkout": "브랜치",
@@ -1495,7 +1525,8 @@
         "workspace": "검색하거나 폴더 경로 입력",
         "branch": "브랜치 검색...",
         "source": "소스 검색...",
-        "actions": "작업 검색..."
+        "actions": "작업 검색...",
+        "worktree": "Worktree 검색..."
       },
       "groups": {
         "agentSession": "Agent 세션",
@@ -1526,6 +1557,11 @@
           "label": "Agent 세션 검색",
           "pillLabel": "세션 검색",
           "placeholder": "Agent 세션 검색..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Workspace 전환"
@@ -1624,11 +1660,8 @@
     "chatRight": "오른쪽 채팅",
     "pageSettings": "페이지 설정",
     "pageLayout": "페이지 레이아웃",
-    "layoutMode": "레이아웃 모드",
     "inset": "인셋",
     "full": "전체",
-    "compact": "컴팩트",
-    "comfort": "편안함",
     "theme": "테마",
     "primaryPanel": "사이드바",
     "sidebarPosition": "사이드바 위치",
@@ -1685,15 +1718,13 @@
     "disableChatPagination": "채팅 페이지 나누기 끄기",
     "useModelPickerSpotlight": "Spotlight 모델 선택기 사용",
     "useModelPickerDropdown": "드롭다운 모델 선택기 사용",
-    "useCompactWorkstationLayout": "컴팩트 Workstation 레이아웃 사용",
-    "useComfortWorkstationLayout": "편안한 Workstation 레이아웃 사용",
     "moveWorkstationSidebarLeft": "Workstation 사이드바를 왼쪽으로 이동",
     "moveWorkstationSidebarRight": "Workstation 사이드바를 오른쪽으로 이동",
     "enableDockAutoHide": "Workstation Dock 자동 숨기기",
     "disableDockAutoHide": "Workstation Dock 항상 표시",
     "openMyStation": "My Station으로 이동",
     "openAgentStation": "Agent Station으로 이동",
-    "openOpsControl": "Ops Control로 이동",
+    "openKanban": "Kanban로 이동",
     "changeLanguage": "언어 변경",
     "switchToSystemTheme": "시스템 테마 따르기",
     "detectUpdate": "업데이트 확인",
@@ -1858,15 +1889,6 @@
     "lastActive": "마지막 활동: {{date}}",
     "activeNow": "현재 활동 중: {{ides}}",
     "active": "활성",
-    "tabs": {
-      "activity": "활동",
-      "focus": "집중",
-      "languages": "언어",
-      "heatmap": "히트맵",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI 세션",
     "cliPrompt": "프롬프트",
     "cliMessages": "메시지",
@@ -1948,12 +1970,15 @@
     "removeWorktreeMessage": "디스크에서 Worktree checkout을 제거합니다. branch와 commits는 유지됩니다.",
     "removeWorktreeSuccess": "Worktree 제거됨",
     "removeWorktreeFailed": "Worktree 제거 실패",
+    "emptyState": {
+      "viewSourceControl": "Source Control 보기",
+      "viewIssues": "Issues 보기",
+      "viewGitHistory": "Git 기록 보기",
+      "viewPullRequests": "Pull Requests 보기"
+    },
     "pill": {
       "focus": "포커스",
       "allChanges": "모든 변경 사항"
-    },
-    "sessionFilter": {
-      "allSessions": "모든 세션"
     }
   },
   "contextInfo": {

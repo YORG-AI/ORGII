@@ -50,8 +50,6 @@ export type { WorkStationTabShortcutBridgeOptions } from "./useWorkStationTabSho
 export { usePublishWorkstationTabHeader } from "./useWorkstationTabHeader";
 export type { WorkstationTabHeaderHost } from "./useWorkstationTabHeader";
 
-export { useDockFilterUrlSync } from "./useDockFilterUrlSync";
-
 export {
   useNarrowChatFocus,
   NARROW_CHAT_FOCUS_BREAKPOINT_PX,

@@ -1,27 +1,42 @@
 /**
  * Renderer wrapper for `workItem-detail` tabs.
  *
- * `WorkItemDetailPage` is mounted today inside
- * `ProjectManagerContentRouter` with `onCloseTab`, `onUpdateTabMeta`,
- * `onSetTabUnsaved`, and `onEmbeddedWorkItemDetailStateChange`.
- * Phase 1b cannot reach those callbacks without rewiring the router.
- *
- * TODO(phase-2): expose the work-item detail callbacks through the
- * dispatcher context so this surface can render standalone.
+ * Renders `WorkItemDetailPage` through the unified dispatcher, pulling its
+ * close / chat / tab-meta callbacks from the hoisted Project host context —
+ * mirroring `ProjectManagerContentRouter`.
  */
 import React, { memo } from "react";
 
+import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManagerLayout/context/projectHostContext";
+import WorkItemDetailPage from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetailPage";
+import { getWorkItemDetailTabChrome } from "@src/store/workstation/tabs";
+
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
 
 const WorkItemDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
-  ({ tab }) => (
-    <HostCoupledPlaceholder
-      tabType={tab.type}
-      title={String(tab.title ?? "Work Item")}
-      hostNote="Work item detail still rendered by ProjectManagerContentRouter (needs tab close / meta / unsaved / state callbacks). Phase 2 will lift these through the dispatcher context."
-    />
-  )
+  ({ tab }) => {
+    const { onCloseTab, onOpenChatSession, onUpdateTabData, onUpdateTabMeta } =
+      useProjectHostContext();
+
+    return (
+      <WorkItemDetailPage
+        projectId={tab.data.projectId as string}
+        projectName={tab.data.projectName as string}
+        projectSlug={tab.data.projectSlug as string | undefined}
+        workItemId={tab.data.workItemId as string}
+        onClose={() => onCloseTab(tab.id)}
+        onOpenChatSession={onOpenChatSession}
+        pendingUpdates={
+          tab.data.pendingUpdates as Record<string, unknown> | undefined
+        }
+        publishHeaderToWorkstation
+        onWorkItemNameUpdated={(workItemName) => {
+          onUpdateTabData(tab.id, { workItemName });
+          onUpdateTabMeta(tab.id, getWorkItemDetailTabChrome(workItemName));
+        }}
+      />
+    );
+  }
 );
 
 WorkItemDetailTabRenderer.displayName = "WorkItemDetailTabRenderer";

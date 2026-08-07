@@ -28,6 +28,7 @@
     "agentSessions": "Sessões de Agent",
     "apiKeys": "Chaves de API",
     "appUpdate": "Atualização do App",
+    "security": "Segurança",
     "monitor": "Dispositivo & rede",
     "osAgentConfig": "Configuração do OS Agent",
     "sdeAgentConfig": "Configuração do SDE Agent",
@@ -39,7 +40,8 @@
     "storage": "Armazenamento",
     "projectUsage": "Project e Uso",
     "agentMemory": "Memória do Agent",
-    "agentOrg": "Equipe Agent"
+    "agentOrg": "Equipe Agent",
+    "collaboration": "Colaboração"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "Modelos & Keys",
       "myRoles": "Minhas funções",
       "rulesMemoryEvolution": "Regras, Memória & Evolução",
+      "security": "Segurança",
       "routines": "Rotinas",
       "tools": "Ferramentas integradas",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "housekeeper": "MiniCPM Housekeeper",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
+  },
+  "security": {
+    "scan": "Avisar antes de enviar segredos",
+    "scanDesc": "Verifica o que você digita no editor em busca de chaves de API, tokens e senhas, e pede confirmação antes de enviá-los ao modelo",
+    "entropy": "Detectar cadeias de alta entropia",
+    "entropyDesc": "Também sinaliza cadeias longas de aparência aleatória que não correspondem a um formato de chave conhecido. Detecta mais segredos, mas às vezes pode sinalizar hashes ou identificadores",
+    "customPatterns": "Padrões personalizados",
+    "customPatternsDesc": "Uma expressão regular por linha. Qualquer correspondência é tratada como um segredo. Expressões inválidas são ignoradas",
+    "customPatternsPlaceholder": "ex.: MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} padrão(ões) são inválidos e serão ignorados: {{patterns}}"
   },
   "myRoles": {
     "currentStatus": "Meu status atual",
@@ -149,17 +162,16 @@
       "zh-Hant": "Chinês tradicional"
     },
     "layout": "Layout",
-    "globalLayoutMethod": "Método de Layout",
-    "globalLayoutMethodDesc": "Escolha como os painéis de conteúdo emolduram o app",
+    "sidebar": "Barra lateral",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "Profundidade da borda da barra lateral",
+    "selectedItemTransparency": "Transparência do item selecionado",
     "spotlightPlacement": "Posição do Spotlight",
     "spotlightPlacementDesc": "Escolha onde a paleta de comandos Spotlight abre",
     "spotlightPlacementOptions": {
       "top": "Topo",
       "center": "Centro da página"
     },
-    "inset": "Conforto",
-    "full": "Expandido",
-    "compact": "Moderno",
     "left": "Esquerda",
     "right": "Direita",
     "light": "Claro",
@@ -324,7 +336,7 @@
     "configAgentKeys": "Chaves de API para OS e SDE Agents",
     "configAgentKeysDesc": "Adicione chaves de API de provedores como OpenAI, Anthropic e DeepSeek",
     "configCliKeys": "Chaves de API para CLI Agents",
-    "configCliKeysDesc": "Adicione chaves de API para ferramentas CLI como Claude Code, Codex e Gemini CLI"
+    "configCliKeysDesc": "Adicione chaves de API para ferramentas CLI como Claude Code e Codex"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agents",
@@ -891,7 +903,6 @@
     "diskCategory_logs": "Logs",
     "diskCategory_personalWorkspace": "Workspace do OS Agent",
     "diskCategory_cursorConfig": "Configurações CLI de Sessão",
-    "diskCategory_geminiCliHome": "Homes do Gemini CLI",
     "diskCategory_extensions": "Extensões",
     "diskNotScanned": "Ainda não escaneado",
     "diskScanning": "Escaneando...",
@@ -1292,5 +1303,11 @@
     "searchActions": "Pesquisar ações...",
     "noActionsFound": "Nenhuma ação encontrada",
     "noConfigurableProperties": "Sem propriedades configuráveis"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "Nuvem",
+      "selfHosted": "Auto-hospedado"
+    }
   }
 }

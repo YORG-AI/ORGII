@@ -1,4 +1,5 @@
 export * from "./agentWorkflow";
+export * from "./collabSync";
 export * from "./common";
 export * from "./labels";
 export * from "./members";

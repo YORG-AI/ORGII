@@ -79,6 +79,28 @@ describe("toFrontendSession", () => {
     expect(toFrontendSession(rustRecord).keySource).toBe("hosted_key");
   });
 
+  it("keeps imported app sessions distinct from launched CLI sessions", () => {
+    const cursorApp = toFrontendSession(
+      makeAggregateRecord({
+        sessionId: "cursoride-composer-1",
+        cliAgentType: "cursor_cli",
+      })
+    );
+    const claudeApp = toFrontendSession(
+      makeAggregateRecord({
+        sessionId: "claudecodeapp-session-1",
+        cliAgentType: "claude_code",
+      })
+    );
+
+    expect(cursorApp.category).toBe("cursor_ide");
+    expect(cursorApp.agentDisplayName).toBe("Cursor App");
+    expect(cursorApp.cliAgentType).toBeUndefined();
+    expect(claudeApp.category).toBe("external_history");
+    expect(claudeApp.agentDisplayName).toBe("Claude App");
+    expect(claudeApp.cliAgentType).toBeUndefined();
+  });
+
   it("converts optional fields", () => {
     const record = makeAggregateRecord({
       userInput: "Fix the bug",

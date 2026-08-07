@@ -81,6 +81,9 @@ pub fn acquire_execution_lock(
             }),
             locked_at: Some(now.clone()),
             lock_reason: Some(reason),
+            // Local (non-collab) acquisition: the collab holder is stamped
+            // server-side by orgii_acquire_work_item_lock and synced in.
+            locked_by_member_id: None,
         });
         frontmatter.updated_at = now;
         Ok(())

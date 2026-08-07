@@ -68,7 +68,7 @@ async function loadExternalHistory(
     logger.warn("No external history loader registered for session", sessionId);
     return [];
   }
-  const chunks = await source.loadChunks(sessionId);
+  const chunks = await source.loadPreviewChunks(sessionId);
   if (signal.aborted || !Array.isArray(chunks) || chunks.length === 0) {
     return [];
   }

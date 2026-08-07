@@ -181,6 +181,7 @@ globalStatusBarStateAtom.debugLabel = "globalStatusBarState";
 export interface StatusBarCallbacks {
   onRepoClick?: () => void;
   onBranchClick?: () => void;
+  onWorktreeClick?: () => void;
   /** Opens editor settings tab (Code / Project Manager — registered from AppShell). */
   onOpenSettings?: () => void;
   /** Toggles the primary sidebar panel (left or right depending on layoutMode). */

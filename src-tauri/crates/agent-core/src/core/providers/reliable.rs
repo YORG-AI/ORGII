@@ -186,6 +186,7 @@ impl ReliableProvider {
     fn error_kind(err: &ProviderError) -> &'static str {
         match err {
             ProviderError::RateLimited { .. } => "rate_limited",
+            ProviderError::UsageLimitReached(_) => "usage_limit_reached",
             ProviderError::Overloaded { .. } => "overloaded",
             ProviderError::ContextTooLong(_) => "context_too_long",
             ProviderError::MaxTokensExceedContext(_) => "max_tokens_exceed_context",
@@ -219,6 +220,7 @@ impl ReliableProvider {
         }
         match err {
             ProviderError::AuthError(_)
+            | ProviderError::UsageLimitReached(_)
             | ProviderError::ModelNotFound(_)
             | ProviderError::ContextTooLong(_)
             // Recoverable by the turn loop's dedicated rescue arms (lower
@@ -287,6 +289,7 @@ impl ReliableProvider {
                 retry_after_secs, ..
             } => retry_after_secs.map(|secs| secs * 1000),
             ProviderError::AuthError(_)
+            | ProviderError::UsageLimitReached(_)
             | ProviderError::ModelNotFound(_)
             | ProviderError::ContextTooLong(_)
             | ProviderError::MaxTokensExceedContext(_)

@@ -104,14 +104,67 @@ pub fn rename_branch(
     Ok(())
 }
 
+/// Split a remote-tracking ref into the ref Git accepts and the local branch
+/// name users expect to check out.
+///
+/// Branch lists expose short names such as `origin/feat/auth`, while callers may
+/// also provide the fully-qualified `refs/remotes/origin/feat/auth` form.
+fn remote_tracking_branch(ref_name: &str) -> Option<(String, String)> {
+    let fully_qualified = ref_name.starts_with("refs/remotes/");
+    let short_ref = ref_name.strip_prefix("refs/remotes/").unwrap_or(ref_name);
+    let (remote, local_name) = short_ref.split_once('/')?;
+    if !fully_qualified && !matches!(remote, "origin" | "upstream") {
+        return None;
+    }
+    if local_name.is_empty() || local_name == "HEAD" || local_name.starts_with("HEAD ->") {
+        return None;
+    }
+    Some((short_ref.to_string(), local_name.to_string()))
+}
+
+fn ref_exists(repo_path: &Path, full_ref: &str) -> bool {
+    run_git(repo_path, &["show-ref", "--verify", "--quiet", full_ref])
+        .is_ok_and(|output| output.status.success())
+}
+
 /// Checkout a branch or ref
 ///
 /// Handles remote branches by automatically creating a local tracking branch.
-/// For example, checking out "feature-branch" when only "origin/feature-branch" exists
-/// will create a local tracking branch.
+/// Selecting `origin/feature-branch`, for example, checks out the local
+/// `feature-branch` (creating it with upstream tracking when necessary) instead
+/// of leaving the repository at a detached remote-tracking ref.
 ///
 /// If `force` is true, uses `git checkout --force` to discard local changes.
 pub fn checkout_ref(repo_path: &Path, ref_name: &str, force: bool) -> Result<(), String> {
+    // An explicit remote-tracking ref is itself a valid checkout target, but
+    // checking it out directly detaches HEAD. Resolve it before the generic
+    // checkout attempt so branch-picker selection behaves like GitHub Desktop.
+    let exact_local_ref = format!("refs/heads/{}", ref_name);
+    if !ref_exists(repo_path, &exact_local_ref) {
+        if let Some((remote_ref, local_name)) = remote_tracking_branch(ref_name) {
+            let full_remote_ref = format!("refs/remotes/{}", remote_ref);
+            if ref_exists(repo_path, &full_remote_ref) {
+                let local_ref = format!("refs/heads/{}", local_name);
+                let mut args = vec!["checkout"];
+                if force {
+                    args.push("--force");
+                }
+
+                if ref_exists(repo_path, &local_ref) {
+                    args.push(&local_name);
+                } else {
+                    args.extend(["-b", &local_name, "--track", &remote_ref]);
+                }
+
+                let output = run_git(repo_path, &args)?;
+                if output.status.success() {
+                    return Ok(());
+                }
+                return Err(String::from_utf8_lossy(&output.stderr).to_string());
+            }
+        }
+    }
+
     // Build checkout args based on force flag
     let checkout_args = if force {
         vec!["checkout", "--force", ref_name]
@@ -205,6 +258,39 @@ pub fn get_default_branch(repo_path: &Path, remote: Option<&str>) -> Result<Stri
     }
 
     Err("Could not determine default branch".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::remote_tracking_branch;
+
+    #[test]
+    fn parses_short_remote_tracking_branch() {
+        assert_eq!(
+            remote_tracking_branch("origin/feat/org2-cloud-auth"),
+            Some((
+                "origin/feat/org2-cloud-auth".to_string(),
+                "feat/org2-cloud-auth".to_string(),
+            ))
+        );
+    }
+
+    #[test]
+    fn parses_fully_qualified_remote_tracking_branch() {
+        assert_eq!(
+            remote_tracking_branch("refs/remotes/upstream/feature/auth"),
+            Some((
+                "upstream/feature/auth".to_string(),
+                "feature/auth".to_string(),
+            ))
+        );
+    }
+
+    #[test]
+    fn ignores_remote_head_and_plain_branch_names() {
+        assert_eq!(remote_tracking_branch("refs/remotes/origin/HEAD"), None);
+        assert_eq!(remote_tracking_branch("develop"), None);
+    }
 }
 
 /// Get current branch with full info

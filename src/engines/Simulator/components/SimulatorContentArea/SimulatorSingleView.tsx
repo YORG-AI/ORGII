@@ -12,14 +12,12 @@
  * - the floating replay controls
  * - empty-state placeholder
  */
-import { useAtomValue } from "jotai";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
-import { globalLayoutMethodAtom } from "@src/store/ui/uiAtom";
 
 import FloatingReplayContainer from "../FloatingReplayContainer";
 
@@ -39,8 +37,6 @@ export const SimulatorSingleView: React.FC<SimulatorSingleViewProps> = ({
   compactMode = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const globalLayoutMethod = useAtomValue(globalLayoutMethodAtom);
-  const isFullMode = globalLayoutMethod === "full";
   const { sessionId } = useSessionId();
   const hasSession = Boolean(sessionId);
 
@@ -49,7 +45,7 @@ export const SimulatorSingleView: React.FC<SimulatorSingleViewProps> = ({
   const showEmptyTabsPlaceholder =
     hasSession && !displayContent && !isBootingEvent;
 
-  const showRounded = !hideHeader && !isFullMode;
+  const showRounded = !hideHeader;
   const showFloatingReplayControls =
     hasSession && mainContentAppType && mainContentAppType !== AppType.DIFF;
 

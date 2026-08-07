@@ -28,6 +28,7 @@
     "agentSessions": "Agent Sessions",
     "apiKeys": "API Keys",
     "appUpdate": "Actualización",
+    "security": "Seguridad",
     "monitor": "Dispositivo & red",
     "osAgentConfig": "Config de OS Agent",
     "sdeAgentConfig": "Config de SDE Agent",
@@ -39,7 +40,8 @@
     "storage": "Almacenamiento",
     "projectUsage": "Project y uso",
     "agentMemory": "Memoria del Agent",
-    "agentOrg": "Equipo Agent"
+    "agentOrg": "Equipo Agent",
+    "collaboration": "Colaboración"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "Modelos & Keys",
       "myRoles": "Mis roles",
       "rulesMemoryEvolution": "Reglas, Memoria & Evolución",
+      "security": "Seguridad",
       "routines": "Rutinas",
       "tools": "Herramientas integradas",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "housekeeper": "MiniCPM Housekeeper",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
+  },
+  "security": {
+    "scan": "Avisar antes de enviar secretos",
+    "scanDesc": "Analiza lo que escribes en el editor en busca de claves de API, tokens y contraseñas, y pide confirmación antes de enviarlos al modelo",
+    "entropy": "Detectar cadenas de alta entropía",
+    "entropyDesc": "También marca cadenas largas de aspecto aleatorio que no coinciden con un formato de clave conocido. Detecta más secretos, pero a veces puede marcar hashes o identificadores",
+    "customPatterns": "Patrones personalizados",
+    "customPatternsDesc": "Una expresión regular por línea. Cualquier coincidencia se trata como un secreto. Las expresiones no válidas se ignoran",
+    "customPatternsPlaceholder": "p. ej. MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} patrón(es) no son válidos y se ignorarán: {{patterns}}"
   },
   "myRoles": {
     "currentStatus": "Mi estado actual",
@@ -149,17 +162,16 @@
       "zh-Hant": "Chino tradicional"
     },
     "layout": "Diseño",
-    "globalLayoutMethod": "Método de diseño",
-    "globalLayoutMethodDesc": "Elige cómo enmarcan los paneles de contenido la app",
+    "sidebar": "Barra lateral",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "Profundidad del borde de la barra lateral",
+    "selectedItemTransparency": "Transparencia del elemento seleccionado",
     "spotlightPlacement": "Posición de Spotlight",
     "spotlightPlacementDesc": "Elige dónde se abre la paleta de comandos Spotlight",
     "spotlightPlacementOptions": {
       "top": "Arriba",
       "center": "Centro de la página"
     },
-    "inset": "Confort",
-    "full": "Expandido",
-    "compact": "Moderno",
     "left": "Izquierda",
     "right": "Derecha",
     "light": "Claro",
@@ -324,7 +336,7 @@
     "configAgentKeys": "API Keys para OS & SDE Agents",
     "configAgentKeysDesc": "Añadir API Keys de proveedores como OpenAI, Anthropic y DeepSeek",
     "configCliKeys": "API Keys para CLI Agents",
-    "configCliKeysDesc": "Añadir API Keys para herramientas CLI como Claude Code, Codex y Gemini CLI"
+    "configCliKeysDesc": "Añadir API Keys para herramientas CLI como Claude Code y Codex"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agents",
@@ -890,7 +902,6 @@
     "diskCategory_logs": "Registros",
     "diskCategory_personalWorkspace": "Espacio de trabajo de OS Agent",
     "diskCategory_cursorConfig": "Configuraciones CLI de Session",
-    "diskCategory_geminiCliHome": "Directorios Gemini CLI",
     "diskCategory_extensions": "Extensiones",
     "diskNotScanned": "Aún no escaneado",
     "diskScanning": "Escaneando...",
@@ -1292,5 +1303,11 @@
     "searchActions": "Buscar acciones...",
     "noActionsFound": "No se encontraron acciones",
     "noConfigurableProperties": "Sin propiedades configurables"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "Nube",
+      "selfHosted": "Autoalojado"
+    }
   }
 }

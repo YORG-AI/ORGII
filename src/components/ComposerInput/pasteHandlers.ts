@@ -24,6 +24,7 @@ import type { InstalledSkill } from "@src/types/extensions";
 import { extractSkillNameFromPath } from "@src/util/skills/skillPath";
 
 import type { ComposerFragmentPart } from "./cutHandler";
+import { parseGitHubPillUrl } from "./githubUrl";
 import type { ComposerPillAttrs } from "./types";
 import { TERMINAL_COPY_MAX_AGE, sanitizeText } from "./utils";
 
@@ -240,6 +241,21 @@ export function createPasteHandler(ctx: PasteHandlerContext) {
     }
 
     const pastedText = clipboardData.getData("text/plain");
+
+    const githubReference = parseGitHubPillUrl(pastedText);
+    if (githubReference) {
+      event.preventDefault();
+      ctx.insertPill({
+        filePath: githubReference.url,
+        fileName: githubReference.displayName,
+        isFolder: false,
+        iconType: githubReference.iconType,
+        lineStart: null,
+        lineEnd: null,
+      });
+      ctx.insertTextAtCaret(" ");
+      return true;
+    }
 
     const terminalCopy = window.__orgiiLastTerminalCopy;
     if (

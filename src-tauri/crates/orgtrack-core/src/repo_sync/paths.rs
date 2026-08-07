@@ -49,10 +49,6 @@ pub fn scan_checkpoint_path(repo_path: &Path) -> PathBuf {
     state_dir(repo_path).join("checkpoint.json")
 }
 
-pub fn scan_cancel_path(repo_path: &Path) -> PathBuf {
-    state_dir(repo_path).join("cancel")
-}
-
 pub fn files_dir(repo_path: &Path) -> PathBuf {
     derived_dir(repo_path).join("files")
 }

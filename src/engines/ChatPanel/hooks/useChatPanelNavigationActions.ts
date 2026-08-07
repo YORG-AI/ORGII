@@ -37,21 +37,9 @@ export function useChatPanelNavigationActions() {
     resetActiveSession();
   }, [resetActiveSession, showSessionSurface]);
 
-  const openStartPage = useCallback(() => {
-    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
-    setStartPageOpen(true);
-    resetActiveSession();
-  }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
-
   const openWorkItemCreate = useCallback(() => {
     setStartPageOpen(false);
     navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM });
-    resetActiveSession();
-  }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
-
-  const openWorkspaceDashboard = useCallback(() => {
-    setStartPageOpen(false);
-    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.WORKSPACE_DASHBOARD });
     resetActiveSession();
   }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
 
@@ -61,29 +49,9 @@ export function useChatPanelNavigationActions() {
     resetActiveSession();
   }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
 
-  const openManageIssues = useCallback(() => {
-    setStartPageOpen(false);
-    navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES });
-    resetActiveSession();
-  }, [navigateChatPanel, resetActiveSession, setStartPageOpen]);
-
-  const openCollabOrgSurface = useCallback(
-    (orgId: string) => {
-      navigateChatPanel({
-        kind: CHAT_PANEL_SURFACE_KIND.COLLAB_ORG,
-        collabOrg: { orgId },
-      });
-    },
-    [navigateChatPanel]
-  );
-
   return {
     dispatchClearSession,
-    openCollabOrgSurface,
-    openManageIssues,
-    openStartPage,
     openWorkItemCreate,
-    openWorkspaceDashboard,
     openWorkspaceExplore,
     resetActiveSession,
     resetToSessionSurface,

@@ -15,6 +15,10 @@ import {
   selectedRepoAtom,
   selectedRepoIdAtom,
 } from "@src/store/repo";
+import {
+  activeWorkspaceRootPathAtom,
+  activeWorktreeAtom,
+} from "@src/store/workspace";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
 
 import {
@@ -31,6 +35,8 @@ export function useBranchCheckout(): UseBranchCheckoutReturn {
   const selectedRepoId = useAtomValue(selectedRepoIdAtom);
   const [currentBranch, setCurrentBranch] = useAtom(currentBranchAtom);
   const selectedRepo = useAtomValue(selectedRepoAtom);
+  const activeWorktree = useAtomValue(activeWorktreeAtom);
+  const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
 
   const [checkoutLoading, setCheckoutLoading] = useState(isCheckingOut);
 
@@ -47,7 +53,10 @@ export function useBranchCheckout(): UseBranchCheckoutReturn {
       }
 
       const repo = selectedRepo;
-      const repoPath = repo?.path || repo?.fs_uri;
+      const repoPath =
+        activeWorktree?.repoId === selectedRepoId
+          ? activeWorkspaceRootPath
+          : repo?.path || repo?.fs_uri;
 
       if (!repoPath) {
         log.warn("[useBranchCheckout] Cannot checkout: no repo path");
@@ -130,7 +139,14 @@ export function useBranchCheckout(): UseBranchCheckoutReturn {
         notifyCheckoutState(false);
       }
     },
-    [selectedRepoId, selectedRepo, currentBranch, setCurrentBranch]
+    [
+      selectedRepoId,
+      selectedRepo,
+      activeWorktree,
+      activeWorkspaceRootPath,
+      currentBranch,
+      setCurrentBranch,
+    ]
   );
 
   return {

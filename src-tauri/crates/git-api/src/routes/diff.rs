@@ -300,9 +300,14 @@ pub async fn get_diff_numstat(
     let from_ref = query.from_ref.as_deref().unwrap_or("HEAD");
     let staged_only = query.staged_only.unwrap_or(false);
 
-    let result =
-        commands::get_diff_numstat(&repo_path, from_ref, query.to_ref.as_deref(), staged_only)
-            .map_err(GitApiError::from_git_error)?;
+    let result = commands::get_diff_numstat(
+        &repo_path,
+        from_ref,
+        query.to_ref.as_deref(),
+        staged_only,
+        false,
+    )
+    .map_err(GitApiError::from_git_error)?;
 
     Ok(Json(serde_json::json!({
         "status": 0,
@@ -314,6 +319,9 @@ pub async fn get_diff_numstat(
 pub struct DiffNumstatCombinedQuery {
     path: Option<String>,
     from_ref: Option<String>,
+    /// When true, untracked (new) files count toward the totals. Defaults to
+    /// false so existing callers keep their tracked-only behavior.
+    include_untracked: Option<bool>,
 }
 
 /// Get combined per-file diff numstat for both staged and unstaged changes.
@@ -324,8 +332,9 @@ pub async fn get_diff_numstat_combined(
 ) -> GitApiResult<Json<serde_json::Value>> {
     let repo_path = resolve_repo_path(&repo_id, query.path.as_deref())?;
     let from_ref = query.from_ref.as_deref().unwrap_or("HEAD");
+    let include_untracked = query.include_untracked.unwrap_or(false);
 
-    let result = commands::get_diff_numstat_combined(&repo_path, from_ref)
+    let result = commands::get_diff_numstat_combined(&repo_path, from_ref, include_untracked)
         .map_err(GitApiError::from_git_error)?;
 
     Ok(Json(serde_json::json!({

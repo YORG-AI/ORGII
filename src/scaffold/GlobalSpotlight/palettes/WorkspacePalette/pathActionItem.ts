@@ -27,6 +27,9 @@ export function buildOpenPathItem({
     desc: candidatePath,
     icon: ICONS.folder,
     type: "action",
+    data: {
+      contextMenuCopy: { name: folderName, path: candidatePath },
+    },
     action: () => onOpenPath(candidatePath),
   };
 }

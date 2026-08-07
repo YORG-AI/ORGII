@@ -15,7 +15,7 @@
  *   - `FileHeaderMoreMenu`    → the trailing ellipsis dropdown menu.
  *   - `FileHeaderShell`       → inline vs teleport-to-workstation wrapper.
  */
-import { FileSymlink } from "lucide-react";
+import { FileSymlink, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -89,6 +89,8 @@ export interface FileHeaderProps {
   onFileSelect?: (filePath: string) => void;
   /** Whether to show an action that opens this diff as the regular file. */
   showOpenFileAction?: boolean;
+  /** Optional adjacent close action for dismissible file previews. */
+  onClose?: () => void;
   /** Callback when reload is requested */
   onReload?: () => void;
   /** Callback when editor search is requested from the more menu. */
@@ -186,6 +188,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
     onToggleChange,
     onFileSelect,
     showOpenFileAction = false,
+    onClose,
     onReload,
     onSearchRequest,
     onGoToLineRequest,
@@ -247,6 +250,9 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
           : filePath;
       onFileSelect?.(targetPath);
     }, [filePath, onFileSelect, repoPath]);
+    const handleCloseClick = useCallback(() => {
+      onClose?.();
+    }, [onClose]);
     const handleReloadMenuClick = useCallback(() => {
       if (loading || reloadMenuCoolingDown) return;
 
@@ -364,7 +370,9 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
     const showPreviewButton = isMarkdownFile && onTogglePreview && !hasStats;
     const showAnyTabSwitch =
       showViewModeToggle || showCustomToggle || showPreviewButton;
-    const showHeaderActionButtons = showMoreMenu || showOpenFileAction;
+    const showCloseAction = !!onClose;
+    const showHeaderActionButtons =
+      showMoreMenu || showOpenFileAction || showCloseAction;
     const breadcrumbLastSegmentIcon = headerIcon ? (
       headerIcon
     ) : useFileTypeIcon && filePath ? (
@@ -382,6 +390,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
       !!beforeMoreMenuSlot ||
       showMoreMenu ||
       showOpenFileAction ||
+      showCloseAction ||
       !!extraActions;
 
     const headerInner = (
@@ -587,6 +596,20 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
                         strokeWidth={1.75}
                       />
                     }
+                  />
+                )}
+
+                {showCloseAction && (
+                  <Button
+                    htmlType="button"
+                    variant="tertiary"
+                    size="small"
+                    iconOnly
+                    onClick={handleCloseClick}
+                    title={t("common:actions.close")}
+                    aria-label={t("common:actions.close")}
+                    className="flex-shrink-0"
+                    icon={<X size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
                   />
                 )}
               </span>

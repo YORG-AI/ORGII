@@ -8,7 +8,7 @@
  * - M = Modified (warm amber)
  * - U = Untracked (green)
  * - D = Deleted (red)
- * - R = Renamed (green, same as added)
+ * - R = Renamed (blue)
  * - C = Conflict (red)
  *
  * THEME SUPPORT:
@@ -120,7 +120,7 @@ const STATUS_TEXT_COLOR_MAP: Record<GitStatusLetter, string> = {
   U: "text-success-6", // Untracked — green
   A: "text-success-6", // Added (staged) — green
   D: "text-danger-6", // Deleted — red
-  R: "text-success-6", // Renamed — green (same as added)
+  R: "text-primary-6", // Renamed — blue, distinct from added
   C: "text-danger-6", // Conflict — red
   I: "text-text-3", // Ignored
   "?": "text-text-3", // Unknown
@@ -168,7 +168,7 @@ const STATUS_BG_COLOR_MAP: Record<GitStatusLetter, string> = {
   U: "bg-success-5", // Untracked — green dot
   A: "bg-success-5", // Added (staged) — green dot
   D: "bg-danger-5", // Deleted — red dot
-  R: "bg-success-5", // Renamed — green dot (same as added)
+  R: "bg-primary-5", // Renamed — blue dot, distinct from added
   C: "bg-danger-5", // Conflict — red dot
   I: "bg-text-3", // Ignored
   "?": "bg-text-3", // Unknown

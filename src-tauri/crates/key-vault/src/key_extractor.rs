@@ -219,7 +219,6 @@ const NOISE_WORDS: &[&str] = &["cli", "code", "pro", "api", "key", "app"];
 /// ```text
 /// "codex"       → ["codex"]
 /// "claude_code" → ["claude"]          // "code" is noise
-/// "gemini_cli"  → ["gemini"]          // "cli"  is noise
 /// "cursor_cli"  → ["cursor"]
 /// "copilot"     → ["copilot"]
 /// "kiro"        → ["kiro"]

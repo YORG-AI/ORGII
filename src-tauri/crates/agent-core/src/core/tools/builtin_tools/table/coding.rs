@@ -359,6 +359,10 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         label_running: "tools.deleteFileRunning",
         label_done: "tools.deleteFileDone",
         label_failed: "tools.deleteFileFailed",
+        status_labels: &[
+            ("compact_running", "tools.deleteFileCompactRunning"),
+            ("compact_done", "tools.deleteFileCompactDone"),
+        ],
         actions: &[
             action_sub!("delete", "Delete a single file", FileWrite, labels: "tools.deleteFileDeleteRunning", "tools.deleteFileDeleteDone", "tools.deleteFileDeleteFailed"),
         ],

@@ -25,16 +25,6 @@ pub enum OrgtrackScanPhase {
     Done,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OrgtrackScanOptions {
-    pub repo_path: String,
-    pub tier: OrgtrackTier,
-    pub allow_raw_trajectory: bool,
-    pub resume: bool,
-    pub rebuild: bool,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OrgtrackScanCounts {
@@ -273,28 +263,6 @@ pub struct OrgtrackFileTimeline {
     pub file_path: String,
     pub path_hash: String,
     pub entries: Vec<OrgtrackFileTimelineEntry>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OrgtrackFileSessionLookup {
-    pub schema_version: u32,
-    pub file_path: String,
-    pub path_hash: String,
-    pub sessions: Vec<OrgtrackFileSessionSummary>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OrgtrackFileSessionSummary {
-    pub session_id: String,
-    pub session_label: Option<String>,
-    pub agent_identity: Option<OrgtrackAgentIdentity>,
-    pub first_edit_at: i64,
-    pub last_edit_at: i64,
-    pub edit_count: usize,
-    pub commit_shas: Vec<String>,
-    pub reachability_states: Vec<OrgtrackReachabilityState>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

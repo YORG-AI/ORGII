@@ -16,8 +16,8 @@
  * - confirmDestructiveAction — unified discard confirmation dialog
  * - useDebouncedCallback — replaces hand-rolled debounce timer
  */
-import { invoke } from "@tauri-apps/api/core";
 import { remove } from "@tauri-apps/plugin-fs";
+import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { GitWorkingDirectoryFile } from "@src/api/http/git";
@@ -30,6 +30,7 @@ import { getGitStatus } from "@src/api/http/git/status";
 import type { GitStatusData } from "@src/api/http/git/types";
 import { normalizeGitStatus } from "@src/config/gitStatus";
 import { useFileSelection } from "@src/hooks/git/sourceControl";
+import { generateCommitMessage } from "@src/hooks/git/sourceControl/commitMessageGeneration";
 import { useRepoStatusListener } from "@src/hooks/git/useRepoStatusListener";
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
 import { createLogger } from "@src/hooks/logger";
@@ -37,6 +38,7 @@ import {
   DEBOUNCE_DELAYS,
   useDebouncedCallback,
 } from "@src/hooks/perf/useDebouncedCallback";
+import { gitCommitInstructionsAtom } from "@src/store/ui/editorSettingsAtom";
 import type { GitFile } from "@src/types/git/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 import { decodeOctalPath } from "@src/util/file/pathUtils";
@@ -96,6 +98,7 @@ export function usePerRepoSourceControl(
   options: UsePerRepoSourceControlOptions
 ): UsePerRepoSourceControlResult {
   const { repoPath, repoId, onGitFileSelect } = options;
+  const commitInstructions = useAtomValue(gitCommitInstructionsAtom);
 
   const [gitStatus, setGitStatus] = useState<GitStatusData | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -436,9 +439,7 @@ export function usePerRepoSourceControl(
   const handleGenerateCommitMessage = useCallback(async () => {
     setGenerateLoading(true);
     try {
-      const message = await invoke<string>("generate_commit_message", {
-        repoPath,
-      });
+      const message = await generateCommitMessage(repoPath, commitInstructions);
       if (message) setCommitMessage(message);
     } catch (err) {
       log.error(
@@ -448,7 +449,7 @@ export function usePerRepoSourceControl(
     } finally {
       setGenerateLoading(false);
     }
-  }, [repoPath]);
+  }, [repoPath, commitInstructions]);
 
   // ============================================
   // Assemble state — callbacks are stable, so this only

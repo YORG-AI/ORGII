@@ -1,11 +1,9 @@
 /**
  * Per-category pagination state for the sidebar's session list.
  *
- * The sidebar fetches each list bucket in its own page (top N per category, see
- * `SESSION_SIDEBAR_PAGE_SIZE`) so a power user with 5000 CLI sessions doesn't
- * make us pull all of them just to render the "Today" bucket. Imported history
- * sources get their own source-specific pagination keys so Codex App and future
- * Claude Code pages cannot overwrite each other.
+ * Native categories use one offset page. Imported-history sources additionally
+ * track an offset per date bucket so Today cannot starve Yesterday even when a
+ * source has thousands of recent rows. See `SESSION_SIDEBAR_PAGE_SIZE`.
  */
 import { atom } from "jotai";
 
@@ -13,6 +11,10 @@ import {
   IMPORTED_HISTORY_SOURCES,
   type ImportedHistoryListCategory,
 } from "@src/api/tauri/externalHistory";
+import {
+  SESSION_DATE_BUCKET_KEYS,
+  type SessionDateBucket,
+} from "@src/util/session/sessionDateBuckets";
 
 export type BaseSessionListCategory = "cli_agent" | "rust_agent";
 
@@ -29,9 +31,8 @@ export const SESSION_LIST_CATEGORIES: readonly SessionListCategory[] = [
 ];
 
 /**
- * Default page size per category. 10 rows is enough to cover the most-recent
- * "Today" / "Yesterday" buckets for an average user; the "Load more" row
- * fetches another page on demand.
+ * Default page size per native category and per imported-history date bucket.
+ * The "Load more" row fetches another bounded page on demand.
  */
 export const SESSION_SIDEBAR_PAGE_SIZE = 10;
 
@@ -39,6 +40,25 @@ export interface CategoryPaginationState {
   loaded: number;
   hasMore: boolean;
   loading: boolean;
+  dateBuckets?: DateBucketPaginationMap;
+}
+
+export interface DateBucketPaginationState {
+  loaded: number;
+  hasMore: boolean;
+}
+
+export type DateBucketPaginationMap = Readonly<
+  Record<SessionDateBucket, DateBucketPaginationState>
+>;
+
+export function emptyDateBucketPagination(): DateBucketPaginationMap {
+  return Object.fromEntries(
+    SESSION_DATE_BUCKET_KEYS.map((bucket) => [
+      bucket,
+      { loaded: 0, hasMore: false },
+    ])
+  ) as DateBucketPaginationMap;
 }
 
 const DEFAULT_STATE: CategoryPaginationState = {

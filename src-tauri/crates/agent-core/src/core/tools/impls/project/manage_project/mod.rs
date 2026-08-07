@@ -33,6 +33,7 @@ pub struct ProjectTool {
     /// Agent model id for the running session (used with session account for
     /// `start_item`).
     agent_model: String,
+    session_org_id: Option<String>,
 }
 
 impl ProjectTool {
@@ -40,11 +41,13 @@ impl ProjectTool {
         app_handle: Option<tauri::AppHandle>,
         session_account_id: Option<String>,
         agent_model: String,
+        session_org_id: Option<String>,
     ) -> Self {
         Self {
             app_handle,
             session_account_id,
             agent_model,
+            session_org_id,
         }
     }
 
@@ -92,7 +95,7 @@ impl Tool for ProjectTool {
                 let slug = Self::resolve_slug(&params)?;
                 projects::read(&slug).await
             }
-            "create" => projects::create(&params).await,
+            "create" => projects::create(&params, self.session_org_id.as_deref()).await,
             "update" => {
                 let slug = Self::resolve_slug(&params)?;
                 projects::update(&slug, &params).await

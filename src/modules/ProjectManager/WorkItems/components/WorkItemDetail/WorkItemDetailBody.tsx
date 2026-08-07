@@ -42,6 +42,8 @@ interface WorkItemDetailBodyProps {
   isStartingAgent: boolean;
   activeAgentSessionId?: string | null;
   activeAgentRole?: AgentRole | null;
+  isLockedByOther: boolean;
+  lockHolderName: string | null;
   onUpdateWorkItem: (updates: Partial<WorkItemExtended>) => void;
   onUpdateWorkItemImmediate: (updates: Partial<WorkItemExtended>) => void;
   onStartAgent: (instructions?: string) => void;
@@ -76,6 +78,8 @@ export function WorkItemDetailBody({
   isStartingAgent,
   activeAgentSessionId,
   activeAgentRole,
+  isLockedByOther,
+  lockHolderName,
   onUpdateWorkItem,
   onUpdateWorkItemImmediate,
   onStartAgent,
@@ -139,6 +143,8 @@ export function WorkItemDetailBody({
               onRefreshWorkflow={onRefreshWorkItem}
               activeAgentSessionId={activeAgentSessionId}
               activeAgentRole={activeAgentRole}
+              isLockedByOther={isLockedByOther}
+              lockHolderName={lockHolderName}
               onCreatePr={onCreatePr}
             />
           </div>

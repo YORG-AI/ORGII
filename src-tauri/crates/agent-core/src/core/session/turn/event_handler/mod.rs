@@ -136,6 +136,14 @@ pub struct UnifiedEventHandler {
     /// Streaming buffer for message/thinking accumulation (Rust single source of truth).
     streaming_buffer: StreamingBuffer,
     flushed_message_sessions: Mutex<HashSet<String>>,
+    /// EventStore ids of message/thinking segments flushed during the LLM
+    /// response currently being received, keyed by session. When the stream
+    /// errors mid-response the retry regenerates the WHOLE response, so
+    /// these already-pushed segments must be retracted or they remain as
+    /// duplicated orphan bubbles (`on_stream_retry`). Cleared when a
+    /// response completes normally (`on_assistant_iteration_complete`) —
+    /// from that point the segments are authoritative.
+    retractable_stream_segments: Mutex<std::collections::HashMap<String, Vec<String>>>,
     /// Per-index accumulation of streamed `create_plan` tool args, keyed by
     /// the provider's tool-call block index. Powers the live drafting plan
     /// card: a skeleton tool_call event is pushed on block start, then
@@ -178,6 +186,33 @@ impl UnifiedEventHandler {
             .is_some_and(|active_turn_id| active_turn_id == bound_turn_id)
     }
 
+    /// Remember a flushed stream segment as retractable until the current
+    /// LLM response completes successfully.
+    fn track_retractable_segment(&self, session_id: &str, event_id: &str) {
+        if let Ok(mut segments) = self.retractable_stream_segments.lock() {
+            segments
+                .entry(session_id.to_string())
+                .or_default()
+                .push(event_id.to_string());
+        }
+    }
+
+    /// The in-flight LLM response completed successfully — its flushed
+    /// segments are now authoritative and must survive any later retry.
+    fn commit_retractable_segments(&self, session_id: &str) {
+        if let Ok(mut segments) = self.retractable_stream_segments.lock() {
+            segments.remove(session_id);
+        }
+    }
+
+    /// Drain the retractable segment ids for a session (retry path).
+    fn take_retractable_segments(&self, session_id: &str) -> Vec<String> {
+        self.retractable_stream_segments
+            .lock()
+            .map(|mut segments| segments.remove(session_id).unwrap_or_default())
+            .unwrap_or_default()
+    }
+
     /// Creates a new unified event handler.
     pub fn new(config: EventHandlerConfig) -> Self {
         Self {
@@ -187,6 +222,7 @@ impl UnifiedEventHandler {
             agent_called: AtomicBool::new(false),
             streaming_buffer: StreamingBuffer::with_default_timeout(),
             flushed_message_sessions: Mutex::new(HashSet::new()),
+            retractable_stream_segments: Mutex::new(std::collections::HashMap::new()),
             plan_draft_streams: Mutex::new(std::collections::HashMap::new()),
             last_context_tokens: std::sync::atomic::AtomicI64::new(0),
         }
@@ -208,6 +244,7 @@ impl UnifiedEventHandler {
         // this order would render Thought *after* the answer on reload.
         if let Some(mut event) = self.streaming_buffer.complete_thinking(session_id) {
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
+            self.track_retractable_segment(session_id, &event.id);
             self.push_to_store(session_id, event.clone());
             broadcast_event(
                 "agent:streaming_complete",
@@ -224,6 +261,7 @@ impl UnifiedEventHandler {
             if let Ok(mut sessions) = self.flushed_message_sessions.lock() {
                 sessions.insert(session_id.to_string());
             }
+            self.track_retractable_segment(session_id, &event.id);
             self.push_to_store(session_id, event.clone());
             broadcast_event(
                 "agent:streaming_complete",
@@ -662,6 +700,11 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
+        // This response finished streaming successfully — any segments
+        // flushed while it was arriving are final. Must happen before the
+        // empty-content early return: tool-call-only iterations also commit.
+        self.commit_retractable_segments(session_id);
+
         // Persist one `assistant` row per LLM iteration that produced text.
         //
         // Iterations with only tool_calls (no text) are skipped here: the
@@ -834,6 +877,30 @@ impl TurnEventHandler for UnifiedEventHandler {
         max_attempts: u32,
         backoff_ms: u64,
     ) {
+        // The interrupted response will be regenerated from scratch, so
+        // everything already surfaced from it must be withdrawn:
+        //
+        // 1. Retract flushed segments (EventStore + SQLite write-through).
+        //    A response like `[Text, ToolBlock…interrupted]` has already
+        //    pushed `Text` as an authoritative segment at the tool-block
+        //    flush; without retraction the retry produces a near-identical
+        //    second bubble (the "duplicated 'Writing 300 lines…'" bug).
+        // 2. Drop any partial in-buffer accumulation so it can't prefix the
+        //    regenerated text.
+        // 3. Un-mark the session's flushed-message flag: the flushed segment
+        //    is gone, so the retry's final text must not be suppressed by
+        //    `consumed_streamed_message` in `on_assistant_iteration_complete`.
+        let retracted = self.take_retractable_segments(session_id);
+        if !retracted.is_empty() {
+            if let Some(ref handle) = self.config.app_handle {
+                event_pipeline_bridge::remove_events_by_ids(handle, session_id, retracted);
+            }
+        }
+        self.streaming_buffer.discard_streams(session_id);
+        if let Ok(mut sessions) = self.flushed_message_sessions.lock() {
+            sessions.remove(session_id);
+        }
+
         // Low-key observability. The frontend uses this to render a footer
         // indicator ("Reconnecting… attempt N/M"). NEVER broadcast this as
         // `agent:message_delta` — that would poison the chat bubble with
@@ -924,5 +991,33 @@ mod tests {
     #[test]
     fn assistant_event_pushes_terminal_text_after_prior_streamed_segment() {
         assert!(should_push_assistant_event(false, false, true));
+    }
+
+    #[test]
+    fn retractable_segments_drained_once_on_retry() {
+        let handler = UnifiedEventHandler::new(EventHandlerConfig::default());
+        handler.track_retractable_segment("s1", "stream-msg-s1-1");
+        handler.track_retractable_segment("s1", "stream-think-s1-1");
+        handler.track_retractable_segment("s2", "stream-msg-s2-1");
+
+        let drained = handler.take_retractable_segments("s1");
+        assert_eq!(drained, vec!["stream-msg-s1-1", "stream-think-s1-1"]);
+        // Second drain is empty — a retry must not retract the same ids twice.
+        assert!(handler.take_retractable_segments("s1").is_empty());
+        // Other sessions are untouched.
+        assert_eq!(
+            handler.take_retractable_segments("s2"),
+            vec!["stream-msg-s2-1"]
+        );
+    }
+
+    #[test]
+    fn committed_segments_survive_later_retry() {
+        let handler = UnifiedEventHandler::new(EventHandlerConfig::default());
+        handler.track_retractable_segment("s1", "stream-msg-s1-1");
+        // Response completed successfully — segment becomes authoritative.
+        handler.commit_retractable_segments("s1");
+        // A retry in a LATER response must not retract the committed segment.
+        assert!(handler.take_retractable_segments("s1").is_empty());
     }
 }

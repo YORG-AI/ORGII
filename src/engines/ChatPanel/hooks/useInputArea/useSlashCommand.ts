@@ -12,7 +12,12 @@ import { useTranslation } from "react-i18next";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { buildMcpToolCommand } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
-import { useSessionId } from "@src/engines/SessionCore/hooks/session/useSessionId";
+import { buildAddressCommentsPillPath } from "@src/features/Org2Cloud/addressCommentsSlashToken";
+import {
+  ADDRESS_COMMENTS_SLASH_SOURCE,
+  type AddressCommentsThreadOption,
+  useAddressCommentsSlashCommand,
+} from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import { useSessionExecModeField } from "@src/hooks/session/useSessionPatch";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
 import { SLASH_ACTIONS, type SlashItem } from "@src/types/extensions";
@@ -24,6 +29,8 @@ interface UseSlashCommandOptions {
   setShowSlashMenu: (show: boolean) => void;
   setSlashQuery: (query: string) => void;
   workspacePaths?: string[];
+  /** The session already resolved by the owning InputArea. */
+  sessionId?: string;
   /**
    * When `true`, `/mode` always reads + writes `creatorDefaultExecModeAtom`
    * even if there is an active session in the route. Set by callers that
@@ -33,6 +40,11 @@ interface UseSlashCommandOptions {
    * session they were on). Defaults to `false` (the InputArea case).
    */
   creatorDefaultMode?: boolean;
+}
+
+export interface AddressCommentsFlyoutData {
+  threads: AddressCommentsThreadOption[];
+  onConfirm: (selectedHeadIds: string[]) => void;
 }
 
 export interface SlashCommandHandlers {
@@ -50,6 +62,7 @@ export interface SlashCommandHandlers {
    * "/" menu must stay closed.
    */
   prefetchItems: (query: string) => void;
+  addressCommentsFlyout?: AddressCommentsFlyoutData;
 }
 
 export function useSlashCommand(
@@ -60,17 +73,16 @@ export function useSlashCommand(
     setShowSlashMenu,
     setSlashQuery,
     workspacePaths,
+    sessionId,
     creatorDefaultMode: forceCreatorDefault = false,
   } = options;
 
   // Mode source-of-truth follows the session: when the slash command is
   // typed inside a live chat the `/` mode picker reads + writes the
-  // session row. The SessionCreator path explicitly opts out via
-  // `creatorDefaultMode: true` because `useSessionId()` would otherwise
-  // resolve to the previously-active session — which is NOT the
-  // session being configured in the creator — and a `/mode` pick
-  // there would silently rewrite the background session's pill.
-  const { sessionId } = useSessionId();
+  // session row. Reuse the owning InputArea's already-resolved session id:
+  // resolving it again here without the InputArea's prop/session-scope can
+  // point slash actions at a stale background session after panel changes.
+  // The SessionCreator path explicitly opts out via `creatorDefaultMode`.
   const isInSession = !forceCreatorDefault && Boolean(sessionId);
   const creatorDefaultMode = useAtomValue(creatorDefaultExecModeAtom);
   const setCreatorDefaultMode = useSetAtom(creatorDefaultExecModeAtom);
@@ -93,6 +105,11 @@ export function useSlashCommand(
   const queryRef = useRef("");
 
   const { t } = useTranslation("sessions");
+  const { t: tNav } = useTranslation("navigation");
+  const addressComments = useAddressCommentsSlashCommand(
+    isInSession ? sessionId : null
+  );
+  const addressCommentsItem = addressComments.item;
   const builtinSlashItems = useMemo<SlashItem[]>(
     () => [
       {
@@ -102,8 +119,9 @@ export function useSlashCommand(
         source: "builtin",
         acceptsArgs: true,
       },
+      ...(addressCommentsItem ? [addressCommentsItem] : []),
     ],
-    [t]
+    [t, addressCommentsItem]
   );
 
   const {
@@ -139,9 +157,44 @@ export function useSlashCommand(
     queryRef.current = "";
   }, [setShowSlashMenu, setSlashQuery]);
 
+  const addressThreads = addressComments.threads;
+  const insertAddressCommentsPill = useCallback(
+    (selectedHeadIds: string[]) => {
+      if (!composerInputRef.current) return;
+      const count =
+        selectedHeadIds.length > 0
+          ? selectedHeadIds.length
+          : addressThreads.length;
+      composerInputRef.current.insertFilePill(
+        buildAddressCommentsPillPath(selectedHeadIds),
+        false,
+        "skill",
+        tNav("cloud.comments.addressPill", { count })
+      );
+      composerInputRef.current.focus();
+      setShowSlashMenu(false);
+      setSlashQuery("");
+      queryRef.current = "";
+    },
+    [composerInputRef, addressThreads, tNav, setShowSlashMenu, setSlashQuery]
+  );
+
+  const addressCommentsFlyout = useMemo<AddressCommentsFlyoutData | undefined>(
+    () =>
+      addressComments.available && addressThreads.length > 0
+        ? { threads: addressThreads, onConfirm: insertAddressCommentsPill }
+        : undefined,
+    [addressComments.available, addressThreads, insertAddressCommentsPill]
+  );
+
   const handleSlashSelect = useCallback(
     (item: SlashItem) => {
       if (!composerInputRef.current) return;
+
+      if (item.source === ADDRESS_COMMENTS_SLASH_SOURCE) {
+        insertAddressCommentsPill([]);
+        return;
+      }
 
       if (item.category === "skill") {
         const skillToken = `/${item.skillName ?? item.name}`;
@@ -194,7 +247,12 @@ export function useSlashCommand(
       setSlashQuery("");
       queryRef.current = "";
     },
-    [composerInputRef, setShowSlashMenu, setSlashQuery]
+    [
+      composerInputRef,
+      setShowSlashMenu,
+      setSlashQuery,
+      insertAddressCommentsPill,
+    ]
   );
 
   const handleSlashAppendSelect = useCallback(
@@ -244,5 +302,6 @@ export function useSlashCommand(
     filteredItems,
     slashLoading,
     prefetchItems,
+    addressCommentsFlyout,
   };
 }

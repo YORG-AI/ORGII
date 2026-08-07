@@ -1,177 +1,80 @@
-# AppUpdater Component
+# AppUpdater
 
-**Status**: ✅ Complete  
-**Location**: `src/scaffold/AppUpdater/`  
-**Last Updated**: December 26, 2025
-
----
+**Location:** `src/scaffold/AppUpdater/`
+**Last updated:** July 13, 2026
 
 ## Overview
 
-The AppUpdater component provides automatic update checking for Tauri applications. It checks for updates on app startup and periodically, with support for automatic installation and user-initiated updates. Uses Tauri updater plugin for version checking and update installation. Component renders nothing (returns null) - it only handles background update checking.
+`AppUpdater` is the headless Tauri update service mounted by
+`AppDeferredServices`. It uses one coordinator for check, download, and install
+state, and one scheduler for automatic triggers.
 
-### Key Features
+Automatic updates are controlled by `general.autoUpdateEnabled` in
+`~/.orgii/settings.jsonc`. The setting defaults to `true` and can be disabled in
+Settings → General.
 
-- ✅ **Automatic Checking**: Check for updates on app startup
-- ✅ **Periodic Checking**: Check every hour (60 _ 60 _ 1000ms interval)
-- ✅ **Auto Install**: Automatically download and install updates on startup/periodic checks
-- ✅ **User Initiated**: User-initiated update checks via exported function
-- ✅ **Version Display**: Display current and new versions in dialogs
-- ✅ **Update Notifications**: Notify users of available updates via Tauri dialogs
-- ✅ **Tauri Integration**: Tauri updater plugin integration
-- ✅ **No UI Rendering**: Component returns null, only handles background logic
-- ✅ **Browser Detection**: Shows message in browser environment (Tauri-only feature)
+## Automatic behavior
 
----
+- **Startup:** after a 10-second delay, check for a fresh release. If one is
+  available, download it and ask before installing or relaunching ORGII.
+- **While running:** check every two hours, when the app returns to the
+  foreground, and when network connectivity returns.
+- **Foreground event deduplication:** focus and visibility events share one
+  750 ms debounce path; checks also have a five-minute throttle.
+- **Silent preparation:** download an available package in the background
+  without showing progress toasts or forcing a restart, then show one
+  confirmation dialog. Installation only starts after the user confirms.
+- **Dialog actions:** users can skip the detected version, postpone the
+  decision while keeping the package ready, or install and restart. Skipped
+  versions remain suppressed across app launches.
+- **Disabled:** no startup, interval, foreground, or online checks are
+  registered. Manual checks and installs remain available.
+- **Enabled during an active session:** starts with a silent foreground check
+  and uses the same confirmation-gated install path as every other trigger.
 
-## Functions
+Installing is never automatic because the Tauri updater installer can
+terminate the running process on Windows. Users can postpone installation and
+save ongoing work before confirming the restart.
 
-The AppUpdater component serves as:
+## Public API
 
-1. **Update Management**: Manage application updates
-2. **Version Checking**: Check for new versions
-3. **Update Installation**: Install updates automatically
-4. **User Notifications**: Notify users of updates
-
----
-
-## Where It's Used
-
-### Primary Usage
-
-- Used in main App component
-- Automatically checks for updates
-
-```tsx
-// Used in App.tsx
-import { AppUpdater } from "@src/scaffold/AppUpdater";
-
-function App() {
-  return (
-    <>
-      <AppUpdater />
-      {/* App content */}
-    </>
-  );
-}
+```ts
+checkForAppUpdates({ notify?: boolean, force?: boolean }): Promise<Update | null>
+checkForUpdatesManually(): Promise<Update | null>
+installAvailableAppUpdate(): Promise<void>
+useAvailableAppUpdate(): Update | null
+useIsAppUpdateInstalling(): boolean
 ```
 
----
+- `notify` shows toast feedback for the caller.
+- `force` bypasses the five-minute result throttle, but never starts a second
+  concurrent check.
+- Manual check failures clear a stale available-update result. Silent failures
+  preserve the last successful result while marking the coordinator failed.
+- Download requests prepare the package and open the install confirmation.
+- Concurrent confirmed install requests share one install; only the owning
+  request may continue to relaunch.
 
-## How to Use
+## State model
 
-### Basic Usage
-
-```tsx
-import { AppUpdater, checkForAppUpdates } from "@src/scaffold/AppUpdater";
-
-function App() {
-  return (
-    <>
-      <AppUpdater />
-      {/* App content */}
-    </>
-  );
-}
-
-// Manual check
-async function handleCheckUpdate() {
-  await checkForAppUpdates(true, false);
-}
+```text
+idle → checking → up-to-date | available | failed
+available → downloading → downloaded
+available | downloaded → installing → relaunching
 ```
 
-### Manual Update Check
+`appUpdaterCoordinator.ts` owns this lifecycle. Jotai atoms in `index.tsx` are
+read-only UI projections and are not independent sources of truth.
 
-```tsx
-import { checkForAppUpdates } from "@src/scaffold/AppUpdater";
+## Entry points
 
-async function handleManualCheck() {
-  // onUserClick=true, autoInstall=false
-  await checkForAppUpdates(true, false);
-}
-```
+- Automatic scheduling: `AppDeferredServices` → `AppUpdater`
+- Manual check: Settings, Global Spotlight, ActionSystem
+- Manual install: sidebar update button and ChatPanel update action
 
----
+## Dependencies
 
-## API Reference
-
-### AppUpdater Component
-
-The component accepts no props and automatically checks for updates.
-
-### checkForAppUpdates Function
-
-```typescript
-async function checkForAppUpdates(
-  onUserClick?: boolean,
-  autoInstall?: boolean
-): Promise<void>;
-```
-
-**Parameters:**
-
-- `onUserClick` - Whether this is a user-initiated check (default: false)
-- `autoInstall` - Whether to automatically install updates (default: false)
-
----
-
-## Implementation Details
-
-### Automatic Checking
-
-- Checks on app startup (useEffect on mount)
-- Checks every hour (60 _ 60 _ 1000ms interval)
-- Auto-installs updates by default (autoInstall=true)
-- Only runs in Tauri desktop environment
-
-### Update Flow
-
-1. Get current version using `getVersion()` from Tauri app API
-2. Check for updates using `check()` from Tauri updater plugin
-3. If update available:
-   - **Auto-install mode**: Download and install automatically, show info dialog, relaunch app
-   - **Manual mode**: Ask user for confirmation via Tauri dialog, download/install if confirmed, relaunch app
-4. If no update: Show info message (only if user-initiated)
-
-### Version Display
-
-- Shows current version from `getVersion()`
-- Shows new version from update object
-- Displays update body/notes in dialog
-- Uses Tauri dialog API (`ask`, `message`) for user interaction
-
-### Error Handling
-
-- Catches and logs update errors
-- Shows error messages to user via Tauri dialog (only if user-initiated)
-- Handles update check failures gracefully
-- Browser environment shows Toast message instead
-
-### Tauri Dependencies
-
-- `@tauri-apps/api/app` - getVersion()
-- `@tauri-apps/plugin-dialog` - ask(), message() for user dialogs
-- `@tauri-apps/plugin-process` - relaunch() for app restart
-- `@tauri-apps/plugin-updater` - check() for update checking
-
-### Dependencies
-
-- `@src/components/Toast` - Message component for browser notifications
-- `@src/util/tauri` - isTauriDesktop() utility
-
-### Exported Functions
-
-- `checkForAppUpdates(onUserClick?, autoInstall?)` - Main update check function
-- `checkForUpdatesManually()` - Convenience function for manual checks
-
----
-
-## Related Files
-
-- `src/scaffold/AppUpdater/index.tsx` - Main component
-- `src/App.tsx` - App component using AppUpdater
-
----
-
-**Last Updated**: December 26, 2025  
-**Status**: ✅ Production Ready (Tauri only)
+- `@tauri-apps/api/app` for the current version
+- `@tauri-apps/plugin-updater` for check/download/install
+- `@tauri-apps/plugin-process` for relaunch
+- central settings registry and `settings.jsonc` persistence

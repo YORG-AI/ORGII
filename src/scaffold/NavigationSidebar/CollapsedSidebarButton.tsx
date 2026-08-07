@@ -7,14 +7,12 @@ import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
-import { useIsCompactLayout } from "@src/modules/shared/layouts/useCompactLayout";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 
 const COLLAPSED_SIDEBAR_BUTTON_LEFT = 88;
 
 const CollapsedSidebarButtonComponent: React.FC = () => {
   const { t } = useTranslation("sessions");
-  const isCompactLayout = useIsCompactLayout();
   const collapsed = useAtomValue(sidebarCollapsedAtom);
   const setSidebarCollapsed = useSetAtom(sidebarCollapsedAtom);
   const label = t("common:tooltips.showSidebar");
@@ -36,7 +34,7 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
       style={
         {
           left: COLLAPSED_SIDEBAR_BUTTON_LEFT,
-          top: isCompactLayout ? "calc(50% + 4px)" : "50%",
+          top: "calc(50% + 4px)",
           WebkitAppRegion: "no-drag",
         } as React.CSSProperties & { WebkitAppRegion: string }
       }

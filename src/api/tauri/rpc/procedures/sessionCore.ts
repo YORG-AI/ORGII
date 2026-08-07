@@ -22,8 +22,8 @@ const cache = {
     .output(schemas.sessionCore.CachedEventRowsSchema)
     .build(),
 
-  loadTurnIndex: defineProcedure("cache_load_turn_index")
-    .input(schemas.sessionCore.SessionIdInput)
+  loadTurnIndex: defineProcedure("orgtrack_session_turn_metadata_index")
+    .input(schemas.sessionCore.TurnMetadataIndexInput)
     .output(z.array(schemas.sessionCore.TurnSummarySchema))
     .build(),
 

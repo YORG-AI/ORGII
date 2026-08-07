@@ -134,6 +134,7 @@ export function WorkItemDetailHeader({
               iconOnly
               onClick={() => onDeleteWorkItem(workItem.session_id)}
               aria-label={t("workItems.deleteWorkItem")}
+              data-testid="work-item-delete"
               icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
             />
           </WorkstationToolbarTooltip>

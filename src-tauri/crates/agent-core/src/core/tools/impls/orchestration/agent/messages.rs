@@ -115,14 +115,15 @@ pub(crate) fn build_resume_messages(
     full_system_prompt: &str,
     prompt: Option<&str>,
 ) -> Result<Vec<Value>, ToolError> {
-    let history =
-        tokio::task::block_in_place(|| crate::session::persistence::load_llm_history(resume_id))
-            .map_err(|err| {
-                ToolError::ExecutionFailed(format!(
-                    "Failed to load persisted history for session '{}': {}",
-                    resume_id, err
-                ))
-            })?;
+    let history = tokio::task::block_in_place(|| {
+        crate::session::persistence::load_llm_history_for_active_journey(resume_id)
+    })
+    .map_err(|err| {
+        ToolError::ExecutionFailed(format!(
+            "Failed to load persisted history for session '{}': {}",
+            resume_id, err
+        ))
+    })?;
     if history.is_empty() {
         return Err(ToolError::ExecutionFailed(format!(
             "No persisted history found for session '{}'",

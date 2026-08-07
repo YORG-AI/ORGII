@@ -19,6 +19,9 @@ interface IdleStateProps {
   executionLock?: WorkItemExecutionLock | null;
   onStartAgent?: (instructions?: string) => void;
   isStartingAgent?: boolean;
+  /** Collab lock held by a teammate (design §16.6): disable + show holder. */
+  isLockedByOther?: boolean;
+  lockHolderName?: string | null;
 }
 
 export const IdleState: React.FC<IdleStateProps> = ({
@@ -26,6 +29,8 @@ export const IdleState: React.FC<IdleStateProps> = ({
   executionLock,
   onStartAgent,
   isStartingAgent,
+  isLockedByOther,
+  lockHolderName,
 }) => {
   const { t } = useTranslation("projects");
 
@@ -34,7 +39,16 @@ export const IdleState: React.FC<IdleStateProps> = ({
     !!orchestratorConfig?.selected_account_id &&
     !!orchestratorConfig?.selected_model_id &&
     !isStartingAgent &&
-    !hasActiveExecutionLock;
+    !hasActiveExecutionLock &&
+    !isLockedByOther;
+
+  const startLabel = isLockedByOther
+    ? t("workItems.agentWorkflow.collabLockRunning", {
+        name: lockHolderName ?? "",
+      })
+    : isStartingAgent
+      ? t("workItems.agentWorkflow.running")
+      : t("workItems.agentWorkflow.startAgent");
 
   return (
     <Placeholder
@@ -44,9 +58,7 @@ export const IdleState: React.FC<IdleStateProps> = ({
       action={
         onStartAgent
           ? {
-              label: isStartingAgent
-                ? t("workItems.agentWorkflow.running")
-                : t("workItems.agentWorkflow.startAgent"),
+              label: startLabel,
               onClick: () => onStartAgent(),
               variant: "primary",
               disabled: !canStart,
@@ -101,6 +113,9 @@ interface CompletedStateProps {
   executionLock?: WorkItemExecutionLock | null;
   onStartAgent?: (instructions?: string) => void;
   isStartingAgent?: boolean;
+  /** Collab lock held by a teammate (design §16.6): disable + show holder. */
+  isLockedByOther?: boolean;
+  lockHolderName?: string | null;
 }
 
 export const CompletedState: React.FC<CompletedStateProps> = ({
@@ -108,6 +123,8 @@ export const CompletedState: React.FC<CompletedStateProps> = ({
   executionLock,
   onStartAgent,
   isStartingAgent,
+  isLockedByOther,
+  lockHolderName,
 }) => {
   const { t } = useTranslation("projects");
 
@@ -116,10 +133,22 @@ export const CompletedState: React.FC<CompletedStateProps> = ({
     !!orchestratorConfig?.selected_account_id &&
     !!orchestratorConfig?.selected_model_id &&
     !isStartingAgent &&
-    !hasActiveExecutionLock;
+    !hasActiveExecutionLock &&
+    !isLockedByOther;
+
+  const startLabel = isLockedByOther
+    ? t("workItems.agentWorkflow.collabLockRunning", {
+        name: lockHolderName ?? "",
+      })
+    : isStartingAgent
+      ? t("workItems.agentWorkflow.running")
+      : t("workItems.agentWorkflow.startAgent");
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md bg-fill-1 px-3 py-2">
+    <div
+      className="flex items-center justify-between gap-2 rounded-md bg-fill-1 px-3 py-2"
+      data-testid="work-item-agent-completed-state"
+    >
       <div className="flex items-center gap-1.5">
         <div className="flex h-4 w-4 items-center justify-center rounded-full bg-success-6">
           <Check size={10} strokeWidth={3} className="text-white" />
@@ -136,9 +165,7 @@ export const CompletedState: React.FC<CompletedStateProps> = ({
           disabled={!canStart}
           data-testid="work-item-start-agent-button"
         >
-          {isStartingAgent
-            ? t("workItems.agentWorkflow.running")
-            : t("workItems.agentWorkflow.startAgent")}
+          {startLabel}
         </Button>
       )}
     </div>

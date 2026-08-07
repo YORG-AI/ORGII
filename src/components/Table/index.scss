@@ -359,6 +359,43 @@
     position: static;
   }
 
+  /*
+   * Opt-in frozen first (label) column. Both the fixed-header and the body
+   * table scroll horizontally in sync, so pinning `left: 0` on each table's
+   * first cell keeps the label column visible. The cell paints an opaque
+   * surface so scrolled content passes behind it; header sits above other
+   * headers (z 21 > 20), body cell above sibling cells.
+   */
+  &.table-settings-sticky-first-col {
+    .table-fixed-header .table-th:first-child,
+    .table-scroll .table-row > .table-td:first-child {
+      position: sticky;
+      left: 0;
+      background: var(--settings-table-surface);
+    }
+
+    .table-fixed-header .table-th:first-child {
+      z-index: 21;
+    }
+
+    .table-scroll .table-row > .table-td:first-child {
+      z-index: 2;
+    }
+
+    /* Keep the pinned cell in sync with the row hover highlight. */
+    &.table-hover .table-scroll .table-row:hover > .table-td:first-child {
+      background: var(--fill-1);
+    }
+
+    /* Separator once the body is scrolled away from the left edge. */
+    &.table-scroll-has-left {
+      .table-fixed-header .table-th:first-child,
+      .table-scroll .table-row > .table-td:first-child {
+        box-shadow: 1px 0 0 0 var(--color-border-1);
+      }
+    }
+  }
+
   &.table-settings-no-header .table-thead {
     display: none;
   }
@@ -559,6 +596,39 @@
   container-type: inline-size;
 }
 
+// A page-scrolled SettingsTable keeps its body side borders on the root while
+// the rounded toolbar sticks independently. Mask the first 12px of those
+// straight root borders, then paint the rounded toolbar above the mask so the
+// parent border cannot protrude past the corner arc during scroll.
+.settings-table-sticky-mask {
+  position: relative;
+
+  &::before,
+  &::after {
+    position: absolute;
+    top: 0;
+    z-index: 0;
+    width: 1px;
+    height: 12px;
+    background: var(--color-bg-2);
+    pointer-events: none;
+    content: "";
+  }
+
+  &::before {
+    left: -1px;
+  }
+
+  &::after {
+    right: -1px;
+  }
+}
+
+.settings-table-sticky-surface {
+  position: relative;
+  z-index: 1;
+}
+
 .settings-table-root-default .table-settings {
   --settings-table-surface: var(--color-surface-container);
 }
@@ -606,6 +676,33 @@
   .table-row:hover
   > .table-td {
   background: transparent;
+}
+
+// The session list sits directly on the page surface, but its frozen first
+// column still needs an opaque paint layer so horizontally scrolled cells do
+// not show through it.
+.settings-table-root-transparent
+  .table-settings.table-settings-session-list-hover.table-settings-sticky-first-col {
+  .table-fixed-header .table-th:first-child,
+  .table-scroll .table-row > .table-td:first-child {
+    background: var(--color-bg-2);
+  }
+}
+
+// Session tables are navigable lists, so their enabled `hover` state must
+// remain visible even on the transparent SettingsTable surface.
+.table-settings.table-settings-session-list-hover.table-hover {
+  .table-row:hover,
+  .table-row:hover > .table-td {
+    background: var(--color-surface-hover);
+  }
+
+  &.table-settings-sticky-first-col
+    .table-scroll
+    .table-row:hover
+    > .table-td:first-child {
+    background: var(--color-surface-hover);
+  }
 }
 
 .settings-table-root-transparent .table-settings.table-dark .table-tbody {
@@ -674,33 +771,6 @@
   .table-col-hide-md {
     display: none;
   }
-}
-
-// Inverse-radius corners for sticky search header inside bg-fill-2 card.
-// Paints bg-bg-2 in the tiny triangles outside the rounded-t-lg curve
-// so the parent card background doesn't leak through.
-.settings-search-corners::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 12px;
-  pointer-events: none;
-  z-index: 1;
-  background:
-    radial-gradient(
-        circle 12px at 100% 100%,
-        transparent 7.5px,
-        var(--color-bg-2) 12px
-      )
-      left top / 12px 12px no-repeat,
-    radial-gradient(
-        circle 12px at 0% 100%,
-        transparent 7.5px,
-        var(--color-bg-2) 12px
-      )
-      right top / 12px 12px no-repeat;
 }
 
 // Fixed layout — forces columns to respect assigned widths

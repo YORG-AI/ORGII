@@ -77,6 +77,8 @@ export function useIntegrationsCategoryTableProps(
       onDisconnectAccount: accountsHook.handleDisconnect,
       onRevalidateAccount: accountsHook.handleRefreshAccount,
       refreshingAccountId: accountsHook.refreshingAccountId,
+      onRefreshModels: accountsHook.handleRefreshAllModels,
+      refreshingAllModels: accountsHook.refreshingAllModels,
       modelsActiveTab: modelsActiveTab ?? extensions.modelsActiveTab,
       onModelsTabChange: handleModelsTabChange,
       rulesActiveTab,

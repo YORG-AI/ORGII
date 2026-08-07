@@ -4,6 +4,7 @@ import type {
   AgentExecMode,
   AgentExecModeEntry,
 } from "@src/config/sessionCreatorConfig";
+import type { AddressCommentsThreadOption } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
 
 import type { FloatingPlacementStrategy } from "../floatingPlacement";
@@ -48,6 +49,11 @@ export interface SlashCommandPortalProps {
   onImageUpload?: () => void;
   /** When false, hides mode rows in inline search results for non-session editors. */
   showModeRows?: boolean;
+  /** Multi-select flyout data for the Address-comments entry. */
+  addressComments?: {
+    threads: AddressCommentsThreadOption[];
+    onConfirm: (selectedHeadIds: string[]) => void;
+  };
 }
 
 // ── Internal list-entry union ─────────────────────────────────────────────────
@@ -100,7 +106,7 @@ export type ListEntry =
 
 // ── Open-flyout state ─────────────────────────────────────────────────────────
 
-export type FlyoutKind = "category";
+export type FlyoutKind = "category" | "addressComments";
 
 export interface OpenFlyoutState {
   kind: FlyoutKind;

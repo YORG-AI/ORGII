@@ -11,6 +11,7 @@ import Checkbox from "@src/components/Checkbox";
 import WorkItemContextMenu from "@src/modules/ProjectManager/WorkItems/components/WorkItemContextMenu";
 import type { Project } from "@src/types/core/project";
 import { copyText } from "@src/util/data/clipboard";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import { getProjectContextMenuItems } from "../../projectContextMenu";
 
@@ -68,6 +69,17 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
     setContextMenuPosition(null);
   }, []);
 
+  const handleDelete = useCallback(async () => {
+    if (!onDelete) return;
+    const confirmed = await confirmDestructiveAction({
+      title: t("common:actions.confirmDeleteTitle", { name: project.name }),
+      message: t("common:actions.confirmDeleteMessage"),
+      okLabel: t("common:actions.delete"),
+      cancelLabel: t("common:actions.cancel"),
+    });
+    if (confirmed) onDelete(project);
+  }, [onDelete, project, t]);
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
     const date = new Date(dateStr);
@@ -86,9 +98,9 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
         onCopy: () => {
           void copyText(project.name);
         },
-        onDelete: onDelete ? () => onDelete(project) : undefined,
+        onDelete: onDelete ? () => void handleDelete() : undefined,
       }),
-    [onDelete, onSelect, project, t]
+    [handleDelete, onDelete, onSelect, project, t]
   );
 
   return (

@@ -24,6 +24,7 @@
 
 pub mod adapter;
 pub mod adapters;
+pub mod collab_bridge;
 pub mod conflict;
 pub mod conflict_log;
 pub mod connection_store;

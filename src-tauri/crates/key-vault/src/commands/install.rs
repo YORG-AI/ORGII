@@ -23,12 +23,6 @@ fn cli_install_commands(agent: &str) -> Result<Vec<Vec<String>>, String> {
             "-g".into(),
             "@openai/codex".into(),
         ]],
-        "gemini_cli" => vec![vec![
-            "npm".into(),
-            "install".into(),
-            "-g".into(),
-            "@google/gemini-cli".into(),
-        ]],
         "copilot" => vec![vec![
             "npm".into(),
             "install".into(),

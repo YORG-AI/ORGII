@@ -25,11 +25,60 @@ pub(super) async fn handle_command(
     cmd: GatewayCommand,
 ) -> Result<Option<OutboundMessage>, String> {
     let reply_text = match cmd {
+        GatewayCommand::JourneyInvalid(message) => message,
+        GatewayCommand::Journey(command) => match state.gateway_bindings.get(session_key).await {
+            None => "当前聊天尚未绑定会话，无法执行 Journey 命令。".to_string(),
+            Some(binding) => {
+                let session_id = binding.target_session_id;
+                match tokio::task::spawn_blocking(move || {
+                    let provenance = if matches!(
+                        command,
+                        crate::core::journey_lifecycle::JourneyCommand::ForkClose { .. }
+                    ) {
+                        let record = crate::session::persistence::get_session(&session_id)
+                            .map_err(|error| error.to_string())?
+                            .ok_or_else(|| "未找到当前绑定会话，无法解析审核路由。".to_string())?;
+                        let model_id = record
+                            .model
+                            .ok_or_else(|| "当前会话没有固定模型，禁止关闭分叉后 fallback。".to_string())?;
+                        let account_id = record
+                            .account_id
+                            .ok_or_else(|| "当前会话没有固定账户，禁止关闭分叉后 fallback。".to_string())?;
+                        let protocol = crate::providers::factory::resolve_account_protocol(
+                            &model_id,
+                            &account_id,
+                        )
+                        .map_err(|error| format!("无法解析当前会话协议：{error}"))?;
+                        Some(crate::core::journey_lifecycle::RuntimeProvenance {
+                            model_id,
+                            account_id,
+                            protocol,
+                        })
+                    } else {
+                        None
+                    };
+                    database::db::with_sessions_writer(|| {
+                        let mut conn = database::db::get_connection()
+                            .map_err(|error| error.to_string())?;
+                        crate::core::journey_lifecycle::JourneyApplicationService::execute_with_provenance(
+                            &mut conn,
+                            &session_id,
+                            None,
+                            command,
+                            provenance,
+                        )
+                    })
+                })
+                .await
+                {
+                    Ok(Ok(reply)) => reply,
+                    Ok(Err(error)) => format!("Journey 操作未完成：{error}"),
+                    Err(error) => format!("Journey 操作未完成：{error}"),
+                }
+            }
+        },
         GatewayCommand::NewSession => {
             state.gateway_bindings.clear(session_key).await;
-            if let Err(err) = clear_browse_state(session_key).await {
-                return Err(format!("Could not clear project-tree navigation: {err}"));
-            }
             info!("[gateway] Cleared binding for {}", session_key.as_str());
             "Conversation reset. The next message starts a fresh session.".to_string()
         }
@@ -108,20 +157,14 @@ pub(super) async fn handle_command(
 
             match run_manual_compact(state, &target_sid, &reset_policy).await {
                 ManualCompactResult::Forked(s) => {
-                    let suffix = if s.truncated {
-                        "\n_(Note: compactor fell back to truncation — older context dropped without summary.)_"
-                    } else {
-                        ""
-                    };
                     format!(
-                        "🗜️ Context compacted.\nCompressed: {} → {} messages (~{} → ~{} tokens).\nContinuing in new session `{}` (previous: `{}`).{}",
+                        "🗜️ Context compacted.\nCompressed: {} → {} messages (~{} → ~{} tokens).\nContinuing in new session `{}` (previous: `{}`).",
                         s.messages_before,
                         s.messages_after,
                         s.tokens_before,
                         s.tokens_after,
                         s.new_session_id,
                         s.old_session_id,
-                        suffix,
                     )
                 }
                 ManualCompactResult::AlreadyCompact { message_count, tokens } => format!(
@@ -153,9 +196,6 @@ pub(super) async fn handle_command(
     push_debug_outbound(state, &reply).await;
     Ok(None)
 }
-
-/// Handle an exact positive integer only after the dispatcher has confirmed
-/// that this chat owns a durable browse snapshot. This never creates a turn.
 pub(super) async fn handle_browse_selection(
     state: &AgentAppState,
     session_key: &SessionKey,
@@ -580,6 +620,7 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
         } else {
             ""
         };
+        let recent = recent_session_preview(&s.session_id);
         blocks.push(format!(
             "**#{:02} · {}{}**\n{}\n`{}`\n{}\n{}",
             idx + 1,
@@ -587,8 +628,8 @@ async fn build_session_list(state: &AgentAppState, session_key: &SessionKey) -> 
             current_badge,
             human_session_context(&s),
             s.session_id,
-            human_session_relation(&s),
-            terminal_turn_summary(&s.session_id),
+            human_session_relation(&s, &recent),
+            recent,
         ));
     }
     blocks.push(
@@ -608,6 +649,9 @@ fn human_session_title(s: &crate::session::persistence::UnifiedSessionRecord) ->
     let name = s.name.trim();
     if !name.is_empty() && name != s.session_id {
         return crate::utils::safe_truncate_chars_to_string(name, 48);
+    }
+    if let Some(title) = recent_user_title(&s.session_id) {
+        return title;
     }
     if let Some(channel) = s.channel.as_deref().filter(|x| !x.trim().is_empty()) {
         return format!("{} 讨论", compact_channel_name(channel));
@@ -634,7 +678,10 @@ fn human_session_context(s: &crate::session::persistence::UnifiedSessionRecord) 
     parts.join(" · ")
 }
 
-fn human_session_relation(s: &crate::session::persistence::UnifiedSessionRecord) -> String {
+fn human_session_relation(
+    s: &crate::session::persistence::UnifiedSessionRecord,
+    recent: &str,
+) -> String {
     let mut parts = Vec::new();
     if let Some(project) = s.project_slug.as_deref().filter(|x| !x.trim().is_empty()) {
         parts.push(format!("项目 `{}`", project));
@@ -643,7 +690,11 @@ fn human_session_relation(s: &crate::session::persistence::UnifiedSessionRecord)
         parts.push(format!("任务 `{}`", item));
     }
     if parts.is_empty() {
-        parts.push("未绑定项目/任务".to_string());
+        if recent.contains("WI-") || recent.contains("任务") {
+            parts.push("可能关联任务（未绑定）".to_string());
+        } else {
+            parts.push("未绑定项目/任务".to_string());
+        }
     }
     parts.join(" · ")
 }
@@ -656,35 +707,48 @@ fn human_time_hint(ts: &str) -> String {
         .unwrap_or_else(|| ts.to_string())
 }
 
-/// The only "recent" turn signal exposed by browse surfaces.  It comes from
-/// the terminal marker written by the turn lifecycle, not a message timestamp
-/// or transcript scan, so in-progress output is never presented as complete.
-fn terminal_turn_summary(session_id: &str) -> String {
-    use rusqlite::OptionalExtension;
+fn recent_user_title(session_id: &str) -> Option<String> {
+    crate::session::persistence::load_messages(session_id)
+        .ok()?
+        .into_iter()
+        .rev()
+        .find(|row| row.role == "user" && !row.content.trim().is_empty())
+        .map(|row| {
+            let text = row.content.replace('\n', " ");
+            crate::utils::safe_truncate_chars_to_string(text.trim(), 32)
+        })
+        .filter(|s| !s.trim().is_empty())
+}
 
-    let terminal = (|| {
-        let conn = database::db::get_connection()?;
-        conn.query_row(
-            "SELECT last_terminal_turn_id, last_terminal_turn_status
-             FROM agent_sessions WHERE session_id = ?1",
-            [session_id],
-            |row| {
-                Ok((
-                    row.get::<_, Option<String>>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                ))
-            },
-        )
-        .optional()
-    })();
+fn recent_session_preview(session_id: &str) -> String {
+    match crate::session::persistence::load_messages(session_id) {
+        Ok(rows) => rows
+            .into_iter()
+            .rev()
+            .find_map(|row| {
+                let text = row.content.replace('\n', " ");
+                let text = text.trim();
+                if text.is_empty() {
+                    None
+                } else {
+                    Some(format!(
+                        "最近：{}：{}",
+                        role_label(&row.role),
+                        crate::utils::safe_truncate_chars_to_string(text, 88)
+                    ))
+                }
+            })
+            .unwrap_or_else(|| "最近：暂无文本消息".to_string()),
+        Err(_) => "最近：不可用".to_string(),
+    }
+}
 
-    match terminal {
-        Ok(Some((turn_id, status))) => match (turn_id, status) {
-            (Some(turn_id), Some(status)) => format!("最新结束轮次：`{turn_id}`（{status}）"),
-            _ => "最新结束轮次：暂无".to_string(),
-        },
-        Ok(None) => "最新结束轮次：不可用".to_string(),
-        Err(_) => "最新结束轮次：不可用".to_string(),
+fn role_label(role: &str) -> &str {
+    match role {
+        "user" => "用户",
+        "assistant" => "助手",
+        "system" => "系统",
+        other => other,
     }
 }
 
@@ -708,7 +772,7 @@ async fn switch_session(state: &AgentAppState, session_key: &SessionKey, target:
                 "Switched this chat to `{}`.\n{}\n\n{}",
                 sid,
                 session_meta_line(&sid),
-                terminal_turn_summary(&sid)
+                recent_session_summary(&sid, 6)
             )
         }
         Ok(None) => format!("Session not found: `{}`", sid),
@@ -779,7 +843,6 @@ async fn create_and_switch_session(
         ),
     }
 }
-
 async fn create_switch_and_maybe_prompt(
     state: &AgentAppState,
     msg: &InboundMessage,
@@ -902,12 +965,14 @@ async fn update_session_project(session_id: &str, project_slug: &str) -> Result<
     let slug = project_slug.to_string();
     tokio::task::spawn_blocking(move || {
         let project = project_management::projects::io::read_project(&slug)?;
-        let ok = crate::session::persistence::update_project_link(
+        let ok = crate::session::persistence::update_work_item_link(
             &sid,
             &project.meta.org_id,
-            &project.meta.id,
-            &project.meta.name,
+            Some(&project.meta.id),
+            Some(&project.meta.name),
             &slug,
+            "",
+            Some("orchestrator"),
         )
         .map_err(|err| err.to_string())?;
         if ok {
@@ -984,6 +1049,34 @@ fn session_project_suffix(project_slug: Option<&str>, work_item_id: Option<&str>
     }
 }
 
+fn recent_session_summary(session_id: &str, limit: usize) -> String {
+    match crate::session::persistence::load_messages(session_id) {
+        Ok(rows) => {
+            let mut lines =
+                vec!["Recent context (deterministic last-message summary):".to_string()];
+            let selected: Vec<_> = rows.into_iter().rev().take(limit).collect();
+            if selected.is_empty() {
+                return "Recent context: (empty)".to_string();
+            }
+            for row in selected.into_iter().rev() {
+                let role = row.role;
+                let text = crate::utils::safe_truncate_chars_to_string(
+                    &row.content.replace('\n', " "),
+                    160,
+                );
+                if !text.trim().is_empty() {
+                    lines.push(format!("- {}: {}", role, text));
+                }
+            }
+            if lines.len() == 1 {
+                "Recent context: (no text messages)".to_string()
+            } else {
+                lines.join("\n")
+            }
+        }
+        Err(err) => format!("Recent context unavailable: {}", err),
+    }
+}
 async fn handle_model_command(
     state: &AgentAppState,
     _msg: &InboundMessage,
@@ -1036,6 +1129,7 @@ async fn handle_model_command(
             .await;
             note
         }
+
         Ok(Ok(false)) => format!("切换模型失败：会话 {} 不存在", binding.target_session_id),
         Ok(Err(err)) => format!("切换模型失败：{}", err),
         Err(err) => format!("切换模型失败：{}", err),
@@ -1147,33 +1241,35 @@ fn normalize_model_key(value: &str) -> String {
 fn build_help_text() -> String {
     [
         "**ORG2 Channel Commands**",
-        "These commands are handled inside the gateway before the OS agent runs, so they do **not** spend LLM tokens.",
+        "Gateway-handled; no LLM tokens spent.",
         "",
         "**General**",
-        "`/help` — show this list (alias: `/commands`).",
-        "`/status` — show this chat's current binding and active runtime sessions.",
-        "`/new` — clear this chat's binding; the next normal message creates a fresh session (alias: `/reset`).",
-        "`/model <model>` — switch the current channel session model (aliases: gpt-5.5, sonnet, opus, fable).",
-        "`/compact` — manually compact the current channel session and continue in a versioned successor.",
+        "`/help` — show this list (`/commands`).",
+        "`/status` — show binding + active runtime sessions.",
+        "`/new` — clear this chat binding; next message starts fresh (`/reset`).",
+        "`/model <model>` — switch model (gpt-5.5, sonnet, opus, fable).",
+        "`/compact` — compact current session into a versioned successor.",
         "",
-        "**Session switching**",
-        "`/session current` — show the active channel-bound ORG2 session (alias: `/ctx current`).",
-        "`/session list` — list recent ORG2 sessions (aliases: `/session ls`, `/ctx ls`).",
-        "`/session switch <session_id>` — bind this Feishu chat to an existing session and show its completed terminal turn (alias: `/session use <session_id>`).",
-        "`/session tree` — browse Workspace → Project → Work Item → completed Session without an LLM.",
-        "`/session recent` — browse recent completed sessions without an LLM.",
-        "`/next` / `/prev` — change a tree page; `/0` goes up one level; send a shown number to choose it.",
-        "`/session new [name]` — create and bind a fresh session immediately.",
-        "`/newsession <name> [prompt]` — create a named ORG2 session; with prompt, dispatch it into that session.",
-        "`/session search <query>` — semantic search across indexed Session Memory summaries (embedding + rerank).",
+        "**Sessions**",
+        "`/session current` — show active session (`/ctx current`).",
+        "`/session list` — list recent sessions (`/session ls`, `/ctx ls`).",
+        "`/session switch <id>` — bind existing session (`/session use <id>`).",
+        "`/session new [name]` — create + bind a fresh session.",
+        "`/newsession <name> [prompt]` — create named session; optional prompt sends into it.",
+        "`/session search <query>` — search Session Memory.",
         "",
-        "**Active project / Work Item context**",
-        "`/session bind project <slug>` — set active project context for this channel session.",
-        "`/session bind workitem <project_slug>:<short_id>` — set active Work Item context for this channel session.",
+        "**Journey**",
+        "`/journey` — show current Journey state.",
+        "`/task start <name> [recent|next]` — start a task without an LLM.",
+        "`/task checkpoint <name> <exact-message-id>` — record an exact checkpoint.",
+        "`/task finish <outcome>` — finish at the latest persisted message.",
+        "`/fork start <name> <exact-anchor>` / `/fork close <outcome>` / `/fork compare`.",
+        "`/review list` / `/review discard <id>` / `/review confirm ...`.",
         "",
-        "**Work Items via agent tools**",
-        "Natural language requests can create/update/list Work Items with `manage_work_item` (`wi` alias).",
-        "Project Work Items can be started with `manage_work_item(action=\"start\", project_slug=..., short_id=...)`.",
+        "**Project context**",
+        "`/session bind project <slug>` — set active project.",
+        "`/session bind workitem <project>:<id>` — set Work Item.",
+        "Use natural language or `manage_work_item` (`wi`) for Work Items.",
     ]
     .join("\n")
 }
@@ -1195,8 +1291,6 @@ mod help_text_tests {
             "/model",
             "/session current",
             "/session switch",
-            "/session tree",
-            "/session recent",
         ] {
             assert!(text.contains(cmd), "help cheat-sheet missing {cmd}: {text}");
         }
@@ -1251,5 +1345,21 @@ mod help_text_tests {
     #[test]
     fn fits_message_budget() {
         assert!(build_help_text().len() < 4096);
+    }
+
+    #[test]
+    fn normalize_model_key_ignores_provider_punctuation() {
+        assert_eq!(
+            normalize_model_key("openai/gpt-5.5:openai"),
+            "openaigpt55openai"
+        );
+        assert_eq!(normalize_model_key("GPT-5.5"), "gpt55");
+    }
+
+    #[test]
+    fn fits_telegram_message_budget() {
+        // Hermes caps at 4096 (Telegram limit). 1KB is plenty of head-room
+        // for a static list and forces us to revisit if we balloon.
+        assert!(build_help_text().len() < 1024);
     }
 }

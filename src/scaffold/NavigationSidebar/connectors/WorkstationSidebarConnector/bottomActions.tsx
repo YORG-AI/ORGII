@@ -1,5 +1,3 @@
-import type { TFunction } from "i18next";
-import { ListChevronsDownUp } from "lucide-react";
 import React, { useCallback } from "react";
 
 import { SessionFilterButton } from "../SessionFilterButton";
@@ -11,12 +9,10 @@ interface UseSidebarBottomRightActionsParams {
   groupByMode: GroupByMode;
   includeExternal: boolean;
   handleCollapseAll: () => void;
-  handleCollapseAllActiveSections: () => void;
   handleMarkAllRead: () => void;
   handleRefreshSessions: () => void;
   setGroupByMode: (mode: GroupByMode) => void;
   setIncludeExternal: (includeExternal: boolean) => void;
-  t: TFunction<"navigation">;
 }
 
 export function useSidebarBottomRightActions({
@@ -24,12 +20,10 @@ export function useSidebarBottomRightActions({
   groupByMode,
   includeExternal,
   handleCollapseAll,
-  handleCollapseAllActiveSections,
   handleMarkAllRead,
   handleRefreshSessions,
   setGroupByMode,
   setIncludeExternal,
-  t,
 }: UseSidebarBottomRightActionsParams): React.ReactNode {
   const handleSessionGroupBySelect = useCallback(
     (mode: string) => {
@@ -45,20 +39,6 @@ export function useSidebarBottomRightActions({
     return null;
   }
 
-  if (activeSidebarKey === "folders") {
-    const collapseAllLabel = t("sidebar.actions.collapseAll");
-    return (
-      <button
-        type="button"
-        title={collapseAllLabel}
-        aria-label={collapseAllLabel}
-        className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-fill-2"
-        onClick={handleCollapseAllActiveSections}
-      >
-        <ListChevronsDownUp size={16} strokeWidth={2} className="text-text-2" />
-      </button>
-    );
-  }
   return (
     <SessionFilterButton
       groupByMode={groupByMode}

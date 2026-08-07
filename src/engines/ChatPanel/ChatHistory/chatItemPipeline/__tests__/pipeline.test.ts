@@ -35,6 +35,26 @@ function makeReadFileItem(filePath: string) {
   });
 }
 
+function makeEditFileItem(filePath: string) {
+  return makeSessionEvent({
+    action_type: "tool_call",
+    function: "edit_file",
+    uiCanonical: "edit_file",
+    args: { file_path: filePath, old_string: "before", new_string: "after" },
+    result: { success: true, file_path: filePath },
+  });
+}
+
+function makeDeleteFileItem(filePath: string) {
+  return makeSessionEvent({
+    action_type: "tool_call",
+    function: "delete_file",
+    uiCanonical: "delete_file",
+    args: { file_path: filePath },
+    result: { success: true, file_path: filePath },
+  });
+}
+
 function makeBrowserItem(action = "navigate") {
   return makeSessionEvent({
     action_type: "tool_call",
@@ -54,6 +74,30 @@ function makeShellItem(command: string, exitCode = 0) {
         success: { command, stdout: `output of ${command}`, exitCode },
       },
     },
+  });
+}
+
+function makeAwaitItem(jobKind: "shell" | "subagent", handle: string) {
+  return makeSessionEvent({
+    action_type: "tool_call",
+    function: "await_output",
+    uiCanonical: "await_output",
+    args: { command: "wait_for", handles: [handle] },
+    result: {
+      output: `awaitMeta::${JSON.stringify({
+        count: 1,
+        items: [{ handle, jobKind, status: "succeeded" }],
+      })}`,
+    },
+  });
+}
+
+function makeInspectTerminalsItem() {
+  return makeSessionEvent({
+    action_type: "tool_call",
+    function: "inspect_terminals",
+    args: { action: "read_output", session_id: "terminal-1" },
+    result: { success: true },
   });
 }
 
@@ -135,6 +179,7 @@ describe("processChatItems", () => {
       const { items } = processChatItems([first, second], {
         preFilterEmptyActivities: false,
         groupActionSummaries: false,
+        groupTerminalActivities: false,
       });
       expect(items.length).toBe(2);
       expect(items[0].chunk_id).toBe(first.id);
@@ -507,6 +552,7 @@ describe("processChatItems", () => {
 
       const { items } = processChatItems([readItem, searchItem, shellItem], {
         groupActionSummaries: true,
+        groupTerminalActivities: false,
         preFilterEmptyActivities: false,
       });
 
@@ -544,7 +590,9 @@ describe("processChatItems", () => {
       expect(items.every((item) => item.type === "activity")).toBe(true);
     });
 
-    it("keeps failed exploration tools as individual activity cards", () => {
+    it("includes failed reads in the surrounding exploration group", () => {
+      const readItem = makeReadFileItem("a.ts");
+      const searchItem = makeSearchItem("handleClick");
       const failedReadItem = makeSessionEvent({
         action_type: "tool_call",
         function: "read_file",
@@ -556,14 +604,28 @@ describe("processChatItems", () => {
         },
       });
 
-      const { items } = processChatItems([failedReadItem], {
-        groupActionSummaries: true,
-        preFilterEmptyActivities: false,
-      });
+      const { items } = processChatItems(
+        [readItem, searchItem, failedReadItem],
+        {
+          groupActionSummaries: true,
+          preFilterEmptyActivities: false,
+        }
+      );
 
       expect(items.length).toBe(1);
-      expect(items[0].type).toBe("activity");
-      expect(items[0].event?.id).toBe(failedReadItem.id);
+      expect(items[0].type).toBe("actionSummaryGroup");
+      expect(items[0].actionSummaryItems?.map(({ event }) => event.id)).toEqual(
+        [readItem.id, searchItem.id, failedReadItem.id]
+      );
+      expect(
+        items[0].actionSummaryEntries?.find(
+          ({ category }) => category === "read"
+        )?.events
+      ).toEqual([readItem, failedReadItem]);
+      expect(items[0].actionSummaryItems?.at(-1)?.event.result).toEqual({
+        success: false,
+        error_message: "File could not be read",
+      });
     });
 
     it("keeps a single read_file as an activity when below minActionSummaryToGroup", () => {
@@ -587,6 +649,7 @@ describe("processChatItems", () => {
 
       const { items } = processChatItems([readItem, shellItem, searchItem], {
         groupActionSummaries: true,
+        groupTerminalActivities: false,
         preFilterEmptyActivities: false,
       });
 
@@ -641,6 +704,258 @@ describe("processChatItems", () => {
       });
 
       expect(result.length).toBe(2);
+    });
+  });
+
+  describe("terminal grouping", () => {
+    it("groups a single terminal command", () => {
+      const command = makeShellItem("git status");
+
+      const { items } = processChatItems([command], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("terminal");
+      expect(items[0].activityStackGroup?.events).toEqual([command]);
+    });
+
+    it("groups commands, shell waits, and terminal inspections together", () => {
+      const terminalActivities = [
+        makeShellItem("git status"),
+        makeAwaitItem("shell", "48291"),
+        makeInspectTerminalsItem(),
+      ];
+
+      const { items } = processChatItems(terminalActivities, {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("terminal");
+      expect(items[0].activityStackGroup?.events).toEqual(terminalActivities);
+      expect(items[0].activityStackGroup?.closedByBoundary).toBe(false);
+    });
+
+    it("keeps subagent-only waits outside terminal stacks", () => {
+      const first = makeShellItem("git status");
+      const subagentWait = makeAwaitItem(
+        "subagent",
+        "agent-builtin:explore-abc123"
+      );
+      const second = makeShellItem("git diff");
+
+      const { items } = processChatItems([first, subagentWait, second], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(3);
+      expect(items.map((item) => item.type)).toEqual([
+        "activityStackGroup",
+        "activity",
+        "activityStackGroup",
+      ]);
+      expect(items[1].event?.id).toBe(subagentWait.id);
+    });
+
+    it("does not create a terminal stack without a command anchor", () => {
+      const wait = makeAwaitItem("shell", "48291");
+      const check = makeInspectTerminalsItem();
+
+      const { items } = processChatItems([wait, check], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items.every((item) => item.type === "activity")).toBe(true);
+    });
+
+    it("closes a terminal stack when a different event follows", () => {
+      const first = makeShellItem("git status");
+      const second = makeShellItem("git diff");
+      const search = makeSearchItem("ChatPanel");
+
+      const { items } = processChatItems([first, second, search], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items[0].activityStackGroup?.category).toBe("terminal");
+      expect(items[0].activityStackGroup?.closedByBoundary).toBe(true);
+      expect(items[1].event?.id).toBe(search.id);
+    });
+
+    it("groups single commands but keeps kill actions standalone", () => {
+      const first = makeShellItem("npm test");
+      const kill = makeSessionEvent({
+        action_type: "tool_call",
+        function: "run_shell",
+        args: { kill_handle: "shell-1" },
+        result: { success: true },
+      });
+      const second = makeShellItem("npm run lint");
+
+      const { items } = processChatItems([first, kill, second], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(3);
+      expect(items.map((item) => item.type)).toEqual([
+        "activityStackGroup",
+        "activity",
+        "activityStackGroup",
+      ]);
+      expect(items[1].event?.id).toBe(kill.id);
+    });
+  });
+
+  describe("edit grouping", () => {
+    it("groups a single edit", () => {
+      const edit = makeEditFileItem("src/app.ts");
+
+      const { items } = processChatItems([edit], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.events).toEqual([edit]);
+      expect(items[0].activityStackGroup?.closedByBoundary).toBe(false);
+    });
+
+    it("groups a single deletion as an edit activity", () => {
+      const deletion = makeDeleteFileItem("src/obsolete.ts");
+
+      const { items } = processChatItems([deletion], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.events).toEqual([deletion]);
+    });
+
+    it("keeps deletions in an edit and read sequence", () => {
+      const activities = [
+        makeEditFileItem("src/app.ts"),
+        makeReadFileItem("src/app.ts"),
+        makeDeleteFileItem("src/obsolete.ts"),
+      ];
+
+      const { items } = processChatItems(activities, {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].activityStackGroup?.events).toEqual(activities);
+    });
+
+    it("includes reads after an edit in the same group", () => {
+      const activities = [
+        makeEditFileItem("src/app.ts"),
+        makeReadFileItem("src/app.ts"),
+        makeEditFileItem("src/styles.css"),
+      ];
+
+      const { items } = processChatItems(activities, {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.events).toEqual(activities);
+    });
+
+    it("keeps reads before the first edit in Explore", () => {
+      const read = makeReadFileItem("src/app.ts");
+      const search = makeSearchItem("app");
+      const edit = makeEditFileItem("src/app.ts");
+
+      const { items } = processChatItems([read, search, edit], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items[0].type).toBe("actionSummaryGroup");
+      expect(items[1].activityStackGroup?.category).toBe("edit");
+      expect(items[1].activityStackGroup?.events).toEqual([edit]);
+    });
+
+    it("closes the edit group when another activity follows", () => {
+      const edit = makeEditFileItem("src/app.ts");
+      const shell = makeShellItem("npm test");
+
+      const { items } = processChatItems([edit, shell], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(2);
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.closedByBoundary).toBe(true);
+      expect(items[1].activityStackGroup?.category).toBe("terminal");
+    });
+
+    it("groups failed edits", () => {
+      const failedEdit = makeSessionEvent({
+        action_type: "tool_call",
+        function: "edit_file",
+        uiCanonical: "edit_file",
+        args: { file_path: "src/app.ts" },
+        result: { success: false, error: "edit failed" },
+      });
+
+      const { items } = processChatItems([failedEdit], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.events).toEqual([failedEdit]);
+    });
+
+    it("groups failed deletions", () => {
+      const failedDeletion = makeSessionEvent({
+        action_type: "tool_call",
+        function: "delete_file",
+        uiCanonical: "delete_file",
+        args: { file_path: "src/obsolete.ts" },
+        result: { success: false, error: "delete failed" },
+      });
+
+      const { items } = processChatItems([failedDeletion], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].type).toBe("activityStackGroup");
+      expect(items[0].activityStackGroup?.category).toBe("edit");
+      expect(items[0].activityStackGroup?.events).toEqual([failedDeletion]);
+    });
+
+    it("keeps successful and failed modifications in one group", () => {
+      const successfulEdit = makeEditFileItem("src/app.ts");
+      const failedDeletion = makeSessionEvent({
+        action_type: "tool_call",
+        function: "delete_file",
+        uiCanonical: "delete_file",
+        args: { file_path: "src/obsolete.ts" },
+        result: { success: false, error: "delete failed" },
+      });
+
+      const { items } = processChatItems([successfulEdit, failedDeletion], {
+        preFilterEmptyActivities: false,
+      });
+
+      expect(items).toHaveLength(1);
+      expect(items[0].activityStackGroup?.events).toEqual([
+        successfulEdit,
+        failedDeletion,
+      ]);
     });
   });
 
@@ -715,6 +1030,7 @@ describe("processChatItems", () => {
           filterManageTodo: true,
           preFilterEmptyActivities: false,
           groupActionSummaries: false,
+          groupTerminalActivities: false,
         }
       );
 
@@ -736,6 +1052,62 @@ describe("processChatItems", () => {
       });
 
       expect(items.length).toBe(1);
+    });
+
+    it("keeps only the latest consecutive todo snapshot", () => {
+      const pendingSnapshot = makeSessionEvent({
+        action_type: "tool_call",
+        function: "manage_todo",
+        result: { success: true, content: "Run relevant verification" },
+      });
+      const activeSnapshot = makeSessionEvent({
+        action_type: "tool_call",
+        function: "manage_todo",
+        result: { content: "Verifying Anchor changes" },
+      });
+
+      const { items, stats } = processChatItems(
+        [pendingSnapshot, activeSnapshot],
+        {
+          filterManageTodo: false,
+          preFilterEmptyActivities: false,
+          groupActionSummaries: false,
+        }
+      );
+
+      expect(items).toHaveLength(1);
+      expect(items[0].event?.id).toBe(activeSnapshot.id);
+      expect(stats.totalActivities).toBe(2);
+      expect(stats.successCount).toBe(0);
+      expect(stats.pendingCount).toBe(1);
+    });
+
+    it("preserves todo snapshots separated by a real activity", () => {
+      const firstSnapshot = makeSessionEvent({
+        action_type: "tool_call",
+        function: "manage_todo",
+        result: { content: "First snapshot" },
+      });
+      const shellEvent = makeShellItem("npm test");
+      const secondSnapshot = makeSessionEvent({
+        action_type: "tool_call",
+        function: "manage_todo",
+        result: { content: "Second snapshot" },
+      });
+
+      const { items } = processChatItems(
+        [firstSnapshot, shellEvent, secondSnapshot],
+        {
+          filterManageTodo: false,
+          preFilterEmptyActivities: false,
+          groupActionSummaries: false,
+        }
+      );
+
+      expect(items).toHaveLength(3);
+      expect(items[0].event?.id).toBe(firstSnapshot.id);
+      expect(items[1].activityStackGroup?.events).toEqual([shellEvent]);
+      expect(items[2].event?.id).toBe(secondSnapshot.id);
     });
   });
 
@@ -784,6 +1156,7 @@ describe("processChatItems", () => {
       const { items } = processChatItems([runningShellEvent], {
         preFilterEmptyActivities: true,
         groupActionSummaries: false,
+        groupTerminalActivities: false,
       });
 
       expect(items.length).toBe(1);
@@ -812,7 +1185,11 @@ describe("processChatItems", () => {
 
       const { stats } = processChatItems(
         [successEvent, failedEvent, pendingEvent],
-        { preFilterEmptyActivities: false, groupActionSummaries: false }
+        {
+          preFilterEmptyActivities: false,
+          groupActionSummaries: false,
+          groupTerminalActivities: false,
+        }
       );
 
       expect(stats.totalActivities).toBe(3);

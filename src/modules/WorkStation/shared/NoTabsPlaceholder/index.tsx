@@ -11,6 +11,7 @@ import {
   ChartNoAxesGantt,
   Code,
   Database,
+  GitBranch,
   Globe,
   Layout,
   MessageCircle,
@@ -36,6 +37,7 @@ import { EDITOR_TAB_CANVAS_BG_CLASS } from "../tokens";
 
 export type PlaceholderIcon =
   | "editor"
+  | "source-control"
   | "browser"
   | "database"
   | "project"
@@ -62,6 +64,7 @@ export interface NoTabsPlaceholderProps {
 
 const ICON_MAP: Record<PlaceholderIcon, LucideIcon> = {
   editor: Code,
+  "source-control": GitBranch,
   browser: Globe,
   database: Database,
   project: ChartNoAxesGantt,

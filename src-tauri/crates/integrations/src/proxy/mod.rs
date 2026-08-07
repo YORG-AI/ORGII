@@ -2,7 +2,7 @@
 //!
 //! Two modes of proxy operation:
 //!
-//! 1. **Base URL override** (Claude Code, Codex, Gemini CLI):
+//! 1. **Base URL override** (Claude Code, Codex):
 //!    Set `{PROVIDER}_BASE_URL` to the ORGII proxy URL. Simple, no MITM needed.
 //!    Handled by `get_proxy_env_for_agent()` in `key_store::env`.
 //!

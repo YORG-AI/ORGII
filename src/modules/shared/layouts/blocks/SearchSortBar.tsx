@@ -3,7 +3,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import Input from "@src/components/Input";
+import Input, { type InputProps } from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 
@@ -18,6 +18,7 @@ export interface SearchSortBarFilterConfig {
 export interface SearchSortBarProps {
   searchValue?: string;
   searchPlaceholder?: string;
+  searchInputSize?: InputProps["size"];
   onSearchChange?: (value: string) => void;
   onSearchClear?: () => void;
   sortValue?: string;
@@ -39,6 +40,7 @@ export interface SearchSortBarProps {
 const SearchSortBar: React.FC<SearchSortBarProps> = ({
   searchValue,
   searchPlaceholder,
+  searchInputSize,
   onSearchChange,
   onSearchClear,
   sortValue,
@@ -101,6 +103,7 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
                 <Input
                   className="w-full min-w-0"
                   type="search"
+                  size={searchInputSize}
                   value={searchValue}
                   placeholder={searchPlaceholder}
                   prefix={

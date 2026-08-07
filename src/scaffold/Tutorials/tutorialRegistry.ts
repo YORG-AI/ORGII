@@ -1,5 +1,5 @@
-import { GENERAL_LAYOUT_TOUR_EVENT } from "./GeneralLayoutTour";
 import { CODE_EDITOR_TOUR_EVENT } from "./codeEditorTourConfig";
+import { GENERAL_LAYOUT_TOUR_EVENT } from "./generalLayoutTourConfig";
 
 export const TUTORIALS_OPEN_EVENT = "orgii:open-tutorials";
 

@@ -15,7 +15,7 @@
 //! - Merkle snapshot TTL prune (30 days, mtime-based — stale snapshots
 //!   auto-rebuild on next access)
 //! - Orphan `cursor-config/<session_id>/`, hosted Claude Code profile,
-//!   Gemini home, and Kiro proxy home eviction (session no longer present
+//!   and Kiro proxy home eviction (session no longer present
 //!   in `agent_sessions` DB)
 //! - Orphan `agent-worktrees/<repo_hash>/<session_id>/` eviction (session
 //!   no longer present in `agent_sessions` DB)
@@ -97,10 +97,6 @@ pub struct HousekeepingStats {
     /// `~/.orgii/claude-code-cli-profiles/` because their owning CLI
     /// session was gone. Account-scoped BYOK profiles are retained.
     pub claude_code_session_profiles_evicted: usize,
-    /// Per-session directories removed from `~/.orgii/gemini-cli-home/`
-    /// because their owning session was no longer present in
-    /// `agent_sessions`.
-    pub gemini_homes_evicted: usize,
     /// Hosted Kiro proxy HOME dirs removed from `/tmp/orgii-{uid}/kiro-proxy/`.
     pub kiro_proxy_homes_evicted: usize,
     /// Screenshot files removed from `~/.orgii/screenshots/` via TTL sweep.
@@ -176,13 +172,6 @@ pub fn run_deferred_cleanup() -> HousekeepingStats {
                 Ok(n) => stats.claude_code_session_profiles_evicted = n,
                 Err(err) => tracing::warn!(
                     "[housekeeping] claude-code hosted profile orphan sweep failed: {}",
-                    err
-                ),
-            }
-            match evict_orphan_session_dirs(paths::gemini_cli_home_root(), &known) {
-                Ok(n) => stats.gemini_homes_evicted = n,
-                Err(err) => tracing::warn!(
-                    "[housekeeping] gemini-cli-home orphan sweep failed: {}",
                     err
                 ),
             }
@@ -264,7 +253,7 @@ pub fn run_deferred_cleanup() -> HousekeepingStats {
     }
 
     tracing::info!(
-        "[housekeeping] pass finished: file_history(sessions={}, rows={}), capped(sessions={}, manifests={}, blobs={}), logs_removed={}, cursor_configs_evicted={}, claude_code_session_profiles_evicted={}, gemini_homes_evicted={}, kiro_proxy_homes_evicted={}, agent_worktrees_evicted={}, scratchpads_evicted={}, screenshots_removed={}, tool_results_removed={}, plans_removed={}, merkle_snapshots_removed={}, session_images_evicted={}, gateway_bindings_evicted={}, session_cache_rows_evicted={}",
+        "[housekeeping] pass finished: file_history(sessions={}, rows={}), capped(sessions={}, manifests={}, blobs={}), logs_removed={}, cursor_configs_evicted={}, claude_code_session_profiles_evicted={}, kiro_proxy_homes_evicted={}, agent_worktrees_evicted={}, scratchpads_evicted={}, screenshots_removed={}, tool_results_removed={}, plans_removed={}, merkle_snapshots_removed={}, session_images_evicted={}, gateway_bindings_evicted={}, session_cache_rows_evicted={}",
         stats.file_history.sessions_removed,
         stats.file_history.db_rows_removed,
         stats.sessions_capped,
@@ -273,7 +262,6 @@ pub fn run_deferred_cleanup() -> HousekeepingStats {
         stats.log_files_removed,
         stats.cursor_configs_evicted,
         stats.claude_code_session_profiles_evicted,
-        stats.gemini_homes_evicted,
         stats.kiro_proxy_homes_evicted,
         stats.agent_worktrees_evicted,
         stats.scratchpads_evicted,

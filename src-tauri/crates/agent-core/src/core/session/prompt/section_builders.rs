@@ -136,24 +136,10 @@ Prefer `worktree` over running raw `git worktree add` via exec — the tool inte
 
 ## Turn ending
 
-When finishing a turn, choose exactly ONE of these two endings. Never mix them.
-
-(A) Plain text reply — end naturally with prose. In this case you MUST NOT write \
+When finishing a turn, end naturally with prose. You MUST NOT write \
 transition phrases like \"Next options:\", \"Next steps:\", \"You could:\", \"Here are some options:\", \
-or a numbered/bulleted list of follow-up actions in the text. The text ends; that is all.
-
-(B) `suggest_next_steps` — call this tool INSTEAD OF writing such transition phrases. \
-Call it only when a follow-up action is genuinely useful AND you have 2–3 clearly distinct, \
-actionable next steps to offer. The cards ARE the UI — do NOT preview the options in text \
-before (or after) calling the tool. When you use this ending, your text portion should stop \
-at the status/result summary, then call `suggest_next_steps` as the FINAL action of the turn \
-and stop immediately.
-
-When NOT to call `suggest_next_steps`:
-- The turn is a simple factual answer or confirmation with no meaningful follow-up.
-- You already asked the user a direct yes/no question in this turn — use plain text, let them answer.
-- The next step is a single obvious continuation — just do it, don't offer a menu.
-- You only have one candidate step — don't pad with filler options.";
+or a numbered/bulleted list of follow-up actions in the text. \
+If the next step is a single obvious continuation, just do it. The text ends; that is all.";
 
 /// SDE behavioral rules with the Tool usage block rendered from the
 /// canonical tool-name constants, so the prompt can never drift from the

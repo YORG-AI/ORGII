@@ -36,7 +36,7 @@ fn multi_agent_extraction_from_same_input_format() {
         "sk-testkey000000000000000000",
         "https://proxy.example.com/api/gemini/v1",
     );
-    let gemini_result = extract_keys(&gemini_input, Some("gemini_cli"));
+    let gemini_result = extract_keys(&gemini_input, Some("gemini_api"));
     assert_high_confidence(&gemini_result);
     assert_eq!(
         gemini_result.base_url.as_deref(),

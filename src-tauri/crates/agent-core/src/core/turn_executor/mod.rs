@@ -11,6 +11,7 @@ mod length_recovery;
 #[cfg(debug_assertions)]
 pub mod provider_request_capture;
 mod screenshot;
+pub(crate) use screenshot::resolve_screenshot_markers;
 mod stream_error_recovery;
 pub(crate) mod stream_normalizer;
 pub(crate) mod tool_execution;
@@ -61,7 +62,6 @@ use stream_normalizer::{NormalizedStreamEvent, TurnStreamNormalizer};
 use crate::model_context::microcompact;
 
 use length_recovery::{maybe_recover_from_length, LengthRecoveryOutcome};
-use screenshot::resolve_screenshot_markers;
 use stream_error_recovery::{handle_stream_error, RetryBudgets, StreamErrorOutcome};
 use tool_execution::{execute_tool_calls, is_cancelled, ToolBatchOutcome};
 use usage_accumulator::UsageTotals;

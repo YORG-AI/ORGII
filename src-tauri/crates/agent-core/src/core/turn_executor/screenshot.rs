@@ -60,7 +60,7 @@ fn is_vision_model(model: &str) -> bool {
 /// native format (e.g. Anthropic's `image` block).
 ///
 /// For text-only models the markers are simply stripped.
-pub(super) fn resolve_screenshot_markers(
+pub(crate) fn resolve_screenshot_markers(
     messages: &[Value],
     store: &ScreenshotStore,
     model: &str,

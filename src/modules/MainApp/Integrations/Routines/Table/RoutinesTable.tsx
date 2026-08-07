@@ -16,6 +16,7 @@ import {
   InternalHeader,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import {
   InlineCardBody,
@@ -29,7 +30,6 @@ import {
   StatusDot,
   selectedRowClassName,
 } from "../../Tables/shared";
-import { InfoRow } from "../../shared/InfoRow";
 import InlineActionsBar from "../../shared/InlineActionsBar";
 import type { DetailMode } from "../../types";
 

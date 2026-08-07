@@ -6,7 +6,7 @@
  * they hide the data hook plumbing behind a zero-prop component.
  */
 import { useAtomValue } from "jotai";
-import { type LucideIcon, Monitor } from "lucide-react";
+import { Monitor } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,7 +21,6 @@ import {
   sessionMapAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
-import { workStationPrimarySidebarCollapsedAtom } from "@src/store/ui/workStationAtom";
 import {
   getRustAgentType,
   isCursorIdeSession,
@@ -30,23 +29,11 @@ import {
 import { AppSwitcherChip } from "./AppSwitcherChip";
 import { StationTabBarLeading } from "./StationTabBarLeading";
 import { TabBarLeadingLayout } from "./TabBarLeadingLayout";
-import {
-  useSimulatorAppSwitcher,
-  useWorkStationAppSwitcher,
-} from "./useAppSwitcherData";
+import { useSimulatorAppSwitcher } from "./useAppSwitcherData";
 
 interface AppSwitcherChipWrapperProps {
   /** Hide the chip (CSS-only) — prevents mount/unmount flash. */
   hidden?: boolean;
-}
-
-interface WorkStationAppSwitcherChipProps extends AppSwitcherChipWrapperProps {
-  /**
-   * Static label + icon override. When provided the chip displays these
-   * instead of deriving from the current route, and the dropdown is
-   * suppressed (e.g. Control Tower's grouped rail).
-   */
-  staticLabel?: { label: string; icon: LucideIcon };
 }
 
 interface WorkstationAgentLabels {
@@ -77,44 +64,6 @@ function getAgentWorkstationName(
   return labels.generic;
 }
 
-const WorkStationAppSwitcherChipComponent: React.FC<
-  WorkStationAppSwitcherChipProps
-> = ({ hidden = false, staticLabel }) => {
-  const data = useWorkStationAppSwitcher({ staticLabel });
-  return (
-    <AppSwitcherChip
-      hidden={hidden}
-      icon={data.icon}
-      label={data.label}
-      activeId={data.activeId}
-      items={data.items}
-      onSelect={data.onSelect}
-      closeOnChange={data.activeId}
-    />
-  );
-};
-
-export const WorkStationAppSwitcherChip = memo(
-  WorkStationAppSwitcherChipComponent
-);
-WorkStationAppSwitcherChip.displayName = "WorkStationAppSwitcherChip";
-
-/**
- * Renders the My Station app chip in the tab bar — only when the primary
- * sidebar is collapsed. Reads the collapsed atom directly so visibility
- * flips in the same commit as the toggle, avoiding a one-frame flash.
- */
-const TabBarWorkStationAppSwitcherChipComponent: React.FC = () => {
-  const collapsed = useAtomValue(workStationPrimarySidebarCollapsedAtom);
-  return <WorkStationAppSwitcherChip hidden={!collapsed} />;
-};
-
-export const TabBarWorkStationAppSwitcherChip = memo(
-  TabBarWorkStationAppSwitcherChipComponent
-);
-TabBarWorkStationAppSwitcherChip.displayName =
-  "TabBarWorkStationAppSwitcherChip";
-
 const SimulatorAppSwitcherChipComponent: React.FC<
   AppSwitcherChipWrapperProps
 > = ({ hidden = false }) => {
@@ -133,7 +82,9 @@ const SimulatorAppSwitcherChipComponent: React.FC<
   );
 };
 
-export const SimulatorAppSwitcherChip = memo(SimulatorAppSwitcherChipComponent);
+// Internal to this module: rendered by SimulatorTabBarLeading below. No longer
+// re-exported from the shared barrel (nothing outside imports it directly).
+const SimulatorAppSwitcherChip = memo(SimulatorAppSwitcherChipComponent);
 SimulatorAppSwitcherChip.displayName = "SimulatorAppSwitcherChip";
 
 function memberSessionId(member: AgentOrgRunMemberView): string | null {
@@ -311,12 +262,13 @@ export const SimulatorTabBarLeading = memo(SimulatorTabBarLeadingComponent);
 SimulatorTabBarLeading.displayName = "SimulatorTabBarLeading";
 
 /**
- * Tab-bar `leadingSlot` content for My Station: app-switcher chip only.
- * The primary-sidebar toggle lives in the global {@link WorkstationTabHeader}
- * strip below the tab bar, not here.
+ * Tab-bar `leadingSlot` content for My Station: the station-mode chip only.
+ * Host switching is tab-driven (see `activeHostAtom`), so no per-app switcher
+ * chip is rendered here. The primary-sidebar toggle lives in the global
+ * {@link WorkstationTabHeader} strip below the tab bar, not here.
  */
 const WorkStationTabBarLeadingComponent: React.FC = () => (
-  <StationTabBarLeading trailing={<WorkStationAppSwitcherChip />} />
+  <StationTabBarLeading />
 );
 
 export const WorkStationTabBarLeading = memo(WorkStationTabBarLeadingComponent);

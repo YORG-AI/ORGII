@@ -161,7 +161,7 @@ pub async fn github_find_pull_request(
     Ok(pr)
 }
 
-/// Response item for a single PR in `github_list_open_prs`.
+/// Response item for a single PR in `github_list_prs`.
 #[derive(Debug, Serialize)]
 pub struct OpenPRItem {
     pub number: u64,
@@ -176,16 +176,21 @@ pub struct OpenPRItem {
 }
 
 #[command]
-pub async fn github_list_open_prs(
+pub async fn github_list_prs(
     repo_full_name: String,
+    state: String,
     per_page: Option<u64>,
 ) -> Result<Vec<OpenPRItem>, String> {
+    let state = match state.as_str() {
+        "open" | "closed" => state,
+        _ => return Err("pull request state must be open or closed".to_string()),
+    };
     let limit = per_page.unwrap_or(30).min(100);
-    log::info!("[GitHub][Cmd] list_open_prs repo={repo_full_name} per_page={limit}");
+    log::info!("[GitHub][Cmd] list_prs repo={repo_full_name} state={state} per_page={limit}");
     let client = make_client()?;
     let data = client
         .get_conditional(&format!(
-            "/repos/{repo_full_name}/pulls?state=open&sort=updated&direction=desc&per_page={limit}"
+            "/repos/{repo_full_name}/pulls?state={state}&sort=updated&direction=desc&per_page={limit}"
         ))
         .await?;
     let items: Vec<OpenPRItem> = data
@@ -196,7 +201,11 @@ pub async fn github_list_open_prs(
                     number: item["number"].as_u64().unwrap_or(0),
                     url: item["html_url"].as_str().unwrap_or("").to_string(),
                     title: item["title"].as_str().unwrap_or("").to_string(),
-                    state: item["state"].as_str().unwrap_or("open").to_string(),
+                    state: if item["merged_at"].is_null() {
+                        item["state"].as_str().unwrap_or("open").to_string()
+                    } else {
+                        "merged".to_string()
+                    },
                     head_branch: item["head"]["ref"].as_str().unwrap_or("").to_string(),
                     base_branch: item["base"]["ref"].as_str().unwrap_or("").to_string(),
                     draft: item["draft"].as_bool().unwrap_or(false),
@@ -206,7 +215,10 @@ pub async fn github_list_open_prs(
                 .collect()
         })
         .unwrap_or_default();
-    log::info!("[GitHub][Cmd] list_open_prs found {} PRs", items.len());
+    log::info!(
+        "[GitHub][Cmd] list_prs state={state} found {} PRs",
+        items.len()
+    );
     Ok(items)
 }
 

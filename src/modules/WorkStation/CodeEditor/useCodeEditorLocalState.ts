@@ -14,6 +14,7 @@ import { useDiagnostics } from "@src/hooks/workStation/diagnostics/useDiagnostic
 import {
   createBranchSpotlightRequest,
   createWorkspaceSpotlightRequest,
+  createWorktreeSpotlightRequest,
 } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import {
   spotlightInitialQueryAtom,
@@ -147,6 +148,11 @@ export function useCodeEditorLocalState({
 
   const handleBranchClick = useCallback(() => {
     setSpotlightInitialQuery(createBranchSpotlightRequest());
+    setSpotlightOpen(true);
+  }, [setSpotlightInitialQuery, setSpotlightOpen]);
+
+  const handleWorktreeClick = useCallback(() => {
+    setSpotlightInitialQuery(createWorktreeSpotlightRequest());
     setSpotlightOpen(true);
   }, [setSpotlightInitialQuery, setSpotlightOpen]);
 
@@ -286,15 +292,23 @@ export function useCodeEditorLocalState({
       ...prev,
       onRepoClick: handleRepoClick,
       onBranchClick: handleBranchClick,
+      onWorktreeClick: handleWorktreeClick,
     }));
     return () => {
       setStatusBarCallbacks((prev) => ({
         ...prev,
         onRepoClick: undefined,
         onBranchClick: undefined,
+        onWorktreeClick: undefined,
       }));
     };
-  }, [handleRepoClick, handleBranchClick, isActive, setStatusBarCallbacks]);
+  }, [
+    handleRepoClick,
+    handleBranchClick,
+    handleWorktreeClick,
+    isActive,
+    setStatusBarCallbacks,
+  ]);
 
   return {
     // State
@@ -312,6 +326,7 @@ export function useCodeEditorLocalState({
     // Handlers
     handleRepoClick,
     handleBranchClick,
+    handleWorktreeClick,
     handleCursorPositionChange,
     handleToggleEditorPanelPosition,
     handleDiagnosticsChange,

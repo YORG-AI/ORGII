@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "../../types";
 import { eventStoreProxy } from "../EventStoreProxy";
+import type { DerivedSnapshot, StreamingSnapshot } from "../EventStoreProxy";
 
 const { rpcMock, warnMock } = vi.hoisted(() => ({
   rpcMock: {
@@ -13,6 +14,8 @@ const { rpcMock, warnMock } = vi.hoisted(() => ({
         set: vi.fn().mockResolvedValue(undefined),
         upsert: vi.fn().mockResolvedValue(undefined),
         saveToCache: vi.fn().mockResolvedValue(1),
+        getSnapshot: vi.fn(),
+        switchSession: vi.fn().mockResolvedValue(true),
       },
     },
   },
@@ -95,6 +98,131 @@ describe("EventStoreProxy session targeting", () => {
     );
   });
 });
+
+describe("EventStoreProxy snapshot release", () => {
+  it("releaseSessionSnapshot drops the cached snapshot", async () => {
+    rpcMock.sessionCore.eventStore.getSnapshot.mockResolvedValueOnce(
+      makeDerivedSnapshot("session-release", 3)
+    );
+    await eventStoreProxy.getSnapshot("session-release");
+    expect(
+      eventStoreProxy.getLatestSessionSnapshot("session-release")
+    ).not.toBeNull();
+
+    eventStoreProxy.releaseSessionSnapshot("session-release");
+
+    expect(
+      eventStoreProxy.getLatestSessionSnapshot("session-release")
+    ).toBeNull();
+  });
+
+  it("releaseSessionSnapshotIfIdle keeps a streaming snapshot", async () => {
+    rpcMock.sessionCore.eventStore.getSnapshot.mockResolvedValueOnce(
+      makeStreamingSnapshot("session-live", 4)
+    );
+    await eventStoreProxy.getSnapshot("session-live");
+
+    eventStoreProxy.releaseSessionSnapshotIfIdle("session-live");
+
+    expect(
+      eventStoreProxy.getLatestSessionSnapshot("session-live")
+    ).not.toBeNull();
+  });
+
+  it("releaseSessionSnapshotIfIdle drops an idle snapshot", async () => {
+    rpcMock.sessionCore.eventStore.getSnapshot.mockResolvedValueOnce(
+      makeDerivedSnapshot("session-idle", 5)
+    );
+    await eventStoreProxy.getSnapshot("session-idle");
+
+    eventStoreProxy.releaseSessionSnapshotIfIdle("session-idle");
+
+    expect(eventStoreProxy.getLatestSessionSnapshot("session-idle")).toBeNull();
+  });
+});
+
+describe("EventStoreProxy deferred snapshot release", () => {
+  const GRACE_MS = 3 * 60 * 1000;
+
+  it("releases the snapshot only after the grace window", async () => {
+    vi.useFakeTimers();
+    try {
+      rpcMock.sessionCore.eventStore.getSnapshot.mockResolvedValueOnce(
+        makeDerivedSnapshot("session-deferred", 6)
+      );
+      await eventStoreProxy.getSnapshot("session-deferred");
+
+      eventStoreProxy.scheduleSessionSnapshotRelease("session-deferred");
+      vi.advanceTimersByTime(GRACE_MS - 1);
+      expect(
+        eventStoreProxy.getLatestSessionSnapshot("session-deferred")
+      ).not.toBeNull();
+
+      vi.advanceTimersByTime(2);
+      expect(
+        eventStoreProxy.getLatestSessionSnapshot("session-deferred")
+      ).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("switching back within the grace window cancels the release", async () => {
+    vi.useFakeTimers();
+    try {
+      rpcMock.sessionCore.eventStore.getSnapshot.mockResolvedValueOnce(
+        makeDerivedSnapshot("session-returned", 7)
+      );
+      await eventStoreProxy.getSnapshot("session-returned");
+
+      eventStoreProxy.scheduleSessionSnapshotRelease("session-returned");
+      vi.advanceTimersByTime(GRACE_MS / 2);
+      await eventStoreProxy.switchSession("session-returned");
+      vi.advanceTimersByTime(GRACE_MS * 4);
+
+      expect(
+        eventStoreProxy.getLatestSessionSnapshot("session-returned")
+      ).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+function makeDerivedSnapshot(
+  sessionId: string,
+  version: number
+): DerivedSnapshot {
+  const events = [makeEvent(`${sessionId}-event-1`, sessionId)];
+  return {
+    version,
+    eventCount: events.length,
+    events,
+    chatEvents: events,
+    messagesEvents: events,
+    sortedSimulatorEvents: [],
+    lastEvent: events[events.length - 1] ?? null,
+    eventIndex: {},
+    chatEventCount: events.length,
+    hasRunningEvent: false,
+  };
+}
+
+function makeStreamingSnapshot(
+  sessionId: string,
+  version: number
+): StreamingSnapshot {
+  const events = [makeEvent(`${sessionId}-event-1`, sessionId)];
+  return {
+    version,
+    eventCount: events.length,
+    chatEvents: events,
+    sortedSimulatorEvents: [],
+    lastEvent: events[events.length - 1] ?? null,
+    streaming: true,
+    hasRunningEvent: true,
+  };
+}
 
 function makeEvent(id: string, sessionId: string): SessionEvent {
   return {

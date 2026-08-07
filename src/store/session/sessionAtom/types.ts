@@ -16,6 +16,7 @@ import type {
   DispatchCategory,
   KeySource,
 } from "@src/api/tauri/session/dispatchTypes";
+import type { ImportedHistorySourceId } from "@src/types/session/externalHistory";
 import type {
   PendingQuestion,
   SessionStatus,
@@ -23,6 +24,74 @@ import type {
 
 // Re-export canonical types
 export type { SessionStatus, PendingQuestion };
+
+/**
+ * Provenance + consumer-side sync cursor for sessions imported from a
+ * collaboration org (design §7.4 / §16.7). Lives on the Session record as a
+ * first-class field — it replaces the legacy collab idiom of JSON-encoding
+ * this metadata into `error_message` (the file-import path in
+ * sessionImportExport.ts still uses that idiom and is out of scope here).
+ *
+ * `Session.orgId` and `importedFrom.orgId` coexist deliberately: `orgId` is
+ * ownership (guest imports have none), `importedFrom.orgId` is origin.
+ */
+export interface SessionImportedFrom {
+  orgId: string;
+  sourceSessionId: string;
+  ownerMemberId: string;
+  /** Segments epoch last applied locally. 0 = legacy snapshot import. */
+  epoch: number;
+  /** Frozen segment seq last applied locally. */
+  seq: number;
+  /** Total event count last applied locally. */
+  count: number;
+  /**
+   * Events covered by the frozen region — the local frozen/tail boundary,
+   * needed to replace only the tail region on incremental pulls. Optional:
+   * absent (legacy cursor) forces a full refetch.
+   */
+  frozenCount?: number;
+  /** segment_hash of the last applied tail segment (tail-change detection). */
+  tailHash?: string;
+  /** Display convenience carried over from the remote metadata. */
+  ownerDisplayName?: string;
+  /** Original read-only adapter when the shared source came from another app. */
+  externalHistorySource?: ImportedHistorySourceId;
+  importedAt?: string;
+  /** Share-link capability used for a later guest fork; absent for member imports. */
+  shareToken?: string;
+}
+
+/**
+ * Fork provenance (design §16.11, "fork & continue"). DISTINCT from
+ * `SessionImportedFrom`: an imported session is a READ-ONLY replay copy with a
+ * consumer-side sync cursor, while a forked session is a normal WRITABLE
+ * single-writer session that merely records where its inherited history came
+ * from. It carries no cursor — after the fork the source and the fork diverge
+ * by design (relay = a chain of single-writer sessions, not multi-writer).
+ *
+ * Deliberately NOT consulted by `isSessionPushAllowed`: a fork has neither
+ * `category === "external_history"` nor `importedFrom`, so the member's
+ * continuation syncs back to the org under their OWN member id.
+ */
+export interface SessionForkedFrom {
+  orgId: string;
+  sourceSessionId: string;
+  ownerMemberId: string;
+  ownerDisplayName: string;
+  /** Event count inherited from the source at fork time. */
+  atCount: number;
+  forkedAt: string;
+  /**
+   * Denormalized ancestor: the ORIGINAL (non-fork) session this chain grew
+   * from — inherited from the source's own lineage at fork time, so a
+   * fork-of-a-fork still points at the root without any client walking the
+   * chain. Denormalized on purpose: intermediate parents can fall out of the
+   * cloud retention window, but thread grouping keyed on the root survives.
+   * Absent on pre-lineage forks ⇒ treat sourceSessionId as the root.
+   */
+  rootSessionId?: string;
+}
 
 export interface Session {
   session_id: string;
@@ -129,6 +198,20 @@ export interface Session {
   replyTargetEventId?: string;
   /** Whether this session is pinned to the top of the sidebar. */
   pinned?: boolean;
+  /**
+   * Set on sessions imported from a collaboration org (auto-import or
+   * direct replay). Doubles as the consumer-side segments cursor.
+   * Sessions carrying this field are never eligible for collab push.
+   */
+  importedFrom?: SessionImportedFrom;
+  /**
+   * Set on sessions created via "fork & continue" from a teammate's shared
+   * session (design §16.11). Pure provenance — the session stays writable,
+   * runnable, and collab-push-eligible (unlike `importedFrom`). Round-trips
+   * through the persisted session list (plain JSON, no schema strip — see
+   * `persistence.ts`, which only removes the volatile draft fields).
+   */
+  forkedFrom?: SessionForkedFrom;
   created_time?: string;
   updated_time?: string;
   /** Source-cache impact stat for external and Rust-native sessions. */
@@ -141,6 +224,8 @@ export interface Session {
   touchedFiles?: string[];
   /** Channel origin for OS Agent sessions (e.g. "feishu", "telegram", "discord"). */
   channel?: string;
+  /** Total token usage (input + output) reported by the source, when known. */
+  totalTokens?: number;
 }
 
 // ============================================

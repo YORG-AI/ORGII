@@ -168,6 +168,12 @@ test("retrying main script loader runs after the root element exists", () => {
   );
   const loaderSource = html.slice(retryLoaderIndex);
   assert.match(loaderSource, /orgii_startup_attempt=/);
+  assert.match(loaderSource, /fetch\("\/main\.js\?orgii_startup_attempt="/);
+  assert.match(loaderSource, /URL\.createObjectURL/);
+  assert.match(loaderSource, /URL\.revokeObjectURL/);
+  assert.match(loaderSource, /main\.js loader timed out/);
+  assert.match(loaderSource, /clearTimeout\(scriptTimeoutId\)/);
+  assert.doesNotMatch(loaderSource, /htmlWebpackPlugin\.files\.js/);
   assert.doesNotMatch(loaderSource, /script\.textContent\s*=/);
 });
 
@@ -200,4 +206,13 @@ test("frontend first-paint metric emit is gated to local dev", () => {
     firstPaintSignalSource,
     /if \(!isLocalDevOrigin\(\)\) \{\s*return;\s*\}/
   );
+});
+
+test("frontend first-paint waits until the React root has content", () => {
+  assert.match(firstPaintSignalSource, /function hasRenderableRootContent\(\)/);
+  assert.match(firstPaintSignalSource, /root\.childElementCount > 0/);
+  assert.match(firstPaintSignalSource, /new MutationObserver/);
+  assert.match(firstPaintSignalSource, /observer\.disconnect\(\)/);
+  assert.match(firstPaintSignalSource, /return afterRenderableRootContent/);
+  assert.match(firstPaintSignalSource, /afterRenderableRootContent\(\(\) =>/);
 });

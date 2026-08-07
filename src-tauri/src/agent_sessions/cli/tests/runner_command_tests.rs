@@ -1,4 +1,7 @@
-use super::command::{build_command_with_launch_profile, map_claude_model, CliCommandBuildRequest};
+use super::command::{
+    build_command_with_launch_profile, map_claude_model, map_claude_model_variant,
+    CliCommandBuildRequest,
+};
 use super::launch_profiles::{
     bare_command_for_agent, default_args_for_mode, default_env_for_mode, defaults_for_agent,
     CliPermissionMode, ResolvedCliLaunchProfile,
@@ -69,6 +72,7 @@ fn build_command_from_options(options: TestCommandBuildOptions<'_>) -> Vec<Strin
             .to_string(),
         args: default_args_for_mode(defaults, CliPermissionMode::FullPermission),
         env: default_env_for_mode(defaults, CliPermissionMode::FullPermission),
+        transport: None,
     };
 
     build_command_with_launch_profile(CliCommandBuildRequest {
@@ -150,6 +154,21 @@ fn build_claude_code_with_model_maps_shorthand() {
     assert!(cmd.contains(&"--model".to_string()));
     let model_idx = cmd.iter().position(|c| c == "--model").unwrap();
     assert_eq!(cmd[model_idx + 1], "claude-sonnet-4");
+    assert!(!cmd.contains(&"--effort".to_string()));
+}
+
+#[test]
+fn build_claude_code_effort_variant_maps_to_effort_flag() {
+    let cmd = build_command!(
+        ModelType::ClaudeCode,
+        task = "task",
+        model = Some("claude-opus-4-8-high"),
+    );
+    let model_idx = cmd.iter().position(|c| c == "--model").unwrap();
+    assert_eq!(cmd[model_idx + 1], "claude-opus-4-8");
+    let effort_idx = cmd.iter().position(|c| c == "--effort").unwrap();
+    assert_eq!(cmd[effort_idx + 1], "high");
+    assert!(!cmd.contains(&"claude-opus-4-8-high".to_string()));
 }
 
 #[test]
@@ -191,6 +210,20 @@ fn build_codex_fast_variant_maps_to_priority_service_tier() {
 }
 
 #[test]
+fn build_codex_gpt_5_6_ultra_fast_variant() {
+    let cmd = build_command!(
+        ModelType::Codex,
+        task = "write tests",
+        model = Some("gpt-5.6-sol-ultra-fast"),
+    );
+    let model_idx = cmd.iter().position(|arg| arg == "-m").unwrap();
+    assert_eq!(cmd[model_idx + 1], "gpt-5.6-sol");
+    assert!(cmd.contains(&"model_reasoning_effort=\"ultra\"".to_string()));
+    assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
+    assert!(!cmd.contains(&"gpt-5.6-sol-ultra-fast".to_string()));
+}
+
+#[test]
 fn build_codex_with_resume() {
     let cmd = build_command!(
         ModelType::Codex,
@@ -202,16 +235,29 @@ fn build_codex_with_resume() {
 }
 
 #[test]
-fn build_gemini_cli_basic() {
+fn build_antigravity_print_command() {
+    let additional_dirs = vec!["/tmp/secondary".to_string()];
     let cmd = build_command!(
-        ModelType::GeminiCli,
-        task = "refactor",
-        model = Some("gemini-2.5-pro"),
+        ModelType::Antigravity,
+        task = "inspect the repository",
+        model = Some("gemini-3.1-pro"),
+        resume_id = Some("conversation-123"),
+        additional_dirs = &additional_dirs,
     );
-    assert_eq!(command_name(&cmd[0]), "gemini");
-    assert!(cmd.contains(&"--yolo".to_string()));
-    assert!(cmd.contains(&"--model".to_string()));
-    assert!(cmd.contains(&"-p".to_string()));
+
+    assert_eq!(command_name(&cmd[0]), "agy");
+    assert!(cmd
+        .windows(2)
+        .any(|pair| pair == ["--conversation", "conversation-123"]));
+    assert!(cmd
+        .windows(2)
+        .any(|pair| pair == ["--model", "gemini-3.1-pro"]));
+    assert!(cmd
+        .windows(2)
+        .any(|pair| pair == ["--add-dir", "/tmp/secondary"]));
+    assert!(cmd
+        .windows(2)
+        .any(|pair| pair == ["--print", "inspect the repository"]));
 }
 
 #[test]
@@ -226,7 +272,7 @@ fn build_copilot_basic() {
     let cmd = build_command!(ModelType::Copilot, task = "task");
     assert_eq!(command_name(&cmd[0]), "copilot");
     assert!(cmd.contains(&"--acp".to_string()));
-    assert!(cmd.contains(&"--allow-all-tools".to_string()));
+    assert!(cmd.contains(&"--allow-all".to_string()));
     assert!(cmd.contains(&"--no-ask-user".to_string()));
     assert!(!cmd.contains(&"--stdio".to_string()));
 }
@@ -418,4 +464,111 @@ fn map_claude_model_passthrough_non_claude() {
     assert_eq!(map_claude_model("gpt-4o"), "gpt-4o");
     assert_eq!(map_claude_model("gemini-2.5-pro"), "gemini-2.5-pro");
     assert_eq!(map_claude_model("o3"), "o3");
+}
+
+#[test]
+fn map_claude_model_variant_splits_effort() {
+    let cfg = map_claude_model_variant("claude-opus-4-8-high");
+    assert_eq!(cfg.base_model, "claude-opus-4-8");
+    assert_eq!(cfg.effort.as_deref(), Some("high"));
+
+    let cfg = map_claude_model_variant("opus-4-8-xhigh");
+    assert_eq!(cfg.base_model, "claude-opus-4-8");
+    assert_eq!(cfg.effort.as_deref(), Some("xhigh"));
+
+    let cfg = map_claude_model_variant("claude-sonnet-4-5-extra-high");
+    assert_eq!(cfg.base_model, "claude-sonnet-4-5");
+    assert_eq!(cfg.effort.as_deref(), Some("xhigh"));
+}
+
+#[test]
+fn map_claude_model_variant_no_effort_keeps_base() {
+    let cfg = map_claude_model_variant("claude-opus-4-8");
+    assert_eq!(cfg.base_model, "claude-opus-4-8");
+    assert!(cfg.effort.is_none());
+
+    // `thinking` is not an --effort level; leave it on the base model.
+    let cfg = map_claude_model_variant("claude-opus-4-8-thinking");
+    assert_eq!(cfg.base_model, "claude-opus-4-8-thinking");
+    assert!(cfg.effort.is_none());
+}
+
+// ─── Codex app-server transport (experimental gate) ───
+
+fn app_server_profile(agent: &ModelType, transport: Option<&str>) -> ResolvedCliLaunchProfile {
+    let defaults = defaults_for_agent(agent).expect("CLI defaults");
+    ResolvedCliLaunchProfile {
+        permission_mode: CliPermissionMode::Manual,
+        command: bare_command_for_agent(agent)
+            .expect("CLI bare command")
+            .to_string(),
+        args: default_args_for_mode(defaults, CliPermissionMode::Manual),
+        env: default_env_for_mode(defaults, CliPermissionMode::Manual),
+        transport: transport.map(|value| value.to_string()),
+    }
+}
+
+#[test]
+fn uses_codex_app_server_requires_codex_and_explicit_flag() {
+    use super::launch_profiles::uses_codex_app_server;
+
+    // Default (no flag) stays on the shell-out path.
+    let default_profile = app_server_profile(&ModelType::Codex, None);
+    assert!(!uses_codex_app_server(&ModelType::Codex, &default_profile));
+
+    // Explicit opt-in flips the codex profile only.
+    let opted_in = app_server_profile(&ModelType::Codex, Some("app-server"));
+    assert!(uses_codex_app_server(&ModelType::Codex, &opted_in));
+
+    // Unknown transport values are ignored.
+    let unknown = app_server_profile(&ModelType::Codex, Some("websocket"));
+    assert!(!uses_codex_app_server(&ModelType::Codex, &unknown));
+
+    // Non-codex agents never honor the flag.
+    let claude = app_server_profile(&ModelType::ClaudeCode, Some("app-server"));
+    assert!(!uses_codex_app_server(&ModelType::ClaudeCode, &claude));
+}
+
+#[test]
+fn build_codex_app_server_argv_is_bare_subcommand() {
+    let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: None,
+        task: "fix the bug",
+        resume_id: Some("thread-123"),
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: Some("/workspace"),
+        additional_dirs: &[],
+    });
+    // Task, resume id, cwd, sandbox and approval flags all travel over
+    // JSON-RPC — none of them may leak into the argv.
+    assert_eq!(command_name(&cmd[0]), "codex");
+    assert_eq!(cmd[1..], ["app-server".to_string()]);
+}
+
+#[test]
+fn build_codex_app_server_argv_keeps_model_variant_overrides() {
+    let profile = app_server_profile(&ModelType::Codex, Some("app-server"));
+    let cmd = build_command_with_launch_profile(CliCommandBuildRequest {
+        agent: &ModelType::Codex,
+        launch_profile: &profile,
+        model: Some("gpt-5.4-medium-fast"),
+        task: "write tests",
+        resume_id: None,
+        api_key: None,
+        endpoint: None,
+        mode: None,
+        repo_path: None,
+        additional_dirs: &[],
+    });
+    assert_eq!(cmd[1], "app-server");
+    assert!(cmd.contains(&"model_reasoning_effort=\"medium\"".to_string()));
+    assert!(cmd.contains(&"service_tier=\"priority\"".to_string()));
+    // The base model itself goes via thread/start params, not argv.
+    assert!(!cmd.iter().any(|arg| arg == "-m"));
+    assert!(!cmd.iter().any(|arg| arg == "gpt-5.4"));
 }

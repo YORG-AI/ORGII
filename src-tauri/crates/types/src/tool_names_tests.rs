@@ -50,6 +50,7 @@ fn tool_name_constants_are_stable_wire_strings() {
     assert_eq!(CONTROL_INTERNAL_BROWSER, "control_internal_browser");
     assert_eq!(CONTROL_ORGII, "control_orgii");
     assert_eq!(SPOTLIGHT, "spotlight");
+    assert_eq!(REPLY_SESSION_COMMENT, "reply_session_comment");
 
     // ── Desktop ──
     assert_eq!(
@@ -85,7 +86,6 @@ fn tool_name_constants_are_stable_wire_strings() {
     // ── Meta ──
     assert_eq!(SEND_TO_INBOX, "send_to_inbox");
     assert_eq!(SUGGEST_MODE_SWITCH, "suggest_mode_switch");
-    assert_eq!(SUGGEST_NEXT_STEPS, "suggest_next_steps");
     assert_eq!(TOOL_SEARCH, "tool_search");
 
     // ── Plan Mode ──

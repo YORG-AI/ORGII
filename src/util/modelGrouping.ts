@@ -59,6 +59,9 @@ const GPT_TIER_PREFIXES = [
   "nano",
   "mini",
   "codex",
+  "sol",
+  "terra",
+  "luna",
 ] as const;
 
 function extractGptTier(rest: string): string | undefined {

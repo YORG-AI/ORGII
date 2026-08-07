@@ -14,9 +14,6 @@ export type {
 export { isTurnCollapseEligible, useChatGroups } from "./useChatGroups";
 export type { ChatGroupMeta, UseChatGroupsReturn } from "./useChatGroups";
 
-export { useChatHistoryOptimization } from "./useChatHistoryOptimization";
-export type { UseChatHistoryOptimizationReturn } from "./useChatHistoryOptimization";
-
 export { useChatSearch } from "./useChatSearch";
 export type {
   SearchResult,
@@ -70,7 +67,6 @@ export type {
 export { useGroupHeaderRenderer } from "./useGroupHeaderRenderer";
 
 export { useReloadSession } from "./useReloadSession";
-export { useTurnModifiedFiles } from "./useTurnModifiedFiles";
 export {
   useTurnPageNavigation,
   useTurnPageSelectionState,

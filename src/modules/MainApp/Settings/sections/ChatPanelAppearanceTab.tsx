@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import NumberInput from "@src/components/NumberInput";
 import Switch from "@src/components/Switch";
 import { useAgentConfig } from "@src/hooks/config/useAgentConfig";
+import { DEFAULT_CHAT_APPEARANCE } from "@src/store/config/configAtom";
 
 export const ChatPanelAppearanceTab: React.FC = () => {
   const { t } = useTranslation("settings");
@@ -27,7 +28,9 @@ export const ChatPanelAppearanceTab: React.FC = () => {
             suffix={tCommon("common.px")}
             controlsPosition="sides"
             onChange={(value) => {
-              updateChatAppearance({ fontSize: value ?? 14 });
+              updateChatAppearance({
+                fontSize: value ?? DEFAULT_CHAT_APPEARANCE.fontSize,
+              });
             }}
             size="default"
             style={SECTION_CONTROL_STYLE}

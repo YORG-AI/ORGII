@@ -2,8 +2,8 @@
  * EconomySidebar
  *
  * Second-level sidebar for Economy pages.
- * Mirrors DevRecordSidebar: entering Economy replaces the HomeSidebar list with
- * a focused page-level list and a back affordance to the Start Page.
+ * Entering Economy replaces the HomeSidebar list with a focused page-level
+ * list and a back affordance to the Start Page.
  */
 import { BadgeCent } from "lucide-react";
 import React, { useCallback, useMemo } from "react";

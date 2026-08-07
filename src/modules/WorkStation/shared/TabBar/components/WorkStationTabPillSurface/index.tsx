@@ -19,7 +19,7 @@ const VARIANT_CLASSES: Record<
 > = {
   standard: "min-w-[3.5rem] max-w-[240px] shrink-0 gap-1.5 px-2.5",
   compact: "h-8 w-8 shrink-0 justify-center",
-  session: "min-w-0 max-w-[180px] shrink-0 gap-1.5 px-2.5",
+  session: "min-w-0 max-w-[120px] shrink-0 gap-1.5 px-2.5",
 };
 
 export const WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS = `flex h-8 shrink-0 cursor-grabbing items-center gap-1.5 rounded-lg border border-border-2 ${SURFACE_TOKENS.selected} pl-2.5 pr-2 shadow-lg`;

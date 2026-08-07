@@ -1,4 +1,9 @@
-# Cursor Agent Proto Descriptor
+# Protocol Descriptors
+
+These checked-in binary descriptor sets keep protobuf consumers reproducible
+without requiring `protoc` during normal ORGII builds.
+
+## Cursor Agent
 
 `cursor_agent_v1.descriptor.pb` is a binary `FileDescriptorSet` containing the
 full `agent.v1` proto schema used by Cursor's internal gRPC / Connect API at
@@ -44,3 +49,26 @@ prost_build::Config::new().compile_fds(file_descriptor_set)?;
 the generated `agent.v1.rs` file from `OUT_DIR`, and the Cursor native provider
 uses those `pb::*` types to encode requests, decode streaming responses, and
 handle native tool-call messages for `/agent.v1.AgentService/Run`.
+
+## Warp Multi-Agent
+
+`warp_multi_agent_v1.descriptor.pb` is a binary `FileDescriptorSet` containing
+Warp's published `warp.multi_agent.v1` schema and all of its protobuf imports.
+ORGII uses the descriptor through `prost-reflect` to decode task transcript
+blobs stored in Warp's local `warp.sqlite` database.
+
+### Provenance
+
+- Source: `warpdotdev/warp-proto-apis`
+- Commit: `2d0e8ddf5a946a663f7e0952144ccbced0068a81`
+- Source crate: `apis/multi_agent/v1/gen/rust`
+- Generator: the source crate's `build.rs`, using `protoc` 25.9
+- SHA-256: `ed37419257376d6176d818effaa25f2e323a82a56694a6a964f9ec1cd6a90dc3`
+- Upstream license: AGPL-3.0-only
+
+The upstream build script normalizes Warp's Edition 2023 sources for `prost`,
+then emits `file_descriptor_set.bin`. To update the bundled schema, check out
+the recorded or desired upstream commit, build that source crate with the
+documented `protoc` version, replace this descriptor with the generated
+`OUT_DIR/file_descriptor_set.bin`, update the commit and checksum above, and
+run the `orgtrack_core` Warp history tests.

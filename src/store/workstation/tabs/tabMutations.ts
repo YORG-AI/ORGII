@@ -91,10 +91,6 @@ export function closeTab(state: PanelState, tabId: string): PanelState {
   const closedIndex = tabs.findIndex((tab) => tab.id === tabId);
   if (closedIndex === -1) return state ?? { tabs: [], activeTabId: null };
   const target = tabs[closedIndex];
-  if (target.closable === false || target.pinned) {
-    return state ?? { tabs: [], activeTabId: null };
-  }
-
   const newTabs = tabs.filter((tab) => tab.id !== tabId);
   if (tabId.startsWith("search:")) {
     deleteSearchTabSessionState(tabId);
@@ -203,27 +199,24 @@ export function updateTabData(
 }
 
 /**
- * Close all tabs except pinned/non-closable fixtures.
+ * Close every tab. The empty pool re-seeds a Launchpad tab (see
+ * `useLaunchpadTab`).
  */
 export function closeAllTabs(state: PanelState): PanelState {
-  const tabs = state?.tabs ?? [];
-  const kept = tabs.filter((tab) => tab.pinned || tab.closable === false);
-  for (const tab of tabs) {
-    if (!kept.includes(tab) && tab.id.startsWith("search:")) {
-      deleteSearchTabSessionState(tab.id);
-    }
-  }
-  if (kept.length === 0) {
+  const hadSearchTabs = (state?.tabs ?? []).some((tab) =>
+    tab.id.startsWith("search:")
+  );
+  if (hadSearchTabs) {
     clearSearchTabSessionStates();
   }
   return {
-    tabs: kept,
-    activeTabId: kept[0]?.id ?? null,
+    tabs: [],
+    activeTabId: null,
   };
 }
 
 /**
- * Close all tabs except the specified one (pinned tabs are also kept).
+ * Close all tabs except the specified one.
  */
 export function closeOtherTabs(state: PanelState, tabId: string): PanelState {
   // Safety check for uninitialized state
@@ -232,43 +225,25 @@ export function closeOtherTabs(state: PanelState, tabId: string): PanelState {
   if (!targetTab) return state ?? { tabs: [], activeTabId: null };
 
   for (const tab of tabs) {
-    if (
-      tab.id !== tabId &&
-      !tab.pinned &&
-      tab.closable !== false &&
-      tab.id.startsWith("search:")
-    ) {
+    if (tab.id !== tabId && tab.id.startsWith("search:")) {
       deleteSearchTabSessionState(tab.id);
     }
   }
 
-  // Preserve pinned tabs in their original order; place the target after them
-  // unless it's already pinned.
-  const pinned = tabs.filter((tab) => tab.pinned || tab.closable === false);
-  const keptTabs = pinned.some((tab) => tab.id === targetTab.id)
-    ? pinned
-    : [...pinned, targetTab];
-
   return {
-    tabs: keptTabs,
+    tabs: [targetTab],
     activeTabId: tabId,
   };
 }
 
 /**
- * Close all saved tabs (tabs without unsaved changes). Pinned and
- * non-closable tabs are always kept regardless of save state.
+ * Close all saved tabs (tabs without unsaved changes).
  */
 export function closeSavedTabs(state: PanelState): PanelState {
   // Safety check for uninitialized state
   const tabs = state?.tabs ?? [];
 
-  const keptTabs = tabs.filter(
-    (tab) =>
-      tab.hasUnsavedChanges === true ||
-      tab.pinned === true ||
-      tab.closable === false
-  );
+  const keptTabs = tabs.filter((tab) => tab.hasUnsavedChanges === true);
 
   // If active tab was closed, select first remaining tab or null
   let newActiveTabId = state?.activeTabId ?? null;

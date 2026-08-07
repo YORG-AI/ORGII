@@ -7,7 +7,7 @@
 import { EditorView } from "@codemirror/view";
 import { useCallback, useEffect, useState } from "react";
 
-import { EditorService } from "@src/services/workStation";
+import { EditorService } from "@src/services/workStation/EditorService";
 
 export interface UseEditorServiceRegistrationOptions {
   /** Register with EditorService (default: true) */

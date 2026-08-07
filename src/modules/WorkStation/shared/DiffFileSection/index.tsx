@@ -63,6 +63,7 @@ const LazyPagesPreview = React.lazy(
 
 export interface DiffFileSectionData {
   path: string;
+  original_path?: string | null;
   status: GitFileStatus;
   staged: boolean;
   additions?: number;
@@ -89,6 +90,8 @@ export interface DiffFileSectionProps {
   hideDirectory?: boolean;
   showBottomBorder?: boolean;
   dataPath?: string;
+  /** Show `current path ← original path` metadata for renamed files. */
+  showRenamePath?: boolean;
   /**
    * When true, renders a flat FileHeader (matching source control style)
    * instead of the collapsible chevron button. Content is always expanded.
@@ -129,6 +132,7 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   hideDirectory = false,
   showBottomBorder = true,
   dataPath,
+  showRenamePath = false,
   flat = false,
   noBottomPadding = false,
 }) => {
@@ -285,11 +289,21 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
   const previewContent = renderPreviewContent();
   const displayPath = getDisplayPath(file.path, repoPath);
   const { fileName, dirPath } = getFileNameAndDir(displayPath);
+  const originalDisplayPath = file.original_path
+    ? getDisplayPath(file.original_path, repoPath)
+    : null;
+  const renamePath =
+    showRenamePath &&
+    file.status === "renamed" &&
+    originalDisplayPath &&
+    originalDisplayPath !== displayPath
+      ? originalDisplayPath
+      : null;
 
   const diffContent = (
     <div ref={containerRef}>
       {previewContent ? (
-        <div className="h-[480px] min-h-[320px] overflow-hidden bg-bg-1">
+        <div className="h-[480px] min-h-[320px] overflow-hidden">
           <Suspense
             fallback={
               <Placeholder
@@ -401,6 +415,19 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
               <span className="min-w-0 truncate text-[11px] text-text-2">
                 {dirPath}
               </span>
+            ) : null}
+            {renamePath ? (
+              <>
+                <span className="shrink-0 text-[11px] text-text-3" aria-hidden>
+                  ←
+                </span>
+                <span
+                  className="min-w-0 truncate text-[11px] text-text-2"
+                  title={`${displayPath} ← ${renamePath}`}
+                >
+                  {renamePath}
+                </span>
+              </>
             ) : null}
           </div>
           <DiffStatsBadge

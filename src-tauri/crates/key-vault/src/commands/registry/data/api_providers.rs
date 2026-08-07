@@ -33,7 +33,7 @@ pub(crate) fn api_provider_registry() -> Vec<ApiProviderEntry> {
             brand_color: "#4285F4",
             docs_url: "https://ai.google.dev/docs",
             icon_provider: "gemini",
-            paired_cli_agent: Some("gemini_cli"),
+            paired_cli_agent: None,
             popular: false,
             supports_rust_agents: true,
         },

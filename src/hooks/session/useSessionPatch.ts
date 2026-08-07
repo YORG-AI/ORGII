@@ -160,6 +160,17 @@ function usePatchSession(): {
       if (options.pinned !== undefined) optimistic.pinned = options.pinned;
       upsertSession(optimistic);
 
+      // Imported teammate copies (`Session.importedFrom`) exist ONLY in the
+      // TS store — there is no agent_sessions/code_sessions row for the
+      // backend to patch, so the RPC would reject with "session not found"
+      // (surfacing as a full-screen App error from e.g. the composer's
+      // debounced draft save or the model picker). The optimistic local
+      // write above IS the persistence these rows get; skip the RPC.
+      if (before.importedFrom) {
+        setState({ isPatching: false, error: null });
+        return;
+      }
+
       try {
         await rpc.sessionAggregate.patch({
           sessionId,

@@ -170,6 +170,12 @@ impl OpenAICompatClient {
                 let message = err.best_message();
                 let lower = message.to_lowercase();
 
+                if err.error_type.as_deref() == Some("usage_limit_reached")
+                    || lower.contains("usage limit has been reached")
+                {
+                    return ProviderError::UsageLimitReached(message);
+                }
+
                 if lower.contains("context_length_exceeded")
                     || lower.contains("maximum context length")
                     || lower.contains("prompt is too long")
@@ -270,5 +276,43 @@ impl OpenAICompatClient {
             stream_error_kind: None,
             retry_after_ms: None,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OpenAICompatClient;
+    use crate::providers::traits::ProviderError;
+
+    #[test]
+    fn usage_limit_http_429_is_typed_and_non_transient() {
+        let error = OpenAICompatClient::parse_error_response(
+            429,
+            r#"{"error":{"type":"usage_limit_reached","message":"The usage limit has been reached"}}"#,
+            None,
+        );
+
+        assert!(matches!(
+            error,
+            ProviderError::UsageLimitReached(message)
+                if message == "The usage limit has been reached"
+        ));
+    }
+
+    #[test]
+    fn ordinary_http_429_remains_retryable_rate_limit() {
+        let error = OpenAICompatClient::parse_error_response(
+            429,
+            r#"{"error":{"type":"rate_limit_error","message":"Slow down"}}"#,
+            Some(2),
+        );
+
+        assert!(matches!(
+            error,
+            ProviderError::RateLimited {
+                message,
+                retry_after_secs: Some(2)
+            } if message == "Slow down"
+        ));
     }
 }

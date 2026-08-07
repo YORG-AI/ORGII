@@ -5,7 +5,6 @@ use super::codex_native::{
     CodexNativeClient, CodexOAuthRefreshConfig, CODEX_ACCOUNT_ID_HEADER, CODEX_ID_TOKEN_ENV_KEY,
 };
 use super::cursor_native::{CursorNativeProvider, CursorNativeWorkspaceContext};
-use super::gemini_native::GeminiNativeClient;
 use super::openai_adaptive::OpenAiAdaptiveClient;
 use super::openai_compat::OpenAICompatClient;
 use super::registry::{self, provider_id, ProviderSpec};
@@ -33,6 +32,46 @@ pub fn create_provider(
     account_id: Option<&str>,
 ) -> Result<Box<dyn LLMProvider>, ProviderError> {
     create_provider_with_reliability(model, account_id, &ReliabilityConfig::default())
+}
+
+/// Resolve exactly the durable queue route.  Queue provenance is a persisted
+/// contract, so a changed credential protocol is a hard error rather than a
+/// reason to silently select a different wire client.
+/// Resolve the exact account protocol without constructing a provider.
+/// Gateway review enqueue uses this to persist strict runtime provenance.
+pub fn resolve_account_protocol(model: &str, account_id: &str) -> Result<String, ProviderError> {
+    let spec = resolve_spec_for_account(model, Some(account_id))?;
+    let resolved = resolve_credentials(spec, Some(account_id))?;
+    Ok(resolved.protocol.as_str().to_string())
+}
+
+pub fn create_provider_for_protocol(
+    model: &str,
+    account_id: &str,
+    expected_protocol: &str,
+) -> Result<Box<dyn LLMProvider>, ProviderError> {
+    let spec = resolve_spec_for_account(model, Some(account_id))?;
+    let resolved = resolve_credentials(spec, Some(account_id))?;
+    if resolved.protocol.as_str() != expected_protocol {
+        return Err(ProviderError::AuthError(format!(
+            "审核任务锁定协议为 '{}'，账户当前解析为 '{}'。",
+            expected_protocol,
+            resolved.protocol.as_str()
+        )));
+    }
+    let reliability = ReliabilityConfig::default();
+    if !reliability.fallback_models.is_empty() {
+        return Err(ProviderError::Other(
+            "审核任务禁止跨模型 fallback。".to_string(),
+        ));
+    }
+    let primary = build_provider_from_resolved(&resolved, spec, model, None);
+    Ok(Box::new(ReliableProvider::single(
+        format!("{}/{}", spec.name, model),
+        primary,
+        reliability.max_retries,
+        reliability.base_backoff_ms,
+    )))
 }
 
 /// Create a provider wrapped in [`ReliableProvider`] for retry.
@@ -114,12 +153,6 @@ async fn ensure_account_key_fresh(account_id: Option<&str>) -> Result<(), Provid
                 .await
                 .map_err(ProviderError::AuthError)?;
         }
-        ModelType::GeminiCli => {
-            key_vault::key_store::KEY_SERVICE
-                .ensure_gemini_oauth_key_fresh(account_id)
-                .await
-                .map_err(ProviderError::AuthError)?;
-        }
         other => {
             tracing::debug!(
                 "[factory] ensure_account_key_fresh: no preflight refresher for \
@@ -150,8 +183,7 @@ pub fn create_provider_with_native_harness(
     }
 
     let spec = resolve_spec_for_account(model, account_id)?;
-    let resolved = resolve_credentials(spec, model, account_id)?;
-    let wire_model = resolved.wire_model.as_str();
+    let resolved = resolve_credentials(spec, account_id)?;
 
     if !reliability.fallback_models.is_empty() {
         return Err(ProviderError::Other(format!(
@@ -160,8 +192,8 @@ pub fn create_provider_with_native_harness(
         )));
     }
 
-    let primary = build_provider_from_resolved(&resolved, spec, wire_model, code_assist_session_id);
-    let primary_name = format!("{}/{}", spec.name, wire_model);
+    let primary = build_provider_from_resolved(&resolved, spec, model, code_assist_session_id);
+    let primary_name = format!("{}/{}", spec.name, model);
 
     // Wrap in ReliableProvider (single resolved route; retry-only, no route fallback).
     Ok(Box::new(ReliableProvider::single(
@@ -234,13 +266,12 @@ fn create_fallback_provider(
     account_id: Option<&str>,
 ) -> Result<(String, Box<dyn LLMProvider>), ProviderError> {
     let spec = resolve_spec_for_account(model, account_id)?;
-    let resolved = resolve_credentials(spec, model, account_id)?;
-    let wire_model = resolved.wire_model.as_str();
+    let resolved = resolve_credentials(spec, account_id)?;
 
-    let name = format!("{}/{}", spec.name, wire_model);
+    let name = format!("{}/{}", spec.name, model);
     Ok((
         name,
-        build_provider_from_resolved(&resolved, spec, wire_model, None),
+        build_provider_from_resolved(&resolved, spec, model, None),
     ))
 }
 
@@ -322,7 +353,7 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
     let provider_name = match model_type {
         ModelType::AnthropicApi | ModelType::AzureAnthropicApi => provider_id::ANTHROPIC,
         ModelType::Codex | ModelType::OpenaiApi => provider_id::OPENAI,
-        ModelType::GeminiApi | ModelType::GeminiCli => provider_id::GEMINI,
+        ModelType::GeminiApi => provider_id::GEMINI,
         ModelType::MoonshotApi => provider_id::MOONSHOT,
         ModelType::DeepseekApi => provider_id::DEEPSEEK,
         ModelType::GroqApi => provider_id::GROQ,
@@ -337,7 +368,6 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         ModelType::CherryinApi => provider_id::CHERRYIN,
         ModelType::BedrockApi => provider_id::BEDROCK,
         ModelType::CustomApi => provider_id::CUSTOM,
-        ModelType::EmbeddingApi => return None,
         ModelType::OpenrouterApi => provider_id::OPENROUTER,
         ModelType::ZenmuxApi => provider_id::ZENMUX,
         ModelType::VllmApi => provider_id::VLLM,
@@ -369,7 +399,8 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         | ModelType::MistralVibe
         | ModelType::Autohand
         | ModelType::Omp
-        | ModelType::Pi => return None,
+        | ModelType::Pi
+        | ModelType::EmbeddingApi => return None,
     };
     registry::find_by_name(provider_name)
 }
@@ -389,14 +420,10 @@ fn spec_for_credential(cred: &ModelKey) -> Option<&'static ProviderSpec> {
 struct ResolvedProviderKey {
     account_id: String,
     token: String,
-    wire_model: String,
     protocol: ProviderProtocol,
     api_base: Option<String>,
     custom_base_url: Option<String>,
-    is_codex_account: bool,
     is_codex_oauth: bool,
-    is_gemini_oauth: bool,
-    gemini_project_id: Option<String>,
     codex_refresh_config: Option<CodexOAuthRefreshConfig>,
     claude_oauth_refresh_config: Option<ClaudeOAuthRefreshConfig>,
     extra_headers: std::collections::HashMap<String, String>,
@@ -411,39 +438,22 @@ fn build_provider_from_resolved(
     resolved: &ResolvedProviderKey,
     spec: &'static ProviderSpec,
     model: &str,
-    code_assist_session_id: Option<&str>,
+    _code_assist_session_id: Option<&str>,
 ) -> Box<dyn LLMProvider> {
-    if resolved.is_gemini_oauth {
-        let project_id = resolved.gemini_project_id.clone().unwrap_or_default();
+    if resolved.is_codex_oauth {
         tracing::info!(
-            "[provider] Using GeminiNativeClient for model={}, project_id_present={}",
-            model,
-            !project_id.trim().is_empty()
-        );
-        return Box::new(GeminiNativeClient::new(
-            resolved.account_id.clone(),
-            project_id,
-            model.to_string(),
-            code_assist_session_id.map(ToString::to_string),
-        ));
-    }
-
-    if resolved.is_codex_account {
-        tracing::info!(
-            "[provider] Using CodexNativeClient (Responses API, oauth={}) for model={}",
-            resolved.is_codex_oauth,
+            "[provider] Using CodexNativeClient (Responses API) for model={}",
             model
         );
         let config = ProviderConfig {
             api_key: resolved.token.clone(),
-            api_base: resolved.api_base.clone(),
+            api_base: None,
             extra_headers: resolved.extra_headers.clone(),
             is_azure: false,
         };
-        return Box::new(CodexNativeClient::new_with_account_and_refresh(
+        return Box::new(CodexNativeClient::new_with_refresh(
             config,
             model.to_string(),
-            Some(resolved.account_id.clone()),
             resolved.codex_refresh_config.clone(),
         ));
     }
@@ -479,13 +489,11 @@ fn build_provider_from_resolved(
             extra_headers: resolved.extra_headers.clone(),
             is_azure: true,
         };
-        return Box::new(AnthropicClient::new_with_auth_mode_account_and_refresh(
+        return Box::new(AnthropicClient::new_with_auth_mode(
             azure_config,
             spec,
             model.to_string(),
             AnthropicAuthMode::AzureBearer,
-            Some(resolved.account_id.clone()),
-            None,
         ));
     }
 
@@ -512,12 +520,11 @@ fn build_provider_from_resolved(
             spec.name,
             resolved.protocol.as_str()
         );
-        return Box::new(AnthropicClient::new_with_auth_mode_account_and_refresh(
+        return Box::new(AnthropicClient::new_with_auth_mode_and_refresh(
             config,
             spec,
             model.to_string(),
             resolved.anthropic_auth_mode,
-            Some(resolved.account_id.clone()),
             resolved.claude_oauth_refresh_config.clone(),
         ));
     }
@@ -553,73 +560,6 @@ fn resolve_protocol(spec: &ProviderSpec, cred: &ModelKey) -> ProviderProtocol {
     })
 }
 
-/// ZenMux provider routing is opt-in per model. Model names alone never imply
-/// an API protocol because ZenMux exposes the same model through multiple
-/// protocols and upstream providers.
-fn resolve_protocol_for_model(
-    spec: &ProviderSpec,
-    cred: &ModelKey,
-    model: &str,
-) -> ProviderProtocol {
-    if cred.model_type == ModelType::ZenmuxApi {
-        return if zenmux_provider_slug(model) == Some("anthropic") {
-            ProviderProtocol::Anthropic
-        } else {
-            ProviderProtocol::OpenAi
-        };
-    }
-    resolve_protocol(spec, cred)
-}
-
-fn resolve_base_url_for_model(
-    cred: &ModelKey,
-    model: &str,
-    protocol: ProviderProtocol,
-) -> Option<String> {
-    let is_zenmux_anthropic = cred.model_type == ModelType::ZenmuxApi
-        && protocol == ProviderProtocol::Anthropic
-        && zenmux_provider_slug(model) == Some("anthropic");
-
-    // Older ZenMux accounts may have saved the OpenAI-compatible default as an
-    // explicit base URL. It is not a custom override for an explicitly routed
-    // Anthropic model: let endpoint resolution select ZenMux's Messages base.
-    cred.base_url.clone().filter(|base_url| {
-        !is_zenmux_anthropic || base_url.trim_end_matches('/') != "https://zenmux.ai/api/v1"
-    })
-}
-
-fn zenmux_provider_slug(model: &str) -> Option<&str> {
-    model.rsplit_once(':').map(|(_, slug)| slug)
-}
-
-fn zenmux_wire_model(cred: &ModelKey, model: &str) -> String {
-    if cred.model_type != ModelType::ZenmuxApi {
-        return model.to_string();
-    }
-
-    let (base_model, explicit_slug) = model.rsplit_once(':').unwrap_or((model, ""));
-    let slug = if explicit_slug.is_empty() {
-        cred.model_slugs
-            .iter()
-            .find(|entry| entry.model == base_model)
-            .map(|entry| entry.slug.as_str())
-    } else {
-        Some(explicit_slug)
-    };
-
-    match slug {
-        // ZenMux documents provider pinning as `model_slug:provider_slug` on
-        // its OpenAI-compatible API. Its Google Vertex provider identifiers
-        // are endpoint-qualified, so bare `google-vertex` is persisted but is
-        // intentionally not emitted until an exact mapping is verified.
-        Some("google-vertex") => base_model.to_string(),
-        Some(slug) if key_vault::key_store::ModelSlug::is_supported_slug(slug) => {
-            format!("{base_model}:{slug}")
-        }
-        _ => base_model.to_string(),
-    }
-}
-
 /// Routing (custom base URL + protocol) for a resolved credential.
 ///
 /// Official Claude OAuth access tokens (`sk-ant-oat…`) authenticate only at
@@ -633,9 +573,8 @@ fn zenmux_wire_model(cred: &ModelKey, model: &str) -> String {
 /// Endpoint officialness is decided by key-vault's
 /// `is_official_anthropic_endpoint` so both crates stay in lockstep.
 fn resolve_credential_routing(
-    spec: &ProviderSpec,
+    spec: &'static ProviderSpec,
     cred: &ModelKey,
-    model: &str,
 ) -> (Option<String>, ProviderProtocol) {
     let official_claude_oauth = is_claude_oauth_key(cred)
         && cred
@@ -643,8 +582,7 @@ fn resolve_credential_routing(
             .as_deref()
             .is_some_and(key_vault::commands::is_claude_official_oauth_token);
     if !official_claude_oauth {
-        let protocol = resolve_protocol_for_model(spec, cred, model);
-        return (resolve_base_url_for_model(cred, model, protocol), protocol);
+        return (cred.base_url.clone(), resolve_protocol(spec, cred));
     }
 
     let custom_base_url = cred
@@ -695,7 +633,6 @@ fn resolve_provider_endpoint(
 /// For Codex OAuth keys, extracts the account id from the stored `id_token` JWT.
 fn resolve_credentials(
     spec: &'static ProviderSpec,
-    model: &str,
     account_id: Option<&str>,
 ) -> Result<ResolvedProviderKey, ProviderError> {
     use key_vault::key_store::KEY_SERVICE;
@@ -756,13 +693,12 @@ fn resolve_credentials(
 
     let is_codex_oauth = is_codex_oauth_key(&cred);
     let is_claude_oauth = is_claude_oauth_key(&cred);
-    let is_gemini_oauth = is_gemini_oauth_key(&cred);
 
     // auth_method is authoritative. Rust-native HTTP sessions support OAuth
     // only for providers with an explicit native auth mode. Do not substitute
     // OAuth tokens into generic provider API-key clients.
     let token = if cred.auth_method == AuthMethod::Oauth {
-        if !is_codex_oauth && !is_claude_oauth && !is_gemini_oauth {
+        if !is_codex_oauth && !is_claude_oauth {
             return Err(ProviderError::AuthError(format!(
                 "Account '{}' uses OAuth (type={}), which is not supported for Rust-native provider sessions.",
                 acct_id,
@@ -836,8 +772,7 @@ fn resolve_credentials(
     } else {
         AnthropicAuthMode::ApiKey
     };
-    let wire_model = zenmux_wire_model(&cred, model);
-    let (custom_base_url, protocol) = resolve_credential_routing(spec, &cred, &wire_model);
+    let (custom_base_url, protocol) = resolve_credential_routing(spec, &cred);
     let api_base = resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)?;
 
     tracing::info!(
@@ -856,14 +791,10 @@ fn resolve_credentials(
     Ok(ResolvedProviderKey {
         account_id: acct_id.to_string(),
         token,
-        wire_model,
         protocol,
         api_base,
         custom_base_url,
-        is_codex_account: cred.model_type == ModelType::Codex,
         is_codex_oauth,
-        is_gemini_oauth,
-        gemini_project_id: gemini_project_id(&cred),
         codex_refresh_config,
         claude_oauth_refresh_config,
         extra_headers,
@@ -883,18 +814,6 @@ fn is_codex_oauth_key(cred: &ModelKey) -> bool {
 /// against the native Anthropic Messages API.
 fn is_claude_oauth_key(cred: &ModelKey) -> bool {
     oauth_key_has_session_token(cred, ModelType::ClaudeCode)
-}
-
-fn is_gemini_oauth_key(cred: &ModelKey) -> bool {
-    oauth_key_has_session_token(cred, ModelType::GeminiCli)
-}
-
-fn gemini_project_id(cred: &ModelKey) -> Option<String> {
-    ["GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID"]
-        .iter()
-        .find_map(|key| cred.env_vars.get(*key))
-        .map(|project_id| project_id.trim().to_string())
-        .filter(|project_id| !project_id.is_empty())
 }
 
 fn oauth_key_has_session_token(cred: &ModelKey, model_type: ModelType) -> bool {
@@ -940,7 +859,7 @@ pub fn check_credentials_available(
     // proxy models like "claude-high" that live in an openai_api credential
     // but contain provider keywords that would route to the wrong provider.
     let (spec, api_key, api_base, protocol) = match guess_spec_by_model(model).and_then(|spec| {
-        find_api_key_for_provider(spec, model, &creds)
+        find_api_key_for_provider(spec, &creds)
             .map(|(key, base, protocol)| (spec, key, base, protocol))
     }) {
         Ok(result) => result,
@@ -987,7 +906,6 @@ pub fn check_credentials_available(
 /// built-in provider keyword.
 fn find_api_key_for_provider(
     spec: &ProviderSpec,
-    model: &str,
     creds: &[ModelKey],
 ) -> Result<(String, Option<String>, ProviderProtocol), ProviderError> {
     let api_key_type = api_key_model_type_for_spec(spec);
@@ -1002,10 +920,9 @@ fn find_api_key_for_provider(
                             cred.model_type.as_str(),
                             spec.display_name
                         );
-                        let (custom_base_url, protocol) =
-                            resolve_credential_routing(spec, cred, model);
+                        let protocol = resolve_protocol(spec, cred);
                         let api_base =
-                            resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)?;
+                            resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
                         return Ok((key.clone(), api_base, protocol));
                     }
                 }
@@ -1017,9 +934,9 @@ fn find_api_key_for_provider(
         for cred in creds {
             if let Some(val) = cred.env_vars.get(env_key) {
                 if !val.is_empty() {
-                    let (custom_base_url, protocol) = resolve_credential_routing(spec, cred, model);
+                    let protocol = resolve_protocol(spec, cred);
                     let api_base =
-                        resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)?;
+                        resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
                     return Ok((val.clone(), api_base, protocol));
                 }
             }
@@ -1092,8 +1009,8 @@ fn find_credential_by_available_model(
             cred.name.as_deref().unwrap_or(&cred.id),
             spec.display_name
         );
-        let (custom_base_url, protocol) = resolve_credential_routing(spec, cred, model);
-        let api_base = resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)?;
+        let protocol = resolve_protocol(spec, cred);
+        let api_base = resolve_provider_endpoint(spec, cred.base_url.as_ref(), protocol)?;
         return Ok(Some((spec, key.to_string(), api_base, protocol)));
     }
     Ok(None)
@@ -1171,12 +1088,6 @@ mod tests {
                 .name,
             provider_id::OPENCODE
         );
-        assert_eq!(
-            spec_for_model_type(&ModelType::GeminiCli)
-                .expect("Gemini CLI can power Rust-native sessions")
-                .name,
-            provider_id::GEMINI
-        );
     }
 
     #[test]
@@ -1206,33 +1117,6 @@ mod tests {
     }
 
     #[test]
-    fn gemini_oauth_credential_resolves_to_gemini_spec_and_project_id() {
-        let mut key = ModelKey::new(ModelType::GeminiCli);
-        key.auth_method = AuthMethod::Oauth;
-        key.session_token = Some("access-token".to_string());
-        key.env_vars.insert(
-            "GOOGLE_CLOUD_PROJECT".to_string(),
-            "project-from-load-code-assist".to_string(),
-        );
-
-        let spec = spec_for_credential(&key).expect("Gemini OAuth should map to Gemini");
-        assert_eq!(spec.name, provider_id::GEMINI);
-        assert!(is_gemini_oauth_key(&key));
-        assert_eq!(
-            gemini_project_id(&key).as_deref(),
-            Some("project-from-load-code-assist")
-        );
-    }
-
-    #[test]
-    fn gemini_oauth_key_requires_session_token() {
-        let mut key = ModelKey::new(ModelType::GeminiCli);
-        key.auth_method = AuthMethod::Oauth;
-
-        assert!(!is_gemini_oauth_key(&key));
-    }
-
-    #[test]
     fn available_model_scan_ignores_oauth_tokens() {
         let mut key = ModelKey::new(ModelType::OpenaiApi);
         key.auth_method = AuthMethod::Oauth;
@@ -1258,76 +1142,17 @@ mod tests {
     }
 
     #[test]
-    fn zenmux_account_protocol_does_not_override_empty_model_slug() {
+    fn zenmux_anthropic_protocol_uses_anthropic_endpoint() {
         let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
         let mut key = ModelKey::new(ModelType::ZenmuxApi);
         key.protocol = Some(ProviderProtocol::Anthropic);
 
-        let wire_model = zenmux_wire_model(&key, "anthropic/claude-opus-4.8");
-        let (custom_base, protocol) = resolve_credential_routing(spec, &key, &wire_model);
-        let api_base = resolve_provider_endpoint(spec, custom_base.as_ref(), protocol)
-            .expect("ZenMux OpenAI endpoint should resolve");
+        let protocol = resolve_protocol(spec, &key);
+        let api_base = resolve_provider_endpoint(spec, key.base_url.as_ref(), protocol)
+            .expect("ZenMux Anthropic endpoint should resolve");
 
-        assert_eq!(wire_model, "anthropic/claude-opus-4.8");
-        assert_eq!(protocol, ProviderProtocol::OpenAi);
-        assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/v1"));
-    }
-
-    #[test]
-    fn zenmux_explicit_anthropic_slug_uses_messages_endpoint() {
-        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
-        let mut key = ModelKey::new(ModelType::ZenmuxApi);
-        key.protocol = Some(ProviderProtocol::OpenAi);
-        key.base_url = Some("https://zenmux.ai/api/v1/".to_string());
-        key.model_slugs.push(key_vault::key_store::ModelSlug {
-            model: "anthropic/claude-opus-4.8".to_string(),
-            slug: "anthropic".to_string(),
-        });
-
-        let wire_model = zenmux_wire_model(&key, "anthropic/claude-opus-4.8");
-        let (custom_base, protocol) = resolve_credential_routing(spec, &key, &wire_model);
-        let api_base = resolve_provider_endpoint(spec, custom_base.as_ref(), protocol)
-            .expect("ZenMux Claude endpoint should resolve");
-
-        assert_eq!(wire_model, "anthropic/claude-opus-4.8:anthropic");
         assert_eq!(protocol, ProviderProtocol::Anthropic);
-        assert_eq!(custom_base, None);
         assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/anthropic"));
-    }
-
-    #[test]
-    fn zenmux_google_vertex_slug_is_preserved_but_not_emitted_or_routed_as_anthropic() {
-        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
-        let mut key = ModelKey::new(ModelType::ZenmuxApi);
-        key.model_slugs.push(key_vault::key_store::ModelSlug {
-            model: "anthropic/claude-opus-4.8".to_string(),
-            slug: "google-vertex".to_string(),
-        });
-
-        let wire_model = zenmux_wire_model(&key, "anthropic/claude-opus-4.8");
-        let (custom_base, protocol) = resolve_credential_routing(spec, &key, &wire_model);
-        let api_base = resolve_provider_endpoint(spec, custom_base.as_ref(), protocol)
-            .expect("ZenMux OpenAI endpoint should resolve");
-
-        assert_eq!(key.model_slugs[0].slug, "google-vertex");
-        assert_eq!(wire_model, "anthropic/claude-opus-4.8");
-        assert_eq!(protocol, ProviderProtocol::OpenAi);
-        assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/v1"));
-    }
-
-    #[test]
-    fn zenmux_empty_slug_keeps_non_claude_models_on_openai_compat() {
-        let spec = registry::find_by_name(provider_id::ZENMUX).expect("ZenMux provider registered");
-        let key = ModelKey::new(ModelType::ZenmuxApi);
-
-        let wire_model = zenmux_wire_model(&key, "openai/gpt-5.6-sol");
-        let (custom_base, protocol) = resolve_credential_routing(spec, &key, &wire_model);
-        let api_base = resolve_provider_endpoint(spec, custom_base.as_ref(), protocol)
-            .expect("ZenMux OpenAI endpoint should resolve");
-
-        assert_eq!(wire_model, "openai/gpt-5.6-sol");
-        assert_eq!(protocol, ProviderProtocol::OpenAi);
-        assert_eq!(api_base.as_deref(), Some("https://zenmux.ai/api/v1"));
     }
 
     #[test]
@@ -1431,7 +1256,7 @@ mod tests {
         key.base_url = Some("https://relay.example.com/v1".to_string());
         key.protocol = Some(ProviderProtocol::OpenAi);
 
-        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key, "claude-opus-4-8");
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
         let api_base = resolve_provider_endpoint(spec, custom_base_url.as_ref(), protocol)
             .expect("official endpoint should resolve");
 
@@ -1447,7 +1272,7 @@ mod tests {
         let mut key = claude_oauth_key_with_token("sk-ant-oat01-abc");
         key.base_url = Some("https://api.anthropic.com/v1".to_string());
 
-        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key, "claude-opus-4-8");
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
 
         assert_eq!(
             custom_base_url.as_deref(),
@@ -1464,7 +1289,7 @@ mod tests {
         key.base_url = Some("https://relay.example.com/v1".to_string());
         key.protocol = Some(ProviderProtocol::OpenAi);
 
-        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key, "claude-opus-4-8");
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
 
         assert_eq!(
             custom_base_url.as_deref(),
@@ -1481,7 +1306,7 @@ mod tests {
         key.protocol = Some(ProviderProtocol::Anthropic);
         key.base_url = Some("https://proxy.example.com/anthropic".to_string());
 
-        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key, "claude-opus-4-8");
+        let (custom_base_url, protocol) = resolve_credential_routing(spec, &key);
 
         assert_eq!(
             custom_base_url.as_deref(),
@@ -1511,7 +1336,7 @@ mod tests {
                 .expect("Anthropic provider registered");
             let mut key = claude_oauth_key_with_token("sk-ant-oat01-abc");
             key.base_url = base_url.map(str::to_string);
-            let (custom_base_url, _) = resolve_credential_routing(spec, &key, "claude-opus-4-8");
+            let (custom_base_url, _) = resolve_credential_routing(spec, &key);
             assert_eq!(
                 custom_base_url.is_some(),
                 expected_official && base_url.is_some(),

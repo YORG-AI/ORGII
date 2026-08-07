@@ -61,7 +61,6 @@ const SOURCE_LABEL_KEY: Record<SourceAgent, string> = {
   copilot: "agentOrgs.externalImport.sources.copilot",
   kiro: "agentOrgs.externalImport.sources.kiro",
   codex: "agentOrgs.externalImport.sources.codex",
-  gemini_cli: "agentOrgs.externalImport.sources.gemini_cli",
 };
 
 const SOURCE_LABEL_FALLBACK: Record<SourceAgent, string> = {
@@ -70,7 +69,6 @@ const SOURCE_LABEL_FALLBACK: Record<SourceAgent, string> = {
   copilot: "GitHub Copilot",
   kiro: "Kiro",
   codex: "Codex",
-  gemini_cli: "Gemini CLI",
 };
 
 const SOURCE_ICON_MODEL_TYPE: Record<SourceAgent, ModelType> = {
@@ -79,7 +77,6 @@ const SOURCE_ICON_MODEL_TYPE: Record<SourceAgent, ModelType> = {
   copilot: CLI_AGENT.COPILOT,
   kiro: CLI_AGENT.KIRO,
   codex: CLI_AGENT.CODEX,
-  gemini_cli: CLI_AGENT.GEMINI,
 };
 
 export interface ExternalImportColumnLabels {

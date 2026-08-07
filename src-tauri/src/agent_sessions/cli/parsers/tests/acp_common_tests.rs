@@ -105,12 +105,12 @@ fn synthesize_diff_replacement() {
 
 #[test]
 fn synthesize_diff_multi_line() {
-    let old = "line1\nline2";
-    let new = "line1\nline2\nline3";
+    let old = "line1\nline2\n";
+    let new = "line1\nline2\nline3\n";
     let (diff, added, removed) = synthesize_diff("f.txt", old, new);
     assert!(diff.contains("@@ -1,2 +1,3 @@"));
-    assert_eq!(added, 3);
-    assert_eq!(removed, 2);
+    assert_eq!(added, 1);
+    assert_eq!(removed, 0);
 }
 
 #[test]

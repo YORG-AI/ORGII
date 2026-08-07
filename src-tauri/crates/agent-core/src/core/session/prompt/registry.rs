@@ -498,6 +498,7 @@ pub mod order {
     pub const RULES: i32 = 80;
     pub const ALWAYS_SKILLS: i32 = 90;
     pub const LEARNINGS: i32 = 100;
+    pub const SCOPE_PRESETS: i32 = 102;
     pub const MEMORY_PROTOCOL: i32 = 105;
     pub const MESSAGING: i32 = 110;
     pub const SILENT_REPLIES: i32 = 120;
@@ -538,6 +539,7 @@ pub fn registry() -> Vec<&'static dyn PromptSection> {
         &RulesSection,
         &AlwaysSkillsSection,
         &LearningsSection,
+        &ScopedPromptPresetsSection,
         &WorkspaceMemoryProtocolSection,
         &MessagingSection,
         &SilentRepliesSection,
@@ -585,7 +587,8 @@ mod tests {
                 | "agent_mode_suffix"
                 | "flow_awareness"
                 | "project_conventions"
-                | "mcp_instructions" => PromptCachePolicy::Volatile,
+                | "mcp_instructions"
+                | "scoped_prompt_presets" => PromptCachePolicy::Volatile,
                 "learnings" => PromptCachePolicy::RevisionKeyed,
                 "identity"
                 | "memory_protocol"
@@ -635,6 +638,7 @@ mod tests {
                 "rules",
                 "always_skills",
                 "learnings",
+                "scoped_prompt_presets",
                 "memory_protocol",
                 "messaging",
                 "silent_replies",
@@ -687,6 +691,7 @@ mod tests {
                 ("rules", order::RULES),
                 ("always_skills", order::ALWAYS_SKILLS),
                 ("learnings", order::LEARNINGS),
+                ("scoped_prompt_presets", order::SCOPE_PRESETS),
                 ("memory_protocol", order::MEMORY_PROTOCOL),
                 ("messaging", order::MESSAGING),
                 ("silent_replies", order::SILENT_REPLIES),

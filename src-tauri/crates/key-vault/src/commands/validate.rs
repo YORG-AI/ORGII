@@ -14,6 +14,7 @@ use crate::providers::google::GoogleValidator;
 use crate::providers::kiro::KiroValidator;
 use crate::providers::openai::OpenAIValidator;
 use crate::providers::opencode_go::{workspace_id_override_from_key, OpenCodeGoQuotaFetcher};
+use crate::providers::zhipu::ZhipuQuotaFetcher;
 
 #[derive(Debug, Serialize)]
 pub struct TestModelResult {
@@ -60,33 +61,6 @@ struct OpenCodeModelInfo {
     id: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct GeminiOauthModelsResponse {
-    #[serde(default)]
-    models: Vec<GeminiOauthModelInfo>,
-}
-
-#[derive(Debug, Deserialize)]
-struct GeminiOauthModelInfo {
-    #[serde(default)]
-    name: String,
-    #[serde(default, rename = "supportedGenerationMethods")]
-    supported_generation_methods: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CodeAssistQuotaResponse {
-    #[serde(default)]
-    buckets: Vec<CodeAssistQuotaBucket>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct CodeAssistQuotaBucket {
-    #[serde(default)]
-    model_id: String,
-}
-
 use crate::provider_config::get_provider_config;
 
 const CLAUDE_CODE_OAUTH_MODELS_URL: &str = "https://api.anthropic.com/v1/models";
@@ -94,11 +68,6 @@ const CLAUDE_CODE_OAUTH_BETA: &str = "oauth-2025-04-20";
 const CLAUDE_CODE_OAUTH_USER_AGENT: &str = "claude-cli/2.1.78 (orgii, cli)";
 pub const OPENCODE_ZEN_BASE_URL: &str = "https://opencode.ai/zen/v1";
 pub const OPENCODE_GO_BASE_URL: &str = "https://opencode.ai/zen/go/v1";
-
-const GEMINI_OAUTH_MODELS_URL: &str = "https://generativelanguage.googleapis.com/v1beta/models";
-
-const CODE_ASSIST_QUOTA_URL: &str =
-    "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota";
 
 /// Get the default base URL for a provider (without /v1 suffix for OpenAI-compat validation).
 /// Uses the unified provider_config module as the single source of truth.
@@ -165,62 +134,6 @@ async fn fetch_opencode_models(api_key: &str, base_url: &str) -> Result<Vec<Stri
     Ok(models.data.into_iter().map(|model| model.id).collect())
 }
 
-async fn validate_embedding_endpoint(
-    api_key: &str,
-    base_url: Option<&str>,
-    model: Option<&str>,
-) -> Result<ValidationResult, String> {
-    let base_url = base_url
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "Embedding provider requires a base URL".to_string())?
-        .trim_end_matches('/');
-    let model = model
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "Embedding provider requires a model".to_string())?;
-    let client = reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(5))
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-        .map_err(|err| format!("Failed to build embedding validation client: {err}"))?;
-    let response = client
-        .post(format!("{base_url}/embeddings"))
-        .bearer_auth(api_key)
-        .json(&serde_json::json!({"input": ["orgii embedding validation"], "model": model}))
-        .send()
-        .await
-        .map_err(|err| format!("Embedding validation request failed: {err}"))?;
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|err| format!("Failed to read embedding validation response: {err}"))?;
-    if !status.is_success() {
-        return Ok(ValidationResult::failure(&format!(
-            "Embedding endpoint returned HTTP {}: {}",
-            status.as_u16(),
-            body
-        )));
-    }
-    let payload: serde_json::Value = serde_json::from_str(&body)
-        .map_err(|err| format!("Invalid embedding response JSON: {err}"))?;
-    let dimensions = payload
-        .pointer("/data/0/embedding")
-        .and_then(|value| value.as_array())
-        .map(Vec::len)
-        .filter(|len| *len > 0)
-        .ok_or_else(|| "Embedding endpoint returned no vector".to_string())?;
-    {
-        let mut result = ValidationResult::success(&format!(
-            "Embedding endpoint validated ({dimensions} dimensions)"
-        ));
-        result.models_available = vec![model.to_string()];
-        result.provider_response = serde_json::json!({"dimensions": dimensions}).to_string();
-        Ok(result)
-    }
-}
-
 /// Validate a key for a given agent type (shared by Tauri and headless tools).
 pub async fn run_validate_key(
     agent_type: String,
@@ -268,8 +181,8 @@ pub async fn run_validate_key(
                 .await)
         }
 
-        // Google / Gemini CLI
-        "google" | "gemini_cli" => {
+        // Google API
+        "google" => {
             let validator = GoogleValidator::new();
             Ok(validator.validate(&api_key, base_url.as_deref(), test_model.as_deref()).await)
         }
@@ -286,12 +199,6 @@ pub async fn run_validate_key(
         "openai_api" => {
             let validator = OpenAIValidator::new();
             Ok(validator.validate(&api_key, base_url.as_deref(), Some("openai_api"), test_model.as_deref()).await)
-        }
-
-        // Embedding-only provider: validation must execute a real /embeddings
-        // request. A successful /models or chat request is insufficient.
-        "embedding_api" | "embedding" => {
-            validate_embedding_endpoint(&api_key, base_url.as_deref(), test_model.as_deref()).await
         }
 
         "anthropic_api" => {
@@ -351,7 +258,7 @@ pub async fn run_validate_key(
         }
 
         _ => Err(format!(
-            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, gemini_cli, codex, claude_code, kiro, opencode, openai_api, embedding_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
+            "Unknown agent type: {}. Supported: copilot, cursor_cli, openai, anthropic, google, codex, claude_code, kiro, opencode, openai_api, anthropic_api, gemini_api, deepseek_api, groq_api, xai_api, zhipu_api, dashscope_api, moonshot_api, minimax_api, longcat_api, openrouter_api, zenmux_api, siliconflow_api, modelscope_api, aihubmix_api, cherryin_api, bedrock_api, custom_api, vllm_api, azure_openai_api, azure_anthropic_api",
             agent_type
         )),
     }
@@ -455,7 +362,7 @@ pub fn validate_token_format(agent_type: String, token: String) -> Result<(bool,
             let validator = AnthropicValidator::new();
             Ok(validator.validate_format(&token))
         }
-        "google" | "gemini_cli" => {
+        "google" => {
             let validator = GoogleValidator::new();
             Ok(validator.validate_format(&token))
         }
@@ -539,13 +446,15 @@ pub async fn fetch_key_quota(
                 .fetch_quota(&api_key, None)
                 .await
         }
+        // Zhipu (BigModel / Z.ai) GLM Coding Plan. Base URL is not available on
+        // this validation-time path, so the fetcher defaults to the China host.
+        "zhipu_api" | "zhipu" => ZhipuQuotaFetcher::new().fetch_quota(&api_key, None).await,
         // Other providers don't have public quota APIs
         "openai"
         | "anthropic"
         | "claude_code"
         | "google"
         | "codex"
-        | "gemini_cli"
         | "kiro"
         | "openai_api"
         | "anthropic_api"
@@ -553,7 +462,6 @@ pub async fn fetch_key_quota(
         | "deepseek_api"
         | "groq_api"
         | "xai_api"
-        | "zhipu_api"
         | "dashscope_api"
         | "moonshot_api"
         | "minimax_api"
@@ -694,6 +602,16 @@ async fn fetch_quota_for_key(
                 .ok_or_else(|| "OpenCode account has no session cookie".to_string())?;
             OpenCodeGoQuotaFetcher::new()
                 .fetch_quota(cookie, workspace_id_override_from_key(key))
+                .await
+        }
+        ModelType::ZhipuApi => {
+            let token = key
+                .api_key
+                .as_deref()
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "Zhipu account has no API key".to_string())?;
+            ZhipuQuotaFetcher::new()
+                .fetch_quota(token, key.base_url.as_deref())
                 .await
         }
         ref other => Err(format!(
@@ -920,157 +838,6 @@ pub async fn codex_oauth_list_models(
     Ok(models)
 }
 
-async fn gemini_oauth_list_models_from_url(
-    access_token: &str,
-    models_url: &str,
-) -> Result<Vec<String>, String> {
-    let token = access_token.trim();
-    if token.is_empty() {
-        return Err("Gemini OAuth access token is empty".to_string());
-    }
-
-    let response = reqwest::Client::new()
-        .get(models_url)
-        .header("Authorization", format!("Bearer {token}"))
-        .timeout(std::time::Duration::from_secs(15))
-        .send()
-        .await
-        .map_err(|err| format!("Gemini OAuth model discovery request failed: {err}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|err| format!("Gemini OAuth model discovery body read failed: {err}"))?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Gemini OAuth model discovery failed: HTTP {}: {}",
-            status.as_u16(),
-            body
-        ));
-    }
-
-    parse_gemini_oauth_models_response(&body)
-}
-
-fn parse_gemini_oauth_models_response(body: &str) -> Result<Vec<String>, String> {
-    let parsed: GeminiOauthModelsResponse = serde_json::from_str(body)
-        .map_err(|err| format!("Gemini OAuth model discovery parse failed: {err}"))?;
-    let mut models = Vec::new();
-    for model in parsed.models {
-        if !model
-            .supported_generation_methods
-            .iter()
-            .any(|method| method == "generateContent")
-        {
-            continue;
-        }
-        // Google returns "models/gemini-2.0-flash" — strip the prefix so the
-        // ids align with what the rest of the app expects.
-        let id = model.name.strip_prefix("models/").unwrap_or(&model.name);
-        if !id.is_empty() && !models.iter().any(|existing: &String| existing == id) {
-            models.push(id.to_string());
-        }
-    }
-    Ok(models)
-}
-
-/// Discover the models a Code Assist (Gemini subscription) OAuth account can
-/// actually use by querying the same `cloudcode-pa.googleapis.com/v1internal`
-/// backend the chat requests go through.
-///
-/// Subscription OAuth tokens carry the `cloud-platform` scope but NOT the
-/// `generativelanguage` scope, so the public `:listModels` endpoint returns
-/// HTTP 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT for them. Code Assist has no public
-/// list-models method, but `:retrieveUserQuota` returns per-model quota buckets
-/// whose `modelId` values are exactly the models the account is entitled to —
-/// reachable with the same scope as chat, so it never 403s for these accounts.
-async fn gemini_code_assist_list_models(
-    access_token: &str,
-    project_id: &str,
-) -> Result<Vec<String>, String> {
-    let token = access_token.trim();
-    if token.is_empty() {
-        return Err("Gemini OAuth access token is empty".to_string());
-    }
-    let project = project_id.trim();
-    if project.is_empty() {
-        return Err("Gemini OAuth account is missing GOOGLE_CLOUD_PROJECT".to_string());
-    }
-
-    let response = reqwest::Client::new()
-        .post(CODE_ASSIST_QUOTA_URL)
-        .header("Authorization", format!("Bearer {token}"))
-        .json(&serde_json::json!({ "project": project }))
-        .timeout(std::time::Duration::from_secs(15))
-        .send()
-        .await
-        .map_err(|err| format!("Gemini Code Assist model discovery request failed: {err}"))?;
-
-    let status = response.status();
-    let body = response
-        .text()
-        .await
-        .map_err(|err| format!("Gemini Code Assist model discovery body read failed: {err}"))?;
-
-    if !status.is_success() {
-        return Err(format!(
-            "Gemini Code Assist model discovery failed: HTTP {}: {}",
-            status.as_u16(),
-            body
-        ));
-    }
-
-    parse_code_assist_quota_response(&body)
-}
-
-fn parse_code_assist_quota_response(body: &str) -> Result<Vec<String>, String> {
-    let parsed: CodeAssistQuotaResponse = serde_json::from_str(body)
-        .map_err(|err| format!("Gemini Code Assist model discovery parse failed: {err}"))?;
-    let mut models = Vec::new();
-    for bucket in parsed.buckets {
-        let id = bucket.model_id.trim();
-        if !id.is_empty() && !models.iter().any(|existing: &String| existing == id) {
-            models.push(id.to_string());
-        }
-    }
-    Ok(models)
-}
-
-#[tauri::command]
-pub async fn gemini_oauth_list_models(
-    access_token: String,
-    project_id: Option<String>,
-) -> Result<Vec<String>, String> {
-    use log::info;
-    // Subscription (Code Assist) OAuth accounts have a project_id and must use
-    // the cloudcode-pa quota endpoint — the public generativelanguage endpoint
-    // 403s for them. Only fall back to generativelanguage when no project is
-    // available (e.g. older accounts captured before project_id was stored).
-    if let Some(project) = project_id
-        .as_deref()
-        .map(str::trim)
-        .filter(|p| !p.is_empty())
-    {
-        info!("[gemini_oauth_list_models] Fetching models via Code Assist quota endpoint...");
-        let models = gemini_code_assist_list_models(&access_token, project).await?;
-        info!(
-            "[gemini_oauth_list_models] Got {} models from Code Assist quota endpoint",
-            models.len()
-        );
-        return Ok(models);
-    }
-
-    info!("[gemini_oauth_list_models] Fetching models via Gemini OAuth (generativelanguage)...");
-    let models = gemini_oauth_list_models_from_url(&access_token, GEMINI_OAUTH_MODELS_URL).await?;
-    info!(
-        "[gemini_oauth_list_models] Got {} models from Gemini OAuth",
-        models.len()
-    );
-    Ok(models)
-}
-
 /// Force-refresh an OAuth account's access token after the frontend observed a
 /// rejection (e.g. 401 from a list-models call). Dispatches by the key's
 /// model_type and routes through the existing per-provider refresh helpers,
@@ -1105,11 +872,6 @@ pub async fn refresh_oauth_token(key_id: String) -> Result<(), String> {
         ModelType::Codex => {
             KEY_SERVICE
                 .refresh_codex_oauth_key(&key_id, &rejected_access_token)
-                .await?;
-        }
-        ModelType::GeminiCli => {
-            KEY_SERVICE
-                .refresh_gemini_oauth_key_after_rejection(&key_id, &rejected_access_token)
                 .await?;
         }
         other => {
@@ -1208,66 +970,6 @@ mod tests {
     }
 
     #[test]
-    fn gemini_oauth_models_response_parses_strips_prefix_filters_generate_content_and_dedupes() {
-        let models = parse_gemini_oauth_models_response(
-            r#"{
-                "models": [
-                    { "name": "models/gemini-2.0-flash", "supportedGenerationMethods": ["generateContent", "countTokens"] },
-                    { "name": "models/gemini-embedding-001", "supportedGenerationMethods": ["embedContent"] },
-                    { "name": "models/gemini-2.0-pro", "supportedGenerationMethods": ["generateContent"] },
-                    { "name": "models/gemini-2.0-flash", "supportedGenerationMethods": ["generateContent"] },
-                    { "name": "", "supportedGenerationMethods": ["generateContent"] },
-                    { "name": "gemini-bare-id", "supportedGenerationMethods": ["generateContent"] },
-                    { "name": "models/gemini-no-methods" }
-                ]
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            models,
-            vec![
-                "gemini-2.0-flash".to_string(),
-                "gemini-2.0-pro".to_string(),
-                "gemini-bare-id".to_string(),
-            ]
-        );
-    }
-
-    #[test]
-    fn gemini_oauth_models_response_rejects_invalid_json() {
-        let err = parse_gemini_oauth_models_response("not json").unwrap_err();
-        assert!(err.contains("parse failed"));
-    }
-
-    #[test]
-    fn code_assist_quota_response_extracts_model_ids_and_dedupes() {
-        let models = parse_code_assist_quota_response(
-            r#"{
-                "buckets": [
-                    { "modelId": "gemini-2.5-pro", "remainingFraction": 0.9 },
-                    { "modelId": "gemini-2.5-flash", "remainingFraction": 1.0 },
-                    { "modelId": "gemini-2.5-pro", "remainingFraction": 0.5 },
-                    { "modelId": "", "remainingFraction": 1.0 },
-                    { "remainingFraction": 1.0 }
-                ]
-            }"#,
-        )
-        .unwrap();
-
-        assert_eq!(
-            models,
-            vec!["gemini-2.5-pro".to_string(), "gemini-2.5-flash".to_string(),]
-        );
-    }
-
-    #[test]
-    fn code_assist_quota_response_rejects_invalid_json() {
-        let err = parse_code_assist_quota_response("not json").unwrap_err();
-        assert!(err.contains("parse failed"));
-    }
-
-    #[test]
     fn opencode_base_url_defaults_to_zen_and_respects_selection() {
         assert_eq!(resolve_opencode_base_url(None), OPENCODE_ZEN_BASE_URL);
         assert_eq!(
@@ -1305,7 +1007,6 @@ mod tests {
             "anthropic",
             "claude_code",
             "google",
-            "gemini_cli",
             "kiro",
             "opencode",
         ] {

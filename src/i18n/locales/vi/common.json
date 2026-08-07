@@ -31,10 +31,6 @@
     "closeCanvas": "Đóng canvas",
     "generatingCanvas": "Đang tạo canvas…",
     "noContent": "Không có nội dung",
-    "noIssueSelected": "Chưa chọn issue",
-    "selectIssueHint": "Chọn một issue trong bảng Issues ở thanh bên.",
-    "noPrSelected": "Chưa chọn Pull request",
-    "selectPrHint": "Chọn một Pull request trong bảng Pull request ở thanh bên.",
     "reload": "Tải lại",
     "urlPreviewRequiresTauri": "Xem trước URL cần Tauri",
     "openInExternalBrowser": "Hãy mở trong trình duyệt ngoài",
@@ -78,6 +74,11 @@
       "other": "Bí mật"
     }
   },
+  "secretScan": {
+    "title": "Đã phát hiện thông tin bí mật có thể có",
+    "message": "Tin nhắn này có vẻ chứa thông tin xác thực nhạy cảm:\n\n{{items}}\n\nGửi đi sẽ lưu thông tin bí mật vào lịch sử trò chuyện và gửi đến mô hình. Vẫn gửi chứ?",
+    "sendAnyway": "Vẫn gửi"
+  },
   "actions": {
     "save": "Lưu",
     "cancel": "Hủy",
@@ -107,6 +108,7 @@
     "retry": "Thử lại",
     "regenerate": "Tạo lại",
     "refresh": "Làm mới",
+    "rescan": "Quét lại",
     "reload": "Tải lại",
     "reviewNextFile": "Xem tệp tiếp theo",
     "reviewPreviousFile": "Xem tệp trước",
@@ -206,9 +208,8 @@
     "openWorkspace": "Mở Workspace",
     "skipThisVersion": "Bỏ qua phiên bản này",
     "later": "Để sau",
-    "updateAiBlame": "Cập nhật AI Blame",
     "link": "Liên kết",
-    "fetchPr": "Fetch PR"
+    "copyName": "Sao chép tên"
   },
   "refreshToast": {
     "successName": "Đã làm mới {{name}}",
@@ -410,7 +411,28 @@
     "nearby": "Gần đây",
     "renowned": "Nổi tiếng",
     "dragToReorder": "Kéo để sắp xếp lại thứ tự tin nhắn",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "Quy nguồn phiên",
+    "sessionBlameSubagent": "Tác tử phụ: {{name}}",
+    "sessionBlameMainSession": "Phiên chính",
+    "sessionBlameAction": {
+      "read": "Đọc",
+      "write": "Ghi",
+      "create": "Tạo",
+      "delete": "Xóa",
+      "rename": "Đổi tên",
+      "search": "Tìm kiếm"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "Độ tin cậy chưa rõ",
+      "session_only": "Chỉ phiên",
+      "correlated": "Đã đối chiếu",
+      "exact": "Quy nguồn chính xác"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "Đang lập chỉ mục phiên cũ {{indexed}}/{{total}}",
+      "partial": "Chỉ mục lịch sử chưa hoàn chỉnh ({{failed}} lỗi)",
+      "failed": "Không thể lập chỉ mục phiên cũ"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "Tệp",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Không thể xem trước",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "Tìm kiếm tin nhắn...",
@@ -1020,6 +1040,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "Nhánh: {{branch}}",
     "branchTooltipSwitching": "Nhánh: {{branch}} (đang chuyển…)",
+    "switchWorkspaceTooltip": "Chuyển Workspace",
+    "switchWorktreeTooltip": "Chuyển Worktree",
+    "switchBranchTooltip": "Chuyển nhánh",
+    "gitActionsTooltip": "Thao tác Git",
     "switchToSessionRepo": "Chuyển sang {{name}}",
     "embeddingProgress": "Embedding: đã xử lý {{count}} chunk",
     "embeddingProgressWithPercent": "Embedding: đã xử lý {{count}} chunk ({{percent}}%)",
@@ -1032,6 +1056,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "Bên ngoài",
       "tooltip": "Cổng: {{workspace}} workspace, {{external}} bên ngoài",
+      "viewPortsTooltip": "Xem các cổng đang dùng",
       "noWorkspacePorts": "Không phát hiện cổng workspace",
       "externalLabel": "bên ngoài",
       "unknownProcess": "Tiến trình không xác định",
@@ -1151,9 +1176,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Cần token",
       "createTokenButton": "Tạo token",
-      "openGitSettingsButton": "Mở cài đặt Git",
+      "openGitSettingsButton": "Mở cài đặt",
       "configureInSettings": "Cấu hình Git trong cài đặt",
-      "configureInSettingsDesc": "Thêm quyền truy cập GitHub App, lưu token hoặc quét thông tin xác thực cục bộ trong Cài đặt → Tích hợp → Git, rồi thử lại thao tác Git này."
+      "configureInSettingsDesc": "Thêm quyền truy cập GitHub App, lưu token hoặc quét thông tin xác thực cục bộ trong Cài đặt → Kết nối, rồi thử lại thao tác Git này."
     },
     "actions": {
       "publish": "Publish",
@@ -1360,7 +1385,9 @@
         "delete": "Xóa",
         "deleteTemplate": "Xóa {branch}",
         "createSessionWith": "Chuyển Branch của phiên",
-        "createSessionWithTemplate": "Chuyển Branch của phiên sang {branch}"
+        "createSessionWithTemplate": "Chuyển Branch của phiên sang {branch}",
+        "switchWorktree": "Chuyển Worktree",
+        "switchWorktreeTemplate": "Chuyển sang {worktree}"
       },
       "actions": {
         "createNew": "Tạo nhánh mới",
@@ -1371,7 +1398,8 @@
         "refresh": "Làm mới nhánh",
         "checkoutDetachedSuccess": "Đang ở trạng thái detached HEAD tại commit hiện tại",
         "checkoutDetachedFailed": "Checkout detached HEAD thất bại",
-        "removeWorktree": "Xóa Worktree"
+        "removeWorktree": "Xóa Worktree",
+        "newWorktree": "Worktree mới..."
       },
       "messages": {
         "deletedCount_one": "Đã xóa {{count}} nhánh",
@@ -1386,7 +1414,9 @@
         "basedOn": "Dựa trên",
         "worktrees": "Worktrees",
         "worktreeInUse": "Đang dùng",
-        "checkedOutInWorktree": "Đã checkout trong Worktree: {{path}}"
+        "checkedOutInWorktree": "Đã checkout trong Worktree: {{path}}",
+        "mainWorktreeSection": "Worktree chính",
+        "linkedWorktrees": "Worktree liên kết"
       },
       "placeholders": {
         "checkout": "nhánh",
@@ -1495,7 +1525,8 @@
         "workspace": "Tìm kiếm hoặc nhập đường dẫn thư mục",
         "branch": "Tìm kiếm nhánh...",
         "source": "Tìm kiếm nguồn...",
-        "actions": "Tìm kiếm hành động..."
+        "actions": "Tìm kiếm hành động...",
+        "worktree": "Tìm kiếm worktree..."
       },
       "groups": {
         "agentSession": "Phiên Agent",
@@ -1526,6 +1557,11 @@
           "label": "Tìm kiếm phiên Agent",
           "pillLabel": "Tìm kiếm phiên",
           "placeholder": "Tìm kiếm phiên Agent..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Chuyển workspace"
@@ -1624,11 +1660,8 @@
     "chatRight": "Chat phải",
     "pageSettings": "Cài đặt trang",
     "pageLayout": "Bố cục trang",
-    "layoutMode": "Chế độ bố cục",
     "inset": "Chèn",
     "full": "Toàn bộ",
-    "compact": "Gọn",
-    "comfort": "Thoải mái",
     "theme": "Giao diện",
     "primaryPanel": "Thanh bên",
     "sidebarPosition": "Vị trí thanh bên",
@@ -1682,15 +1715,13 @@
     "disableChatPagination": "Tắt phân trang chat",
     "useModelPickerSpotlight": "Dùng bộ chọn mô hình Spotlight",
     "useModelPickerDropdown": "Dùng bộ chọn mô hình dạng menu",
-    "useCompactWorkstationLayout": "Dùng bố cục Workstation gọn",
-    "useComfortWorkstationLayout": "Dùng bố cục Workstation thoải mái",
     "moveWorkstationSidebarLeft": "Chuyển thanh bên Workstation sang trái",
     "moveWorkstationSidebarRight": "Chuyển thanh bên Workstation sang phải",
     "enableDockAutoHide": "Tự động ẩn Dock Workstation",
     "disableDockAutoHide": "Luôn hiển thị Dock Workstation",
     "openMyStation": "Đi tới My Station",
     "openAgentStation": "Đi tới Agent Station",
-    "openOpsControl": "Đi tới Ops Control",
+    "openKanban": "Đi tới Kanban",
     "changeLanguage": "Thay đổi ngôn ngữ",
     "switchToSystemTheme": "Theo chủ đề hệ thống",
     "detectUpdate": "Kiểm tra cập nhật",
@@ -1855,15 +1886,6 @@
     "lastActive": "Hoạt động cuối: {{date}}",
     "activeNow": "Đang hoạt động: {{ides}}",
     "active": "Hoạt động",
-    "tabs": {
-      "activity": "Hoạt động",
-      "focus": "Tập trung",
-      "languages": "Ngôn ngữ",
-      "heatmap": "Bản đồ nhiệt",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "Phiên AI CLI",
     "cliPrompt": "Lệnh",
     "cliMessages": "Tin nhắn",
@@ -1945,12 +1967,15 @@
     "removeWorktreeMessage": "Thao tác này xóa Worktree checkout khỏi ổ đĩa. Branch và commits được giữ lại.",
     "removeWorktreeSuccess": "Đã xóa Worktree",
     "removeWorktreeFailed": "Không thể xóa Worktree",
+    "emptyState": {
+      "viewSourceControl": "Xem Source Control",
+      "viewIssues": "Xem Issues",
+      "viewGitHistory": "Xem lịch sử Git",
+      "viewPullRequests": "Xem Pull Requests"
+    },
     "pill": {
       "focus": "Tiêu điểm",
       "allChanges": "Tất cả thay đổi"
-    },
-    "sessionFilter": {
-      "allSessions": "Tất cả phiên"
     }
   },
   "contextInfo": {

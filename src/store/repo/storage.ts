@@ -200,7 +200,6 @@ export function isMainAppWindowLabel(windowId: string): boolean {
   if (windowId === "main") return true;
   if (windowId === "wingman") return false;
   if (windowId.startsWith("wingman-")) return false;
-  if (windowId === "session-diff") return false;
   if (windowId === "tab") return false;
   if (windowId === "welcome") return false;
   return true;

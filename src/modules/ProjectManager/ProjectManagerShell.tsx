@@ -11,13 +11,11 @@ import SimulatorFrame from "@src/engines/Simulator/components/SimulatorFrame";
 import { useWorkStationTabs } from "@src/hooks/workStation";
 import {
   perAppStatusBarCallbacksAtom,
-  workStationStatusBarHiddenAtom,
   workStationTitleBarHiddenAtom,
 } from "@src/store/ui/workStationAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 import { createProjectSettingsTab } from "@src/store/workstation/tabs";
 
-import { StatusBarRenderer } from "../WorkStation/shared";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "../WorkStation/shared/tokens";
 import ProjectManagerCore from "./ProjectManagerCore";
 
@@ -30,13 +28,11 @@ const getFolderName = (path: string): string => {
 
 interface ProjectManagerShellProps {
   isActive?: boolean;
-  isFullMode?: boolean;
 }
 
 const ProjectManagerShell: React.FC<ProjectManagerShellProps> = memo(
-  ({ isActive: _isActive = true, isFullMode = false }) => {
+  ({ isActive: _isActive = true }) => {
     const titleBarHidden = useAtomValue(workStationTitleBarHiddenAtom);
-    const statusBarHidden = useAtomValue(workStationStatusBarHiddenAtom);
 
     const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
     const repoPath = activeWorkspaceRoot?.path ?? "";
@@ -76,7 +72,7 @@ const ProjectManagerShell: React.FC<ProjectManagerShellProps> = memo(
     return (
       <SimulatorFrame
         title="Project Manager"
-        radius={isFullMode ? 0 : 20}
+        radius={0}
         containerClassName="!bg-bg-2"
         showHeader={!titleBarHidden}
         headerBackgroundColor="var(--color-bg-1)"
@@ -89,7 +85,6 @@ const ProjectManagerShell: React.FC<ProjectManagerShellProps> = memo(
         >
           <ProjectManagerCore repoPath={repoPath} repoName={repoName} />
         </div>
-        {!isFullMode && !statusBarHidden && <StatusBarRenderer />}
       </SimulatorFrame>
     );
   }

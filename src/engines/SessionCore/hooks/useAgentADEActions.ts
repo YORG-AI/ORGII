@@ -47,6 +47,11 @@ import { adeManagerEnabledAtom } from "@src/store/ui/uiAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
+import {
+  extractInvokingSessionId,
+  resolveTrustedDispatchParams,
+} from "./adeReplyBinding";
+
 /**
  * Pending session proposal — set by `session.propose` handler,
  * consumed by `AdeAwareSessionCreatorSlot` in AppLayout when the
@@ -82,6 +87,7 @@ interface AdeActionDetail {
   params: Record<string, unknown>;
   operation?: AdeActionOperation;
   sessionId?: string;
+  invokingSessionId?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -103,6 +109,7 @@ function parseAdeActionEnvelope(rawMessage: string): AdeActionDetail | null {
   const action = payload.action;
   const params = payload.params;
   const sessionId = payload.sessionId;
+  const invokingSessionId = extractInvokingSessionId(payload);
 
   return {
     correlationId,
@@ -114,6 +121,7 @@ function parseAdeActionEnvelope(rawMessage: string): AdeActionDetail | null {
     ...(typeof action === "string" ? { action } : {}),
     params: isRecord(params) ? params : {},
     ...(typeof sessionId === "string" ? { sessionId } : {}),
+    ...(invokingSessionId !== undefined ? { invokingSessionId } : {}),
   };
 }
 
@@ -442,7 +450,12 @@ export function useAgentADEActions(): void {
           return;
         }
 
-        const result = await zodActionRegistry.execute(action, params);
+        const dispatchParams = resolveTrustedDispatchParams(
+          action,
+          params,
+          detail.invokingSessionId
+        );
+        const result = await zodActionRegistry.execute(action, dispatchParams);
 
         await sendAdeActionResult(correlationId, {
           success: result.success,

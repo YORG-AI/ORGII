@@ -7,6 +7,8 @@
  *   - `formatCommandForDisplay` — light pretty-printer that adds a newline
  *     before each top-level shell operator so long compound commands wrap
  *     at logical boundaries when rendered in the terminal body.
+ *   - `truncateCommandPreview` — caps the rendered command at the earlier of
+ *     a line limit or character limit and marks truncated content with `...`.
  *
  *   - `getCommandSymbolList` — extracts the executable being invoked by
  *     each sub-command, skipping prose inside quoted strings and heredoc
@@ -17,6 +19,20 @@
 /** Insert newlines before shell operators so compound commands wrap at logical boundaries. */
 export function formatCommandForDisplay(raw: string): string {
   return raw.replace(/ (&&|\|\||(?<![&])[&](?![&])|[|;]) /g, "\n$1 ");
+}
+
+/** Return a compact command preview, truncating at whichever limit is reached first. */
+export function truncateCommandPreview(
+  command: string,
+  maxLines = 4,
+  maxChars = 200
+): string {
+  const lines = command.split("\n");
+  const lineLimited = lines.slice(0, maxLines).join("\n");
+  const preview = lineLimited.slice(0, maxChars);
+  const wasTruncated = lines.length > maxLines || lineLimited.length > maxChars;
+
+  return wasTruncated ? `${preview.trimEnd()}...` : preview;
 }
 
 /** Strip outer punctuation/quotes from a bare token so `(npm)` / `./npm` / `` `git` `` all reduce to the executable basename. */
@@ -146,6 +162,18 @@ function extractSubCommandExecutables(commandText: string): string[] {
         continue;
       }
       if (ch === "&") {
+        // A bare `&` backgrounds a job, but `&` also appears inside
+        // redirections (`2>&1`, `>&2`, `&>file`, `&>>file`) where it must
+        // NOT start a new sub-command — otherwise the digit after it (e.g.
+        // the `1` in `2>&1`) is mis-captured as an executable.
+        const prev = line[i - 1];
+        const next = line[i + 1];
+        const isRedirection = prev === ">" || next === ">";
+        if (isRedirection) {
+          if (expectingExecutable) currentToken += ch;
+          sawNonWhitespace = true;
+          continue;
+        }
         startNewSubCommand();
         continue;
       }

@@ -1,6 +1,5 @@
 import { ChevronDown, ChevronUp, GitFork, RefreshCw } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 import { loadTurnIndex } from "@src/engines/SessionCore/storage/cacheAdapter";
 import type { TurnSummary } from "@src/engines/SessionCore/storage/sqliteCache";
@@ -26,11 +25,10 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
   reloadKey,
   onJumpToTurn,
 }) => {
-  const { t } = useTranslation();
   const [turns, setTurns] = useState<TurnSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
@@ -91,13 +89,10 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
           >
             <GitFork size={14} className="text-primary-6" />
             <span className="truncate text-xs font-medium text-text-1">
-              {t("sessionJourney.title", "Session 旅程与数据血缘")}
+              Progress mind map
             </span>
             <span className="rounded-full bg-fill-3 px-1.5 py-0.5 text-[10px] text-text-2">
-              {t("sessionJourney.stepCount", {
-                count: graph.totalTurns,
-                defaultValue: "{{count}} 个步骤",
-              })}
+              {graph.totalTurns} steps
             </span>
             {open ? (
               <ChevronUp size={13} className="text-text-3" />
@@ -107,8 +102,8 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
           </button>
           <button
             type="button"
-            aria-label={t("sessionJourney.refresh", "刷新 Session 旅程")}
-            title={t("sessionJourney.refresh", "刷新 Session 旅程")}
+            aria-label="Refresh progress mind map"
+            title="Refresh"
             className="rounded p-1 text-text-3 hover:bg-fill-2 hover:text-text-1"
             onClick={() => setRefreshNonce((value) => value + 1)}
           >
@@ -119,19 +114,15 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
           <div className="border-t border-border-2 px-3 py-3">
             {loading ? (
               <div className="py-4 text-center text-xs text-text-3">
-                {t("sessionJourney.loading", "正在加载持久化旅程数据…")}
+                Loading persisted turn data…
               </div>
             ) : error ? (
               <div className="py-4 text-center text-xs text-danger-6">
-                {t("sessionJourney.loadError", "无法加载 Session 旅程")}：
-                {error}
+                Unable to load progress: {error}
               </div>
             ) : graph.nodes.length === 0 ? (
               <div className="py-4 text-center text-xs text-text-3">
-                {t(
-                  "sessionJourney.empty",
-                  "尚无持久化步骤。第一轮完成后刷新即可看到旅程、数据血缘与分叉。"
-                )}
+                No persisted turns yet. Refresh after the first round completes.
               </div>
             ) : (
               <>
@@ -139,10 +130,7 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
                   <div
                     className="flex min-w-max items-start gap-0"
                     role="list"
-                    aria-label={t(
-                      "sessionJourney.mainline",
-                      "Session 主线旅程"
-                    )}
+                    aria-label="Session progress"
                   >
                     {graph.nodes
                       .filter((node) => node.kind !== "fork")
@@ -163,23 +151,17 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
                       ))}
                   </div>
                   {graph.nodes.some((node) => node.kind === "fork") && (
-                    <div className="ml-auto mt-3 w-fit max-w-full border-l border-dashed border-primary-4 pl-4">
-                      <div className="mb-2 flex items-center gap-1 text-[10px] font-medium text-primary-6">
-                        <GitFork size={11} />
-                        {t("sessionJourney.forkTree", "分叉树")}
-                      </div>
-                      <div className="flex flex-wrap items-start gap-2">
-                        {graph.nodes
-                          .filter((node) => node.kind === "fork")
-                          .map((node) => (
-                            <MindMapNode
-                              key={node.id}
-                              node={node}
-                              selected={selectedId === node.id}
-                              onClick={() => activate(node)}
-                            />
-                          ))}
-                      </div>
+                    <div className="ml-auto mt-3 flex w-fit max-w-full flex-wrap items-start gap-2 border-l border-dashed border-primary-4 pl-4">
+                      {graph.nodes
+                        .filter((node) => node.kind === "fork")
+                        .map((node) => (
+                          <MindMapNode
+                            key={node.id}
+                            node={node}
+                            selected={selectedId === node.id}
+                            onClick={() => activate(node)}
+                          />
+                        ))}
                     </div>
                   )}
                 </div>
@@ -189,10 +171,7 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
                     className="mt-1 text-[11px] text-primary-6 hover:underline"
                     onClick={() => setExpanded(true)}
                   >
-                    {t("sessionJourney.showAll", {
-                      count: graph.totalTurns,
-                      defaultValue: "显示全部 {{count}} 个步骤",
-                    })}
+                    Show all {graph.totalTurns} steps
                   </button>
                 )}
                 {expanded && graph.totalTurns > COMPACT_LIMIT && (
@@ -201,32 +180,26 @@ const ProgressMindMap: React.FC<ProgressMindMapProps> = ({
                     className="mt-1 text-[11px] text-primary-6 hover:underline"
                     onClick={() => setExpanded(false)}
                   >
-                    {t("sessionJourney.collapse", "收起较早步骤")}
+                    Collapse older steps
                   </button>
                 )}
                 {selected && (
                   <div className="mt-2 rounded-lg bg-fill-2 px-3 py-2 text-[11px] text-text-2">
-                    <div className="flex items-center gap-1 font-medium text-text-1">
-                      {selected.kind === "fork" && <GitFork size={11} />}
+                    <div className="font-medium text-text-1">
                       {selected.label}
                     </div>
                     <div>
-                      {selected.detail} · {t("sessionJourney.status", "状态")}：
-                      {selected.status}
+                      {selected.detail} · status: {selected.status}
                     </div>
                     {selected.files.length > 0 && (
-                      <div className="mt-2">
-                        <div className="mb-1 text-[10px] font-medium text-text-2">
-                          {t("sessionJourney.dataLineage", "数据血缘")}
-                        </div>
-                        <div
-                          className="truncate text-text-3"
-                          title={selected.files
-                            .map((file) => file.path)
-                            .join("\n")}
-                        >
-                          {selected.files.map((file) => file.path).join(", ")}
-                        </div>
+                      <div
+                        className="mt-1 truncate"
+                        title={selected.files
+                          .map((file) => file.path)
+                          .join("\n")}
+                      >
+                        Files:{" "}
+                        {selected.files.map((file) => file.path).join(", ")}
                       </div>
                     )}
                   </div>

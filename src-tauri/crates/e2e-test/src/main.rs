@@ -108,11 +108,6 @@ fn all_scenarios() -> Vec<ScenarioDef> {
         ),
         scenario!(
             "sde",
-            "gemini-cli-account-scope",
-            sde::gemini_cli_account_scope
-        ),
-        scenario!(
-            "sde",
             "cursor-cli-token-only-boundary",
             sde::cursor_cli_token_only_boundary
         ),
@@ -526,11 +521,6 @@ fn all_scenarios() -> Vec<ScenarioDef> {
             "housekeeping",
             "housekeeping-cursor-config-orphan-evict",
             housekeeping::cursor_config_orphan_evict
-        ),
-        scenario!(
-            "housekeeping",
-            "housekeeping-gemini-home-orphan-evict",
-            housekeeping::gemini_home_orphan_evict
         ),
         scenario!(
             "housekeeping",

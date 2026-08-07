@@ -1,7 +1,7 @@
 //! External agent artifact auto-import.
 //!
 //! Detects rule / skill / agent-definition artifacts authored for other
-//! coding agents (Cursor IDE, Claude Code, Codex, Gemini CLI, GitHub
+//! coding agents (Cursor IDE, Claude Code, Codex, GitHub
 //! Copilot, Kiro) on the user's machine and offers to port them into
 //! ORGII's first-class primitives (`Policy`, `Skill`, `AgentDefinition`).
 //!

@@ -24,9 +24,9 @@ export const CHAT_STYLE_DEFAULTS = {
 export const CHAT_TEXT_CLASSES = {
   /** Main content text - uses --chat-font-size */
   text: "chat-text",
-  /** Small text (font-size - 2px) - for secondary labels */
+  /** Small text (font-size - 1px) - for secondary labels */
   textSm: "chat-text-sm",
-  /** Extra small text (font-size - 3px) - for badges, timestamps */
+  /** Extra small text (font-size - 2px) - for badges, timestamps */
   textXs: "chat-text-xs",
 } as const;
 

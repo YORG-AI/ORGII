@@ -5,16 +5,24 @@ import { useNavigate } from "react-router-dom";
 
 import { fetchRustApi, gitRepoUrl } from "@src/api/http/git/client";
 import { getGitRemotes } from "@src/api/http/git/remotes";
-import { listOpenPRsLocal } from "@src/api/tauri/github";
+import { listPRsLocal } from "@src/api/tauri/github";
 import { Message } from "@src/components/Message";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths/integrations";
+import {
+  getCachedPrs,
+  isPrCacheStale,
+  setCachedPrs,
+} from "@src/services/git/githubListCache";
 import {
   createPullRequest,
   parseGithubRepoFullName,
 } from "@src/services/git/operations/createPullRequest";
 import { gitAutoCreatePrAtom } from "@src/store/ui/editorSettingsAtom";
 import {
+  workstationAllClosedPrsAtomFamily,
   workstationAllOpenPrsAtomFamily,
+  workstationClosedPrsErrorAtomFamily,
+  workstationClosedPrsLoadStateAtomFamily,
   workstationOpenPrsErrorAtomFamily,
   workstationOpenPrsLoadStateAtomFamily,
   workstationPrAtomFamily,
@@ -22,7 +30,6 @@ import {
   workstationRepoScopeKey,
 } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
-import { getCachedPrs, isPrCacheStale, setCachedPrs } from "./githubListCache";
 import {
   formatWorkstationPrTitle,
   getStoredWorkstationPr,
@@ -66,11 +73,20 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     workstationPrCallbackAtomFamily(scopeKey)
   );
   const setAllOpenPrs = useSetAtom(workstationAllOpenPrsAtomFamily(scopeKey));
+  const setAllClosedPrs = useSetAtom(
+    workstationAllClosedPrsAtomFamily(scopeKey)
+  );
   const setOpenPrsLoadState = useSetAtom(
     workstationOpenPrsLoadStateAtomFamily(scopeKey)
   );
+  const setClosedPrsLoadState = useSetAtom(
+    workstationClosedPrsLoadStateAtomFamily(scopeKey)
+  );
   const setOpenPrsError = useSetAtom(
     workstationOpenPrsErrorAtomFamily(scopeKey)
+  );
+  const setClosedPrsError = useSetAtom(
+    workstationClosedPrsErrorAtomFamily(scopeKey)
   );
   const branchKey = branchName ?? "";
 
@@ -86,6 +102,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
   const [defaultBranch, setDefaultBranch] = useState("main");
   const autoTriggeredRef = useRef(false);
   const openPrsRequestIdRef = useRef(0);
+  const closedPrsRequestIdRef = useRef(0);
   const handleCreatePrRef = useRef<
     () => Promise<{ url?: string; error?: string }>
   >(async () => ({}));
@@ -128,79 +145,143 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     autoTriggeredRef.current = false;
   }, [branchKey]);
 
-  const handleLoadOpenPrs = useCallback(() => {
-    if (!repoPath) return;
+  const resolveRepoFullName = useCallback(async (): Promise<string | null> => {
+    const remotesData = await getGitRemotes({
+      repo_id: apiRepoId,
+      repo_path: repoPath,
+    });
+    const originRemote = remotesData?.remotes?.find(
+      (remote) => remote.name === "origin"
+    );
+    return originRemote?.url ? parseGithubRepoFullName(originRemote.url) : null;
+  }, [apiRepoId, repoPath]);
 
-    const requestId = ++openPrsRequestIdRef.current;
-    const isCurrentRequest = () => requestId === openPrsRequestIdRef.current;
+  const handleLoadOpenPrs = useCallback(
+    (force = false) => {
+      if (!repoPath) return;
 
-    const cachedEntry = getCachedPrs(repoPath);
-    if (cachedEntry) {
-      setAllOpenPrs(cachedEntry.prs);
-      setOpenPrsLoadState("ready");
-      setOpenPrsError(null);
-      if (!isPrCacheStale(repoPath)) return;
-    } else {
-      setOpenPrsLoadState("loading");
-      setOpenPrsError(null);
-    }
+      const requestId = ++openPrsRequestIdRef.current;
+      const isCurrentRequest = () => requestId === openPrsRequestIdRef.current;
 
-    void (async () => {
-      try {
-        const remotesData = await getGitRemotes({
-          repo_id: apiRepoId,
-          repo_path: repoPath,
-        });
-        const originRemote = remotesData?.remotes?.find(
-          (remote) => remote.name === "origin"
-        );
-        if (!originRemote?.url) {
-          if (isCurrentRequest()) setOpenPrsLoadState("ready");
-          return;
-        }
-
-        const repoFullName = parseGithubRepoFullName(originRemote.url);
-        if (!repoFullName) {
-          if (isCurrentRequest()) setOpenPrsLoadState("ready");
-          return;
-        }
-
-        const prs = await listOpenPRsLocal(repoFullName);
-        if (!isCurrentRequest()) return;
-        setAllOpenPrs(prs);
-        if (branchName) {
-          const currentBranchPr = prs.find(
-            (pr) => pr.head_branch === branchName
-          );
-          if (currentBranchPr) {
-            const status = normalizePullRequestStatus(currentBranchPr.state);
-            setRemotePrByBranch((current) => ({
-              ...current,
-              [branchName]: { url: currentBranchPr.url, status },
-            }));
-            setStoredWorkstationPr(repoPath, branchName, {
-              url: currentBranchPr.url,
-              status,
-            });
-          }
-        }
-        setCachedPrs(repoPath, prs);
+      const cachedEntry = getCachedPrs(repoPath);
+      if (cachedEntry) {
+        setAllOpenPrs(cachedEntry.prs);
         setOpenPrsLoadState("ready");
         setOpenPrsError(null);
-      } catch (err) {
-        if (!isCurrentRequest()) return;
-        setOpenPrsError(err instanceof Error ? err.message : String(err));
-        setOpenPrsLoadState("error");
+        // A manual refresh forces a fetch even when the cache is still fresh.
+        if (!force && !isPrCacheStale(repoPath)) return;
+      } else {
+        setOpenPrsLoadState("loading");
+        setOpenPrsError(null);
       }
-    })();
-  }, [
-    repoPath,
-    apiRepoId,
-    branchName,
-    setAllOpenPrs,
-    setOpenPrsLoadState,
-    setOpenPrsError,
-  ]);
+
+      void (async () => {
+        try {
+          const repoFullName = await resolveRepoFullName();
+          if (!repoFullName) {
+            if (isCurrentRequest()) setOpenPrsLoadState("ready");
+            return;
+          }
+
+          const prs = await listPRsLocal(repoFullName, "open");
+          if (!isCurrentRequest()) return;
+          setAllOpenPrs(prs);
+          if (branchName) {
+            const currentBranchPr = prs.find(
+              (pr) => pr.head_branch === branchName
+            );
+            if (currentBranchPr) {
+              const status = normalizePullRequestStatus(currentBranchPr.state);
+              setRemotePrByBranch((current) => ({
+                ...current,
+                [branchName]: { url: currentBranchPr.url, status },
+              }));
+              setStoredWorkstationPr(repoPath, branchName, {
+                url: currentBranchPr.url,
+                status,
+              });
+            }
+          }
+          setCachedPrs(repoPath, prs);
+          setOpenPrsLoadState("ready");
+          setOpenPrsError(null);
+        } catch (err) {
+          if (!isCurrentRequest()) return;
+          setOpenPrsError(err instanceof Error ? err.message : String(err));
+          setOpenPrsLoadState("error");
+        }
+      })();
+    },
+    [
+      repoPath,
+      branchName,
+      resolveRepoFullName,
+      setAllOpenPrs,
+      setOpenPrsLoadState,
+      setOpenPrsError,
+    ]
+  );
+
+  const handleLoadClosedPrs = useCallback(
+    (force = false) => {
+      if (!repoPath) return;
+
+      const requestId = ++closedPrsRequestIdRef.current;
+      const isCurrentRequest = () =>
+        requestId === closedPrsRequestIdRef.current;
+
+      const cachedEntry = getCachedPrs(repoPath, "closed");
+      if (cachedEntry) {
+        setAllClosedPrs(cachedEntry.prs);
+        setClosedPrsLoadState("ready");
+        setClosedPrsError(null);
+        // A manual refresh forces a fetch even when the cache is still fresh.
+        if (!force && !isPrCacheStale(repoPath, "closed")) return;
+      } else {
+        setClosedPrsLoadState("loading");
+        setClosedPrsError(null);
+      }
+
+      void (async () => {
+        try {
+          const repoFullName = await resolveRepoFullName();
+          if (!repoFullName) {
+            if (isCurrentRequest()) setClosedPrsLoadState("ready");
+            return;
+          }
+
+          const prs = await listPRsLocal(repoFullName, "closed");
+          if (!isCurrentRequest()) return;
+          setAllClosedPrs(prs);
+          setCachedPrs(repoPath, prs, "closed");
+          setClosedPrsLoadState("ready");
+          setClosedPrsError(null);
+        } catch (err) {
+          if (!isCurrentRequest()) return;
+          setClosedPrsError(err instanceof Error ? err.message : String(err));
+          setClosedPrsLoadState("error");
+        }
+      })();
+    },
+    [
+      repoPath,
+      resolveRepoFullName,
+      setAllClosedPrs,
+      setClosedPrsLoadState,
+      setClosedPrsError,
+    ]
+  );
+
+  // Force a re-fetch of the currently-relevant PR lists (used by the sidebar
+  // header refresh action). Open is always reloaded; closed is only reloaded
+  // when it has already been fetched once (its cache exists), mirroring how the
+  // Issues sidebar refreshes only the sections the user has opened.
+  const handleRefreshPrs = useCallback(() => {
+    handleLoadOpenPrs(true);
+    if (repoPath && getCachedPrs(repoPath, "closed")) {
+      handleLoadClosedPrs(true);
+    }
+  }, [handleLoadOpenPrs, handleLoadClosedPrs, repoPath]);
 
   const eligible = useMemo(
     () =>
@@ -240,7 +321,7 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     if (result.error) {
       if (result.error === "not_authenticated") {
         setCreatingByBranch((current) => ({ ...current, [branchName]: false }));
-        navigate(buildIntegrationsPath({ category: "git" }));
+        navigate(buildIntegrationsPath({ category: "connections" }));
         Message.info({
           id: "github-auth-required",
           title: t("git.pr.authRequired.title"),
@@ -333,12 +414,21 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
     setWorkstationPrCallbackAtom({
       createPr: handleCreatePr,
       loadOpenPrs: handleLoadOpenPrs,
+      loadClosedPrs: handleLoadClosedPrs,
+      refreshPrs: handleRefreshPrs,
     });
-  }, [handleCreatePr, handleLoadOpenPrs, setWorkstationPrCallbackAtom]);
+  }, [
+    handleCreatePr,
+    handleLoadClosedPrs,
+    handleLoadOpenPrs,
+    handleRefreshPrs,
+    setWorkstationPrCallbackAtom,
+  ]);
 
   useEffect(() => {
     return () => {
       openPrsRequestIdRef.current += 1;
+      closedPrsRequestIdRef.current += 1;
       setWorkstationPrAtom({
         readyToCreate: false,
         prUrl: undefined,
@@ -347,15 +437,26 @@ export function useWorkstationPr(options: UseWorkstationPrOptions) {
         uncommittedCount: 0,
         isDefaultBranch: false,
       });
-      setWorkstationPrCallbackAtom({ createPr: null, loadOpenPrs: null });
+      setWorkstationPrCallbackAtom({
+        createPr: null,
+        loadOpenPrs: null,
+        loadClosedPrs: null,
+        refreshPrs: null,
+      });
       setAllOpenPrs([]);
+      setAllClosedPrs([]);
       setOpenPrsLoadState("idle");
+      setClosedPrsLoadState("idle");
       setOpenPrsError(null);
+      setClosedPrsError(null);
     };
   }, [
     setWorkstationPrAtom,
     setWorkstationPrCallbackAtom,
+    setAllClosedPrs,
     setAllOpenPrs,
+    setClosedPrsError,
+    setClosedPrsLoadState,
     setOpenPrsLoadState,
     setOpenPrsError,
   ]);

@@ -1,6 +1,13 @@
 import { useSetAtom } from "jotai";
 import { Expand, Play, Plus } from "lucide-react";
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { RUST_AGENT_TYPE } from "@src/api/tauri/agent/types";
@@ -9,10 +16,18 @@ import Button from "@src/components/Button";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  WIZARD_IDS,
+  buildIntegrationsPath,
+  buildWizardPath,
+} from "@src/config/mainAppPaths";
+import { ROUTES } from "@src/config/routes";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
+import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
 import {
   CollapsibleSection,
+  InlineInfoCard,
   Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import type { Repo } from "@src/store/repo/types";
@@ -20,6 +35,10 @@ import {
   SESSION_TARGET_KIND,
   sessionCreatorStateAtom,
 } from "@src/store/session";
+import {
+  CHAT_PANEL_START_PAGE_TAB,
+  chatPanelStartPageTabAtom,
+} from "@src/store/ui/chatPanelAtom";
 import type { AgentConfigTabVariant } from "@src/store/workstation/tabs";
 import { getRustAgentType } from "@src/util/session/sessionDispatch";
 import { openAgentConfigInWorkStation } from "@src/util/ui/openAgentConfigInWorkStation";
@@ -36,6 +55,8 @@ import LaunchpadActionStrip from "./LaunchpadActionStrip";
 import MacFolderIcon from "./MacFolderIcon";
 
 interface LaunchpadDashboardProps {
+  /** Optional content rendered first in the dashboard's shared scroll area. */
+  headerContent?: React.ReactNode;
   repos: Repo[];
   loading: boolean;
   /** Currently highlighted workspace card (drives the action strip). */
@@ -64,6 +85,10 @@ const LAUNCHPAD_TILE_LABEL_CLASS =
 const LAUNCHPAD_TILE_LABEL_SELECTED_CLASS =
   "line-clamp-2 w-20 text-center text-[12px] font-normal leading-tight text-text-1";
 
+const AccountInlineDetails = React.lazy(
+  () => import("@src/modules/shared/keyVault/AccountInlineDetails")
+);
+
 interface LaunchpadCollapsibleSectionProps {
   title: string;
   children: React.ReactNode;
@@ -77,24 +102,57 @@ const LaunchpadCollapsibleSection: React.FC<LaunchpadCollapsibleSectionProps> =
   ));
 LaunchpadCollapsibleSection.displayName = "LaunchpadCollapsibleSection";
 
-const LaunchpadHScrollFade: React.FC<{
+const LaunchpadTileWrap: React.FC<{
   children: React.ReactNode;
-  gap?: string;
-}> = ({ children, gap = "gap-2" }) => (
-  <div
-    className="relative overflow-hidden"
-    style={{
-      maskImage:
-        "linear-gradient(to right, black calc(100% - 24px), rgba(0,0,0,0.15) 100%)",
-      WebkitMaskImage:
-        "linear-gradient(to right, black calc(100% - 24px), rgba(0,0,0,0.15) 100%)",
-    }}
-  >
-    <div className={`flex ${gap} overflow-x-auto pb-2 scrollbar-hide`}>
-      {children}
+  actionAfterIndex?: number;
+  action?: React.ReactNode;
+}> = ({ children, actionAfterIndex = -1, action }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [columnCount, setColumnCount] = useState(1);
+  const items = React.Children.toArray(children);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateColumnCount = (): void => {
+      const tileWidth = 80;
+      const gap = 8;
+      setColumnCount(
+        Math.max(
+          1,
+          Math.floor((container.clientWidth + gap) / (tileWidth + gap))
+        )
+      );
+    };
+
+    updateColumnCount();
+    const observer = new ResizeObserver(updateColumnCount);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, []);
+
+  const rowEndIndex =
+    actionAfterIndex >= 0
+      ? Math.min(
+          items.length - 1,
+          (Math.floor(actionAfterIndex / columnCount) + 1) * columnCount - 1
+        )
+      : -1;
+
+  return (
+    <div ref={containerRef} className="flex flex-wrap gap-2 pb-2">
+      {items.map((item, index) => (
+        <React.Fragment key={index}>
+          {item}
+          {index === rowEndIndex && action ? (
+            <div className="min-w-0 basis-full">{action}</div>
+          ) : null}
+        </React.Fragment>
+      ))}
     </div>
-  </div>
-);
+  );
+};
 
 interface LaunchpadTileProps {
   icon: React.ReactNode;
@@ -103,10 +161,11 @@ interface LaunchpadTileProps {
   status?: React.ReactNode;
   selected?: boolean;
   onClick?: () => void;
+  dataTestId?: string;
 }
 
 const LaunchpadTile: React.FC<LaunchpadTileProps> = memo(
-  ({ icon, label, title, status, selected = false, onClick }) => {
+  ({ icon, label, title, status, selected = false, onClick, dataTestId }) => {
     const content = (
       <>
         <div
@@ -140,6 +199,8 @@ const LaunchpadTile: React.FC<LaunchpadTileProps> = memo(
           onClick={onClick}
           className={LAUNCHPAD_TILE_CLASS}
           title={title ?? label}
+          aria-pressed={selected}
+          data-testid={dataTestId}
         >
           {content}
         </button>
@@ -246,8 +307,8 @@ const LaunchpadAgentActionStrip: React.FC<LaunchpadAgentActionStripProps> =
     const { t } = useTranslation("navigation");
 
     return (
-      <div className="w-fit max-w-full overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
-        <div className="flex max-w-full items-center gap-1.5 overflow-x-auto scrollbar-hide">
+      <div className="w-full min-w-0 overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
+        <div className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
           <Button
             variant="primary"
             size="small"
@@ -280,6 +341,7 @@ LaunchpadAgentActionStrip.displayName = "LaunchpadAgentActionStrip";
 
 const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
   ({
+    headerContent,
     repos,
     loading,
     selectedDashboardRepoId,
@@ -288,11 +350,22 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
     onAddWorkspace,
   }) => {
     const { t } = useTranslation(["navigation", "sessions"]);
-    const { goToNewSession, goToIntegrations } = useAppNavigation();
+    const { navigateTo } = useAppNavigation();
     const setCreatorState = useSetAtom(sessionCreatorStateAtom);
+    // The dashboard lives inside the chat pane's Launchpad (start-page) tab.
+    // Launching an agent switches to the Work sub-tab, whose session launcher
+    // reads the creator state we just set. Navigating the outer route instead
+    // (the old behavior) left the pane pinned on the dashboard → blank surface.
+    const setStartPageTab = useSetAtom(chatPanelStartPageTabAtom);
     const [selectedAgentKey, setSelectedAgentKey] = useState<string | null>(
       null
     );
+    const [selectedAccountId, setSelectedAccountId] = useState<string | null>(
+      null
+    );
+    const [refreshingAccountId, setRefreshingAccountId] = useState<
+      string | null
+    >(null);
 
     const {
       installedCliAgents,
@@ -301,9 +374,11 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
       ready: catalogReady,
     } = useLaunchpadAgentCatalog();
 
-    const { localAccounts, loading: keysLoading } = useKeyVault({
-      autoLoad: true,
-    });
+    const {
+      localAccounts,
+      loading: keysLoading,
+      refreshAccount,
+    } = useKeyVault({ autoLoad: true });
 
     const {
       containers,
@@ -339,7 +414,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               agentName: agent.displayName,
               agentIconId: null,
             }));
-            goToNewSession();
+            setStartPageTab(CHAT_PANEL_START_PAGE_TAB.WORK);
           },
           onOpenDetails: () => {
             openAgentConfigInWorkStation({
@@ -389,7 +464,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               agentIconId: null,
               cliAgentType: null,
             }));
-            goToNewSession();
+            setStartPageTab(CHAT_PANEL_START_PAGE_TAB.WORK);
           },
           onOpenDetails: () => {
             if (!definition) return;
@@ -423,7 +498,7 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               agentIconId: null,
               cliAgentType: null,
             }));
-            goToNewSession();
+            setStartPageTab(CHAT_PANEL_START_PAGE_TAB.WORK);
           },
           onOpenDetails: () => {
             openAgentConfigInWorkStation({
@@ -441,26 +516,9 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
       builtInRustAgents,
       customRustAgents,
       setCreatorState,
-      goToNewSession,
+      setStartPageTab,
       t,
     ]);
-
-    const selectedDashboardRepo = useMemo<Repo | null>(
-      () =>
-        selectedDashboardRepoId
-          ? (repos.find((repo) => repo.id === selectedDashboardRepoId) ?? null)
-          : null,
-      [repos, selectedDashboardRepoId]
-    );
-
-    const selectedAgent = useMemo(
-      () =>
-        selectedAgentKey
-          ? (rankedAgents.find((agent) => agent.key === selectedAgentKey) ??
-            null)
-          : null,
-      [rankedAgents, selectedAgentKey]
-    );
 
     const handleSelectWorkspace = useCallback(
       (repo: Repo) => {
@@ -479,17 +537,57 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
       );
     }, []);
 
+    const handleSelectAccount = useCallback(
+      (accountId: string) => {
+        if (selectedAccountId === accountId) {
+          setSelectedAccountId(null);
+          return;
+        }
+        setSelectedAccountId(accountId);
+        setRefreshingAccountId(accountId);
+        void refreshAccount(accountId, true)
+          .catch(() => false)
+          .finally(() => {
+            setRefreshingAccountId((currentId) =>
+              currentId === accountId ? null : currentId
+            );
+          });
+      },
+      [refreshAccount, selectedAccountId]
+    );
+
+    const handleAddKey = useCallback(() => {
+      const accountsPath = `${buildIntegrationsPath({
+        category: "models",
+      })}?modelsTab=my-accounts`;
+      navigateTo(buildWizardPath(accountsPath, WIZARD_IDS.KEY_ADD));
+    }, [navigateTo]);
+
+    const handleAddAgent = useCallback(() => {
+      navigateTo(
+        buildWizardPath(ROUTES.app.home.agentOrgs.path, WIZARD_IDS.AGENT_ADD)
+      );
+    }, [navigateTo]);
+
     const handleClearSelection = useCallback(
       () => onSelectDashboardRepo(null),
       [onSelectDashboardRepo]
     );
+    const selectedDashboardRepo =
+      repos.find((repo) => repo.id === selectedDashboardRepoId) ?? null;
+    const selectedAgent =
+      rankedAgents.find((agent) => agent.key === selectedAgentKey) ?? null;
+    const selectedAccount =
+      localAccounts.find((account) => account.id === selectedAccountId) ?? null;
 
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide">
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
           <div
-            className={`flex flex-col gap-5 py-5 ${DETAIL_PANEL_TOKENS.contentWidth}`}
+            className={`flex flex-col gap-5 px-4 py-5 ${DETAIL_PANEL_TOKENS.headerWidth}`}
           >
+            {headerContent}
+
             <div className="flex flex-col gap-2">
               <LaunchpadCollapsibleSection
                 title={t("navigation:launchpad.myWorkspaces")}
@@ -497,7 +595,22 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                 {loading ? (
                   <Placeholder variant="loading" />
                 ) : (
-                  <LaunchpadHScrollFade>
+                  <LaunchpadTileWrap
+                    actionAfterIndex={
+                      selectedDashboardRepo
+                        ? repos.indexOf(selectedDashboardRepo)
+                        : -1
+                    }
+                    action={
+                      selectedDashboardRepo ? (
+                        <LaunchpadActionStrip
+                          repo={selectedDashboardRepo}
+                          onOpenDetails={onOpenRepoDetails}
+                          onClear={handleClearSelection}
+                        />
+                      ) : null
+                    }
+                  >
                     {repos.map((repo) => (
                       <LaunchpadWorkspaceCard
                         key={repo.id}
@@ -510,17 +623,9 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                       onCreate={onAddWorkspace}
                       label={t("navigation:launchpad.addWorkspace")}
                     />
-                  </LaunchpadHScrollFade>
+                  </LaunchpadTileWrap>
                 )}
               </LaunchpadCollapsibleSection>
-
-              {selectedDashboardRepo ? (
-                <LaunchpadActionStrip
-                  repo={selectedDashboardRepo}
-                  onOpenDetails={onOpenRepoDetails}
-                  onClear={handleClearSelection}
-                />
-              ) : null}
             </div>
 
             <LaunchpadCollapsibleSection
@@ -531,7 +636,38 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
               {keysLoading ? (
                 <Placeholder variant="loading" />
               ) : (
-                <LaunchpadHScrollFade>
+                <LaunchpadTileWrap
+                  actionAfterIndex={
+                    selectedAccount
+                      ? localAccounts.indexOf(selectedAccount)
+                      : -1
+                  }
+                  action={
+                    selectedAccount ? (
+                      <InlineInfoCard
+                        contentClassName="bg-bg-2"
+                        dataTestId="launchpad-key-inline-details"
+                      >
+                        <React.Suspense
+                          fallback={<Placeholder variant="loading" />}
+                        >
+                          {refreshingAccountId === selectedAccount.id ? (
+                            <Placeholder variant="loading" />
+                          ) : (
+                            <div className="flex min-w-0 flex-col gap-2">
+                              <AccountInlineDetails account={selectedAccount} />
+                              <div className="flex min-h-8 items-center border-t border-border-2 pt-2">
+                                <AccountStatusIndicator
+                                  account={selectedAccount}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </React.Suspense>
+                      </InlineInfoCard>
+                    ) : null
+                  }
+                >
                   {localAccounts.map((account) => {
                     const isReady = account.status === "ready";
                     return (
@@ -546,6 +682,9 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                         }
                         label={account.name}
                         title={account.name}
+                        selected={account.id === selectedAccountId}
+                        onClick={() => handleSelectAccount(account.id)}
+                        dataTestId={`launchpad-key-${account.id}`}
                         status={
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${isReady ? "bg-success-6" : "bg-text-4"}`}
@@ -556,10 +695,10 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                     );
                   })}
                   <LaunchpadAddTile
-                    onCreate={goToIntegrations}
+                    onCreate={handleAddKey}
                     label={t("sessions:controlTower.addApiKey")}
                   />
-                </LaunchpadHScrollFade>
+                </LaunchpadTileWrap>
               )}
             </LaunchpadCollapsibleSection>
 
@@ -577,7 +716,16 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                     title={t("sessions:controlTower.noAgentsAvailable")}
                   />
                 ) : (
-                  <LaunchpadHScrollFade>
+                  <LaunchpadTileWrap
+                    actionAfterIndex={
+                      selectedAgent ? rankedAgents.indexOf(selectedAgent) : -1
+                    }
+                    action={
+                      selectedAgent ? (
+                        <LaunchpadAgentActionStrip agent={selectedAgent} />
+                      ) : null
+                    }
+                  >
                     {rankedAgents.map((agent) => (
                       <LaunchpadTile
                         key={agent.key}
@@ -591,16 +739,12 @@ const LaunchpadDashboard: React.FC<LaunchpadDashboardProps> = memo(
                       />
                     ))}
                     <LaunchpadAddTile
-                      onCreate={goToIntegrations}
+                      onCreate={handleAddAgent}
                       label={t("sessions:controlTower.addAgent")}
                     />
-                  </LaunchpadHScrollFade>
+                  </LaunchpadTileWrap>
                 )}
               </LaunchpadCollapsibleSection>
-
-              {selectedAgent ? (
-                <LaunchpadAgentActionStrip agent={selectedAgent} />
-              ) : null}
             </div>
 
             <ContainerEnginesSection

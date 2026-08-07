@@ -8,7 +8,7 @@ import { z } from "zod";
 import { ACTION_ID } from "@src/ActionSystem/actionIds";
 import { defineZodAction } from "@src/ActionSystem/schema/defineZodAction";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
-import { EditorTabService } from "@src/services/workStation";
+import { EditorTabService } from "@src/services/workStation/EditorTabService";
 
 // ============================================
 // Editor Tab Actions

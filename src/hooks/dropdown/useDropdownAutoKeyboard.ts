@@ -189,13 +189,30 @@ export function useDropdownAutoKeyboard({
   }, [isOpen, enabled, panelRef]);
 
   // Clear highlight when the user moves the mouse inside the panel so
-  // pointer hover takes over without competing visuals.
+  // pointer hover takes over without competing visuals. We require a real
+  // change in cursor coordinates: a click-to-open leaves the pointer over
+  // the freshly-mounted panel, and the browser fires a `mousemove` when an
+  // element appears under a stationary cursor (or on sub-pixel tremor).
+  // Treating that phantom event as "the user moved the mouse" would reset
+  // the keyboard highlight and make the first Arrow key press appear to do
+  // nothing (it takes a second press to re-establish the highlight).
   useEffect(() => {
     if (!enabled || !isOpen) return;
     const panel = panelRef.current;
     if (!panel) return;
 
-    const handleMouseMove = () => {
+    let lastX: number | null = null;
+    let lastY: number | null = null;
+
+    const handleMouseMove = (event: MouseEvent) => {
+      if (lastX === event.clientX && lastY === event.clientY) return;
+      const isFirstEvent = lastX === null && lastY === null;
+      lastX = event.clientX;
+      lastY = event.clientY;
+      // Ignore the initial phantom mousemove emitted when the panel mounts
+      // under a stationary cursor; only real motion should hand control back
+      // to the pointer.
+      if (isFirstEvent) return;
       if (indexRef.current === -1) return;
       indexRef.current = -1;
       clearHighlight(panel);

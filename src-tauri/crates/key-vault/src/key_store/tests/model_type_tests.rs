@@ -13,7 +13,6 @@ fn cli_agents_are_cli_agents() {
         ModelType::CursorCli,
         ModelType::ClaudeCode,
         ModelType::Codex,
-        ModelType::GeminiCli,
         ModelType::Copilot,
         ModelType::Kiro,
         ModelType::KimiCli,
@@ -72,7 +71,6 @@ fn only_cursor_copilot_kiro_need_mitm() {
     // Other CLI agents do NOT use MITM proxy
     assert!(!ModelType::ClaudeCode.needs_mitm_proxy());
     assert!(!ModelType::Codex.needs_mitm_proxy());
-    assert!(!ModelType::GeminiCli.needs_mitm_proxy());
     assert!(!ModelType::KimiCli.needs_mitm_proxy());
     assert!(!ModelType::OpenCode.needs_mitm_proxy());
 
@@ -120,7 +118,6 @@ fn as_str_round_trips_through_from_str() {
         ModelType::CursorCli,
         ModelType::ClaudeCode,
         ModelType::Codex,
-        ModelType::GeminiCli,
         ModelType::Copilot,
         ModelType::Kiro,
         ModelType::KimiCli,

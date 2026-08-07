@@ -20,7 +20,7 @@ export { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters
  * View modes whose session creators are allowed to launch a session
  * "in place" — i.e. without navigating the user back to WorkStation.
  *
- * `workStation` itself is the canonical case. Ops Control now lives in
+ * `workStation` itself is the canonical case. Kanban now lives in
  * Home, so launches from that page use the standard WorkStation navigation.
  *
  * Anything not in this set falls back to the legacy "navigate to

@@ -8,7 +8,7 @@ import { Check, Minus, Plus } from "lucide-react";
 import React from "react";
 import { Prism as PrismHighlighter } from "react-syntax-highlighter";
 
-import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes";
+import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 
 import type { AlignedLine } from "../types";
 import { CherryPickCheckbox } from "./CherryPickCheckbox";

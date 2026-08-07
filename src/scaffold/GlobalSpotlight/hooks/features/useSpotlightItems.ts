@@ -30,9 +30,7 @@ import { globalThemeIdAtom } from "@src/store/ui/uiAtom";
 import {
   sessionChatPositionAtom,
   workStationChatPositionAtom,
-  workStationDockAutoHideAtom,
   workStationEditorSecondaryCollapsedAtom,
-  workStationInternalLayoutModeAtom,
   workStationLayoutModeAtom,
   workStationPrimarySidebarCollapsedAtom,
 } from "@src/store/ui/workStationAtom";
@@ -137,9 +135,7 @@ export function useSpotlightItems(
   const agentStationChatPosition = useAtomValue(sessionChatPositionAtom);
   const chatTurnPaginationEnabled = useAtomValue(chatTurnPaginationEnabledAtom);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
-  const internalLayoutMode = useAtomValue(workStationInternalLayoutModeAtom);
   const workstationSidebarPosition = useAtomValue(workStationLayoutModeAtom);
-  const dockAutoHide = useAtomValue(workStationDockAutoHideAtom);
   const currentLanguage = useAtomValue(languageAtom);
   const recentActionIds = useAtomValue(spotlightRecentActionsAtom);
   const { t } = useTranslation();
@@ -184,9 +180,7 @@ export function useSpotlightItems(
       agentStationChatPosition,
       chatTurnPaginationEnabled,
       modelPickerStyle,
-      internalLayoutMode,
       workstationSidebarPosition,
-      dockAutoHide,
     });
 
     if (stage === "confirming" || stage === "executing") {
@@ -339,9 +333,7 @@ export function useSpotlightItems(
     agentStationChatPosition,
     chatTurnPaginationEnabled,
     modelPickerStyle,
-    internalLayoutMode,
     workstationSidebarPosition,
-    dockAutoHide,
     currentLanguage,
     recentActionIds,
     isEditorRoute,

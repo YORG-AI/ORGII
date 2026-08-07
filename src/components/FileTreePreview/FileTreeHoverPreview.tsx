@@ -13,6 +13,9 @@ import type { FileTreePreviewProps } from "./types";
 
 const PREVIEW_SHOW_DELAY = 300;
 const PREVIEW_HIDE_DELAY = 150;
+const PREVIEW_GAP = 8;
+
+type PreviewPlacement = "top" | "right" | "bottom";
 
 interface FileTreeHoverPreviewProps {
   path: string;
@@ -22,6 +25,8 @@ interface FileTreeHoverPreviewProps {
   className?: string;
   display?: CSSProperties["display"];
   as?: "div" | "span";
+  placement?: PreviewPlacement;
+  showDelayMs?: number;
 }
 
 const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
@@ -32,6 +37,8 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
   className = "",
   display = "inline-flex",
   as = "span",
+  placement = "top",
+  showDelayMs = PREVIEW_SHOW_DELAY,
 }) => {
   const anchorRef = useRef<HTMLElement | null>(null);
   const setAnchorRef = useCallback((node: HTMLElement | null) => {
@@ -58,17 +65,30 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
     const anchor = anchorRef.current;
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
-    setPreviewPosition({ left: rect.left, top: rect.top - 6 });
-  }, []);
+    setPreviewPosition(
+      placement === "right"
+        ? { left: rect.right + PREVIEW_GAP, top: rect.top }
+        : placement === "bottom"
+          ? { left: rect.left, top: rect.bottom + PREVIEW_GAP }
+          : { left: rect.left, top: rect.top - 6 }
+    );
+  }, [placement]);
 
   const handleMouseEnter = useCallback(() => {
     if (!path) return;
     clearHideTimeout();
+    clearShowTimeout();
     showTimeoutRef.current = setTimeout(() => {
       updatePreviewPosition();
       setShowPreview(true);
-    }, PREVIEW_SHOW_DELAY);
-  }, [clearHideTimeout, path, updatePreviewPosition]);
+    }, showDelayMs);
+  }, [
+    clearHideTimeout,
+    clearShowTimeout,
+    path,
+    showDelayMs,
+    updatePreviewPosition,
+  ]);
 
   const handleMouseLeave = useCallback(() => {
     clearShowTimeout();
@@ -119,7 +139,7 @@ const FileTreeHoverPreview: React.FC<FileTreeHoverPreviewProps> = ({
               position: "fixed",
               left: previewPosition.left,
               top: previewPosition.top,
-              transform: "translateY(-100%)",
+              transform: placement === "top" ? "translateY(-100%)" : undefined,
               zIndex: 9999,
             }}
             onMouseEnter={handlePreviewMouseEnter}

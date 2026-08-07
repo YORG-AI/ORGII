@@ -15,7 +15,7 @@ import { HomeSidebar } from "@/src/scaffold/NavigationSidebar";
 import { WorkstationSidebarConnector } from "@/src/scaffold/NavigationSidebar/connectors";
 import React from "react";
 
-import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/GeneralLayoutTour";
+import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 
 import { useRouteLayoutType } from "../hooks";

@@ -34,6 +34,7 @@ mod resume_state_tests {
                 hosted_token: None,
                 proxy_session_id: None,
                 isolate: None,
+                worktree_path: None,
                 background: Some(false),
                 key_source: Some("own_key".to_string()),
                 additional_directories: None,

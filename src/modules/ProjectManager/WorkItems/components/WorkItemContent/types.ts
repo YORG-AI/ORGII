@@ -21,6 +21,8 @@ export interface WorkItemContentProps {
   teamMembers?: Person[];
   headerPath?: ReactNode;
   headerProperties?: ReactNode;
+  /** Render the editable title inside the content surface. */
+  titleVisible?: boolean;
   repoPath?: string | null;
   projectSlug?: string | null;
   shortId?: string | null;
@@ -37,6 +39,8 @@ export interface WorkItemContentProps {
   onRefreshWorkflow?: () => void;
   activeAgentSessionId?: string | null;
   activeAgentRole?: AgentRole | null;
+  isLockedByOther?: boolean;
+  lockHolderName?: string | null;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 

@@ -6,19 +6,11 @@ use chrono::Utc;
 
 use super::paths;
 use super::types::{
-    OrgtrackCommitRecord, OrgtrackFileSessionLookup, OrgtrackFileSessionSummary,
-    OrgtrackFileTimeline, OrgtrackIndex, OrgtrackIndexCommit, OrgtrackIndexFile,
-    OrgtrackIndexSession, OrgtrackIndexSummary, OrgtrackManifest, OrgtrackProvenanceRecord,
-    OrgtrackRepairResult, OrgtrackSummaryBucket, OrgtrackTimelineRecord, ORGTRACK_SCHEMA_VERSION,
+    OrgtrackCommitRecord, OrgtrackFileTimeline, OrgtrackIndex, OrgtrackIndexCommit,
+    OrgtrackIndexFile, OrgtrackIndexSession, OrgtrackIndexSummary, OrgtrackManifest,
+    OrgtrackProvenanceRecord, OrgtrackRepairResult, OrgtrackSummaryBucket, OrgtrackTimelineRecord,
+    ORGTRACK_SCHEMA_VERSION,
 };
-
-pub fn read_index(repo_path: &Path) -> Result<Option<OrgtrackIndex>, String> {
-    let path = paths::index_path(repo_path);
-    if !path.exists() {
-        return Ok(None);
-    }
-    paths::read_json(&path).map(Some)
-}
 
 pub fn read_manifest(repo_path: &Path) -> Result<Option<OrgtrackManifest>, String> {
     let path = paths::manifest_path(repo_path);
@@ -63,62 +55,6 @@ pub fn read_file_timeline(
         .entries
         .sort_by(|first, second| first.timestamp.cmp(&second.timestamp));
     Ok(Some(timeline))
-}
-
-pub fn read_file_session_lookup(
-    repo_path: &Path,
-    file_path: &str,
-) -> Result<Option<OrgtrackFileSessionLookup>, String> {
-    let Some(timeline) = read_file_timeline(repo_path, file_path)? else {
-        return Ok(None);
-    };
-    let mut session_rows: BTreeMap<String, OrgtrackFileSessionSummary> = BTreeMap::new();
-
-    for entry in &timeline.entries {
-        let Some(session_id) = entry.session_id.clone() else {
-            continue;
-        };
-        let row =
-            session_rows
-                .entry(session_id.clone())
-                .or_insert_with(|| OrgtrackFileSessionSummary {
-                    session_id,
-                    session_label: entry.session_label.clone(),
-                    agent_identity: entry.agent_identity.clone(),
-                    first_edit_at: entry.timestamp,
-                    last_edit_at: entry.timestamp,
-                    edit_count: 0,
-                    commit_shas: Vec::new(),
-                    reachability_states: Vec::new(),
-                });
-        row.first_edit_at = row.first_edit_at.min(entry.timestamp);
-        row.last_edit_at = row.last_edit_at.max(entry.timestamp);
-        if matches!(
-            entry.entry_type,
-            super::types::OrgtrackTimelineEntryType::SessionEdit
-        ) {
-            row.edit_count += 1;
-        }
-        if let Some(commit_sha) = &entry.commit_sha {
-            if !row.commit_shas.contains(commit_sha) {
-                row.commit_shas.push(commit_sha.clone());
-            }
-        }
-        if !row.reachability_states.contains(&entry.reachability.state) {
-            row.reachability_states
-                .push(entry.reachability.state.clone());
-        }
-    }
-
-    let mut sessions: Vec<OrgtrackFileSessionSummary> = session_rows.into_values().collect();
-    sessions.sort_by(|left, right| right.last_edit_at.cmp(&left.last_edit_at));
-
-    Ok(Some(OrgtrackFileSessionLookup {
-        schema_version: ORGTRACK_SCHEMA_VERSION,
-        file_path: timeline.file_path,
-        path_hash: timeline.path_hash,
-        sessions,
-    }))
 }
 
 pub fn repair_orgtrack(repo_path: &Path) -> Result<OrgtrackRepairResult, String> {
@@ -441,102 +377,4 @@ fn read_sharded_json_records_into<T: serde::de::DeserializeOwned>(
         }
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::orgtrack::types::{
-        OrgtrackBranchContext, OrgtrackFileTimelineEntry, OrgtrackReachability,
-        OrgtrackReachabilityState, OrgtrackTier, OrgtrackTimelineEntryType, OrgtrackTimelineRecord,
-    };
-
-    #[test]
-    fn file_session_lookup_groups_sessions_and_commit_links() {
-        let temp_dir = tempfile::tempdir().expect("temp repo");
-        let repo_path = temp_dir.path();
-        paths::ensure_orgtrack_dirs(repo_path).expect("orgtrack dirs");
-
-        let entry = OrgtrackTimelineRecord {
-            schema_version: ORGTRACK_SCHEMA_VERSION,
-            record_id: "session-edit-1".to_string(),
-            file_path: "src/main.rs".to_string(),
-            path_hash: paths::path_hash("src/main.rs"),
-            entry: OrgtrackFileTimelineEntry {
-                entry_type: OrgtrackTimelineEntryType::SessionEdit,
-                id: "edit-1".to_string(),
-                file_path: "src/main.rs".to_string(),
-                session_id: Some("session-1".to_string()),
-                session_label: Some("Claude Code".to_string()),
-                agent_identity: None,
-                branch_context: OrgtrackBranchContext::default(),
-                commit_sha: None,
-                reachability: OrgtrackReachability {
-                    state: OrgtrackReachabilityState::Uncommitted,
-                    checked_at_head: None,
-                    is_reachable_from_current_head: Some(false),
-                    is_reachable_from_default_branch: None,
-                    first_reachable_commit_sha: None,
-                    current_file_contains_attributed_range: None,
-                },
-                timestamp: 10,
-                summary: Some("Edited file".to_string()),
-                function_name: Some("edit_file".to_string()),
-                node_type: Some("file".to_string()),
-                start_line: Some(1),
-                end_line: Some(1),
-                tier: OrgtrackTier::Meta,
-            },
-        };
-        paths::append_json_line(&paths::file_timeline_path(repo_path, "src/main.rs"), &entry)
-            .expect("write edit");
-
-        let commit_entry = OrgtrackTimelineRecord {
-            schema_version: ORGTRACK_SCHEMA_VERSION,
-            record_id: "commit-link-1".to_string(),
-            file_path: "src/main.rs".to_string(),
-            path_hash: paths::path_hash("src/main.rs"),
-            entry: OrgtrackFileTimelineEntry {
-                entry_type: OrgtrackTimelineEntryType::CommitLink,
-                id: "commit-1".to_string(),
-                file_path: "src/main.rs".to_string(),
-                session_id: Some("session-1".to_string()),
-                session_label: Some("Claude Code".to_string()),
-                agent_identity: None,
-                branch_context: OrgtrackBranchContext::default(),
-                commit_sha: Some("abcdef123456".to_string()),
-                reachability: OrgtrackReachability {
-                    state: OrgtrackReachabilityState::ReachableExact,
-                    checked_at_head: Some("abcdef123456".to_string()),
-                    is_reachable_from_current_head: Some(true),
-                    is_reachable_from_default_branch: Some(true),
-                    first_reachable_commit_sha: Some("abcdef123456".to_string()),
-                    current_file_contains_attributed_range: None,
-                },
-                timestamp: 20,
-                summary: Some("Included in commit".to_string()),
-                function_name: Some("edit_file".to_string()),
-                node_type: Some("file".to_string()),
-                start_line: Some(1),
-                end_line: Some(1),
-                tier: OrgtrackTier::Meta,
-            },
-        };
-        paths::append_json_line(
-            &paths::file_timeline_path(repo_path, "src/main.rs"),
-            &commit_entry,
-        )
-        .expect("write commit");
-
-        let lookup = read_file_session_lookup(repo_path, "src/main.rs")
-            .expect("lookup")
-            .expect("lookup exists");
-        assert_eq!(lookup.sessions.len(), 1);
-        assert_eq!(lookup.sessions[0].session_id, "session-1");
-        assert_eq!(lookup.sessions[0].edit_count, 1);
-        assert_eq!(lookup.sessions[0].commit_shas, vec!["abcdef123456"]);
-        assert!(lookup.sessions[0]
-            .reachability_states
-            .contains(&OrgtrackReachabilityState::ReachableExact));
-    }
 }

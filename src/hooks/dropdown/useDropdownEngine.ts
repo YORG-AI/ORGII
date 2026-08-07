@@ -81,6 +81,12 @@ export interface UseDropdownEngineOptions<
   closeOnEsc?: boolean;
   /** Close when clicking outside trigger and panel */
   closeOnClickOutside?: boolean;
+  /**
+   * Focus the panel once positioned so document-level Escape/arrow
+   * listeners fire even when keyboard focus was parked in another pane.
+   * Opt-in: hover-opened panels (tooltips) must never steal focus.
+   */
+  captureKeyboardFocus?: boolean;
   /** Additional portal roots that should be treated as part of this dropdown. */
   additionalInsideRefs?: ReadonlyArray<RefObject<HTMLElement | null>>;
   /**
@@ -145,6 +151,7 @@ export function useDropdownEngine<
     align = "left",
     closeOnEsc = true,
     closeOnClickOutside = true,
+    captureKeyboardFocus = false,
     additionalInsideRefs,
     listNavigation,
     autoKeyboardNavigation = true,
@@ -342,6 +349,23 @@ export function useDropdownEngine<
       document.removeEventListener("pointerdown", handlePointerDownOutside);
     };
   }, [isOpen, closeOnClickOutside, additionalInsideRefs, setIsOpen]);
+
+  // Keyboard focus capture (opt-in): this document's keydown listeners only
+  // fire if the view actually owns keyboard focus — with focus parked in
+  // another pane (chat composer, embedded terminal) Escape never arrives.
+  // Pull focus onto the panel once positioned, unless something inside it
+  // (e.g. a search input's own autofocus, whose child effect ran first)
+  // already took it. Opt-in because hover-opened panels (Tooltip) must
+  // never steal focus from what the user is typing in.
+  useEffect(() => {
+    if (!isOpen || !isPositioned || !captureKeyboardFocus) return;
+    const panelElement = panelRef.current;
+    if (!panelElement) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && panelElement.contains(active)) return;
+    panelElement.tabIndex = -1;
+    panelElement.focus({ preventScroll: true });
+  }, [isOpen, isPositioned, captureKeyboardFocus]);
 
   // ESC key
   useEffect(() => {

@@ -22,13 +22,16 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { gitApi } from "@src/api/http/git";
+import type { GitWorktreeEntry } from "@src/api/http/git";
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 16;
 const EMPTY_MAP: ReadonlyMap<string, string> = new Map();
+const EMPTY_LIST: readonly GitWorktreeEntry[] = [];
 
 interface CacheEntry {
   map: Map<string, string>;
+  entries: GitWorktreeEntry[];
   fetchedAt: number;
 }
 
@@ -40,22 +43,26 @@ function notifySubscribers(): void {
   for (const cb of subscribers) cb();
 }
 
-function readCache(repoId: string): Map<string, string> | null {
+function readCache(repoId: string): CacheEntry | null {
   const entry = worktreeCache.get(repoId);
   if (!entry) return null;
   if (Date.now() - entry.fetchedAt > CACHE_TTL_MS) {
     worktreeCache.delete(repoId);
     return null;
   }
-  return entry.map;
+  return entry;
 }
 
-function writeCache(repoId: string, map: Map<string, string>): void {
+function writeCache(
+  repoId: string,
+  map: Map<string, string>,
+  entries: GitWorktreeEntry[]
+): void {
   if (worktreeCache.size >= MAX_CACHE_ENTRIES) {
     const oldestKey = worktreeCache.keys().next().value;
     if (oldestKey !== undefined) worktreeCache.delete(oldestKey);
   }
-  worktreeCache.set(repoId, { map, fetchedAt: Date.now() });
+  worktreeCache.set(repoId, { map, entries, fetchedAt: Date.now() });
   notifySubscribers();
 }
 
@@ -92,7 +99,7 @@ async function fetchWorktreeMap(
       if (!entry.branch) continue;
       map.set(entry.branch, entry.path);
     }
-    writeCache(repoId, map);
+    writeCache(repoId, map, entries);
     return map;
   })();
 
@@ -119,6 +126,27 @@ export interface UseWorktreeMapOptions {
   isLocalRepo: boolean;
 }
 
+export function useWorktreeEntries(
+  options: UseWorktreeMapOptions
+): readonly GitWorktreeEntry[] {
+  const { enabled, repoId, repoPath, isLocalRepo } = options;
+  const active = enabled && isLocalRepo && Boolean(repoId);
+
+  const getSnapshot = (): readonly GitWorktreeEntry[] => {
+    if (!active) return EMPTY_LIST;
+    return readCache(repoId)?.entries ?? EMPTY_LIST;
+  };
+
+  const entries = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+
+  useEffect(() => {
+    if (!active || readCache(repoId)) return;
+    void fetchWorktreeMap(repoId, repoPath).catch(() => {});
+  }, [active, repoId, repoPath]);
+
+  return entries;
+}
+
 /**
  * Returns a `branchName -> worktreePath` map for the given repo.
  * Returns an empty map until the first fetch resolves; subsequent
@@ -136,7 +164,7 @@ export function useWorktreeMap(
   // shows up in the cache.
   const getSnapshot = (): ReadonlyMap<string, string> => {
     if (!active) return EMPTY_MAP;
-    return readCache(repoId) ?? EMPTY_MAP;
+    return readCache(repoId)?.map ?? EMPTY_MAP;
   };
 
   const map = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

@@ -3,7 +3,6 @@ import {
   CLAUDE_CODE_AGENT_TYPE,
   CODEX_AGENT_TYPE,
   CURSOR_AGENT_TYPE,
-  GEMINI_AGENT_TYPE,
   MODEL_ID,
   CODEX_MODEL_ID,
   CODEX_INITIAL_ACCOUNT_NAME,
@@ -18,8 +17,6 @@ import {
   FOLLOWUP_EXPECTED_TEXT,
   CODEX_INITIAL_EXPECTED_TEXT,
   CODEX_FOLLOWUP_EXPECTED_TEXT,
-  GEMINI_INITIAL_EXPECTED_TEXT,
-  GEMINI_FOLLOWUP_EXPECTED_TEXT,
   assertKnownRequestedScenarios,
   ensureFixtureRepoSelected,
   findClaudeCodeAccountPair,
@@ -326,7 +323,7 @@ describe("Claude Code CLI multi-account switching", () => {
     });
   });
 
-  it("switches Gemini Rust-native follow-up to another OAuth account with model-chain fallback", async function () {
+  it("switches Gemini API Rust-agent follow-up to another account with model-chain fallback", async function () {
     const scenarioName = "gemini-rust";
     if (!shouldRunScenario(scenarioName)) {
       this.skip();
@@ -344,7 +341,7 @@ describe("Claude Code CLI multi-account switching", () => {
       skipOrFailMissingCoverage(
         this,
         scenarioName,
-        `[gemini-account-switch] fewer than two enabled Gemini OAuth accounts for E2E_GEMINI_MODEL_CHAIN=${JSON.stringify(GEMINI_MODEL_CHAIN)}`
+        `[gemini-account-switch] fewer than two enabled Gemini API accounts for E2E_GEMINI_MODEL_CHAIN=${JSON.stringify(GEMINI_MODEL_CHAIN)}`
       );
       return;
     }
@@ -393,83 +390,6 @@ describe("Claude Code CLI multi-account switching", () => {
     if (!geminiModel) {
       throw new Error(
         `gemini-rust-account-switch exhausted E2E_GEMINI_MODEL_CHAIN=${JSON.stringify(geminiModels)}`
-      );
-    }
-  });
-
-  it("switches Gemini CLI follow-up to another OAuth profile", async function () {
-    const scenarioName = "gemini-cli";
-    if (!shouldRunScenario(scenarioName)) {
-      this.skip();
-      return;
-    }
-    logScenarioScope(scenarioName);
-    await waitForApp();
-
-    const accounts = unwrap(
-      await invokeE2E("listAccounts"),
-      "listAccounts"
-    ).accounts;
-    const accountPair = findGeminiAccountPair(accounts);
-    if (!accountPair) {
-      skipOrFailMissingCoverage(
-        this,
-        scenarioName,
-        `[gemini-account-switch] fewer than two enabled Gemini OAuth accounts for E2E_GEMINI_MODEL_CHAIN=${JSON.stringify(GEMINI_MODEL_CHAIN)}`
-      );
-      return;
-    }
-    const [initialAccount, followupAccount] = accountPair;
-    expect(initialAccount.id).not.toBe(followupAccount.id);
-    const geminiModels = sharedModelsFromChain(
-      initialAccount,
-      followupAccount,
-      GEMINI_MODEL_CHAIN
-    );
-    if (geminiModels.length === 0) {
-      throw new Error(
-        `No shared Gemini model from chain ${JSON.stringify(GEMINI_MODEL_CHAIN)} is enabled for accounts ${initialAccount.name ?? initialAccount.id} and ${followupAccount.name ?? followupAccount.id}`
-      );
-    }
-
-    const repo = await ensureFixtureRepoSelected();
-
-    let geminiModel = null;
-    for (const candidateModel of geminiModels) {
-      try {
-        await runRenderedAccountSwitch({
-          label: `gemini-account-switch-${candidateModel}`,
-          initialAccount,
-          followupAccount,
-          model: candidateModel,
-          category: "cli_agent",
-          cliAgentType: GEMINI_AGENT_TYPE,
-          repoPath: repo.path,
-          initialExpectedText: GEMINI_INITIAL_EXPECTED_TEXT,
-          followupExpectedText: GEMINI_FOLLOWUP_EXPECTED_TEXT,
-          allowFollowupProviderFailure: true,
-          // Deliberate coverage gap: Gemini CLI free-tier capacity makes a
-          // post-switch provider call too flaky for CI, so this scenario
-          // only proves the row patch — the new account serving a real
-          // turn is covered by gemini-rust above. Remove once a paid
-          // Gemini profile is available in the E2E vault.
-          skipFollowupProviderCall: true,
-        });
-        geminiModel = candidateModel;
-        break;
-      } catch (error) {
-        if (!isGeminiTransientCapacityResponse(error)) {
-          throw error;
-        }
-        console.warn(
-          `[gemini-account-switch-chain] model=${candidateModel} hit transient capacity/rate-limit error; trying next fallback. error=${String(error?.message ?? error).slice(0, 700)}`
-        );
-      }
-    }
-
-    if (!geminiModel) {
-      throw new Error(
-        `gemini-account-switch exhausted E2E_GEMINI_MODEL_CHAIN=${JSON.stringify(geminiModels)}`
       );
     }
   });

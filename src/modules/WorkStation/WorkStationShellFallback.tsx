@@ -1,8 +1,6 @@
 import React, { memo } from "react";
 
-interface WorkStationShellFallbackProps {
-  isFullMode?: boolean;
-}
+interface WorkStationShellFallbackProps {}
 
 const tabWidths = [112, 88, 136, 104];
 const sideRows = [80, 124, 96, 144, 108, 132];
@@ -21,10 +19,10 @@ function SkeletonBlock({
 }
 
 export const WorkStationShellFallback: React.FC<WorkStationShellFallbackProps> =
-  memo(({ isFullMode = false }) => {
+  memo(() => {
     return (
       <div
-        className={`group relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-workstation-bg ${isFullMode ? "" : "rounded-page"}`}
+        className="group relative flex h-full w-full min-w-0 flex-col overflow-hidden bg-workstation-bg"
         aria-busy="true"
         aria-label="Loading WorkStation"
       >

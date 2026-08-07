@@ -74,7 +74,7 @@ import {
   gitStashPush,
 } from "./stash";
 import { getGitStatus, getGitSuggestedAction } from "./status";
-import { getGitWorktrees } from "./worktrees";
+import { createGitWorktree, getGitWorktrees } from "./worktrees";
 
 // Re-export all types
 export * from "./types";
@@ -86,7 +86,11 @@ export { clearStatusCache } from "./client";
 export { getGitStatus, getGitSuggestedAction } from "./status";
 
 // Re-export worktree functions
-export { getGitWorktrees, removeGitWorktree } from "./worktrees";
+export {
+  createGitWorktree,
+  getGitWorktrees,
+  removeGitWorktree,
+} from "./worktrees";
 
 // Re-export branch functions
 export {
@@ -266,6 +270,7 @@ export const gitApi = {
   getGitBlame,
 
   // Worktrees
+  createGitWorktree,
   getGitWorktrees,
 
   // Cache management

@@ -18,6 +18,7 @@ enum ConfigBase {
     Home,
     XdgConfig,
     AppData,
+    GooseConfig,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,13 +51,6 @@ const ALLOWED_CLI_CONFIGS: &[AllowedCliConfig] = &[
         ConfigBase::Home,
         ".codex/config.toml",
         GenericCliConfigFormat::Toml,
-    ),
-    cfg(
-        "gemini_cli",
-        "settings",
-        ConfigBase::Home,
-        ".gemini/settings.json",
-        GenericCliConfigFormat::Json,
     ),
     cfg(
         "kiro",
@@ -124,15 +118,22 @@ const ALLOWED_CLI_CONFIGS: &[AllowedCliConfig] = &[
     cfg(
         "goose",
         "config",
-        ConfigBase::XdgConfig,
-        "goose/config.yaml",
+        ConfigBase::GooseConfig,
+        "config.yaml",
+        GenericCliConfigFormat::Yaml,
+    ),
+    cfg(
+        "goose",
+        "secrets",
+        ConfigBase::GooseConfig,
+        "secrets.yaml",
         GenericCliConfigFormat::Yaml,
     ),
     cfg(
         "goose",
         "permissions",
-        ConfigBase::XdgConfig,
-        "goose/permission.yaml",
+        ConfigBase::GooseConfig,
+        "permission.yaml",
         GenericCliConfigFormat::Yaml,
     ),
     cfg(
@@ -210,7 +211,7 @@ const ALLOWED_CLI_CONFIGS: &[AllowedCliConfig] = &[
         "config",
         ConfigBase::Home,
         ".openclaw/openclaw.json",
-        GenericCliConfigFormat::Json,
+        GenericCliConfigFormat::Jsonc,
     ),
     cfg(
         "aug",
@@ -290,6 +291,13 @@ const ALLOWED_CLI_CONFIGS: &[AllowedCliConfig] = &[
         GenericCliConfigFormat::Toml,
     ),
     cfg(
+        "mistral_vibe",
+        "env",
+        ConfigBase::Home,
+        ".vibe/.env",
+        GenericCliConfigFormat::Text,
+    ),
+    cfg(
         "autohand",
         "config",
         ConfigBase::Home,
@@ -300,7 +308,14 @@ const ALLOWED_CLI_CONFIGS: &[AllowedCliConfig] = &[
         "omp",
         "models",
         ConfigBase::Home,
-        ".omp/agent/models.yml",
+        ".oh-omp/agent/models.yml",
+        GenericCliConfigFormat::Yaml,
+    ),
+    cfg(
+        "omp",
+        "settings",
+        ConfigBase::Home,
+        ".oh-omp/agent/config.yml",
         GenericCliConfigFormat::Yaml,
     ),
     cfg(
@@ -353,6 +368,23 @@ fn app_data_home() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|| paths::home_dir().join(".config"))
 }
+
+fn goose_config_home() -> PathBuf {
+    if let Some(root) = std::env::var_os("GOOSE_PATH_ROOT") {
+        return PathBuf::from(root).join("config");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        app_data_home().join("Block").join("goose").join("config")
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        xdg_config_home().join("goose")
+    }
+}
+
 fn safe_join(base: PathBuf, relative_path: &str) -> Result<PathBuf, String> {
     let relative = Path::new(relative_path);
     if relative.is_absolute() {
@@ -379,8 +411,13 @@ fn resolve_config(
         ConfigBase::Home => paths::home_dir(),
         ConfigBase::XdgConfig => xdg_config_home(),
         ConfigBase::AppData => app_data_home(),
+        ConfigBase::GooseConfig => goose_config_home(),
     };
     Ok((safe_join(base, config.relative_path)?, config.format))
+}
+
+pub(crate) fn resolve_config_path(agent_name: &str, file_id: &str) -> Result<PathBuf, String> {
+    resolve_config(agent_name, file_id).map(|(path, _)| path)
 }
 
 fn nearest_existing_reveal_target(path: &Path) -> Result<PathBuf, String> {

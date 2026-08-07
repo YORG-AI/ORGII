@@ -112,6 +112,12 @@ pub struct WorkItemExecutionLock {
     pub locked_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lock_reason: Option<WorkItemExecutionLockReason>,
+    /// Collab execution-lock holder (design §16.6). Set by the server
+    /// (`orgii_acquire_work_item_lock`) and carried through the synced
+    /// work-item payload so every member's local row shows who holds the
+    /// lock. `None` on purely local (non-collab) locks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locked_by_member_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

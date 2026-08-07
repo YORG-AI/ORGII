@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { ChevronDown, GitCompare, GitMerge, Play, Trash2 } from "lucide-react";
+import { ChevronDown, GitMerge, Play, Trash2 } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
@@ -21,7 +21,6 @@ interface TaskDetailHeaderActionsProps {
   strategyRef: React.RefObject<HTMLDivElement | null>;
   t: TFunction<"sessions">;
   onReplay: () => void;
-  onOpenDiffWindow: () => void;
   onMerge: () => void;
   onDiscard: () => void;
   onToggleStrategy: () => void;
@@ -39,7 +38,6 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
   strategyRef,
   t,
   onReplay,
-  onOpenDiffWindow,
   onMerge,
   onDiscard,
   onToggleStrategy,
@@ -51,21 +49,12 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
         size="small"
         variant="tertiary"
         onClick={onReplay}
-        title={t("opsControl.replay.replaySession")}
+        title={t("kanban.replay.replaySession")}
         icon={<Play size={14} fill="currentColor" strokeWidth={0} />}
       >
-        {t("opsControl.replay.replaySession")}
+        {t("kanban.replay.replaySession")}
       </Button>
     )}
-    <Button
-      size="small"
-      variant="tertiary"
-      onClick={onOpenDiffWindow}
-      title={t("opsControl.diff.openDiffWindow")}
-      icon={<GitCompare size={14} strokeWidth={1.75} />}
-    >
-      {t("opsControl.diff.openDiffWindow")}
-    </Button>
     {canMerge && (
       <>
         <div className="relative flex items-center" ref={strategyRef}>
@@ -86,8 +75,8 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
             iconOnly
             onClick={onToggleStrategy}
             disabled={mergeLoading || discardLoading}
-            title={t("opsControl.merge.strategyLabel")}
-            aria-label={t("opsControl.merge.strategyLabel")}
+            title={t("kanban.merge.strategyLabel")}
+            aria-label={t("kanban.merge.strategyLabel")}
             icon={<ChevronDown size={14} strokeWidth={1.75} />}
           />
           {strategyOpen && (

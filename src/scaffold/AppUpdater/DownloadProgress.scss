@@ -1,0 +1,118 @@
+.app-update-download-progress--indeterminate > div {
+  width: 36% !important;
+  animation: app-update-progress-slide 1.2s ease-in-out infinite;
+}
+
+.app-update-download-orb {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 9999;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border-2);
+  border-radius: 9999px;
+  color: var(--color-text-1);
+  background: var(--color-bg-2);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 12%),
+    0 12px 28px rgb(0 0 0 / 18%);
+  cursor: pointer;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.app-update-download-orb:hover {
+  border-color: var(--color-primary-6);
+  box-shadow:
+    0 3px 8px rgb(0 0 0 / 14%),
+    0 16px 32px rgb(0 0 0 / 22%);
+  transform: translateY(-2px);
+}
+
+.app-update-download-orb:focus-visible {
+  outline: 2px solid var(--color-primary-6);
+  outline-offset: 2px;
+}
+
+.app-update-download-orb__liquid {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: var(--download-progress);
+  background: linear-gradient(
+    180deg,
+    var(--color-primary-5),
+    var(--color-primary-6)
+  );
+  transition: height 300ms ease;
+}
+
+.app-update-download-orb__wave {
+  position: absolute;
+  top: -0.35rem;
+  left: -25%;
+  width: 150%;
+  height: 0.75rem;
+  border-radius: 45%;
+  background: color-mix(in srgb, var(--color-primary-4) 78%, transparent);
+  animation: app-update-liquid-wave 2.2s linear infinite;
+}
+
+.app-update-download-orb__icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-1);
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 35%));
+}
+
+.app-update-download-orb--indeterminate .app-update-download-orb__liquid {
+  animation: app-update-liquid-breathe 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes app-update-progress-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+@keyframes app-update-liquid-wave {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes app-update-liquid-breathe {
+  from {
+    height: 22%;
+  }
+  to {
+    height: 42%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-update-download-orb {
+    right: 0.5rem;
+    bottom: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-update-download-progress--indeterminate > div,
+  .app-update-download-orb__wave,
+  .app-update-download-orb--indeterminate .app-update-download-orb__liquid {
+    animation: none;
+  }
+}

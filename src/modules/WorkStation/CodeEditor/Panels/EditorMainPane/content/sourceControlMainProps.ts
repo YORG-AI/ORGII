@@ -7,11 +7,9 @@
  * navigation — see issue #16). Keeping it pure makes the file-filtering and
  * focus-resolution logic unit-testable without React.
  */
-import { SOURCE_CONTROL_ALL_SESSIONS_FILTER } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
-import { SOURCE_CONTROL_OTHER_SESSIONS_FILTER } from "../hooks";
 import type { SourceControlPillMode } from "./SourceControlMainContent";
 
 /**
@@ -58,12 +56,10 @@ export interface SourceControlMainTabData {
 export interface DeriveSourceControlMainPropsInput {
   tabData: SourceControlMainTabData;
   gitFilesByPath: Map<string, GitFile>;
-  /** Files annotated with their originating session (empty when unattributed). */
-  sourceControlAttributedFiles: GitFile[];
+  /** Current working-tree files for the Source Control pane. */
+  sourceControlFiles: GitFile[];
   /** "uncommitted" | "staged" | "unstaged" | "history" | ... */
   sourceControlFilterMode: string;
-  /** Session-scope filter for the "uncommitted" mode. */
-  sourceControlSessionFilter: string;
   repoPath: string;
 }
 
@@ -84,9 +80,8 @@ export interface SourceControlMainDerivedProps {
 export function deriveSourceControlMainProps({
   tabData,
   gitFilesByPath,
-  sourceControlAttributedFiles,
+  sourceControlFiles,
   sourceControlFilterMode,
-  sourceControlSessionFilter,
   repoPath,
 }: DeriveSourceControlMainPropsInput): SourceControlMainDerivedProps {
   const focusPath = tabData.focusPath ?? null;
@@ -98,8 +93,8 @@ export function deriveSourceControlMainProps({
   const gitStatusFiles = Array.from(gitFilesByPath.values());
   const embeddedFiles = tabData.files ?? [];
   const unfilteredFiles =
-    sourceControlAttributedFiles.length > 0
-      ? sourceControlAttributedFiles
+    sourceControlFiles.length > 0
+      ? sourceControlFiles
       : gitStatusFiles.length > 0
         ? gitStatusFiles
         : embeddedFiles;
@@ -107,16 +102,7 @@ export function deriveSourceControlMainProps({
   const allFiles = unfilteredFiles.filter((file) => {
     if (sourceControlFilterMode === "staged" && !file.staged) return false;
     if (sourceControlFilterMode === "unstaged" && file.staged) return false;
-    if (
-      sourceControlFilterMode !== "uncommitted" ||
-      sourceControlSessionFilter === SOURCE_CONTROL_ALL_SESSIONS_FILTER
-    ) {
-      return true;
-    }
-    if (sourceControlSessionFilter === SOURCE_CONTROL_OTHER_SESSIONS_FILTER) {
-      return !file.sourceSessionId;
-    }
-    return file.sourceSessionId === sourceControlSessionFilter;
+    return true;
   });
 
   const focusGitFile = focusPath

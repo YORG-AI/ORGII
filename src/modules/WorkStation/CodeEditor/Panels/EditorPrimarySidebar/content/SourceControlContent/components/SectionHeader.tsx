@@ -8,6 +8,10 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo } from "react";
 
 import {
+  TREE_ROW_INSET_CLASS,
+  TREE_ROW_ROUNDED_CLASS,
+} from "@src/components/TreeRow";
+import {
   COUNT_BADGE,
   getCountBadgeSizeClass,
 } from "@src/modules/WorkStation/shared/tokens";
@@ -51,7 +55,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
 
     return (
       <div
-        className={`group/header flex ${heightClassName} w-full min-w-0 items-center gap-1.5 px-3${
+        className={`group/header ${TREE_ROW_INSET_CLASS} flex ${heightClassName} min-w-0 items-center gap-1.5 px-2 ${TREE_ROW_ROUNDED_CLASS} ${
           useWarningText ? "hover:bg-warning-1" : ""
         }`}
       >

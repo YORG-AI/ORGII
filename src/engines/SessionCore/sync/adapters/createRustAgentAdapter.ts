@@ -32,6 +32,7 @@ import type { ContextUsageSnapshot } from "@src/store/session/cliSessionStatusAt
 import { invokeTauri } from "@src/util/platform/tauri/init";
 import { retryInvokeTauri } from "@src/util/platform/tauri/retryInvoke";
 
+import { noteSessionChannelActivity } from "../sessionChannelActivity";
 import type {
   AdapterSendInput,
   AgentTokenUsageInfo,
@@ -435,6 +436,13 @@ export function createRustAgentAdapter(
       return {
         handleEvent(raw: RawSessionEvent): void {
           if (_disposed) return;
+
+          // Liveness stamp for EVERY channel event, before any filtering.
+          // Ephemeral events (tool_call_delta, stream_retry) never reach the
+          // EventStore, so this is the only place their arrival is recorded;
+          // the planning watchdog reads it to distinguish "backend still
+          // streaming" from "backend went silent".
+          noteSessionChannelActivity(sessionId);
 
           const payload =
             raw.payload && typeof raw.payload === "object" ? raw.payload : {};

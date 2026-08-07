@@ -299,7 +299,7 @@ export function useGlobalKeydownShortcuts(
         if (event.code === "Digit3") {
           event.preventDefault();
           event.stopPropagation();
-          shortcutRegistry.dispatch("open_ops_control");
+          shortcutRegistry.dispatch("open_kanban");
           return;
         }
       }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { OrchestratorConfig } from "@src/api/http/project";
 import type { TabPillItem } from "@src/components/TabPill";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -64,13 +63,6 @@ export function useWorkItemContentState(
 
   const currentPhase = workItem.orchestratorState?.current_phase ?? "idle";
   const isAgentRunning = currentPhase === "sde" || currentPhase === "review";
-
-  const launcherShouldCollapse = currentPhase !== "idle";
-  const [launcherUserExpanded, setLauncherUserExpanded] = useState(false);
-  const launcherCollapsed = launcherShouldCollapse && !launcherUserExpanded;
-  const handleToggleLauncher = useCallback(() => {
-    setLauncherUserExpanded((prev) => !prev);
-  }, []);
 
   const pendingOpenChatRef = useRef(false);
 
@@ -193,18 +185,6 @@ export function useWorkItemContentState(
     [onUpdateWorkItem, onUpdateWorkItemImmediate]
   );
 
-  const handleOrchestratorConfigUpdate = useCallback(
-    (updates: Partial<OrchestratorConfig>) => {
-      onUpdateWorkItem?.({
-        orchestratorConfig: {
-          ...(workItem.orchestratorConfig ?? {}),
-          ...updates,
-        },
-      } as Partial<WorkItemExtended>);
-    },
-    [workItem, onUpdateWorkItem]
-  );
-
   const handleCommentSubmit = useCallback(async () => {
     if (!commentText.trim() || isSubmittingComment) return;
 
@@ -244,9 +224,6 @@ export function useWorkItemContentState(
     isSubmittingComment,
     currentPhase,
     isAgentRunning,
-    launcherCollapsed,
-    launcherShouldCollapse,
-    handleToggleLauncher,
     handleStartAgentAndOpenChat,
     sessionTabItems,
     resolvedDescription,
@@ -256,7 +233,6 @@ export function useWorkItemContentState(
     handleTitleChange,
     handleDescriptionChange,
     handleTodosChange,
-    handleOrchestratorConfigUpdate,
     handleCommentSubmit,
   };
 }

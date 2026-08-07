@@ -92,3 +92,12 @@
   position: relative;
   overflow: hidden;
 }
+
+.task-detail-panel__touched {
+  height: 100%;
+  padding: 8px;
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  @include scrollbar.scrollbar-unified;
+}

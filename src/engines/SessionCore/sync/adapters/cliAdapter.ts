@@ -52,6 +52,10 @@ import {
   isStoreInitialized,
 } from "@src/util/core/state/instrumentedStore";
 
+import {
+  isNativeTranscriptSession,
+  registerSessionTranscriptSource,
+} from "../nativeTranscriptReconcile";
 import type {
   AdapterSendInput,
   EventHandlerCallbacks,
@@ -70,7 +74,7 @@ import {
   buildToolArgsFromParsed,
   parsePartialToolArgs,
 } from "./shared/streamingParsers";
-import type { AgentWSEvent } from "./shared/types";
+import type { AgentWSEvent, PermissionRequestEvent } from "./shared/types";
 
 const log = createLogger("CliAdapter");
 
@@ -116,6 +120,8 @@ interface StoredSession {
   status: string;
   errorMessage?: string | null;
   totalTokens?: number;
+  /** 'chunks' (legacy DB transcript) or 'native' (CLI's own store). */
+  transcriptSource?: string;
 }
 
 type CliStatusResponse = {
@@ -274,8 +280,18 @@ async function refreshLoadedCliHistory(
     new AbortController().signal
   );
   if (events.length === 0) return events;
-  await eventStoreProxy.mergeEvents(events, sessionId);
-  getInstrumentedStore().set(loadSessionAtom, { sessionId, events });
+  // Native-transcript sessions render the live turn from in-memory events
+  // only (optimistic synthetic bubble + streamed broadcasts); the replay is
+  // read here purely to OBSERVE persistence for the send handshake. Merging
+  // it mid-turn would sit replay rows (`codex-user-0`, the synthesized
+  // `user-input-*-synthesized` fallback) next to the synthetic bubble under
+  // never-matching ids — the ×3 user-bubble bug. The terminal reconcile
+  // (scheduleNativeTranscriptReconcile, replace semantics) is the single
+  // point where replay becomes the transcript on screen.
+  if (!isNativeTranscriptSession(sessionId)) {
+    await eventStoreProxy.mergeEvents(events, sessionId);
+    getInstrumentedStore().set(loadSessionAtom, { sessionId, events });
+  }
   return events;
 }
 
@@ -348,6 +364,11 @@ export const cliAdapter: SessionAdapter = {
         { sessionId }
       );
       if (signal.aborted || !storedSession) return result;
+
+      registerSessionTranscriptSource(
+        sessionId,
+        storedSession.transcriptSource
+      );
 
       if (typeof storedSession.totalTokens === "number") {
         result.contextTokens = storedSession.totalTokens;
@@ -847,6 +868,37 @@ export const cliAdapter: SessionAdapter = {
       callbacks.onTokenUpdate?.(totalTokens);
     }
 
+    /**
+     * `permission:request` with `origin: "cli_hook"` or `"acp"` — a
+     * managed CLI session's PermissionRequest hook (Claude) or an ACP
+     * agent's `session/request_permission` (OpenCode/Copilot/Kiro) is
+     * parked on the backend waiting for the user. Mirror of the
+     * Rust-agent adapter's handlePermissionRequest: dispatch the window
+     * CustomEvent that PermissionCard consumes, tagged so its response
+     * routes back to the CLI registries (`cli_agent_approval_response`)
+     * instead of `agent_permission_response`.
+     */
+    function handleCliPermissionRequest(raw: RawSessionEvent): void {
+      const origin = raw.origin;
+      if (origin !== "cli_hook" && origin !== "acp") return;
+      const requestId = rawString(raw, "requestId");
+      if (!requestId) return;
+      const permEvent: PermissionRequestEvent = {
+        requestId,
+        sessionId,
+        tool: rawString(raw, "toolName") ?? rawString(raw, "tool") ?? "unknown",
+        toolCallId: rawString(raw, "toolCallId"),
+        args:
+          raw.toolArgs && typeof raw.toolArgs === "object"
+            ? (raw.toolArgs as Record<string, unknown>)
+            : {},
+        origin,
+      };
+      window.dispatchEvent(
+        new CustomEvent("agent-permission-request", { detail: permEvent })
+      );
+    }
+
     return {
       handleEvent(raw: RawSessionEvent): void {
         const msgSessionId =
@@ -855,6 +907,8 @@ export const cliAdapter: SessionAdapter = {
 
         if (raw.type === "agent:interaction_finalized") {
           handleInteractionFinalized(raw as unknown as AgentWSEvent, sessionId);
+        } else if (raw.type === "permission:request") {
+          handleCliPermissionRequest(raw);
         } else if (raw.type === "agent:plan_ready_for_approval") {
           handlePlanReadyForApproval(raw);
         } else if (raw.type === "agent:exit_plan_mode") {

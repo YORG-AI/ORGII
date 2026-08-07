@@ -39,6 +39,7 @@ fn run(
             hosted_token: params.hosted_token,
             proxy_session_id: None,
             isolate: if params.isolate { Some(true) } else { None },
+            worktree_path: params.worktree_path,
             background: if params.background { Some(true) } else { None },
             key_source: params.key_source,
             additional_directories: params.additional_directories,

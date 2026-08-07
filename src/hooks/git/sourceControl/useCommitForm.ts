@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
 import { useGitOperations } from "@src/hooks/git/useGitOperations";
+import { gitCommitInstructionsAtom } from "@src/store/ui/editorSettingsAtom";
 import { gitOutputIntegrationAtom } from "@src/store/workstation/codeEditor/outputIntegration";
 import type { GitFile } from "@src/types/git/types";
 import { showGitActionDialogSafely } from "@src/util/dialogs/gitActionDialog";
@@ -51,6 +52,7 @@ export function useCommitForm(
   const actionSystem = useActionSystemOptional();
   const dispatch = actionSystem?.dispatch;
   const outputIntegration = useAtomValue(gitOutputIntegrationAtom);
+  const commitInstructions = useAtomValue(gitCommitInstructionsAtom);
   const { push, pull, publish } = useGitOperations({
     repoId: selectedRepoId || undefined,
     repoPath,
@@ -87,7 +89,7 @@ export function useCommitForm(
     if (!repoPath) return;
     setGenerateLoading(true);
     try {
-      const message = await generateCommitMessage(repoPath);
+      const message = await generateCommitMessage(repoPath, commitInstructions);
       if (message) {
         setCommitSummary(message);
       }
@@ -99,7 +101,7 @@ export function useCommitForm(
     } finally {
       setGenerateLoading(false);
     }
-  }, [repoPath]);
+  }, [repoPath, commitInstructions]);
 
   const handleCommit = useCallback(async () => {
     await runCommitOperation({

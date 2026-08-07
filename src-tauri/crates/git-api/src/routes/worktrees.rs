@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 use axum::{
     extract::{Path, Query},
-    routing::{delete, get},
+    routing::{delete, get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -17,8 +17,8 @@ use serde::Deserialize;
 use crate::error::{GitApiError, GitApiResult};
 use crate::extractors::{lookup_repo_path, validate_path};
 use crate::types::{
-    RemoveWorktreeRequest, WorktreeDiffSummary, WorktreeEntry, WorktreeListResponse,
-    WorktreeRemoveResponse,
+    CreateWorktreeRequest, RemoveWorktreeRequest, WorktreeDiffSummary, WorktreeEntry,
+    WorktreeListResponse, WorktreeRemoveResponse,
 };
 
 /// Cache TTL for worktree diff summaries. Recomputation is skipped if the
@@ -41,6 +41,7 @@ fn diff_cache() -> &'static Mutex<HashMap<(String, String), DiffCacheEntry>> {
 pub fn routes() -> Router {
     Router::new()
         .route("/api/git/repo/{repo_id}/worktrees", get(get_worktrees))
+        .route("/api/git/repo/{repo_id}/worktrees", post(create_worktree))
         .route("/api/git/repo/{repo_id}/worktrees", delete(remove_worktree))
 }
 
@@ -91,6 +92,60 @@ pub async fn get_worktrees(
         .collect();
 
     Ok(Json(WorktreeListResponse { status: 0, data }))
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/git/repo/{repo_id}/worktrees",
+    params(
+        ("repo_id" = String, Path, description = "Repository UUID or path"),
+        ("path" = Option<String>, Query, description = "Repository file system path"),
+    ),
+    request_body = CreateWorktreeRequest,
+    responses(
+        (status = 200, description = "Created git worktree", body = WorktreeRemoveResponse)
+    ),
+    tag = "worktrees"
+)]
+pub async fn create_worktree(
+    Path(repo_id): Path<String>,
+    Query(query): Query<WorktreesQuery>,
+    Json(request): Json<CreateWorktreeRequest>,
+) -> GitApiResult<Json<WorktreeRemoveResponse>> {
+    let repo_path = resolve_repo_path(&repo_id, query.path.as_deref())?;
+    let worktree_path = validate_new_worktree_path(&request.worktree_path)?;
+    let branch = request.branch.trim().to_string();
+    let base_ref = request
+        .base_ref
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+
+    let created = tokio::task::spawn_blocking(move || {
+        git::worktree::create_linked_worktree(
+            &repo_path,
+            &worktree_path,
+            &branch,
+            base_ref.as_deref(),
+        )
+    })
+    .await
+    .map_err(|err| GitApiError::Internal {
+        message: format!("Worktree creation task failed: {err}"),
+    })?
+    .map_err(GitApiError::from_git_error)?;
+
+    Ok(Json(WorktreeRemoveResponse {
+        status: 0,
+        data: WorktreeEntry {
+            path: created.path,
+            branch: created.branch,
+            head_sha: created.head_sha,
+            is_main: false,
+            diff_summary: None,
+        },
+    }))
 }
 
 #[utoipa::path(
@@ -153,7 +208,7 @@ fn summarize_worktree_diff(
     }
 
     let path = PathBuf::from(worktree_path);
-    let uncommitted = crate::commands::diff::get_diff_numstat_combined(&path, "HEAD").ok();
+    let uncommitted = crate::commands::diff::get_diff_numstat_combined(&path, "HEAD", false).ok();
 
     let summary = uncommitted.and_then(|uncommitted| {
         let uncommitted_files = uncommitted.files_changed;
@@ -220,6 +275,30 @@ mod tests {
         assert!(!is_pathological_worktree_checkout(2, 10, 3));
         assert!(!is_pathological_worktree_checkout(50, 500, 120));
     }
+}
+
+fn validate_new_worktree_path(path: &str) -> GitApiResult<PathBuf> {
+    if path.contains("..") {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Path traversal is not allowed".to_string(),
+        });
+    }
+    let target = PathBuf::from(path);
+    let Some(parent) = target.parent() else {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Worktree path must have a parent directory".to_string(),
+        });
+    };
+    let Some(name) = target.file_name() else {
+        return Err(GitApiError::InvalidPath {
+            path: path.to_string(),
+            reason: "Worktree path must have a directory name".to_string(),
+        });
+    };
+    let parent = validate_path(&parent.to_string_lossy())?;
+    Ok(parent.join(name))
 }
 
 fn resolve_repo_path(repo_id: &str, query_path: Option<&str>) -> GitApiResult<std::path::PathBuf> {

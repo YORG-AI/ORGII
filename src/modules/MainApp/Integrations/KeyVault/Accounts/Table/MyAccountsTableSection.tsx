@@ -26,7 +26,6 @@ import AccountInlineExpandedCard, {
 const ACCOUNT_PROVIDER_LABEL_OVERRIDES: Readonly<Record<string, string>> = {
   [CLI_AGENT.CLAUDE_CODE]: "Anthropic",
   [CLI_AGENT.CODEX]: "OpenAI",
-  [CLI_AGENT.GEMINI]: "Gemini",
 };
 
 function formatAccountProviderLabel(modelType: string): string {

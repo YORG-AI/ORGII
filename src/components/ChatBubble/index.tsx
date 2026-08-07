@@ -104,14 +104,12 @@ ChatBubbleBody.displayName = "ChatBubbleBody";
 
 interface ChatBubbleCopyButtonProps {
   content: string;
-  className?: string;
   hoverGroupClass?: string;
   placement?: "bubble-corner" | "message-corner" | "toolbar";
 }
 
 const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
   content,
-  className = "",
   hoverGroupClass = "group-hover/replay-msg:opacity-100",
   placement = "bubble-corner",
 }) => {
@@ -133,7 +131,7 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
         type="button"
         title={t("actions.copy")}
         aria-label={t("actions.copy")}
-        className={`inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${className}`}
+        className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
         onClick={handleCopy}
       >
         <Copy size={14} strokeWidth={1.75} />
@@ -151,7 +149,7 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
       type="button"
       title={t("actions.copy")}
       aria-label={t("actions.copy")}
-      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${hoverGroupClass} ${className}`}
+      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${hoverGroupClass}`}
       onClick={handleCopy}
     >
       <Copy size={14} strokeWidth={1.75} />

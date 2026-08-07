@@ -26,8 +26,11 @@ export interface ProjectData {
   summary?: string;
   /** Stable project slug (e.g. "auth-system"). */
   slug?: string;
-  /** Explicit Workspace preset association; undefined is Unlinked Workspace. */
-  workspaceId?: string;
+  /**
+   * Owning project-store org id (`ProjectMeta.org_id`). Read-only; writes
+   * always re-read `org_id` from disk (see `useProjectDataFile`).
+   */
+  orgId?: string;
   /** 3-char alphanumeric prefix used in work item IDs */
   workItemPrefix?: string;
   /** True when prefix is manually configured; false means auto from project name */
@@ -68,7 +71,6 @@ export type PickerType =
   | "teams"
   | "labels"
   | "linkedRepos"
-  | "workspace"
   | "startDate"
   | "targetDate"
   | null;

@@ -102,6 +102,7 @@ export interface UseInlineCreateWorkItemFieldsOptions {
   defaultProjectId?: string;
   onDraftChange?: (draft: WorkItemDraft) => void;
   onSetUnsaved: (hasUnsaved: boolean) => void;
+  orgId?: string | null;
   propertiesOpen?: boolean;
   projectId?: string;
   projectName?: string;
@@ -120,6 +121,7 @@ export function useInlineCreateWorkItemFields({
   defaultProjectId,
   onDraftChange,
   onSetUnsaved,
+  orgId: surfaceOrgId,
   propertiesOpen = false,
   projectId,
   projectName,
@@ -167,15 +169,30 @@ export function useInlineCreateWorkItemFields({
   });
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadOrgs = async () => {
+      try {
+        const orgsData = await projectApi.readOrgs();
+        if (!cancelled) setProjectOrgs(orgsData);
+      } catch (err) {
+        logger.warn("Failed to load orgs for work item picker", err);
+      }
+    };
+
+    void loadOrgs();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (availableProjects.length > 0) return;
     let cancelled = false;
 
     const loadProjects = async () => {
       try {
-        const [projectsData, orgsData] = await Promise.all([
-          projectApi.readProjects(),
-          projectApi.readOrgs(),
-        ]);
+        const projectsData = await projectApi.readProjects();
         if (cancelled) return;
         setLoadedProjects(
           projectsData.map((project) => ({
@@ -185,7 +202,6 @@ export function useInlineCreateWorkItemFields({
             orgId: project.meta.org_id,
           }))
         );
-        setProjectOrgs(orgsData);
         setLoadedProjectSlugById(
           Object.fromEntries(
             projectsData.map((project) => [project.meta.id, project.slug])
@@ -278,8 +294,10 @@ export function useInlineCreateWorkItemFields({
   );
   const selectedProjectName = selectedProject?.name ?? projectName ?? "";
   const selectedProjectOrgId = selectedProject?.orgId;
+  const effectiveOrgId =
+    selectedProjectOrgId ?? draft.orgId ?? surfaceOrgId ?? "personal-org";
   const selectedProjectOrgLabel =
-    projectOrgs.find((org) => org.id === selectedProjectOrgId)?.name ??
+    projectOrgs.find((org) => org.id === effectiveOrgId)?.name ??
     scopeBreadcrumbLabel ??
     t("orgs.personalOrg");
   const projectBreadcrumbLabel =
@@ -296,20 +314,15 @@ export function useInlineCreateWorkItemFields({
     [resolvedProjects]
   );
 
-  const orgOptions = useMemo<PropertyDropdownOption<string>[]>(() => {
-    const orgIdsWithProjects = new Set(
-      resolvedProjects
-        .map((project) => project.orgId)
-        .filter((orgId): orgId is string => Boolean(orgId))
-    );
-    return projectOrgs
-      .filter((org) => orgIdsWithProjects.has(org.id))
-      .map((org) => ({
+  const orgOptions = useMemo<PropertyDropdownOption<string>[]>(
+    () =>
+      projectOrgs.map((org) => ({
         value: org.id,
         label: org.name,
         icon: <Building2 size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE} />,
-      }));
-  }, [projectOrgs, resolvedProjects]);
+      })),
+    [projectOrgs]
+  );
 
   const handleProjectBreadcrumbChange = useCallback(
     (value: string) => updateDraftWithUndo({ projectId: value }),
@@ -318,20 +331,25 @@ export function useInlineCreateWorkItemFields({
 
   const handleOrgBreadcrumbChange = useCallback(
     (nextOrgId: string) => {
-      const nextProject = resolvedProjects.find(
-        (project) => project.orgId === nextOrgId
+      const patch: Partial<WorkItemDraft> = { orgId: nextOrgId };
+      const currentProject = resolvedProjects.find(
+        (project) => project.id === draft.projectId
       );
-      if (nextProject) {
-        updateDraftWithUndo({ projectId: nextProject.id });
+      if (currentProject && currentProject.orgId !== nextOrgId) {
+        const nextProject = resolvedProjects.find(
+          (project) => project.orgId === nextOrgId
+        );
+        patch.projectId = nextProject?.id;
       }
+      updateDraftWithUndo(patch);
     },
-    [resolvedProjects, updateDraftWithUndo]
+    [draft.projectId, resolvedProjects, updateDraftWithUndo]
   );
 
   const orgBreadcrumbSegment =
     orgOptions.length > 0 ? (
       <PropertyDropdownField
-        value={selectedProjectOrgId ?? orgOptions[0]?.value ?? ""}
+        value={effectiveOrgId}
         label={selectedProjectOrgLabel}
         icon={null}
         options={orgOptions}
@@ -341,8 +359,9 @@ export function useInlineCreateWorkItemFields({
         triggerVariant="pill"
         searchable
         searchPlaceholder={t("workItems.properties.searchProjects")}
-        selected={Boolean(selectedProjectOrgId)}
+        selected={Boolean(selectedProjectOrgId ?? draft.orgId)}
         maxWidthClassName="max-w-[220px] shrink-0"
+        dataTestId="create-work-item-org-select"
       />
     ) : (
       <PropertyDropdownField
@@ -356,6 +375,7 @@ export function useInlineCreateWorkItemFields({
         searchable={false}
         selected
         maxWidthClassName="max-w-[220px] shrink-0"
+        dataTestId="create-work-item-org-select"
       />
     );
 
@@ -378,6 +398,7 @@ export function useInlineCreateWorkItemFields({
         searchPlaceholder={t("workItems.properties.searchProjects")}
         selected={Boolean(draft.projectId)}
         maxWidthClassName="max-w-[220px] shrink-0"
+        dataTestId="create-work-item-project-select"
       />
     ) : (
       <PropertyDropdownField
@@ -391,6 +412,7 @@ export function useInlineCreateWorkItemFields({
         searchable={false}
         selected
         maxWidthClassName="max-w-[220px] shrink-0"
+        dataTestId="create-work-item-project-select"
       />
     );
 

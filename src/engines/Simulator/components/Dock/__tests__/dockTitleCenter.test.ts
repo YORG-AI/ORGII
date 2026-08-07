@@ -10,7 +10,6 @@ vi.mock("../config", () => ({
 vi.mock("lucide-react", () => ({
   Code: "CodeIcon",
   Globe: "GlobeIcon",
-  Radar: "RadarIcon",
   ListTodo: "ListTodoIcon",
 }));
 
@@ -30,12 +29,6 @@ describe("getWorkStationStationTitleCenter", () => {
       icon: "ListTodoIcon",
       label: "labels.projectManager",
     });
-    expect(getWorkStationStationTitleCenter("opsControl", navigationT)).toEqual(
-      {
-        icon: "RadarIcon",
-        label: "routes.opsControl",
-      }
-    );
   });
 
   it("falls back to code editor for unknown modes", () => {

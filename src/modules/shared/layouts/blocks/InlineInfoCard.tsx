@@ -5,12 +5,14 @@ export interface InlineInfoCardProps {
   children: React.ReactNode;
   className?: string;
   contentClassName?: string;
+  dataTestId?: string;
 }
 
 const InlineInfoCard: React.FC<InlineInfoCardProps> = ({
   children,
   className,
   contentClassName,
+  dataTestId,
 }) => {
   return (
     <div
@@ -18,6 +20,7 @@ const InlineInfoCard: React.FC<InlineInfoCardProps> = ({
         "w-0 min-w-full max-w-full overflow-hidden px-2 py-2 [contain:inline-size]",
         className
       )}
+      data-testid={dataTestId}
     >
       <div
         className={cn(

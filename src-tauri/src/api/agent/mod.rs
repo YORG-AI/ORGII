@@ -55,14 +55,6 @@ pub fn create_routes() -> Router {
             post(test::cli::test_cursor_cli_runtime),
         )
         .route(
-            "/test/cli/gemini-runtime",
-            post(test::cli::test_gemini_cli_runtime),
-        )
-        .route(
-            "/test/cli/gemini-account-switch",
-            post(test::cli::test_gemini_cli_account_switch),
-        )
-        .route(
             "/test/cli/cursor-account-switch",
             post(test::cli::test_cursor_cli_account_switch),
         )

@@ -11,16 +11,23 @@
  */
 import { useAtom, useAtomValue } from "jotai";
 import { Layout, MoreHorizontal } from "lucide-react";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 import { FileTreeHoverPreview } from "@src/components/FileTreePreview/exports";
 import UserActionButton from "@src/engines/ChatPanel/InputArea/components/UserActionButton";
+import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import { useSlashItemsCache } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashItemsCache";
-import { EditorTabService } from "@src/services/workStation";
-import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
+import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import {
   type PinnedAction,
   pinnedActionsAtom,
@@ -66,7 +73,7 @@ const ActionPill: React.FC<ActionPillProps> = memo(
         shape="round"
         title={action.name}
         onClick={(event) => onClick(action, event)}
-        className="max-w-[180px] shrink-0 select-none"
+        className="max-w-180 shrink-0 select-none"
       >
         {action.name}
       </Button>
@@ -129,14 +136,11 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
 
     // ── Canvas pill ───────────────────────────────────────────────────────────
 
-    const [canvasEntry, setCanvasEntry] = useAtom(canvasPreviewAtom);
+    const { snapshot: canvasForTurn, clearCanvas } =
+      useCanvasForTurn(sessionId);
     const mainPaneTabs = useAtomValue(mainPaneTabsAtom);
 
-    const showCanvasPill = Boolean(
-      sessionId &&
-      canvasEntry?.sessionId === sessionId &&
-      canvasEntry.cardDismissed
-    );
+    const showCanvasPill = canvasForTurn.isDismissed;
 
     const isCanvasTabOpen = Boolean(
       sessionId &&
@@ -150,8 +154,8 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
     }, [sessionId]);
 
     const handleClearCanvas = useCallback(() => {
-      setCanvasEntry(null);
-    }, [setCanvasEntry]);
+      clearCanvas();
+    }, [clearCanvas]);
 
     // ── Built-in "Setup Repo" action ──────────────────────────────────────────
 
@@ -188,13 +192,34 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
       return map;
     }, [availableItems]);
 
+    // Resolve pinned skill paths lazily: only scan when a pinned skill is
+    // missing its `skillPath` (needed for the hover preview). Pinned actions
+    // that already carry a path — the common case — never trigger a scan, so
+    // mounting the input stays free. The scan itself is bounded/coalesced by
+    // the shared scanner, and the full "…" panel list still loads on open.
+    const unresolvedPinnedSkillsKey = useMemo(
+      () =>
+        pinnedActions
+          .filter((action) => action.category === "skill" && !action.skillPath)
+          .map((action) => action.skillName ?? action.name)
+          .sort()
+          .join("\0"),
+      [pinnedActions]
+    );
+
+    useEffect(() => {
+      if (!unresolvedPinnedSkillsKey) return;
+      void fetchFresh();
+    }, [unresolvedPinnedSkillsKey, fetchFresh]);
+
     // ── "..." panel state ─────────────────────────────────────────────────────
 
     const [panelOpen, setPanelOpen] = useState(false);
     const moreButtonRef = useRef<HTMLButtonElement>(null);
 
     const handleOpenPanel = useCallback(() => {
-      void fetchFresh();
+      // Explicit user action → get a fresh list (still coalesced).
+      void fetchFresh({ force: true });
       setPanelOpen((prev) => !prev);
     }, [fetchFresh]);
 

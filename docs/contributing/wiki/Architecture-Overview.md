@@ -93,7 +93,7 @@ The core of the backend. Each CLI agent type has its own:
 - **Platform adapter** — spawns the agent process, manages its stdin/stdout/stderr.
 - **Output parser** — converts raw agent output into structured events (tool calls, messages, file edits).
 
-Supported CLI agents: Cursor, Claude Code, Codex, Copilot, Gemini CLI, Kiro, OpenCode.
+Supported CLI agents: Cursor, Claude Code, Codex, Copilot, Antigravity, Kiro, OpenCode.
 
 ### `crates/agent-core/`
 

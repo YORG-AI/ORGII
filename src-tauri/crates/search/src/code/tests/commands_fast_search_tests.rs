@@ -131,7 +131,10 @@ fn fast_search_inner_handlers_receive_file_count_and_progress() {
 
     let progress = progress_seen.lock().unwrap();
     assert_eq!(progress.len(), 2);
-    assert!(progress.iter().any(|(_, total_files)| *total_files == 1));
+    assert!(progress.iter().all(|(total_matches, total_files)| {
+        (1..=outcome.total_matches).contains(total_matches)
+            && (1..=outcome.total_files).contains(total_files)
+    }));
     assert!(progress
         .iter()
         .any(|(total_matches, total_files)| { *total_matches == 2 && *total_files == 2 }));

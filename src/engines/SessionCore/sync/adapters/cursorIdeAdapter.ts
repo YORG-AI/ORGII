@@ -5,11 +5,11 @@
  * This module only keeps Cursor-specific lazy preload/snapshot helpers used by
  * turn expansion and session-switch freshness checks.
  */
-import { cursorBridgeComposerLastUpdatedAt } from "@src/api/tauri/cursorBridge";
 import {
   cursorIdeFullRefresh,
   cursorIdeInitialWindow,
 } from "@src/api/tauri/externalHistory";
+import { cursorIdeComposerLastUpdatedAt } from "@src/api/tauri/externalHistory/cursorIde";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { processChunksRust } from "@src/engines/SessionCore/ingestion/rustBridge";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
@@ -34,7 +34,7 @@ async function refreshCursorIdeSnapshotLastUpdatedAt(
 ): Promise<void> {
   const composerId = composerIdFromSessionId(sessionId);
   if (!composerId) return;
-  const lastUpdatedAt = await cursorBridgeComposerLastUpdatedAt(composerId);
+  const lastUpdatedAt = await cursorIdeComposerLastUpdatedAt(composerId);
   if (lastUpdatedAt !== null) {
     cursorIdeSnapshotLastUpdatedAtBySession.set(sessionId, lastUpdatedAt);
   }

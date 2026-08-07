@@ -2,10 +2,7 @@ import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  IMPORTED_HISTORY_SOURCES,
-  type ImportedHistorySourceId,
-} from "@src/api/tauri/externalHistory";
+import { IMPORTED_HISTORY_SOURCES } from "@src/api/tauri/externalHistory";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
@@ -20,6 +17,7 @@ import {
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
 import {
+  EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
   type KanbanAgentTypeFilter,
 } from "../../config";
@@ -28,7 +26,6 @@ const CLI_AGENT_FILTERS: readonly CliAgentType[] = [
   CLI_AGENT.CURSOR,
   CLI_AGENT.CLAUDE_CODE,
   CLI_AGENT.CODEX,
-  CLI_AGENT.GEMINI,
   CLI_AGENT.COPILOT,
   CLI_AGENT.KIRO,
   CLI_AGENT.KIMI,
@@ -42,7 +39,7 @@ interface KanbanFilterItem<TFilter extends string> {
 
 const ALL_AGENT_TYPE_FILTER_ITEM: KanbanFilterItem<KanbanAgentTypeFilter> = {
   key: KANBAN_AGENT_TYPE_FILTER.ALL,
-  labelKey: "opsControl.filters.allAgents",
+  labelKey: "kanban.filters.allAgents",
 };
 
 const RUST_AGENT_FILTER_ITEMS: Record<
@@ -61,9 +58,24 @@ const RUST_AGENT_FILTER_ITEMS: Record<
 };
 
 const CURSOR_IDE_FILTER_ITEM: KanbanFilterItem<KanbanAgentTypeFilter> = {
-  key: KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE,
-  labelKey: "creator.cursorIde.label",
+  key: KANBAN_AGENT_TYPE_FILTER.CURSOR_APP,
+  label: "Cursor App",
 };
+
+function formatCliFilterLabel(cliAgentType: CliAgentType): string {
+  switch (cliAgentType) {
+    case CLI_AGENT.CURSOR:
+      return "Cursor CLI";
+    case CLI_AGENT.CLAUDE_CODE:
+      return "Claude CLI";
+    case CLI_AGENT.CODEX:
+      return "Codex CLI";
+    case CLI_AGENT.OPENCODE:
+      return "OpenCode CLI";
+    default:
+      return formatAgentType(cliAgentType);
+  }
+}
 
 const CLI_AGENT_FILTER_ITEMS = new Map<
   CliAgentType,
@@ -73,22 +85,10 @@ const CLI_AGENT_FILTER_ITEMS = new Map<
     cliAgentType,
     {
       key: cliAgentType as KanbanAgentTypeFilter,
-      label: formatAgentType(cliAgentType),
+      label: formatCliFilterLabel(cliAgentType),
     },
   ])
 );
-
-const EXTERNAL_HISTORY_FILTER_BY_SOURCE: Record<
-  ImportedHistorySourceId,
-  KanbanAgentTypeFilter
-> = {
-  [DISPATCH_CATEGORY.CURSOR_IDE]: KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE,
-  codex_app: KANBAN_AGENT_TYPE_FILTER.CODEX,
-  claude_code: KANBAN_AGENT_TYPE_FILTER.CLAUDE_CODE,
-  opencode: KANBAN_AGENT_TYPE_FILTER.OPENCODE,
-  windsurf: KANBAN_AGENT_TYPE_FILTER.WINDSURF,
-  workbuddy: KANBAN_AGENT_TYPE_FILTER.WORKBUDDY,
-};
 
 const EXTERNAL_HISTORY_FILTER_ITEMS = new Map<
   KanbanAgentTypeFilter,
@@ -110,7 +110,7 @@ function getAgentTypeFilterForSession(
 ): KanbanAgentTypeFilter | null {
   const category = getDispatchCategory(sessionId);
   if (category === DISPATCH_CATEGORY.CURSOR_IDE) {
-    return KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE;
+    return KANBAN_AGENT_TYPE_FILTER.CURSOR_APP;
   }
   if (category === DISPATCH_CATEGORY.CLI_AGENT) {
     return cliAgentType ? (cliAgentType as KanbanAgentTypeFilter) : null;
@@ -195,7 +195,7 @@ const KanbanHeaderFilters: React.FC = memo(() => {
         label,
       });
     }
-    if (presentFilters.has(KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE)) {
+    if (presentFilters.has(KANBAN_AGENT_TYPE_FILTER.CURSOR_APP)) {
       items.push(CURSOR_IDE_FILTER_ITEM);
     }
     for (const item of EXTERNAL_HISTORY_FILTER_ITEMS.values()) {

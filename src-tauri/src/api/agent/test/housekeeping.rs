@@ -48,7 +48,6 @@ pub async fn test_housekeeping_run() -> Json<serde_json::Value> {
         "blobs_capped": stats.blobs_capped,
         "log_files_removed": stats.log_files_removed,
         "cursor_configs_evicted": stats.cursor_configs_evicted,
-        "gemini_homes_evicted": stats.gemini_homes_evicted,
         "screenshots_removed": stats.screenshots_removed,
         "plans_removed": stats.plans_removed,
         "merkle_snapshots_removed": stats.merkle_snapshots_removed,
@@ -116,8 +115,8 @@ pub async fn test_housekeeping_seed_aged(
 
 #[derive(Debug, Deserialize)]
 pub struct SeedSessionDirRequest {
-    /// Either `"cursor-config"` or `"gemini-cli-home"`. Any other value is
-    /// rejected so we don't accidentally seed into an unrelated root.
+    /// Must be `"cursor-config"`; other values are rejected so we don't
+    /// accidentally seed into an unrelated root.
     root: String,
     /// Directory name under the root. For orphan tests this is a fresh uuid
     /// that is NOT inserted into `agent_sessions`; for the negative branch,
@@ -130,8 +129,7 @@ pub struct SeedSessionDirRequest {
 }
 
 /// Seed a `~/.orgii/<root>/<session_id>/` subdirectory for
-/// `housekeeping-cursor-config-orphan-evict` and
-/// `housekeeping-gemini-home-orphan-evict`. When
+/// `housekeeping-cursor-config-orphan-evict`. When
 /// `insert_session_row=false`, the dir is an orphan and the sweep should
 /// delete it; when `true`, the dir has a live owner and must survive.
 pub async fn test_housekeeping_seed_session_dir(
@@ -140,13 +138,7 @@ pub async fn test_housekeeping_seed_session_dir(
     let result = tokio::task::spawn_blocking(move || -> Result<std::path::PathBuf, String> {
         let root = match request.root.as_str() {
             "cursor-config" => app_paths::cursor_config_root(),
-            "gemini-cli-home" => app_paths::gemini_cli_home_root(),
-            other => {
-                return Err(format!(
-                    "invalid root {:?}: expected cursor-config or gemini-cli-home",
-                    other
-                ))
-            }
+            other => return Err(format!("invalid root {:?}: expected cursor-config", other)),
         };
         let dir = root.join(&request.session_id);
         std::fs::create_dir_all(&dir).map_err(|err| format!("create_dir_all: {}", err))?;

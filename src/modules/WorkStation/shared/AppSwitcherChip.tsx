@@ -2,11 +2,10 @@
  * AppSwitcherChip
  *
  * Pure-view chip showing the current app's icon + label + optional chevron and
- * dropdown panel. Used inline in the WorkStation tab bar.
+ * dropdown panel. Used inline in the Agent Station tab bar.
  *
- * Data wiring lives in the call-site hooks:
- * - {@link useWorkStationAppSwitcher} (My Station — route picker)
- * - {@link useSimulatorAppSwitcher}   (Agent Station — dock picker)
+ * Data wiring lives in the call-site hook:
+ * - {@link useSimulatorAppSwitcher} (Agent Station — dock picker)
  *
  * The chip never renders a sidebar collapse toggle — that lives separately in
  * the 40px workstation header.

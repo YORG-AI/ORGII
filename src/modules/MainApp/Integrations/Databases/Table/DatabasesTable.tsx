@@ -18,6 +18,7 @@ import {
   Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
+import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
 import {
   InlineCardBody,
@@ -32,7 +33,6 @@ import {
   StatusDot,
   selectedRowClassName,
 } from "../../Tables/shared";
-import { InfoRow } from "../../shared/InfoRow";
 import {
   DATABASE_PROVIDER_LABEL_KEY,
   DATABASE_STATUS_DOT_COLOR,

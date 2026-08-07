@@ -3,7 +3,6 @@ import { atom } from "jotai";
 import { getStoredValue, setStoredValue } from "./storage";
 
 export type LayoutMode = "left" | "right";
-export type WorkStationInternalLayoutMode = "compact" | "comfort";
 
 function getStoredLayoutMode(): LayoutMode {
   const stored = getStoredValue("layout_mode");
@@ -23,26 +22,5 @@ export const workStationLayoutModePersistAtom = atom(
   (_get, set, value: LayoutMode) => {
     set(workStationLayoutModeAtom, value);
     setStoredValue("layout_mode", value);
-  }
-);
-
-function getStoredInternalLayoutMode(): WorkStationInternalLayoutMode {
-  const stored = getStoredValue("internal_layout_mode");
-  if (stored && ["compact", "comfort"].includes(stored)) {
-    return stored as WorkStationInternalLayoutMode;
-  }
-  return "comfort";
-}
-
-export const workStationInternalLayoutModeAtom =
-  atom<WorkStationInternalLayoutMode>(getStoredInternalLayoutMode());
-workStationInternalLayoutModeAtom.debugLabel =
-  "workStationInternalLayoutModeAtom";
-
-export const workStationInternalLayoutModePersistAtom = atom(
-  (get) => get(workStationInternalLayoutModeAtom),
-  (_get, set, value: WorkStationInternalLayoutMode) => {
-    set(workStationInternalLayoutModeAtom, value);
-    setStoredValue("internal_layout_mode", value);
   }
 );

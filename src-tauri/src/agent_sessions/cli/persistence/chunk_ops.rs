@@ -52,12 +52,27 @@ pub fn insert_chunk(chunk: &ActivityChunk, sequence: i64) -> SqliteResult<()> {
         ],
     )?;
 
+    run_chunk_side_effects_with_args(chunk, args_str);
+
+    Ok(())
+}
+
+/// Chunk side effects that must survive even when the chunk row itself is
+/// not persisted (native-transcript sessions): lineage provenance for
+/// file-edit chunks and the OpenCode subagent child `code_sessions` row
+/// (metadata-only, idempotent).
+pub fn run_chunk_side_effects(chunk: &ActivityChunk) {
+    let args_str = serde_json::to_string(&chunk.args)
+        .expect("ActivityChunk.args -> JSON string is infallible for Value");
+    run_chunk_side_effects_with_args(chunk, args_str);
+}
+
+fn run_chunk_side_effects_with_args(chunk: &ActivityChunk, args_str: String) {
     // Record lineage provenance for file-edit chunks (non-blocking, best-effort)
     let sid = chunk.session_id.clone();
     let func = chunk.function.clone();
-    let args_for_lineage = args_str;
     std::thread::spawn(move || {
-        project_management::lineage::event_hook::process_chunk(&sid, &func, &args_for_lineage);
+        project_management::lineage::event_hook::process_chunk(&sid, &func, &args_str);
     });
 
     if is_subagent_chunk(chunk) {
@@ -68,8 +83,6 @@ pub fn insert_chunk(chunk: &ActivityChunk, sequence: i64) -> SqliteResult<()> {
             );
         }
     }
-
-    Ok(())
 }
 
 /// True when this chunk is an OpenCode/CLI subagent delegation that should

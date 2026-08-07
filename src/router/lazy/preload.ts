@@ -15,8 +15,6 @@ const loadSettingsSlot: RouteLoader = () =>
   import("@src/modules/MainApp/Settings/SettingsSlot");
 const loadMarketPlaceholder: RouteLoader = () =>
   import("@src/router/routes/OpenSourceMarketUnavailablePage");
-const loadOpsControl: RouteLoader = () =>
-  import("@src/modules/MainApp/OpsControl");
 
 /**
  * Route segment → chunk loader(s). Keys are matched as prefixes of the
@@ -32,7 +30,6 @@ const APP_ROUTE_LOADERS: Record<string, RouteLoader | RouteLoader[]> = {
   "start-page": () => import("@src/modules/MainApp/StartPage"),
   settings: [loadSettingsSlot, loadAgentOrgs, loadMyRole],
   changelog: () => import("@src/modules/MainApp/Changelog"),
-  "journey/record": () => import("@src/modules/MainApp/DevRecord"),
   "market/tokens": loadMarketPlaceholder,
   "market/services": loadMarketPlaceholder,
   "market/profile": loadMarketPlaceholder,
@@ -42,10 +39,6 @@ const APP_ROUTE_LOADERS: Record<string, RouteLoader | RouteLoader[]> = {
   "market/agent-apps": loadMarketPlaceholder,
   "market/agent-studio": loadMarketPlaceholder,
   "market/delegation-history": loadMarketPlaceholder,
-};
-
-const WORKSTATION_ROUTE_LOADERS: Record<string, RouteLoader | RouteLoader[]> = {
-  "ops-control": loadOpsControl,
 };
 
 function runLoaders(loader: RouteLoader | RouteLoader[]): void {
@@ -80,14 +73,5 @@ export function preloadRouteByPath(routePath: string): void {
   if (appSegment) {
     preloadRouteSegment("app", appSegment, APP_ROUTE_LOADERS);
     return;
-  }
-
-  const workstationSegment = routePath.split("/workstation/")[1];
-  if (workstationSegment) {
-    preloadRouteSegment(
-      "workstation",
-      workstationSegment,
-      WORKSTATION_ROUTE_LOADERS
-    );
   }
 }

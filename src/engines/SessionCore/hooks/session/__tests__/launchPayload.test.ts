@@ -193,6 +193,7 @@ describe("launchPayload", () => {
         { path: "/workspace/repo-a" },
         { path: "/workspace/repo-b" },
       ],
+      worktreeLaunchSource: null,
     });
 
     expect(launchParams.workspacePath).toBe("/workspace/repo-a");
@@ -256,6 +257,184 @@ describe("launchPayload", () => {
     }
   });
 
+  it("omits worktree fields for a non-worktree (local) launch", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "local",
+      worktreeLaunchSource: {
+        kind: "branch",
+        label: "Branch: feature/x",
+        baseBranch: "feature/x",
+        sourceRef: "branch:feature/x",
+      },
+    });
+
+    expect(launchParams.isolate).toBeUndefined();
+    expect(launchParams.worktreePath).toBeUndefined();
+  });
+
+  it("isolates from HEAD when no worktree source base branch is present", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: null,
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    expect(launchParams.worktreePath).toBeUndefined();
+    // No base branch on the source and none resolved → branch stays unset so
+    // the backend isolates from current HEAD.
+    expect(launchParams.branch).toBeUndefined();
+  });
+
+  it("forwards the worktree source base branch as the isolate base ref", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#42 Add caching",
+        baseBranch: "feature/add-caching",
+        sourceRef: "pr:42",
+        title: "Add caching",
+      },
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    expect(launchParams.branch).toBe("feature/add-caching");
+    expect(launchParams.worktreePath).toBeUndefined();
+  });
+
+  it("prefers the resolved base ref (PR head SHA) over the base branch label", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#128 Fork feature",
+        baseBranch: "contributor:feature",
+        sourceRef: "pr:128",
+        title: "Fork feature",
+        resolvedBaseRef: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        branchNameOverride: "feature",
+      },
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    // Fork PR head branch is not a local ref — launch must use the fetched SHA.
+    expect(launchParams.branch).toBe(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+  });
+
+  it("falls back to the base branch when no resolved base ref is present", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#42 Same repo",
+        baseBranch: "feature/same-repo",
+        sourceRef: "pr:42",
+      },
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    expect(launchParams.branch).toBe("feature/same-repo");
+  });
+
+  it("trims whitespace from the resolved base ref", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#9 PR",
+        baseBranch: "feature/x",
+        sourceRef: "pr:9",
+        resolvedBaseRef: "  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  ",
+      },
+    });
+
+    expect(launchParams.branch).toBe(
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    );
+  });
+
+  it("ignores a blank resolved base ref and falls back to base branch", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#9 PR",
+        baseBranch: "feature/x",
+        sourceRef: "pr:9",
+        resolvedBaseRef: "   ",
+      },
+    });
+
+    expect(launchParams.branch).toBe("feature/x");
+  });
+
+  it("trims whitespace from the worktree source base branch", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      worktreeLaunchSource: {
+        kind: "branch",
+        label: "Branch: main",
+        baseBranch: "  main  ",
+        sourceRef: "branch:main",
+      },
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    expect(launchParams.branch).toBe("main");
+  });
+
+  it("ignores a blank worktree source base branch and isolates from HEAD", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      resolvedKeys: {
+        ...baseLaunchOptions().resolvedKeys,
+        branch: "develop",
+      },
+      worktreeLaunchSource: {
+        kind: "name",
+        label: "Name: quick-fix",
+        baseBranch: "   ",
+        sourceRef: "name:quick-fix",
+      },
+    });
+
+    expect(launchParams.isolate).toBe(true);
+    // Blank source base branch → worktree fields do not override the
+    // resolved session branch.
+    expect(launchParams.branch).toBe("develop");
+  });
+
+  it("reuses an existing worktree path and ignores source base branch", () => {
+    const { launchParams } = buildSessionLaunchPayload({
+      ...baseLaunchOptions(),
+      runningLocation: "worktree",
+      selectedWorktreePath: "/worktrees/existing",
+      worktreeLaunchSource: {
+        kind: "github",
+        label: "#7 Fix bug",
+        baseBranch: "feature/fix-bug",
+        sourceRef: "pr:7",
+      },
+    });
+
+    expect(launchParams.worktreePath).toBe("/worktrees/existing");
+    expect(launchParams.isolate).toBeUndefined();
+    // The existing worktree already carries its base ref; the source's base
+    // branch must not leak into the payload here.
+    expect(launchParams.branch).toBeUndefined();
+  });
+
   it("does not block launched-session navigation on workspace-open side effects", () => {
     const launchHookPath = fileURLToPath(
       new URL(
@@ -295,5 +474,6 @@ function baseLaunchOptions(): Parameters<typeof buildSessionLaunchPayload>[0] {
     sessionName: "Test session",
     targetKind: SESSION_TARGET_KIND.AGENT,
     workspaceFolders: [],
+    worktreeLaunchSource: null,
   };
 }

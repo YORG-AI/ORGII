@@ -12,7 +12,6 @@
 //! - [`member_idle`]          — production `MemberIdleHook` for the post-turn member-idle notification
 //! - [`member_shutdown`]      — production `MemberShutdownHook` for the inbox-drain shutdown side effect
 //! - [`suggest_mode_switch`]  — `suggest_mode_switch` (Plan-mode entry suggestion)
-//! - [`suggest_next_steps`]   — `suggest_next_steps`
 //!
 //! Helpers:
 //! - [`context_builders`]     — shared context-builder helpers used by orchestration tools
@@ -32,7 +31,6 @@ pub mod member_shutdown;
 pub mod subagent_handler;
 pub mod subagent_wake;
 pub mod suggest_mode_switch;
-pub mod suggest_next_steps;
 
 pub mod org_send_message {
     pub use super::agent_org::send_message::*;

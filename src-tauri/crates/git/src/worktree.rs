@@ -41,9 +41,17 @@ pub struct WorktreeInfo {
     pub branch: String,
     /// `None` when the info was reconstructed from `git worktree list` (porcelain
     /// output does not include the base ref). Always `Some` when returned by
-    /// `create_session_worktree`.
+    /// `create_session_worktree` or `create_linked_worktree`.
     pub base_branch: Option<String>,
     pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LinkedWorktreeInfo {
+    pub path: String,
+    pub branch: String,
+    pub head_sha: String,
 }
 
 // `MergeStrategy` and `WorktreeMergeResult` are pure data and live in
@@ -247,6 +255,71 @@ fn current_head_ref(repo_path: &Path) -> Result<String, String> {
 // ============================================
 // Public API
 // ============================================
+
+/// Create a linked worktree for an explicit branch name.
+///
+/// Unlike [`create_session_worktree`], this is not tied to an agent session:
+/// the caller supplies the branch and target path. Existing local branches are
+/// reused; otherwise a new branch is created from `base_ref` (or `HEAD`).
+pub fn create_linked_worktree(
+    repo_path: &Path,
+    worktree_path: &Path,
+    branch: &str,
+    base_ref: Option<&str>,
+) -> Result<LinkedWorktreeInfo, String> {
+    let branch = branch.trim();
+    if branch.is_empty() {
+        return Err("branch cannot be empty".to_string());
+    }
+    let path_string = worktree_path.to_string_lossy().to_string();
+    if worktree_path.exists() {
+        return Err(format!("Worktree path already exists: {}", path_string));
+    }
+    if let Some(parent) = worktree_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|err| format!("Failed to create worktree parent dir: {}", err))?;
+    }
+
+    let branch_exists = run_git(repo_path, &["rev-parse", "--verify", branch])
+        .map(|output| output.status.success())
+        .unwrap_or(false);
+    let output = if branch_exists {
+        run_git(repo_path, &["worktree", "add", &path_string, branch])?
+    } else {
+        run_git(
+            repo_path,
+            &[
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                &path_string,
+                base_ref.unwrap_or("HEAD"),
+            ],
+        )?
+    };
+
+    if !output.status.success() {
+        return Err(format!("git worktree add failed: {}", git_stderr(&output)));
+    }
+
+    if let Err(err) = run_worktree_setup_hooks(repo_path, worktree_path) {
+        let _ = run_git(repo_path, &["worktree", "remove", "--force", &path_string]);
+        if !branch_exists {
+            let _ = run_git(repo_path, &["branch", "-D", branch]);
+        }
+        return Err(err);
+    }
+
+    let head_sha = run_git(worktree_path, &["rev-parse", "HEAD"])
+        .map(|output| git_stdout(&output))
+        .unwrap_or_default();
+    Ok(LinkedWorktreeInfo {
+        path: path_string,
+        branch: branch.to_string(),
+        head_sha,
+    })
+}
 
 /// Create an isolated worktree for a coding agent session.
 ///

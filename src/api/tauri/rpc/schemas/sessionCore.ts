@@ -149,6 +149,11 @@ export const SessionMetadataSchema = z.object({
   timeRangeEnd: z.string().optional(),
 });
 
+export const TurnMetadataIndexInput = z.object({
+  sessionId: z.string(),
+  turnIds: z.array(z.string()).max(500).optional(),
+});
+
 export const SearchResultSchema = z.object({
   event: SessionEventSchema,
   rank: z.number(),
@@ -329,6 +334,35 @@ export const TurnModifiedFileSchema = z.object({
 
 export type TurnModifiedFile = z.output<typeof TurnModifiedFileSchema>;
 
+export const TurnResourceInteractionSchema = z.object({
+  path: z.string(),
+  fileName: z.string(),
+  action: z.enum(["read", "write", "create", "delete", "rename", "search"]),
+  outcome: z.enum(["succeeded", "failed", "unknown"]),
+  count: z.number().int().nonnegative(),
+  firstOccurredAt: z.string(),
+  lastOccurredAt: z.string(),
+});
+
+export type TurnResourceInteraction = z.output<
+  typeof TurnResourceInteractionSchema
+>;
+
+export const TurnGitArtifactSchema = z.object({
+  kind: z.enum(["commit", "pullRequest"]),
+  url: z.string().optional(),
+  repoFullName: z.string().optional(),
+  sha: z.string().optional(),
+  shortSha: z.string().optional(),
+  subject: z.string().optional(),
+  prNumber: z.number().int().optional(),
+  prTitle: z.string().optional(),
+  sourceBranch: z.string().optional(),
+  targetBranch: z.string().optional(),
+});
+
+export type TurnGitArtifact = z.output<typeof TurnGitArtifactSchema>;
+
 export const TurnSummarySchema = z.object({
   sessionId: z.string(),
   turnId: z.string(),
@@ -346,6 +380,10 @@ export const TurnSummarySchema = z.object({
   interrupted: z.boolean(),
   // Per-round modified files, materialized by the Rust turn indexer.
   modifiedFiles: z.array(TurnModifiedFileSchema).default([]),
+  // Privacy-safe Orgtrack path/action aggregates for this round.
+  resourceInteractions: z.array(TurnResourceInteractionSchema).default([]),
+  // Exact commits/PRs produced by successful git/gh commands in this round.
+  gitArtifacts: z.array(TurnGitArtifactSchema).default([]),
 });
 
 export const TurnBodyWindowInput = z.object({

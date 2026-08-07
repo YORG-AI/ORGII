@@ -17,6 +17,8 @@ interface UseMultiSelectOptions {
   getShortId?: (workItemId: string) => string | null;
   /** Callback after batch delete completes (for UI refresh) */
   onBatchDeleteComplete?: () => void;
+  /** One confirmation for the whole batch; false leaves selection intact. */
+  onBeforeDelete?: (count: number) => Promise<boolean>;
 }
 
 export function useMultiSelect({
@@ -25,6 +27,7 @@ export function useMultiSelect({
   projectSlug,
   getShortId,
   onBatchDeleteComplete,
+  onBeforeDelete,
 }: UseMultiSelectOptions) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -55,6 +58,7 @@ export function useMultiSelect({
   const handleBulkDelete = useCallback(async () => {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
+    if (onBeforeDelete && !(await onBeforeDelete(ids.length))) return;
 
     setBulkDeleting(true);
 
@@ -111,7 +115,14 @@ export function useMultiSelect({
     } finally {
       setBulkDeleting(false);
     }
-  }, [selectedIds, onDelete, projectSlug, getShortId, onBatchDeleteComplete]);
+  }, [
+    selectedIds,
+    onBeforeDelete,
+    onDelete,
+    projectSlug,
+    getShortId,
+    onBatchDeleteComplete,
+  ]);
 
   return {
     selectedIds,

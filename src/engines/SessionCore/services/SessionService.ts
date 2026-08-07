@@ -21,17 +21,20 @@ import {
   sessionLaunch,
 } from "@src/api/tauri/agent";
 import { ROUTES } from "@src/config/routes";
-import { getAdapterForSession } from "@src/engines/SessionCore/sync";
+import { getAdapterForSession } from "@src/engines/SessionCore/sync/types";
+import {
+  buildPendingForkHandoff,
+  markForkHandoffConsumed,
+} from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
 import { collectAdeContext } from "@src/services/context/collectors";
 import {
   type Session,
   type SessionStatus,
-  activeSessionIdAtom,
+  jumpToSessionAtom,
   loadSessions,
   markSessionActive,
   sessionsAtom,
-  workstationActiveSessionIdAtom,
 } from "@src/store/session";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
@@ -146,6 +149,9 @@ export const SessionService = {
     const launchParams = {
       category,
       content: params.task,
+      ...(params.imageDataUrls && params.imageDataUrls.length > 0
+        ? { images: params.imageDataUrls }
+        : {}),
       workspacePath: params.projectRepoPath || params.repoPath || undefined,
       accountId: params.accountId || undefined,
       name: params.name || params.task.slice(0, 60),
@@ -307,11 +313,38 @@ export const SessionService = {
       );
     }
 
+    // Fork relay (design §16.11): the FIRST real message sent to a forked
+    // session carries a bounded digest of the inherited teammate history,
+    // because the agent's LLM context is rebuilt from `agent_messages` —
+    // which a fork starts without. `displayText` keeps the user's own words
+    // in the transcript; the marker is consumed only after the send
+    // succeeds, so a failed send retries with the handoff intact. No-op for
+    // every non-forked session (durable one-shot marker, armed at fork time).
+    let effectiveContent = content;
+    let effectiveDisplayText = displayText;
+    let forkHandoffArmed = false;
+    if (!isResume) {
+      try {
+        const forkHandoff = await buildPendingForkHandoff(sessionId, content);
+        if (forkHandoff) {
+          effectiveContent = forkHandoff.content;
+          effectiveDisplayText = displayText ?? forkHandoff.displayText;
+          forkHandoffArmed = true;
+        }
+      } catch (handoffError) {
+        // Handoff assembly must never block a send — the fork still works,
+        // just without inherited context on this turn.
+        logger.warn(
+          `Fork handoff assembly failed for ${sessionId}: ${String(handoffError)}`
+        );
+      }
+    }
+
     try {
       await adapter.sendMessage({
         sessionId,
-        content,
-        displayText,
+        content: effectiveContent,
+        displayText: effectiveDisplayText,
         model: model || undefined,
         accountId: accountId || undefined,
         mode: mode || undefined,
@@ -322,6 +355,9 @@ export const SessionService = {
         adeContext,
         sessionRepoPath: sessionRow?.repoPath ?? null,
       });
+      if (forkHandoffArmed) {
+        markForkHandoffConsumed(sessionId);
+      }
       // Float the row to the top of "today" in the sidebar without
       // waiting for the next session list refresh. The backend will
       // emit its own fresh `updated_at` on the next `loadSessions`,
@@ -477,8 +513,7 @@ export const SessionService = {
   async open(params: SessionOpenParams): Promise<void> {
     const { sessionId } = params;
     const store = getInstrumentedStore();
-    store.set(workstationActiveSessionIdAtom, sessionId);
-    store.set(activeSessionIdAtom, sessionId);
+    store.set(jumpToSessionAtom, sessionId);
     window.dispatchEvent(
       new CustomEvent("action-system-navigate", {
         detail: { path: ROUTES.workStation.base.path },

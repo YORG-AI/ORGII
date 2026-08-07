@@ -197,7 +197,7 @@ export const FallbackAdapter: React.FC<UniversalEventProps> = (props) => {
       isLoading={
         props.status === "running" && props.showActiveEventPainting === true
       }
-      defaultCollapsed={false}
+      defaultCollapsed={true}
       eventId={props.eventId}
       iconOverride={isMcpTool ? MCP_ICON : undefined}
       callId={props.callId}

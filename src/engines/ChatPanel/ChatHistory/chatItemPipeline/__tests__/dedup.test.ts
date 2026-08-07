@@ -383,6 +383,20 @@ describe("buildDedupMaps — user message dedup", () => {
 });
 
 describe("buildDedupMaps — assistant message dedup", () => {
+  it("recognizes canonical agent messages even with a raw action type", () => {
+    const event = makeSessionEvent({
+      action_type: "raw_event",
+      function: "assistant",
+      uiCanonical: "agent_message",
+      source: "assistant",
+      displayVariant: "message",
+      displayText: "Final reply",
+      result: { content: "Final reply" },
+    });
+
+    expect(isAssistantMessageEvent(event)).toBe(true);
+  });
+
   beforeEach(() => {
     resetActivityCounter();
   });

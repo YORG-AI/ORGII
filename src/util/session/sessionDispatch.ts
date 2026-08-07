@@ -107,7 +107,8 @@ export const SESSION_PREFIX_REGISTRY: readonly SessionPrefixConfig[] = [
   ...IMPORTED_HISTORY_SOURCE_DESCRIPTORS.map(
     (source): SessionPrefixConfig => ({
       prefix: source.prefix,
-      category: "external_history",
+      category:
+        source.sourceId === "cursor_ide" ? "cursor_ide" : "external_history",
       variant: undefined,
       iconId: source.iconId,
       externalHistorySourceId: source.sourceId,
@@ -150,6 +151,9 @@ export const WINDSURF_HISTORY_SESSION_PREFIX = "windsurfapp-";
 
 /** Prefix for imported WorkBuddy event session IDs. */
 export const WORKBUDDY_HISTORY_SESSION_PREFIX = "workbuddyapp-";
+
+/** Prefix for imported Warp event session IDs. */
+export const WARP_HISTORY_SESSION_PREFIX = "warpapp-";
 
 /** Prefix for Wingman Agent session IDs */
 export const WINGMAN_SESSION_PREFIX = "wingman-";
@@ -255,6 +259,12 @@ export function isWorkBuddyHistorySession(
   sessionId: string | null | undefined
 ): boolean {
   return getExternalHistorySourceId(sessionId) === "workbuddy";
+}
+
+export function isWarpHistorySession(
+  sessionId: string | null | undefined
+): boolean {
+  return getExternalHistorySourceId(sessionId) === "warp";
 }
 
 /**

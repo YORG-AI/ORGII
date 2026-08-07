@@ -176,30 +176,6 @@ pub(crate) async fn validate_openai_key(
     )
 }
 
-pub(crate) async fn validate_google_key(
-    api_key: &str,
-    base_url: Option<&str>,
-) -> (bool, Option<String>, Option<Vec<String>>) {
-    use crate::providers::google::GoogleValidator;
-
-    let validator = GoogleValidator::new();
-    let result = validator.validate(api_key, base_url, None).await;
-
-    (
-        result.valid,
-        if result.valid {
-            None
-        } else {
-            Some(result.message)
-        },
-        if result.valid {
-            Some(result.models_available)
-        } else {
-            None
-        },
-    )
-}
-
 pub(crate) async fn validate_github_token(token: &str) -> (bool, Option<String>) {
     use crate::providers::copilot::CopilotValidator;
 

@@ -9,7 +9,7 @@
  * - Sessions older than the selected window are filtered out
  *
  * View mode (kanban / diary) is driven by the `?view=` URL search param,
- * toggled from the Ops Control Workstation header tabs.
+ * toggled from the Kanban Workstation header tabs.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Plus } from "lucide-react";
@@ -23,26 +23,24 @@ import React, {
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
-import Button from "@src/components/Button";
 import {
-  OPS_CONTROL_SESSION_PREVIEW_OVERLAY_CLASS,
-  OPS_CONTROL_SESSION_PREVIEW_SURFACE_CLASS,
-} from "@src/config/opsControlCardTokens";
+  WORK_MANAGEMENT_SESSION_PREVIEW_OVERLAY_CLASS,
+  WORK_MANAGEMENT_SESSION_PREVIEW_SURFACE_CLASS,
+} from "@src/config/workManagementCardTokens";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
-import { createLogger } from "@src/hooks/logger";
 import { loadSidebarSessions } from "@src/store/session";
 import { kanbanReplayModeAtom } from "@src/store/ui/kanbanReplayAtom";
 import {
   kanbanAgentTypeFilterAtom,
   kanbanAutoArchiveTtlAtom,
   kanbanDetailPanelVisibleAtom,
+  kanbanFileSearchQueryAtom,
   kanbanManualArchivedSessionIdsAtom,
   kanbanSelectedTaskIdAtom,
   kanbanSidebarFilterAtom,
   kanbanTimeFilterAtom,
 } from "@src/store/ui/kanbanViewStateAtom";
-import { opsControlCreatorVisibleAtom } from "@src/store/ui/opsControlCreatorAtom";
-import { openWorktreeCompareWindow } from "@src/util/ui/window/windowManager";
+import { workManagementCreatorVisibleAtom } from "@src/store/ui/workManagementCreatorAtom";
 
 import { parseFactoryViewMode } from "./components/FactoryViewPill";
 import TaskKanbanReplayBar from "./components/KanbanReplayBar";
@@ -58,8 +56,6 @@ import {
   resetKanbanHorizontalScroll,
 } from "./utils/scrollGuard";
 
-const log = createLogger("TaskKanban");
-
 export interface TaskKanbanProps {
   /**
    * Restrict the board to a subset of session IDs. When set, routines are
@@ -69,13 +65,13 @@ export interface TaskKanbanProps {
   /**
    * Hide the "New Session" button in the bottom dock. The dock itself
    * still renders (same height + top border) so the layout matches the
-   * global Ops Control view — embedders that own their own composer
+   * global Kanban view — embedders that own their own composer
    * (e.g. the Inbox `OrgChatPanel`) just don't want a duplicate trigger
    * here.
    */
   hideAddSessionButton?: boolean;
   /**
-   * Suppress publishing Ops Control controls into the Workstation 40px header.
+   * Suppress publishing Kanban controls into the Workstation 40px header.
    * Embeds that render their own header — e.g. the Inbox `OrgChatPanel`
    * merges the time-filter pills into its own sub-tab row — pass `true`.
    * When hidden, callers must supply `timeFilter` + `onTimeFilterChange`
@@ -110,12 +106,13 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     useAtom(kanbanTimeFilterAtom);
   const sidebarFilter = useAtomValue(kanbanSidebarFilterAtom);
   const agentTypeFilter = useAtomValue(kanbanAgentTypeFilterAtom);
+  const fileSearchQuery = useAtomValue(kanbanFileSearchQueryAtom);
   const [autoArchiveTtl, setAutoArchiveTtl] = useAtom(kanbanAutoArchiveTtlAtom);
   const setManualArchivedSessionIds = useSetAtom(
     kanbanManualArchivedSessionIdsAtom
   );
   const [creatorVisible, setCreatorVisible] = useAtom(
-    opsControlCreatorVisibleAtom
+    workManagementCreatorVisibleAtom
   );
   const kanbanReplayMode = useAtomValue(kanbanReplayModeAtom);
 
@@ -136,6 +133,9 @@ const Kanban: React.FC<TaskKanbanProps> = ({
 
   const viewMode = parseFactoryViewMode(location.search);
   const showReplayControls = viewMode === "kanban";
+  const fileSearchEnabled =
+    !hideHeader && (viewMode === "kanban" || viewMode === "list");
+  const effectiveFileSearchQuery = fileSearchEnabled ? fileSearchQuery : "";
   const [calendarDate, setCalendarDate] = useState<Date>(() => new Date());
 
   useEffect(() => {
@@ -148,19 +148,15 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     sessionIdFilter,
   });
 
-  const {
-    sessionMap,
-    visibleTasks,
-    visibleDiaryTasks,
-    visibleColumns,
-    selectedTask,
-  } = useTaskKanbanFilters({
-    tasks,
-    diaryTasks: allTasks,
-    sidebarFilter,
-    agentTypeFilter,
-    selectedTaskId,
-  });
+  const { visibleTasks, visibleDiaryTasks, visibleColumns, selectedTask } =
+    useTaskKanbanFilters({
+      tasks,
+      diaryTasks: allTasks,
+      sidebarFilter,
+      agentTypeFilter,
+      selectedTaskId,
+      fileSearchQuery: effectiveFileSearchQuery,
+    });
 
   const handlePointerDownCapture = useCallback((event: React.PointerEvent) => {
     const target = event.target;
@@ -222,45 +218,9 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     setCreatorVisible(true);
   }, [setCreatorVisible]);
 
-  const handleUpdateVisibleAiBlame = useCallback(async () => {
-    for (const task of visibleTasks) {
-      if (task.orgtrackMetadataLoading) continue;
-      await task.onAnalyzeGitBlame?.(task);
-    }
-  }, [visibleTasks]);
-
   React.useLayoutEffect(() => {
     resetKanbanHorizontalScroll();
   }, [detailPanelVisible, selectedTaskId]);
-
-  const worktreeSessionIds = useMemo(() => {
-    return visibleTasks
-      .filter((task) => {
-        const session = task.session_id
-          ? sessionMap.get(task.session_id)
-          : null;
-        return session?.worktreeBranch != null;
-      })
-      .map((task) => task.session_id)
-      .filter((id): id is string => Boolean(id));
-  }, [visibleTasks, sessionMap]);
-
-  const compareRepoPath = useMemo(() => {
-    const firstId = worktreeSessionIds[0];
-    if (!firstId) return undefined;
-    const session = sessionMap.get(firstId);
-    return session?.worktreePath ?? session?.repoPath ?? undefined;
-  }, [worktreeSessionIds, sessionMap]);
-
-  const handleCompareWorktrees = useCallback(() => {
-    if (worktreeSessionIds.length < 2) return;
-    openWorktreeCompareWindow(worktreeSessionIds, {
-      repoPath: compareRepoPath,
-      title: `Compare ${worktreeSessionIds.length} Worktrees`,
-    }).catch((err: unknown) => {
-      log.error("[TaskKanban] failed to open compare window:", err);
-    });
-  }, [worktreeSessionIds, compareRepoPath]);
 
   const handleTaskMove = useCallback(
     (taskId: string, newStatus: TaskStatus) => {
@@ -291,8 +251,6 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     viewMode,
     calendarDate,
     onCalendarDateChange: setCalendarDate,
-    worktreeSessionCount: worktreeSessionIds.length,
-    onCompareWorktrees: handleCompareWorktrees,
     autoArchiveTtl,
     onAutoArchiveTtlChange: setAutoArchiveTtl,
     timeFilter,
@@ -318,6 +276,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
           onTaskMove={handleTaskMove}
           onTaskClick={handleTaskClick}
           onAddTask={handleAddTask}
+          hasFileSearchQuery={effectiveFileSearchQuery.trim().length > 0}
         />
 
         {showReplayControls && (
@@ -346,24 +305,21 @@ const Kanban: React.FC<TaskKanbanProps> = ({
         </div>
       )}
 
-      <div className="flex h-10 shrink-0 items-center justify-end overflow-visible border-t border-border-2 px-3">
-        <Button
-          variant="tertiary"
-          size="small"
-          shape="round"
-          onClick={handleUpdateVisibleAiBlame}
-          aria-label={t("common:actions.updateAiBlame")}
-          title={t("common:actions.updateAiBlame")}
-        >
-          {t("common:actions.updateAiBlame")}
-        </Button>
-      </div>
+      {viewMode === "kanban" && (
+        <div
+          className="h-10 shrink-0 border-t border-border-2"
+          aria-hidden="true"
+        />
+      )}
 
       {detailPanelVisible && (
         <div
-          className={`${OPS_CONTROL_SESSION_PREVIEW_OVERLAY_CLASS} kanban-session-preview-overlay`}
+          className={`${WORK_MANAGEMENT_SESSION_PREVIEW_OVERLAY_CLASS} kanban-session-preview-overlay`}
         >
-          <div className={OPS_CONTROL_SESSION_PREVIEW_SURFACE_CLASS}>
+          <div
+            className={WORK_MANAGEMENT_SESSION_PREVIEW_SURFACE_CLASS}
+            data-draggable-window
+          >
             <TaskDetailPanel
               visible={detailPanelVisible}
               task={selectedTask}

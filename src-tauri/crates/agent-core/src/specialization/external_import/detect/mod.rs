@@ -20,7 +20,6 @@ mod claude_code;
 mod codex;
 mod copilot;
 mod cursor;
-mod gemini;
 mod helpers;
 mod kiro;
 mod mcp;
@@ -38,14 +37,12 @@ pub fn detect_all(repo_path: Option<&Path>) -> Vec<DetectedItem> {
     out.extend(cursor::detect_cursor_rules(repo_path));
     out.extend(claude_code::detect_claude_code_memory(repo_path));
     out.extend(codex::detect_codex_agents_md(repo_path));
-    out.extend(gemini::detect_gemini_md(repo_path));
     out.extend(copilot::detect_copilot_instructions(repo_path));
     out.extend(kiro::detect_kiro_steering(repo_path));
 
     out.extend(claude_code::detect_claude_code_agents(repo_path));
     out.extend(cursor::detect_cursor_agents(repo_path));
     out.extend(codex::detect_codex_agents(repo_path));
-    out.extend(gemini::detect_gemini_agents(repo_path));
     out.extend(copilot::detect_copilot_agents(repo_path));
     out.extend(claude_code::detect_claude_code_skills(repo_path));
     out.extend(cursor::detect_cursor_skills(repo_path));

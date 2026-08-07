@@ -11,7 +11,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 
 import { createLogger } from "@src/hooks/logger";
-import { EditorTabService } from "@src/services/workStation";
+import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import { createUrlPreviewTab } from "@src/store/workstation/tabs/factories";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 

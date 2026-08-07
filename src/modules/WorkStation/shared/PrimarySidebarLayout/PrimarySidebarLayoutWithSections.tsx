@@ -79,6 +79,8 @@ export interface PanelSection {
   /** Optional icon for the section header */
   icon?: ReactNode;
   hideSeparator?: boolean;
+  /** Stable selector for automated interaction with the section toggle. */
+  headerTestId?: string;
 }
 
 export interface PrimarySidebarLayoutWithSectionsProps {
@@ -437,6 +439,7 @@ export const PrimarySidebarLayoutWithSections: React.FC<PrimarySidebarLayoutWith
                         onResizeStart={handleResizeStart(tab.key, index)}
                         autoHeight={section.autoHeight}
                         hideSeparator={section.hideSeparator}
+                        headerTestId={section.headerTestId}
                       >
                         {section.content}
                       </CollapsibleSection>
@@ -459,6 +462,7 @@ export const PrimarySidebarLayoutWithSections: React.FC<PrimarySidebarLayoutWith
               onResizeStart={() => {}}
               autoHeight={true}
               showTopBorder={true}
+              headerTestId={globalSection.headerTestId}
             >
               {globalSection.content}
             </CollapsibleSection>

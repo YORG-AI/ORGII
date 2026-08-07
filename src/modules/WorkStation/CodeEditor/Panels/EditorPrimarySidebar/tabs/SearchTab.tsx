@@ -7,6 +7,7 @@
  * Contains SearchPanelContent component that encapsulates useOpenEditorFiles hook.
  * This hook only runs when the Search tab is first visited (lazy mounting).
  */
+import { ArrowLeft } from "lucide-react";
 import React, {
   forwardRef,
   useCallback,
@@ -96,6 +97,7 @@ export interface SearchTabConfigProps {
   showFilters: boolean;
   searchPanelRef: React.RefObject<SearchPanelContentHandle | null>;
   actions?: SectionHeaderAction[];
+  onBack: () => void;
   onOpenInTab?: () => void;
 }
 
@@ -105,6 +107,7 @@ export function useSearchTabConfig({
   showFilters,
   searchPanelRef,
   actions = [],
+  onBack,
   onOpenInTab,
 }: SearchTabConfigProps): PrimarySidebarTab {
   const { t } = useTranslation();
@@ -145,14 +148,26 @@ export function useSearchTabConfig({
     () => [
       {
         key: "search-results",
-        title: t("tabs.search"),
+        title: (
+          <button
+            type="button"
+            className="flex min-w-0 items-center gap-1.5 normal-case"
+            onClick={onBack}
+            aria-label={t("tabs.files")}
+            title={t("tabs.files")}
+          >
+            <ArrowLeft size={14} className="shrink-0 text-text-3" />
+            <span className="truncate uppercase">{t("tabs.search")}</span>
+          </button>
+        ),
         content: searchContent,
         defaultFlexGrow: 2,
+        collapsible: false,
         resizable: true,
         actions,
       },
     ],
-    [searchContent, actions, t]
+    [searchContent, actions, onBack, t]
   );
 
   // PERFORMANCE: Memoize entire tab config to prevent parent re-renders

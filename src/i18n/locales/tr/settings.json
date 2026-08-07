@@ -28,6 +28,7 @@
     "agentSessions": "Agent Session",
     "apiKeys": "API Keys",
     "appUpdate": "Uygulama Güncellemesi",
+    "security": "Güvenlik",
     "monitor": "Cihaz & Ağ",
     "osAgentConfig": "OS Agent Yapılandırması",
     "sdeAgentConfig": "SDE Agent Yapılandırması",
@@ -39,7 +40,8 @@
     "storage": "Depolama",
     "projectUsage": "Project ve Kullanım",
     "agentMemory": "Agent Belleği",
-    "agentOrg": "Agent Ekibi"
+    "agentOrg": "Agent Ekibi",
+    "collaboration": "İş birliği"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "Modeller & Keys",
       "myRoles": "Rollerim",
       "rulesMemoryEvolution": "Kurallar, Bellek & Evrim",
+      "security": "Güvenlik",
       "routines": "Rutinler",
       "tools": "Built-in Tools",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "housekeeper": "MiniCPM Housekeeper",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
+  },
+  "security": {
+    "scan": "Sırları göndermeden önce uyar",
+    "scanDesc": "Düzenleyicide yazdıklarınızı API anahtarları, belirteçler ve parolalar için tarar ve modele göndermeden önce onay ister",
+    "entropy": "Yüksek entropili dizeleri algıla",
+    "entropyDesc": "Bilinen bir anahtar biçimine uymayan, rastgele görünen uzun dizeleri de işaretler. Daha fazla sırrı yakalar ancak bazen karma değerlerini veya kimlikleri işaretleyebilir",
+    "customPatterns": "Özel desenler",
+    "customPatternsDesc": "Her satıra bir düzenli ifade. Herhangi bir eşleşme sır olarak kabul edilir. Geçersiz ifadeler yoksayılır",
+    "customPatternsPlaceholder": "örn. MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} desen geçersiz ve yoksayılacak: {{patterns}}"
   },
   "myRoles": {
     "currentStatus": "Mevcut durumum",
@@ -149,17 +162,16 @@
       "zh-Hant": "Geleneksel Çince"
     },
     "layout": "Düzen",
-    "globalLayoutMethod": "Düzen Yöntemi",
-    "globalLayoutMethodDesc": "İçerik panellerinin uygulamayı çerçeveleme şeklini seçin",
+    "sidebar": "Kenar çubuğu",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "Kenar çubuğu kenar derinliği",
+    "selectedItemTransparency": "Seçili öğe şeffaflığı",
     "spotlightPlacement": "Spotlight konumu",
     "spotlightPlacementDesc": "Spotlight komut paletinin nerede açılacağını seçin",
     "spotlightPlacementOptions": {
       "top": "Üst",
       "center": "Sayfa merkezi"
     },
-    "inset": "Konfor",
-    "full": "Genişletilmiş",
-    "compact": "Modern",
     "left": "Sol",
     "right": "Sağ",
     "light": "Açık",
@@ -324,7 +336,7 @@
     "configAgentKeys": "OS & SDE Agent için API Keys",
     "configAgentKeysDesc": "OpenAI, Anthropic, DeepSeek gibi sağlayıcılardan API Key ekleyin",
     "configCliKeys": "CLI Agent için API Keys",
-    "configCliKeysDesc": "Claude Code, Codex, Gemini CLI gibi CLI araçları için API Key ekleyin"
+    "configCliKeysDesc": "Claude Code ve Codex gibi CLI araçları için API Key ekleyin"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agent",
@@ -890,7 +902,6 @@
     "diskCategory_logs": "Günlükler",
     "diskCategory_personalWorkspace": "OS Agent Çalışma Alanı",
     "diskCategory_cursorConfig": "Session CLI Yapılandırmaları",
-    "diskCategory_geminiCliHome": "Gemini CLI Dizinleri",
     "diskCategory_extensions": "Uzantılar",
     "diskNotScanned": "Henüz taranmadı",
     "diskScanning": "Taranıyor...",
@@ -1292,5 +1303,11 @@
     "searchActions": "Eylem ara...",
     "noActionsFound": "Eylem bulunamadı",
     "noConfigurableProperties": "Yapılandırılabilir özellik yok"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "Bulut",
+      "selfHosted": "Kendi kendine barındırılan"
+    }
   }
 }

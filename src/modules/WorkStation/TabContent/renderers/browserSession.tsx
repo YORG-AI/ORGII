@@ -1,30 +1,64 @@
 /**
  * Renderer wrapper for `browser-session` tabs.
  *
- * The Browser host mounts the shared webview workspace once and
- * relies on internal session state (managed via `useBrowserLayoutState`)
- * to show/hide the right session. Single-pane mounting through the
- * unified registry would mean tearing down webviews on every tab
- * switch — Phase 2 will instead lift the webview host above the
- * dispatcher and let the wrapper drive `activeSessionId`.
+ * The webview engine (`SharedBrowserApp`) and session store
+ * (`BrowserProvider`) are mounted globally above the workstation
+ * (`src/modules/index.tsx`); a single native webview per host is positioned by
+ * a rect published from whichever pane owns it. This renderer mounts the
+ * rect-publisher (`SharedBrowserWorkspace` → `SharedBrowserHostSlot`) for the
+ * MY_STATION host, pulling `browserState` + activation flags + inspect /
+ * native-devtools handlers from the hoisted Browser host context
+ * (`useBrowserHostContext`) — mirroring how `BrowserLayout` mounts the
+ * workspace today. No webview is re-created on tab switch: the pane only
+ * re-publishes its rect.
  *
- * TODO(phase-2): expose `SharedBrowserWorkspace` activation through
- * the dispatcher context so a single registry mount can drive the
- * session without re-creating webviews.
+ * NOTE (Phase 2.2): `UnifiedTabContent` is not yet mounted for browser tabs by
+ * `BrowserLayout`, so this renderer is staged/inert until the live mount lands.
+ * When it does, only the active browser-session pane must be `active` — two
+ * panes publishing to the same host id would fight over the single webview
+ * rect.
  */
 import React, { memo } from "react";
 
+import { useBrowserHostContext } from "@src/modules/WorkStation/Browser/context/browserHostContext";
+import {
+  SHARED_BROWSER_HOST,
+  SHARED_BROWSER_HOST_SCOPE,
+  SharedBrowserWorkspace,
+} from "@src/modules/WorkStation/Browser/shared";
+
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
 
 const BrowserSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
-  ({ tab }) => (
-    <HostCoupledPlaceholder
-      tabType={tab.type}
-      title={String(tab.title ?? "Browser")}
-      hostNote="Browser session still rendered by the Browser host (single shared webview workspace). Phase 2 will route activation through the dispatcher."
-    />
-  )
+  ({ isActive }) => {
+    const {
+      browserState,
+      isWorkspaceActive,
+      hideWebviews,
+      webviewBottomInsetPx,
+      isInspectMode,
+      onToggleInspectMode,
+      onOpenNativeDevTools,
+      onToggleDevToolsPane,
+      devToolsPaneCollapsed,
+    } = useBrowserHostContext();
+
+    return (
+      <SharedBrowserWorkspace
+        hostId={SHARED_BROWSER_HOST.MY_STATION}
+        scope={SHARED_BROWSER_HOST_SCOPE.MY_STATION}
+        active={isActive && isWorkspaceActive}
+        browserState={browserState}
+        onOpenNativeDevTools={onOpenNativeDevTools}
+        onToggleDevToolsPane={onToggleDevToolsPane}
+        devToolsPaneCollapsed={devToolsPaneCollapsed}
+        hideWebviews={hideWebviews || !isActive}
+        webviewBottomInsetPx={webviewBottomInsetPx}
+        isInspectMode={isInspectMode}
+        onToggleInspectMode={onToggleInspectMode}
+      />
+    );
+  }
 );
 
 BrowserSessionTabRenderer.displayName = "BrowserSessionTabRenderer";

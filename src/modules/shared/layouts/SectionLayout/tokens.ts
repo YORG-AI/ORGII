@@ -60,8 +60,9 @@ export const SECTION_GAP_CLASSES = "flex flex-col gap-3";
 // Container Tokens
 // ============================================
 
-/** Base classes for the section container (bg, rounded, container-query root) */
-export const SECTION_CONTAINER_BASE_CLASSES = "w-full rounded-lg @container";
+/** Base classes for the section container (rounded, container-query root, inset row separators) */
+export const SECTION_CONTAINER_BASE_CLASSES =
+  "w-full rounded-xl @container [&>.section-layout-row:not(:last-child)]:after:absolute [&>.section-layout-row:not(:last-child)]:after:bottom-0 [&>.section-layout-row:not(:last-child)]:after:inset-x-0 [&>.section-layout-row:not(:last-child)]:after:h-px [&>.section-layout-row:not(:last-child)]:after:bg-border-2 [&>.section-layout-row:not(:last-child)]:after:content-['']";
 
 export const SECTION_CONTAINER_COLOR_CLASSES = {
   default: "bg-surface-container",
@@ -71,7 +72,7 @@ export const SECTION_CONTAINER_COLOR_CLASSES = {
 export type SectionContainerColor =
   keyof typeof SECTION_CONTAINER_COLOR_CLASSES;
 
-export const SECTION_CONTAINER_CLASSES = `${SECTION_CONTAINER_BASE_CLASSES} ${SECTION_CONTAINER_COLOR_CLASSES.default}`;
+export const SECTION_CONTAINER_CLASSES = `${SECTION_CONTAINER_BASE_CLASSES} ${SECTION_CONTAINER_COLOR_CLASSES.default} border border-border-1`;
 
 /** Padding variants for the section container */
 export const SECTION_PADDING = {

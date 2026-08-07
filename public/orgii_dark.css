@@ -116,9 +116,18 @@ body {
   --sidebar-tab-pill-selected-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 
   /* Sidebar */
-  --sidebar-bg: rgba(27, 28, 31, 0.84);
+  --sidebar-bg: rgba(23, 24, 27, 0.88);
   --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-selected-row-opacity: 5%;
+  --sidebar-selected-row-bg: color-mix(
+    in oklab,
+    var(--color-text-1) var(--sidebar-selected-row-opacity),
+    transparent
+  );
   --sidebar-backdrop: blur(12px) saturate(150%);
+  --sidebar-edge-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.07),
+    inset -8px 0 12px -12px rgba(0, 0, 0, 0.9);
   --sidebar-shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.3);
 
   /* Start Page */

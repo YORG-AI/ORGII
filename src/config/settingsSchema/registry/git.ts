@@ -27,6 +27,20 @@ export const GIT_SETTINGS_REGISTRY = {
     description: "Interval in seconds between automatic fetches (30-3600)",
     category: "git",
   },
+  "git.prompts.commitInstructions": {
+    schema: z.string().max(4000),
+    default: "",
+    description:
+      "Additional instructions appended to AI commit message generation prompts",
+    category: "git",
+  },
+  "git.prompts.pullRequestInstructions": {
+    schema: z.string().max(4000),
+    default: "",
+    description:
+      "Additional instructions appended to pull request title and description generation prompts",
+    category: "git",
+  },
   "git.attribution.coauthorEnabled": {
     schema: z.boolean(),
     default: true,

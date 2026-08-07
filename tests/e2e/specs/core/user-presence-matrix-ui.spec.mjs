@@ -52,6 +52,8 @@ describe("User presence mode policy UI", () => {
   let originalQuestion = null;
   let originalPlan = null;
   let originalGoal = null;
+  let originalPresence = { mode: "online" };
+  let originalCustomRoles = [];
 
   before(async () => {
     await waitForApp();
@@ -66,20 +68,47 @@ describe("User presence mode policy UI", () => {
     originalQuestion = settings["agent.sde.questionAutoSkipTimeoutByPresence"];
     originalPlan = settings["agent.sde.planAutoApproveTimeoutByPresence"];
     originalGoal = settings["agent.sde.goalMaxTurnsByPresence"];
+    const storedPresence = await browser.executeScript(
+      `return {
+        presence: JSON.parse(localStorage.getItem("orgii:userPresence") || '{"mode":"online"}'),
+        roles: JSON.parse(localStorage.getItem("orgii:userCustomRoles") || '[]'),
+      };`,
+      []
+    );
+    // Also cleans residue from an interrupted prior run without touching any
+    // real custom role: the E2E id is reserved by this spec.
+    originalCustomRoles = storedPresence.roles.filter(
+      (role) => role.id !== "e2e-angry"
+    );
+    originalPresence =
+      storedPresence.presence?.mode === "role:e2e-angry"
+        ? { mode: "online" }
+        : storedPresence.presence;
+    unwrap(
+      await invokeE2E("seedUserPresence", {
+        roles: originalCustomRoles,
+        presence: originalPresence,
+      }),
+      "sanitize custom presence fixture"
+    );
   });
 
   after(async () => {
     // Restore original values so the run leaves no policy drift behind.
     const restore = {};
     if (originalQuestion)
-      restore["agent.sde.questionAutoSkipTimeoutByPresence"] =
-        originalQuestion;
+      restore["agent.sde.questionAutoSkipTimeoutByPresence"] = originalQuestion;
     if (originalPlan)
       restore["agent.sde.planAutoApproveTimeoutByPresence"] = originalPlan;
-    if (originalGoal) restore["agent.sde.goalMaxTurnsByPresence"] = originalGoal;
+    if (originalGoal)
+      restore["agent.sde.goalMaxTurnsByPresence"] = originalGoal;
     if (Object.keys(restore).length > 0) {
       await writeSettingsPartial(restore);
     }
+    await invokeE2E("seedUserPresence", {
+      roles: originalCustomRoles,
+      presence: originalPresence,
+    });
     await browser.executeScript(
       `
         localStorage.removeItem("orgii:e2eAngryRoleSeeded");
@@ -169,83 +198,61 @@ describe("User presence mode policy UI", () => {
     // jotai's atomWithStorage subscribes to `storage` events, so a
     // manually-dispatched StorageEvent updates the live atoms without a
     // reload (reload kills the tauri-wd session).
-    await browser.executeScript(
-      `
-        const seedKey = (key, value) => {
-          const serialized = JSON.stringify(value);
-          localStorage.setItem(key, serialized);
-          window.dispatchEvent(
-            new StorageEvent("storage", {
-              key,
-              newValue: serialized,
-              storageArea: localStorage,
-            })
-          );
-        };
-        const roles = JSON.parse(localStorage.getItem("orgii:userCustomRoles") || "[]");
-        if (!roles.some((role) => role.id === "e2e-angry")) {
-          roles.push({
-            id: "e2e-angry",
-            label: "E2E Angry",
-            iconId: "flame",
-            guidance: "Be direct and terse.",
-            createdAtMs: Date.now(),
-            stance: "autonomous",
-            questionAutoResolveSecs: 15,
-            planAutoApproveSecs: 0,
-            goalMaxTurns: 2,
-          });
-        }
-        seedKey("orgii:userCustomRoles", roles);
-        seedKey("orgii:userPresence", { mode: "role:e2e-angry" });
-        return true;
-      `,
-      []
+    const roles = [...originalCustomRoles];
+    roles.push({
+      id: "e2e-angry",
+      label: "E2E Angry",
+      iconId: "flame",
+      guidance: "Be direct and terse.",
+      createdAtMs: Date.now(),
+      stance: "autonomous",
+      questionAutoResolveSecs: 15,
+      planAutoApproveSecs: 0,
+      goalMaxTurns: 2,
+    });
+    unwrap(
+      await invokeE2E("seedUserPresence", {
+        roles,
+        presence: { mode: "role:e2e-angry" },
+      }),
+      "seed custom presence role"
     );
 
-    // The sidebar presence pill must render the custom role's label —
-    // proving the mode resolved end-to-end from a pure data row.
+    // The selected custom row proves the role and active mode resolved end to
+    // end from pure data through the production My Role UI. The role name is
+    // an input value (not body text), so assert the actual rendered control
+    // and the selected badge in its containing role card.
     await waitForScript(
       `
-        const text = document.body.innerText;
+        const input = Array.from(document.querySelectorAll('input')).find(
+          (candidate) => candidate.value === 'E2E Angry'
+        );
+        const row = input?.closest('div.flex.flex-col.gap-3');
         return {
-          ok: text.includes("E2E Angry"),
-          preview: text.slice(0, 800),
+          ok: !!input && !!row?.querySelector('.bg-primary-1'),
+          text: row?.textContent ?? null,
+          hasActiveBadge: !!row?.querySelector('.bg-primary-1'),
         };
       `,
-      "custom presence mode label did not render in the app shell"
+      "custom presence mode did not render as the active My Role row"
     );
 
     // Restore Online and remove the seeded role.
-    await browser.executeScript(
-      `
-        const seedKey = (key, value) => {
-          const serialized = JSON.stringify(value);
-          localStorage.setItem(key, serialized);
-          window.dispatchEvent(
-            new StorageEvent("storage", {
-              key,
-              newValue: serialized,
-              storageArea: localStorage,
-            })
-          );
-        };
-        seedKey("orgii:userPresence", { mode: "online" });
-        const roles = JSON.parse(localStorage.getItem("orgii:userCustomRoles") || "[]");
-        seedKey(
-          "orgii:userCustomRoles",
-          roles.filter((role) => role.id !== "e2e-angry")
-        );
-        return true;
-      `,
-      []
+    unwrap(
+      await invokeE2E("seedUserPresence", {
+        roles: originalCustomRoles,
+        presence: originalPresence,
+      }),
+      "restore custom presence role"
     );
 
     // Negative sweep: the seeded label must disappear after restore.
     await waitForScript(
       `
         return {
-          ok: !document.body.innerText.includes("E2E Angry"),
+          ok: !Array.from(document.querySelectorAll('input')).some(
+            (input) => input.value === 'E2E Angry'
+          ),
         };
       `,
       "seeded custom role label did not clear after restore"

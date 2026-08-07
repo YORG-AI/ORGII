@@ -8,6 +8,8 @@ pub mod config;
 pub mod coordination;
 pub mod definitions;
 pub mod interaction;
+#[path = "session/journey_lifecycle.rs"]
+pub mod journey_lifecycle;
 pub mod model_context;
 pub mod providers;
 pub mod session;

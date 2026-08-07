@@ -2,8 +2,8 @@ import { exists } from "@tauri-apps/plugin-fs";
 import { useAtomValue } from "jotai";
 import { useEffect, useState } from "react";
 
-import { useRouteAppMode } from "@src/config/routeViewModeConfig";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
+import { activeHostAtom } from "@src/store/workstation";
 import { toFsPluginPath } from "@src/util/file/pathUtils";
 
 const getFolderName = (path: string): string => {
@@ -33,7 +33,9 @@ export function useAppShellRepo(): AppShellRepoState {
   const repoPath = activeWorkspaceRoot?.path ?? "";
   const repoName = activeWorkspaceRoot?.name ?? getFolderName(repoPath);
 
-  const appMode = useRouteAppMode();
+  // Unified surface: gate the repo-path check on the active tab's host, not the
+  // route — the Code Editor shows whenever a code-host tab is active.
+  const activeHost = useAtomValue(activeHostAtom);
 
   const [pathExists, setPathExists] = useState<boolean | null>(null);
   const [lastSeenPath, setLastSeenPath] = useState<string>("");
@@ -42,7 +44,7 @@ export function useAppShellRepo(): AppShellRepoState {
     let cancelled = false;
 
     const checkPathExists = async () => {
-      if (appMode !== "code") {
+      if (activeHost !== "code") {
         setPathExists(null);
         return;
       }
@@ -83,7 +85,7 @@ export function useAppShellRepo(): AppShellRepoState {
     return () => {
       cancelled = true;
     };
-  }, [repoPath, appMode]);
+  }, [repoPath, activeHost]);
 
   return { repoPath, repoName, pathExists, lastSeenPath };
 }

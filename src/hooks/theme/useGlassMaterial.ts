@@ -29,6 +29,10 @@
 import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
 import { useMountedCleanup } from "@src/hooks/lifecycle/useMounted";
 import { createLogger } from "@src/hooks/logger";
 // Direct leaf import to avoid pulling @src/store's barrel — which transitively
@@ -48,6 +52,7 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import { useBackgroundImage } from "./useBackgroundImage";
 
 const log = createLogger("useGlassMaterial");
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 
 // Neutral color field used when no background image or color is available
 // (e.g. Glass mode — native OS provides the background, not a URL).
@@ -119,8 +124,11 @@ export function useGlassMaterial(
 
   // Get current context
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-  const backgroundImageUrl = useBackgroundImage();
-  const backgroundColor = backgroundConfig.backgroundColor;
+  const storedBackgroundImageUrl = useBackgroundImage();
+  const backgroundImageUrl = IS_MACOS_HOST ? "" : storedBackgroundImageUrl;
+  const backgroundColor = IS_MACOS_HOST
+    ? undefined
+    : backgroundConfig.backgroundColor;
   const { isDark } = useCurrentTheme();
   const appearance = isDark ? "dark" : "light";
 
@@ -281,8 +289,11 @@ export function useGlassMaterial(
  */
 export function usePreloadGlassMaterials(): { isPreloaded: boolean } {
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-  const backgroundImageUrl = useBackgroundImage();
-  const backgroundColor = backgroundConfig.backgroundColor;
+  const storedBackgroundImageUrl = useBackgroundImage();
+  const backgroundImageUrl = IS_MACOS_HOST ? "" : storedBackgroundImageUrl;
+  const backgroundColor = IS_MACOS_HOST
+    ? undefined
+    : backgroundConfig.backgroundColor;
   const { isDark } = useCurrentTheme();
   const appearance = isDark ? "dark" : "light";
   const [isPreloaded, setIsPreloaded] = useState(false);

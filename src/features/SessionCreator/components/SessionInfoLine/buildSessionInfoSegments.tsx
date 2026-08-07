@@ -71,6 +71,7 @@ interface BuildSessionInfoSegmentsParams extends SessionInfoDisplayState {
   branchLoading?: boolean;
   branchName?: string;
   worktreeLocation?: RunningLocation;
+  worktreeSourceLabel?: string;
   isLocationDropdownOpen: boolean;
   locationTriggerRef: React.Ref<HTMLButtonElement>;
   disabled: boolean;
@@ -92,6 +93,7 @@ export function buildSessionInfoSegments({
   isBranchSelectorOpen,
   handleBranchTriggerClick,
   worktreeLocation,
+  worktreeSourceLabel,
   isLocationDropdownOpen,
   handleLocationTriggerClick,
   locationTriggerRef,
@@ -154,7 +156,11 @@ export function buildSessionInfoSegments({
     segments.push({
       id: "location",
       icon: LOCATION_ICONS[worktreeLocation],
-      label: t(`sessions:${locationEntry.i18nKey}`),
+      label:
+        worktreeLocation === "worktree" && worktreeSourceLabel
+          ? worktreeSourceLabel
+          : t(`sessions:${locationEntry.i18nKey}`),
+      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
       active: isLocationDropdownOpen,
       tooltip: disabled ? undefined : (
         <KeyboardShortcutTooltipContent

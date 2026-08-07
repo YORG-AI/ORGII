@@ -1,4 +1,9 @@
-import { GitMerge, GitPullRequest, XCircle } from "lucide-react";
+import {
+  GitMerge,
+  GitPullRequest,
+  GitPullRequestClosed,
+  GitPullRequestDraft,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
@@ -30,7 +35,9 @@ function StatusIcon({ name }: { name: PrStatusIconName }) {
     case "merge":
       return <GitMerge size={10} />;
     case "closed":
-      return <XCircle size={10} />;
+      return <GitPullRequestClosed size={10} />;
+    case "draft":
+      return <GitPullRequestDraft size={10} />;
     case "pull-request":
     default:
       return <GitPullRequest size={10} />;

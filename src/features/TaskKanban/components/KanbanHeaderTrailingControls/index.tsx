@@ -1,4 +1,3 @@
-import { GitCompare } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,8 +12,6 @@ import {
 } from "../../config";
 
 export interface KanbanHeaderTrailingControlsProps {
-  worktreeSessionCount: number;
-  onCompareWorktrees: () => void;
   autoArchiveTtl: KanbanAutoArchiveTtl;
   onAutoArchiveTtlChange: (ttl: KanbanAutoArchiveTtl) => void;
   timeFilter: KanbanTimeFilter;
@@ -24,8 +21,6 @@ export interface KanbanHeaderTrailingControlsProps {
 const KanbanHeaderTrailingControls: React.FC<
   KanbanHeaderTrailingControlsProps
 > = ({
-  worktreeSessionCount,
-  onCompareWorktrees,
   autoArchiveTtl,
   onAutoArchiveTtlChange,
   timeFilter,
@@ -40,7 +35,7 @@ const KanbanHeaderTrailingControls: React.FC<
         return {
           label,
           value: filter.key,
-          triggerLabel: `${t("opsControl.timeFilter.label")}: ${label}`,
+          triggerLabel: `${t("kanban.timeFilter.label")}: ${label}`,
         };
       }),
     [t]
@@ -53,7 +48,7 @@ const KanbanHeaderTrailingControls: React.FC<
         return {
           label,
           value: ttl.key,
-          triggerLabel: `${t("opsControl.autoArchive.label")}: ${label}`,
+          triggerLabel: `${t("kanban.autoArchive.label")}: ${label}`,
         };
       }),
     [t]
@@ -61,17 +56,6 @@ const KanbanHeaderTrailingControls: React.FC<
 
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-visible">
-      {worktreeSessionCount >= 2 && (
-        <button
-          type="button"
-          onClick={onCompareWorktrees}
-          title={t("worktreeCompare.buttonTooltip")}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-[12px] text-text-2 transition-colors hover:bg-fill-1 hover:text-text-1"
-        >
-          <GitCompare size={14} strokeWidth={1.75} />
-          <span>{t("worktreeCompare.button")}</span>
-        </button>
-      )}
       <Select
         value={autoArchiveTtl}
         options={autoArchiveOptions}

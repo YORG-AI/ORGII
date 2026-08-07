@@ -10,7 +10,6 @@ export { default as AccountInlineExpandedCard } from "./AccountInlineExpandedCar
 export { ACCOUNT_INLINE_TAB } from "./AccountInlineExpandedCard";
 export type { AccountInlineTab } from "./AccountInlineExpandedCard";
 export { default as AccountModelsInlineSplit } from "./AccountModelsInlineSplit";
-export { AccountInlineStatusSection } from "./AccountInlineStatusSection";
 export { default as MyAccountsTableSection } from "./MyAccountsTableSection";
 export {
   GATEWAY_AGENT_TYPES,

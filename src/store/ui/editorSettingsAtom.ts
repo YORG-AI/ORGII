@@ -395,6 +395,26 @@ export const gitAutoFetchIntervalAtom = atom(
   }
 );
 
+export const gitCommitInstructionsAtom = atom(
+  (get) => get(settingsAtom)["git.prompts.commitInstructions"] as string,
+  (_get, set, value: string) => {
+    set(updateSettingAtom, {
+      key: "git.prompts.commitInstructions",
+      value,
+    });
+  }
+);
+
+export const gitPullRequestInstructionsAtom = atom(
+  (get) => get(settingsAtom)["git.prompts.pullRequestInstructions"] as string,
+  (_get, set, value: string) => {
+    set(updateSettingAtom, {
+      key: "git.prompts.pullRequestInstructions",
+      value,
+    });
+  }
+);
+
 export const gitCoauthorAttributionEnabledAtom = atom(
   (get) => get(settingsAtom)["git.attribution.coauthorEnabled"] as boolean,
   (_get, set, value: boolean) => {

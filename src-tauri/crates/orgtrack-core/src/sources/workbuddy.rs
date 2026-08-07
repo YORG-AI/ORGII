@@ -25,9 +25,10 @@ use crate::sources::imported_history::{
     ImportedHistorySessionRow, ImportedToolCall,
 };
 
-const WORKBUDDY_SESSION_PREFIX: &str = "workbuddyapp-";
+pub const WORKBUDDY_SESSION_PREFIX: &str = "workbuddyapp-";
 const WORKBUDDY_PROVIDER_SLUG: &str = "workbuddy";
-const WORKBUDDY_METADATA_PARSER_VERSION: i64 = 1;
+// Version 2 imports `subagents/agent-*.jsonl` and links them to their parent session.
+const WORKBUDDY_METADATA_PARSER_VERSION: i64 = 2;
 
 pub type WorkBuddyHistorySessionRow = ImportedHistorySessionRow;
 pub type WorkBuddyHistorySessionPage = ImportedHistorySessionPage;
@@ -51,6 +52,7 @@ struct WorkBuddyHistoryMeta {
     input_tokens: i64,
     output_tokens: i64,
     impact: ImportedHistoryImpactStats,
+    parent_session_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -258,7 +260,7 @@ fn push_workbuddy_session_file(path: &Path, out: &mut Vec<WorkBuddySessionFile>)
     let Some(file_stem) = path.file_stem().and_then(|value| value.to_str()) else {
         return;
     };
-    if file_stem.starts_with("agent-") || file_stem == "recording" {
+    if file_stem == "recording" {
         return;
     }
     out.push(WorkBuddySessionFile {
@@ -384,6 +386,8 @@ fn parse_workbuddy_session_meta(
         input_tokens,
         output_tokens,
         impact,
+        parent_session_id: workbuddy_parent_source_session_id(&record.source_path)
+            .map(|parent_id| format!("{WORKBUDDY_SESSION_PREFIX}{parent_id}")),
     }))
 }
 
@@ -409,7 +413,7 @@ fn session_meta_to_cache_input(meta: WorkBuddyHistoryMeta) -> ImportedHistoryCac
         impact: meta.impact,
         listable: true,
         source_metadata_json: None,
-        parent_session_id: None,
+        parent_session_id: meta.parent_session_id,
     }
 }
 
@@ -1023,12 +1027,52 @@ fn workbuddy_source_session_id(file_stem: &str, path: &Path) -> String {
     if is_uuid_like(file_stem) {
         return file_stem.to_string();
     }
+    if file_stem.starts_with("agent-") {
+        if let Some(session_id) = workbuddy_embedded_session_id(path) {
+            return session_id;
+        }
+    }
     let mut hash = 0xcbf29ce484222325_u64;
     for byte in path.to_string_lossy().as_bytes() {
         hash ^= u64::from(*byte);
         hash = hash.wrapping_mul(0x100000001b3);
     }
     format!("{file_stem}-{hash:016x}")
+}
+
+fn workbuddy_embedded_session_id(path: &Path) -> Option<String> {
+    let file = fs::File::open(path).ok()?;
+    BufReader::new(file)
+        .lines()
+        .take(20)
+        .filter_map(Result::ok)
+        .filter_map(|line| serde_json::from_str::<Value>(&line).ok())
+        .find_map(|value| {
+            value
+                .get("sessionId")
+                .and_then(Value::as_str)
+                .map(str::trim)
+                .filter(|session_id| !session_id.is_empty())
+                .map(str::to_string)
+        })
+}
+
+fn workbuddy_parent_source_session_id(path: &Path) -> Option<String> {
+    let subagents_dir = path.parent()?;
+    if subagents_dir.file_name().and_then(|name| name.to_str())? != "subagents" {
+        return None;
+    }
+    let parent_dir = subagents_dir.parent()?;
+    let parent_id = parent_dir.file_name()?.to_str()?.trim();
+    if parent_id.is_empty() {
+        return None;
+    }
+    let parent_transcript = parent_dir.parent()?.join(format!("{parent_id}.jsonl"));
+    if parent_transcript.is_file() {
+        Some(workbuddy_source_session_id(parent_id, &parent_transcript))
+    } else {
+        Some(parent_id.to_string())
+    }
 }
 
 fn is_uuid_like(value: &str) -> bool {
@@ -1085,4 +1129,53 @@ fn workbuddy_history_root_candidates(home: &Path) -> Vec<PathBuf> {
         .into_iter()
         .filter(|root| seen.insert(root.clone()))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn discovers_agent_transcripts_and_derives_parent_session() {
+        let path = PathBuf::from(
+            "/tmp/project/58c5651c-1111-2222-3333-444444444444/subagents/agent-2b89c425.jsonl",
+        );
+        let mut files = Vec::new();
+
+        push_workbuddy_session_file(&path, &mut files);
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].file_stem, "agent-2b89c425");
+        assert_eq!(
+            workbuddy_parent_source_session_id(&path).as_deref(),
+            Some("58c5651c-1111-2222-3333-444444444444")
+        );
+    }
+
+    #[test]
+    fn top_level_transcript_has_no_derived_parent() {
+        let path = Path::new("/tmp/project/58c5651c-1111-2222-3333-444444444444.jsonl");
+        assert!(workbuddy_parent_source_session_id(path).is_none());
+    }
+
+    #[test]
+    fn agent_source_id_prefers_embedded_session_id() {
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("agent-orgii-{unique}.jsonl"));
+        fs::write(
+            &path,
+            r#"{"sessionId":"child-session-id","type":"message","role":"user"}"#,
+        )
+        .expect("write child transcript");
+
+        assert_eq!(
+            workbuddy_source_session_id("agent-orgii", &path),
+            "child-session-id"
+        );
+
+        fs::remove_file(path).expect("remove child transcript");
+    }
 }

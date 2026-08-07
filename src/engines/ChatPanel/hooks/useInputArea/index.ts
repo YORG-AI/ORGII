@@ -387,6 +387,7 @@ export function useInputArea(
     setShowSlashMenu: state.setShowSlashMenu,
     setSlashQuery: state.setSlashQuery,
     workspacePaths: skillWorkspacePaths,
+    sessionId: activeSessionId,
   });
 
   const imageAttachment = useImageAttachment(dropTargetId);
@@ -696,6 +697,7 @@ export function useInputArea(
     filteredSlashItems: slashCommand.filteredItems,
     slashLoading: slashCommand.slashLoading,
     prefetchSlashItems: slashCommand.prefetchItems,
+    addressCommentsFlyout: slashCommand.addressCommentsFlyout,
 
     // File selection
     handleSelectFile: fileSelection.handleSelectFile,

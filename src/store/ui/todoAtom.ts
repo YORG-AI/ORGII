@@ -20,6 +20,8 @@ import { atom } from "jotai";
 
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 
+import { preserveTodoContent } from "./todoMerge";
+
 // ============================================
 // Types
 // ============================================
@@ -97,7 +99,7 @@ sessionTodoMapAtom.debugLabel = "sessionTodoMapAtom";
 /**
  * TodoState for the currently-active session. The old `todoStateAtom`
  * identifier is retained so internal code that reads "the session in
- * focus" (ChatHistory empty-state heuristic, PlanTodoPinBar, etc.)
+ * focus" (PlanTodoPill, subagent pinned previews, etc.)
  * keeps working unchanged.
  */
 export const todoStateAtom = atom((get) => {
@@ -149,16 +151,17 @@ export const updateTodosForSessionAtom = atom(
 
     const current = get(sessionTodoMapAtom);
     const prev = current.get(sessionId) ?? EMPTY_TODO_STATE;
+    const reconciledNewTodos = preserveTodoContent(prev.todos, newTodos);
 
     let nextTodos: TodoItem[];
     if (merge && prev.todos.length > 0) {
       const todoMap = new Map(prev.todos.map((todo) => [todo.id, todo]));
-      newTodos.forEach((todo) => {
+      reconciledNewTodos.forEach((todo) => {
         todoMap.set(todo.id, todo);
       });
       nextTodos = Array.from(todoMap.values());
     } else {
-      nextTodos = newTodos;
+      nextTodos = reconciledNewTodos;
     }
 
     const nextState: TodoState = {

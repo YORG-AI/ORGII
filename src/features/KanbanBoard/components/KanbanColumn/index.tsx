@@ -11,6 +11,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import cn from "classnames";
 import { Plus } from "lucide-react";
 import React, {
@@ -38,6 +39,22 @@ interface DropIndicatorState {
   columnId: string | null;
   beforeTaskId: string | null;
 }
+
+/**
+ * Columns at or below this length render every card in normal document flow
+ * (the pre-virtualization path). This keeps the common case pixel-identical —
+ * including dnd-kit's live reorder animation — and only pays the virtualization
+ * cost (and its trade-offs) when a column is long enough to actually matter for
+ * DOM size / memory.
+ */
+const STATIC_TASK_RENDER_LIMIT = 40;
+
+/**
+ * Seed height for an unmeasured card. Cards are measured on mount (heights vary
+ * with description, tags, and meta rows), so this only affects the very first
+ * frame and the scrollbar estimate for not-yet-rendered rows.
+ */
+const ESTIMATED_TASK_CARD_HEIGHT = 96;
 
 interface ScrollEdgeState {
   atTop: boolean;
@@ -192,7 +209,7 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <div className="kanban-column__title">
             {/* `column.title` is the source of truth for the header label.
              * It must be an i18n key (optionally namespace-prefixed, e.g.
-             * "sessions:opsControl.boardColumns.todo"). i18next returns the key
+             * "sessions:kanban.boardColumns.todo"). i18next returns the key
              * unchanged when no translation is found, so plain strings still
              * render correctly — but every consumer should pass a key so
              * locale switching works. */}
@@ -233,25 +250,18 @@ const KanbanColumn: React.FC<KanbanColumnProps> = ({
               <Placeholder variant="empty" title={t("placeholders.noTasks")} />
             </div>
           ) : (
-            <>
-              {filteredTasks.map((task) => (
-                <SortableTaskCard
-                  key={task.id}
-                  task={task}
-                  onTaskClick={onTaskClick}
-                  showIndicatorBefore={dropIndicator?.beforeTaskId === task.id}
-                  indicatorColor={column.color}
-                  allowDrag={allowTaskDrag}
-                  scaleDragTransform={scaleDragTransform}
-                  useDragOverlay={useDragOverlay}
-                  isSelected={
-                    selectedTaskId != null && task.id === selectedTaskId
-                  }
-                />
-              ))}
-              {/* End of column indicator (when dropping on empty area) */}
-              {showEndIndicator && <DropIndicatorLine color={column.color} />}
-            </>
+            <ColumnTaskList
+              tasks={filteredTasks}
+              scrollElementRef={bodyRef}
+              onTaskClick={onTaskClick}
+              dropIndicator={dropIndicator}
+              columnColor={column.color}
+              allowTaskDrag={allowTaskDrag}
+              scaleDragTransform={scaleDragTransform}
+              useDragOverlay={useDragOverlay}
+              selectedTaskId={selectedTaskId}
+              showEndIndicator={showEndIndicator}
+            />
           )}
         </SortableContext>
       </div>
@@ -287,6 +297,175 @@ const DropIndicatorLine: React.FC<DropIndicatorLineProps> = ({ color }) => {
 };
 
 // ============================================
+// ColumnTaskList - static / virtualized card list
+// ============================================
+
+interface ColumnTaskListProps {
+  tasks: KanbanTask[];
+  /** The scrollable column body — used as the virtualizer's scroll element. */
+  scrollElementRef: React.MutableRefObject<HTMLDivElement | null>;
+  onTaskClick?: (task: KanbanTask) => void;
+  dropIndicator?: DropIndicatorState | null;
+  columnColor: string;
+  allowTaskDrag: boolean;
+  scaleDragTransform: boolean;
+  useDragOverlay: boolean;
+  selectedTaskId?: string | null;
+  showEndIndicator: boolean;
+}
+
+/**
+ * Renders a column's cards. Short columns take the static flow path (identical
+ * to the pre-virtualization behaviour, including dnd-kit's reorder animation);
+ * long columns switch to a windowed renderer so only on-screen cards mount.
+ *
+ * The full task-id ordering still lives in the parent `<SortableContext>`, so
+ * drag math stays correct even for cards that aren't currently rendered.
+ */
+const ColumnTaskList: React.FC<ColumnTaskListProps> = ({
+  tasks,
+  scrollElementRef,
+  onTaskClick,
+  dropIndicator,
+  columnColor,
+  allowTaskDrag,
+  scaleDragTransform,
+  useDragOverlay,
+  selectedTaskId,
+  showEndIndicator,
+}) => {
+  const renderCard = useCallback(
+    (task: KanbanTask, suppressSortTransform: boolean) => (
+      <SortableTaskCard
+        key={task.id}
+        task={task}
+        onTaskClick={onTaskClick}
+        showIndicatorBefore={dropIndicator?.beforeTaskId === task.id}
+        indicatorColor={columnColor}
+        allowDrag={allowTaskDrag}
+        scaleDragTransform={scaleDragTransform}
+        useDragOverlay={useDragOverlay}
+        isSelected={selectedTaskId != null && task.id === selectedTaskId}
+        suppressSortTransform={suppressSortTransform}
+      />
+    ),
+    [
+      allowTaskDrag,
+      columnColor,
+      dropIndicator?.beforeTaskId,
+      onTaskClick,
+      scaleDragTransform,
+      selectedTaskId,
+      useDragOverlay,
+    ]
+  );
+
+  if (tasks.length <= STATIC_TASK_RENDER_LIMIT) {
+    return (
+      <>
+        {tasks.map((task) => renderCard(task, false))}
+        {showEndIndicator && <DropIndicatorLine color={columnColor} />}
+      </>
+    );
+  }
+
+  return (
+    <VirtualTaskList
+      tasks={tasks}
+      scrollElementRef={scrollElementRef}
+      renderCard={renderCard}
+      columnColor={columnColor}
+      showEndIndicator={showEndIndicator}
+    />
+  );
+};
+
+// ============================================
+// VirtualTaskList - windowed card renderer
+// ============================================
+
+interface VirtualTaskListProps {
+  tasks: KanbanTask[];
+  scrollElementRef: React.MutableRefObject<HTMLDivElement | null>;
+  renderCard: (
+    task: KanbanTask,
+    suppressSortTransform: boolean
+  ) => React.ReactNode;
+  columnColor: string;
+  showEndIndicator: boolean;
+}
+
+const VirtualTaskList: React.FC<VirtualTaskListProps> = ({
+  tasks,
+  scrollElementRef,
+  renderCard,
+  columnColor,
+  showEndIndicator,
+}) => {
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
+  const virtualizer = useVirtualizer({
+    count: tasks.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => ESTIMATED_TASK_CARD_HEIGHT,
+    overscan: 6,
+    getItemKey: (index) => tasks[index]?.id ?? index,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  // Dynamic measurement — card heights vary (description, tags, meta rows), so
+  // each rendered row is measured via TanStack's own `measureElement` ref. It
+  // manages the ResizeObserver internally and unobserves on unmount, so detached
+  // rows don't leak while scrolling. Because an absolutely-positioned row
+  // establishes its own block formatting context, the card's `margin-bottom`
+  // gap is included in the measured height — inter-card spacing is preserved
+  // with no style changes.
+  return (
+    <div
+      className="kanban-column__virtual"
+      style={{ position: "relative", width: "100%", height: totalSize }}
+    >
+      {virtualItems.map((virtualItem) => {
+        const task = tasks[virtualItem.index];
+        if (!task) return null;
+        return (
+          <div
+            key={virtualItem.key}
+            ref={virtualizer.measureElement}
+            data-index={virtualItem.index}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            {/* Sort transform is suppressed in the virtualized path: rows are
+                positioned by the virtualizer, so a second dnd-kit translate
+                would fight it. The drop indicator conveys drop position. */}
+            {renderCard(task, true)}
+          </div>
+        );
+      })}
+      {showEndIndicator && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            transform: `translateY(${totalSize}px)`,
+          }}
+        >
+          <DropIndicatorLine color={columnColor} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ============================================
 // SortableTaskCard - Inner sortable wrapper
 // ============================================
 
@@ -299,6 +478,12 @@ interface SortableTaskCardProps {
   scaleDragTransform?: boolean;
   useDragOverlay?: boolean;
   isSelected?: boolean;
+  /**
+   * When true, the dnd-kit sort transform/transition are dropped. The
+   * virtualized column path sets this because it positions each row itself —
+   * letting the sortable also translate the card would double-offset it.
+   */
+  suppressSortTransform?: boolean;
 }
 
 const SortableTaskCard: React.FC<SortableTaskCardProps> = ({
@@ -310,6 +495,7 @@ const SortableTaskCard: React.FC<SortableTaskCardProps> = ({
   scaleDragTransform = true,
   useDragOverlay = true,
   isSelected = false,
+  suppressSortTransform = false,
 }) => {
   const {
     attributes,
@@ -322,17 +508,20 @@ const SortableTaskCard: React.FC<SortableTaskCardProps> = ({
 
   // Apply UI scale correction when the consumer opts into it.
   const uiScale = scaleDragTransform ? getUiScaleFromCssVar() : 1;
-  const correctedTransform = transform
-    ? {
-        ...transform,
-        x: transform.x / uiScale,
-        y: transform.y / uiScale,
-      }
-    : null;
+  const correctedTransform =
+    transform && !suppressSortTransform
+      ? {
+          ...transform,
+          x: transform.x / uiScale,
+          y: transform.y / uiScale,
+        }
+      : null;
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(correctedTransform),
-    transition: transition || "transform 200ms ease",
+    transition: suppressSortTransform
+      ? undefined
+      : transition || "transform 200ms ease",
     opacity: useDragOverlay && isDragging ? 0 : 1,
     zIndex: isDragging ? 999 : "auto",
   };

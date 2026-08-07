@@ -63,15 +63,24 @@ export function useProjectDataChangedListener(): void {
  * Subscribe to project-data-changed events via the centralized signal.
  * The callback fires after the API cache has been invalidated.
  */
-export function useProjectDataChanged(callback: () => void): void {
+export function useProjectDataChanged(
+  callback: () => void,
+  options?: { fireOnMount?: boolean }
+): void {
   const signal = useAtomValue(projectDataChangedSignalAtom);
   const isFirstRender = useRef(true);
+  const callbackRef = useRef(callback);
+  const fireOnMount = options?.fireOnMount === true;
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      return;
+      if (!fireOnMount) return;
     }
-    callback();
-  }, [signal]); // eslint-disable-line react-hooks/exhaustive-deps
+    callbackRef.current();
+  }, [signal, fireOnMount]);
 }

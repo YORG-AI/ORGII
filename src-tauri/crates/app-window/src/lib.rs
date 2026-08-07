@@ -1,7 +1,7 @@
 //! Native window helpers for Tauri windows.
 //!
 //! Centralised so `app`, `browser`, and other leaf crates can apply
-//! consistent native chrome (macOS traffic-light positioning,
+//! consistent native chrome (macOS traffic-light positioning + liquid glass,
 //! Windows DWM rounded corners) and recreate the main window
 //! from the Tauri menu without each consumer reimplementing the platform
 //! glue. All operations are synchronous against a `tauri::AppHandle` /
@@ -19,6 +19,8 @@ use objc2::msg_send;
 use objc2::runtime::{AnyClass, AnyObject};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSWindowButton;
+#[cfg(target_os = "macos")]
+use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
 
 #[cfg(windows)]
 mod windows_corner;
@@ -136,7 +138,7 @@ unsafe fn set_draws_background_recursive(view: *mut AnyObject, draws: bool) {
 
 /// Default traffic light position for native macOS window chrome.
 pub const TRAFFIC_LIGHT_X: f64 = 20.0;
-pub const TRAFFIC_LIGHT_Y: f64 = 24.0;
+pub const TRAFFIC_LIGHT_Y: f64 = 28.0;
 
 // ============================================
 // macOS Traffic Light Positioning
@@ -232,13 +234,42 @@ const DEFAULT_MIN_HEIGHT: f64 = 300.0;
 /// Host-native window chrome so the OS frame matches frontend corner radii.
 ///
 /// - **Windows 11+:** `DWMWCP_ROUNDSMALL` via DWM (pairs with `--radius-page` in the web layer).
-/// - **macOS:** Vibrancy corner radius is applied separately in [`create_window`] / [`set_window_vibrancy`].
+/// - **macOS:** Applied separately through [`apply_macos_window_material`].
 /// - **Linux / others:** No-op.
 pub fn apply_host_desktop_window_chrome(
     #[cfg_attr(not(windows), allow(unused_variables))] window: &tauri::WebviewWindow,
 ) {
     #[cfg(windows)]
     windows_corner::apply_dwm_rounded_corner_preference(window);
+}
+
+/// Apply the native macOS AbuttedSidebar material underneath the transparent webview.
+/// macOS 26+ uses NSGlassEffectView; older releases fall back to
+/// NSVisualEffectView. AppKit owns the outer window clipping; a subtle native
+/// tint keeps the sidebar legible without covering the desktop color.
+#[cfg(target_os = "macos")]
+pub fn apply_macos_window_material(window: &tauri::WebviewWindow) {
+    let config = LiquidGlassConfig {
+        corner_radius: 0.0,
+        tint_color: Some("#ffffff18".into()),
+        variant: GlassMaterialVariant::AbuttedSidebar,
+        ..Default::default()
+    };
+    if let Err(error) = window.liquid_glass().set_effect(window, config) {
+        tracing::warn!(%error, "Failed to apply macOS liquid-glass material");
+    }
+}
+
+/// Remove the native macOS material on AppKit's main thread.
+#[cfg(target_os = "macos")]
+pub fn clear_macos_window_material(window: &tauri::WebviewWindow) {
+    let config = LiquidGlassConfig {
+        enabled: false,
+        ..Default::default()
+    };
+    if let Err(error) = window.liquid_glass().set_effect(window, config) {
+        tracing::warn!(%error, "Failed to clear macOS liquid-glass material");
+    }
 }
 
 // ============================================
@@ -291,7 +322,7 @@ pub struct CreateWindowOptions {
 
 /// Create a new app window with consistent native styling.
 ///
-/// - **macOS:** Hidden title, overlay title bar, traffic lights, vibrancy (26px material radius).
+/// - **macOS:** Hidden title, overlay title bar, traffic lights, and native vibrancy.
 /// - **Windows 11+:** DWM small rounded corners (see [`apply_host_desktop_window_chrome`]).
 /// - **All platforms:** Decorated, transparent client area where supported.
 pub fn create_window(app: &AppHandle, options: CreateWindowOptions) -> Result<(), String> {
@@ -330,6 +361,7 @@ pub fn create_window(app: &AppHandle, options: CreateWindowOptions) -> Result<()
     #[cfg(target_os = "macos")]
     {
         builder = builder
+            .transparent(true)
             .hidden_title(true)
             .title_bar_style(TitleBarStyle::Overlay)
             .traffic_light_position(Position::Logical(LogicalPosition::new(
@@ -352,7 +384,10 @@ pub fn create_window(app: &AppHandle, options: CreateWindowOptions) -> Result<()
 
     // Manually set traffic light position (Tauri's builder method doesn't always work)
     #[cfg(target_os = "macos")]
-    set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
+    {
+        set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
+        apply_macos_window_material(&window);
+    }
 
     apply_host_desktop_window_chrome(&window);
 
@@ -398,6 +433,7 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     let builder = builder
+        .transparent(true)
         .hidden_title(true)
         .title_bar_style(TitleBarStyle::Overlay)
         .traffic_light_position(Position::Logical(LogicalPosition::new(
@@ -413,6 +449,7 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     {
         set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
         apply_window_background_color(&window);
+        apply_macos_window_material(&window);
     }
 
     apply_host_desktop_window_chrome(&window);
@@ -447,6 +484,7 @@ pub fn create_new_app_window(app: &AppHandle) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     let builder = builder
+        .transparent(true)
         .hidden_title(true)
         .title_bar_style(TitleBarStyle::Overlay)
         .traffic_light_position(Position::Logical(LogicalPosition::new(
@@ -459,7 +497,10 @@ pub fn create_new_app_window(app: &AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to create app window: {}", e))?;
 
     #[cfg(target_os = "macos")]
-    set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
+    {
+        set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
+        apply_macos_window_material(&window);
+    }
 
     apply_host_desktop_window_chrome(&window);
 

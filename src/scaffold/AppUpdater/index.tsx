@@ -1,379 +1,507 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { check } from "@tauri-apps/plugin-updater";
-import { atom, useAtomValue } from "jotai";
-import { LoaderCircle } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
+import { atom, useAtom, useAtomValue } from "jotai";
+import React, { useCallback, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
+import AppMark from "@src/components/AppMark";
 import Button from "@src/components/Button";
+import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
-import i18n from "@src/i18n";
 import Modal from "@src/scaffold/ModalSystem";
+import { autoUpdateEnabledAtom } from "@src/store/platform/autoUpdateAtom";
+import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
-import { isTauriDesktop } from "@src/util/platform/tauri";
+
+import {
+  AppUpdateDownloadNoticeContent,
+  type AppUpdateDownloadProgress,
+  DownloadProgressOrb,
+  EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS,
+  getDownloadProgressTitle,
+} from "./DownloadProgress";
+import {
+  AppUpdaterCoordinator,
+  type AppUpdaterState,
+  createInitialAppUpdaterState,
+} from "./appUpdaterCoordinator";
+import {
+  AppUpdaterScheduler,
+  type AutomaticUpdateReason,
+} from "./appUpdaterScheduler";
+import { checkAppUpdateOnChannel } from "./channelCheck";
 
 const log = createLogger("AppUpdater");
 
-const TEMPORARY_FORCE_APP_UPDATE_UI_FOR_TESTING = false;
+const STARTUP_CHECK_DELAY_MS = 10_000;
+const UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 60_000;
+const FOREGROUND_CHECK_MIN_INTERVAL_MS = 5 * 60_000;
+const FOREGROUND_EVENT_DEBOUNCE_MS = 750;
+const DOWNLOAD_PROGRESS_UPDATE_MIN_INTERVAL_MS = 250;
+const UPDATE_TOAST_DURATION_MS = 5_000;
+const UPDATE_CHECK_TIMEOUT_MS = 30_000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 
-const skippedAppUpdateVersions = new Set<string>();
+const CHECK_TOAST_ID = "app-update-check";
+const INSTALL_TOAST_ID = "app-update-progress";
+const SKIPPED_UPDATE_VERSION_STORAGE_KEY =
+  "orgii:updater:skipped-update-version";
 
-type AppUpdate = NonNullable<Awaited<ReturnType<typeof check>>>;
-type AppUpdateDownloadEvent =
-  | { event: "Started"; data: { contentLength?: number } }
-  | { event: "Progress"; data: { chunkLength: number } }
-  | { event: "Finished" };
-type AppUpdateProgressPhase = "idle" | "downloading" | "installing";
-
-interface AppUpdateProgress {
-  phase: AppUpdateProgressPhase;
-  downloadedBytes: number;
-  totalBytes: number | null;
+export interface CheckForAppUpdatesOptions {
+  notify?: boolean;
+  force?: boolean;
 }
 
-const EMPTY_APP_UPDATE_PROGRESS: AppUpdateProgress = {
-  phase: "idle",
-  downloadedBytes: 0,
-  totalBytes: null,
-};
-
-const availableAppUpdateAtom = atom<AppUpdate | null>(null);
-const appUpdateInstallingAtom = atom(false);
-const appUpdateModalOpenAtom = atom(false);
-const appUpdateCurrentVersionAtom = atom<string | null>(null);
-const appUpdateProgressAtom = atom<AppUpdateProgress>(
-  EMPTY_APP_UPDATE_PROGRESS
+const appUpdaterStateAtom = atom<AppUpdaterState>(
+  createInitialAppUpdaterState()
 );
+const availableAppUpdateAtom = atom((get) => get(appUpdaterStateAtom).update);
+const appUpdateInstallPromptAtom = atom(false);
+const appUpdateDownloadProgressAtom = atom<AppUpdateDownloadProgress>(
+  EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS
+);
+const isAppUpdateInstallingAtom = atom((get) => {
+  const phase = get(appUpdaterStateAtom).phase;
+  return (
+    phase === "downloading" || phase === "installing" || phase === "relaunching"
+  );
+});
 
-function getAppUpdaterStore() {
+function store() {
   return getInstrumentedStore();
 }
 
-export function useAvailableAppUpdate() {
+function setDownloadProgress(progress: AppUpdateDownloadProgress): void {
+  store().set(appUpdateDownloadProgressAtom, progress);
+}
+
+function collapseDownloadProgressNotice(): void {
+  const progress = store().get(appUpdateDownloadProgressAtom);
+  if (!progress.active || progress.collapsed) return;
+  setDownloadProgress({ ...progress, collapsed: true });
+}
+
+function showDownloadProgressNotice(progress: AppUpdateDownloadProgress): void {
+  Message.info({
+    id: INSTALL_TOAST_ID,
+    title: getDownloadProgressTitle(progress),
+    content: <AppUpdateDownloadNoticeContent progress={progress} />,
+    duration: 0,
+    closable: true,
+    persistent: true,
+    onClose: collapseDownloadProgressNotice,
+  });
+}
+
+function beginDownloadProgress(): void {
+  const progress = {
+    ...EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS,
+    active: true,
+  };
+  setDownloadProgress(progress);
+  showDownloadProgressNotice(progress);
+}
+
+function expandDownloadProgressNotice(): void {
+  const progress = store().get(appUpdateDownloadProgressAtom);
+  if (!progress.active) return;
+  const expanded = { ...progress, collapsed: false };
+  setDownloadProgress(expanded);
+  showDownloadProgressNotice(expanded);
+}
+
+function endDownloadProgress(): void {
+  Message.remove(INSTALL_TOAST_ID);
+  setDownloadProgress(EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS);
+}
+
+function getSkippedUpdateVersion(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(SKIPPED_UPDATE_VERSION_STORAGE_KEY);
+}
+
+function setSkippedUpdateVersion(version: string): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(SKIPPED_UPDATE_VERSION_STORAGE_KEY, version);
+}
+
+function clearSkippedUpdateVersion(version: string): void {
+  if (typeof window !== "undefined" && getSkippedUpdateVersion() === version) {
+    window.localStorage.removeItem(SKIPPED_UPDATE_VERSION_STORAGE_KEY);
+  }
+}
+
+function createCoordinator(): AppUpdaterCoordinator {
+  return new AppUpdaterCoordinator({
+    check: () => checkAppUpdateOnChannel(UPDATE_CHECK_TIMEOUT_MS),
+    downloadTimeoutMs: UPDATE_DOWNLOAD_TIMEOUT_MS,
+    getVersion,
+    minCheckIntervalMs: FOREGROUND_CHECK_MIN_INTERVAL_MS,
+    onStateChange: (state) => store().set(appUpdaterStateAtom, state),
+  });
+}
+
+const coordinator = createCoordinator();
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === "string" ? error : "Unknown error";
+}
+
+function getDownloadErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error);
+  if (/timed?\s*out|timeout/i.test(message)) {
+    return "The download timed out. Check your network or proxy, then retry.";
+  }
+  return message;
+}
+
+function notifyCheckSuccess(
+  update: Update | null,
+  currentVersion: string | undefined,
+  notify: boolean
+): void {
+  if (!notify) return;
+
+  if (update) {
+    Message.info({
+      id: CHECK_TOAST_ID,
+      title: "Update available",
+      content: `Version ${update.version} is ready to install.`,
+      duration: UPDATE_TOAST_DURATION_MS,
+    });
+    return;
+  }
+
+  Message.success({
+    id: CHECK_TOAST_ID,
+    content: currentVersion
+      ? `ORGII is up to date (v${currentVersion}).`
+      : "ORGII is up to date.",
+    duration: UPDATE_TOAST_DURATION_MS,
+  });
+}
+
+function notifyCheckFailure(error: unknown, notify: boolean): void {
+  const message = getErrorMessage(error);
+  log.warn("Update check failed", message);
+
+  if (!notify) return;
+  Message.error({
+    id: CHECK_TOAST_ID,
+    title: "Update check failed",
+    content: message,
+    duration: UPDATE_TOAST_DURATION_MS,
+  });
+}
+
+export async function checkForAppUpdates(
+  options: CheckForAppUpdatesOptions = {}
+): Promise<Update | null> {
+  const { notify = false, force = false } = options;
+
+  if (notify) {
+    Message.info({
+      id: CHECK_TOAST_ID,
+      content: "Checking for updates…",
+      duration: 0,
+    });
+  }
+
+  try {
+    const result = await coordinator.checkForUpdate(force);
+    notifyCheckSuccess(result.update, result.currentVersion, notify);
+    return result.update;
+  } catch (error) {
+    // A manual check is an explicit freshness request. Do not keep showing an
+    // update that this check could not confirm. Silent failures keep the last
+    // successful result so transient network loss does not erase UI state.
+    if (notify) coordinator.clearAvailableUpdate();
+    notifyCheckFailure(error, notify);
+    return notify ? null : coordinator.getAvailableUpdate();
+  }
+}
+
+export async function checkForUpdatesManually(): Promise<Update | null> {
+  return checkForAppUpdates({ notify: true, force: true });
+}
+
+function createProgressReporter(): (event: DownloadEvent) => void {
+  let lastReportedAt = 0;
+  let downloaded = 0;
+  let total: number | null = null;
+
+  return (event) => {
+    if (event.event === "Started") {
+      downloaded = 0;
+      total = event.data.contentLength ?? null;
+    } else if (event.event === "Progress") {
+      downloaded += event.data.chunkLength;
+    }
+
+    const now = Date.now();
+    const shouldReport =
+      event.event !== "Progress" ||
+      now - lastReportedAt >= DOWNLOAD_PROGRESS_UPDATE_MIN_INTERVAL_MS;
+    if (!shouldReport) return;
+
+    lastReportedAt = now;
+    const previous = store().get(appUpdateDownloadProgressAtom);
+    const percent =
+      event.event === "Finished"
+        ? 100
+        : total
+          ? Math.min(100, Math.round((downloaded / total) * 100))
+          : null;
+    const progress: AppUpdateDownloadProgress = {
+      active: true,
+      collapsed: previous.collapsed,
+      downloadedBytes: downloaded,
+      totalBytes: total,
+      percent,
+    };
+    setDownloadProgress(progress);
+    if (!progress.collapsed) showDownloadProgressNotice(progress);
+  };
+}
+
+async function relaunchApp(): Promise<void> {
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  await relaunch();
+}
+
+export interface InstallAvailableAppUpdateOptions {
+  confirmed?: boolean;
+  silentDownload?: boolean;
+}
+
+export async function installAvailableAppUpdate(
+  options: InstallAvailableAppUpdateOptions = {}
+): Promise<void> {
+  const { confirmed = false, silentDownload = false } = options;
+  const update =
+    coordinator.getAvailableUpdate() ?? (await checkForUpdatesManually());
+  if (!update) return;
+
+  if (!confirmed) {
+    const progressReporter = silentDownload
+      ? undefined
+      : createProgressReporter();
+    try {
+      clearSkippedUpdateVersion(update.version);
+      if (progressReporter) beginDownloadProgress();
+      await coordinator.downloadAvailableUpdate(progressReporter);
+      if (progressReporter) endDownloadProgress();
+      store().set(appUpdateInstallPromptAtom, true);
+    } catch (error) {
+      if (progressReporter) endDownloadProgress();
+      Message.error({
+        id: INSTALL_TOAST_ID,
+        title: "Update download failed",
+        content: getDownloadErrorMessage(error),
+        duration: 0,
+        cancel: {
+          label: "Retry",
+          onClick: () => void installAvailableAppUpdate({ silentDownload }),
+          closeOnClick: false,
+        },
+      });
+      log.error("Update download failed", error);
+    }
+    return;
+  }
+
+  try {
+    Message.info({
+      id: INSTALL_TOAST_ID,
+      title: "Installing update",
+      content: `Preparing v${update.version}…`,
+      duration: 0,
+    });
+
+    const installed = await coordinator.installAvailableUpdate();
+    if (!installed) return;
+
+    Message.success({
+      id: INSTALL_TOAST_ID,
+      title: "Update installed",
+      content: "Restarting ORGII to finish the update.",
+      duration: 2500,
+    });
+    await relaunchApp();
+  } catch (error) {
+    Message.error({
+      id: INSTALL_TOAST_ID,
+      title: "Update install failed",
+      content: getErrorMessage(error),
+      duration: 6000,
+    });
+    log.error("Update install failed", error);
+  }
+}
+
+async function runAutomaticUpdate(
+  reason: AutomaticUpdateReason
+): Promise<void> {
+  try {
+    const result = await coordinator.checkForUpdate(
+      reason === "startup" || reason === "interval"
+    );
+    if (!result.update) return;
+    if (getSkippedUpdateVersion() === result.update.version) {
+      coordinator.clearAvailableUpdate();
+      return;
+    }
+
+    // Installing can terminate the app on Windows. Every automatic path only
+    // prepares the package and asks the user before installing or relaunching.
+    await installAvailableAppUpdate({ silentDownload: true });
+  } catch (error) {
+    log.warn(`Automatic update (${reason}) failed`, getErrorMessage(error));
+  }
+}
+
+export function useAvailableAppUpdate(): Update | null {
   return useAtomValue(availableAppUpdateAtom);
 }
 
-export function useIsAppUpdateInstalling() {
-  return useAtomValue(appUpdateInstallingAtom);
+export function useIsAppUpdateInstalling(): boolean {
+  return useAtomValue(isAppUpdateInstallingAtom);
 }
 
-function setAvailableAppUpdate(update: AppUpdate | null) {
-  getAppUpdaterStore().set(availableAppUpdateAtom, update);
-}
-
-function setAppUpdateInstalling(installing: boolean) {
-  getAppUpdaterStore().set(appUpdateInstallingAtom, installing);
-}
-
-function setAppUpdateModalOpen(open: boolean) {
-  getAppUpdaterStore().set(appUpdateModalOpenAtom, open);
-}
-
-function setAppUpdateCurrentVersion(version: string | null) {
-  getAppUpdaterStore().set(appUpdateCurrentVersionAtom, version);
-}
-
-function setAppUpdateProgress(progress: AppUpdateProgress) {
-  getAppUpdaterStore().set(appUpdateProgressAtom, progress);
-}
-
-function formatAppUpdateBytes(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getAppUpdateProgressPercent(progress: AppUpdateProgress) {
-  if (!progress.totalBytes) return null;
-  return Math.min(
-    100,
-    Math.max(
-      0,
-      Math.round((progress.downloadedBytes / progress.totalBytes) * 100)
-    )
+export const AppUpdater: React.FC = () => {
+  const { t } = useTranslation(["settings", "common"]);
+  const [autoUpdateEnabled, setAutoUpdateEnabled] = useAtom(
+    autoUpdateEnabledAtom
   );
-}
+  const availableUpdate = useAtomValue(availableAppUpdateAtom);
+  const downloadProgress = useAtomValue(appUpdateDownloadProgressAtom);
+  const [installPromptVisible, setInstallPromptVisible] = useAtom(
+    appUpdateInstallPromptAtom
+  );
+  const settingsLoaded = useAtomValue(settingsLoadedAtom);
+  const startupSchedulingPendingRef = useRef(true);
 
-function getTemporaryTestAppUpdate(): AppUpdate {
-  return {
-    available: true,
-    version: "1.0.2",
-    body: "Temporary update dialog for UI testing.",
-    date: new Date().toISOString(),
-    downloadAndInstall: async (
-      onEvent?: (event: AppUpdateDownloadEvent) => void
-    ) => {
-      const totalBytes = 180 * 1024 * 1024;
-      onEvent?.({ event: "Started", data: { contentLength: totalBytes } });
-      for (let downloadedBytes = 0; downloadedBytes < totalBytes; ) {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 90));
-        const chunkLength = Math.min(
-          12 * 1024 * 1024,
-          totalBytes - downloadedBytes
-        );
-        downloadedBytes += chunkLength;
-        onEvent?.({ event: "Progress", data: { chunkLength } });
-      }
-      onEvent?.({ event: "Finished" });
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
-    },
-  } as AppUpdate;
-}
-
-async function installAppUpdate(update: AppUpdate) {
-  setAppUpdateInstalling(true);
-  setAppUpdateProgress(EMPTY_APP_UPDATE_PROGRESS);
-  let downloadedBytes = 0;
-
-  try {
-    Message.info(
-      i18n.t("common:update.downloadingAndInstalling", {
-        version: update.version,
-      })
-    );
-    await update.downloadAndInstall((event) => {
-      switch (event.event) {
-        case "Started": {
-          downloadedBytes = 0;
-          setAppUpdateProgress({
-            phase: "downloading",
-            downloadedBytes,
-            totalBytes: event.data.contentLength ?? null,
-          });
-          break;
-        }
-        case "Progress": {
-          downloadedBytes += event.data.chunkLength;
-          const previousProgress = getAppUpdaterStore().get(
-            appUpdateProgressAtom
-          );
-          setAppUpdateProgress({
-            phase: "downloading",
-            downloadedBytes,
-            totalBytes: previousProgress.totalBytes,
-          });
-          break;
-        }
-        case "Finished": {
-          const previousProgress = getAppUpdaterStore().get(
-            appUpdateProgressAtom
-          );
-          setAppUpdateProgress({
-            phase: "installing",
-            downloadedBytes: previousProgress.totalBytes ?? downloadedBytes,
-            totalBytes: previousProgress.totalBytes,
-          });
-          break;
-        }
-      }
-    });
-    if (TEMPORARY_FORCE_APP_UPDATE_UI_FOR_TESTING) {
-      Message.info(
-        `Update v${update.version} install flow completed for UI testing.`
-      );
-      setAppUpdateProgress(EMPTY_APP_UPDATE_PROGRESS);
-      return;
-    }
-    await relaunch();
-  } finally {
-    setAppUpdateInstalling(false);
-  }
-}
-
-export async function installAvailableAppUpdate() {
-  if (!isTauriDesktop()) {
-    Message.info("This feature is only available in desktop app");
-    return;
-  }
-
-  const update = getAppUpdaterStore().get(availableAppUpdateAtom);
-  if (!update?.available) {
-    await checkForAppUpdates(true);
-    return;
-  }
-
-  setAppUpdateModalOpen(true);
-}
-
-export async function checkForAppUpdates(onUserClick = false) {
-  const checkingMessageId = onUserClick
-    ? Message.info({
-        content: "Checking for updates…",
-        duration: 0,
-        closable: false,
-        icon: <LoaderCircle size={18} className="animate-spin" />,
-      })
-    : "";
-
-  try {
-    const currentVersion = await getVersion();
-    const update = TEMPORARY_FORCE_APP_UPDATE_UI_FOR_TESTING
-      ? getTemporaryTestAppUpdate()
-      : await check();
-
-    setAppUpdateCurrentVersion(currentVersion);
-
-    if (!update?.available) {
-      setAvailableAppUpdate(null);
-      if (onUserClick) {
-        Message.info(
-          `You are already on the latest version! (v${currentVersion})`
-        );
-      }
-      return;
-    }
-
-    if (!onUserClick && skippedAppUpdateVersions.has(update.version)) return;
-
-    setAvailableAppUpdate(update);
-
-    if (onUserClick) {
-      setAppUpdateModalOpen(true);
-    }
-  } catch (err) {
-    log.error("Update check failed:", err);
-    if (onUserClick) {
-      Message.error(`Update check failed: ${err}`);
-    }
-  } finally {
-    if (checkingMessageId) {
-      Message.remove(checkingMessageId);
-    }
-  }
-}
-
-function AppUpdateModal() {
-  const update = useAtomValue(availableAppUpdateAtom);
-  const currentVersion = useAtomValue(appUpdateCurrentVersionAtom);
-  const open = useAtomValue(appUpdateModalOpenAtom);
-  const installing = useAtomValue(appUpdateInstallingAtom);
-  const progress = useAtomValue(appUpdateProgressAtom);
-  const progressPercent = getAppUpdateProgressPercent(progress);
-  const t = i18n.t.bind(i18n);
-
-  const handleLater = useCallback(() => {
-    setAppUpdateProgress(EMPTY_APP_UPDATE_PROGRESS);
-    setAppUpdateModalOpen(false);
-  }, []);
+  const handleInstallLater = useCallback(() => {
+    setInstallPromptVisible(false);
+  }, [setInstallPromptVisible]);
 
   const handleSkipVersion = useCallback(() => {
-    if (update?.version) {
-      skippedAppUpdateVersions.add(update.version);
-      setAvailableAppUpdate(null);
-    }
-    setAppUpdateProgress(EMPTY_APP_UPDATE_PROGRESS);
-    setAppUpdateModalOpen(false);
-  }, [update]);
+    if (availableUpdate) setSkippedUpdateVersion(availableUpdate.version);
+    coordinator.clearAvailableUpdate();
+    setInstallPromptVisible(false);
+  }, [availableUpdate, setInstallPromptVisible]);
 
-  const handleInstall = useCallback(() => {
-    if (!update?.available) return;
-    void installAppUpdate(update);
-  }, [update]);
+  const handleInstallConfirm = useCallback(async () => {
+    await installAvailableAppUpdate({ confirmed: true });
+    setInstallPromptVisible(false);
+  }, [setInstallPromptVisible]);
+
+  const handleAutoUpdateChange = useCallback(
+    (checked: boolean) => {
+      setAutoUpdateEnabled(checked);
+    },
+    [setAutoUpdateEnabled]
+  );
+
+  useEffect(() => {
+    if (!settingsLoaded) return;
+    const scheduleStartupInstall = startupSchedulingPendingRef.current;
+    startupSchedulingPendingRef.current = false;
+    if (!autoUpdateEnabled) return;
+
+    const scheduler = new AppUpdaterScheduler({
+      startupDelayMs: scheduleStartupInstall ? STARTUP_CHECK_DELAY_MS : null,
+      intervalMs: UPDATE_CHECK_INTERVAL_MS,
+      foregroundDebounceMs: FOREGROUND_EVENT_DEBOUNCE_MS,
+    });
+    scheduler.start((reason) => {
+      void runAutomaticUpdate(reason);
+    });
+    if (!scheduleStartupInstall) void runAutomaticUpdate("foreground");
+    return () => scheduler.stop();
+  }, [autoUpdateEnabled, settingsLoaded]);
 
   return (
-    <Modal
-      visible={open && Boolean(update?.available)}
-      title={t("confirmation.updateTitle")}
-      width={460}
-      closable={false}
-      maskClosable={false}
-      escToExit={!installing}
-      onCancel={handleLater}
-      bodyClassName="p-4"
-      footerTopBorder={false}
-      footer={
-        <div className="flex h-12 items-center gap-2 px-3">
-          <Button
-            variant="tertiary"
-            disabled={installing}
-            onClick={handleSkipVersion}
-          >
-            {t("common:actions.skipThisVersion")}
-          </Button>
-          <div className="flex-1" />
-          <Button
-            variant="tertiary"
-            disabled={installing}
-            onClick={handleLater}
-          >
-            {t("common:actions.later")}
-          </Button>
-          <Button
-            variant="primary"
-            loading={installing}
-            onClick={handleInstall}
-            data-modal-primary-action
-          >
-            {t("actions.update")}
-          </Button>
-        </div>
-      }
-    >
-      <div className="space-y-4 text-[13px] leading-5 text-text-3">
-        <p>
-          {t("confirmation.updateMessage", {
-            version: update?.version ?? "",
-            current: currentVersion ?? "—",
-            body: update?.body || "",
-          })}
-        </p>
-        {installing && (
-          <div className="rounded-lg bg-bg-2/70 py-3">
-            <div className="mb-2 flex items-center justify-between gap-3 text-[12px] text-text-2">
-              <span>
-                {progress.phase === "installing"
-                  ? t("common:update.installing")
-                  : t("common:update.downloading")}
-              </span>
-              <span>
-                {progressPercent === null
-                  ? formatAppUpdateBytes(progress.downloadedBytes)
-                  : t("common:update.progressPercent", {
-                      percent: progressPercent,
-                    })}
-              </span>
-            </div>
-            <div className="bg-bg-4 h-2 overflow-hidden rounded-full">
-              <div
-                className="h-full rounded-full bg-primary-6 transition-[width] duration-200"
-                style={{ width: `${progressPercent ?? 100}%` }}
-              />
-            </div>
-            <div className="mt-2 text-[11px] leading-4 text-text-4">
-              {progress.totalBytes
-                ? t("common:update.downloadedOfTotal", {
-                    downloaded: formatAppUpdateBytes(progress.downloadedBytes),
-                    total: formatAppUpdateBytes(progress.totalBytes),
-                  })
-                : t("common:update.preparingDownload")}
+    <>
+      <Modal
+        visible={installPromptVisible && Boolean(availableUpdate)}
+        title={t("update.installConfirmTitle")}
+        width={620}
+        closable={false}
+        maskClosable={false}
+        escToExit={false}
+        onCancel={handleInstallLater}
+        onClose={handleInstallLater}
+        bodyClassName="px-6 py-5"
+        footerTopBorder={false}
+        footer={
+          <div className="flex items-center justify-between gap-3 px-5 py-4">
+            <Button
+              variant="tertiary"
+              appearance="ghost"
+              size="large"
+              shape="round"
+              onClick={handleSkipVersion}
+            >
+              {t("update.skipVersion")}
+            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="secondary"
+                appearance="solid"
+                size="large"
+                shape="round"
+                onClick={handleInstallLater}
+              >
+                {t("common:actions.later")}
+              </Button>
+              <Button
+                variant="primary"
+                size="large"
+                shape="round"
+                onClick={handleInstallConfirm}
+                data-modal-primary-action
+              >
+                {t("update.installAndRestart")}
+              </Button>
             </div>
           </div>
-        )}
-      </div>
-    </Modal>
+        }
+      >
+        <div className="flex items-center gap-5">
+          <AppMark
+            size={72}
+            className="border border-border-2 bg-bg-2 shadow-sm"
+            glyphClassName="text-text-1"
+          />
+          <p className="min-w-0 flex-1 text-sm leading-6 text-text-2">
+            {t("update.installConfirmDesc", {
+              version: availableUpdate?.version,
+            })}
+          </p>
+        </div>
+        <div className="mt-5 border-t border-border-1 pt-4">
+          <Checkbox
+            checked={autoUpdateEnabled}
+            onChange={handleAutoUpdateChange}
+          >
+            {t("update.autoDownloadUpdates")}
+          </Checkbox>
+        </div>
+      </Modal>
+      <DownloadProgressOrb
+        progress={downloadProgress}
+        onExpand={expandDownloadProgressNotice}
+      />
+    </>
   );
-}
-
-export function AppUpdater() {
-  useEffect(() => {
-    if (!isTauriDesktop()) return;
-
-    checkForAppUpdates(TEMPORARY_FORCE_APP_UPDATE_UI_FOR_TESTING);
-
-    const interval = setInterval(
-      () => checkForAppUpdates(false),
-      60 * 60 * 1000
-    );
-    return () => clearInterval(interval);
-  }, []);
-
-  return <AppUpdateModal />;
-}
-
-export const checkForUpdatesManually = async () => {
-  if (isTauriDesktop()) {
-    await checkForAppUpdates(true);
-  } else {
-    Message.info("This feature is only available in desktop app");
-  }
 };
+
+/** Test-only reset for the module singleton. */
+export function resetAppUpdaterForTests(): void {
+  coordinator.reset();
+  store().set(appUpdateInstallPromptAtom, false);
+  setDownloadProgress(EMPTY_APP_UPDATE_DOWNLOAD_PROGRESS);
+}

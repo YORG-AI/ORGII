@@ -5,7 +5,6 @@ mod tests {
     use crate::agent_sessions::cli::parsers::claude_code::ClaudeCodeParser;
     use crate::agent_sessions::cli::parsers::codex::CodexParser;
     use crate::agent_sessions::cli::parsers::cursor::CursorParser;
-    use crate::agent_sessions::cli::parsers::gemini::GeminiParser;
     use crate::agent_sessions::cli::parsers::CliAgentParser;
 
     // ── Codex Parser Tests ──────────────────────────────────────
@@ -141,74 +140,6 @@ mod tests {
         assert!(exit_chunks.is_empty());
     }
 
-    // ── Gemini Parser Tests ─────────────────────────────────────
-
-    #[test]
-    fn test_gemini_init() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"init","timestamp":"2026-02-11T02:08:13.739Z","session_id":"49b6f2fe-fe70-4887-9184-2b4332989f28","model":"auto"}"#;
-        let chunks = parser.parse_line(line);
-
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].action_type, "session_start");
-        assert_eq!(chunks[0].function, "session_start");
-        assert_eq!(
-            chunks[0].thread_id.as_deref(),
-            Some("49b6f2fe-fe70-4887-9184-2b4332989f28")
-        );
-    }
-
-    #[test]
-    fn test_gemini_user_message_skipped() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"message","timestamp":"2026-02-11T02:08:13.740Z","role":"user","content":"say hello"}"#;
-        let chunks = parser.parse_line(line);
-
-        // User messages should be skipped
-        assert!(chunks.is_empty());
-    }
-
-    #[test]
-    fn test_gemini_assistant_message() {
-        let mut parser = GeminiParser::new("test-session");
-        let line = r#"{"type":"message","role":"assistant","content":"Hello! How can I help?"}"#;
-        let chunks = parser.parse_line(line);
-
-        assert_eq!(chunks.len(), 1);
-        assert_eq!(chunks[0].action_type, "assistant");
-        assert_eq!(chunks[0].function, "message");
-        assert_eq!(chunks[0].result["content"], "Hello! How can I help?");
-    }
-
-    #[test]
-    fn test_gemini_non_json_lines_ignored() {
-        let mut parser = GeminiParser::new("test-session");
-        // These are startup log lines that Gemini outputs before JSON
-        assert!(parser
-            .parse_line("YOLO mode is enabled. All tool calls will be automatically approved.")
-            .is_empty());
-        assert!(parser
-            .parse_line("[STARTUP] StartupProfiler.flush() called with 9 phases")
-            .is_empty());
-    }
-
-    #[test]
-    fn test_gemini_tool_use_and_result_share_stable_id() {
-        let mut parser = GeminiParser::new("test-session");
-        let started = r#"{"type":"tool_use","tool_id":"gem_tool_1","tool_name":"edit_file","parameters":{"path":"/tmp/a.md","old_string":"","new_string":"hi"}}"#;
-        let completed = r#"{"type":"tool_result","tool_id":"gem_tool_1","result":"diff"}"#;
-
-        let start_chunks = parser.parse_line(started);
-        let complete_chunks = parser.parse_line(completed);
-
-        assert_eq!(start_chunks.len(), 1);
-        assert_eq!(complete_chunks.len(), 1);
-        assert_eq!(start_chunks[0].chunk_id, "tool-call-gem_tool_1");
-        assert_eq!(complete_chunks[0].chunk_id, "tool-call-gem_tool_1");
-        assert_eq!(start_chunks[0].result["status"], "running");
-        assert_eq!(complete_chunks[0].result["call_id"], "gem_tool_1");
-    }
-
     // ── Cursor Parser Tests ─────────────────────────────────────
 
     #[test]
@@ -221,6 +152,31 @@ mod tests {
         assert_eq!(chunks[0].action_type, "session_start");
         assert_eq!(chunks[0].args["model"], "claude-sonnet-4");
         assert_eq!(chunks[0].args["cwd"], "/home/user/project");
+    }
+
+    /// The cursor-agent stream-json init event carries `session_id`, which is
+    /// the `~/.cursor/chats/<ws-md5>/<uuid>/store.db` dir uuid (the CLI names
+    /// the store dir with the same id it stamps on every stream event).
+    /// Native-transcript replay and managed-mirror dedup key on the runner
+    /// early-binding this value, so it must surface after the first event.
+    #[test]
+    fn test_cursor_cli_session_id_captured_from_init_event() {
+        let mut parser = CursorParser::new("test-session");
+        assert_eq!(parser.cli_session_id(), None);
+
+        // Real shape (cursor-agent 2026.04): system/init is the first event.
+        let line = r#"{"type":"system","subtype":"init","apiKeySource":"login","cwd":"/tmp/ws","session_id":"05835159-632a-419e-811b-d8e25940940a","model":"Claude 4.5 Sonnet","permissionMode":"default"}"#;
+        let chunks = parser.parse_line(line);
+
+        assert_eq!(
+            parser.cli_session_id().as_deref(),
+            Some("05835159-632a-419e-811b-d8e25940940a")
+        );
+        // The captured id also threads through emitted chunks.
+        assert_eq!(
+            chunks[0].thread_id.as_deref(),
+            Some("05835159-632a-419e-811b-d8e25940940a")
+        );
     }
 
     #[test]

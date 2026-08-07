@@ -23,7 +23,7 @@ pub enum ResponsesStreamOutput {
     },
     ToolCallDone(ToolCallRequest),
     ResponseCompleted(ResponsesResponse),
-    Error(String),
+    Error(super::types::ResponsesError),
     UnknownFrame {
         event_type: String,
         sample: String,
@@ -122,31 +122,21 @@ impl ResponsesStreamNormalizer {
                 }
             }
             ResponseStreamEventKind::Error => {
-                let message = event
-                    .response
-                    .as_ref()
-                    .and_then(|response| response.error.as_ref())
-                    .map(|error| {
-                        let explicit = error
-                            .message
-                            .as_deref()
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty());
-                        if let Some(message) = explicit {
-                            message.to_string()
-                        } else {
-                            let details = serde_json::to_string(&error)
-                                .unwrap_or_else(|_| "unserializable error payload".to_string());
-                            format!("Streaming error (provider payload: {details})")
-                        }
-                    })
-                    .unwrap_or_else(|| {
-                        format!(
-                            "Streaming error (event payload: {})",
-                            bounded_event_sample(&event)
-                        )
+                let error = event
+                    .error
+                    .or_else(|| event.response.and_then(|response| response.error))
+                    .unwrap_or_else(|| super::types::ResponsesError {
+                        message: event.message.or_else(|| {
+                            Some(format!(
+                                "Responses API returned {} without an error message",
+                                event.event_type
+                            ))
+                        }),
+                        code: event.code,
+                        error_type: None,
+                        param: event.param,
                     });
-                outputs.push(ResponsesStreamOutput::Error(message));
+                outputs.push(ResponsesStreamOutput::Error(error));
             }
             ResponseStreamEventKind::Unknown(event_type) => {
                 self.unknown_frame_count += 1;
@@ -294,7 +284,7 @@ impl ResponseStreamEventKind {
             "response.output_item.added" => Self::OutputItemAdded,
             "response.function_call_arguments.done" => Self::FunctionCallArgumentsDone,
             "response.completed" => Self::Completed,
-            "error" => Self::Error,
+            "error" | "response.failed" => Self::Error,
             "response.created"
             | "response.in_progress"
             | "response.output_item.done"
@@ -382,26 +372,6 @@ mod tests {
     }
 
     #[test]
-    fn preserves_structured_stream_error_when_message_is_empty() {
-        let mut normalizer = ResponsesStreamNormalizer::new();
-        let outputs = normalizer.ingest(event(json!({
-            "type": "error",
-            "response": {"output": [], "usage": null, "error": {
-                "message": "", "status": 400, "code": "context_length_exceeded",
-                "type": "invalid_request_error", "body": {"detail": "maximum context length"}
-            }}
-        })));
-        assert!(
-            matches!(outputs.as_slice(), [ResponsesStreamOutput::Error(message)]
-            if message.contains("400")
-                && message.contains("context_length_exceeded")
-                && message.contains("invalid_request_error")
-                && message.contains("maximum context length")
-                && !message.contains("Unknown streaming error"))
-        );
-    }
-
-    #[test]
     fn normalizes_streamed_tool_call_lifecycle() {
         let mut normalizer = ResponsesStreamNormalizer::new();
 
@@ -477,6 +447,120 @@ mod tests {
         assert!(matches!(
             completion.as_slice(),
             [ResponsesStreamOutput::ResponseCompleted(_)]
+        ));
+    }
+
+    #[test]
+    fn normalizes_official_top_level_error_event() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+
+        let outputs = normalizer.ingest(event(json!({
+            "type": "error",
+            "code": "context_length_exceeded",
+            "message": "Your input exceeds the context window.",
+            "param": "input"
+        })));
+
+        assert!(matches!(
+            outputs.as_slice(),
+            [ResponsesStreamOutput::Error(error)]
+                if error.code.as_deref() == Some("context_length_exceeded")
+                    && error.message.as_deref() == Some("Your input exceeds the context window.")
+                    && error.param.as_deref() == Some("input")
+        ));
+    }
+
+    #[test]
+    fn normalizes_compatible_nested_top_level_error_event() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+
+        let outputs = normalizer.ingest(event(json!({
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "code": "context_length_exceeded",
+                "message": "Your input exceeds the context window."
+            }
+        })));
+
+        assert!(matches!(
+            outputs.as_slice(),
+            [ResponsesStreamOutput::Error(error)]
+                if error.code.as_deref() == Some("context_length_exceeded")
+                    && error.error_type.as_deref() == Some("invalid_request_error")
+        ));
+    }
+
+    #[test]
+    fn normalizes_response_failed_error_envelope() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+
+        let outputs = normalizer.ingest(event(json!({
+            "type": "response.failed",
+            "response": {
+                "output": [],
+                "usage": null,
+                "error": {
+                    "type": "server_error",
+                    "code": "internal_error",
+                    "message": "The service encountered an internal error."
+                }
+            }
+        })));
+
+        assert!(matches!(
+            outputs.as_slice(),
+            [ResponsesStreamOutput::Error(error)]
+                if error.message.as_deref() == Some("The service encountered an internal error.")
+                    && error.code.as_deref() == Some("internal_error")
+                    && error.error_type.as_deref() == Some("server_error")
+        ));
+    }
+
+    #[test]
+    fn preserves_error_code_when_message_is_missing() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+
+        let outputs = normalizer.ingest(event(json!({
+            "type": "response.failed",
+            "response": {
+                "output": [],
+                "usage": null,
+                "error": {
+                    "type": "invalid_request_error",
+                    "code": "context_length_exceeded",
+                    "param": "input"
+                }
+            }
+        })));
+
+        assert!(matches!(
+            outputs.as_slice(),
+            [ResponsesStreamOutput::Error(error)]
+                if error.code.as_deref() == Some("context_length_exceeded")
+                    && error.error_type.as_deref() == Some("invalid_request_error")
+                    && error.param.as_deref() == Some("input")
+        ));
+    }
+
+    #[test]
+    fn reports_missing_error_payload_without_claiming_unknown_streaming_failure() {
+        let mut normalizer = ResponsesStreamNormalizer::new();
+
+        let outputs = normalizer.ingest(event(json!({
+            "type": "response.failed",
+            "response": {
+                "output": [],
+                "usage": null,
+                "error": null
+            }
+        })));
+
+        assert!(matches!(
+            outputs.as_slice(),
+            [ResponsesStreamOutput::Error(error)]
+                if error.message.as_deref()
+                    == Some("Responses API returned response.failed without an error message")
         ));
     }
 

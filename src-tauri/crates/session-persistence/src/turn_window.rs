@@ -5,7 +5,7 @@
 
 use std::collections::HashSet;
 
-use rusqlite::{params, params_from_iter, Result as SqliteResult};
+use rusqlite::{params, params_from_iter, Connection, OptionalExtension, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 
 use super::connection::get_connection;
@@ -92,8 +92,7 @@ fn load_events_by_ids(session_id: &str, ids: &[String]) -> SqliteResult<Vec<Cach
     }
 
     let conn = get_connection()?;
-    let placeholders = std::iter::repeat("?")
-        .take(ids.len())
+    let placeholders = std::iter::repeat_n("?", ids.len())
         .collect::<Vec<_>>()
         .join(",");
     let query = format!(
@@ -110,6 +109,60 @@ fn load_events_by_ids(session_id: &str, ids: &[String]) -> SqliteResult<Vec<Cach
         .collect::<SqliteResult<Vec<_>>>()?;
 
     Ok(rows)
+}
+
+const TURN_PREVIEW_ARG_KEY: &str = "turnPreviewOnly";
+
+fn mark_turn_preview(mut event: CachedEvent) -> CachedEvent {
+    let mut args = serde_json::from_str::<serde_json::Value>(&event.args_json)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    if let Some(args_object) = args.as_object_mut() {
+        args_object.insert(
+            TURN_PREVIEW_ARG_KEY.to_string(),
+            serde_json::Value::Bool(true),
+        );
+        event.args_json = serde_json::to_string(&args).unwrap_or_else(|_| "{}".to_string());
+    }
+    event
+}
+
+fn load_final_assistant_event_for_range(
+    conn: &Connection,
+    session_id: &str,
+    start: &str,
+    end: Option<&str>,
+) -> SqliteResult<Option<CachedEvent>> {
+    let message_filter = "
+      AND (
+        event_type = 'assistant'
+        OR function_name IN ('assistant_message', 'agent_message', 'message')
+        OR json_extract(meta_json, '$.uiCanonical') IN ('assistant_message', 'agent_message')
+      )
+      AND COALESCE(json_extract(meta_json, '$.displayVariant'), 'message') = 'message'
+      AND COALESCE(json_extract(meta_json, '$.displayStatus'), 'completed') = 'completed'";
+    let order_and_limit = "
+      ORDER BY created_at DESC, COALESCE(history_sequence, rowid) DESC, id DESC
+      LIMIT 1";
+    let select = "SELECT id, session_id, event_type, function_name, thread_id,
+                         args_json, result_json, content, created_at, meta_json, history_sequence
+                  FROM events
+                  WHERE session_id = ?1 AND created_at >= ?2";
+
+    let event = if let Some(end) = end {
+        let query = format!("{select} AND created_at < ?3 {message_filter} {order_and_limit}");
+        conn.query_row(
+            &query,
+            params![session_id, start, end],
+            cached_event_from_row,
+        )
+        .optional()?
+    } else {
+        let query = format!("{select} {message_filter} {order_and_limit}");
+        conn.query_row(&query, params![session_id, start], cached_event_from_row)
+            .optional()?
+    };
+
+    Ok(event.map(mark_turn_preview))
 }
 
 pub fn load_turn_body_window(
@@ -158,6 +211,16 @@ pub fn load_initial_turn_window(
         .iter()
         .flat_map(|turn| turn.user_event_ids.iter().cloned())
         .collect::<Vec<_>>();
+    let historical_ranges = turns[..recent_start]
+        .iter()
+        .enumerate()
+        .map(|(turn_index, turn)| {
+            let next_started_at = turns
+                .get(turn_index + 1)
+                .map(|next_turn| next_turn.started_at.as_str());
+            (turn.started_at.as_str(), next_started_at)
+        })
+        .collect::<Vec<_>>();
     let recent_ranges = turns[recent_start..]
         .iter()
         .enumerate()
@@ -171,6 +234,13 @@ pub fn load_initial_turn_window(
         .collect::<Vec<_>>();
 
     let mut events = load_events_by_ids(session_id, &header_event_ids)?;
+    let conn = get_connection()?;
+    for (start, end) in historical_ranges {
+        if let Some(preview) = load_final_assistant_event_for_range(&conn, session_id, start, end)?
+        {
+            events.push(preview);
+        }
+    }
     events.extend(load_events_for_turn_ranges(session_id, &recent_ranges)?);
     events.sort_by(|left, right| {
         left.created_at

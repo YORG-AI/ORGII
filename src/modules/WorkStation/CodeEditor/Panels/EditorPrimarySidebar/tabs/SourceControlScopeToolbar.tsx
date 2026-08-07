@@ -1,4 +1,4 @@
-import { ChevronRight, GitBranch, GitFork, Search, Trash2 } from "lucide-react";
+import { ChevronRight, Folder, GitBranch, Search, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,9 +39,9 @@ import {
 export type { SourceControlScope } from "./sourceControlScopePickerHelpers";
 
 const BREADCRUMB_TONE_CLASS = {
-  muted: "text-[11px] text-text-3",
-  primary: "text-[12px] font-medium text-text-1",
-  secondary: "text-[11px] text-text-2",
+  muted: "text-text-3",
+  primary: "font-medium text-text-1",
+  secondary: "text-text-2",
 } as const;
 
 const SCOPE_PICKER_REMOVE_BUTTON = [
@@ -135,7 +135,7 @@ function ScopePickerItem({
   ]
     .filter(Boolean)
     .join("\n");
-  const ScopeIcon = kind === "worktree" ? GitFork : GitBranch;
+  const ScopeIcon = kind === "worktree" ? Folder : GitBranch;
   const hasDiffStats = diffStatsFromSummary(summary) !== null;
 
   return (
@@ -162,6 +162,7 @@ function ScopePickerItem({
           className={SCOPE_PICKER_REMOVE_BUTTON}
           title={removeLabel}
           aria-label={removeLabel}
+          data-dropdown-keyboard-skip="true"
           onClick={(event) => {
             event.stopPropagation();
             onRemove();

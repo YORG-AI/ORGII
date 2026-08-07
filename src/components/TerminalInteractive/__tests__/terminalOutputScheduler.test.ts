@@ -13,6 +13,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { invokeTauri, isTauriReady } from "@src/util/platform/tauri/init";
+
 import {
   ADAPT_GROW_CONSECUTIVE_FRAMES,
   ADAPT_GROW_THRESHOLD_MS,
@@ -28,6 +30,7 @@ import {
   MAX_CHUNK_SIZE,
   MIN_CHUNK_SIZE,
   _testApplyRenderMs,
+  ackBytesWithoutWrite,
   ansiSequenceLength,
   findAnsiSafeSplit,
   flushBacklog,
@@ -35,8 +38,10 @@ import {
   getChunkSize,
   notifyUserInput,
   registerPane,
+  resumePane,
   scheduleWrite,
   setPaneForeground,
+  suspendPane,
   unregisterPane,
 } from "../terminalOutputScheduler";
 
@@ -127,6 +132,11 @@ const SESSION_B = "test-session-b";
 
 beforeEach(() => {
   vi.useFakeTimers();
+
+  // Re-prime the module mocks: restoreAllMocks in afterEach strips their
+  // implementations, and the ACK path checks isTauriReady() before invoking.
+  vi.mocked(isTauriReady).mockReturnValue(true);
+  vi.mocked(invokeTauri).mockResolvedValue(undefined);
 
   // Install MessageChannel polyfill
   global.MessageChannel =
@@ -566,7 +576,7 @@ describe("backlog cap", () => {
     expect(getBacklogBytes(SESSION_A)).toBeLessThanOrEqual(HIDDEN_BACKLOG_CAP);
   });
 
-  it("shows a warning marker in the terminal when data is dropped", () => {
+  it("shows a warning marker in the terminal when data is dropped", async () => {
     const { fn, calls } = makeWrite();
     registerPane(SESSION_A, fn);
     setPaneForeground(SESSION_A, false);
@@ -577,6 +587,10 @@ describe("backlog cap", () => {
     for (let i = 0; i < chunksNeeded; i++) {
       scheduleWrite(SESSION_A, "x".repeat(chunkSize), chunkSize, fn);
     }
+
+    // The marker is queued in-stream at the gap (not written out-of-band),
+    // so it appears once the queue drains.
+    await flushTimers();
 
     const hasWarning = calls.some((c) => c.includes("backlog limit reached"));
     expect(hasWarning).toBe(true);
@@ -944,5 +958,192 @@ describe("multiple panes", () => {
 
     unregisterPane(SESSION_A);
     expect(getBacklogBytes(SESSION_B)).toBe(6);
+  });
+});
+
+// ============================================
+// Ordering invariant (interactive bypass vs queue)
+// ============================================
+
+describe("ordering invariant", () => {
+  it("does not bypass ahead of queued backlog", async () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+
+    // Backlog queued; background timer has not fired yet.
+    scheduleWrite(SESSION_A, "OLD", 3, fn);
+
+    notifyUserInput(SESSION_A);
+    scheduleWrite(SESSION_A, "NEW", 3, fn);
+
+    // Nothing may be written out of band while older output is queued.
+    expect(calls.length).toBe(0);
+
+    await flushTimers();
+    const joined = calls.join("");
+    expect(joined.indexOf("OLD")).toBeGreaterThanOrEqual(0);
+    expect(joined.indexOf("OLD")).toBeLessThan(joined.indexOf("NEW"));
+  });
+
+  it("still bypasses when the queue is empty", () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+
+    notifyUserInput(SESSION_A);
+    scheduleWrite(SESSION_A, "echo", 4, fn);
+
+    expect(calls).toEqual(["echo"]);
+  });
+});
+
+// ============================================
+// ACK accounting (flow-control window integrity)
+// ============================================
+
+describe("ACK accounting", () => {
+  function ackedBytes(sessionId: string): number {
+    return vi
+      .mocked(invokeTauri)
+      .mock.calls.filter(
+        ([cmd, args]) =>
+          cmd === "ack_pty_data" &&
+          (args as { sessionId: string }).sessionId === sessionId
+      )
+      .reduce(
+        (sum, [, args]) => sum + (args as { byteCount: number }).byteCount,
+        0
+      );
+  }
+
+  it("ACKs backlog bytes dropped by the cap even though they are never written", async () => {
+    vi.mocked(invokeTauri).mockClear();
+    const { fn } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+
+    const chunkSize = 64 * 1024;
+    const chunksNeeded = Math.ceil(HIDDEN_BACKLOG_CAP / chunkSize) + 5;
+    for (let i = 0; i < chunksNeeded; i++) {
+      scheduleWrite(SESSION_A, "x".repeat(chunkSize), chunkSize, fn);
+    }
+
+    // Flush the ACK microtask (no drain has run — only drops can ACK here).
+    await Promise.resolve();
+
+    const dropped = chunksNeeded * chunkSize - HIDDEN_BACKLOG_CAP;
+    expect(ackedBytes(SESSION_A)).toBeGreaterThanOrEqual(dropped);
+  });
+
+  it("ACKs consumed and queued bytes when a pane unregisters", () => {
+    vi.mocked(invokeTauri).mockClear();
+    const { fn } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+
+    scheduleWrite(SESSION_A, "abc", 300, fn);
+    unregisterPane(SESSION_A);
+
+    expect(ackedBytes(SESSION_A)).toBeGreaterThanOrEqual(300);
+  });
+
+  it("ACKs bytes that decoded to nothing via ackBytesWithoutWrite", async () => {
+    vi.mocked(invokeTauri).mockClear();
+    const { fn } = makeWrite();
+    registerPane(SESSION_A, fn);
+
+    ackBytesWithoutWrite(SESSION_A, 2);
+    await Promise.resolve();
+
+    expect(ackedBytes(SESSION_A)).toBe(2);
+  });
+});
+
+// ============================================
+// Dangling escape-sequence repair after drops
+// ============================================
+
+describe("dangling escape repair", () => {
+  it("never renders the orphaned tail of a sequence split across a drop", async () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+
+    // First chunk ends mid-CSI (ESC[38;2;26 without a final byte) and its
+    // byteLength hint fills the whole cap; the second chunk overflows the
+    // cap, so the first is dropped, orphaning the sequence tail.
+    scheduleWrite(SESSION_A, "before\x1b[38;2;26", HIDDEN_BACKLOG_CAP, fn);
+    scheduleWrite(SESSION_A, ";26;26mVISIBLE", 14, fn);
+
+    await flushTimers();
+
+    const joined = calls.join("");
+    expect(joined).toContain("VISIBLE");
+    expect(joined).not.toContain(";26;26mVISIBLE");
+    expect(joined).toContain("backlog limit reached");
+  });
+});
+
+// ============================================
+// Suspend / resume (reconnect protocol)
+// ============================================
+
+describe("suspend/resume", () => {
+  it("holds all writes while suspended and drops snapshot-covered chunks on resume", async () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, true);
+    suspendPane(SESSION_A);
+
+    scheduleWrite(SESSION_A, "A", 10, fn, 0);
+    scheduleWrite(SESSION_A, "B", 10, fn, 10);
+    scheduleWrite(SESSION_A, "C", 10, fn, 20);
+
+    await flushTimers();
+    expect(calls.length).toBe(0);
+
+    // Snapshot covered stream offsets [0, 20) — only C may be written.
+    resumePane(SESSION_A, 20);
+    await flushTimers();
+
+    expect(calls.join("")).toBe("C");
+  });
+
+  it("does not bypass while suspended even within the interactive window", () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    suspendPane(SESSION_A);
+
+    notifyUserInput(SESSION_A);
+    scheduleWrite(SESSION_A, "x", 1, fn);
+
+    expect(calls.length).toBe(0);
+  });
+
+  it("flushBacklog is a no-op while suspended", () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, false);
+    suspendPane(SESSION_A);
+
+    scheduleWrite(SESSION_A, "held", 4, fn);
+    expect(flushBacklog(SESSION_A, 1024)).toBe(0);
+    expect(calls.length).toBe(0);
+  });
+
+  it("keeps chunks without a seq on resume with a coverage offset", async () => {
+    const { fn, calls } = makeWrite();
+    registerPane(SESSION_A, fn);
+    setPaneForeground(SESSION_A, true);
+    suspendPane(SESSION_A);
+
+    // Legacy payloads have no seq — they must survive the coverage drop.
+    scheduleWrite(SESSION_A, "legacy", 6, fn);
+
+    resumePane(SESSION_A, 1000);
+    await flushTimers();
+
+    expect(calls.join("")).toBe("legacy");
   });
 });

@@ -34,6 +34,8 @@ export interface CollapsibleSectionProps {
   chevronStrokeWidth?: number;
   /** Override chevron color class */
   chevronClassName?: string;
+  /** Optional data-testid on the header toggle button */
+  titleButtonTestId?: string;
   /**
    * Called whenever the section toggles open/closed. Lets parents react
    * to visibility changes — e.g. start/stop polling expensive data
@@ -56,6 +58,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   chevronSize: chevronSizeProp,
   chevronStrokeWidth: chevronStrokeWidthProp,
   chevronClassName: chevronClassNameProp,
+  titleButtonTestId,
   onOpenChange,
 }) => {
   const { isOpen, toggle: toggleOpen } = useCollapsible({
@@ -98,6 +101,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         <button
           type="button"
           onClick={toggleOpen}
+          data-testid={titleButtonTestId}
           className={`${COLLAPSIBLE_SECTION_TOKENS.titleButton} ${titleButtonClassName}`.trim()}
         >
           {chevronNode}

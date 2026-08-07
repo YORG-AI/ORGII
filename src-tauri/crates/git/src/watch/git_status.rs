@@ -24,6 +24,85 @@ fn spawn_git_with_retry(args: &[&str], cwd: &Path, max_retries: u32) -> Result<O
     run_git_status_with_retry(cwd, args, max_retries)
 }
 
+/// Detect unstaged moves that Git's porcelain status reports as a deleted
+/// tracked file plus an unrelated untracked file. Unlike the status command,
+/// libgit2 can compare untracked content with deleted index entries when
+/// `for_untracked` rename detection is enabled.
+fn detect_unstaged_renames(repo_path: &Path) -> Result<Vec<(String, String)>, String> {
+    let repo = git2::Repository::open(repo_path)
+        .map_err(|e| format!("Failed to open repository for rename detection: {}", e))?;
+
+    let mut diff_options = git2::DiffOptions::new();
+    diff_options
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .show_untracked_content(true);
+
+    let mut diff = repo
+        .diff_index_to_workdir(None, Some(&mut diff_options))
+        .map_err(|e| format!("Failed to diff index against worktree: {}", e))?;
+
+    let mut find_options = git2::DiffFindOptions::new();
+    find_options.renames(true).for_untracked(true);
+    diff.find_similar(Some(&mut find_options))
+        .map_err(|e| format!("Failed to detect unstaged renames: {}", e))?;
+
+    Ok(diff
+        .deltas()
+        .filter(|delta| delta.status() == git2::Delta::Renamed)
+        .filter_map(|delta| {
+            let original_path = delta.old_file().path()?.to_string_lossy().into_owned();
+            let path = delta.new_file().path()?.to_string_lossy().into_owned();
+            Some((original_path, path))
+        })
+        .collect())
+}
+
+fn coalesce_git_status_renames(
+    files: &mut Vec<GitStatusFile>,
+    renames: &[(String, String)],
+) -> u32 {
+    let mut coalesced = 0;
+
+    for (original_path, path) in renames {
+        let deleted_index = files
+            .iter()
+            .position(|file| !file.staged && file.status == "D" && file.path == *original_path);
+        let untracked_index = files
+            .iter()
+            .position(|file| !file.staged && file.status == "?" && file.path == *path);
+
+        if let (Some(deleted_index), Some(untracked_index)) = (deleted_index, untracked_index) {
+            files[untracked_index].status = "R".to_string();
+            files[untracked_index].original_path = Some(original_path.clone());
+            files.remove(deleted_index);
+            coalesced += 1;
+        }
+    }
+
+    coalesced
+}
+
+fn coalesce_working_directory_renames(
+    files: &mut Vec<WorkingDirectoryFile>,
+    renames: &[(String, String)],
+) {
+    for (original_path, path) in renames {
+        let deleted_index = files
+            .iter()
+            .position(|file| !file.staged && file.status == "D" && file.path == *original_path);
+        let untracked_index = files
+            .iter()
+            .position(|file| !file.staged && file.status == "?" && file.path == *path);
+
+        if let (Some(deleted_index), Some(untracked_index)) = (deleted_index, untracked_index) {
+            files[untracked_index].status = "R".to_string();
+            files[untracked_index].original_path = Some(original_path.clone());
+            files.remove(deleted_index);
+        }
+    }
+}
+
 /// Refresh git status for a repository (async wrapper)
 /// Delegates to the sync version via spawn_blocking to reuse the consolidated
 /// single-call implementation with pre_exec FD fix.
@@ -264,6 +343,22 @@ fn run_git_status_sync(repo_path: &Path) -> Result<GitStatus, String> {
         }
     }
 
+    let has_deleted = files.iter().any(|file| !file.staged && file.status == "D");
+    let has_untracked = files.iter().any(|file| !file.staged && file.status == "?");
+    if has_deleted && has_untracked {
+        match detect_unstaged_renames(&canonical_path) {
+            Ok(renames) => {
+                let coalesced = coalesce_git_status_renames(&mut files, &renames);
+                untracked = untracked.saturating_sub(coalesced);
+            }
+            Err(error) => tracing::warn!(
+                repo = %canonical_path.display(),
+                error = %error,
+                "git::status: unstaged rename detection failed; keeping delete/untracked entries"
+            ),
+        }
+    }
+
     // Detect git operation states (merge, rebase, cherry-pick, etc.) - filesystem check, no git call
     let op_states = detect_git_operation_states(repo_path);
 
@@ -480,6 +575,19 @@ pub fn get_detailed_file_status_sync(
         }
     }
 
+    let has_deleted = files.iter().any(|file| !file.staged && file.status == "D");
+    let has_untracked = files.iter().any(|file| !file.staged && file.status == "?");
+    if has_deleted && has_untracked {
+        match detect_unstaged_renames(&canonical_path) {
+            Ok(renames) => coalesce_working_directory_renames(&mut files, &renames),
+            Err(error) => tracing::warn!(
+                repo = %canonical_path.display(),
+                error = %error,
+                "git::status: detailed unstaged rename detection failed; keeping delete/untracked entries"
+            ),
+        }
+    }
+
     Ok(files)
 }
 
@@ -555,4 +663,73 @@ pub fn get_upstream_branch(repo_path: &Path) -> Option<String> {
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{get_detailed_file_status_sync, refresh_git_status_sync};
+    use git2::{Repository, Signature};
+    use std::fs;
+    use std::path::Path;
+
+    struct TempRepo(std::path::PathBuf);
+
+    impl TempRepo {
+        fn new() -> Self {
+            let path = std::env::temp_dir()
+                .join(format!("orgii-unstaged-rename-{}", uuid::Uuid::new_v4()));
+            fs::create_dir_all(&path).expect("create temporary repository directory");
+            Self(path)
+        }
+    }
+
+    impl Drop for TempRepo {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn reports_unstaged_file_move_as_rename() {
+        let temp_repo = TempRepo::new();
+        let repo = Repository::init(&temp_repo.0).expect("initialize repository");
+        let original_path = temp_repo.0.join("old/icon.svg");
+        let relocated_path = temp_repo.0.join("new/icon.svg");
+
+        fs::create_dir_all(original_path.parent().unwrap()).expect("create original directory");
+        fs::write(&original_path, "<svg>same content</svg>\n").expect("write original file");
+
+        let mut index = repo.index().expect("open index");
+        index
+            .add_path(Path::new("old/icon.svg"))
+            .expect("add original file");
+        index.write().expect("write index");
+        let tree_id = index.write_tree().expect("write tree");
+        let tree = repo.find_tree(tree_id).expect("find tree");
+        let signature = Signature::now("ORGII Test", "test@orgii.local").expect("signature");
+        repo.commit(Some("HEAD"), &signature, &signature, "initial", &tree, &[])
+            .expect("create initial commit");
+        drop(tree);
+        drop(repo);
+
+        fs::create_dir_all(relocated_path.parent().unwrap()).expect("create relocated directory");
+        fs::rename(&original_path, &relocated_path).expect("relocate file");
+
+        let status = refresh_git_status_sync(&temp_repo.0).expect("get watcher status");
+        assert_eq!(status.unstaged, 1);
+        assert_eq!(status.untracked, 0);
+        assert_eq!(status.files.len(), 1);
+        assert_eq!(status.files[0].status, "R");
+        assert_eq!(status.files[0].path, "new/icon.svg");
+        assert_eq!(
+            status.files[0].original_path.as_deref(),
+            Some("old/icon.svg")
+        );
+
+        let detailed = get_detailed_file_status_sync(&temp_repo.0).expect("get detailed status");
+        assert_eq!(detailed.len(), 1);
+        assert_eq!(detailed[0].status, "R");
+        assert_eq!(detailed[0].path, "new/icon.svg");
+        assert_eq!(detailed[0].original_path.as_deref(), Some("old/icon.svg"));
+    }
 }

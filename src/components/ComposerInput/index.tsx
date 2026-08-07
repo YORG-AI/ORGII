@@ -472,6 +472,22 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
       };
       const handleBeforeInput = (event: InputEvent) => {
         if (isComposingRef.current) return;
+
+        // WebKit may express Edit → Undo/Redo (including Cmd+Z) solely as a
+        // beforeinput history event. Browser-native history cannot restore
+        // our programmatically inserted, React-backed pills, so route both
+        // forms through the composer's structured snapshot history.
+        if (event.inputType === "historyUndo") {
+          event.preventDefault();
+          undoAndNotify();
+          return;
+        }
+        if (event.inputType === "historyRedo") {
+          event.preventDefault();
+          redoAndNotify();
+          return;
+        }
+
         ops.markHistoryBoundary();
         if (event.inputType.startsWith("deleteContent")) {
           const direction = event.inputType.endsWith("Forward")
@@ -572,6 +588,8 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
       handleCut,
       handleKeyDown,
       handleInput,
+      redoAndNotify,
+      undoAndNotify,
       updateCoveredPillSelection,
     ]);
 
@@ -805,19 +823,18 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
     useLayoutEffect(() => {
       if (!pendingCaretAfterPillRef.current) return;
 
-      const frameId = requestAnimationFrame(() => {
-        const liveHost = hostRef.current;
-        if (!liveHost) return;
-        const insertedPill = liveHost.querySelector<HTMLElement>(
-          "[data-last-inserted-pill]"
-        );
-        if (!insertedPill) return;
-        placeCaretAfterPill(insertedPill);
-        insertedPill.removeAttribute("data-last-inserted-pill");
-        pendingCaretAfterPillRef.current = false;
-      });
+      const liveHost = hostRef.current;
+      if (!liveHost) return;
+      const insertedPill = liveHost.querySelector<HTMLElement>(
+        "[data-last-inserted-pill]"
+      );
+      if (!insertedPill) return;
 
-      return () => cancelAnimationFrame(frameId);
+      // Layout effects run before paint. Keep this correction synchronous so
+      // compact/expanded layout changes cannot expose a one-frame caret jump.
+      placeCaretAfterPill(insertedPill);
+      insertedPill.removeAttribute("data-last-inserted-pill");
+      pendingCaretAfterPillRef.current = false;
     }, [hostRef, pillEntries]);
 
     return (

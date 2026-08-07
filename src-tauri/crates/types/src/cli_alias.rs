@@ -565,6 +565,10 @@ static CLI_ALIAS_MAP: LazyLock<HashMap<&'static str, AliasEntry>> = LazyLock::ne
     m.insert("run_command", AliasEntry::shell("run_command_line"));
     m.insert("Await", AliasEntry::await_output());
     m.insert("await", AliasEntry::await_output());
+    // Codex names its yielded-command continuation tool `wait`. It has the
+    // same chat semantics as await_output, even though its payload uses
+    // cell_id/yield_time_ms instead of handles/block_until_ms.
+    m.insert("wait", AliasEntry::await_output());
     m.insert("awaitToolCall", AliasEntry::await_output());
     m.insert("AwaitToolCall", AliasEntry::await_output());
 
@@ -1119,6 +1123,10 @@ mod tests {
         );
         assert_eq!(
             resolve_cli_alias("awaitToolCall"),
+            Some((tool_names::AWAIT_OUTPUT, tool_names::AWAIT_OUTPUT))
+        );
+        assert_eq!(
+            resolve_cli_alias("wait"),
             Some((tool_names::AWAIT_OUTPUT, tool_names::AWAIT_OUTPUT))
         );
         assert_eq!(

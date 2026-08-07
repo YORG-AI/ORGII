@@ -18,7 +18,7 @@
 import { copyFile, mkdir, readDir } from "@tauri-apps/plugin-fs";
 
 import { createLogger } from "@src/hooks/logger";
-import { EditorTabService } from "@src/services/workStation";
+import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import { fileClipboardAtom } from "@src/store/workstation/codeEditor/file/clipboardAtom";
 import { createFileTab } from "@src/store/workstation/tabs";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";

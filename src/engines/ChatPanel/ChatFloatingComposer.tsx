@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import { ArrowDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,6 +11,7 @@ import {
   toChatRetryKind,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 import type { PendingPlanApproval } from "@src/store/session/planApprovalAtom";
+import { chatStatusBarVisibleAtom } from "@src/store/ui/chatPanelAtom";
 
 import type { ScrollNavState } from "./ChatHistory";
 import InputArea from "./InputArea";
@@ -158,6 +160,9 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     disableStopWhenEmpty = false,
   }) => {
     const { t } = useTranslation("sessions");
+    // When the chat status bar is shown, the composer sits flush against it —
+    // drop the bottom padding and the fade-out glow so they read as one unit.
+    const statusBarVisible = useAtomValue(chatStatusBarVisibleAtom);
     const [fileChangeStats, setFileChangeStatsState] =
       useState<FileChangeVisibleStats>({
         count: 0,
@@ -214,12 +219,16 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     return (
       <div
         ref={composerRef}
-        className="absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pb-2 pt-1"
+        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${
+          statusBarVisible ? "pb-0" : "pb-2"
+        }`}
       >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
-        />
+        {!statusBarVisible && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          />
+        )}
         <div
           className={`relative z-10 flex w-full flex-col gap-1.5 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
         >

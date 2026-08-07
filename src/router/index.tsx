@@ -1,6 +1,10 @@
 import { Outlet, createBrowserRouter } from "react-router-dom";
 
 import { ViewModeSync } from "@src/components/System";
+import { useOrg2CloudOrgs } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
+import { useOrg2CloudRosterReconcile } from "@src/features/Org2Cloud/org2CloudRosterReconcile";
+import { useOrg2CloudRealtime } from "@src/features/Org2Cloud/useOrg2CloudRealtime";
+import { useOrg2CloudSyncEngine } from "@src/features/Org2Cloud/useOrg2CloudSyncEngine";
 import { useDeepLinkHandler } from "@src/hooks/platform/useDeepLinkHandler";
 import AppShell from "@src/modules";
 import ErrorPage from "@src/modules/shared/Error";
@@ -19,6 +23,16 @@ import { AuthGuard, AuthRedirect } from "./guards";
 const RootLayout = () => {
   // Handle deep links (yorgai://) for OAuth callbacks in Tauri production
   useDeepLinkHandler();
+  // Fetch the signed-in user's ORG2 Cloud orgs (clears on sign-out).
+  useOrg2CloudOrgs();
+  // Once per app start, after the first successful roster load: prune
+  // persisted org2-cloud-v1 maps keyed by org ids no longer in the roster.
+  useOrg2CloudRosterReconcile();
+  // Managed-cloud session push (Phase 6): scope-matched local sessions.
+  useOrg2CloudSyncEngine();
+  // Inbound Realtime: roster / projects / work-items / comment-tasks
+  // subscriptions replace 60s polling as the primary inbound trigger.
+  useOrg2CloudRealtime();
 
   return (
     <>

@@ -5,9 +5,32 @@
  * Falls back to a Tauri `clipboard_write_text` command so copies still work
  * after an async RPC call where the browser gesture token has expired.
  */
+const BROWSER_CLIPBOARD_TIMEOUT_MS = 1_000;
+
+async function writeBrowserClipboard(text: string): Promise<void> {
+  const write = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+  if (!write) throw new Error("Browser clipboard API unavailable");
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    await Promise.race([
+      write(text),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("Browser clipboard write timed out")),
+          BROWSER_CLIPBOARD_TIMEOUT_MS
+        );
+      }),
+    ]);
+  } finally {
+    if (timeoutId !== null) clearTimeout(timeoutId);
+  }
+}
+
 export async function copyText(text: string): Promise<void> {
   try {
-    await navigator.clipboard.writeText(text);
+    // Some WKWebView versions leave a denied write pending forever instead
+    // of rejecting it. Bound this tier so the native fallback stays usable.
+    await writeBrowserClipboard(text);
     return;
   } catch {
     // Gesture expired or API unavailable — fall through to Tauri

@@ -25,6 +25,8 @@ export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   onRequestContent?: (file: TFile) => void;
   sectionKeySuffix?: (section: DiffSectionListItem<TFile>) => string | number;
   showBottomBorder?: boolean;
+  /** Show the original path after renamed files in each section header. */
+  showRenamePath?: boolean;
   /** When true, each section renders a flat FileHeader instead of the collapsible chevron button. */
   flat?: boolean;
   /** When true, removes the bottom scroll padding (for contexts that have no bottom panel). */
@@ -48,6 +50,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
   onRequestContent,
   sectionKeySuffix,
   showBottomBorder,
+  showRenamePath = false,
   flat = false,
   hideBottomPadding = false,
 }: DiffSectionListProps<TFile>) {
@@ -127,6 +130,7 @@ function DiffSectionListInner<TFile extends DiffFileSectionData>({
                   : undefined
               }
               showBottomBorder={showBottomBorder}
+              showRenamePath={showRenamePath}
               flat={flat}
               noBottomPadding={hideBottomPadding}
             />

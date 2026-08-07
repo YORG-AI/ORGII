@@ -33,7 +33,8 @@ use super::db as cursor_db;
 
 use super::helpers::{
     bubbles_to_chunks, build_fallback_user_chunk, build_unloaded_turn_placeholder_chunk,
-    cache_row_to_session_row, composer_source_updated_at, is_listable_cursor_session,
+    cache_row_to_session_row, composer_source_updated_at, enforce_monotonic_created_at,
+    is_listable_cursor_session,
 };
 use super::io::{
     load_bubbles_by_id, load_complete_bubble_order, load_composer_for_order, open_cursor_db,
@@ -50,7 +51,7 @@ pub use super::models::CursorIdeTurnSummary;
 #[cfg(test)]
 use super::helpers::{
     assistant_text_bubble_to_chunk, assistant_tool_bubble_to_chunk, cursor_tool_name_to_canonical,
-    normalize_created_at, parse_inner_json, user_bubble_to_chunk,
+    normalize_created_at, parse_inner_json, parse_iso_to_epoch_ms, user_bubble_to_chunk,
 };
 #[cfg(test)]
 use super::io::load_content_blob;
@@ -71,7 +72,7 @@ const CURSOR_BUBBLE_TYPE_USER: i64 = 1;
 /// Frontend-side session id prefix for Cursor IDE history sessions.
 /// Kept here (not in a shared `types` module) because every consumer either
 /// crosses this module's API surface or works with bare composer UUIDs.
-pub const CURSORIDE_SESSION_PREFIX: &str = "cursoride-";
+pub use super::CURSORIDE_SESSION_PREFIX;
 
 /// Strip the `cursoride-` prefix to recover the bare composer UUID Cursor
 /// stores. Returns the input unchanged if no prefix is present (defensive —
@@ -117,22 +118,6 @@ pub struct CursorIdeSessionRow {
     pub repo_name: Option<String>,
     pub branch: Option<String>,
 }
-
-/// Hover-card detail for a single Cursor IDE session.
-///
-/// Fetched on demand when the user hovers a sidebar row — never during list
-/// pagination. Contains the fields that require opening Cursor's `state.vscdb`.
-#[derive(Debug, Clone, Serialize, Default)]
-#[serde(rename_all = "camelCase")]
-pub struct CursorIdeSessionDetail {
-    pub repo_path: Option<String>,
-    pub storage_path: Option<String>,
-    pub repo_name: Option<String>,
-    pub branch: Option<String>,
-    pub touched_files: Vec<String>,
-}
-
-pub use super::helpers::cursor_ide_session_detail;
 
 /// Paginated response for the sidebar's Cursor IDE history loader.
 #[derive(Debug, Clone, Serialize)]
@@ -236,12 +221,9 @@ pub fn load_history_for_session(session_id: &str) -> Result<Vec<ActivityChunk>, 
 
     let bubbles = load_bubbles_by_id(&cursor_conn, composer_id, &order)?;
 
-    Ok(bubbles_to_chunks(
-        &cursor_conn,
-        session_id,
-        &bubbles,
-        &composer_context,
-    ))
+    let mut chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
+    enforce_monotonic_created_at(&mut chunks);
+    Ok(chunks)
 }
 
 pub fn load_full_refresh_for_session(
@@ -307,7 +289,8 @@ pub fn load_full_refresh_for_session(
         }
     };
 
-    let chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
+    let mut chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
+    enforce_monotonic_created_at(&mut chunks);
     Ok(CursorIdeFullRefresh { chunks, turns })
 }
 
@@ -488,6 +471,7 @@ pub fn load_initial_window_for_session(
         .filter(|id| !id.is_empty());
     let has_unloaded_middle = selected_headers.len() < total_bubble_count;
 
+    enforce_monotonic_created_at(&mut chunks);
     Ok(CursorIdeInitialWindow {
         chunks,
         turns: summaries,
@@ -546,7 +530,8 @@ pub fn load_turn_window_for_session(
     let end_index = next_user_index.unwrap_or(order.len());
     let turn_headers = &order[start_index..end_index];
     let bubbles = load_bubbles_by_id(&cursor_conn, composer_id, turn_headers)?;
-    let chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
+    let mut chunks = bubbles_to_chunks(&cursor_conn, session_id, &bubbles, &composer_context);
+    enforce_monotonic_created_at(&mut chunks);
     let next_user_bubble_id = next_user_index
         .and_then(|index| order.get(index))
         .map(|header| header.bubble_id.clone())

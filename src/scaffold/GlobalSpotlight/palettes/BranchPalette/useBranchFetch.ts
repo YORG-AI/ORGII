@@ -206,7 +206,12 @@ export function useBranchFetch(options: UseBranchFetchOptions) {
           include_remote: true,
         });
 
-        if (cancelled || intendedRepoIdRef.current !== fetchRepoId) return;
+        // Only skip the cache write if we've since moved to a different repo.
+        // A torn-down/superseded effect for the *same* repo id should still
+        // populate the repo-keyed cache — otherwise a re-run that early-returns
+        // (because this fetch already marked the repo as loading) would leave
+        // the repo with no data and no scheduled retry.
+        if (intendedRepoIdRef.current !== fetchRepoId) return;
 
         if (response?.branches) {
           const branchList = (response.branches || []).map(
@@ -238,14 +243,19 @@ export function useBranchFetch(options: UseBranchFetchOptions) {
         if (cancelled || intendedRepoIdRef.current !== fetchRepoId) return;
         log.error("[useBranchFetch] Failed to fetch branches:", error);
       } finally {
-        if (!cancelled && intendedRepoIdRef.current === fetchRepoId) {
-          setIsFetching(false);
-          setLoadingRepoIds((prev) => {
-            const next = new Set(prev);
-            next.delete(fetchRepoId);
-            return next;
-          });
-        }
+        // Always release the loading flag for this repo once the request
+        // settles — even when the effect was torn down or superseded. Gating
+        // this on `!cancelled` leaked the repo id into the global
+        // `branchLoadingRepoIdsAtom`, which permanently pinned the palette to
+        // the "loading" state and blocked all future fetches (via the
+        // `loadingRepoIds.has(repoId)` guard in the fetch effect above).
+        setIsFetching(false);
+        setLoadingRepoIds((prev) => {
+          if (!prev.has(fetchRepoId)) return prev;
+          const next = new Set(prev);
+          next.delete(fetchRepoId);
+          return next;
+        });
       }
     }
 

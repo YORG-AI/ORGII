@@ -15,11 +15,6 @@
       "base_url_env": "OPENAI_BASE_URL"
     },
     {
-      "agent_type": "gemini_cli",
-      "api_key_env": "GEMINI_API_KEY",
-      "base_url_env": "GOOGLE_GEMINI_BASE_URL"
-    },
-    {
       "agent_type": "claude_code",
       "api_key_env": "ANTHROPIC_API_KEY",
       "base_url_env": "ANTHROPIC_BASE_URL"

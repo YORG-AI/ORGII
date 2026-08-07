@@ -107,7 +107,7 @@ function buildGroupSummary(
         break;
     }
   }
-  return parts.join(", ");
+  return parts.join(t("tools.exploreSummary.separator"));
 }
 
 // ============================================

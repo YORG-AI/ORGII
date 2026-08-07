@@ -31,10 +31,6 @@
     "closeCanvas": "Tuvali kapat",
     "generatingCanvas": "Tuval oluşturuluyor…",
     "noContent": "İçerik yok",
-    "noIssueSelected": "Seçili sorun yok",
-    "selectIssueHint": "Kenar çubuğundaki Issues panelinden bir sorun seçin.",
-    "noPrSelected": "Seçili Pull request yok",
-    "selectPrHint": "Kenar çubuğundaki Pull request panelinden bir Pull request seçin.",
     "reload": "Yeniden yükle",
     "urlPreviewRequiresTauri": "URL önizlemesi Tauri gerektirir",
     "openInExternalBrowser": "Bunun yerine harici tarayıcıda açın",
@@ -78,6 +74,11 @@
       "other": "Gizli"
     }
   },
+  "secretScan": {
+    "title": "Olası sır algılandı",
+    "message": "Bu mesaj hassas kimlik bilgileri içeriyor gibi görünüyor:\n\n{{items}}\n\nGönderirseniz sır, sohbet kaydında saklanır ve modele gönderilir. Yine de gönderilsin mi?",
+    "sendAnyway": "Yine de gönder"
+  },
   "actions": {
     "save": "Kaydet",
     "cancel": "İptal",
@@ -107,6 +108,7 @@
     "retry": "Tekrar Dene",
     "regenerate": "Yeniden oluştur",
     "refresh": "Yenile",
+    "rescan": "Yeniden tara",
     "reload": "Yeniden yükle",
     "reviewNextFile": "Sonraki dosyayı incele",
     "reviewPreviousFile": "Önceki dosyayı incele",
@@ -206,9 +208,8 @@
     "openWorkspace": "Workspace aç",
     "skipThisVersion": "Bu sürümü atla",
     "later": "Daha sonra",
-    "updateAiBlame": "AI Blame'i güncelle",
     "link": "Bağla",
-    "fetchPr": "Fetch PR"
+    "copyName": "Adı Kopyala"
   },
   "refreshToast": {
     "successName": "{{name}} yenilendi",
@@ -410,7 +411,28 @@
     "nearby": "Yakın",
     "renowned": "Ünlü",
     "dragToReorder": "Mesaj sırasını değiştirmek için sürükleyin",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "Oturum ilişkilendirmesi",
+    "sessionBlameSubagent": "Alt ajan: {{name}}",
+    "sessionBlameMainSession": "Ana oturum",
+    "sessionBlameAction": {
+      "read": "Okuma",
+      "write": "Yazma",
+      "create": "Oluşturma",
+      "delete": "Silme",
+      "rename": "Yeniden adlandırma",
+      "search": "Arama"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "Güven düzeyi bilinmiyor",
+      "session_only": "Yalnızca oturum",
+      "correlated": "İlişkilendirildi",
+      "exact": "Kesin ilişkilendirme"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "Geçmiş oturumlar dizine ekleniyor {{indexed}}/{{total}}",
+      "partial": "Geçmiş dizini eksik ({{failed}} başarısız)",
+      "failed": "Geçmiş oturumlar dizine eklenemedi"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -428,7 +450,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "Dosyalar",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -965,9 +987,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "Önizleme kullanılamıyor",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "Mesajlarda ara...",
@@ -1020,6 +1040,10 @@
     "scanningFiles": "Scanning files...",
     "branchTooltip": "Dal: {{branch}}",
     "branchTooltipSwitching": "Dal: {{branch}} (geçiş yapılıyor…)",
+    "switchWorkspaceTooltip": "Workspace değiştir",
+    "switchWorktreeTooltip": "Worktree değiştir",
+    "switchBranchTooltip": "Dal değiştir",
+    "gitActionsTooltip": "Git eylemleri",
     "switchToSessionRepo": "{{name}} konumuna geç",
     "embeddingProgress": "Embedding: {{count}} chunk işlendi",
     "embeddingProgressWithPercent": "Embedding: {{count}} chunk işlendi ({{percent}}%)",
@@ -1032,6 +1056,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "Harici",
       "tooltip": "Portlar: {{workspace}} workspace, {{external}} harici",
+      "viewPortsTooltip": "Kullanılan portları görüntüle",
       "noWorkspacePorts": "Workspace portu algılanmadı",
       "externalLabel": "harici",
       "unknownProcess": "Bilinmeyen süreç",
@@ -1151,9 +1176,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "Token gerekli",
       "createTokenButton": "Token oluştur",
-      "openGitSettingsButton": "Git ayarlarını aç",
+      "openGitSettingsButton": "Ayarları aç",
       "configureInSettings": "Git’i ayarlarda yapılandır",
-      "configureInSettingsDesc": "Ayarlar → Entegrasyonlar → Git içinde GitHub App erişimi ekleyin, token kaydedin veya yerel kimlik bilgilerini tarayın; ardından bu Git işlemini yeniden deneyin."
+      "configureInSettingsDesc": "Ayarlar → Bağlantılar içinde GitHub App erişimi ekleyin, token kaydedin veya yerel kimlik bilgilerini tarayın; ardından bu Git işlemini yeniden deneyin."
     },
     "actions": {
       "publish": "Publish",
@@ -1360,7 +1385,9 @@
         "delete": "Sil",
         "deleteTemplate": "{branch} sil",
         "createSessionWith": "Oturum Branch'ini değiştir",
-        "createSessionWithTemplate": "Oturum Branch'ini {branch} olarak değiştir"
+        "createSessionWithTemplate": "Oturum Branch'ini {branch} olarak değiştir",
+        "switchWorktree": "Worktree değiştir",
+        "switchWorktreeTemplate": "{worktree} konumuna geç"
       },
       "actions": {
         "createNew": "Yeni branch oluştur",
@@ -1371,7 +1398,8 @@
         "refresh": "Branch yenile",
         "checkoutDetachedSuccess": "Mevcut commit'te detached HEAD durumunda",
         "checkoutDetachedFailed": "detached HEAD checkout başarısız",
-        "removeWorktree": "Worktree kaldır"
+        "removeWorktree": "Worktree kaldır",
+        "newWorktree": "Yeni worktree..."
       },
       "messages": {
         "deletedCount_one": "{{count}} branch silindi",
@@ -1386,7 +1414,9 @@
         "basedOn": "Temel alınan",
         "worktrees": "Worktrees",
         "worktreeInUse": "Kullanımda",
-        "checkedOutInWorktree": "Worktree içinde checkout edilmiş: {{path}}"
+        "checkedOutInWorktree": "Worktree içinde checkout edilmiş: {{path}}",
+        "mainWorktreeSection": "Ana worktree",
+        "linkedWorktrees": "Bağlı worktree'ler"
       },
       "placeholders": {
         "checkout": "branch",
@@ -1495,7 +1525,8 @@
         "workspace": "Ara veya klasör yolu gir",
         "branch": "Dal ara...",
         "source": "Kaynak ara...",
-        "actions": "Eylem ara..."
+        "actions": "Eylem ara...",
+        "worktree": "Worktree ara..."
       },
       "groups": {
         "agentSession": "Agent oturumu",
@@ -1526,6 +1557,11 @@
           "label": "Agent oturumlarını ara",
           "pillLabel": "Oturum ara",
           "placeholder": "Agent oturumlarını ara..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "Workspace değiştir"
@@ -1625,11 +1661,8 @@
     "chatRight": "Sohbet sağda",
     "pageSettings": "Sayfa ayarları",
     "pageLayout": "Sayfa düzeni",
-    "layoutMode": "Düzen modu",
     "inset": "Gömülü",
     "full": "Tam",
-    "compact": "Kompakt",
-    "comfort": "Konfor",
     "theme": "Tema",
     "primaryPanel": "Kenar çubuğu",
     "sidebarPosition": "Kenar çubuğu konumu",
@@ -1686,15 +1719,13 @@
     "disableChatPagination": "Sohbet sayfalandırmasını kapat",
     "useModelPickerSpotlight": "Spotlight model seçiciyi kullan",
     "useModelPickerDropdown": "Açılır model seçiciyi kullan",
-    "useCompactWorkstationLayout": "Kompakt Workstation düzenini kullan",
-    "useComfortWorkstationLayout": "Rahat Workstation düzenini kullan",
     "moveWorkstationSidebarLeft": "Workstation kenar çubuğunu sola taşı",
     "moveWorkstationSidebarRight": "Workstation kenar çubuğunu sağa taşı",
     "enableDockAutoHide": "Workstation Dock'u otomatik gizle",
     "disableDockAutoHide": "Workstation Dock'u görünür tut",
     "openMyStation": "My Station'a git",
     "openAgentStation": "Agent Station'a git",
-    "openOpsControl": "Ops Control'e git",
+    "openKanban": "Kanban'e git",
     "changeLanguage": "Dili değiştir",
     "switchToSystemTheme": "Sistem temasını izle",
     "detectUpdate": "Güncellemeleri denetle",
@@ -1859,15 +1890,6 @@
     "lastActive": "Son aktif: {{date}}",
     "activeNow": "Şu an aktif: {{ides}}",
     "active": "Aktif",
-    "tabs": {
-      "activity": "Etkinlik",
-      "focus": "Odak",
-      "languages": "Diller",
-      "heatmap": "Isı haritası",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI Oturumları",
     "cliPrompt": "İstem",
     "cliMessages": "Mesajlar",
@@ -1949,12 +1971,15 @@
     "removeWorktreeMessage": "Bu, Worktree checkout'ını diskten kaldırır. Branch ve commits korunur.",
     "removeWorktreeSuccess": "Worktree kaldırıldı",
     "removeWorktreeFailed": "Worktree kaldırılamadı",
+    "emptyState": {
+      "viewSourceControl": "Source Control'ü görüntüle",
+      "viewIssues": "Issues'ları görüntüle",
+      "viewGitHistory": "Git geçmişini görüntüle",
+      "viewPullRequests": "Pull Requests'leri görüntüle"
+    },
     "pill": {
       "focus": "Odak",
       "allChanges": "Tüm Değişiklikler"
-    },
-    "sessionFilter": {
-      "allSessions": "Tüm oturumlar"
     }
   },
   "contextInfo": {

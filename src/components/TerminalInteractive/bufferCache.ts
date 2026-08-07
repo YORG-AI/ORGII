@@ -9,7 +9,7 @@
 import {
   type PersistedBuffer,
   persistTerminalBuffer,
-} from "@src/services/terminal";
+} from "@src/services/terminal/bufferPersistence";
 
 /** Maximum number of terminal buffers to cache (prevents memory leaks) */
 const MAX_CACHE_SIZE = 10;

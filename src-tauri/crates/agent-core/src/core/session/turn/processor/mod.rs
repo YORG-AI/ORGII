@@ -644,7 +644,11 @@ impl UnifiedMessageProcessor {
         let should_save_user_msg = !(context.is_resume && content.is_empty());
         if should_save_user_msg {
             let message_id = tokio::task::block_in_place(|| {
-                unified_persistence::save_user_msg(session_id, content, context.images.as_deref())
+                unified_persistence::save_user_msg_and_assign_journey(
+                    session_id,
+                    content,
+                    context.images.as_deref(),
+                )
             })
             .map_err(|err| format!("Failed to save user message: {}", err))?;
 
@@ -667,9 +671,10 @@ impl UnifiedMessageProcessor {
         // 2. Load history once, after the user message is persisted. The provider request
         // must see the same DB snapshot; load failures must fail the turn instead of
         // silently becoming an empty transcript.
-        let history =
-            tokio::task::block_in_place(|| unified_persistence::load_llm_history(session_id))
-                .map_err(|err| format!("Failed to load LLM history: {}", err))?;
+        let history = tokio::task::block_in_place(|| {
+            unified_persistence::load_llm_history_for_active_journey(session_id)
+        })
+        .map_err(|err| format!("Failed to load LLM history: {}", err))?;
 
         // 2b. Skill + memory relevance prefetch.
         //
@@ -868,6 +873,30 @@ impl UnifiedMessageProcessor {
             return Ok(redirect);
         }
 
+        // Optional MiniCPM sidecar overlay. The canonical transcript and the
+        // existing automatic/manual compaction state remain untouched: this
+        // replaces a validated old prefix only in the provider request view.
+        // Apply it after the normal compaction pipeline so that pipeline keeps
+        // its original trigger, persistence, and compact-fork semantics.
+        match tokio::task::block_in_place(|| {
+            crate::session::housekeeper_compaction::apply_overlay(
+                session_id,
+                &mut messages,
+            )
+        }) {
+            Ok(crate::session::housekeeper_compaction::OverlayOutcome::Applied {
+                covered_messages,
+            }) => info!(
+                "[unified_processor] Applied MiniCPM context overlay for session {} ({} canonical messages covered)",
+                session_id, covered_messages
+            ),
+            Ok(_) => {}
+            Err(err) => warn!(
+                "[unified_processor] MiniCPM context overlay skipped for session {}: {}",
+                session_id, err
+            ),
+        }
+
         if super::super::recovery::ensure_tool_result_pairing(&mut messages) {
             info!(
                 "[unified_processor] Normalized tool_result pairing before provider request for session {}",
@@ -963,6 +992,17 @@ impl UnifiedMessageProcessor {
         } else {
             DialogTurnState::Completed
         };
+
+        if final_turn_state == DialogTurnState::Completed {
+            if let Err(error) = tokio::task::block_in_place(|| {
+                unified_persistence::save_completed_turn_and_assign_journey(session_id, &turn_id)
+            }) {
+                warn!(
+                    "[unified_processor] Failed to persist Journey turn membership for {}: {}",
+                    session_id, error
+                );
+            }
+        }
 
         info!(
             "[unified_processor] Turn {}: session={}, state={:?}, tokens={}, tool_calls={}",

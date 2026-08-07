@@ -16,12 +16,10 @@ import {
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
-  createQueryTab,
   createSearchTab,
   createSettingsTab,
   createSourceControlTab,
   createSubagentDetailTab,
-  createTableTab,
   createTerminalTab,
   fileTabFactory,
   settingsTabFactory,
@@ -227,9 +225,10 @@ describe("Code Editor Factories", () => {
 
       expect(tab.id).toBe("source-control:changes");
       expect(tab.type).toBe("source-control");
-      expect(tab.title).toBe("Source Control");
-      expect(tab.closable).toBe(false);
-      expect(tab.pinned).toBe(true);
+      expect(tab.title).toBe("Review");
+      // Unified surface: Source Control is a regular closable, unpinned tab.
+      expect(tab.closable).toBe(true);
+      expect(tab.pinned).toBe(false);
       expect(tab.data.mode).toBe("focus");
       expect(tab.data.staged).toBe(false);
       expect(tab.data.fileCount).toBe(5);
@@ -244,7 +243,7 @@ describe("Code Editor Factories", () => {
       });
 
       expect(tab.id).toBe("source-control:staged-changes");
-      expect(tab.title).toBe("Source Control");
+      expect(tab.title).toBe("Review");
       expect(tab.data.mode).toBe("all-changes");
       expect(tab.data.staged).toBe(true);
       expect(tab.data.focusPath).toBe("/repo/src/foo.ts");
@@ -289,34 +288,6 @@ describe("Code Editor Factories", () => {
 
       expect(tab.data.repoPath).toBe("/repo");
       expect(tab.data.initialQuery).toBe("test");
-    });
-  });
-});
-
-describe("Database Factories", () => {
-  describe("createTableTab", () => {
-    it("creates table tab", () => {
-      const tab = createTableTab("conn-1", "users", "Production DB");
-
-      expect(tab.id).toBe("table:conn-1:users");
-      expect(tab.type).toBe("table");
-      expect(tab.title).toBe("users");
-      expect(tab.data.connectionName).toBe("Production DB");
-    });
-  });
-
-  describe("createQueryTab", () => {
-    it("creates unique query tabs", () => {
-      const tab1 = createQueryTab("conn-1");
-      const tab2 = createQueryTab("conn-1");
-
-      expect(tab1.id).not.toBe(tab2.id);
-      expect(tab1.type).toBe("query");
-    });
-
-    it("includes connection name in title", () => {
-      const tab = createQueryTab("conn-1", "My DB");
-      expect(tab.title).toBe("Query - My DB");
     });
   });
 });

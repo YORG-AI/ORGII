@@ -1,7 +1,7 @@
 /**
  * Host-desktop window and page corner radii.
  *
- * macOS values match NSWindow glass rounding (see src-tauri glass config corner_radius 26.0).
+ * macOS uses the standard desktop window curve; native vibrancy is clipped by AppKit.
  * Windows uses smaller radii to align with DWM / Win11 window chrome.
  *
  * Keep magic numbers in sync with the preflight script in public/index.html.
@@ -20,7 +20,7 @@ const CHROME_RADIUS_PX: Record<
   HostDesktop,
   { windowPx: number; pagePx: number }
 > = {
-  [HOST_DESKTOP.MACOS]: { windowPx: 26, pagePx: 20 },
+  [HOST_DESKTOP.MACOS]: { windowPx: 10, pagePx: 20 },
   [HOST_DESKTOP.WINDOWS]: { windowPx: 8, pagePx: 8 },
   [HOST_DESKTOP.LINUX]: { windowPx: 12, pagePx: 12 },
 };

@@ -53,18 +53,28 @@ export interface BrowserPrimarySidebarProps {
   onNewPrivateSession?: () => void;
   /** Callback to close a session */
   onCloseSession: (sessionId: string) => void;
-  /** Callback to open a browsing history entry */
-  onOpenHistoryUrl: (url: string) => void;
+  /** Callback to open a browsing history entry (full variant only) */
+  onOpenHistoryUrl?: (url: string) => void;
   /** Hide per-section new-tab actions when creation is owned by outer chrome. */
   hideNewSessionActions?: boolean;
 
-  /** Open Color Tokens consolidated tab */
+  /** Open Color Tokens consolidated tab (full variant only) */
   onOpenColorTokens?: () => void;
+
+  /**
+   * Sessions-only variant: render just the Sessions tab (no History /
+   * Design pills) and hide the pill-tab header row. The My Station browser
+   * manages its webpages through the top tab bar, so it only needs the
+   * session list here.
+   */
+  sessionsOnly?: boolean;
 }
 
 // ============================================
 // Component
 // ============================================
+
+const noop = () => {};
 
 export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
   ({
@@ -78,6 +88,7 @@ export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
     onOpenHistoryUrl,
     hideNewSessionActions = false,
     onOpenColorTokens,
+    sessionsOnly = false,
   }) => {
     const { t } = useTranslation();
 
@@ -218,50 +229,56 @@ export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
       [showFilterTokens, handleToggleFilterTokens, handleRefreshTokens]
     );
 
-    // Build tabs configuration
-    const tabs: PrimarySidebarTab[] = useMemo(
-      () => [
-        {
-          key: "sessions",
-          label: t("tabs.sessions"),
-          icon: <Globe size={16} strokeWidth={1.75} />,
-          sections: [
-            {
-              key: "regular-browsing",
-              title: t("labels.regularBrowsing"),
-              content: (
-                <SessionsTab
-                  sessions={regularSessions}
-                  activeSessionId={activeSessionId}
-                  onSelectSession={onSelectSession}
-                  onCloseSession={onCloseSession}
-                  showFilter={showFilterRegularSessions}
-                />
-              ),
-              defaultFlexGrow: 1,
-              resizable: true,
-              actions: regularActions,
-            },
-            {
-              key: "private-browsing",
-              title: t("labels.privateBrowsing"),
-              icon: <Globe size={14} strokeWidth={1.75} />,
-              content: (
-                <SessionsTab
-                  sessions={privateSessions}
-                  activeSessionId={activeSessionId}
-                  onSelectSession={onSelectSession}
-                  onCloseSession={onCloseSession}
-                  showFilter={showFilterPrivateSessions}
-                />
-              ),
-              defaultFlexGrow: 1,
-              defaultCollapsed: true,
-              resizable: true,
-              actions: privateActions,
-            },
-          ],
-        },
+    // Build tabs configuration. `sessionsOnly` (My Station) shows just the
+    // session list — no History / Design pills and no pill header. The full
+    // variant (SessionReplay's My Tabs sidebar) keeps all three tabs.
+    const tabs: PrimarySidebarTab[] = useMemo(() => {
+      const sessionsTab: PrimarySidebarTab = {
+        key: "sessions",
+        label: t("tabs.sessions"),
+        icon: <Globe size={16} strokeWidth={1.75} />,
+        sections: [
+          {
+            key: "regular-browsing",
+            title: t("labels.regularBrowsing"),
+            content: (
+              <SessionsTab
+                sessions={regularSessions}
+                activeSessionId={activeSessionId}
+                onSelectSession={onSelectSession}
+                onCloseSession={onCloseSession}
+                showFilter={showFilterRegularSessions}
+              />
+            ),
+            defaultFlexGrow: 1,
+            resizable: true,
+            actions: regularActions,
+          },
+          {
+            key: "private-browsing",
+            title: t("labels.privateBrowsing"),
+            icon: <Globe size={14} strokeWidth={1.75} />,
+            content: (
+              <SessionsTab
+                sessions={privateSessions}
+                activeSessionId={activeSessionId}
+                onSelectSession={onSelectSession}
+                onCloseSession={onCloseSession}
+                showFilter={showFilterPrivateSessions}
+              />
+            ),
+            defaultFlexGrow: 1,
+            defaultCollapsed: true,
+            resizable: true,
+            actions: privateActions,
+          },
+        ],
+      };
+
+      if (sessionsOnly) return [sessionsTab];
+
+      return [
+        sessionsTab,
         {
           key: "history",
           label: t("tabs.history"),
@@ -274,7 +291,7 @@ export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
               content: (
                 <HistoryTab
                   sessions={sessions}
-                  onOpenHistoryUrl={onOpenHistoryUrl}
+                  onOpenHistoryUrl={onOpenHistoryUrl ?? noop}
                 />
               ),
               defaultFlexGrow: 1,
@@ -306,27 +323,27 @@ export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
             },
           ],
         },
-      ],
-      [
-        t,
-        repoPath,
-        regularSessions,
-        privateSessions,
-        activeSessionId,
-        onSelectSession,
-        onCloseSession,
-        regularActions,
-        privateActions,
-        sessions,
-        onOpenHistoryUrl,
-        showFilterTokens,
-        showFilterRegularSessions,
-        showFilterPrivateSessions,
-        onOpenColorTokens,
-        handleRegisterRefreshTokens,
-        globalTokensActions,
-      ]
-    );
+      ];
+    }, [
+      t,
+      repoPath,
+      regularSessions,
+      privateSessions,
+      activeSessionId,
+      onSelectSession,
+      onCloseSession,
+      regularActions,
+      privateActions,
+      sessions,
+      onOpenHistoryUrl,
+      showFilterTokens,
+      showFilterRegularSessions,
+      showFilterPrivateSessions,
+      onOpenColorTokens,
+      handleRegisterRefreshTokens,
+      globalTokensActions,
+      sessionsOnly,
+    ]);
 
     return (
       <PrimarySidebarLayout
@@ -334,6 +351,7 @@ export const BrowserPrimarySidebar: React.FC<BrowserPrimarySidebarProps> = memo(
         activeTab={activeTab}
         onTabChange={handleTabChange}
         tabIconOnly={true}
+        hideTabs={sessionsOnly}
       />
     );
   }

@@ -50,7 +50,9 @@ const SectionContainer: React.FC<SectionContainerProps> = memo(
     bare = false,
     padding = "none",
   }) => {
-    const surfaceClass = bare ? "" : SECTION_CONTAINER_COLOR_CLASSES[color];
+    const surfaceClass = bare
+      ? ""
+      : `${SECTION_CONTAINER_COLOR_CLASSES[color]} border border-border-1`;
     const paddingClass = bare ? "" : SECTION_PADDING[padding];
     const card = (
       <div

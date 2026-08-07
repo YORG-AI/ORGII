@@ -7,6 +7,7 @@ import { derivedSnapshotAtom } from "@src/engines/SessionCore/core/atoms/events"
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
+import { openKanbanChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
   isPendingCancelAtom,
   lastUserMessageAtom,
@@ -126,6 +127,8 @@ export function createSessionSeederHelpers(store: E2EStore) {
     name?: string;
     repoPath?: string;
     status?: string;
+    orgId?: string;
+    touchedFiles?: string[];
   }): Promise<Result<{ sessionId: string }>> => {
     try {
       if (!input.sessionId) {
@@ -147,11 +150,26 @@ export function createSessionSeederHelpers(store: E2EStore) {
         name: input.name ?? existing?.name ?? input.sessionId,
         user_input: input.name ?? existing?.user_input ?? input.sessionId,
         repoPath: input.repoPath ?? existing?.repoPath,
+        orgId: input.orgId ?? existing?.orgId,
+        touchedFiles: input.touchedFiles ?? existing?.touchedFiles,
+        filesChanged:
+          input.touchedFiles?.length ?? existing?.filesChanged ?? undefined,
         category: existing?.category ?? "rust_agent",
         is_active: true,
       };
       upsertSession(session);
       return { ok: true, sessionId: input.sessionId };
+    } catch (err) {
+      return asError(err);
+    }
+  };
+
+  const openWorkManagementTab = async (): Promise<
+    Result<{ tabId: string }>
+  > => {
+    try {
+      const tabId = store.set(openKanbanChatPanelTabAtom, {});
+      return { ok: true, tabId };
     } catch (err) {
       return asError(err);
     }
@@ -428,7 +446,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
   /**
    * Wire-path seed for the Diff app's Submissions tab. Calls the debug-only
    * Tauri command `debug_seed_commit_link`, which writes a real orgtrack
-   * `CommitLinkRecord` (the same shape `analysis_backfill` produces from a
+   * `CommitLinkRecord` (the same shape a live provider run derives from a
    * `git push` shell event). `orgtrack_get_session_commit_links` then returns
    * it and `SessionReplay` renders the commit in the Submissions tab exactly
    * like a live push. No store writes happen here.
@@ -632,6 +650,7 @@ export function createSessionSeederHelpers(store: E2EStore) {
   return {
     seedChatEvents,
     seedSidebarSession,
+    openWorkManagementTab,
     seedModeSwitchSession,
     seedPlanCard,
     seedShellProcess,

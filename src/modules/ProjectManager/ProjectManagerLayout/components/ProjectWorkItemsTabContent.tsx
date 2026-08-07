@@ -59,13 +59,7 @@ interface ProjectWorkItemsTabContentProps {
   onOpenLinearProject?: (selection: LinearProjectSelection) => void;
   orgId?: string;
   allowExternalSources?: boolean;
-  onOpenWorkItem: (
-    projectId: string | undefined,
-    projectName: string | undefined,
-    projectSlug: string | undefined,
-    workItemId: string,
-    workItemName: string
-  ) => void;
+  onOpenWorkItem: (selection: ProjectWorkItemSelection) => void;
   /** Org hub surface pills shown after the breadcrumb (Overview / Projects / …). */
   orgSurfaceControls?: React.ReactNode;
 }
@@ -81,6 +75,19 @@ interface AggregatedWorkItemProject {
 interface AggregatedWorkItem {
   project?: AggregatedWorkItemProject;
   item: WorkspaceWorkItem;
+  shortId: string;
+  orgId: string;
+  orgName?: string;
+}
+
+export interface ProjectWorkItemSelection {
+  workItem: WorkspaceWorkItem;
+  shortId: string;
+  orgId: string;
+  orgName?: string;
+  projectId?: string;
+  projectName?: string;
+  projectSlug?: string;
 }
 
 type WorkspaceSourceMode = "local_only" | "include_external";
@@ -107,7 +114,13 @@ export const ProjectWorkItemsTabContent: React.FC<
     AggregatedWorkItem[]
   >([]);
   const [projectOptions, setProjectOptions] = useState<
-    Array<{ id: string; name: string; slug: string }>
+    Array<{
+      id: string;
+      name: string;
+      slug: string;
+      orgId: string;
+      orgName?: string;
+    }>
   >([]);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -141,7 +154,11 @@ export const ProjectWorkItemsTabContent: React.FC<
       setLoading(true);
       setError(null);
       try {
-        const projects = await projectApi.readProjects({ orgId });
+        const [projects, orgs] = await Promise.all([
+          projectApi.readProjects({ orgId }),
+          projectApi.readOrgs(),
+        ]);
+        const orgNameById = new Map(orgs.map((org) => [org.id, org.name]));
         const [localEntryGroups, standaloneWorkItems, linearWorkItems] =
           await Promise.all([
             Promise.all(
@@ -152,6 +169,9 @@ export const ProjectWorkItemsTabContent: React.FC<
                 );
                 return projectWorkItems.map((workItem) => ({
                   project,
+                  shortId: workItem.shortId,
+                  orgId: project.meta.org_id,
+                  orgName: orgNameById.get(project.meta.org_id),
                   item: {
                     ...enrichedWorkItemToUI(workItem),
                     project: {
@@ -171,9 +191,15 @@ export const ProjectWorkItemsTabContent: React.FC<
             id: project.meta.id,
             name: project.meta.name,
             slug: project.slug,
+            orgId: project.meta.org_id,
+            orgName: orgNameById.get(project.meta.org_id),
           }))
         );
+        const standaloneOrgId = orgId ?? "personal-org";
         const standaloneEntries = standaloneWorkItems.map((workItem) => ({
+          shortId: workItem.frontmatter.short_id ?? workItem.frontmatter.id,
+          orgId: standaloneOrgId,
+          orgName: orgNameById.get(standaloneOrgId),
           item: workItemDataToUI(workItem, {
             labelMap: new Map(),
             memberMap: new Map(),
@@ -188,6 +214,8 @@ export const ProjectWorkItemsTabContent: React.FC<
             },
             slug: workItem.workspaceSource?.projectId ?? "linear",
           },
+          shortId: workItem.session_id,
+          orgId: "",
           item: workItem,
         }));
         setWorkItemsByProject([
@@ -332,15 +360,17 @@ export const ProjectWorkItemsTabContent: React.FC<
         });
         return;
       }
-      onOpenWorkItem(
-        workItem.project?.meta.id,
-        workItem.project?.meta.name,
-        workItem.project?.slug,
-        workItem.item.session_id,
-        workItem.item.name || t("workItems.untitledWorkItem")
-      );
+      onOpenWorkItem({
+        workItem: workItem.item,
+        shortId: workItem.shortId,
+        orgId: workItem.orgId,
+        orgName: workItem.orgName,
+        projectId: workItem.project?.meta.id,
+        projectName: workItem.project?.meta.name,
+        projectSlug: workItem.project?.slug,
+      });
     },
-    [workItemById, onOpenLinearProject, onOpenWorkItem, t]
+    [workItemById, onOpenLinearProject, onOpenWorkItem]
   );
 
   const handleUpdateWorkItem = useCallback(
@@ -364,6 +394,7 @@ export const ProjectWorkItemsTabContent: React.FC<
           currentEntries.map((currentEntry) =>
             currentEntry.item.session_id === workItemId
               ? {
+                  ...currentEntry,
                   project: {
                     meta: {
                       id: targetProject.id,
@@ -371,6 +402,8 @@ export const ProjectWorkItemsTabContent: React.FC<
                     },
                     slug: targetProject.slug,
                   },
+                  orgId: targetProject.orgId,
+                  orgName: targetProject.orgName,
                   item: {
                     ...currentEntry.item,
                     project: {

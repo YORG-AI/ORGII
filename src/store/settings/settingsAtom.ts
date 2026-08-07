@@ -141,6 +141,22 @@ export const updateSettingAtom = atom(
 updateSettingAtom.debugLabel = "updateSettingAtom";
 
 /**
+ * Persist a setting before exposing it as saved in memory.
+ * Intended for explicit-save forms that must surface disk-write failures.
+ */
+export const saveSettingAtom = atom(
+  null,
+  async (_get, set, update: { key: SettingsKey; value: unknown }) => {
+    await enqueueSettingsPartialWrite({ [update.key]: update.value });
+    set(settingsAtom, (current) => ({
+      ...current,
+      [update.key]: update.value,
+    }));
+  }
+);
+saveSettingAtom.debugLabel = "saveSettingAtom";
+
+/**
  * Atom to update multiple settings at once.
  * Useful for batch operations or form submissions.
  */

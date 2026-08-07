@@ -49,12 +49,14 @@ import {
   noopSessionScopedPlanningMetaAtom,
   sessionScopedPlanningMetaAtomFamily,
 } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import { msSinceSessionChannelActivity } from "@src/engines/SessionCore/sync/sessionChannelActivity";
 import { createLogger } from "@src/hooks/logger";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
   sessionRuntimeStatusAtom,
   setSessionRuntimeStatusAtom,
+  streamRetryStatusAtom,
 } from "@src/store/session/cliSessionStatusAtom";
 import {
   hasLiveSubagentJobs,
@@ -73,6 +75,31 @@ const IDLE_THRESHOLD_MS = 1000;
  * past a full minute almost certainly indicates a missed `agent:complete`.
  */
 const PLANNING_WATCHDOG_MS = 60_000;
+
+/**
+ * Decide what the watchdog should do when its timer fires, given how long
+ * ago the session's IPC channel last delivered ANY event.
+ *
+ * Returns `null` to trip (fire the force-complete), or a positive delay in
+ * ms to re-arm for. Pure so the recency policy is unit-testable without
+ * faking React timers.
+ *
+ * - `null` recency (no event observed since app start) trips: with the
+ *   channel silent for the whole watchdog window there is nothing to prove
+ *   the backend is alive, which is exactly the event-loss case the watchdog
+ *   exists for.
+ * - Recent activity re-arms for the REMAINDER of the window so a turn that
+ *   streams ephemeral deltas (never bumping the store version) is probed at
+ *   the right moment instead of on a fixed cadence.
+ */
+export function planningWatchdogDelayMs(
+  msSinceChannelActivity: number | null,
+  watchdogMs: number = PLANNING_WATCHDOG_MS
+): number | null {
+  if (msSinceChannelActivity === null) return null;
+  if (msSinceChannelActivity >= watchdogMs) return null;
+  return watchdogMs - msSinceChannelActivity;
+}
 
 export interface PlanningIndicatorVisibilityInput {
   runtimeStatus: string;
@@ -168,6 +195,7 @@ export function usePlanningIndicator(
   const globalVersion = useAtomValue(eventStoreVersionAtom);
   const sessionId = useAtomValue(sessionIdAtom);
   const subagentJobMap = useAtomValue(subagentJobMapAtom);
+  const streamRetryStatus = useAtomValue(streamRetryStatusAtom);
   const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
   const scopedMeta = useAtomValue(
     scope
@@ -293,6 +321,10 @@ export function usePlanningIndicator(
   const hasLiveSubagent = scoped
     ? false
     : hasLiveSubagentJobs(subagentJobMap, sessionId);
+  // Backoff wait between LLM stream retries — silent by design, must not
+  // count as a stall (rate-limit backoffs can exceed the watchdog window).
+  const hasPendingStreamRetry =
+    !scoped && streamRetryStatus?.sessionId === sessionId;
   const visible = shouldShowPlanningIndicator({
     runtimeStatus,
     isSessionActive,
@@ -312,6 +344,15 @@ export function usePlanningIndicator(
   // which cancels this timer; on the next idle the watchdog re-arms.
   // We only trip on genuine "no activity at all" stalls.
   //
+  // "Activity" is CHANNEL activity, not store mutations: several event
+  // classes are deliberately ephemeral and never bump the store version —
+  // `agent:tool_call_delta` buffers in memory only (a model can spend
+  // minutes streaming one large edit_file call), `agent:stream_retry`
+  // writes a side atom. When the timer fires we therefore consult
+  // `msSinceSessionChannelActivity` and re-arm for the remaining window
+  // instead of tripping while the backend is demonstrably alive
+  // (see planningWatchdogDelayMs).
+  //
   // UI-only: this clears the runtime-status mirror so the footer stops
   // saying "Planning…", but deliberately does NOT touch the turn-lifecycle
   // FSM. A long quiet stretch (subagent wait, slow tool) is not proof the
@@ -330,23 +371,47 @@ export function usePlanningIndicator(
   // the parent status to "completed" mid-wait — the child's
   // `agent:subagent_job_changed` terminal event is the real completion
   // signal, not a 60s wall clock.
+  //
+  // hasPendingStreamRetry guard: `agent:stream_retry` means the backend is
+  // deliberately waiting out a backoff (rate-limit backoffs can exceed the
+  // watchdog window) with zero events by design. The retry pill is the
+  // user-visible activity indicator; the recovery/exhausted event re-arms
+  // normal watchdog coverage.
   useEffect(() => {
-    if (scoped || !visible || !sessionId || hasLiveSubagent || anyRunning)
+    if (
+      scoped ||
+      !visible ||
+      !sessionId ||
+      hasLiveSubagent ||
+      anyRunning ||
+      hasPendingStreamRetry
+    )
       return;
-    const timerId = window.setTimeout(() => {
-      log.warn(
-        `[usePlanningIndicator] watchdog: planning indicator stuck for ${PLANNING_WATCHDOG_MS}ms — ` +
-          "forcing session status to 'completed'. This usually means Rust dropped agent:complete " +
-          "or the idle agent:queue_status frame."
-      );
-      setSessionRuntimeStatus({
-        sessionId,
-        status: "completed",
-        source: "planning",
-      });
-    }, PLANNING_WATCHDOG_MS);
+    let timerId: number | null = null;
+    const arm = (delayMs: number) => {
+      timerId = window.setTimeout(() => {
+        const rearmDelay = planningWatchdogDelayMs(
+          msSinceSessionChannelActivity(sessionId)
+        );
+        if (rearmDelay !== null) {
+          arm(rearmDelay);
+          return;
+        }
+        log.warn(
+          `[usePlanningIndicator] watchdog: planning indicator stuck for ${PLANNING_WATCHDOG_MS}ms ` +
+            "with no channel activity — forcing session status to 'completed'. This usually means " +
+            "Rust dropped agent:complete or the idle agent:queue_status frame."
+        );
+        setSessionRuntimeStatus({
+          sessionId,
+          status: "completed",
+          source: "planning",
+        });
+      }, delayMs);
+    };
+    arm(PLANNING_WATCHDOG_MS);
     return () => {
-      window.clearTimeout(timerId);
+      if (timerId !== null) window.clearTimeout(timerId);
     };
   }, [
     scoped,
@@ -354,6 +419,7 @@ export function usePlanningIndicator(
     sessionId,
     hasLiveSubagent,
     anyRunning,
+    hasPendingStreamRetry,
     setSessionRuntimeStatus,
   ]);
 

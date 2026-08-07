@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 
 export type StatusDotTone = "default" | "unread" | "asking";
 

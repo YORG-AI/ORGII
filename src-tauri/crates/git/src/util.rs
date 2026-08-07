@@ -315,6 +315,22 @@ fn read_git_config_key(repo_path: Option<&Path>, key: &str) -> Option<String> {
     }
 }
 
+/// Read a key from the user's global Git config without allowing repository or
+/// system-level values to participate in resolution.
+fn read_global_git_config_key(key: &str) -> Option<String> {
+    let mut cmd = git_command().ok()?;
+    cmd.args(["config", "--global", "--get", key])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+    close_inherited_fds(&mut cmd);
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    (!value.is_empty()).then_some(value)
+}
+
 /// Detect git proxy configuration from git config and environment variables.
 /// Checks repo-level config first, then global, then env vars.
 #[tauri::command]
@@ -483,6 +499,23 @@ pub struct GitUserIdentity {
     pub github_username: Option<String>,
 }
 
+/// The identity-related subset of the user's global Git config that can be
+/// captured as an ORGII Git profile and switched as one unit.
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, Default)]
+pub struct GitGlobalProfile {
+    pub name: String,
+    pub email: String,
+    pub signing_key: Option<String>,
+    pub sign_commits: bool,
+}
+
+fn git_config_bool_is_true(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "true" | "yes" | "on" | "1"
+    )
+}
+
 /// Read the GitHub username from the `gh` CLI config file.
 fn read_gh_cli_username() -> Option<String> {
     let home = dirs::home_dir()?;
@@ -524,4 +557,76 @@ pub async fn get_git_user_identity(repo_path: Option<String>) -> Result<GitUserI
     })
     .await
     .map_err(|err| format!("Task join error: {}", err))
+}
+
+/// Read the identity-related values from the user's global Git config.
+#[tauri::command]
+pub async fn get_git_global_profile() -> Result<GitGlobalProfile, String> {
+    tokio::task::spawn_blocking(move || {
+        let sign_commits = read_global_git_config_key("commit.gpgsign")
+            .is_some_and(|value| git_config_bool_is_true(&value));
+        GitGlobalProfile {
+            name: read_global_git_config_key("user.name").unwrap_or_default(),
+            email: read_global_git_config_key("user.email").unwrap_or_default(),
+            signing_key: read_global_git_config_key("user.signingkey"),
+            sign_commits,
+        }
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))
+}
+
+/// Activate a Git profile by writing its identity-related values to the user's
+/// global Git config. Empty optional values remove the corresponding key so a
+/// previously-active profile cannot leak into the new one.
+#[tauri::command]
+pub async fn set_git_global_profile(profile: GitGlobalProfile) -> Result<(), String> {
+    tokio::task::spawn_blocking(move || {
+        let name = profile.name.trim();
+        let email = profile.email.trim();
+        if name.is_empty() {
+            return Err("Git profile name cannot be empty".to_string());
+        }
+        if email.is_empty() {
+            return Err("Git profile email cannot be empty".to_string());
+        }
+
+        write_git_config_key(None, "user.name", name, true)?;
+        write_git_config_key(None, "user.email", email, true)?;
+
+        match profile.signing_key.as_deref().map(str::trim) {
+            Some(signing_key) if !signing_key.is_empty() => {
+                write_git_config_key(None, "user.signingkey", signing_key, true)?;
+            }
+            _ => unset_git_config_key(None, "user.signingkey", true)?,
+        }
+
+        write_git_config_key(
+            None,
+            "commit.gpgsign",
+            if profile.sign_commits {
+                "true"
+            } else {
+                "false"
+            },
+            true,
+        )
+    })
+    .await
+    .map_err(|err| format!("Task join error: {}", err))?
+}
+
+#[cfg(test)]
+mod git_profile_tests {
+    use super::git_config_bool_is_true;
+
+    #[test]
+    fn parses_git_boolean_spellings() {
+        for truthy in ["true", "TRUE", "yes", "on", "1"] {
+            assert!(git_config_bool_is_true(truthy));
+        }
+        for falsy in ["false", "no", "off", "0", ""] {
+            assert!(!git_config_bool_is_true(falsy));
+        }
+    }
 }

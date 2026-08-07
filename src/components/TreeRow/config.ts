@@ -12,6 +12,18 @@ export const TREE_INDENT_PX = 8;
 /** Base horizontal padding in pixels (16px = pl-4) */
 export const TREE_PADDING_X = 16;
 
+/** Horizontal row inset in pixels (4px = mx-1). */
+export const TREE_ROW_INSET_X = 4;
+
+/** Trailing content inset measured from the sidebar edge. */
+export const TREE_PADDING_RIGHT = 8;
+
+/** Shared inset class for tree rows. */
+export const TREE_ROW_INSET_CLASS = "mx-1";
+
+/** Shared corner radius for independently highlighted tree rows. */
+export const TREE_ROW_ROUNDED_CLASS = "rounded-md";
+
 /** Icon size for chevrons */
 export const CHEVRON_SIZE = 14;
 

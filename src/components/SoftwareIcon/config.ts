@@ -6,32 +6,31 @@
  */
 import React from "react";
 
+import AiderIcon from "@src/assets/modelIcons/aider.svg";
+import AndroidStudioIcon from "@src/assets/modelIcons/android-studio.svg";
+import AtomIcon from "@src/assets/modelIcons/atom.svg";
 import ClaudeIcon from "@src/assets/modelIcons/claude.svg";
-import CodexIcon from "@src/assets/modelIcons/codex.svg";
 import CursorIcon from "@src/assets/modelIcons/cursor.svg";
-import GeminiIcon from "@src/assets/modelIcons/gemini";
-import AiderIcon from "@src/assets/softwareIcons/aider.svg";
-import AndroidStudioIcon from "@src/assets/softwareIcons/android-studio.svg";
-import AtomIcon from "@src/assets/softwareIcons/atom.svg";
-import EclipseIcon from "@src/assets/softwareIcons/eclipse.svg";
-import EmacsIcon from "@src/assets/softwareIcons/emacs.svg";
-import FleetIcon from "@src/assets/softwareIcons/fleet.svg";
-import HelixIcon from "@src/assets/softwareIcons/helix.svg";
-import JetBrainsIcon from "@src/assets/softwareIcons/jetbrains.svg";
-import KiroIcon from "@src/assets/softwareIcons/kiro.svg";
-import LapceIcon from "@src/assets/softwareIcons/lapce.svg";
-import NeovimIcon from "@src/assets/softwareIcons/neovim.svg";
-import NetBeansIcon from "@src/assets/softwareIcons/netbeans.svg";
-import NovaIcon from "@src/assets/softwareIcons/nova.svg";
-import SublimeIcon from "@src/assets/softwareIcons/sublime.svg";
-import TextMateIcon from "@src/assets/softwareIcons/textmate.svg";
-import TraeIcon from "@src/assets/softwareIcons/trae.svg";
-import VimIcon from "@src/assets/softwareIcons/vim.svg";
-import VSCodeInsidersIcon from "@src/assets/softwareIcons/vscode-insiders.svg";
-import VSCodeIcon from "@src/assets/softwareIcons/vscode.svg";
-import WindsurfIcon from "@src/assets/softwareIcons/windsurf.svg";
-import XcodeIcon from "@src/assets/softwareIcons/xcode.svg";
-import ZedIcon from "@src/assets/softwareIcons/zed.svg";
+import EclipseIcon from "@src/assets/modelIcons/eclipse.svg";
+import EmacsIcon from "@src/assets/modelIcons/emacs.svg";
+import FleetIcon from "@src/assets/modelIcons/fleet.svg";
+import HelixIcon from "@src/assets/modelIcons/helix.svg";
+import JetBrainsIcon from "@src/assets/modelIcons/jetbrains.svg";
+import KiroIcon from "@src/assets/modelIcons/kiro.svg";
+import LapceIcon from "@src/assets/modelIcons/lapce.svg";
+import NeovimIcon from "@src/assets/modelIcons/neovim.svg";
+import NetBeansIcon from "@src/assets/modelIcons/netbeans.svg";
+import NovaIcon from "@src/assets/modelIcons/nova.svg";
+import OpenAIIcon from "@src/assets/modelIcons/openai.svg";
+import SublimeIcon from "@src/assets/modelIcons/sublime.svg";
+import TextMateIcon from "@src/assets/modelIcons/textmate.svg";
+import TraeIcon from "@src/assets/modelIcons/trae.svg";
+import VimIcon from "@src/assets/modelIcons/vim.svg";
+import VSCodeInsidersIcon from "@src/assets/modelIcons/vscode-insiders.svg";
+import VSCodeIcon from "@src/assets/modelIcons/vscode.svg";
+import WindsurfIcon from "@src/assets/modelIcons/windsurf.svg";
+import XcodeIcon from "@src/assets/modelIcons/xcode.svg";
+import ZedIcon from "@src/assets/modelIcons/zed.svg";
 
 export type SoftwareType =
   | "vscode"
@@ -67,7 +66,6 @@ export type SoftwareType =
   | "claude"
   | "codex"
   | "aider"
-  | "gemini-cli"
   | "kiro";
 
 type SvgComponent = React.FC<React.SVGProps<SVGSVGElement>>;
@@ -106,8 +104,7 @@ export const SOFTWARE_ICON_MAP: Partial<Record<SoftwareType, SvgComponent>> = {
   aider: AiderIcon,
   kiro: KiroIcon,
   claude: ClaudeIcon,
-  codex: CodexIcon,
-  "gemini-cli": GeminiIcon,
+  codex: OpenAIIcon,
 };
 
 /**
@@ -152,11 +149,9 @@ export const SOFTWARE_NAME_TO_ID: Record<string, SoftwareType> = {
   "Claude Code": "claude",
   Codex: "codex",
   Aider: "aider",
-  "Gemini CLI": "gemini-cli",
   Kiro: "kiro",
   // Activity source IDs from coding tracker (underscore convention)
   claude_code: "claude",
-  gemini_cli: "gemini-cli",
   kiro_cli: "kiro",
   jetbrains: "intellij",
 };

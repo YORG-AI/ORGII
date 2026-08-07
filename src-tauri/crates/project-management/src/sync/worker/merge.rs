@@ -4,7 +4,7 @@ use tracing::{debug, info, warn};
 
 use super::{events, finalize_failure, finalize_success, io, now_ms};
 use crate::projects::io::{
-    allocate_short_id, apply_remote_merge, delete_work_item, find_by_external_ref, read_labels,
+    allocate_short_id, apply_remote_merge, find_by_external_ref, purge_work_item, read_labels,
     read_members, read_project, read_sync_metadata, read_work_item,
     update_work_item_partial_with_revisions, write_labels, write_members, write_work_item,
     FieldRevision, SyncMetadata,
@@ -407,7 +407,7 @@ async fn apply_remote_delete(
     let delete_slug = project_slug.to_string();
     let delete_short_id = short_id.to_string();
     let outcome = tokio::task::spawn_blocking(move || -> Result<(), String> {
-        delete_work_item(&delete_slug, &delete_short_id)
+        purge_work_item(&delete_slug, &delete_short_id)
     })
     .await
     .map_err(|err| format!("remote delete join error: {}", err))?;

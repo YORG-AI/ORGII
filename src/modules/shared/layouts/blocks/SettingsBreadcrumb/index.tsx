@@ -99,6 +99,7 @@ const SETTINGS_SELECTOR_GROUPS: readonly SettingsSelectorGroupConfig[] = [
       AGENT_ORG_ROW_KEY,
       "models",
       "myRoles",
+      "housekeeper",
       "rulesMemoryEvolution",
       "routines",
     ],

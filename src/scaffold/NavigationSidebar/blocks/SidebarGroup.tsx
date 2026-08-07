@@ -82,8 +82,8 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
         <div
           className={`group mx-2 flex h-[36px] cursor-pointer items-center justify-between rounded-lg px-2 transition-colors duration-150 ${
             hasSelectedChild
-              ? "bg-fill-2 text-primary-6"
-              : "text-text-1 hover:bg-fill-2"
+              ? "bg-sidebar-selected text-text-1"
+              : "text-text-1 hover:bg-sidebar-selected"
           }`}
           onClick={handleToggle}
         >
@@ -91,15 +91,10 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
             {/* Icon */}
             {group.icon &&
               renderSidebarIcon(group.icon, {
-                className: hasSelectedChild ? "text-primary-6" : "text-text-1",
+                className: "text-text-1",
               })}
             {/* Title */}
-            <span
-              className={`text-[13px] ${
-                hasSelectedChild ? "font-medium text-primary-6" : "text-text-1"
-              }`}
-              style={headerStyle}
-            >
+            <span className="text-[13px] text-text-1" style={headerStyle}>
               {group.title}
             </span>
           </div>
@@ -112,7 +107,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
                   e.stopPropagation();
                   group.onAddNew?.();
                 }}
-                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all hover:bg-fill-2 hover:text-primary-6 group-hover:opacity-100"
+                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all hover:bg-sidebar-selected hover:text-text-1 group-hover:opacity-100"
                 title={group.addButtonLabel || t("sidebar.actions.addNew")}
               >
                 <Plus size={12} strokeWidth={2} />
@@ -123,13 +118,13 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
               <ChevronsUpDown
                 size={12}
                 strokeWidth={2}
-                className={hasSelectedChild ? "text-primary-6" : "text-text-2"}
+                className="text-text-2"
               />
             ) : (
               <ChevronsDownUp
                 size={12}
                 strokeWidth={2}
-                className={hasSelectedChild ? "text-primary-6" : "text-text-2"}
+                className="text-text-2"
               />
             )}
           </div>

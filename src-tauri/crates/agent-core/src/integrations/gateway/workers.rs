@@ -208,11 +208,6 @@ async fn handle_ready_message(
         }
         Err(err_msg) => {
             error!("[gateway] Error processing message: {}", err_msg);
-            // Re-injected messages use an internal pseudo-channel while the
-            // real transport remains in metadata. Error replies must follow
-            // that original route just like successful replies do; otherwise
-            // the dispatcher tries to send to `gateway-reinject` and the user
-            // never sees the actionable configuration error.
             let mut response = build_error_response(&reaction_channel, &reaction_chat_id, &err_msg);
             if !message_id.is_empty() {
                 response.metadata.insert(

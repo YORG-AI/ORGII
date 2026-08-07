@@ -9,7 +9,7 @@
 //! - `agent` — the unified `agent` tool (subagent dispatch)
 //! - `data` — manage_nodes + database explore/run
 //! - `agent_hidden` — hidden plumbing (ask_user, manage_session, send_*,
-//!   tool_search, suggest_next_steps)
+//!   tool_search)
 //! - `events` — UI-only event entries (thinking, agent_message,
 //!   user_message, subagent, mcp_tool, tool_call, suggest_mode_switch,
 //!   ask_user_permissions)

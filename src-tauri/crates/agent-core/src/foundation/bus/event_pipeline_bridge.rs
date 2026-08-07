@@ -76,6 +76,13 @@ pub type SetSessionStreamingFn = fn(handle: &AppHandle, session_id: &str, stream
 pub type ReplaceStreamingEventFn =
     fn(handle: &AppHandle, session_id: &str, placeholder_id: &str, event: SessionEvent);
 
+/// Remove events by exact ids from the in-memory store AND the SQLite
+/// write-through, then schedule a notification. Used by stream-error
+/// recovery to retract segments that belong to an aborted LLM response:
+/// the retry regenerates the whole response, so the already-flushed
+/// segments would otherwise remain as duplicated orphan bubbles.
+pub type RemoveEventsByIdsFn = fn(handle: &AppHandle, session_id: &str, ids: Vec<String>);
+
 /// Mark `session_id` as pinned in the LRU (subagent child sessions).
 pub type PinSessionFn = fn(handle: &AppHandle, session_id: &str);
 
@@ -148,6 +155,7 @@ static COMPLETE_TOOL_CALL_BY_CALL_ID: OnceLock<CompleteToolCallByCallIdFn> = Onc
 static FINALIZE_STREAMING: OnceLock<FinalizeStreamingFn> = OnceLock::new();
 static SET_SESSION_STREAMING: OnceLock<SetSessionStreamingFn> = OnceLock::new();
 static REPLACE_STREAMING_EVENT: OnceLock<ReplaceStreamingEventFn> = OnceLock::new();
+static REMOVE_EVENTS_BY_IDS: OnceLock<RemoveEventsByIdsFn> = OnceLock::new();
 static PIN_SESSION: OnceLock<PinSessionFn> = OnceLock::new();
 static UNPIN_SESSION: OnceLock<UnpinSessionFn> = OnceLock::new();
 static READ_SESSION_EVENTS: OnceLock<ReadSessionEventsFn> = OnceLock::new();
@@ -173,6 +181,7 @@ pub fn register(
     finalize_streaming: FinalizeStreamingFn,
     set_session_streaming: SetSessionStreamingFn,
     replace_streaming_event: ReplaceStreamingEventFn,
+    remove_events_by_ids: RemoveEventsByIdsFn,
     pin_session: PinSessionFn,
     unpin_session: UnpinSessionFn,
     read_session_events: ReadSessionEventsFn,
@@ -189,6 +198,7 @@ pub fn register(
     let _ = FINALIZE_STREAMING.set(finalize_streaming);
     let _ = SET_SESSION_STREAMING.set(set_session_streaming);
     let _ = REPLACE_STREAMING_EVENT.set(replace_streaming_event);
+    let _ = REMOVE_EVENTS_BY_IDS.set(remove_events_by_ids);
     let _ = PIN_SESSION.set(pin_session);
     let _ = UNPIN_SESSION.set(unpin_session);
     let _ = READ_SESSION_EVENTS.set(read_session_events);
@@ -315,6 +325,18 @@ pub fn replace_streaming_event(
     } else {
         tracing::warn!(
             "[event-pipeline-bridge] replace_streaming_event called before register for {}",
+            session_id
+        );
+    }
+}
+
+pub fn remove_events_by_ids(handle: &AppHandle, session_id: &str, ids: Vec<String>) {
+    if let Some(f) = REMOVE_EVENTS_BY_IDS.get() {
+        f(handle, session_id, ids);
+    } else {
+        tracing::warn!(
+            "[event-pipeline-bridge] remove_events_by_ids called before register; dropping {} removals for {}",
+            ids.len(),
             session_id
         );
     }

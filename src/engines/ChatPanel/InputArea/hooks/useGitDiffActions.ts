@@ -15,19 +15,23 @@ import { useCallback, useMemo, useRef } from "react";
 
 import { useUserIntentSubmit } from "@src/engines/ChatPanel/hooks/useWorkspaceChat/useUserIntentSubmit";
 import { createLogger } from "@src/hooks/logger";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import {
   currentGitStatusAtom,
   workspaceGitStatusMapAtom,
 } from "@src/store/git";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
+import {
+  gitCommitInstructionsAtom,
+  gitPullRequestInstructionsAtom,
+} from "@src/store/ui/editorSettingsAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 
 import {
-  GIT_DIFF_COMMIT_PROMPT,
-  GIT_DIFF_COMMIT_PUSH_PROMPT,
-  GIT_DIFF_CREATE_PR_PROMPT,
   GIT_DIFF_PUSH_PROMPT,
+  buildGitDiffCommitPrompt,
+  buildGitDiffCommitPushPrompt,
+  buildGitDiffCreatePrPrompt,
   computeGitActionsDisabled,
   runAgentGitAction,
 } from "./gitDiffActions";
@@ -58,6 +62,8 @@ export function useGitDiffActions({
   const isSessionActive = useAtomValue(isSessionActiveAtom);
   const currentGitStatus = useAtomValue(currentGitStatusAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
+  const commitInstructions = useAtomValue(gitCommitInstructionsAtom);
+  const pullRequestInstructions = useAtomValue(gitPullRequestInstructionsAtom);
   const workspaceGitStatusMap = useAtomValue(workspaceGitStatusMapAtom);
   const submitUserIntent = useUserIntentSubmit({
     getSessionId: () => sessionId ?? null,
@@ -84,12 +90,12 @@ export function useGitDiffActions({
   );
 
   const onCommit = useCallback(
-    () => sendAgentPrompt(GIT_DIFF_COMMIT_PROMPT),
-    [sendAgentPrompt]
+    () => sendAgentPrompt(buildGitDiffCommitPrompt(commitInstructions)),
+    [sendAgentPrompt, commitInstructions]
   );
   const onCommitPush = useCallback(
-    () => sendAgentPrompt(GIT_DIFF_COMMIT_PUSH_PROMPT),
-    [sendAgentPrompt]
+    () => sendAgentPrompt(buildGitDiffCommitPushPrompt(commitInstructions)),
+    [sendAgentPrompt, commitInstructions]
   );
   const onPush = useCallback(
     () => sendAgentPrompt(GIT_DIFF_PUSH_PROMPT),
@@ -97,8 +103,8 @@ export function useGitDiffActions({
   );
 
   const onCreatePr = useCallback(
-    () => sendAgentPrompt(GIT_DIFF_CREATE_PR_PROMPT),
-    [sendAgentPrompt]
+    () => sendAgentPrompt(buildGitDiffCreatePrPrompt(pullRequestInstructions)),
+    [sendAgentPrompt, pullRequestInstructions]
   );
 
   const onViewMyStation = useCallback(() => {

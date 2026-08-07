@@ -288,6 +288,21 @@ pub async fn execute_gui_action(
     execute_gui_action_with_timeout(bridge, tool_name, params, IDE_ACTION_TIMEOUT_SECS).await
 }
 
+fn build_ade_action_envelope(
+    correlation_id: &str,
+    action: &str,
+    action_params: Value,
+    invoking_session_id: &str,
+) -> Value {
+    serde_json::json!({
+        "sessionId": "",
+        "correlationId": correlation_id,
+        "action": action,
+        "params": action_params,
+        "invokingSessionId": invoking_session_id,
+    })
+}
+
 /// Execute a GUI action with a custom timeout (in seconds).
 ///
 /// Session operations may take longer than the default 10s (e.g., creating
@@ -297,6 +312,16 @@ pub async fn execute_gui_action_with_timeout(
     tool_name: &str,
     params: Value,
     timeout_secs: u64,
+) -> Result<String, ToolError> {
+    execute_gui_action_with_session(bridge, tool_name, params, timeout_secs, "").await
+}
+
+pub async fn execute_gui_action_with_session(
+    bridge: &ActionBridge,
+    tool_name: &str,
+    params: Value,
+    timeout_secs: u64,
+    invoking_session_id: &str,
 ) -> Result<String, ToolError> {
     let action = required_string(&params, "action")?;
     let action_params = params
@@ -323,12 +348,7 @@ pub async fn execute_gui_action_with_timeout(
     // Broadcast the action event to the frontend (Tauri IPC Channel)
     broadcast_event(
         "agent:ade_action",
-        serde_json::json!({
-            "sessionId": "",
-            "correlationId": correlation_id,
-            "action": action,
-            "params": action_params,
-        }),
+        build_ade_action_envelope(&correlation_id, &action, action_params, invoking_session_id),
     );
 
     // Wait for the frontend to respond (with timeout)
@@ -349,5 +369,33 @@ pub async fn execute_gui_action_with_timeout(
                  The frontend may not be listening."
             )))
         }
+    }
+}
+
+#[cfg(test)]
+mod envelope_tests {
+    use super::*;
+
+    #[test]
+    fn stamps_invoking_session_id_without_touching_routing_session_id() {
+        let envelope = build_ade_action_envelope(
+            "corr-1",
+            "session.replyComment",
+            serde_json::json!({ "commentId": "c-1", "body": "done" }),
+            "local-session-42",
+        );
+        assert_eq!(envelope["sessionId"], "");
+        assert_eq!(envelope["invokingSessionId"], "local-session-42");
+        assert_eq!(envelope["action"], "session.replyComment");
+        assert_eq!(envelope["params"]["commentId"], "c-1");
+        assert!(envelope["params"].get("localSessionId").is_none());
+    }
+
+    #[test]
+    fn empty_session_id_leaves_invoking_session_id_empty() {
+        let envelope =
+            build_ade_action_envelope("corr-2", "gui.execute", serde_json::json!({}), "");
+        assert_eq!(envelope["invokingSessionId"], "");
+        assert_eq!(envelope["sessionId"], "");
     }
 }

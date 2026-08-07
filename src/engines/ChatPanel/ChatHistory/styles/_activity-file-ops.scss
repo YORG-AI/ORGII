@@ -19,7 +19,7 @@
       margin: 0;
       padding: 8px;
       font-family: $font-mono;
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
       line-height: 1.6;
       max-height: 200px;
       overflow-y: auto;
@@ -58,7 +58,7 @@
       margin: 0;
       padding: 8px;
       font-family: $font-mono;
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
       line-height: 1.6;
       max-height: 200px;
       overflow-y: auto;
@@ -84,7 +84,7 @@
     gap: 6px;
     padding: 2px 4px;
     font-family: $font-mono;
-    font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+    font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
 
     &--dir {
       color: var(--color-warning-6); // amber-500
@@ -113,7 +113,7 @@
       margin: 0;
       padding: 8px;
       font-family: $font-mono;
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
       line-height: 1.6;
       max-height: 200px;
       overflow-y: auto;

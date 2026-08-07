@@ -9,7 +9,7 @@
  */
 import { MenuItem, Menu as TauriMenu } from "@tauri-apps/api/menu";
 import i18next from "i18next";
-import { useAtom, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import {
   ArrowUpRight,
   ChartNoAxesGantt,
@@ -26,16 +26,15 @@ import Tooltip from "@src/components/Tooltip";
 import { ROUTES } from "@src/config/routes";
 import { useRouteLabel } from "@src/hooks/i18n";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
-import { devRecordActiveViewAtom } from "@src/store/ui/devRecordToolbarAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import { SidebarBottomBar } from "../blocks";
+import SidebarSettingsMenuButton from "../blocks/SidebarSettingsMenuButton";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 import type { SidebarTab } from "../types";
 import { routeToMenuItem } from "../utils/menuFromRoutes";
-import DevRecordSidebar from "./DevRecordSidebar";
 import NavigationSidebar from "./NavigationSidebar";
 import SettingsSidebar from "./SettingsSidebar";
 
@@ -59,13 +58,7 @@ const HomeSidebar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const setSpotlightOpen = useSetAtom(spotlightOpenAtom);
-  const [activeDevRecordView, setActiveDevRecordView] = useAtom(
-    devRecordActiveViewAtom
-  );
 
-  const isOnDevRecord = location.pathname.startsWith(
-    ROUTES.app.journey.record.path
-  );
   // Unified settings surface covers all /settings namespaces;
   // SettingsSidebar owns the nested settings levels.
   const isOnSettings = location.pathname.startsWith(ROUTES.app.settings.path);
@@ -83,9 +76,6 @@ const HomeSidebar: React.FC = () => {
       },
       routeToMenuItem(ROUTES.app.home.start, {
         label: getTranslatedRouteLabel(ROUTES.app.home.start),
-      }),
-      routeToMenuItem(ROUTES.app.journey.record, {
-        label: getTranslatedRouteLabel(ROUTES.app.journey.record),
       }),
       {
         id: GITHUB_MENU_ITEM_KEY,
@@ -107,10 +97,7 @@ const HomeSidebar: React.FC = () => {
   // Compute selected key - handle nested routes
   const selectedKey = useMemo(() => {
     const pathname = location.pathname;
-    const allPaths = [
-      ROUTES.app.journey.record.path,
-      ROUTES.app.home.changelog.path,
-    ];
+    const allPaths = [ROUTES.app.home.changelog.path];
     for (const path of allPaths) {
       if (pathname.startsWith(path)) {
         return path;
@@ -124,7 +111,7 @@ const HomeSidebar: React.FC = () => {
     label: "Start page",
     items: buildMenuItems.length,
     source: { buildMenuItems, selectedKey },
-    enabled: !isOnDevRecord && !isOnSettings,
+    enabled: !isOnSettings,
   });
 
   const handleOpenWorkstation = useCallback(() => {
@@ -150,7 +137,7 @@ const HomeSidebar: React.FC = () => {
         <div className="inline-flex">
           <button
             type="button"
-            className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-fill-2"
+            className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
             onClick={handleOpenWorkstation}
           >
             <SquareMousePointer
@@ -209,15 +196,6 @@ const HomeSidebar: React.FC = () => {
     [navigate]
   );
 
-  if (isOnDevRecord) {
-    return (
-      <DevRecordSidebar
-        activeView={activeDevRecordView}
-        onViewChange={setActiveDevRecordView}
-      />
-    );
-  }
-
   if (isOnSettings) {
     return <SettingsSidebar />;
   }
@@ -242,7 +220,9 @@ const HomeSidebar: React.FC = () => {
       beforeAddNewActions={workstationHeaderAction}
       defaultOpenKeys={["workspace"]}
       enableHoverIconAnimation
-      bottomContent={<SidebarBottomBar />}
+      bottomContent={
+        <SidebarBottomBar settingsAction={<SidebarSettingsMenuButton />} />
+      }
     />
   );
 };

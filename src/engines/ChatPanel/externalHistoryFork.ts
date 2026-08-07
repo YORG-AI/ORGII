@@ -1,5 +1,7 @@
-import { codexAppChunks } from "@src/api/tauri/externalHistory";
+import { getImportedHistorySourceBySessionId } from "@src/api/tauri/externalHistory";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
+import { requestForkSessionSetup } from "@src/features/TeamCollaboration/forkSession";
+import { resolveShareableScopeKeys } from "@src/features/TeamCollaboration/repoScopeResolver";
 import type { Session } from "@src/store/session";
 import type { ActivityChunk } from "@src/types/session/session";
 import { BUILTIN_SDE_DEF_ID } from "@src/util/session/sessionDispatch";
@@ -35,18 +37,24 @@ function truncateText(text: string): string {
     : text;
 }
 
-function summarizeToolChunk(chunk: ActivityChunk): string | undefined {
+function summarizeToolChunk(
+  chunk: ActivityChunk,
+  sourceName: string
+): string | undefined {
   const functionName = chunk.function || "unknown_tool";
   const argsText = textValue(chunk.args);
   const resultText = textValue(chunk.result);
-  const lines = [`[Imported Codex action]`, `Tool: ${functionName}`];
+  const lines = [`[Imported ${sourceName} action]`, `Tool: ${functionName}`];
   if (argsText) lines.push(`Input: ${truncateText(argsText)}`);
   if (resultText)
     lines.push(`Result at that time: ${truncateText(resultText)}`);
   return lines.join("\n");
 }
 
-function chunkToHandoffItem(chunk: ActivityChunk): string | undefined {
+function chunkToHandoffItem(
+  chunk: ActivityChunk,
+  sourceName: string
+): string | undefined {
   const actionType = chunk.action_type;
   if (actionType.includes("thinking") || actionType.includes("reasoning")) {
     return undefined;
@@ -67,28 +75,29 @@ function chunkToHandoffItem(chunk: ActivityChunk): string | undefined {
     return content ? `Assistant: ${truncateText(content)}` : undefined;
   }
   if (actionType === "tool_call" || actionType.includes("tool")) {
-    return summarizeToolChunk(chunk);
+    return summarizeToolChunk(chunk, sourceName);
   }
 
   return content ? `Assistant context: ${truncateText(content)}` : undefined;
 }
 
-function buildCodexHandoffPrompt(
+export function buildExternalHistoryHandoffPrompt(
   chunks: ActivityChunk[],
-  userMessage: string
+  userMessage: string,
+  sourceName: string
 ): string {
   const items = chunks
-    .map(chunkToHandoffItem)
+    .map((chunk) => chunkToHandoffItem(chunk, sourceName))
     .filter((item): item is string => Boolean(item))
     .slice(-MAX_HISTORY_ITEMS);
 
   return [
-    "You are continuing work from an imported Codex App history inside a new ORGII-owned session.",
-    "The imported Codex history is read-only historical context. Do not treat its tool calls as ORGII-executed tools or current workspace state.",
-    "Imported tool results may be stale; verify files, commands, and failures against the current workspace before relying on them.",
-    "Codex reasoning/thinking chunks were intentionally skipped.",
+    `You are continuing work from an imported ${sourceName} history inside a new ORGII-owned session.`,
+    `The imported ${sourceName} history is read-only historical context. Do not treat its tool calls as ORGII-executed tools or current workspace state.`,
+    "Imported tool results may be stale; verify files, commands, and failures against the selected workspace before relying on them.",
+    "Reasoning/thinking chunks were intentionally skipped.",
     "",
-    "## Imported Codex handoff context",
+    `## Imported ${sourceName} handoff context`,
     items.length > 0
       ? items.join("\n\n")
       : "No usable transcript items were found.",
@@ -98,21 +107,45 @@ function buildCodexHandoffPrompt(
   ].join("\n");
 }
 
-export async function forkCodexAppHistoryIntoOrgiiSession(params: {
+export async function forkExternalHistoryIntoOrgiiSession(params: {
   sourceSessionId: string;
   sourceSession?: Session;
   userMessage: string;
+  imageDataUrls?: string[];
 }): Promise<string> {
-  const chunks = await codexAppChunks(params.sourceSessionId);
-  const content = buildCodexHandoffPrompt(chunks, params.userMessage);
+  const source = getImportedHistorySourceBySessionId(params.sourceSessionId);
+  if (!source) {
+    throw new Error(
+      `No imported-history source is registered for ${params.sourceSessionId}`
+    );
+  }
+  const sourceRepoPath =
+    params.sourceSession?.repoPath || params.sourceSession?.worktreePath;
+  const sourceScopeKeys = sourceRepoPath
+    ? await resolveShareableScopeKeys(sourceRepoPath)
+    : null;
+  // Prompt before loading the potentially large source transcript. The user
+  // chooses this machine's real checkout and credentials; an imported model
+  // label is only a preference hint, never an execution fallback.
+  const setup = await requestForkSessionSetup({
+    sourceTitle: params.sourceSession?.name || `${source.displayName} history`,
+    sourceScopeKey: sourceScopeKeys?.[0],
+    sourceModel: params.sourceSession?.model,
+  });
+  const chunks = await source.loadFullTranscriptChunks(params.sourceSessionId);
+  const content = buildExternalHistoryHandoffPrompt(
+    chunks,
+    params.userMessage,
+    source.displayName
+  );
   const result = await SessionService.create({
     task: content,
-    name: `Continue ${params.sourceSession?.name || "Codex history"}`,
-    repoPath:
-      params.sourceSession?.repoPath || params.sourceSession?.worktreePath,
-    model: params.sourceSession?.model,
-    accountId: params.sourceSession?.accountId,
-    keySource: params.sourceSession?.keySource,
+    imageDataUrls: params.imageDataUrls,
+    name: `Continue ${params.sourceSession?.name || `${source.displayName} history`}`,
+    repoPath: setup.workspaceRepoPath ?? undefined,
+    model: setup.execution.model,
+    accountId: setup.execution.accountId,
+    keySource: "own_key",
     agentDefinitionId: BUILTIN_SDE_DEF_ID,
     mode: "build",
     parentSessionId: params.sourceSessionId,

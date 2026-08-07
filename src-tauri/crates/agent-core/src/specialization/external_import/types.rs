@@ -14,7 +14,6 @@ pub enum SourceAgent {
     CursorIde,
     ClaudeCode,
     Codex,
-    GeminiCli,
     Copilot,
     Kiro,
 }

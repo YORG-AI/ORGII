@@ -21,13 +21,6 @@
   contain: layout paint;
   isolation: isolate;
 
-  &--comfort {
-    .work-station-shell__container,
-    .work-station-shell__grid {
-      background-color: var(--cm-editor-background, var(--color-bg-1));
-    }
-  }
-
   // Main container holding side panel(s) and content
   &__container {
     display: flex;
@@ -54,23 +47,6 @@
     min-height: 0;
     overflow: hidden;
     background-color: transparent;
-
-    &--comfort {
-      padding: 8px 0 8px 8px;
-      background-color: var(--cm-editor-background, var(--color-bg-1));
-      min-height: 0;
-
-      &.work-station-shell__side-panel--right {
-        padding: 8px 8px 8px 0;
-      }
-
-      .station-sidebar-scroll-area {
-        overflow: hidden;
-        border: 1px solid var(--color-border-1);
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgb(0 0 0 / 3%);
-      }
-    }
 
     // Collapsed state keeps the sidebar's layout item mounted at zero width.
     // Removing it with display:none causes adjacent docked panels to repaint.
@@ -233,39 +209,9 @@
     overflow: hidden;
     background-color: var(--cm-editor-background);
 
-    &--comfort {
-      padding: 8px;
-      background-color: var(--cm-editor-background, var(--color-bg-1));
-
-      &.work-station-shell__secondary-panel--left {
-        padding: 8px 0 8px 8px;
-      }
-
-      &.work-station-shell__secondary-panel--right {
-        padding: 8px 8px 8px 0;
-      }
-
-      &.work-station-shell__secondary-panel--bottom {
-        padding: 0 8px 8px 8px;
-      }
-
-      > * {
-        overflow: hidden;
-        border: 1px solid var(--color-border-1);
-        border-radius: 8px;
-        background-color: var(--cm-editor-background, var(--color-bg-1));
-        box-shadow: 0 2px 8px rgb(0 0 0 / 3%);
-      }
-    }
-
     &--collapsed {
       display: none;
     }
-  }
-
-  &__grid--primary-collapsed
-    &__secondary-panel--comfort.work-station-shell__secondary-panel--bottom {
-    padding: 0 8px 8px;
   }
 
   // When secondary collapsed, collapse its grid track to 0 (handle cell too).

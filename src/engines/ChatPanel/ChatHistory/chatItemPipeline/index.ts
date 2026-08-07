@@ -15,6 +15,7 @@ export type {
   ActionSummaryEntry,
   ChatHistoryStats,
   ChatItemPipelineOptions,
+  ChatPipelineSkipPolicy,
   ChatItemType,
   OptimizedChatItem,
 } from "./types";

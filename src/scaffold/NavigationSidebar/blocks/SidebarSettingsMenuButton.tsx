@@ -1,8 +1,10 @@
 import {
   ChevronRight,
+  Circle,
   Contrast,
   Gauge,
   HelpCircle,
+  House,
   Laptop,
   MessageCircle,
   MousePointer2,
@@ -75,7 +77,7 @@ function getSubmenuPosition(
 const SidebarSettingsMenuButton: React.FC = React.memo(() => {
   const { t } = useTranslation("navigation");
   const { t: tSettings } = useTranslation("settings");
-  const { goToSettings } = useAppNavigation();
+  const { goToSettings, goToStartPage } = useAppNavigation();
   const ramPanelRef = useRef<HTMLDivElement | null>(null);
   const submenuPanelRef = useRef<HTMLDivElement | null>(null);
   const preserveRamPanelOnMenuCloseRef = useRef(false);
@@ -127,7 +129,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
 
   const openSettingsShortcut = getShortcutKeys("open_settings");
   const guiControlShortcut = getShortcutKeys(ADE_MANAGER_TOGGLE_SHORTCUT_ID);
-  const settingsButtonClassName = isOpen ? "text-primary-6" : "text-text-2";
+  const settingsButtonClassName = isOpen ? "text-text-1" : "text-text-2";
 
   useEffect(() => {
     if (!ramPanelOpen) return;
@@ -177,6 +179,11 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
     closeAll();
     goToSettings();
   }, [closeAll, goToSettings]);
+
+  const handleOpenHome = useCallback(() => {
+    closeAll();
+    goToStartPage();
+  }, [closeAll, goToStartPage]);
 
   const handleViewRam = useCallback(() => {
     setActiveSubmenu(null);
@@ -244,7 +251,9 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
             type="button"
             aria-label={t("sidebar.bottomBar.settings")}
             className={`flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none p-0 transition-colors duration-150 ${
-              isOpen ? "bg-bg-1" : "bg-transparent hover:bg-fill-2"
+              isOpen
+                ? "bg-sidebar-selected"
+                : "bg-transparent hover:bg-sidebar-selected"
             }`}
             onClick={handleToggle}
             onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
@@ -273,6 +282,20 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
             }}
           >
             <div className={DROPDOWN_CLASSES.itemsColumn}>
+              <button
+                type="button"
+                className={`${DROPDOWN_CLASSES.menuActionItem} gap-2`}
+                onMouseEnter={() => setActiveSubmenu(null)}
+                onFocus={() => setActiveSubmenu(null)}
+                onClick={handleOpenHome}
+              >
+                <House
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={MENU_ICON_CLASS_NAME}
+                />
+                <span>{t("sidebar.tabs.build")}</span>
+              </button>
+              <div className={DROPDOWN_CLASSES.menuSeparator} />
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} justify-between`}
@@ -322,6 +345,30 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 <span>{t("sidebar.settingsMenu.tutorials")}</span>
               </button>
               <div className={DROPDOWN_CLASSES.menuSeparator} />
+              <button
+                type="button"
+                className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "presence" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
+                onMouseEnter={(event) =>
+                  openSubmenu("presence", event.currentTarget)
+                }
+                onFocus={(event) =>
+                  openSubmenu("presence", event.currentTarget)
+                }
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <Circle
+                    size={DROPDOWN_ITEM.iconSize}
+                    className="shrink-0 text-success-6"
+                  />
+                  <span className="truncate">
+                    {tSettings("myRoles.tabs.presence")}
+                  </span>
+                </span>
+                <ChevronRight
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={MENU_ARROW_CLASS_NAME}
+                />
+              </button>
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "appearance" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
@@ -430,6 +477,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
         submenuPosition={submenuPosition}
         themeOptions={themeOptions}
         themePresetLabel={tSettings("general.themePreset")}
+        onPresenceSelectionComplete={closeAll}
         onSelectAppearanceMode={(mode) => void handleSelectAppearanceMode(mode)}
         onSelectTheme={(themeId) => void handleSelectTheme(themeId)}
         onSubmenuMouseDown={handleSubmenuMouseDown}

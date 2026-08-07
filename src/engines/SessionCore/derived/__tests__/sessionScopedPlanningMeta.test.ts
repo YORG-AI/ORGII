@@ -100,6 +100,7 @@ describe("sessionScopedPlanningMetaAtomFamily", () => {
       version: 0,
       anyRunning: false,
       hasAwaitingUserInteraction: false,
+      hasRunningAwaitWaitFor: false,
     });
   });
 
@@ -162,6 +163,7 @@ describe("sessionScopedPlanningMetaAtomFamily", () => {
       version: 0,
       anyRunning: false,
       hasAwaitingUserInteraction: false,
+      hasRunningAwaitWaitFor: false,
     });
   });
 });

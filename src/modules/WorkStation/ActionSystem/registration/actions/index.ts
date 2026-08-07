@@ -40,3 +40,6 @@ export { urlPreviewActions } from "./urlPreviewActions.zod";
 
 // Repo / Workspace
 export { repoZodActions } from "./repoActions.zod";
+
+// Session comments
+export { sessionCommentZodActions } from "./sessionCommentActions.zod";

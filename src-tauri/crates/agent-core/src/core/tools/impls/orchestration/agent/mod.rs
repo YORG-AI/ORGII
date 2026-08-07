@@ -404,6 +404,7 @@ impl AgentTool {
             plan_slot_cache: None,
             agent_org_context: self.config.agent_org_context.as_deref().cloned(),
             agent_org_current_member_id: None,
+            session_org_id: None,
             channel_context: None,
         };
         let mut overlay = ToolRegistry::with_fallback(base_registry);
@@ -553,7 +554,7 @@ impl Tool for AgentTool {
                     let partial = {
                         let sid = handle.to_string();
                         tokio::task::block_in_place(|| {
-                            crate::session::persistence::load_llm_history(&sid)
+                            crate::session::persistence::load_llm_history_for_active_journey(&sid)
                                 .ok()
                                 .and_then(|msgs| crate::turn_executor::last_assistant_text(&msgs))
                         })

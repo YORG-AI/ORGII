@@ -114,11 +114,9 @@ const RecentSessionsPanelView: React.FC<RecentSessionsPanelViewProps> = memo(
         <Placeholder
           variant="empty"
           placement="detail-panel"
-          title={t("sessions:opsControl.list.emptyTitle")}
+          title={t("sessions:kanban.list.emptyTitle")}
           subtitle={
-            repoName
-              ? t("sessions:opsControl.list.emptyDescription")
-              : undefined
+            repoName ? t("sessions:kanban.list.emptyDescription") : undefined
           }
         />
       );

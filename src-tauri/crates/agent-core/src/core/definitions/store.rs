@@ -389,6 +389,25 @@ fn migrate_legacy_workspace_settings(value: &mut serde_json::Value) -> bool {
     true
 }
 
+/// One-shot migration for the stale `summaryMaxTokens: 4096` compaction
+/// override. 4096 was the shipped default before it was raised to 20_000
+/// (a 4k cap truncates the 9-section compaction summary mid-section, cf.
+/// claude_code COMPACT_MAX_OUTPUT_TOKENS = 20_000); overlays written back
+/// then froze the old default as if the user had chosen it. Values other
+/// than 4096 are genuine user choices and are left alone. Returns `true`
+/// when the value was changed and should be re-persisted.
+fn migrate_stale_summary_max_tokens(value: &mut serde_json::Value) -> bool {
+    const STALE_DEFAULT: u64 = 4096;
+    let Some(summary_max) = value
+        .pointer_mut("/sessionModel/compaction/summaryMaxTokens")
+        .filter(|v| v.as_u64() == Some(STALE_DEFAULT))
+    else {
+        return false;
+    };
+    *summary_max = serde_json::json!(super::schema::CompactionConfig::default().summary_max_tokens);
+    true
+}
+
 fn load_from_disk(path: &std::path::Path) -> Vec<AgentDefinition> {
     if !path.exists() {
         return Vec::new();
@@ -396,9 +415,9 @@ fn load_from_disk(path: &std::path::Path) -> Vec<AgentDefinition> {
     match std::fs::read_to_string(path) {
         Ok(content) => match serde_json::from_str::<Vec<serde_json::Value>>(&content) {
             Ok(mut raw) => {
-                let migrated = raw
-                    .iter_mut()
-                    .fold(false, |acc, v| migrate_legacy_workspace_settings(v) || acc);
+                let migrated = raw.iter_mut().fold(false, |acc, v| {
+                    migrate_legacy_workspace_settings(v) | migrate_stale_summary_max_tokens(v) | acc
+                });
                 let agents: Vec<AgentDefinition> = raw
                     .into_iter()
                     .filter_map(|v| match serde_json::from_value(v) {
@@ -472,9 +491,11 @@ fn load_overrides_from_disk(path: &std::path::Path) -> BTreeMap<String, AgentDef
         Ok(content) => {
             match serde_json::from_str::<BTreeMap<String, serde_json::Value>>(&content) {
                 Ok(mut raw) => {
-                    let migrated = raw
-                        .values_mut()
-                        .fold(false, |acc, v| migrate_legacy_workspace_settings(v) || acc);
+                    let migrated = raw.values_mut().fold(false, |acc, v| {
+                        migrate_legacy_workspace_settings(v)
+                            | migrate_stale_summary_max_tokens(v)
+                            | acc
+                    });
                     let overrides: BTreeMap<String, AgentDefinition> = raw
                         .into_iter()
                         .filter_map(
@@ -668,5 +689,37 @@ mod overlay_tests {
     fn compose_unknown_builtin_returns_none() {
         let delta = serde_json::json!({"name": "ghost"});
         assert!(compose_builtin_with_delta("builtin:retired-agent", &delta).is_none());
+    }
+
+    #[test]
+    fn stale_summary_max_tokens_4096_is_migrated_to_current_default() {
+        let mut value = serde_json::json!({
+            "sessionModel": { "compaction": { "summaryMaxTokens": 4096 } }
+        });
+        assert!(migrate_stale_summary_max_tokens(&mut value));
+        assert_eq!(
+            value["sessionModel"]["compaction"]["summaryMaxTokens"].as_u64(),
+            Some(u64::from(
+                super::super::schema::CompactionConfig::default().summary_max_tokens
+            ))
+        );
+    }
+
+    #[test]
+    fn user_chosen_summary_max_tokens_is_left_alone() {
+        let mut value = serde_json::json!({
+            "sessionModel": { "compaction": { "summaryMaxTokens": 8000 } }
+        });
+        assert!(!migrate_stale_summary_max_tokens(&mut value));
+        assert_eq!(
+            value["sessionModel"]["compaction"]["summaryMaxTokens"].as_u64(),
+            Some(8000)
+        );
+    }
+
+    #[test]
+    fn missing_summary_max_tokens_is_no_op() {
+        let mut value = serde_json::json!({ "name": "no compaction override" });
+        assert!(!migrate_stale_summary_max_tokens(&mut value));
     }
 }

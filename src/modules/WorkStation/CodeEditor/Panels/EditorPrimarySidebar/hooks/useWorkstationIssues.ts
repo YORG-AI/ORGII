@@ -11,6 +11,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import { createLogger } from "@src/hooks/logger";
+import {
+  getCachedIssues,
+  isIssueCacheStale,
+  updateCachedClosedIssues,
+  updateCachedOpenIssues,
+} from "@src/services/git/githubListCache";
 import { parseGithubRepoFullName } from "@src/services/git/operations/createPullRequest";
 import {
   addIssueComment,
@@ -36,12 +42,7 @@ import {
 import type { IssueFilterState } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 
-import {
-  getCachedIssues,
-  isIssueCacheStale,
-  updateCachedClosedIssues,
-  updateCachedOpenIssues,
-} from "./githubListCache";
+import { filterIssuesByQuery } from "./workstationIssueHelpers";
 
 export type { IssueFilterState };
 
@@ -205,7 +206,9 @@ export function useWorkstationIssues({
     cached ? "ready" : "idle"
   );
   const [closedLoadState, setClosedLoadState] = useState<SectionLoadState>(
-    cached?.closedIssues.length ? "ready" : "idle"
+    cached?.closedIssues.length && !isIssueCacheStale(repoKey, "closed")
+      ? "ready"
+      : "idle"
   );
   const [openIssues, setOpenIssues] = useState<GitHubIssue[]>(
     cached?.openIssues ?? []
@@ -362,7 +365,7 @@ export function useWorkstationIssues({
   ]);
 
   // Fetch open issues on mount / auth ready.
-  // Skip the network hit when the cache is still fresh (< 5 min) — the UI
+  // Skip the network hit when the cache is still fresh (< 10 min) — the UI
   // already shows cached rows so there's no spinner flash on re-entry.
   // Deferred via setTimeout to avoid synchronous setState inside effect body.
   useEffect(() => {
@@ -617,16 +620,7 @@ export function useWorkstationIssues({
   // ── Derived values ────────────────────────────────────────────────────────
 
   const applySearch = useCallback(
-    (list: GitHubIssue[]) => {
-      if (!debouncedSearch.trim()) return list;
-      const q = debouncedSearch.toLowerCase();
-      return list.filter(
-        (issue) =>
-          issue.title.toLowerCase().includes(q) ||
-          issue.labels.some((l) => l.name.toLowerCase().includes(q)) ||
-          issue.user.login.toLowerCase().includes(q)
-      );
-    },
+    (list: GitHubIssue[]) => filterIssuesByQuery(list, debouncedSearch),
     [debouncedSearch]
   );
 

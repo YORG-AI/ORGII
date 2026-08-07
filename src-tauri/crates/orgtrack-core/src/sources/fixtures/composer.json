@@ -1,0 +1,30 @@
+{
+  "createdAt": 1746174752293,
+  "lastUpdatedAt": 1746174781500,
+  "fullConversationHeadersOnly": [
+    {
+      "bubbleId": "b1-user",
+      "type": 1
+    },
+    {
+      "bubbleId": "b2-assistant-text",
+      "type": 2
+    },
+    {
+      "bubbleId": "b3-assistant-tool",
+      "type": 2
+    },
+    {
+      "bubbleId": "b4-user",
+      "type": 1
+    },
+    {
+      "bubbleId": "b5-assistant-text",
+      "type": 2
+    },
+    {
+      "bubbleId": "b6-assistant-tool",
+      "type": 2
+    }
+  ]
+}

@@ -5,7 +5,8 @@
  * WorkstationTabBar and computes the active tab key.
  *
  * Logic summary
- * - Reads `tabRegistryAtom` and filters by the current `dockFilterAtom`.
+ * - Reads `tabRegistryAtom`; the unified surface shows every open tab
+ *   (no per-host filtering of the strip).
  * - Strips "blank state" fixture tabs when any real file tab is open
  *   in the same host bucket.
  * - Pins pinned tabs first; regular tabs follow in registry order.
@@ -18,37 +19,18 @@ import { useFocusTab } from "@src/hooks/workStation/tabs/useFocusTab";
 import {
   closeOtherTabsAtom,
   closeSavedTabsAtom,
-  dockFilterAtom,
   reorderTabAtom,
   tabRegistryAtom,
 } from "@src/store/workstation";
-import type { DockFilter } from "@src/store/workstation";
 import {
   type WorkstationTabHost,
   tabToHost,
 } from "@src/store/workstation/tabHost";
 import type { WorkStationTab } from "@src/store/workstation/tabs";
 
-function dockFilterToHost(filter: DockFilter): WorkstationTabHost | null {
-  switch (filter) {
-    case "all":
-      return null;
-    case "code":
-      return "code";
-    case "browser":
-      return "browser";
-    case "data":
-      return "data";
-    case "project":
-      return "project";
-  }
-}
-
 export interface UseWorkstationTabListReturn {
   tabsForBar: WorkStationTab[];
   activeKey: string | null;
-  dockFilter: DockFilter;
-  isAllTabsView: boolean;
   visible: ReturnType<typeof useAtomValue<typeof tabRegistryAtom>>;
   handleTabClick: (tabId: string) => void;
   handleTabReorder: (startIndex: number, endIndex: number) => void;
@@ -59,21 +41,15 @@ export interface UseWorkstationTabListReturn {
 
 export function useWorkstationTabList(): UseWorkstationTabListReturn {
   const entries = useAtomValue(tabRegistryAtom);
-  const dockFilter = useAtomValue(dockFilterAtom);
   const focusWorkstationTab = useFocusTab();
   const closeTab = useCloseTabWithGuard();
   const reorderTab = useSetAtom(reorderTabAtom);
   const closeOtherTabs = useSetAtom(closeOtherTabsAtom);
   const closeSavedTabs = useSetAtom(closeSavedTabsAtom);
 
-  const isAllTabsView = dockFilter === "all";
-  const hostFilter = dockFilterToHost(dockFilter);
-
-  const visible = useMemo(() => {
-    if (dockFilter === "all") return entries;
-    if (!hostFilter) return [];
-    return entries.filter((entry) => tabToHost(entry.tab) === hostFilter);
-  }, [dockFilter, entries, hostFilter]);
+  // Unified surface: the tab strip shows every open tab regardless of the
+  // active host.
+  const visible = entries;
 
   const realTabHostSet = useMemo(() => {
     const set = new Set<WorkstationTabHost>();
@@ -143,8 +119,6 @@ export function useWorkstationTabList(): UseWorkstationTabListReturn {
   return {
     tabsForBar,
     activeKey,
-    dockFilter,
-    isAllTabsView,
     visible,
     handleTabClick,
     handleTabReorder,

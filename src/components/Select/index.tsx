@@ -84,6 +84,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       placement = SELECT_DEFAULTS.placement,
       dropdownAlign,
       dropdownMinWidth,
+      dropdownWidth,
       dropdownWidthMode = SELECT_DEFAULTS.dropdownWidthMode,
       panelZIndex,
       radius = SELECT_DEFAULTS.radius,
@@ -262,7 +263,17 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           );
         }
         const displayLabel = selected.triggerLabel ?? selected.label;
-        return <span className="select-value">{displayLabel}</span>;
+        if (!selected.icon) {
+          return <span className="select-value">{displayLabel}</span>;
+        }
+        return (
+          <span className="select-value inline-flex items-center gap-2">
+            <span className="flex shrink-0 items-center text-text-1">
+              {selected.icon}
+            </span>
+            <span className="min-w-0 truncate">{displayLabel}</span>
+          </span>
+        );
       }
     };
 
@@ -310,10 +321,17 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           ? { right: `${pos.right}px` }
           : { left: `${pos.left}px` }),
         ...panelWidthStyle,
+        ...(dropdownWidth ? { width: `${dropdownWidth}px` } : {}),
         ...(dropdownMinWidth ? { minWidth: `${dropdownMinWidth}px` } : {}),
         ...(panelZIndex !== undefined ? { zIndex: panelZIndex } : {}),
       };
-    }, [panelPosition, panelWidthStyle, dropdownMinWidth, panelZIndex]);
+    }, [
+      panelPosition,
+      panelWidthStyle,
+      dropdownWidth,
+      dropdownMinWidth,
+      panelZIndex,
+    ]);
 
     return (
       <div ref={ref} style={style}>

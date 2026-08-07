@@ -52,6 +52,8 @@ export interface OptimizedChatItem {
   activityStackGroup?: {
     category: string;
     events: SessionEvent[];
+    /** True once a following non-matching event has ended this stack. */
+    closedByBoundary?: boolean;
   };
   /** For consolidated partial observations */
   consolidatedParts?: number;
@@ -79,22 +81,24 @@ export interface ChatHistoryStats {
 // Pipeline Options
 // ============================================
 
+export type ChatPipelineSkipPolicy = "none" | "diff";
+
 export interface ChatItemPipelineOptions {
   groupReadFileActivities?: boolean;
   groupActionSummaries?: boolean;
   minActionSummaryToGroup?: number;
   stackBrowserActions?: boolean;
   minBrowserActionsToStack?: number;
+  groupTerminalActivities?: boolean;
+  minTerminalActivitiesToGroup?: number;
+  groupEditActivities?: boolean;
+  minEditActivitiesToGroup?: number;
   consolidatePartialObservations?: boolean;
   preFilterEmptyActivities?: boolean;
   minReadFilesToGroup?: number;
   filterManageTodo?: boolean;
-  /**
-   * Optional predicate to drop events before any grouping. Used by the
-   * Agent Desk when a simulator app (e.g. Diff) takes over a class of
-   * events so they don't double-render inline in the chat stream.
-   */
-  shouldSkipEvent?: (event: SessionEvent) => boolean;
+  /** Serializable event exclusion policy used by both main-thread and Worker projections. */
+  skipPolicy?: ChatPipelineSkipPolicy;
 }
 
 export const DEFAULT_PIPELINE_OPTIONS: ChatItemPipelineOptions = {
@@ -103,8 +107,13 @@ export const DEFAULT_PIPELINE_OPTIONS: ChatItemPipelineOptions = {
   minActionSummaryToGroup: 2,
   stackBrowserActions: true,
   minBrowserActionsToStack: 3,
+  groupTerminalActivities: true,
+  minTerminalActivitiesToGroup: 1,
+  groupEditActivities: true,
+  minEditActivitiesToGroup: 1,
   consolidatePartialObservations: true,
   preFilterEmptyActivities: true,
   minReadFilesToGroup: 2,
   filterManageTodo: false,
+  skipPolicy: "none",
 };

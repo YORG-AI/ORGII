@@ -8,8 +8,10 @@ import { SETTINGS_BASE, settingsPathParts } from "./shared";
 
 export type SettingsSectionSegment =
   | "general"
+  | "collaboration"
   | "appearance"
   | "editor"
+  | "security"
   | "update"
   | "monitor";
 
@@ -17,8 +19,10 @@ export type SettingsSubpageSegment = "editor-appearance";
 
 export const SETTINGS_SECTIONS: readonly SettingsSectionSegment[] = [
   "general",
+  "collaboration",
   "appearance",
   "editor",
+  "security",
   "update",
   "monitor",
 ] as const;
@@ -29,6 +33,7 @@ export const SETTINGS_SUBPAGES: readonly SettingsSubpageSegment[] = [
 
 export const SETTINGS_SECTION_TABS = {
   general: ["general", "notifications", "shortcuts"],
+  collaboration: ["cloud", "self-hosted"],
   appearance: ["app", "code-editor", "chat-panel"],
   editor: ["editor", "index"],
   monitor: ["resources", "network", "storage"],

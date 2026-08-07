@@ -67,6 +67,10 @@ pub(crate) fn register_database_schemas() {
         // so an Invisible-mode goal survives an app restart.
         agent_core::session::goal_loop::init_schema(conn)?;
 
+        // Opt-in MiniCPM rolling summaries live in an isolated sidecar table.
+        // They never replace canonical messages or compact-boundary rows.
+        agent_core::session::housekeeper_compaction::init_schema(conn)?;
+
         Ok(())
     }
 
@@ -105,6 +109,7 @@ pub(crate) fn register_settings_hooks() {
             let pref = agent_core::utils::HttpVersionPref::from_setting(http_version);
             agent_core::utils::set_global_http_version_pref(pref);
         }
+        agent_core::session::housekeeper_compaction::update_from_settings(value);
     }));
 }
 

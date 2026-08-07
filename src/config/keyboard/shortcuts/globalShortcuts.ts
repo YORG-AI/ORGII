@@ -50,8 +50,8 @@ export const GLOBAL_SHORTCUTS: ShortcutEntry[] = [
     category: "navigation",
   },
   {
-    id: "open_ops_control",
-    command: "Open Ops Control",
+    id: "open_kanban",
+    command: "Open Kanban",
     macKeys: "⌘3",
     winKeys: "Ctrl+3",
     scope: "global",

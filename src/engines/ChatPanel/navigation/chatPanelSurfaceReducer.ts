@@ -6,7 +6,7 @@ import {
   type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
   type ChatPanelNavigateCommand,
-  type ChatPanelSelectedCollabOrg,
+  type ChatPanelSelectedCloudOrg,
   type ChatPanelSelectedProject,
   type ChatPanelSelectedProjectOrg,
   type ChatPanelSelectedWorkItem,
@@ -24,10 +24,8 @@ export interface ChatPanelSurfaceSnapshot {
   selectedProject: ChatPanelSelectedProject | null;
   selectedProjectOrg: ChatPanelSelectedProjectOrg | null;
   selectedWorkspace: ChatPanelSelectedWorkspace | null;
-  selectedCollabOrg: ChatPanelSelectedCollabOrg | null;
-  workspaceDashboardOpen: boolean;
+  selectedCloudOrg: ChatPanelSelectedCloudOrg | null;
   exploreOpen: boolean;
-  manageIssuesOpen: boolean;
   workspaceOverviewTab: WorkspaceOverviewTab;
 }
 
@@ -39,10 +37,8 @@ export const EMPTY_CHAT_PANEL_SURFACE_SNAPSHOT: ChatPanelSurfaceSnapshot = {
   selectedProject: null,
   selectedProjectOrg: null,
   selectedWorkspace: null,
-  selectedCollabOrg: null,
-  workspaceDashboardOpen: false,
+  selectedCloudOrg: null,
   exploreOpen: false,
-  manageIssuesOpen: false,
   workspaceOverviewTab: WORKSPACE_OVERVIEW_TAB.OVERVIEW,
 };
 
@@ -107,17 +103,12 @@ export function reduceChatPanelSurfaceCommand(
     case CHAT_PANEL_SURFACE_KIND.WORKSPACE_DASHBOARD:
       return {
         ...next,
-        workspaceDashboardOpen: true,
+        contentMode: CHAT_PANEL_CONTENT_MODE.SESSION,
       };
     case CHAT_PANEL_SURFACE_KIND.WORKSPACE_EXPLORE:
       return {
         ...next,
         exploreOpen: true,
-      };
-    case CHAT_PANEL_SURFACE_KIND.MANAGE_ISSUES:
-      return {
-        ...next,
-        manageIssuesOpen: true,
       };
     case CHAT_PANEL_SURFACE_KIND.WORKSPACE_OVERVIEW:
       return {
@@ -126,10 +117,10 @@ export function reduceChatPanelSurfaceCommand(
         workspaceOverviewTab:
           command.tab ?? currentSnapshot.workspaceOverviewTab,
       };
-    case CHAT_PANEL_SURFACE_KIND.COLLAB_ORG:
+    case CHAT_PANEL_SURFACE_KIND.CLOUD_ORG:
       return {
         ...next,
-        selectedCollabOrg: command.collabOrg,
+        selectedCloudOrg: command.cloudOrg,
       };
   }
 }

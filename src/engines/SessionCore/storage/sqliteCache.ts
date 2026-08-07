@@ -16,6 +16,7 @@ import { rpc } from "@src/api/tauri/rpc";
 import { parseSessionSpecsJson } from "../core/schemas";
 import type {
   EventPayloadBody,
+  ExtractedGitArtifactData,
   ReplayTimeRange,
   SessionEvent,
   SessionSpec,
@@ -78,6 +79,16 @@ export interface TurnModifiedFile {
   deletions: number;
 }
 
+export interface TurnResourceInteraction {
+  path: string;
+  fileName: string;
+  action: "read" | "write" | "create" | "delete" | "rename" | "search";
+  outcome: "succeeded" | "failed" | "unknown";
+  count: number;
+  firstOccurredAt: string;
+  lastOccurredAt: string;
+}
+
 export interface TurnSummary {
   sessionId: string;
   turnId: string;
@@ -94,6 +105,8 @@ export interface TurnSummary {
   status: TurnStatus;
   interrupted: boolean;
   modifiedFiles: TurnModifiedFile[];
+  resourceInteractions: TurnResourceInteraction[];
+  gitArtifacts: ExtractedGitArtifactData[];
 }
 
 export interface TurnBodyWindow {
@@ -110,8 +123,11 @@ export async function loadEvents(sessionId: string): Promise<SessionEvent[]> {
   return rpc.sessionCore.cache.loadEvents({ sessionId });
 }
 
-export async function loadTurnIndex(sessionId: string): Promise<TurnSummary[]> {
-  return rpc.sessionCore.cache.loadTurnIndex({ sessionId });
+export async function loadTurnIndex(
+  sessionId: string,
+  turnIds?: string[]
+): Promise<TurnSummary[]> {
+  return rpc.sessionCore.cache.loadTurnIndex({ sessionId, turnIds });
 }
 
 export async function loadTurnBody(

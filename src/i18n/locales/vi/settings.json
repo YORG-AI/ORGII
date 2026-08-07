@@ -28,6 +28,7 @@
     "agentSessions": "Agent Sessions",
     "apiKeys": "API Keys",
     "appUpdate": "Cập nhật ứng dụng",
+    "security": "Bảo mật",
     "monitor": "Thiết bị & Mạng",
     "osAgentConfig": "Cấu hình OS Agent",
     "sdeAgentConfig": "Cấu hình SDE Agent",
@@ -39,7 +40,8 @@
     "storage": "Lưu trữ",
     "projectUsage": "Project & Sử dụng",
     "agentMemory": "Bộ nhớ Agent",
-    "agentOrg": "Nhóm Agent"
+    "agentOrg": "Nhóm Agent",
+    "collaboration": "Cộng tác"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "Mô hình & Keys",
       "myRoles": "Vai trò của tôi",
       "rulesMemoryEvolution": "Quy tắc, Bộ nhớ & Tiến hóa",
+      "security": "Bảo mật",
       "routines": "Routine",
       "tools": "Built-in Tools",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "housekeeper": "MiniCPM Housekeeper",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
+  },
+  "security": {
+    "scan": "Cảnh báo trước khi gửi thông tin bí mật",
+    "scanDesc": "Quét nội dung bạn nhập trong trình soạn thảo để tìm khóa API, mã thông báo và mật khẩu, và yêu cầu xác nhận trước khi gửi chúng đến mô hình",
+    "entropy": "Phát hiện chuỗi có entropy cao",
+    "entropyDesc": "Cũng đánh dấu các chuỗi dài trông ngẫu nhiên không khớp với định dạng khóa đã biết. Phát hiện nhiều thông tin bí mật hơn nhưng đôi khi có thể đánh dấu nhầm giá trị băm hoặc ID",
+    "customPatterns": "Mẫu tùy chỉnh",
+    "customPatternsDesc": "Mỗi dòng một biểu thức chính quy. Mọi kết quả khớp đều được coi là thông tin bí mật. Các biểu thức không hợp lệ sẽ bị bỏ qua",
+    "customPatternsPlaceholder": "ví dụ: MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} mẫu không hợp lệ và sẽ bị bỏ qua: {{patterns}}"
   },
   "myRoles": {
     "currentStatus": "Trạng thái hiện tại của tôi",
@@ -149,17 +162,16 @@
       "zh-Hant": "Tiếng Trung phồn thể"
     },
     "layout": "Bố cục",
-    "globalLayoutMethod": "Phương thức bố cục",
-    "globalLayoutMethodDesc": "Chọn cách các bảng nội dung định khung ứng dụng",
+    "sidebar": "Thanh bên",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "Độ sâu cạnh thanh bên",
+    "selectedItemTransparency": "Độ trong suốt của mục đã chọn",
     "spotlightPlacement": "Vị trí Spotlight",
     "spotlightPlacementDesc": "Chọn nơi bảng lệnh Spotlight mở ra",
     "spotlightPlacementOptions": {
       "top": "Trên cùng",
       "center": "Giữa trang"
     },
-    "inset": "Thoải mái",
-    "full": "Mở rộng",
-    "compact": "Hiện đại",
     "left": "Trái",
     "right": "Phải",
     "light": "Sáng",
@@ -324,7 +336,7 @@
     "configAgentKeys": "API Keys cho OS & SDE Agent",
     "configAgentKeysDesc": "Thêm API Key từ các nhà cung cấp như OpenAI, Anthropic và DeepSeek",
     "configCliKeys": "API Keys cho CLI Agent",
-    "configCliKeysDesc": "Thêm API Key cho các công cụ CLI như Claude Code, Codex và Gemini CLI"
+    "configCliKeysDesc": "Thêm API Key cho các công cụ CLI như Claude Code và Codex"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agent",
@@ -890,7 +902,6 @@
     "diskCategory_logs": "Nhật ký",
     "diskCategory_personalWorkspace": "Không gian làm việc OS Agent",
     "diskCategory_cursorConfig": "Cấu hình CLI Session",
-    "diskCategory_geminiCliHome": "Thư mục Gemini CLI",
     "diskCategory_extensions": "Tiện ích mở rộng",
     "diskNotScanned": "Chưa quét",
     "diskScanning": "Đang quét...",
@@ -1292,5 +1303,11 @@
     "searchActions": "Tìm kiếm hành động...",
     "noActionsFound": "Không tìm thấy hành động",
     "noConfigurableProperties": "Không có thuộc tính có thể cấu hình"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "Đám mây",
+      "selfHosted": "Tự lưu trữ"
+    }
   }
 }

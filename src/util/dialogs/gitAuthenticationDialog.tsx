@@ -26,8 +26,12 @@ interface GitAuthenticationDialogProps extends GitAuthenticationDialogOptions {
 
 const APP_TOP_DRAG_ZONE_HEIGHT = 52;
 
-function openGitSettingsPage() {
-  window.history.pushState({}, "", buildIntegrationsPath({ category: "git" }));
+function openConnectionsPage() {
+  window.history.pushState(
+    {},
+    "",
+    buildIntegrationsPath({ category: "connections" })
+  );
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
@@ -38,8 +42,8 @@ function GitAuthenticationDialog({ onResolve }: GitAuthenticationDialogProps) {
     onResolve(null);
   }, [onResolve]);
 
-  const handleOpenGitSettings = useCallback(() => {
-    openGitSettingsPage();
+  const handleOpenConnections = useCallback(() => {
+    openConnectionsPage();
     onResolve(null);
   }, [onResolve]);
 
@@ -51,7 +55,7 @@ function GitAuthenticationDialog({ onResolve }: GitAuthenticationDialogProps) {
       topDragZoneHeight={APP_TOP_DRAG_ZONE_HEIGHT}
       okText={t("git.authDialog.openGitSettingsButton")}
       cancelText={t("actions.cancel")}
-      onOk={handleOpenGitSettings}
+      onOk={handleOpenConnections}
       onCancel={handleCancel}
       onClose={handleCancel}
       maskClosable={false}
@@ -66,7 +70,7 @@ function GitAuthenticationDialog({ onResolve }: GitAuthenticationDialogProps) {
           ]}
           primaryAction={{
             label: t("git.authDialog.openGitSettingsButton"),
-            onClick: handleOpenGitSettings,
+            onClick: handleOpenConnections,
             variant: "primary",
           }}
         />

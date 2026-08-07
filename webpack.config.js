@@ -65,7 +65,7 @@ module.exports = (env, argv) => {
     cache: {
       type: "filesystem",
       // Version the cache for faster invalidation
-      version: `${isProduction ? "prod" : "dev"}-6`,
+      version: `${isProduction ? "prod" : "dev"}-10`,
       buildDependencies: {
         config: [__filename],
       },
@@ -418,33 +418,90 @@ module.exports = (env, argv) => {
             splitChunks: {
               chunks: "all",
               maxInitialRequests: 25,
+              maxAsyncRequests: 30,
               minSize: 20000,
               cacheGroups: {
-                vendor: {
+                initialVendors: {
                   test: /[\\/]node_modules[\\/]/,
-                  name(module) {
-                    const packageName = module.context.match(
-                      /[\\/]node_modules[\\/](.*?)([\\/]|$)/
-                    )?.[1];
-                    const largePackages = [
-                      "react-dom",
-                      "lodash",
-                      "framer-motion",
-                    ];
-                    if (
-                      largePackages.some((pkg) => packageName?.startsWith(pkg))
-                    ) {
-                      return `vendor.${packageName.replace("@", "")}`;
-                    }
-                    return "vendors";
+                  name: "vendors",
+                  chunks: "initial",
+                  priority: 20,
+                  reuseExistingChunk: true,
+                },
+                asyncVendors: {
+                  test(module) {
+                    const moduleContext = module.context || "";
+                    const isShikiLazyGrammarModule =
+                      /[\\/]node_modules[\\/]\.pnpm[\\/]@shikijs\+(langs|themes)@/.test(
+                        moduleContext
+                      ) ||
+                      /[\\/]node_modules[\\/]@shikijs[\\/](langs|themes)[\\/]/.test(
+                        moduleContext
+                      );
+
+                    return (
+                      !isShikiLazyGrammarModule &&
+                      /[\\/]node_modules[\\/]/.test(moduleContext)
+                    );
                   },
-                  chunks: "all",
-                  priority: 10,
+                  name(module, chunks) {
+                    const moduleContext = module.context || "";
+                    const packageMatch =
+                      moduleContext.match(
+                        /[\\/]node_modules[\\/]\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/](.*?)([\\/]|$)/
+                      ) ||
+                      moduleContext.match(
+                        /[\\/]node_modules[\\/](.*?)([\\/]|$)/
+                      );
+                    let packageName = packageMatch?.[1];
+                    if (packageName?.startsWith("@")) {
+                      const scopedPackageMatch =
+                        moduleContext.match(
+                          /[\\/]node_modules[\\/]\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/](@[^\\/]+[\\/][^\\/]+)/
+                        ) ||
+                        moduleContext.match(
+                          /[\\/]node_modules[\\/](@[^\\/]+[\\/][^\\/]+)/
+                        );
+                      packageName = scopedPackageMatch?.[1] ?? packageName;
+                    }
+
+                    if (packageName) {
+                      return `async-vendors.${packageName
+                        .replace("@", "")
+                        .replace(/[\\/]/g, ".")
+                        .replace(/[^a-zA-Z0-9_.-]/g, "-")}`;
+                    }
+
+                    const namedChunks = chunks
+                      .map((chunk) => chunk.name)
+                      .filter(Boolean)
+                      .sort();
+
+                    if (namedChunks.length === 0) {
+                      return "async-vendors";
+                    }
+
+                    return `async-vendors.${namedChunks[0].replace(
+                      /[^a-zA-Z0-9_.-]/g,
+                      "-"
+                    )}`;
+                  },
+                  chunks: "async",
+                  priority: 15,
+                  reuseExistingChunk: true,
+                },
+                asyncCommon: {
+                  chunks: "async",
+                  minChunks: 2,
+                  priority: 8,
+                  reuseExistingChunk: true,
                 },
                 common: {
+                  chunks: "initial",
                   minChunks: 2,
                   priority: 5,
                   reuseExistingChunk: true,
+                  name: "common",
                 },
               },
             },
@@ -490,8 +547,18 @@ module.exports = (env, argv) => {
         }),
       new webpack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify(argv.mode),
+        // Local Rust IDE-server port, baked into the bundle so a second app
+        // instance (dual-instance collab testing) talks to its own backend.
+        // Must match the ORGII_IDE_SERVER_PORT the Rust side is launched with.
+        "process.env.ORGII_IDE_SERVER_PORT": JSON.stringify(
+          process.env.ORGII_IDE_SERVER_PORT ?? "13847"
+        ),
+        "process.env.ORGII_DEEP_LINK_SCHEME": JSON.stringify(
+          process.env.ORGII_DEEP_LINK_SCHEME ?? "orgii"
+        ),
         "process.env.E2E_BASE_URL": JSON.stringify(
-          process.env.E2E_BASE_URL ?? "http://127.0.0.1:13847"
+          process.env.E2E_BASE_URL ??
+            `http://127.0.0.1:${process.env.ORGII_IDE_SERVER_PORT ?? "13847"}`
         ),
       }),
       // CopyWebpackPlugin: only needed for production.

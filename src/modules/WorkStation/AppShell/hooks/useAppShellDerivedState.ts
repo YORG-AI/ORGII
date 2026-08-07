@@ -5,88 +5,55 @@ import {
   type StatusBarAppType,
   activeStatusBarAppAtom,
 } from "@src/store/ui/workStationAtom";
-import { type DockFilter, activeHostAtom } from "@src/store/workstation";
-
-import { useActiveTabHostReconciliation } from "./useActiveTabHostReconciliation";
+import { activeHostAtom } from "@src/store/workstation";
+import type { WorkstationTabHost } from "@src/store/workstation/tabHost";
 
 export interface AppShellDerivedState {
-  effectiveHost: string;
+  activeHost: WorkstationTabHost;
   isCodeMode: boolean;
-  isDataMode: boolean;
   isBrowserMode: boolean;
   isProjectMode: boolean;
   codeContentVisible: boolean;
   browserContentVisible: boolean;
-  dataContentVisible: boolean;
   projectContentVisible: boolean;
 }
 
-function isWorkStationHost(host: string): host is Exclude<DockFilter, "all"> {
-  return (
-    host === "code" ||
-    host === "browser" ||
-    host === "data" ||
-    host === "project"
-  );
-}
-
-export function useAppShellDerivedState({
-  dockFilter,
-  isOpsControlStation,
-  opsControlPeekHost,
-}: {
-  dockFilter: DockFilter;
-  isOpsControlStation: boolean;
-  opsControlPeekHost: "code" | "browser" | "data" | "project" | null;
-}): AppShellDerivedState {
+export function useAppShellDerivedState(): AppShellDerivedState {
+  // Unified surface: the content host simply follows the active tab's host.
+  // Browser sessions live in `mainPane` (as `browser-session` tabs), so a
+  // browser tab makes `activeHost` "browser" on its own — no host pin needed,
+  // and closing the last tab lands back on the Launchpad instead of a
+  // stranded empty host.
   const activeHost = useAtomValue(activeHostAtom);
-  const effectiveHost = dockFilter === "all" ? activeHost : dockFilter;
 
-  useActiveTabHostReconciliation(
-    isWorkStationHost(effectiveHost) ? effectiveHost : null
-  );
+  const isCodeMode = activeHost === "code";
+  const isBrowserMode = activeHost === "browser";
+  const isProjectMode = activeHost === "project";
 
-  const isCodeMode = effectiveHost === "code";
-  const isDataMode = effectiveHost === "data";
-  const isBrowserMode = effectiveHost === "browser";
-  const isProjectMode = effectiveHost === "project";
-
-  const codeContentVisible = isCodeMode || opsControlPeekHost === "code";
+  const codeContentVisible = isCodeMode;
   const browserContentVisible = isBrowserMode;
-  const dataContentVisible = isDataMode;
   const projectContentVisible = isProjectMode;
 
   const setActiveStatusBarApp = useSetAtom(activeStatusBarAppAtom);
   useEffect(() => {
     let appType: StatusBarAppType;
-    if (isOpsControlStation && opsControlPeekHost !== null) {
-      appType = opsControlPeekHost;
-    } else if (effectiveHost === "browser") {
+    if (activeHost === "browser") {
       appType = "browser";
-    } else if (effectiveHost === "data") {
-      appType = "data";
-    } else if (effectiveHost === "project") {
+    } else if (activeHost === "project") {
       appType = "project";
     } else {
       appType = "code";
     }
     setActiveStatusBarApp(appType);
-  }, [
-    effectiveHost,
-    isOpsControlStation,
-    opsControlPeekHost,
-    setActiveStatusBarApp,
-  ]);
+  }, [activeHost, setActiveStatusBarApp]);
 
   return {
-    effectiveHost,
+    activeHost,
     isCodeMode,
-    isDataMode,
     isBrowserMode,
     isProjectMode,
     codeContentVisible,
     browserContentVisible,
-    dataContentVisible,
     projectContentVisible,
   };
 }

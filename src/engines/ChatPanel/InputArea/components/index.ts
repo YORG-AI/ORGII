@@ -1,7 +1,5 @@
 export { default as ActiveProcesses } from "./ActiveProcesses";
 export type { ActiveProcessesProps } from "./ActiveProcesses";
-export { default as ChatPinnedBars } from "./ChatPinnedBars";
-export { usePinnedContent } from "./ChatPinnedBars";
 export { default as CiteCodePreview } from "./CiteCodePreview";
 export { default as CollapsedInlineRow } from "./CollapsedInlineRow";
 export type {
@@ -15,8 +13,6 @@ export type { ComposerStackHeaderProps } from "./ComposerStackHeader";
 export { ComposerStackHeaderCountBadge } from "./ComposerStackHeader";
 export { default as ContextInfoButton } from "./ContextInfoButton";
 export { default as ContextMenuPortal } from "./ContextMenuPortal";
-export { default as CursorModePill } from "./CursorModePill";
-export { default as CursorModelPill } from "./CursorModelPill";
 export { default as EditModeHeader } from "./EditModeHeader";
 export { default as EditModeImageThumbnail } from "./EditModeImageThumbnail";
 export { default as ImageAttachmentPreview } from "./ImageAttachmentPreview";
@@ -26,6 +22,7 @@ export type { InputEditorProps } from "./InputEditor";
 export { default as ModePill } from "./ModePill";
 export type { ModePillProps } from "./ModePill";
 export { default as ModelPill } from "./ModelPill";
+export { default as PlanTodoPill } from "./PlanTodoPill";
 export { default as QueuedMessages } from "./QueuedMessages";
 export type { QueuedMessagesProps } from "./QueuedMessages";
 export { reorderActiveRef } from "./QueuedMessages";

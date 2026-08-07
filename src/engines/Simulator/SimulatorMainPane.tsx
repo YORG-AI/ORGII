@@ -11,12 +11,10 @@
  * - useSimulatorContent: content rendering and caching
  * - StateDisplays: idle and booting state components
  */
-import { useAtomValue } from "jotai";
 import { type FC, memo } from "react";
 
 import { useBackgroundImage } from "@src/hooks/theme/useBackgroundImage";
 import useProgressiveImage from "@src/hooks/ui/effects/useProgressiveImage";
-import { globalLayoutMethodAtom } from "@src/store/ui/uiAtom";
 
 import { SimulatorSingleView } from "./components/SimulatorContentArea/SimulatorSingleView";
 import { BootingState } from "./components/SimulatorContentArea/StateDisplays";
@@ -79,12 +77,9 @@ const SimulatorContentAreaComponent: FC<SimulatorContentAreaProps> = ({
       forceAppType,
     });
 
-  const globalLayoutMethod = useAtomValue(globalLayoutMethodAtom);
-  const isFullMode = globalLayoutMethod === "full";
-
   return (
     <div
-      className={`group relative flex h-full w-full flex-col overflow-hidden ${!hideHeader && !isFullMode ? "rounded-xl" : ""} transition-all duration-300`}
+      className={`group relative flex h-full w-full flex-col overflow-hidden ${!hideHeader ? "rounded-xl" : ""} transition-all duration-300`}
     >
       {!isBootingEvent && (
         <SimulatorSingleView
@@ -98,7 +93,7 @@ const SimulatorContentAreaComponent: FC<SimulatorContentAreaProps> = ({
 
       {isBootingEvent && (
         <div
-          className={`relative flex h-full w-full flex-col overflow-hidden ${!hideHeader && !isFullMode ? "rounded-xl" : ""} bg-bg-2`}
+          className={`relative flex h-full w-full flex-col overflow-hidden ${!hideHeader ? "rounded-xl" : ""} bg-bg-2`}
         >
           <div className="min-h-0 flex-1 overflow-auto text-text-1">
             <BootingState />

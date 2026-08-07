@@ -5,7 +5,8 @@
  * Consumers can import from "./config" or "../config" as before.
  */
 
-export { CODEMIRROR_STYLE_NONCE, codeMirrorCspNonceExtension } from "./csp";
+export { CODEMIRROR_STYLE_NONCE } from "./nonce";
+export { codeMirrorCspNonceExtension } from "./csp";
 
 // Theme configuration
 export {

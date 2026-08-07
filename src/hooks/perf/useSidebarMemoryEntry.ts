@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import {
   type SidebarMemoryKind,
@@ -27,6 +27,18 @@ interface SidebarMemoryInput {
 export function useSidebarMemoryEntry(input: SidebarMemoryInput): void {
   const key = useMemo(() => Symbol(input.label), [input.label]);
 
+  // `source` is typically an inline object literal (fresh identity every
+  // render). Listing it as an effect dep re-ran the estimation — a graph
+  // walk of up to SIDEBAR_ESTIMATION_NODE_LIMIT nodes — on EVERY render,
+  // which turned render storms into heavy CPU burn. The estimate is an
+  // approximation keyed to the sidebar's shape, so re-running it when the
+  // primitive shape inputs (items/sections/tabs/label/kind) change is
+  // enough; the latest source is read through a ref.
+  const sourceRef = useRef(input.source);
+  useEffect(() => {
+    sourceRef.current = input.source;
+  });
+
   useEffect(() => {
     if (input.enabled === false) {
       removeSidebarMemoryEntry(key);
@@ -35,8 +47,9 @@ export function useSidebarMemoryEntry(input: SidebarMemoryInput): void {
 
     const sections = input.sections ?? 0;
     const tabs = input.tabs ?? 0;
-    const sourceBytes = input.source
-      ? estimateRuntimeValueBytes(input.source, SIDEBAR_ESTIMATION_NODE_LIMIT)
+    const source = sourceRef.current;
+    const sourceBytes = source
+      ? estimateRuntimeValueBytes(source, SIDEBAR_ESTIMATION_NODE_LIMIT)
       : 0;
     const renderBytes =
       SIDEBAR_BASE_RENDER_BYTES +
@@ -58,7 +71,6 @@ export function useSidebarMemoryEntry(input: SidebarMemoryInput): void {
     input.kind,
     input.label,
     input.sections,
-    input.source,
     input.tabs,
     key,
   ]);

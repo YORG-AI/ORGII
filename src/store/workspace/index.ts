@@ -41,5 +41,9 @@ export {
   workspaceFolderRepoMapAtom,
   workspaceNameAtom,
   workspaceFolderCountAtom,
+  activeWorktreeByRepoAtom,
+  activeWorktreeAtom,
+  setActiveWorktreeAtom,
+  type ActiveWorktreeSelection,
   type WorkspaceRootContext,
 } from "./derived";

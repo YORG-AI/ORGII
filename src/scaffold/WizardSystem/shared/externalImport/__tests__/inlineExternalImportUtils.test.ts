@@ -62,9 +62,9 @@ describe("inlineExternalImportRowKey", () => {
 
   it("is stable — same input always returns same string", () => {
     const row = {
-      sourceAgent: "gemini_cli" as const,
-      sourcePath: "/home/user/.gemini/GEMINI.md",
-      suggestedName: "gemini-context",
+      sourceAgent: "codex" as const,
+      sourcePath: "/home/user/.codex/AGENTS.md",
+      suggestedName: "codex-context",
       targetRepoPath: "/repos/project",
     };
     expect(inlineExternalImportRowKey(row)).toBe(

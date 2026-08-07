@@ -30,7 +30,7 @@
  * (external `<link>` files), at which point the missing-nonce mistake on
  * iframe srcdoc shows up as completely unstyled previews.
  */
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 
 /**
  * The single CSP nonce token shared by every srcdoc producer in the app.

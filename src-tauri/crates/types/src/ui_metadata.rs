@@ -41,8 +41,8 @@ pub enum AppSubtool {
     #[default]
     Message,
     /// Interactive agent ↔ user widgets that aren't plain chat messages
-    /// (ask_user_questions, ask_user_permissions, suggest_mode_switch,
-    /// suggest_next_steps). Rendered in the chat panel with dedicated
+    /// (ask_user_questions, ask_user_permissions, suggest_mode_switch).
+    /// Rendered in the chat panel with dedicated
     /// components; in the Messages replay they appear in their own section
     /// instead of polluting the chat bubble transcript.
     OtherInteractions,

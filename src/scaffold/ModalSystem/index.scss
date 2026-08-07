@@ -18,7 +18,7 @@
   isolation: isolate; // Create new stacking context
   border-radius: var(
     --border-radius-window
-  ); // Match window corner radius (26px)
+  ); // Match the host window corner radius
   overflow: hidden; // Clip children to rounded corners
 }
 
@@ -34,7 +34,7 @@
   animation: mask-fade-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   border-radius: var(
     --border-radius-window
-  ); // Match window corner radius (26px)
+  ); // Match the host window corner radius
 
   [data-theme="dark"] & {
     background: rgba(0, 0, 0, 0.7);

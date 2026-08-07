@@ -35,9 +35,6 @@ export * from "./sourceControlFocusTargetAtom";
 // Source Control sidebar filter mode (file buckets vs git history graph)
 export * from "./sourceControlFilterModeAtom";
 
-// Source Control All Changes agent-session filter
-export * from "./sourceControlSessionFilterAtom";
-
 // Source Control worktree scope (host vs linked worktree)
 export * from "./sourceControlScopeAtom";
 

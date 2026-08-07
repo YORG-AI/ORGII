@@ -56,9 +56,15 @@ interface SettingsRootSectionConfig {
 
 type SettingsRootItemSegment =
   | IntegrationsCategorySegment
-  | typeof AGENT_ORG_ROW_KEY;
+  | typeof AGENT_ORG_ROW_KEY
+  | typeof SECURITY_ITEM_KEY;
 
 const AGENT_ORG_ROW_KEY = "agent-orgs";
+/**
+ * Security is a core-settings section (renders like General/Appearance) but
+ * lives in the Core sidebar group rather than the top app-sections list.
+ */
+const SECURITY_ITEM_KEY = "security";
 const AGENT_ORG_PATH = buildAgentOrgsPath({ tab: "agents" });
 
 interface SettingsFooterBackButtonProps {
@@ -73,7 +79,7 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
   <button
     type="button"
     aria-label={label}
-    className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-bg-1 p-0 text-primary-6 transition-colors duration-150 hover:bg-fill-2"
+    className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-sidebar-selected p-0 text-text-1 transition-colors duration-150 hover:bg-sidebar-selected"
     onClick={onClick}
     onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
   >
@@ -82,7 +88,7 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
       iconName="settings"
       size={16}
       strokeWidth={2}
-      className="text-primary-6"
+      className="text-text-1"
     />
   </button>
 );
@@ -116,6 +122,7 @@ const SETTINGS_ROOT_LIST_SECTIONS: SettingsRootSectionConfig[] = [
       "models",
       "myRoles",
       "rulesMemoryEvolution",
+      SECURITY_ITEM_KEY,
       "routines",
     ],
   },
@@ -180,7 +187,6 @@ const SettingsSidebar: React.FC = () => {
             />
           </>
         }
-        hideSettings
       />
     </SidebarBase>
   );
@@ -208,13 +214,16 @@ const SettingsRootBody: React.FC = () => {
 
   const appSectionItems = useMemo<NavigationMenuItem[]>(
     () =>
-      APP_SECTIONS.map((section) => ({
-        id: section.id,
-        key: section.id,
-        label: t(`settings:sections.${section.labelKey}`),
-        icon: section.icon,
-        dataTestId: `settings-core-item-${section.id}`,
-      })),
+      APP_SECTIONS
+        // Security renders in the Core group below, not the top app list.
+        .filter((section) => section.id !== SECURITY_ITEM_KEY)
+        .map((section) => ({
+          id: section.id,
+          key: section.id,
+          label: t(`settings:sections.${section.labelKey}`),
+          icon: section.icon,
+          dataTestId: `settings-core-item-${section.id}`,
+        })),
     [t]
   );
 

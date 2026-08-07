@@ -27,6 +27,13 @@
 /// content that should be dispatched to the bound OS agent session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GatewayCommand {
+    /// Session Journey command; execution stays in the shared application
+    /// service and never invokes a provider.
+    Journey(crate::core::journey_lifecycle::JourneyCommand),
+    /// A recognized Journey prefix with invalid arguments.  This must be
+    /// consumed by the gateway so a malformed control command never becomes
+    /// provider input.
+    JourneyInvalid(String),
     /// Drop the binding for the current chat. Next message re-routes.
     NewSession,
     /// Show the current channel binding and active Work Item context.
@@ -108,9 +115,180 @@ pub fn parse(content: &str) -> Option<GatewayCommand> {
         "/0" => bare_command(rest, GatewayCommand::BrowseBack),
         "/session" | "/ctx" => parse_session_command(rest),
         "/newsession" => parse_newsession_command(rest),
+        "/task" => Some(
+            parse_journey_task(rest)
+                .map(GatewayCommand::Journey)
+                .unwrap_or_else(|| GatewayCommand::JourneyInvalid(task_usage().into())),
+        ),
+        "/fork" => Some(
+            parse_journey_fork(rest)
+                .map(GatewayCommand::Journey)
+                .unwrap_or_else(|| GatewayCommand::JourneyInvalid(fork_usage().into())),
+        ),
+        "/review" => Some(
+            parse_journey_review(rest)
+                .map(GatewayCommand::Journey)
+                .unwrap_or_else(|| GatewayCommand::JourneyInvalid(review_usage().into())),
+        ),
+        "/journey" => Some(
+            bare_command(
+                rest,
+                GatewayCommand::Journey(crate::core::journey_lifecycle::JourneyCommand::Status),
+            )
+            .unwrap_or_else(|| GatewayCommand::JourneyInvalid("用法：`/journey`。".into())),
+        ),
         "/help" | "/commands" => bare_command(rest, GatewayCommand::Help),
         _ => None,
     }
+}
+
+fn parse_journey_task(rest: &str) -> Option<crate::core::journey_lifecycle::JourneyCommand> {
+    use crate::core::journey_lifecycle::{JourneyCommand, TaskOutcome};
+    let (verb, tail) = rest.trim().split_once(char::is_whitespace)?;
+    match verb.to_ascii_lowercase().as_str() {
+        "start" => {
+            let (name, position) = split_optional_position(tail)?;
+            Some(JourneyCommand::TaskStart {
+                task_id: deterministic_id("task", &name),
+                name,
+                start_from_recent: position == "recent",
+            })
+        }
+        "checkpoint" => {
+            let (name, message_id) = split_name_and_exact_anchor(tail)?;
+            Some(JourneyCommand::TaskCheckpoint {
+                checkpoint_id: deterministic_id("checkpoint", &format!("{name}:{message_id}")),
+                message_id,
+                name,
+            })
+        }
+        "finish" => {
+            let outcome = match tail.trim() {
+                "完成" => TaskOutcome::Completed,
+                "部分完成" => TaskOutcome::PartiallyCompleted,
+                "暂停" => TaskOutcome::Paused,
+                "放弃" => TaskOutcome::Abandoned,
+                "转向" => TaskOutcome::Redirected,
+                _ => return None,
+            };
+            Some(JourneyCommand::TaskFinish {
+                outcome,
+                message_id: "@latest".into(),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn parse_journey_fork(rest: &str) -> Option<crate::core::journey_lifecycle::JourneyCommand> {
+    use crate::core::journey_lifecycle::JourneyCommand;
+    let (verb, tail) = rest.trim().split_once(char::is_whitespace)?;
+    match verb.to_ascii_lowercase().as_str() {
+        "start" => {
+            let (task_name, anchor_message_id) = split_name_and_exact_anchor(tail)?;
+            Some(JourneyCommand::ForkStart {
+                fork_id: deterministic_id("fork", &task_name),
+                task_id: deterministic_id("task", &task_name),
+                anchor_message_id,
+                task_name,
+            })
+        }
+        "close" => Some(JourneyCommand::ForkClose {
+            fork_id: "@active".into(),
+            review_id: "@active".into(),
+            message_id: "@latest".into(),
+            outcome: parse_outcome(tail.trim())?,
+        }),
+        "compare" => tail
+            .trim()
+            .is_empty()
+            .then_some(JourneyCommand::ForkCompare),
+        _ => None,
+    }
+}
+
+fn parse_journey_review(rest: &str) -> Option<crate::core::journey_lifecycle::JourneyCommand> {
+    use crate::core::journey_lifecycle::JourneyCommand;
+    let mut parts = rest.split_whitespace();
+    match parts.next()?.to_ascii_lowercase().as_str() {
+        "list" => parts.next().is_none().then_some(JourneyCommand::ReviewList),
+        "discard" => {
+            let review_id = parts.next()?.to_string();
+            (parts.next().is_none()).then_some(JourneyCommand::ReviewDiscard { review_id })
+        }
+        "promote" | "confirm" => {
+            let review_id = parts.next()?.to_string();
+            let fact_id = parts.next()?.to_string();
+            let evidence_start_message_id = parts.next()?.to_string();
+            let evidence_end_message_id = parts.next()?.to_string();
+            let text = parts.collect::<Vec<_>>().join(" ");
+            (!text.is_empty()).then_some(JourneyCommand::ReviewPromote {
+                review_id,
+                fact_id,
+                evidence_start_message_id,
+                evidence_end_message_id,
+                text,
+            })
+        }
+        _ => None,
+    }
+}
+
+fn parse_outcome(value: &str) -> Option<crate::core::journey_lifecycle::TaskOutcome> {
+    use crate::core::journey_lifecycle::TaskOutcome;
+    match value {
+        "完成" => Some(TaskOutcome::Completed),
+        "部分完成" => Some(TaskOutcome::PartiallyCompleted),
+        "暂停" => Some(TaskOutcome::Paused),
+        "放弃" => Some(TaskOutcome::Abandoned),
+        "转向" => Some(TaskOutcome::Redirected),
+        _ => None,
+    }
+}
+
+fn split_optional_position(tail: &str) -> Option<(String, &'static str)> {
+    let words: Vec<_> = tail.split_whitespace().collect();
+    if words.is_empty() {
+        return None;
+    }
+    let position = match words.last().copied() {
+        Some("recent") => "recent",
+        Some("next") => "next",
+        _ => "recent",
+    };
+    let name_words = if position == "recent" || position == "next" {
+        &words[..words.len() - 1]
+    } else {
+        &words[..]
+    };
+    let name = name_words.join(" ");
+    (!name.trim().is_empty()).then_some((name, position))
+}
+
+fn split_name_and_exact_anchor(tail: &str) -> Option<(String, String)> {
+    let mut words: Vec<_> = tail.split_whitespace().collect();
+    let anchor = words.pop()?.to_string();
+    let name = words.join(" ");
+    (!name.trim().is_empty() && !anchor.trim().is_empty()).then_some((name, anchor))
+}
+
+fn deterministic_id(prefix: &str, value: &str) -> String {
+    // Stable across retries. IDs are an adapter detail; user-controlled text
+    // remains the durable display name and is never inferred by an LLM.
+    let hash = value.bytes().fold(0xcbf29ce484222325_u64, |state, byte| {
+        (state ^ u64::from(byte)).wrapping_mul(0x100000001b3)
+    });
+    format!("{prefix}-{hash:016x}")
+}
+
+fn task_usage() -> &'static str {
+    "用法：`/task start <名称> [recent|next]`、`/task checkpoint <名称> <精确消息ID>`、`/task finish <完成|部分完成|暂停|放弃|转向>`。"
+}
+fn fork_usage() -> &'static str {
+    "用法：`/fork start <名称> <精确锚点消息ID>`、`/fork close <完成|部分完成|暂停|放弃|转向>`、`/fork compare`。"
+}
+fn review_usage() -> &'static str {
+    "用法：`/review list`、`/review discard <id>`、`/review promote|confirm <review_id> <fact_id> <证据起始消息ID> <证据结束消息ID> <事实文本>`。"
 }
 
 fn parse_newsession_command(rest: &str) -> Option<GatewayCommand> {
@@ -275,6 +453,40 @@ mod tests {
         assert_eq!(parse("/new"), Some(GatewayCommand::NewSession));
         assert_eq!(parse("/reset"), Some(GatewayCommand::NewSession));
         assert_eq!(parse("  /NEW  "), Some(GatewayCommand::NewSession));
+    }
+
+    #[test]
+    fn parses_journey_commands_without_guessing_anchors() {
+        use crate::core::journey_lifecycle::{JourneyCommand, TaskOutcome};
+
+        assert_eq!(
+            parse("/task start 中文任务 recent"),
+            Some(GatewayCommand::Journey(JourneyCommand::TaskStart {
+                task_id: deterministic_id("task", "中文任务"),
+                name: "中文任务".into(),
+                start_from_recent: true,
+            }))
+        );
+        assert_eq!(
+            parse("/fork start 调查问题 message-7"),
+            Some(GatewayCommand::Journey(JourneyCommand::ForkStart {
+                fork_id: deterministic_id("fork", "调查问题"),
+                task_id: deterministic_id("task", "调查问题"),
+                anchor_message_id: "message-7".into(),
+                task_name: "调查问题".into(),
+            }))
+        );
+        assert_eq!(
+            parse("/task finish 部分完成"),
+            Some(GatewayCommand::Journey(JourneyCommand::TaskFinish {
+                outcome: TaskOutcome::PartiallyCompleted,
+                message_id: "@latest".into(),
+            }))
+        );
+        assert!(matches!(
+            parse("/fork start 调查"),
+            Some(GatewayCommand::JourneyInvalid(_))
+        ));
     }
 
     #[test]

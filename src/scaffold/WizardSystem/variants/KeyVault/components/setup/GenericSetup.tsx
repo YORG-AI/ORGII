@@ -1,7 +1,7 @@
 /**
  * GenericSetup Component
  *
- * Setup UI for generic API key agents (Claude Code, Codex, Gemini CLI, etc.)
+ * Setup UI for generic API key agents (Claude Code, Codex, etc.)
  * Uses a flat "Setup Method" selector. Available methods come from the Rust
  * agent registry (`supportedSetupMethods` on `AvailableAgent`).
  *

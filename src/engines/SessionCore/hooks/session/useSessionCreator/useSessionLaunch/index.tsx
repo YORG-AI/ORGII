@@ -11,7 +11,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import { sessionLaunch } from "@src/api/tauri/agent/session";
 import { DISPATCH_CATEGORY, KEY_SOURCE } from "@src/api/tauri/session";
-import { Message } from "@src/components/Message";
 import { beginOptimisticTurn } from "@src/engines/SessionCore/control/optimisticTurnStatus";
 import { markTurnRunning } from "@src/engines/SessionCore/control/turnLifecycle";
 import {
@@ -19,7 +18,9 @@ import {
   pendingSyntheticEventAtom,
 } from "@src/engines/SessionCore/core/atoms";
 import { SESSION_CREATOR_LAUNCH_MODE } from "@src/features/SessionCreator/types";
+import { autoTagLaunchedSessionToActiveCloudOrg } from "@src/features/TeamCollaboration/autoTagNewSession";
 import { createLogger } from "@src/hooks/logger";
+import { useSecretScanGuard } from "@src/hooks/security/useSecretScanGuard";
 import { collectAdeContext } from "@src/services/context/collectors";
 import {
   activeSessionIdAtom,
@@ -35,10 +36,9 @@ import {
 } from "@src/store/session";
 import { lastUserMessageAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultExecModeAtom } from "@src/store/session/creatorDefaultExecModeAtom";
-import { cursorCreatorModeOverrideAtom } from "@src/store/session/cursorModeOverrideAtom";
-import { cursorCreatorModelOverrideAtom } from "@src/store/session/cursorModelOverrideAtom";
 import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 import { selectedWorktreePathAtom } from "@src/store/session/selectedWorktreePathAtom";
+import { worktreeLaunchSourceAtom } from "@src/store/session/worktreeLaunchSourceAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { triggerSessionExpired } from "@src/store/ui/uiAtom";
 import type { ViewModeType } from "@src/store/ui/viewModeAtom";
@@ -49,12 +49,6 @@ import {
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { emitOpenWorkspace } from "@src/util/ui/window/windowManager";
 
-import {
-  buildCursorComposerParams,
-  buildCursorIdeSession,
-  openCursorComposerWithRetry,
-} from "./cursorIdeLaunch";
-import { formatAgentLaunchError } from "./errorUtils";
 import { prepareLaunchInput } from "./inputPreparation";
 import { handleNonCursorLaunchError } from "./launchErrorHandling";
 import { handleSessionNavigation } from "./launchHelpers";
@@ -96,6 +90,7 @@ export function useSessionLaunch(
   } = options;
 
   const { t } = useTranslation("sessions");
+  const guardAgainstSecrets = useSecretScanGuard();
   const [isLoading, setIsLoading] = useState(false);
   const {
     closeAddFundsModal,
@@ -114,16 +109,7 @@ export function useSessionLaunch(
   const agentExecMode = useAtomValue(creatorDefaultExecModeAtom);
   const runningLocation = useAtomValue(runningLocationAtom);
   const selectedWorktreePath = useAtomValue(selectedWorktreePathAtom);
-  const cursorCreatorModelOverride = useAtomValue(
-    cursorCreatorModelOverrideAtom
-  );
-  const setCursorCreatorModelOverride = useSetAtom(
-    cursorCreatorModelOverrideAtom
-  );
-  const cursorCreatorModeOverride = useAtomValue(cursorCreatorModeOverrideAtom);
-  const setCursorCreatorModeOverride = useSetAtom(
-    cursorCreatorModeOverrideAtom
-  );
+  const worktreeLaunchSource = useAtomValue(worktreeLaunchSourceAtom);
   const workspaceFolders = useAtomValue(workspaceFoldersAtom);
   const setViewMode = useSetAtom(viewModeAtom);
   const setIsSwitching = useSetAtom(viewModeSwitchingAtom);
@@ -170,76 +156,6 @@ export function useSessionLaunch(
     ]
   );
 
-  const executeCursorIdeLaunch = useCallback(
-    async (
-      agentInput: string,
-      userInput: string,
-      isBackgroundLaunch: boolean,
-      launchWorkItemContext?: typeof workItemContext
-    ) => {
-      const result = await openCursorComposerWithRetry(
-        buildCursorComposerParams({
-          text: agentInput,
-          cursorCreatorModelOverride,
-          cursorCreatorModeOverride,
-        })
-      );
-      const session = buildCursorIdeSession({
-        composerId: result.composerId,
-        isBackgroundLaunch,
-        sessionName,
-        userInput,
-      });
-      upsertSession(session);
-
-      injectSyntheticUserEventIfNeeded({
-        dispatchLoadSession,
-        hasImages: false,
-        imageDataUrls: undefined,
-        isBackgroundLaunch,
-        isContentEmpty,
-        sessionId: session.session_id,
-        setLastUserMessage,
-        setPendingSyntheticEvent,
-        userInput,
-      });
-
-      if (imageDataUrls && imageDataUrls.length > 0) {
-        clearImages?.();
-      }
-
-      if (isBackgroundLaunch) {
-        clearDraft(null);
-        onLaunchSuccess?.({
-          sessionId: session.session_id,
-          workItemContext: launchWorkItemContext,
-        });
-      } else {
-        navigateToLaunchedSession(session.session_id, false);
-      }
-      setSessionSource(null);
-      setCursorCreatorModelOverride(null);
-      setCursorCreatorModeOverride(null);
-    },
-    [
-      clearDraft,
-      clearImages,
-      cursorCreatorModeOverride,
-      cursorCreatorModelOverride,
-      dispatchLoadSession,
-      imageDataUrls,
-      isContentEmpty,
-      navigateToLaunchedSession,
-      onLaunchSuccess,
-      sessionName,
-      setCursorCreatorModeOverride,
-      setCursorCreatorModelOverride,
-      setLastUserMessage,
-      setPendingSyntheticEvent,
-      setSessionSource,
-    ]
-  );
-
   const handleLaunch = useCallback(async () => {
     if (isLoading) return false;
 
@@ -255,6 +171,9 @@ export function useSessionLaunch(
     );
     if (!confirmedShortInput) return false;
 
+    const clearedSecretScan = await guardAgainstSecrets(editorContent);
+    if (!clearedSecretScan) return false;
+
     const { agentInput, userInput } = await prepareLaunchInput({
       editorContent,
       effectiveSource,
@@ -262,36 +181,6 @@ export function useSessionLaunch(
     });
 
     const isBackgroundLaunch = isBackgroundLaunchMode(launchMode);
-
-    if (dispatchCategory === DISPATCH_CATEGORY.CURSOR_IDE) {
-      setIsLoading(true);
-      try {
-        const resolvedWorkItemContext = resolveWorkItemContext
-          ? await resolveWorkItemContext()
-          : workItemContext;
-        if (resolveWorkItemContext && !resolvedWorkItemContext) return false;
-
-        await executeCursorIdeLaunch(
-          agentInput,
-          userInput,
-          isBackgroundLaunch,
-          resolvedWorkItemContext ?? undefined
-        );
-        return true;
-      } catch (error) {
-        log.error("Error creating Cursor IDE session:", error);
-        Message.error(
-          formatAgentLaunchError(
-            error instanceof Error
-              ? error.message
-              : "An unexpected error occurred"
-          )
-        );
-        return false;
-      } finally {
-        setIsLoading(false);
-      }
-    }
 
     setIsLoading(true);
 
@@ -332,6 +221,7 @@ export function useSessionLaunch(
           sessionName,
           targetKind,
           workspaceFolders,
+          worktreeLaunchSource,
         });
 
       const result = await sessionLaunch({
@@ -364,6 +254,13 @@ export function useSessionLaunch(
           result,
         })
       );
+      void autoTagLaunchedSessionToActiveCloudOrg({
+        sessionId: result.sessionId,
+        repoPath: effectiveSource?.repoPath ?? null,
+        launchOrgId: resolvedWorkItemContext?.orgId ?? null,
+      }).catch((error: unknown) => {
+        log.warn("Failed to auto-tag launched session to cloud org", error);
+      });
       if (selectedAgentOrgId) {
         void loadSidebarSessions({ forceRefresh: true }).catch(
           (error: unknown) => {
@@ -444,11 +341,11 @@ export function useSessionLaunch(
     validateSessionConfig,
     editorContent,
     t,
+    guardAgainstSecrets,
     effectiveSource,
     composerInputRef,
     launchMode,
     dispatchCategory,
-    executeCursorIdeLaunch,
     advancedConfig,
     clearDraft,
     showAuthError,
@@ -462,6 +359,7 @@ export function useSessionLaunch(
     sessionName,
     targetKind,
     workspaceFolders,
+    worktreeLaunchSource,
     clearImages,
     dispatchLoadSession,
     setLastUserMessage,

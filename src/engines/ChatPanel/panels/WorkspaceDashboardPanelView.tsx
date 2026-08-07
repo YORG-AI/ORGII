@@ -3,13 +3,12 @@ import React, { useCallback, useState } from "react";
 
 import { LaunchpadDashboard } from "@src/modules/shared/launchpad/components";
 import { openWorkspaceSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
+import { openWorkspaceOverviewInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { Repo } from "@src/store/repo";
 import { repoLoadingAtom, reposAtom } from "@src/store/repo";
-import {
-  CHAT_PANEL_SURFACE_KIND,
-  WORKSPACE_OVERVIEW_TAB,
-  chatPanelNavigateAtom,
-} from "@src/store/ui/chatPanelAtom";
+import { WORKSPACE_OVERVIEW_TAB } from "@src/store/ui/chatPanelAtom";
+
+import { StartPageQuotaGrid } from "../StartPageQuotaGrid";
 
 function repoDisplayName(repo: Repo): string {
   return repo.name || repo.path?.split("/").pop() || "Repo";
@@ -18,19 +17,18 @@ function repoDisplayName(repo: Repo): string {
 export default function WorkspaceDashboardPanelView(): React.ReactElement {
   const repos = useAtomValue(reposAtom);
   const loading = useAtomValue(repoLoadingAtom);
-  const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
+  const openWorkspaceTab = useSetAtom(openWorkspaceOverviewInChatPanelTabAtom);
   const [selectedDashboardRepoId, setSelectedDashboardRepoId] = useState<
     string | null
   >(null);
 
-  // "Open details" navigates to the existing workspace overview surface
-  // (the same surface the sidebar opens for a repo) and pre-selects the
-  // Details tab. We close the dashboard so that the overview replaces it
-  // in the same chat-panel slot — there is no separate detail mode.
+  // "Open details" opens the workspace overview / detail page in its own
+  // dedicated chat-panel tab, titled with the workspace name and pre-selected
+  // on the Details sub-tab. Re-opening the same workspace focuses the existing
+  // tab instead of stacking duplicates.
   const handleOpenRepoDetails = useCallback(
     (repo: Repo) => {
-      navigateChatPanel({
-        kind: CHAT_PANEL_SURFACE_KIND.WORKSPACE_OVERVIEW,
+      openWorkspaceTab({
         workspace: {
           kind: "repo",
           id: repo.id,
@@ -40,11 +38,12 @@ export default function WorkspaceDashboardPanelView(): React.ReactElement {
         tab: WORKSPACE_OVERVIEW_TAB.DETAILS,
       });
     },
-    [navigateChatPanel]
+    [openWorkspaceTab]
   );
 
   return (
     <LaunchpadDashboard
+      headerContent={<StartPageQuotaGrid />}
       repos={repos}
       loading={loading}
       selectedDashboardRepoId={selectedDashboardRepoId}

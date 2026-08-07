@@ -48,7 +48,7 @@
       background: var(--color-fill-2);
       border: 1px solid var(--color-border-2);
       border-radius: 4px;
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
       font-weight: 500;
       color: var(--color-text-3);
     }
@@ -146,7 +146,7 @@
     background: var(--color-fill-2);
     border: 1px solid var(--color-border-2);
     border-radius: 4px;
-    font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+    font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
     font-weight: 500;
     color: var(--color-text-3);
   }
@@ -162,7 +162,7 @@
 
   &__detail {
     margin-left: auto;
-    font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+    font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
     color: var(--color-text-3);
   }
 }
@@ -214,7 +214,7 @@
       background: var(--color-fill-2);
       border: 1px solid var(--color-border-2);
       border-radius: 4px;
-      font-size: calc(var(--chat-font-size, $font-size-fallback) - 3px);
+      font-size: calc(var(--chat-font-size, $font-size-fallback) - 2px);
       color: var(--color-text-2);
     }
   }

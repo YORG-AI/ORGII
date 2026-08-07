@@ -118,6 +118,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     handleCreateFollowUp,
     worktreePath,
     projectRepoPath,
+    isLockedByOther,
+    lockHolderName,
   } = useWorkItemOrchestrator({
     workItem,
     displayWorkItem,
@@ -326,6 +328,9 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
       className={`relative flex h-full flex-col overflow-hidden${
         surface === WORK_ITEM_DETAIL_SURFACE.nested ? "bg-bg-2" : ""
       }`}
+      data-testid="work-item-detail"
+      data-work-item-id={workItem.session_id}
+      data-work-item-short-id={shortId ?? ""}
       onContextMenu={handleContextMenu}
     >
       {!publishHeaderToWorkstation && (
@@ -351,6 +356,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         isStartingAgent={isStartingAgent}
         activeAgentSessionId={activeAgentSessionId}
         activeAgentRole={activeAgentRole}
+        isLockedByOther={isLockedByOther}
+        lockHolderName={lockHolderName}
         onUpdateWorkItem={handleLocalUpdate}
         onUpdateWorkItemImmediate={handleImmediateUpdate}
         onStartAgent={handleStartAgent}

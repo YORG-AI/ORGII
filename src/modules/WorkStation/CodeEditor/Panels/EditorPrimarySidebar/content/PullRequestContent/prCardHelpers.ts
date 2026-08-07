@@ -10,6 +10,7 @@
  */
 export {
   type PrStatusVariant,
+  getPrStatusIconName,
   getPrStatusVariant,
 } from "@src/shared/pr/prStatus";
 export { formatStatNumber } from "@src/shared/pr/formatStatNumber";

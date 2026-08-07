@@ -30,7 +30,7 @@ import { agentRegistryAtom } from "@src/store/session/agentRegistryAtom";
  * - Cursor (cursor_cli)
  * - OpenAI (openai_api + codex, single brand tile)
  * - Anthropic (anthropic_api, claude_code)
- * - Google (gemini_api, gemini_cli)
+ * - Google (gemini_api)
  * - OpenRouter (openrouter_api) — gateway supporting many models
  * - DeepSeek (deepseek_api) — popular alternative
  * - Groq (groq_api) — fast inference
@@ -145,7 +145,6 @@ const PRIMARY_PROVIDER_KEYS = new Set([
   "cursor_cli",
   "claude_code",
   "codex", // OpenAI brand variant
-  "gemini_cli",
   "copilot",
   "kiro",
   "kimi_cli",

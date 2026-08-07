@@ -1,48 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  COLLAB_MESSAGE_TYPE,
-  COLLAB_PROTOCOL_VERSION,
-  buildCollabInviteLink,
+  RemoteTeammateSessionMetadataSchema,
   createCollabAvatarIdentity,
-  normalizeSupabaseProjectUrl,
-  parseCollabInviteInput,
-  parseCollabMessageEnvelope,
 } from "./protocol";
-import {
-  COLLAB_IDENTITY_KIND,
-  COLLAB_SESSION_ACCESS_MODE,
-  COLLAB_WORKSPACE_SCOPE,
-} from "./types";
+import { COLLAB_IDENTITY_KIND } from "./types";
 
 describe("collaboration protocol helpers", () => {
-  it("normalizes Supabase project URLs", () => {
-    expect(
-      normalizeSupabaseProjectUrl("https://team.supabase.co/path/?x=1#y")
-    ).toBe("https://team.supabase.co/path");
-  });
-
-  it("builds and parses invite links", () => {
-    const link = buildCollabInviteLink({
-      supabaseUrl: "https://team.supabase.co/",
-      anonKey: "anon-key",
-      inviteCode: "invite-1",
-    });
-
-    expect(parseCollabInviteInput(link)).toEqual({
-      syncBackend: "supabase",
-      supabaseUrl: "https://team.supabase.co",
-      anonKey: "anon-key",
-      inviteCode: "invite-1",
-    });
-  });
-
-  it("accepts raw invite codes", () => {
-    expect(parseCollabInviteInput(" invite-2 ")).toEqual({
-      inviteCode: "invite-2",
-    });
-  });
-
   it("creates deterministic lightweight avatar identities", () => {
     expect(createCollabAvatarIdentity("Ada Lovelace").initials).toBe("AL");
     expect(["v", "h"]).toContain(
@@ -50,126 +14,97 @@ describe("collaboration protocol helpers", () => {
     );
   });
 
-  it("parses session access settings", () => {
-    const parsed = parseCollabMessageEnvelope({
-      protocolVersion: COLLAB_PROTOCOL_VERSION,
-      id: "evt-session-1",
+  it("round-trips repoScopeKey through the session metadata schema (design §8.3)", () => {
+    const base = {
+      id: "org-1:m1:session-1",
       orgId: "org-1",
-      senderMemberId: "mem-1",
-      sentAt: "2026-06-15T00:00:00.000Z",
-      type: COLLAB_MESSAGE_TYPE.SESSION_METADATA_UPSERT,
-      payload: {
-        session: {
-          id: "org-1:mem-1:session-1",
-          orgId: "org-1",
-          ownerMemberId: "mem-1",
-          ownerUserId: "mem-1",
-          ownerDisplayName: "Ada",
-          ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
-          sourceSessionId: "session-1",
-          title: "Fix issue",
-          repoPath: "/repo",
-          accessMode: COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
-        },
-      },
-    });
+      ownerMemberId: "m1",
+      ownerUserId: "m1",
+      ownerDisplayName: "Ada",
+      ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
+      sourceSessionId: "session-1",
+      title: "Session",
+      repoPath: "/owners/machine/checkout",
+    };
 
-    expect(parsed.type).toBe(COLLAB_MESSAGE_TYPE.SESSION_METADATA_UPSERT);
-    if (parsed.type !== COLLAB_MESSAGE_TYPE.SESSION_METADATA_UPSERT) {
-      throw new Error("Expected session metadata upsert");
-    }
-    expect(parsed.payload.session.accessMode).toBe(
-      COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY
-    );
+    // The key survives the parse untouched — it rides in the opaque session
+    // payload jsonb; the server never interprets it.
+    const withKey = RemoteTeammateSessionMetadataSchema.parse({
+      ...base,
+      repoScopeKey: "github.com/acme/alpha",
+    });
+    expect(withKey.repoScopeKey).toBe("github.com/acme/alpha");
+
+    // Old-client rows (key absent) and null-scrubbed jsonb both parse to
+    // undefined — the consumer treats them as out of every scope.
+    expect(
+      RemoteTeammateSessionMetadataSchema.parse(base).repoScopeKey
+    ).toBeUndefined();
+    expect(
+      RemoteTeammateSessionMetadataSchema.parse({ ...base, repoScopeKey: null })
+        .repoScopeKey
+    ).toBeUndefined();
   });
 
-  it("parses session snapshot denial envelopes", () => {
-    const parsed = parseCollabMessageEnvelope({
-      protocolVersion: COLLAB_PROTOCOL_VERSION,
-      id: "evt-denied-1",
+  it("parses typed external provenance while keeping old rows compatible", () => {
+    const base = {
+      id: "org-1:m1:session-1",
       orgId: "org-1",
-      senderMemberId: "mem-1",
-      sentAt: "2026-06-15T00:00:00.000Z",
-      type: COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_DENIED,
-      payload: {
-        requestId: "request-1",
-        sourceSessionId: "session-1",
-        reason: "Session replay is not allowed by owner settings",
-      },
-    });
-
-    expect(parsed.type).toBe(COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_DENIED);
-    if (parsed.type !== COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_DENIED) {
-      throw new Error("Expected session snapshot denial");
-    }
-    expect(parsed.payload.reason).toContain("not allowed");
+      ownerMemberId: "m1",
+      ownerUserId: "m1",
+      ownerDisplayName: "Ada",
+      ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
+      sourceSessionId: "session-1",
+      title: "Session",
+    };
+    expect(
+      RemoteTeammateSessionMetadataSchema.parse({
+        ...base,
+        origin: { kind: "external_history", source: "claude_code" },
+      }).origin
+    ).toEqual({ kind: "external_history", source: "claude_code" });
+    expect(
+      RemoteTeammateSessionMetadataSchema.parse(base).origin
+    ).toBeUndefined();
+    expect(() =>
+      RemoteTeammateSessionMetadataSchema.parse({
+        ...base,
+        origin: { kind: "external_history", source: "unknown" },
+      })
+    ).toThrow();
   });
 
-  it("parses session snapshot response envelopes", () => {
-    const parsed = parseCollabMessageEnvelope({
-      protocolVersion: COLLAB_PROTOCOL_VERSION,
-      id: "evt-response-1",
+  it("parses the 0014 comment counters additively (session comments)", () => {
+    const base = {
+      id: "org-1:m1:session-1",
       orgId: "org-1",
-      senderMemberId: "mem-1",
-      sentAt: "2026-06-15T00:00:00.000Z",
-      type: COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_RESPONSE,
-      payload: {
-        requestId: "request-1",
-        sourceSessionId: "session-1",
-        session: {
-          id: "org-1:mem-1:session-1",
-          orgId: "org-1",
-          ownerMemberId: "mem-1",
-          ownerUserId: "mem-1",
-          ownerDisplayName: "Ada",
-          ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
-          sourceSessionId: "session-1",
-          title: "Fix issue",
-          repoPath: "/repo",
-          accessMode: COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
-        },
-        events: [],
-      },
+      ownerMemberId: "m1",
+      ownerUserId: "m1",
+      ownerDisplayName: "Ada",
+      ownerIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
+      sourceSessionId: "session-1",
+      title: "Session",
+    };
+
+    const withCounts = RemoteTeammateSessionMetadataSchema.parse({
+      ...base,
+      commentCount: 4,
+      unresolvedCommentCount: 2,
     });
+    expect(withCounts.commentCount).toBe(4);
+    expect(withCounts.unresolvedCommentCount).toBe(2);
 
-    expect(parsed.type).toBe(COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_RESPONSE);
-    if (parsed.type !== COLLAB_MESSAGE_TYPE.SESSION_SNAPSHOT_RESPONSE) {
-      throw new Error("Expected session snapshot response");
-    }
-    expect(parsed.payload.events).toEqual([]);
-  });
-
-  it("uses the selected workspace scope constant", () => {
-    expect(COLLAB_WORKSPACE_SCOPE.SELECTED_WORKSPACES).toBe(
-      "selected_workspaces"
-    );
-  });
-
-  it("parses group chat message envelopes", () => {
-    const parsed = parseCollabMessageEnvelope({
-      protocolVersion: COLLAB_PROTOCOL_VERSION,
-      id: "evt-1",
-      orgId: "org-1",
-      senderMemberId: "mem-1",
-      sentAt: "2026-06-15T00:00:00.000Z",
-      type: COLLAB_MESSAGE_TYPE.CHAT_MESSAGE,
-      payload: {
-        message: {
-          id: "msg-1",
-          orgId: "org-1",
-          authorMemberId: "mem-1",
-          authorDisplayName: "Ada",
-          authorIdentityKind: COLLAB_IDENTITY_KIND.HUMAN,
-          body: "Sharing https://example.com",
-          createdAt: "2026-06-15T00:00:00.000Z",
-        },
-      },
+    // Pre-0014 backends (fields absent) and null-scrubbed jsonb both parse
+    // to undefined — no badge, no crash.
+    const withoutCounts = RemoteTeammateSessionMetadataSchema.parse(base);
+    expect(withoutCounts.commentCount).toBeUndefined();
+    expect(withoutCounts.unresolvedCommentCount).toBeUndefined();
+    const nulled = RemoteTeammateSessionMetadataSchema.parse({
+      ...base,
+      commentCount: null,
+      unresolvedCommentCount: null,
     });
-
-    expect(parsed.type).toBe(COLLAB_MESSAGE_TYPE.CHAT_MESSAGE);
-    if (parsed.type !== COLLAB_MESSAGE_TYPE.CHAT_MESSAGE) {
-      throw new Error("Expected chat message");
-    }
-    expect(parsed.payload.message.body).toBe("Sharing https://example.com");
+    expect(nulled.commentCount).toBeUndefined();
+    expect(nulled.unresolvedCommentCount).toBeUndefined();
   });
 });

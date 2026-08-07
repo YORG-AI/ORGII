@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { shouldShowPlanningIndicator } from "./usePlanningIndicator";
+import {
+  planningWatchdogDelayMs,
+  shouldShowPlanningIndicator,
+} from "./usePlanningIndicator";
 
 const baseInput = {
   runtimeStatus: "running",
@@ -101,5 +104,33 @@ describe("shouldShowPlanningIndicator", () => {
         hasRunningAwaitWaitFor: true,
       })
     ).toBe(false);
+  });
+});
+
+describe("planningWatchdogDelayMs", () => {
+  const WATCHDOG = 60_000;
+
+  it("trips when no channel event was ever observed", () => {
+    expect(planningWatchdogDelayMs(null, WATCHDOG)).toBeNull();
+  });
+
+  it("trips when the channel has been silent for the full window", () => {
+    expect(planningWatchdogDelayMs(WATCHDOG, WATCHDOG)).toBeNull();
+    expect(planningWatchdogDelayMs(WATCHDOG + 5_000, WATCHDOG)).toBeNull();
+  });
+
+  it("re-arms for the remainder while ephemeral deltas keep the channel busy", () => {
+    // tool_call_delta arrived 1s ago (never bumps the store version) —
+    // probe again in 59s rather than force-completing a live turn.
+    expect(planningWatchdogDelayMs(1_000, WATCHDOG)).toBe(59_000);
+  });
+
+  it("re-arms with a shrinking window as silence grows", () => {
+    expect(planningWatchdogDelayMs(59_999, WATCHDOG)).toBe(1);
+  });
+
+  it("clamps negative recency (clock skew) to a full window", () => {
+    // msSinceSessionChannelActivity floors at 0, but guard the policy too.
+    expect(planningWatchdogDelayMs(0, WATCHDOG)).toBe(WATCHDOG);
   });
 });

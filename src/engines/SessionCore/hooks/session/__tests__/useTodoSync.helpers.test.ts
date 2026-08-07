@@ -24,6 +24,7 @@ import {
   sanitizeTodoDisplayText,
 } from "../todoNormalization";
 import {
+  extractTodosFromManageTodoSequence,
   findLatestManageTodoEvent,
   isManageTodoEvent,
   normalizePersistedTodo,
@@ -304,6 +305,77 @@ describe("findLatestManageTodoEvent", () => {
     expect(findLatestManageTodoEvent(events, "sdeagent-test", 0)?.id).toBe(
       "todo-old"
     );
+  });
+});
+
+describe("extractTodosFromManageTodoSequence", () => {
+  function nativeTodoContent(
+    header: string,
+    todos: Array<Record<string, unknown>>
+  ): string {
+    return [
+      header,
+      JSON.stringify(todos, null, 2),
+      "",
+      "Ensure that you continue to use the todo list to track your progress.",
+    ].join("\n");
+  }
+
+  it("backfills empty titles in later update snapshots from earlier todo events", () => {
+    const events = [
+      makeManageTodoEvent({
+        id: "todo-write",
+        result: {
+          content: nativeTodoContent("3 todos (3 remaining)", [
+            {
+              index: 0,
+              content: "Review remaining version metadata changes",
+              status: "pending",
+            },
+            {
+              index: 1,
+              content: "Verify synchronized release version",
+              status: "pending",
+            },
+            {
+              index: 2,
+              content: "Commit synchronized release metadata",
+              status: "pending",
+            },
+          ]),
+        },
+      }),
+      makeManageTodoEvent({
+        id: "todo-update",
+        result: {
+          content: nativeTodoContent(
+            "Updated todo #2 — 3 todos (1 remaining)",
+            [
+              { index: 0, content: "", status: "completed" },
+              { index: 1, content: "   ", status: "completed" },
+              {
+                index: 2,
+                content: "Verify commits and clean working tree",
+                status: "in_progress",
+              },
+            ]
+          ),
+        },
+      }),
+    ];
+
+    const todos = extractTodosFromManageTodoSequence(events, "sdeagent-test");
+
+    expect(todos.map((todo) => todo.content)).toEqual([
+      "Review remaining version metadata changes",
+      "Verify synchronized release version",
+      "Verify commits and clean working tree",
+    ]);
+    expect(todos.map((todo) => todo.status)).toEqual([
+      "completed",
+      "completed",
+      "in_progress",
+    ]);
   });
 });
 

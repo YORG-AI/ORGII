@@ -14,11 +14,7 @@ export { default as SourceControlMainContent } from "./SourceControlMainContent"
 export { AllChangesView } from "./SourceControlMainContent";
 export type { AllChangesViewProps } from "./SourceControlMainContent";
 
-export {
-  default as TabContentRenderer,
-  preloadSourceControlTabContent,
-} from "./TabContentRenderer";
-export type { TabContentRendererProps } from "./TabContentRenderer";
+export { preloadSourceControlTabContent } from "./preloadSourceControl";
 
 export { default as SearchEditorContent } from "./SearchEditorContent";
 export type { SearchEditorContentProps } from "./SearchEditorContent/types";

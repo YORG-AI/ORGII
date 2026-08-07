@@ -5,17 +5,15 @@ import { eventsAtom } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { isShellTool } from "@src/engines/SessionCore/sync/adapters/shared";
 import { listenTauri } from "@src/util/platform/tauri/init";
+import {
+  type PtyOutputPayload,
+  ptyPayloadBytes,
+} from "@src/util/terminal/ptyOutputPayload";
 
 import XtermOutput from "../XtermOutput";
 
 interface TerminalReadOnlyProps {
   agentSessionId: string;
-}
-
-interface PtyOutputPayload {
-  bytes?: number[];
-  byte_count?: number;
-  data?: string;
 }
 
 const PTY_SESSION_ID = "osagent-pty-main";
@@ -165,14 +163,12 @@ const TerminalReadOnly: React.FC<TerminalReadOnlyProps> = ({
     listenTauri<PtyOutputPayload>(`pty-output-${PTY_SESSION_ID}`, (event) => {
       if (cancelled) return;
 
-      const { bytes, data } = event.payload;
-      if (bytes && bytes.length > 0) {
-        const decoded = utf8Decoder.decode(new Uint8Array(bytes), {
-          stream: true,
-        });
+      const chunk = ptyPayloadBytes(event.payload);
+      if (chunk && chunk.length > 0) {
+        const decoded = utf8Decoder.decode(chunk, { stream: true });
         appendOutput(decoded);
-      } else if (data) {
-        appendOutput(data);
+      } else if (event.payload.data) {
+        appendOutput(event.payload.data);
       }
     }).then((unlistenFn) => {
       if (cancelled) {

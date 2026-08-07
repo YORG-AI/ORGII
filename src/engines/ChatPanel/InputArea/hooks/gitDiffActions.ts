@@ -74,6 +74,31 @@ Constraints:
 - If the branch has existing local commits that need to be pushed before creating the PR, push those existing commits only.
 - Use the repository's PR title and description style.${SYSTEM_GENERATED_GIT_ACTION_CONFIRMATION_INSTRUCTION}${SYSTEM_GENERATED_GIT_ACTION_LANGUAGE_INSTRUCTION}`;
 
+function appendAdditionalInstructions(
+  prompt: string,
+  instructions?: string
+): string {
+  const trimmed = instructions?.trim();
+  if (!trimmed) return prompt;
+
+  return `${prompt}\n\nUser-configured additional instructions:\n${trimmed}`;
+}
+
+export function buildGitDiffCommitPrompt(instructions?: string): string {
+  return appendAdditionalInstructions(GIT_DIFF_COMMIT_PROMPT, instructions);
+}
+
+export function buildGitDiffCommitPushPrompt(instructions?: string): string {
+  return appendAdditionalInstructions(
+    GIT_DIFF_COMMIT_PUSH_PROMPT,
+    instructions
+  );
+}
+
+export function buildGitDiffCreatePrPrompt(instructions?: string): string {
+  return appendAdditionalInstructions(GIT_DIFF_CREATE_PR_PROMPT, instructions);
+}
+
 /** A mutable single-slot guard, structurally compatible with a React ref. */
 export interface MutableGuard {
   current: boolean;

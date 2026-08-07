@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
 
 import { InlineCardFooter } from "../../shared/InlineCardPrimitives";
 
@@ -43,9 +44,11 @@ export const AccountInlineActionsBar: React.FC<
 
   const showEdit = !account.listingId && account.hasLocalKey && onEdit;
   const resolvedRefreshLabel = refreshLabel ?? tCommon("actions.refresh");
-
   return (
     <InlineCardFooter>
+      <div className="mr-auto flex min-h-7 items-center">
+        <AccountStatusIndicator account={account} />
+      </div>
       {onRefresh ? (
         <Button
           variant="secondary"

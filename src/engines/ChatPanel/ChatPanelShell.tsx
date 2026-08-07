@@ -2,10 +2,14 @@ import React from "react";
 
 import { MIN_WIDTH as CHAT_MIN_WIDTH } from "@src/engines/ChatPanel/config";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
-import { GUIDE_TARGETS } from "@src/scaffold/Tutorials";
+import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 import { ChatPanelTerminalContent } from "./ChatPanelTerminalContent";
+
+const WorkManagement = React.lazy(
+  () => import("@src/modules/MainApp/WorkManagement")
+);
 
 type ChatPanelShellStyle = React.CSSProperties;
 
@@ -48,9 +52,11 @@ export function ChatPanelShell({
   terminalTabs,
   useExternalWidth,
 }: ChatPanelShellProps): React.ReactNode {
+  const isManagementTabActive = activeTab?.type === "work-management";
   const dragHandle = showResizeHandle && (
     <VerticalResizeHandle
       key="chat-panel-resize-handle"
+      className={`!z-[80] ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
       onMouseDown={onResizeMouseDown}
       variant={embedded ? "border" : "transparent"}
       noAccent={!embedded}
@@ -80,9 +86,21 @@ export function ChatPanelShell({
       }}
     >
       {headerSection}
-      <div style={{ display: isTerminalTabActive ? "none" : "contents" }}>
+      <div
+        style={{
+          display:
+            isTerminalTabActive || isManagementTabActive ? "none" : "contents",
+        }}
+      >
         {chatColumn}
       </div>
+      {isManagementTabActive && (
+        <div className="min-h-0 w-full flex-1 overflow-hidden">
+          <React.Suspense fallback={null}>
+            <WorkManagement />
+          </React.Suspense>
+        </div>
+      )}
       {terminalTabs.map((tab) => {
         const terminalSessionId = tab.terminalSessionId;
         if (!terminalSessionId) return null;

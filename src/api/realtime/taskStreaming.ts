@@ -2,11 +2,13 @@
  * Task Streaming API
  *
  * Provides real-time output streaming for task execution (npm, yarn, etc.)
- * Uses Server-Sent Events (SSE) via the Rust HTTP server on port 13847.
+ * Uses Server-Sent Events (SSE) via the Rust HTTP IDE server.
  */
+import { IDE_SERVER_HTTP_URL } from "@src/config/ideServer";
+
 import { createSSEStream } from "./sseStream";
 
-const RUST_BASE_URL = "http://localhost:13847/api/tasks";
+const RUST_BASE_URL = `${IDE_SERVER_HTTP_URL}/api/tasks`;
 
 /**
  * Callbacks for task streaming events

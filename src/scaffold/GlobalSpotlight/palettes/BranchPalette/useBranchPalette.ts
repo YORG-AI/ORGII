@@ -39,7 +39,7 @@ import { useSelectorKernel } from "../core";
 import type { BranchPaletteMode, UseBranchPaletteOptions } from "./types";
 import { useBranchFetch } from "./useBranchFetch";
 import { useBranchItems } from "./useBranchItems";
-import { refreshWorktreeMap, useWorktreeMap } from "./useWorktreeMap";
+import { useWorktreeMap } from "./useWorktreeMap";
 
 const log = createLogger("useBranchPalette");
 const REFRESH_SPIN_MIN_MS = 900;
@@ -52,11 +52,10 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     repoId,
     repoPathProp,
     currentBranchName,
+    groupWorktreeBranches = true,
     onSelect,
     onCreateBranch,
     onDeleteBranch,
-    onRemoveWorktree,
-    onCheckoutDetached,
     onClose,
     onGoBackToParent,
     variant,
@@ -115,7 +114,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
 
   // ============ FETCH WORKTREES (local repos only) ============
   const worktreeMap = useWorktreeMap({
-    enabled: isOpen,
+    enabled: isOpen && groupWorktreeBranches,
     repoId,
     repoPath: repoPathProp,
     isLocalRepo: !isGitHubRepo,
@@ -210,44 +209,23 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     [onDeleteBranch, refreshBranches]
   );
 
-  const handleRemoveWorktree = useCallback(
-    async (worktreePath: string) => {
-      if (!onRemoveWorktree) return;
-      const result = await onRemoveWorktree(worktreePath, {
-        skipRefresh: true,
-      });
-      if (result?.success === false) return;
-      await refreshWorktreeMap(repoId, repoPathProp);
-      await refreshBranches();
-    },
-    [onRemoveWorktree, refreshBranches, repoId, repoPathProp]
-  );
-
-  const renderBranchRemoveAction = useCallback(
-    (branch: { name: string; worktreePath?: string }) =>
+  const renderBranchDeleteAction = useCallback(
+    (branch: { name: string }) =>
       createElement(
         "button",
         {
           type: "button",
           onClick: (event: MouseEvent<HTMLButtonElement>) => {
             event.stopPropagation();
-            if (branch.worktreePath) {
-              void handleRemoveWorktree(branch.worktreePath);
-              return;
-            }
             void handleDeleteBranch(branch.name);
           },
           className:
             "flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-3 hover:text-text-1",
-          title: branch.worktreePath
-            ? t("selectors.branch.actions.removeWorktree", {
-                defaultValue: "Remove Worktree",
-              })
-            : t("actions.delete", "Delete"),
+          title: t("actions.delete", "Delete"),
         },
         createElement(Trash2, { size: 14 })
       ),
-    [handleDeleteBranch, handleRemoveWorktree, t]
+    [handleDeleteBranch, t]
   );
 
   // ============ ITEMS (needs to be before useSelector) ============
@@ -257,20 +235,15 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     filteredBranches,
     searchQuery,
     currentBranchName,
-    effectiveShowRemoveMode,
     onSelect,
     onCreateBranch,
-    onDeleteBranch,
-    onRemoveWorktree,
-    onCheckoutDetached,
     onClose,
     setActiveMode,
     setSelectedStartPoint,
     focusInput: focusInputBridge,
     selectedBranchNames,
     toggleBranchSelection,
-    removeWorktree: handleRemoveWorktree,
-    renderBranchRemoveAction,
+    renderBranchDeleteAction,
   });
 
   const selectedBranchCount = selectedBranchNames.size;

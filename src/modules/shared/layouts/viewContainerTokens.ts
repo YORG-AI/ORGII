@@ -6,47 +6,66 @@
  */
 import type { CSSProperties } from "react";
 
-import { ROUTES } from "@src/config/routes";
+import {
+  HOST_DESKTOP,
+  resolveHostDesktop,
+} from "@src/config/windowChromeRadius";
 import {
   sanitizePageOpacity,
   sanitizeSidebarOpacity,
 } from "@src/store/ui/backgroundConfigAtom";
 
-/**
- * Routes that intentionally bleed the wallpaper through chrome even when the
- * user has picked the compact global layout. Each of these owns a hero canvas,
- * illustration, or centered card on the background layer.
- *
- * Centralized so shared chrome agrees on the exception list — adding a new
- * wallpaper route is a one-line change.
- */
-const WALLPAPER_ROUTE_PREFIXES: readonly string[] = [
-  ROUTES.app.home.start.path,
-  ROUTES.app.home.selectRepo.path,
-  ROUTES.auth.login.path,
-  ROUTES.auth.setup.path,
-  ROUTES.app.market.callback.path,
-];
+const IS_MACOS_HOST = resolveHostDesktop() === HOST_DESKTOP.MACOS;
 
-export function isWallpaperRoutePath(pathname: string): boolean {
-  return WALLPAPER_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+/**
+ * Shared pane transition. It animates layout dimensions themselves rather
+ * than transforms, so ResizeObserver and native-webview measurements see the
+ * real intermediate width throughout the motion.
+ */
+export const PANE_WIDTH_TRANSITION_CLASSES =
+  "transition-[width,flex-grow,flex-basis] duration-200 ease-out motion-reduce:transition-none";
+
+interface ChatSlotLayoutStyleOptions {
+  maximized: boolean;
+  visible: boolean;
+  visibleWidth: string | number;
 }
 
-/**
- * Page/panel background variants — shared by MainAppShell, ShellFallback,
- * view containers.
- *
- * NOTE: the surface paint (`bg-bg-2`) lives on the inline style produced
- * by `getPagePanelBackgroundStyle()` so it can honor the page opacity
- * setting. These class tokens only contribute geometry (radius), not
- * color, to avoid re-painting an opaque layer on top.
- */
-export const PAGE_PANEL_BG = {
-  /** Rounded corners, used for inset/card layout */
-  rounded: "rounded-page",
-  /** Flat, no radius - used for full/edge layout */
-  flat: "",
-} as const;
+/** Normal-flow flex geometry for the chat pane at each visibility state. */
+export function getChatSlotLayoutStyle({
+  maximized,
+  visible,
+  visibleWidth,
+}: ChatSlotLayoutStyleOptions): CSSProperties {
+  if (maximized) {
+    return {
+      flexBasis: 0,
+      flexGrow: 1,
+      flexShrink: 1,
+      width: 0,
+    };
+  }
+
+  const width = visible ? visibleWidth : 0;
+  return {
+    flexBasis: width,
+    flexGrow: 0,
+    flexShrink: 0,
+    pointerEvents: visible ? "auto" : "none",
+    width,
+  };
+}
+
+/** Normal-flow flex geometry for the workstation beside the chat pane. */
+export function getWorkbenchLayoutStyle(maximized: boolean): CSSProperties {
+  return {
+    flexBasis: 0,
+    flexGrow: maximized ? 0 : 1,
+    flexShrink: 1,
+    pointerEvents: maximized ? "none" : "auto",
+    width: 0,
+  };
+}
 
 /**
  * View container class strings for modules/index.tsx
@@ -59,16 +78,8 @@ export const PAGE_PANEL_BG = {
  * so they don't render transparent.
  */
 export const VIEW_CONTAINER_CLASSES = {
-  /** Full mode: edge-to-edge with bg for loading state (no rounded corners) */
-  fullWithBg: "absolute inset-0 bg-bg-2",
-  /** Inset mode: card-like with rounded corners and bg for loading state */
-  insetWithBg: "absolute inset-0 rounded-page bg-bg-2",
-  /**
-   * Compact mode: same as full visually (flat, no radius), but reserved as a
-   * separate token so consumers can branch by mode rather than infer from
-   * `flat` alone.
-   */
-  compactWithBg: "absolute inset-0 bg-bg-2",
+  /** Flat Modern container with a background for loading state. */
+  withBg: "absolute inset-0 bg-bg-2",
 } as const;
 
 /** Style for visibility toggle - prevents flash when switching views */
@@ -97,7 +108,7 @@ export const LAYOUT_CONTAIN_STYLE: CSSProperties = {
 export function getPagePanelBackgroundStyle(
   pageOpacity: number | undefined
 ): CSSProperties {
-  const opacity = sanitizePageOpacity(pageOpacity);
+  const opacity = IS_MACOS_HOST ? 100 : sanitizePageOpacity(pageOpacity);
   return {
     backgroundColor: `color-mix(in srgb, var(--color-bg-2) ${opacity}%, transparent)`,
   };
@@ -133,7 +144,7 @@ export function getSidebarSurfaceBackgroundStyle(
 export function getChatPanelBackgroundStyle(
   pageOpacity: number | undefined
 ): CSSProperties {
-  const opacity = sanitizePageOpacity(pageOpacity);
+  const opacity = IS_MACOS_HOST ? 100 : sanitizePageOpacity(pageOpacity);
   const chatPaneMix = `color-mix(in srgb, var(--color-chat-pane-base) ${opacity}%, transparent)`;
   return {
     backgroundColor: chatPaneMix,

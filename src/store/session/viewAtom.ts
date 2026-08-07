@@ -46,6 +46,7 @@ import {
   hasLiveSubagentJobs,
   subagentJobMapAtom,
 } from "@src/store/session/subagentJobAtom";
+import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
 import type { SessionViewState } from "./types";
@@ -179,16 +180,20 @@ hasActiveSessionAtom.debugLabel = "hasActiveSessionAtom";
 export const openSessionAtom = atom(
   null,
   (
-    _get,
+    get,
     set,
     payload: { sessionId: string; sessionName?: string; repoPath?: string }
   ) => {
+    const previousSessionId = get(activeSessionIdAtom);
     set(sessionViewAtom, {
       activeSessionId: payload.sessionId,
       sessionName: payload.sessionName,
       repoPath: payload.repoPath,
     });
     set(activeSessionIdAtom, payload.sessionId);
+    if (previousSessionId !== payload.sessionId) {
+      set(chatPanelMaximizedAtom, true);
+    }
   }
 );
 openSessionAtom.debugLabel = "openSessionAtom";
@@ -221,6 +226,29 @@ updateSessionMetadataAtom.debugLabel = "updateSessionMetadataAtom";
 // ============================================
 // Canonical Session Jump Action
 // ============================================
+
+/**
+ * Claim the singleton session pipeline for a transient chat surface.
+ *
+ * This mirrors the engine transition performed by `jumpToSessionAtom`
+ * without changing WorkStation's remembered selection. Secondary surfaces
+ * such as the kanban detail panel use it to load their session while leaving
+ * the user's primary WorkStation context intact.
+ */
+export const claimPipelineSessionAtom = atom(
+  null,
+  (get, set, sessionId: string) => {
+    const previousPipelineSessionId = get(activeSessionIdAtom);
+
+    set(clearSessionAtom);
+    set(loadStatusAtom, "loading");
+    set(activeSessionIdAtom, sessionId);
+    if (previousPipelineSessionId === sessionId) {
+      set(triggerSessionReloadAtom, sessionId);
+    }
+  }
+);
+claimPipelineSessionAtom.debugLabel = "claimPipelineSessionAtom";
 
 /**
  * Unified action for switching sessions. Every navigation path
@@ -266,6 +294,11 @@ export const jumpToSessionAtom = atom(
       repoPath: isRich ? payload.repoPath : current.repoPath,
     });
     set(activeSessionIdAtom, sessionId);
+    // A different session starts in the ChatPanel only. Explicit
+    // open-in-workstation actions clear this focused state themselves.
+    if (sessionId && previousPipelineSessionId !== sessionId) {
+      set(chatPanelMaximizedAtom, true);
+    }
     if (sessionId && previousPipelineSessionId === sessionId) {
       set(triggerSessionReloadAtom, sessionId);
     }

@@ -15,7 +15,6 @@ export const CLI_AGENT = {
   CURSOR: "cursor_cli",
   CLAUDE_CODE: "claude_code",
   CODEX: "codex",
-  GEMINI: "gemini_cli",
   COPILOT: "copilot",
   KIRO: "kiro",
   KIMI: "kimi_cli",
@@ -48,7 +47,6 @@ export const CliAgentTypeSchema = z.union([
   z.literal("cursor_cli"),
   z.literal("claude_code"),
   z.literal("codex"),
-  z.literal("gemini_cli"),
   z.literal("copilot"),
   z.literal("kiro"),
   z.literal("kimi_cli"),
@@ -97,7 +95,6 @@ export const ApiProviderTypeSchema = z.union([
   z.literal("cherryin_api"),
   z.literal("bedrock_api"),
   z.literal("custom_api"),
-  z.literal("embedding_api"),
   z.literal("vllm_api"),
   z.literal("azure_openai_api"),
   z.literal("azure_anthropic_api"),
@@ -211,42 +208,6 @@ export const ModelVariantInfoSchema = z.object({
   reasoning: z.string().nullable().optional(),
   fast: z.boolean().default(false),
   context_window: z.number().int().positive().nullable().optional(),
-  context_window_override: z.number().int().positive().nullable().optional(),
-  reasoning_effort_override: z
-    .enum([
-      "none",
-      "baseline",
-      "low",
-      "medium",
-      "high",
-      "extra_high",
-      "max",
-      "ultracode",
-    ])
-    .nullable()
-    .optional(),
-});
-
-/** Omitted leaves a field unchanged; null clears the user runtime override. */
-export const UpdateModelRuntimeSettingsInput = z.object({
-  request: z.object({
-    key_id: z.string().min(1),
-    model: z.string().min(1),
-    context_window_override: z.number().int().positive().nullable().optional(),
-    reasoning_effort_override: z
-      .enum([
-        "none",
-        "baseline",
-        "low",
-        "medium",
-        "high",
-        "extra_high",
-        "max",
-        "ultracode",
-      ])
-      .nullable()
-      .optional(),
-  }),
 });
 
 export const DefaultVariantInfoSchema = z.object({
@@ -254,22 +215,7 @@ export const DefaultVariantInfoSchema = z.object({
   model: z.string(),
 });
 
-export const ZENMUX_PROVIDER_SLUGS = [
-  "amazon-bedrock",
-  "google-vertex",
-  "anthropic",
-  "openai",
-  "bigmodel",
-  "deepseek",
-  "x-ai",
-] as const;
-
-export const ModelSlugInfoSchema = z.object({
-  model: z.string(),
-  slug: z.enum(ZENMUX_PROVIDER_SLUGS),
-});
-
-export const ProviderProtocolSchema = z.enum(["openai", "anthropic"]);
+export const ProviderProtocolSchema = z.enum(["openai", "anthropic", "gemini"]);
 
 export const KeyInfoSchema = z.object({
   id: z.string(),
@@ -288,11 +234,9 @@ export const KeyInfoSchema = z.object({
   account_metadata: z.record(z.string(), z.string()).optional().default({}),
   available_models: z.array(z.string()),
   enabled_models: z.array(z.string()),
-  side_query_model: z.string().nullable().optional(),
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
-  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.unknown().nullable(),
   has_local_key: z.boolean(),
   is_listed: z.boolean(),
@@ -347,11 +291,9 @@ export const SaveKeyRequestSchema = z.object({
   account_metadata: z.record(z.string(), z.string()).optional(),
   available_models: z.array(z.string()).optional(),
   enabled_models: z.array(z.string()).optional(),
-  side_query_model: z.string().optional(),
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
-  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.record(z.string(), z.unknown()).optional(),
   has_local_key: z.boolean().optional(),
   is_listed: z.boolean().optional(),
@@ -505,9 +447,8 @@ export const AvailableApiProviderSchema = z.object({
 /**
  * Matches `ProviderEndpoint` in `src-tauri/.../provider_config.rs`.
  *
- * A selectable endpoint — a regional split (Zhipu's China vs Global hosts), a
- * product tier (OpenCode Zen vs Go), or an AWS region. `anthropic_base_url` is
- * null when the endpoint has no dedicated Anthropic-protocol host.
+ * A selectable endpoint — sometimes combining dimensions (Zhipu region and
+ * credential type), or representing a product tier or AWS region.
  */
 export const ProviderEndpointSchema = z.object({
   id: z.string(),
@@ -590,7 +531,6 @@ export const UpdateKeyHealthInput = z.object({
   errorMessage: z.string().nullable().optional(),
   availableModels: z.array(z.string()).nullable().optional(),
   enabledModels: z.array(z.string()).nullable().optional(),
-  sideQueryModel: z.string().nullable().optional(),
   quotaInfo: z.record(z.string(), z.unknown()).nullable().optional(),
   modelContextLengths: ModelContextLengthsSchema.nullable().optional(),
 });
@@ -755,11 +695,6 @@ export const CodexOauthListModelsInput = z.object({
   }),
 });
 
-export const GeminiOauthListModelsInput = z.object({
-  accessToken: z.string(),
-  projectId: z.string().nullable().optional(),
-});
-
 export const RefreshOauthTokenInput = z.object({
   keyId: z.string(),
 });
@@ -843,32 +778,6 @@ export const CodexOauthExchangeResponseSchema = z.object({
   scope: z.string().nullable().optional(),
 });
 
-export const GeminiOauthStartResponseSchema = z.object({
-  authUrl: z.string(),
-  state: z.string(),
-  codeVerifier: z.string(),
-  redirectUri: z.string(),
-});
-
-export const GeminiOauthExchangeInput = z.object({
-  code: z.string(),
-  state: z.string(),
-  expectedState: z.string(),
-  codeVerifier: z.string(),
-  redirectUri: z.string(),
-});
-
-export const GeminiOauthExchangeResponseSchema = z.object({
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  expiresIn: z.number().nullable().optional(),
-  tokenType: z.string().nullable().optional(),
-  scope: z.string().nullable().optional(),
-  projectId: z.string(),
-  expiresAt: z.string(),
-  availableModels: z.array(z.string()),
-});
-
 export const GetProviderConfigInput = z.object({
   modelType: z.string(),
 });
@@ -949,10 +858,4 @@ export type CodexOauthStartResponse = z.infer<
 >;
 export type CodexOauthExchangeResponse = z.infer<
   typeof CodexOauthExchangeResponseSchema
->;
-export type GeminiOauthStartResponse = z.infer<
-  typeof GeminiOauthStartResponseSchema
->;
-export type GeminiOauthExchangeResponse = z.infer<
-  typeof GeminiOauthExchangeResponseSchema
 >;

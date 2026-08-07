@@ -20,6 +20,7 @@ export {
   settingsLoadedAtom,
   settingAtom,
   updateSettingAtom,
+  saveSettingAtom,
   updateSettingsBatchAtom,
   resetAllSettingsAtom,
   initSettingsAtom,

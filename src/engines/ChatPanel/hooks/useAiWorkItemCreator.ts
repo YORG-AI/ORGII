@@ -10,6 +10,10 @@ import {
 } from "@src/api/http/project";
 import Message from "@src/components/Message";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
+import {
+  allocateCloudAwareStandaloneWorkItemId,
+  allocateCloudAwareWorkItemId,
+} from "@src/features/Org2Cloud/cloudShortId";
 import i18n from "@src/i18n";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 import { SESSION_TARGET_KIND } from "@src/store/session";
@@ -18,6 +22,7 @@ import {
   CHAT_PANEL_CONTENT_MODE,
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelContentMode,
+  type ChatPanelCreateProjectContext,
   type ChatPanelCreateTarget,
   type ChatPanelSelectedProject,
   type ChatPanelSelectedWorkItem,
@@ -33,6 +38,13 @@ interface AiWorkItemLaunchMetadata {
   projectSlug: string;
   projectId: string;
   projectName: string;
+  /**
+   * Project-org id a STANDALONE item was written under. The post-launch
+   * linked-session write MUST reuse it — an orgless rewrite would re-home
+   * the row to `personal-org` (the Rust upsert overwrites `org_id` on
+   * conflict) and detach it from collab sync.
+   */
+  orgId?: string;
   item: WorkItemData;
 }
 
@@ -56,6 +68,12 @@ interface ResolvedAiWorkItemAssignee {
 
 interface UseAiWorkItemCreatorOptions {
   allAgentDefs: AgentDefinition[];
+  /**
+   * Org context of the create surface (set by NEW_WORK_ITEM navigation
+   * from an org hub). Standalone AI work items are written under this
+   * org so collab-synced orgs pick them up; null → personal-org.
+   */
+  createProjectContext: ChatPanelCreateProjectContext | null;
   creatorState: SessionCreatorState;
   dispatchClearSession: () => void;
   setActiveSessionId: (sessionId: string | null) => void;
@@ -72,6 +90,7 @@ interface UseAiWorkItemCreatorOptions {
 
 export function useAiWorkItemCreator({
   allAgentDefs,
+  createProjectContext,
   creatorState,
   dispatchClearSession,
   setActiveSessionId,
@@ -179,9 +198,19 @@ export function useAiWorkItemCreator({
     const selectedProjectId = selectedProject?.meta.id ?? draft.projectId ?? "";
     const selectedProjectName = selectedProject?.meta.name ?? "";
     const now = new Date().toISOString();
+    // Project-scoped ids go through the collab-aware allocator (design
+    // §16.5): server counter under a collab-synced org, local counter
+    // otherwise. Standalone work items have no project row, so they use
+    // the org-scoped local counter under the surface's org (documented
+    // residual in allocateCloudAwareStandaloneWorkItemId).
+    const draftOrgId =
+      draft.orgId && draft.orgId !== "personal-org" ? draft.orgId : undefined;
+    const standaloneOrgId = selectedProjectSlug
+      ? undefined
+      : (draftOrgId ?? createProjectContext?.orgId);
     const shortId = selectedProjectSlug
-      ? await projectApi.allocateWorkItemId(selectedProjectSlug)
-      : await projectApi.allocateStandaloneWorkItemId();
+      ? await allocateCloudAwareWorkItemId(selectedProjectSlug)
+      : await allocateCloudAwareStandaloneWorkItemId(standaloneOrgId);
     const title = draft.name.trim() || AI_WORK_ITEM_DEFAULT_TITLE;
     const description = draft.description.trim();
     const frontmatter: WorkItemFrontmatter = {
@@ -227,7 +256,8 @@ export function useAiWorkItemCreator({
       await projectApi.writeStandaloneWorkItem(
         shortId,
         frontmatter,
-        description
+        description,
+        standaloneOrgId ? { orgId: standaloneOrgId } : undefined
       );
     }
 
@@ -246,10 +276,15 @@ export function useAiWorkItemCreator({
         projectSlug: selectedProjectSlug,
         projectId: selectedProjectId,
         projectName: selectedProjectName,
+        orgId: standaloneOrgId,
         item,
       },
     };
-  }, [resolveAiWorkItemAssignee, workItemCreateDraft]);
+  }, [
+    createProjectContext?.orgId,
+    resolveAiWorkItemAssignee,
+    workItemCreateDraft,
+  ]);
 
   const handleAiWorkItemSessionStart = useCallback(
     async (info: SessionLaunchSuccessInfo) => {
@@ -286,10 +321,13 @@ export function useAiWorkItemCreator({
           { linkedSessions: [linkedSession] }
         );
       } else {
+        // Same org scope as the creating write — an orgless rewrite would
+        // re-home the item to personal-org and detach it from collab sync.
         await projectApi.writeStandaloneWorkItem(
           metadata.shortId,
           updatedItem.frontmatter,
-          updatedItem.body
+          updatedItem.body,
+          metadata.orgId ? { orgId: metadata.orgId } : undefined
         );
       }
 
@@ -303,6 +341,7 @@ export function useAiWorkItemCreator({
         projectSlug: metadata.projectSlug,
         projectId: metadata.projectId,
         projectName: metadata.projectName,
+        orgId: metadata.orgId,
         workItem,
       });
       setShowWorkItemAgentCreator(sessionCreatorAvailable);

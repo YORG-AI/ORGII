@@ -79,7 +79,7 @@ const TabWindowContent: React.FC<TabWindowContentProps> = ({ tabData }) => {
   };
 
   const fallback = isEditorContent ? (
-    <WorkStationShellFallback isFullMode />
+    <WorkStationShellFallback />
   ) : (
     <Placeholder variant="loading" />
   );

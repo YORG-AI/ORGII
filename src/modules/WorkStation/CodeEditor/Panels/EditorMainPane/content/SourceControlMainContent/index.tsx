@@ -48,6 +48,8 @@ export interface SourceControlMainContentProps {
   onForceReload?: () => void;
   /** Open the focused file as a regular file tab */
   onFileSelect?: (path: string) => void;
+  /** Clear the focused file without closing Source Control. */
+  onCloseFocus?: () => void;
   /** Sync git-diff local edits to tab bar unsaved indicator */
   onGitDiffUnsavedChange?: (hasUnsaved: boolean) => void;
   /** Selected commit/stash rendered in the Source Control right pane. */
@@ -60,7 +62,7 @@ export interface SourceControlMainContentProps {
   repoId?: string;
   repoPath?: string;
   collapseAllSignal?: number;
-  /** Regular editor placeholder actions reused when no source-control file is focused. */
+  /** Source Control navigation shown when no detail is selected. */
   emptyFocusActions: QuickAction[];
 }
 
@@ -70,6 +72,7 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
   hasFocus,
   onForceReload,
   onFileSelect,
+  onCloseFocus,
   onGitDiffUnsavedChange,
   historySelection,
   files,
@@ -140,7 +143,9 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
 
   if (historySelection?.type === "issue") {
     if (!selectedIssueState.issue) {
-      return <NoTabsPlaceholder icon="editor" actions={emptyFocusActions} />;
+      return (
+        <NoTabsPlaceholder icon="source-control" actions={emptyFocusActions} />
+      );
     }
 
     return (
@@ -208,6 +213,7 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
           hasFocus={hasFocus}
           onReload={onForceReload}
           onFileSelect={onFileSelect}
+          onClose={onCloseFocus}
           onUnsavedChange={onGitDiffUnsavedChange}
           emptyActions={emptyFocusActions}
         />

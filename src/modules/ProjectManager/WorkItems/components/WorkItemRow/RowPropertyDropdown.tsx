@@ -28,6 +28,7 @@ interface RowPropertyDropdownProps<T extends string> {
   maxWidthClassName?: string;
   renderOptionIcon?: (option: RowPropertyDropdownOption<T>) => React.ReactNode;
   triggerVariant?: PropertyDropdownTriggerVariant;
+  dataTestId?: string;
 }
 
 export function RowPropertyDropdown<T extends string>({
@@ -44,6 +45,7 @@ export function RowPropertyDropdown<T extends string>({
   maxWidthClassName = "max-w-[180px]",
   renderOptionIcon,
   triggerVariant = "pill",
+  dataTestId,
 }: RowPropertyDropdownProps<T>) {
   return (
     <PropertyDropdownField
@@ -62,6 +64,7 @@ export function RowPropertyDropdown<T extends string>({
       fieldVariant="pill"
       placement="portal"
       borderless
+      dataTestId={dataTestId}
       renderOptions={
         renderOptionIcon
           ? (searchQuery, close) => {

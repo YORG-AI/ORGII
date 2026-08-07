@@ -17,7 +17,7 @@ fn test_gemini_proxy_key_extraction() {
 密码：
 https://example.com/tutorial"#;
 
-    let result = extract_keys(input, Some("gemini_cli"));
+    let result = extract_keys(input, Some("gemini_api"));
     insta::assert_yaml_snapshot!("gemini_proxy_key", result);
 }
 
@@ -99,7 +99,7 @@ fn test_scoring_api_subdomain_bonus() {
 https://www.example.com/gemini
 https://api.example.com/gemini"#;
 
-    let result = extract_keys(input, Some("gemini_cli"));
+    let result = extract_keys(input, Some("gemini_api"));
     assert_eq!(
         result.base_url,
         Some("https://api.example.com/gemini".to_string())
@@ -168,9 +168,9 @@ fn test_key_adjacent_to_chinese_no_separator() {
 
 #[test]
 fn test_gemini_proxy_key_with_yuque_docs() {
-    let input = "卡号：sk-testgemini000000000000000\n密码：\nhttps://www.yuque.com/yeweiyang-egjcx/fmgce5/wb12f08va3xakgwu?singleDoc# 《gemini cli接入教程》";
+    let input = "卡号：sk-testgemini000000000000000\n密码：\nhttps://www.yuque.com/yeweiyang-egjcx/fmgce5/wb12f08va3xakgwu?singleDoc# 《gemini api接入教程》";
 
-    let result = extract_keys(input, Some("gemini_cli"));
+    let result = extract_keys(input, Some("gemini_api"));
     insta::assert_yaml_snapshot!("gemini_yuque_docs", result);
 }
 
@@ -216,7 +216,7 @@ fn test_score_url_unit() {
 fn test_derive_search_terms() {
     assert_eq!(derive_search_terms("codex"), vec!["codex"]);
     assert_eq!(derive_search_terms("claude_code"), vec!["claude"]);
-    assert_eq!(derive_search_terms("gemini_cli"), vec!["gemini"]);
+    assert_eq!(derive_search_terms("gemini_api"), vec!["gemini"]);
     assert_eq!(derive_search_terms("cursor_cli"), vec!["cursor"]);
     assert_eq!(derive_search_terms("copilot"), vec!["copilot"]);
     assert_eq!(derive_search_terms("kiro"), vec!["kiro"]);

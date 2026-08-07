@@ -10,12 +10,13 @@
  */
 import { useAtomValue } from "jotai";
 import React, { Suspense, memo, useCallback } from "react";
-import { useTranslation } from "react-i18next";
 
 import { IssueDetailPanel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
-import type { QuickAction } from "@src/modules/WorkStation/shared";
+import {
+  NoTabsPlaceholder,
+  type QuickAction,
+} from "@src/modules/WorkStation/shared";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { sourceControlSessionFilterAtom } from "@src/store/workstation/codeEditor/sourceControlSessionFilterAtom";
 import {
   workstationIssueCallbackAtomFamily,
   workstationSelectedIssueAtomFamily,
@@ -41,13 +42,14 @@ export interface SourceControlMainPaneProps {
   repoPath: string;
   repoId: string | null;
   gitFilesByPath: Map<string, GitFile>;
-  sourceControlAttributedFiles: GitFile[];
+  sourceControlFiles: GitFile[];
   sourceControlFilterMode: string;
   gitDiffLoading: boolean;
   sourceControlCollapseAllSignal?: number;
-  editorQuickActions: QuickAction[];
+  sourceControlQuickActions: QuickAction[];
   onForceReload?: () => void;
   onFileSelect?: (path: string) => void;
+  onCloseFocus?: () => void;
   onGitDiffUnsavedChange?: (hasUnsaved: boolean) => void;
 }
 
@@ -56,19 +58,16 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
   repoPath,
   repoId,
   gitFilesByPath,
-  sourceControlAttributedFiles,
+  sourceControlFiles,
   sourceControlFilterMode,
   gitDiffLoading,
   sourceControlCollapseAllSignal,
-  editorQuickActions,
+  sourceControlQuickActions,
   onForceReload,
   onFileSelect,
+  onCloseFocus,
   onGitDiffUnsavedChange,
 }) => {
-  const { t } = useTranslation();
-  const sourceControlSessionFilter = useAtomValue(
-    sourceControlSessionFilterAtom
-  );
   const scopeKey = workstationRepoScopeKey(repoId, repoPath);
   const selectedIssueState = useAtomValue(
     workstationSelectedIssueAtomFamily(scopeKey)
@@ -102,21 +101,17 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
     deriveSourceControlMainProps({
       tabData,
       gitFilesByPath,
-      sourceControlAttributedFiles,
+      sourceControlFiles,
       sourceControlFilterMode,
-      sourceControlSessionFilter,
       repoPath,
     });
 
   if (sourceControlFilterMode === "issues") {
     if (!selectedIssueState.issue) {
       return (
-        <Placeholder
-          variant="empty"
-          placement="detail-panel"
-          title={t("previews.noIssueSelected")}
-          subtitle={t("previews.selectIssueHint")}
-          fillParentHeight
+        <NoTabsPlaceholder
+          icon="source-control"
+          actions={sourceControlQuickActions}
         />
       );
     }
@@ -141,12 +136,9 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
     (!historySelection || historySelection.type !== "pr")
   ) {
     return (
-      <Placeholder
-        variant="empty"
-        placement="detail-panel"
-        title={t("previews.noPrSelected")}
-        subtitle={t("previews.selectPrHint")}
-        fillParentHeight
+      <NoTabsPlaceholder
+        icon="source-control"
+        actions={sourceControlQuickActions}
       />
     );
   }
@@ -160,6 +152,7 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
           hasFocus={Boolean(focusPath)}
           onForceReload={onForceReload}
           onFileSelect={onFileSelect}
+          onCloseFocus={onCloseFocus}
           onGitDiffUnsavedChange={onGitDiffUnsavedChange}
           historySelection={historySelection}
           files={allFiles}
@@ -168,7 +161,7 @@ const SourceControlMainPane: React.FC<SourceControlMainPaneProps> = ({
           repoId={repoId ?? undefined}
           repoPath={repoPath}
           collapseAllSignal={sourceControlCollapseAllSignal}
-          emptyFocusActions={editorQuickActions}
+          emptyFocusActions={sourceControlQuickActions}
         />
       </Suspense>
     </div>

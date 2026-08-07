@@ -3,6 +3,7 @@ import React, { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import TabPill from "@src/components/TabPill";
+import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useWorkItemImageInsert } from "@src/hooks/project";
 import {
   ProjectContentEditor,
@@ -13,12 +14,13 @@ import {
   SessionTable,
   type SessionTableItem,
 } from "@src/modules/shared/layouts/blocks";
-import type { LinkedSession } from "@src/types/core/workItem";
+import type { LinkedSession, WorkItemStatus } from "@src/types/core/workItem";
 import {
   formatReplayDateLabel,
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
 
+import AgentWorkflow from "../AgentWorkflow";
 import { ROLE_I18N_KEYS, STATUS_I18N_KEYS } from "../AgentWorkflow/types";
 import TodoChecklist from "../TodoChecklist";
 import WorkItemContentStack from "../WorkItemContentStack";
@@ -141,10 +143,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   teamMembers = [],
   headerPath,
   headerProperties,
+  titleVisible = false,
   repoPath,
   projectSlug,
   shortId,
   onStartAgent,
+  isStartingAgent,
   onCancelAgent,
   onRetry,
   onAcceptAsIs,
@@ -153,7 +157,11 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   onOpenFileDiff,
   onOpenFileAtLine,
   onReviewAllFiles,
+  onRefreshWorkflow,
   activeAgentSessionId,
+  activeAgentRole,
+  isLockedByOther,
+  lockHolderName,
   onCreatePr,
 }) => {
   const { t } = useTranslation("projects");
@@ -182,6 +190,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     handleDescriptionChange,
     handleTodosChange,
     handleCommentSubmit,
+    handleStartAgentAndOpenChat,
   } = useWorkItemContentState({
     workItem,
     onUpdateWorkItem,
@@ -219,7 +228,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         initialDescription={resolvedDescription ?? rawDescription}
         onDescriptionChange={handleDescriptionChange}
         onImageInsert={onUpdateWorkItem ? handleImageInsert : undefined}
-        titleVisible={false}
+        titleVisible={titleVisible}
         separatorVisible={false}
         descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
         editable={!!onUpdateWorkItem}
@@ -227,6 +236,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         descriptionClassName="no-bottom-border"
         repoPath={repoPath}
         className="w-full"
+        dataTestId="work-item-content-editor"
       />
     </>
   );
@@ -253,11 +263,38 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       </div>
 
       {activeSessionTab === "session" && (
-        <LinkedSessionsList
-          sessions={workItem.linkedSessions ?? []}
-          activeAgentSessionId={activeAgentSessionId}
-          onOpenSession={onOpenSession}
-        />
+        <>
+          <div className={DETAIL_PANEL_TOKENS.sectionGap}>
+            <AgentWorkflow
+              orchestratorState={workItem.orchestratorState}
+              orchestratorConfig={workItem.orchestratorConfig}
+              proofOfWork={workItem.proofOfWork}
+              workItemStatus={
+                workItem.workItemStatus ?? (workItem.status as WorkItemStatus)
+              }
+              executionLock={workItem.executionLock}
+              linkedSessions={workItem.linkedSessions}
+              onStartAgent={handleStartAgentAndOpenChat}
+              isStartingAgent={isStartingAgent}
+              onCancel={onCancelAgent}
+              onRetry={onRetry}
+              onAcceptAsIs={onAcceptAsIs}
+              onCreateFollowUp={onCreateFollowUp}
+              onOpenSession={onOpenSession}
+              onOpenFileAtLine={onOpenFileAtLine}
+              onRefresh={onRefreshWorkflow}
+              activeAgentSessionId={activeAgentSessionId}
+              activeAgentRole={activeAgentRole}
+              isLockedByOther={isLockedByOther}
+              lockHolderName={lockHolderName}
+            />
+          </div>
+          <LinkedSessionsList
+            sessions={workItem.linkedSessions ?? []}
+            activeAgentSessionId={activeAgentSessionId}
+            onOpenSession={onOpenSession}
+          />
+        </>
       )}
 
       {activeSessionTab === "output" && (

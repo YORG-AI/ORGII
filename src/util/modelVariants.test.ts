@@ -291,6 +291,44 @@ describe("parseModelVariant", () => {
     expect(parseModelVariant("composer-2.5-pro-fast")).toBeUndefined();
   });
 
+  it("parses GLM and Grok provider-native effort suffixes", () => {
+    expect(parseModelVariant("glm-5.2-high")).toEqual({
+      model: "glm-5.2-high",
+      baseModel: "glm-5.2",
+      reasoning: MODEL_REASONING_LEVEL.HIGH,
+      thinking: false,
+      fast: false,
+      rawSuffix: "high",
+    });
+    expect(parseModelVariant("glm-5.2-max")).toEqual({
+      model: "glm-5.2-max",
+      baseModel: "glm-5.2",
+      reasoning: MODEL_REASONING_LEVEL.MAX,
+      thinking: false,
+      fast: false,
+      rawSuffix: "max",
+    });
+    expect(parseModelVariant("grok-4.5-high")).toEqual({
+      model: "grok-4.5-high",
+      baseModel: "grok-4.5",
+      reasoning: MODEL_REASONING_LEVEL.HIGH,
+      thinking: false,
+      fast: false,
+      rawSuffix: "high",
+    });
+    expect(parseModelVariant("grok-4-fast")).toEqual({
+      model: "grok-4-fast",
+      baseModel: "grok-4",
+      reasoning: undefined,
+      thinking: false,
+      fast: true,
+      rawSuffix: undefined,
+    });
+    // Bare provider ids carry no encoded variant → baseline (undefined).
+    expect(parseModelVariant("glm-5.2")).toBeUndefined();
+    expect(parseModelVariant("grok-4.5")).toBeUndefined();
+  });
+
   it("prefers frontend parse over stale backend model variant metadata", () => {
     expect(
       resolveModelVariantFields("gpt-5.1-codex-max-medium", {

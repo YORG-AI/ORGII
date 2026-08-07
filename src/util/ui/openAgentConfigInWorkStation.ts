@@ -12,7 +12,6 @@
  */
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { dockFilterAtom } from "@src/store/workstation";
 import {
   createAgentConfigTab,
   openTab,
@@ -26,7 +25,6 @@ export function openAgentConfigInWorkStation(data: AgentConfigTabData): void {
 
   const store = getInstrumentedStore();
   store.set(stationModeAtom, "my-station");
-  store.set(dockFilterAtom, "code");
   if (store.get(chatPanelMaximizedAtom)) {
     store.set(chatPanelMaximizedAtom, false);
   }

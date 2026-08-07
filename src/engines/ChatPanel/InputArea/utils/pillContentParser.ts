@@ -37,10 +37,16 @@ export function stripExpandedPillContent(text: string): string {
   return idx === -1 ? text : text.slice(0, idx);
 }
 
+const PILL_SYNTAX_REGEX = new RegExp(
+  PILL_REGEX.source,
+  PILL_REGEX.flags.replace("g", "")
+);
+
 export function hasPillSyntax(text: string): boolean {
-  // Use PILL_REGEX (which can cross newlines) only for the fast-path check;
-  // actual parsing uses SINGLE_LINE_PILL_REGEX per line.
-  return PILL_REGEX.test(text);
+  // Use a non-global clone for boolean detection. Calling `.test()` on the
+  // shared global regex mutates `lastIndex`, making repeated edit restores
+  // alternate between parsed pills and raw serialized text.
+  return PILL_SYNTAX_REGEX.test(text);
 }
 
 /**
@@ -75,15 +81,20 @@ export function parsePillTextToSnapshot(text: string): ComposerSnapshot {
       let precedingText: string;
       let fileName: string;
       const pillType = match[2] as PillType;
+      const pathFileName =
+        match[3].split("/").pop()?.split("::")[0] || match[3];
       if (lastSpaceIdx >= 0) {
         precedingText = rawDisplayName.slice(0, lastSpaceIdx + 1);
         fileName = rawDisplayName.slice(lastSpaceIdx + 1).trim();
       } else if (pillType === "session") {
         precedingText = "";
         fileName = rawDisplayName.trim();
+      } else if (rawDisplayName.endsWith(pathFileName)) {
+        precedingText = rawDisplayName.slice(0, -pathFileName.length);
+        fileName = pathFileName;
       } else {
         precedingText = rawDisplayName;
-        fileName = match[3].split("/").pop()?.split("::")[0] || match[3];
+        fileName = pathFileName;
       }
 
       if (matchStart > lastIndex) {

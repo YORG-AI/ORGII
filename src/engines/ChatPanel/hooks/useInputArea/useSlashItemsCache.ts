@@ -12,10 +12,12 @@
  *  - The hook maintains a warm in-memory cache via `itemsCacheRef`.
  *  - `prefetch(query)` shows cached items immediately, then fires a fresh
  *    fetch in the background and updates `filteredItems`.
- *  - `fetchFresh()` always hits the backend; the caller can await it.
+ *  - `fetchFresh()` refreshes the list (bounded by the shared skills scanner's
+ *    TTL + coalescing; pass `{ force: true }` to bypass the TTL). Awaitable.
+ *  - Skill scans are lazy: mounting the hook does NOT scan — the backend
+ *    `skills_list` fires only on `prefetch`/`fetchFresh`.
  *  - A `cancelledRef` prevents setState after unmount.
  */
-import { invoke } from "@tauri-apps/api/core";
 import { useSetAtom } from "jotai";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -26,6 +28,7 @@ import {
 } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
 import { createLogger } from "@src/hooks/logger";
 import { mergeInstalledSkills } from "@src/hooks/skills/installedSkillsMerge";
+import { scanInstalledSkills } from "@src/hooks/skills/installedSkillsScan";
 import { installedSkillsAtom } from "@src/store/skills/installedSkillsAtom";
 import { type InstalledSkill, type SlashItem } from "@src/types/extensions";
 
@@ -115,8 +118,12 @@ export interface UseSlashItemsCacheReturn {
    * backend fetch and update `filteredItems` when it resolves.
    */
   prefetch: (query: string) => void;
-  /** Fire a fresh backend fetch unconditionally, update the full item list when it changed, and return it. */
-  fetchFresh: () => Promise<SlashItem[]>;
+  /**
+   * Fetch the full item list and update it when it changed. Bounded by the
+   * shared scanner's TTL + in-flight coalescing; pass `{ force: true }` to
+   * bypass the TTL (e.g. an explicit "…" panel open).
+   */
+  fetchFresh: (options?: { force?: boolean }) => Promise<SlashItem[]>;
 }
 
 export function useSlashItemsCache(
@@ -138,108 +145,103 @@ export function useSlashItemsCache(
   const builtinItemsRef = useRef(builtinItems);
   builtinItemsRef.current = builtinItems;
 
-  const doFetch = useCallback(async (): Promise<SlashItem[]> => {
-    setLoading(true);
-    try {
-      const scopePaths = workspacePathsKey ? workspacePathsKey.split("\0") : [];
-      const skillListTasks = [
-        invoke<InstalledSkill[]>("skills_list", { workspacePath: null }),
-        ...scopePaths.map((path) =>
-          invoke<InstalledSkill[]>("skills_list", { workspacePath: path })
-        ),
-      ];
-      const [skillResults, mcpServers] = await Promise.all([
-        Promise.allSettled(skillListTasks),
-        rpc.mcp.listServers({}).catch((err) => {
-          logger.warn("Failed to list MCP servers for slash menu:", err);
-          return [];
-        }),
-      ]);
+  const doFetch = useCallback(
+    async (force = false): Promise<SlashItem[]> => {
+      setLoading(true);
+      try {
+        const scopePaths = workspacePathsKey
+          ? workspacePathsKey.split("\0")
+          : [];
+        // Skills are scanned through the bounded shared scanner (coalesces
+        // concurrent callers, reuses a recent result within the TTL) so opening
+        // the menu/panel repeatedly can never hammer the backend `skills_list`.
+        const [rawSkills, mcpServers] = await Promise.all([
+          scanInstalledSkills(scopePaths, { force }),
+          rpc.mcp.listServers({}).catch((err) => {
+            logger.warn("Failed to list MCP servers for slash menu:", err);
+            return [];
+          }),
+        ]);
 
-      const rawSkills = mergeInstalledSkills(
-        skillResults.flatMap((result) => {
-          if (result.status === "fulfilled") return [result.value];
-          logger.warn("Failed to list skills for slash menu:", result.reason);
-          return [];
-        })
-      );
-      const workspaceSkillRoots = scopePaths.map(normalizeWorkspacePath);
-      logger.rateLimited("slash-skills-scan", 5_000, "slash skills fetched", {
-        workspacePaths: workspaceSkillRoots,
-        skillCount: rawSkills.length,
-        workspaceSkillCount: rawSkills.filter((skill) =>
-          isWorkspaceSkill(skill, workspaceSkillRoots)
-        ).length,
-        skillPaths: rawSkills.map((skill) => skill.path),
-      });
+        const workspaceSkillRoots = scopePaths.map(normalizeWorkspacePath);
+        logger.rateLimited("slash-skills-scan", 5_000, "slash skills fetched", {
+          workspacePaths: workspaceSkillRoots,
+          skillCount: rawSkills.length,
+          workspaceSkillCount: rawSkills.filter((skill) =>
+            isWorkspaceSkill(skill, workspaceSkillRoots)
+          ).length,
+          skillPaths: rawSkills.map((skill) => skill.path),
+        });
 
-      if (rawSkills.length > 0) {
-        setInstalledSkills((current) =>
-          mergeInstalledSkills([current, rawSkills])
+        if (rawSkills.length > 0) {
+          setInstalledSkills((current) =>
+            mergeInstalledSkills([current, rawSkills])
+          );
+        }
+
+        const skillItems: SlashItem[] = rawSkills
+          .filter((s) => s.enabled)
+          .map((s) => ({
+            name: s.name,
+            skillName: s.name,
+            skillPath: s.path,
+            description: normalizeSkillDescription(s),
+            category: "skill" as const,
+            source: resolveSkillGroup(s),
+            acceptsArgs: false,
+            skillScope: isWorkspaceSkill(s, workspaceSkillRoots)
+              ? "workspace"
+              : "user",
+          }));
+
+        const connectedServers = mcpServers.filter(
+          (srv) => srv.status === "connected" && !srv.disabled
         );
-      }
 
-      const skillItems: SlashItem[] = rawSkills
-        .filter((s) => s.enabled)
-        .map((s) => ({
-          name: s.name,
-          skillName: s.name,
-          skillPath: s.path,
-          description: normalizeSkillDescription(s),
-          category: "skill" as const,
-          source: resolveSkillGroup(s),
-          acceptsArgs: false,
-          skillScope: isWorkspaceSkill(s, workspaceSkillRoots)
-            ? "workspace"
-            : "user",
-        }));
-
-      const connectedServers = mcpServers.filter(
-        (srv) => srv.status === "connected" && !srv.disabled
-      );
-
-      const toolItems: SlashItem[] = (
-        await Promise.all(
-          connectedServers.map((srv) =>
-            rpc.mcp.listServerTools({ serverName: srv.name }).then(
-              (tools) =>
-                tools.map((tool) => ({
-                  name: tool.name,
-                  description: tool.description,
-                  category: "tool" as const,
-                  source: srv.name,
-                  acceptsArgs: true,
-                  serverName: srv.name,
-                })),
-              (err) => {
-                logger.warn(
-                  `Failed to list tools for MCP server "${srv.name}":`,
-                  err
-                );
-                return [] as SlashItem[];
-              }
+        const toolItems: SlashItem[] = (
+          await Promise.all(
+            connectedServers.map((srv) =>
+              rpc.mcp.listServerTools({ serverName: srv.name }).then(
+                (tools) =>
+                  tools.map((tool) => ({
+                    name: tool.name,
+                    description: tool.description,
+                    category: "tool" as const,
+                    source: srv.name,
+                    acceptsArgs: true,
+                    serverName: srv.name,
+                  })),
+                (err) => {
+                  logger.warn(
+                    `Failed to list tools for MCP server "${srv.name}":`,
+                    err
+                  );
+                  return [] as SlashItem[];
+                }
+              )
             )
           )
-        )
-      ).flat();
+        ).flat();
 
-      const assembled: SlashItem[] = [
-        ...builtinItemsRef.current,
-        ...skillItems,
-        ...toolItems,
-      ];
+        const assembled: SlashItem[] = [
+          ...builtinItemsRef.current,
+          ...skillItems,
+          ...toolItems,
+        ];
 
-      setScopedSlashItemsCache(workspacePathsKey, assembled);
-      if (!cancelledRef.current) {
-        itemsCacheRef.current = assembled;
+        setScopedSlashItemsCache(workspacePathsKey, assembled);
+        if (!cancelledRef.current) {
+          itemsCacheRef.current = assembled;
+        }
+        return assembled;
+      } finally {
+        if (!cancelledRef.current) {
+          setLoading(false);
+        }
       }
-      return assembled;
-    } finally {
-      if (!cancelledRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [setInstalledSkills, workspacePathsKey]);
+    },
+    [setInstalledSkills, workspacePathsKey]
+  );
 
   const prefetch = useCallback(
     (_query: string) => {
@@ -262,37 +264,34 @@ export function useSlashItemsCache(
     [doFetch, workspacePathsKey]
   );
 
-  const fetchFresh = useCallback(async (): Promise<SlashItem[]> => {
-    const currentItems = itemsCacheRef.current;
-    const items = await doFetch();
-    if (!cancelledRef.current && !slashItemsEqual(currentItems, items)) {
-      setFilteredItems(items);
-    }
-    return items;
-  }, [doFetch]);
+  const fetchFresh = useCallback(
+    async (options?: { force?: boolean }): Promise<SlashItem[]> => {
+      const currentItems = itemsCacheRef.current;
+      const items = await doFetch(options?.force ?? false);
+      if (!cancelledRef.current && !slashItemsEqual(currentItems, items)) {
+        setFilteredItems(items);
+      }
+      return items;
+    },
+    [doFetch]
+  );
 
-  // Warm the cache and refresh when the active repo/workspace scope changes.
+  // Lazy warm-up: when the active repo/workspace scope changes, only paint the
+  // cached items for that scope (instant, no IPC). The actual backend scan is
+  // deferred until the user opens the "/" menu (`prefetch`) or the "…" panel
+  // (`fetchFresh`), or a pinned skill needs resolving — so simply mounting the
+  // chat input no longer triggers a `skills_list` scan.
   useEffect(() => {
     cancelledRef.current = false;
-    const currentFetchSeq = fetchSeqRef.current + 1;
-    fetchSeqRef.current = currentFetchSeq;
     const cachedItems = slashItemsCacheByScope.get(workspacePathsKey) ?? [];
     if (cachedItems.length > 0) {
       itemsCacheRef.current = cachedItems;
       setFilteredItems(cachedItems);
     }
-    doFetch().then((items) => {
-      if (cancelledRef.current || fetchSeqRef.current !== currentFetchSeq) {
-        return;
-      }
-      if (cachedItems.length === 0 || !slashItemsEqual(cachedItems, items)) {
-        setFilteredItems(items);
-      }
-    });
     return () => {
       cancelledRef.current = true;
     };
-  }, [doFetch, workspacePathsKey]);
+  }, [workspacePathsKey]);
 
   return { filteredItems, loading, prefetch, fetchFresh };
 }

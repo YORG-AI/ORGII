@@ -1,7 +1,7 @@
 /**
  * diffScope
  *
- * Pure (React-free) logic backing the chat `TurnFilesFooter` "Review"
+ * Pure (React-free) logic backing the chat `TurnMetadataFooter` "Review"
  * affordance. The Agent Station diff is always cumulative (issue #24): a
  * "Review"/file click no longer narrows the file list to one round, it only
  * scrolls the cumulative list to the clicked file. These helpers decide

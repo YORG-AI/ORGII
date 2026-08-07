@@ -77,6 +77,7 @@ export function LeadingCells({
         maxWidthClassName={
           priority === "none" ? "w-7 max-w-7" : "max-w-[140px]"
         }
+        dataTestId={`work-item-priority-${shortId}`}
       />
 
       <div className="min-w-0 truncate text-xs font-medium tabular-nums text-text-3">
@@ -121,6 +122,7 @@ export function LeadingCells({
             ? "w-7 max-w-7"
             : "max-w-[150px]"
         }
+        dataTestId={`work-item-status-${shortId}`}
       />
     </div>
   );

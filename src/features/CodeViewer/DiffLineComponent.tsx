@@ -13,7 +13,7 @@ import {
 import React from "react";
 import { Prism as PrismHighlighter } from "react-syntax-highlighter";
 
-import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes";
+import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 
 import type { DiffLine } from "./types";
 

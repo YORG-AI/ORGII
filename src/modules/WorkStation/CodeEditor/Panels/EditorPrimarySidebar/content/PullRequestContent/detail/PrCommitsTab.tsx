@@ -3,8 +3,8 @@
  *
  * The PR's commits, rendered with the shared `GitCommitRow` (same 36px
  * summary / author / relative-time format as the commit-history sidebar).
- * Selecting a commit opens its diff inline via `GitCommitDetailContent`
- * (which handles the "Fetch PR" flow when the commit isn't local yet).
+ * Selecting a commit opens its diff inline via `GitCommitDetailContent`,
+ * which automatically fetches the PR ref when the commit is not local yet.
  */
 import { ChevronLeft } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
@@ -114,11 +114,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
 
   if (loading && rows.length === 0) {
     return (
-      <Placeholder
-        variant="loading"
-        placement="detail-panel"
-        fillParentHeight
-      />
+      <Placeholder variant="loading" placement="sidebar" fillParentHeight />
     );
   }
 
@@ -126,7 +122,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
     return (
       <Placeholder
         variant="empty"
-        placement="detail-panel"
+        placement="sidebar"
         title={t("git.pr.commits.none", "No commits")}
         fillParentHeight
       />

@@ -1,11 +1,7 @@
 import { atom } from "jotai";
 import type { ReactNode } from "react";
 
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { activeStatusBarAppAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
-
-import type { WorkstationTabHost } from "./tabHost";
-import type { TabFocusRequest } from "./tabRegistry";
 
 /**
  * Cross-host request to open a new Browser session, fired from anywhere in
@@ -43,6 +39,19 @@ workstationNewBrowserSessionRequestAtom.debugLabel =
   "workstationNewBrowserSessionRequestAtom";
 
 /**
+ * Highest request `tick` the Browser host has already turned into a session.
+ *
+ * Lives at module scope (not a component ref) so it survives the Browser
+ * host mounting/unmounting. On mount the host fires for any request whose
+ * tick is greater than this — which lets a request issued *before* the host
+ * existed (e.g. "New Browser" from the empty Launchpad) still open a session,
+ * while a remount with no new request does not re-fire.
+ */
+export const workstationNewBrowserSessionConsumedTickAtom = atom<number>(0);
+workstationNewBrowserSessionConsumedTickAtom.debugLabel =
+  "workstationNewBrowserSessionConsumedTickAtom";
+
+/**
  * Write-only helper: bumps the request tick by one and applies the
  * provided payload atomically. Use this from `useSetAtom` instead of
  * writing the underlying atom directly — it keeps the tick monotonic and
@@ -77,37 +86,28 @@ export const workstationProjectTabBarAtom = atom<{
 } | null>(null);
 workstationProjectTabBarAtom.debugLabel = "workstationProjectTabBarAtom";
 
-export const OPS_CONTROL_HOME_TAB = {
-  OPS_CONTROL: "ops-control",
+export const WORK_MANAGEMENT_SECTION = {
+  KANBAN: "kanban",
   PROJECTS: "projects",
+  GITHUB_ISSUES: "github-issues",
+  GITHUB_PRS: "github-prs",
 } as const;
 
-export type OpsControlHomeTab =
-  (typeof OPS_CONTROL_HOME_TAB)[keyof typeof OPS_CONTROL_HOME_TAB];
+export type WorkManagementSection =
+  (typeof WORK_MANAGEMENT_SECTION)[keyof typeof WORK_MANAGEMENT_SECTION];
 
-export const OPS_CONTROL_PROJECTS_VIEW = {
+export const WORK_MANAGEMENT_PROJECTS_VIEW = {
   PROJECTS: "projects",
   WORK_ITEMS: "work-items",
 } as const;
 
-export type OpsControlProjectsView =
-  (typeof OPS_CONTROL_PROJECTS_VIEW)[keyof typeof OPS_CONTROL_PROJECTS_VIEW];
+export type WorkManagementProjectsView =
+  (typeof WORK_MANAGEMENT_PROJECTS_VIEW)[keyof typeof WORK_MANAGEMENT_PROJECTS_VIEW];
 
-export const opsControlHomeTabAtom = atom<OpsControlHomeTab>(
-  OPS_CONTROL_HOME_TAB.OPS_CONTROL
+export const workManagementProjectsViewAtom = atom<WorkManagementProjectsView>(
+  WORK_MANAGEMENT_PROJECTS_VIEW.WORK_ITEMS
 );
-opsControlHomeTabAtom.debugLabel = "opsControlHomeTabAtom";
-
-export const opsControlProjectsViewAtom = atom<OpsControlProjectsView>(
-  OPS_CONTROL_PROJECTS_VIEW.WORK_ITEMS
-);
-opsControlProjectsViewAtom.debugLabel = "opsControlProjectsViewAtom";
-
-export const opsControlPeekHostAtom = atom<WorkstationTabHost | null>(null);
-opsControlPeekHostAtom.debugLabel = "opsControlPeekHostAtom";
-
-export const opsControlFocusedTabAtom = atom<TabFocusRequest | null>(null);
-opsControlFocusedTabAtom.debugLabel = "opsControlFocusedTabAtom";
+workManagementProjectsViewAtom.debugLabel = "workManagementProjectsViewAtom";
 
 // ============================================
 // Global tab-header strip (40px, full-width)
@@ -184,10 +184,10 @@ const projectWorkstationTabHeaderAtom = atom<WorkstationTabHeaderSlots | null>(
 );
 projectWorkstationTabHeaderAtom.debugLabel = "projectWorkstationTabHeaderAtom";
 
-const opsControlWorkstationTabHeaderAtom =
+const workManagementWorkstationTabHeaderAtom =
   atom<WorkstationTabHeaderSlots | null>(null);
-opsControlWorkstationTabHeaderAtom.debugLabel =
-  "opsControlWorkstationTabHeaderAtom";
+workManagementWorkstationTabHeaderAtom.debugLabel =
+  "workManagementWorkstationTabHeaderAtom";
 
 /**
  * Simulator (Agent Station replay) tab-header slot. Unlike the My Station
@@ -208,7 +208,7 @@ export const workstationTabHeaderAtomByHost = {
   browser: browserWorkstationTabHeaderAtom,
   data: dataWorkstationTabHeaderAtom,
   project: projectWorkstationTabHeaderAtom,
-  opsControl: opsControlWorkstationTabHeaderAtom,
+  workManagement: workManagementWorkstationTabHeaderAtom,
   simulator: simulatorWorkstationTabHeaderAtom,
 } as const;
 
@@ -219,15 +219,6 @@ export const workstationTabHeaderAtomByHost = {
  */
 export const activeWorkstationTabHeaderAtom =
   atom<WorkstationTabHeaderSlots | null>((get) => {
-    if (get(stationModeAtom) === "ops-control") {
-      const opsControlPeekHost = get(opsControlPeekHostAtom);
-      return get(
-        opsControlPeekHost
-          ? workstationTabHeaderAtomByHost[opsControlPeekHost]
-          : workstationTabHeaderAtomByHost.opsControl
-      );
-    }
-
     const host = get(activeStatusBarAppAtom);
     return get(workstationTabHeaderAtomByHost[host]);
   });

@@ -2,8 +2,8 @@
  * SubagentPinnedPreviewPopover
  *
  * Hover-revealed popover surfaced from the subagent cell title row. Mirrors
- * the per-session `PlanTodoPinBar` content (plan-todo summary) but scoped
- * to the subagent's own session — `PlanTodoPinBar` reads
+ * the per-session plan-todo summary but scoped to the subagent's own session —
+ * the composer `PlanTodoPill` reads
  * `workstationActiveSessionIdAtom`, which always points at the parent
  * chat panel, so we read `sessionTodoMapAtom` directly with the cell's
  * `sessionId` instead.
@@ -83,7 +83,7 @@ const SubagentPinnedPreviewPopoverComponent: React.FC<
     TERMINAL_STATUSES.has(todo.status.toLowerCase())
   ).length;
 
-  // Same "fully done — nothing useful to surface" guard as PlanTodoPinBar.
+  // Same "fully done — nothing useful to surface" guard as PlanTodoPill.
   if (completedCount === todos.length) return null;
 
   const label = getTodoBatchTitle(todos) || t("planner.todoList.title");

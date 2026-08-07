@@ -526,6 +526,39 @@ impl PromptSection for LearningsSection {
 }
 
 // ---------------------------------------------------------------------
+// 102. Explicit user/workspace/project prompt presets
+// ---------------------------------------------------------------------
+
+pub struct ScopedPromptPresetsSection;
+
+impl PromptSection for ScopedPromptPresetsSection {
+    fn id(&self) -> &'static str {
+        "scoped_prompt_presets"
+    }
+    fn order_hint(&self) -> i32 {
+        order::SCOPE_PRESETS
+    }
+    fn applies(&self, _ctx: &PromptCtx) -> AppliesDecision {
+        AppliesDecision::Apply {
+            reason: "session_scope_projection",
+        }
+    }
+    fn source(&self) -> PromptSource {
+        PromptSource::Computed {
+            upstream: "session::prompt_scope_presets",
+        }
+    }
+    fn render(&self, ctx: &PromptCtx) -> Option<String> {
+        let conn = crate::foundation::db_bridge::get_connection().ok()?;
+        let body = crate::session::prompt_scope_presets::project_prompt_presets_for_session(
+            &conn,
+            ctx._session_id,
+        );
+        (!body.is_empty()).then_some(body)
+    }
+}
+
+// ---------------------------------------------------------------------
 // 105. Workspace memory protocol (location + save/access contract)
 // ---------------------------------------------------------------------
 

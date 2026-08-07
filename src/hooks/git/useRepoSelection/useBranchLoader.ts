@@ -14,6 +14,10 @@ import {
   selectedRepoAtom,
   selectedRepoIdAtom,
 } from "@src/store/repo";
+import {
+  activeWorkspaceRootPathAtom,
+  activeWorktreeAtom,
+} from "@src/store/workspace";
 import { debounce } from "@src/util/core/debounce";
 
 import { isCheckingOut } from "./singleton";
@@ -26,6 +30,11 @@ export function useBranchLoader(): UseBranchLoaderReturn {
   const [branches, setBranches] = useAtom(branchesAtom);
   const [_currentBranch, setCurrentBranch] = useAtom(currentBranchAtom);
   const selectedRepo = useAtomValue(selectedRepoAtom);
+  const activeWorktree = useAtomValue(activeWorktreeAtom);
+  const activeWorkspaceRootPath = useAtomValue(activeWorkspaceRootPathAtom);
+  const branchContextKey = activeWorktree
+    ? `${selectedRepoId}:${activeWorktree.path}`
+    : selectedRepoId;
 
   const [branchLoading, setBranchLoading] = useState(false);
 
@@ -52,7 +61,7 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     if (isCheckingOut) return;
     if (!selectedRepoId) return;
     if (loadingFastBranchRef.current) return;
-    if (lastFastBranchRepoRef.current === selectedRepoId) return;
+    if (lastFastBranchRepoRef.current === branchContextKey) return;
 
     const repo = selectedRepo;
     if (repo?.kind === REPO_KIND.FOLDER) return;
@@ -60,7 +69,9 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     // Pass repo_path as a hint when available; the Rust backend falls back to
     // the DB lookup by repo_id alone, so this works even for freshly-created
     // agent repos that haven't been loaded into reposAtom yet.
-    const repoPath = repo?.path || repo?.fs_uri;
+    const repoPath = activeWorktree
+      ? activeWorkspaceRootPath
+      : repo?.path || repo?.fs_uri;
 
     loadingFastBranchRef.current = true;
 
@@ -72,14 +83,21 @@ export function useBranchLoader(): UseBranchLoaderReturn {
 
       if (branchName) {
         setCurrentBranch(branchName);
-        lastFastBranchRepoRef.current = selectedRepoId;
+        lastFastBranchRepoRef.current = branchContextKey;
       }
     } catch (error) {
       log.error("[useBranchLoader] Failed to fast load current branch:", error);
     } finally {
       loadingFastBranchRef.current = false;
     }
-  }, [selectedRepoId, selectedRepo, setCurrentBranch]);
+  }, [
+    selectedRepoId,
+    selectedRepo,
+    activeWorktree,
+    activeWorkspaceRootPath,
+    branchContextKey,
+    setCurrentBranch,
+  ]);
 
   // ============================================
   // Load Full Branch List (SLOW - for branch dropdown)
@@ -89,11 +107,13 @@ export function useBranchLoader(): UseBranchLoaderReturn {
     if (isCheckingOut) return;
     if (!selectedRepoId) return;
     if (loadingBranchesRef.current) return;
-    if (lastBranchRepoRef.current === selectedRepoId) return;
+    if (lastBranchRepoRef.current === branchContextKey) return;
 
     const repo = selectedRepo;
     if (repo?.kind === REPO_KIND.FOLDER) return;
-    const repoPath = repo?.path || repo?.fs_uri;
+    const repoPath = activeWorktree
+      ? activeWorkspaceRootPath
+      : repo?.path || repo?.fs_uri;
 
     loadingBranchesRef.current = true;
     setBranchLoading(true);
@@ -122,7 +142,7 @@ export function useBranchLoader(): UseBranchLoaderReturn {
         // Only mark as loaded when we received a non-empty branch list,
         // so repos that start with no commits can retry once data is ready.
         if (apiBranches.length > 0) {
-          lastBranchRepoRef.current = selectedRepoId;
+          lastBranchRepoRef.current = branchContextKey;
         }
       }
     } catch (error) {
@@ -131,7 +151,15 @@ export function useBranchLoader(): UseBranchLoaderReturn {
       setBranchLoading(false);
       loadingBranchesRef.current = false;
     }
-  }, [selectedRepoId, selectedRepo, setBranches, setCurrentBranch]);
+  }, [
+    selectedRepoId,
+    selectedRepo,
+    activeWorktree,
+    activeWorkspaceRootPath,
+    branchContextKey,
+    setBranches,
+    setCurrentBranch,
+  ]);
 
   // Keep ref updated with latest loadBranchesImmediate
   loadBranchesImmediateRef.current = loadBranchesImmediate;

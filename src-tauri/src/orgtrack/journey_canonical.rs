@@ -11,6 +11,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use agent_core::core::journey_lifecycle::SqliteJourneyRepository;
 use orgtrack_core::canonical::SessionEditKind;
 use orgtrack_core::store::sqlite::SqliteRecordStore;
 use orgtrack_core::store::RecordStore;
@@ -20,6 +21,7 @@ use orgtrack_graph::journey::{
     CanonicalSession, CanonicalTurn, CoverageStatus, JourneyGraph,
 };
 use orgtrack_graph::JourneyScope;
+use rusqlite::Connection;
 
 /// Build the canonical Journey graph for a scope.
 ///
@@ -30,11 +32,26 @@ use orgtrack_graph::JourneyScope;
 ///   (`parent_session_id` recursion), so fork edges stay verifiable.
 pub fn build_journey_graph(
     store: &SqliteRecordStore,
+    conn: &Connection,
     scope: &JourneyScope,
 ) -> Result<JourneyGraph, String> {
-    let sessions = store.list_sessions(None)?;
-    let artifacts = store.list_edit_artifacts(None, None)?;
-    let commits = store.list_commit_links()?;
+    let mut sessions = store.list_sessions(None)?;
+    let mut artifacts = store.list_edit_artifacts(None, None)?;
+    let mut commits = store.list_commit_links()?;
+
+    // Store queries may have timestamp/sequence ties. Canonical graph array
+    // order must depend only on durable identities, never SQLite tie order.
+    sessions.sort_by(|left, right| left.session_id.cmp(&right.session_id));
+    artifacts.sort_by(|left, right| {
+        (&left.session_id, left.sequence_index, &left.record_id).cmp(&(
+            &right.session_id,
+            right.sequence_index,
+            &right.record_id,
+        ))
+    });
+    commits.sort_by(|left, right| {
+        (&left.commit_sha, &left.record_id).cmp(&(&right.commit_sha, &right.record_id))
+    });
 
     let selected = select_sessions(&sessions, scope)?;
     if selected.is_empty() {
@@ -47,34 +64,61 @@ pub fn build_journey_graph(
 
     let mut input = CanonicalJourneyInput::default();
     let mut seen_projects: HashSet<String> = HashSet::new();
-    let mut seen_work_items: HashSet<String> = HashSet::new();
+    let mut work_item_projects: HashMap<String, String> = HashMap::new();
     for session in &sessions {
         if !selected.contains(&session.session_id) {
             continue;
         }
-        let project_id = session.journey.project_id.clone();
-        if let Some(project_id) = project_id
+        let project_id = session
+            .journey
+            .project_id
             .as_ref()
-            .filter(|id| seen_projects.insert((*id).clone()))
-        {
+            .filter(|id| !id.trim().is_empty())
+            .cloned()
+            .ok_or_else(|| {
+                format!(
+                    "会话 {} 缺少显式 Journey project_id，拒绝推断项目归属",
+                    session.session_id
+                )
+            })?;
+        if seen_projects.insert(project_id.clone()) {
             input.projects.push(CanonicalProject {
                 id: project_id.clone(),
                 source_ref: format!("orgtrack:project:{project_id}"),
             });
         }
-        if let Some(work_item_id) = session.journey.work_item_id.as_ref() {
-            if seen_work_items.insert(work_item_id.clone()) {
-                input.work_items.push(orgtrack_graph::CanonicalWorkItem {
-                    id: work_item_id.clone(),
-                    project_id: project_id.clone(),
-                    source_ref: format!("orgtrack:session-work-item:{}", session.session_id),
-                });
+        if let Some(work_item_id) = session
+            .journey
+            .work_item_id
+            .as_ref()
+            .filter(|id| !id.trim().is_empty())
+        {
+            match work_item_projects.get(work_item_id) {
+                Some(existing_project_id) if existing_project_id != &project_id => {
+                    return Err(format!(
+                        "Journey work item {} 同时关联项目 {} 与 {}，拒绝构建跨项目关系",
+                        work_item_id, existing_project_id, project_id
+                    ));
+                }
+                Some(_) => {}
+                None => {
+                    work_item_projects.insert(work_item_id.clone(), project_id.clone());
+                    input.work_items.push(orgtrack_graph::CanonicalWorkItem {
+                        id: work_item_id.clone(),
+                        project_id: project_id.clone(),
+                        source_ref: format!("orgtrack:session-work-item:{}", session.session_id),
+                    });
+                }
             }
         }
         input.sessions.push(CanonicalSession {
             id: session.session_id.clone(),
             project_id,
-            work_item_id: session.journey.work_item_id.clone(),
+            work_item_id: session
+                .journey
+                .work_item_id
+                .clone()
+                .filter(|id| !id.trim().is_empty()),
             resumed_from: session
                 .parent_session_id
                 .clone()
@@ -83,28 +127,29 @@ pub fn build_journey_graph(
             forked_from: None,
             source_ref: format!("orgtrack:session:{}", session.session_id),
             display_timestamp: session.created_at.clone(),
-            agent_identity: session.journey.agent_identity.clone(),
-            agent_band: session.journey.agent_band.clone(),
-            topic_tags: session.journey.topic_tags.clone(),
         });
     }
 
-    // A Journey turn exists only when the producing event supplied its exact
-    // execution turn id. Sequence indices are storage ordering, not identity.
-    let mut seen_turns: HashSet<(String, String)> = HashSet::new();
+    // Canonical edit sequence is the exact durable turn boundary. Negative
+    // values are invalid storage state and must not be clamped or inferred.
+    let mut seen_turns: HashSet<(String, u64)> = HashSet::new();
     for artifact in &artifacts {
         if !selected.contains(&artifact.session_id) {
             continue;
         }
-        if let Some(turn_id) = artifact.execution_turn_id.as_ref() {
-            if seen_turns.insert((artifact.session_id.clone(), turn_id.clone())) {
-                input.turns.push(CanonicalTurn {
-                    session_id: artifact.session_id.clone(),
-                    id: turn_id.clone(),
-                    source_ref: format!("orgtrack:artifact:{}", artifact.record_id),
-                    display_timestamp: artifact.timestamp.clone(),
-                });
-            }
+        let sequence = u64::try_from(artifact.sequence_index).map_err(|_| {
+            format!(
+                "会话 {} 的编辑制品 {} 包含无效负数 sequence_index={}，拒绝构建 Journey 图",
+                artifact.session_id, artifact.record_id, artifact.sequence_index
+            )
+        })?;
+        if seen_turns.insert((artifact.session_id.clone(), sequence)) {
+            input.turns.push(CanonicalTurn {
+                session_id: artifact.session_id.clone(),
+                sequence,
+                source_ref: format!("orgtrack:artifact:{}", artifact.record_id),
+                display_timestamp: artifact.timestamp.clone(),
+            });
         }
     }
 
@@ -132,7 +177,8 @@ pub fn build_journey_graph(
         let linked_session = commit
             .session_ids
             .iter()
-            .find(|session_id| selected.contains(*session_id));
+            .filter(|session_id| selected.contains(*session_id))
+            .min();
         if let Some(session_id) = linked_session {
             input.commits.push(CanonicalCommit {
                 repo: "unknown".to_string(),
@@ -144,7 +190,8 @@ pub fn build_journey_graph(
         }
     }
 
-    let graph = orgtrack_graph::journey::project_canonical_journey(&input)?;
+    let mut graph = orgtrack_graph::journey::project_canonical_journey(&input)?;
+    append_session_journey_lifecycle(&conn, &mut graph, &selected)?;
     let report = audit_canonical_journey(&input, &graph);
     if !report.trustworthy {
         let uncovered: Vec<_> = report
@@ -160,6 +207,33 @@ pub fn build_journey_graph(
         ));
     }
     Ok(graph)
+}
+
+/// Append durable Session Journey lifecycle entities for the exact canonical
+/// sessions already selected for this graph. A lifecycle record without its
+/// canonical session is rejected; message anchors are verified by
+/// `session_id + message_id + sequence` in the same sessions database.
+fn append_session_journey_lifecycle(
+    conn: &Connection,
+    graph: &mut JourneyGraph,
+    selected: &HashSet<String>,
+) -> Result<(), String> {
+    let mut session_ids: Vec<_> = selected.iter().collect();
+    session_ids.sort_unstable();
+    for session_id in session_ids {
+        if let Some(journey) = SqliteJourneyRepository::load_existing(&conn, session_id)
+            .map_err(|error| format!("无法读取会话旅程 {session_id}：{error}"))?
+        {
+            if journey.session_id != *session_id {
+                return Err(format!(
+                    "会话旅程存储身份不一致：row_session={session_id}, state_session={}",
+                    journey.session_id
+                ));
+            }
+            super::journey_lifecycle_graph::append(&conn, graph, &journey)?;
+        }
+    }
+    Ok(())
 }
 
 fn select_sessions(

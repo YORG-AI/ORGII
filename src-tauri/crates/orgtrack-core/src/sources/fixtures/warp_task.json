@@ -1,0 +1,83 @@
+{
+  "id": "task-root",
+  "description": "Add Warp history import",
+  "messages": [
+    {
+      "id": "message-user",
+      "timestamp": "2026-07-14T01:00:00Z",
+      "userQuery": {
+        "query": "Please add Warp history import"
+      }
+    },
+    {
+      "id": "message-reasoning",
+      "timestamp": "2026-07-14T01:00:01Z",
+      "agentReasoning": {
+        "reasoning": "I will inspect the SQLite schema first."
+      }
+    },
+    {
+      "id": "message-shell-call",
+      "timestamp": "2026-07-14T01:00:02Z",
+      "toolCall": {
+        "toolCallId": "call-shell",
+        "runShellCommand": {
+          "command": "sqlite3 warp.sqlite .schema"
+        }
+      }
+    },
+    {
+      "id": "message-shell-result",
+      "timestamp": "2026-07-14T01:00:03Z",
+      "toolCallResult": {
+        "toolCallId": "call-shell",
+        "runShellCommand": {
+          "command": "sqlite3 warp.sqlite .schema",
+          "commandFinished": {
+            "output": "CREATE TABLE agent_conversations ...",
+            "exitCode": 0,
+            "commandId": "command-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "message-edit-call",
+      "timestamp": "2026-07-14T01:00:04Z",
+      "toolCall": {
+        "toolCallId": "call-edit",
+        "applyFileDiffs": {
+          "summary": "Add the importer",
+          "diffs": [
+            {
+              "filePath": "src/importer.rs",
+              "search": "old line",
+              "replace": "new line\nsecond line"
+            }
+          ],
+          "newFiles": [
+            {
+              "filePath": "src/warp.rs",
+              "content": "first\nsecond"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "message-model",
+      "timestamp": "2026-07-14T01:00:05Z",
+      "modelUsed": {
+        "modelId": "claude-opus-4-6",
+        "modelDisplayName": "Claude Opus 4.6"
+      }
+    },
+    {
+      "id": "message-assistant",
+      "timestamp": "2026-07-14T01:00:06Z",
+      "agentOutput": {
+        "text": "Warp history import is ready."
+      }
+    }
+  ]
+}

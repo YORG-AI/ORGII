@@ -10,8 +10,6 @@ import React, { memo, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import ModelSelectorPill from "@src/components/ModelSelectorPill";
-import CursorModePillCreator from "@src/engines/ChatPanel/InputArea/components/CursorModePill/CursorModePillCreator";
-import CursorModelPillCreator from "@src/engines/ChatPanel/InputArea/components/CursorModelPill/CursorModelPillCreator";
 import ModePill from "@src/engines/ChatPanel/InputArea/components/ModePill";
 import type { AgentExecMode } from "@src/features/SessionCreator/config";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
@@ -39,7 +37,6 @@ const ControlButtons: React.FC<ControlButtonsProps> = memo(
     const dispatchCategory = useAtomValue(dispatchCategoryAtom);
     const usesOrgiiExecMode =
       dispatchCategory === "rust_agent" || dispatchCategory === "cli_agent";
-    const isCursorIdeMode = dispatchCategory === "cursor_ide";
 
     const [selectorState, setSelectorState] = useAtom(modelSelectorAtom);
     const isModelOpen = selectorState.isOpen;
@@ -82,21 +79,14 @@ const ControlButtons: React.FC<ControlButtonsProps> = memo(
         {!hideModePill && usesOrgiiExecMode && (
           <ModePill
             forceVisible
+            hideWhenDefault
             resetToDefaultOnClick
             onModeChange={handleSdeModeChange}
             placement={dropdownDirection === "up" ? "top" : "bottom"}
           />
         )}
 
-        {!hideModePill && isCursorIdeMode && <CursorModePillCreator />}
-
-        {!hideModelSourcePill && isCursorIdeMode && (
-          <CursorModelPillCreator
-            dropdownPlacement={dropdownDirection === "up" ? "top" : "bottom"}
-          />
-        )}
-
-        {!hideModelSourcePill && !isCursorIdeMode && (
+        {!hideModelSourcePill && (
           <>
             <ModelSelectorPill
               ref={modelSegmentRef}

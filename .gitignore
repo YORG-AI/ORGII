@@ -145,3 +145,5 @@ orgii-*.png
 .final.log
 .wsfix.log
 .migrate.log
+# Codex CLI local state (created when codex runs inside the repo)
+.codex/

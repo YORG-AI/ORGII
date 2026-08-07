@@ -120,6 +120,7 @@ mod tests {
             "delete_file"
         );
         assert_eq!(resolve_function_name("Await", "", None), "await_output");
+        assert_eq!(resolve_function_name("wait", "", None), "await_output");
         assert_eq!(
             resolve_function_name("awaitToolCall", "", None),
             "await_output"

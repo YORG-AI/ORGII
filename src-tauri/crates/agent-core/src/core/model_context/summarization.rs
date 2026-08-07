@@ -346,6 +346,121 @@ async fn summarize_via_replay(
 /// `custom_instructions` (manual compaction only) is appended to the
 /// summarization prompt as an additional-focus section; the required
 /// section structure still applies.
+/// Reject incomplete or empty summaries before they replace durable history.
+fn validate_summary(
+    summary: String,
+    finish_reason: &str,
+    output_cap: u32,
+) -> Result<String, String> {
+    if finish_reason == crate::providers::finish_reason::LENGTH {
+        return Err(format!(
+            "summary output hit the summarizer cap ({}) — refusing incomplete summary",
+            output_cap
+        ));
+    }
+    if summary.trim().is_empty() {
+        return Err("summarizer returned an empty summary".to_string());
+    }
+    Ok(summary)
+}
+
+// ============================================
+// Fork-form summarization (prompt-cache sharing)
+// ============================================
+
+/// Inputs for the fork-form summarization call.
+///
+/// The summary request is appended to the main turn's EXACT request prefix
+/// (runtime system prefix + full history, same tools / model / max_tokens /
+/// temperature) so the provider prompt cache written by the previous turn is
+/// read instead of paying a cold full-prompt cost. Ref: claude_code
+/// runForkedAgent + CacheSafeParams (compact.ts streamCompactSummary,
+/// forkedAgent.ts): system prompt, tools, model, message prefix and thinking
+/// config must be identical to share the parent's cache — disabling cache
+/// sharing measured ~98% cache miss.
+pub struct ForkSummaryInputs<'a> {
+    /// Wire-identical main-turn message list (runtime system prefix +
+    /// history, screenshots resolved, timestamp metadata stripped).
+    pub messages: &'a [Value],
+    /// Main turn's tool definitions. Affects both the cache key and the
+    /// thinking directive the request builder picks (no tools → PlainText,
+    /// which would diverge from the main turn's Auto).
+    pub tools: &'a [Value],
+    /// Main turn's model — NOT the compaction summary-model override.
+    pub model: &'a str,
+    /// Main turn's max_tokens. Legacy models derive the thinking budget
+    /// from it; a different value changes the thinking config and breaks
+    /// the cache prefix.
+    pub max_tokens: u32,
+    pub temperature: f32,
+}
+
+/// Fork-form summarization: main-turn prefix + a volatile-marked summary
+/// request, plain-text response.
+///
+/// `skip_cache_write` stays FALSE: on Anthropic, suppressing breakpoints
+/// removes the cache LOOKUP points too — no breakpoints means zero cache
+/// reads, not "read without writing". The prefix breakpoints land at the
+/// same positions as the main turn's request (the summary-request block is
+/// scope-marked `volatile`, so the trailing breakpoint skips it), making
+/// the call almost entirely cache reads.
+pub(crate) async fn summarize_messages_forked(
+    provider: &dyn crate::providers::traits::LLMProvider,
+    inputs: &ForkSummaryInputs<'_>,
+    state: &super::compaction::CompactionState,
+    custom_instructions: Option<&str>,
+) -> Result<String, String> {
+    use crate::session::prompt::cache::{RenderedSystemBlockScope, ORGII_SYSTEM_CACHE_SCOPE_KEY};
+
+    let prompt = build_summary_prompt(state, custom_instructions);
+    let mut messages: Vec<Value> = inputs.messages.to_vec();
+    messages.push(serde_json::json!({
+        "role": "user",
+        "content": [{
+            "type": "text",
+            "text": prompt,
+            (ORGII_SYSTEM_CACHE_SCOPE_KEY): RenderedSystemBlockScope::Volatile.as_str(),
+        }],
+    }));
+
+    tracing::info!(
+        "[compaction] fork summary request: {} prefix messages, {} tools, model={}",
+        inputs.messages.len(),
+        inputs.tools.len(),
+        inputs.model,
+    );
+
+    let response = provider
+        .chat_with_options(
+            &messages,
+            Some(inputs.tools),
+            inputs.model,
+            inputs.max_tokens,
+            inputs.temperature,
+            crate::providers::traits::ChatOptions::default(),
+        )
+        .await
+        .map_err(|err| err.to_string())?;
+
+    // Tools are present with tool_choice auto — a model that answers with
+    // a tool call instead of prose yields no primary text; treat as failure
+    // so the caller falls back to the side-query path.
+    let summary = response
+        .primary_text()
+        .map(str::to_string)
+        .unwrap_or_default();
+    validate_summary(summary, &response.finish_reason, inputs.max_tokens)
+}
+
+/// Generate a summary of messages using the LLM.
+///
+/// Oversized messages (>50% of context window) are excluded from
+/// summarization and noted separately to avoid exceeding the
+/// summarization model's context window.
+///
+/// `custom_instructions` (manual compaction only) is appended to the
+/// summarization prompt as an additional-focus section; the required
+/// section structure still applies.
 pub(crate) async fn summarize_messages(
     messages: &[Value],
     state: &super::compaction::CompactionState,
@@ -395,8 +510,15 @@ pub(crate) async fn summarize_messages(
                 snapshot.len(),
                 messages.len()
             );
-            match summarize_via_replay(snapshot, state, provider, model, config, custom_instructions)
-                .await
+            match summarize_via_replay(
+                snapshot,
+                state,
+                provider,
+                model,
+                config,
+                custom_instructions,
+            )
+            .await
             {
                 Ok(mut summary) => {
                     if !oversized_notes.is_empty() {
@@ -420,7 +542,10 @@ pub(crate) async fn summarize_messages(
         }
     }
 
-    tracing::info!("[compaction] summarization path=flatten ({} messages)", summarizable.len());
+    tracing::info!(
+        "[compaction] summarization path=flatten ({} messages)",
+        summarizable.len()
+    );
 
     let formatted = format_messages_for_summary_refs(&summarizable);
 

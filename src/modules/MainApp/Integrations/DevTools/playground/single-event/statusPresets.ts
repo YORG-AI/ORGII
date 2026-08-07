@@ -2,7 +2,7 @@
  * Status presets for the DevTools Single Event Playground.
  *
  * Preset data is organized by domain in presets/:
- *   - presets/specialAgentTools.ts  — approval_request, suggest_mode_switch, suggest_next_steps
+ *   - presets/specialAgentTools.ts  — approval_request, suggest_mode_switch
  *   - presets/specialFileTools.ts   — edit_file, apply_patch
  *   - presets/specialAwaitTools.ts  — await_output, await_output_subagent, await_output_multi, await_output_list
  *   - presets/commandReadFile.ts    — read_file command variants (text, image, pdf)

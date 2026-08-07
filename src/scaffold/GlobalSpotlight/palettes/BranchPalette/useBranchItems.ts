@@ -11,6 +11,7 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 import type { BranchItem, SpotlightItem } from "../../types";
 import { categorizeBranches } from "../../utils/branchUtils";
 import { BRANCH_PALETTE_CONFIG, getIcon, getLabel } from "../config";
+import { getManageableBranches } from "./branchManagement";
 import type { UseBranchItemsOptions } from "./types";
 
 // Get icons from centralized config
@@ -44,8 +45,7 @@ export function useBranchItems(
     focusInput,
     selectedBranchNames,
     toggleBranchSelection,
-    removeWorktree,
-    renderBranchRemoveAction,
+    renderBranchDeleteAction,
   } = options;
 
   const labels = useMemo(
@@ -53,7 +53,6 @@ export function useBranchItems(
       otherBranches:
         t("selectors.branch.labels.otherBranches") ||
         getLabel(BRANCH_PALETTE_CONFIG, "otherBranches"),
-      worktrees: t("selectors.branch.labels.worktrees"),
       current: t("selectors.branch.labels.current"),
       recent: t("selectors.branch.labels.recent"),
       currentCommit: t("selectors.branch.labels.currentCommit"),
@@ -79,6 +78,7 @@ export function useBranchItems(
           ...branch,
           isSelector: true,
           isCurrentSelection: branch.name === currentBranchName,
+          contextMenuCopy: { name: branch.name },
           tagLabel: branch.isCurrent ? labels.current : undefined,
           rightLabel: lastCommit,
         },
@@ -111,51 +111,7 @@ export function useBranchItems(
     // --- Branch list based on mode ---
 
     if (activeMode === "remove") {
-      const removableWorktrees = filteredBranches.filter(
-        (branch) => !branch.isCurrent && branch.worktreePath
-      );
-      const deletableBranches = filteredBranches.filter(
-        (branch) => !branch.isCurrent && !branch.worktreePath
-      );
-
-      if (removableWorktrees.length > 0) {
-        result.push({
-          id: "__header_remove_worktrees__",
-          label: t("selectors.branch.labels.worktrees"),
-          desc: "",
-          icon: "",
-          type: "option" as const,
-          data: { isHeader: true },
-          action: () => {},
-        });
-
-        removableWorktrees.forEach((branch) => {
-          result.push({
-            id: `remove_worktree_${branch.name}`,
-            label: branch.name,
-            desc: t("selectors.branch.labels.checkedOutInWorktree", {
-              path: branch.worktreePath,
-              defaultValue: "Checked out in worktree: {{path}}",
-            }),
-            icon: ICONS.worktree,
-            type: "branch" as const,
-            data: {
-              ...branch,
-              isSelector: true,
-              rightLabel: t("selectors.branch.actions.removeWorktree", {
-                defaultValue: "Remove Worktree",
-              }),
-              rightContent: renderBranchRemoveAction?.(branch),
-            },
-            action: () => {
-              const worktreePath = branch.worktreePath;
-              if (worktreePath) {
-                void removeWorktree(worktreePath);
-              }
-            },
-          });
-        });
-      }
+      const deletableBranches = getManageableBranches(filteredBranches);
 
       if (deletableBranches.length > 0) {
         result.push({
@@ -182,8 +138,9 @@ export function useBranchItems(
           data: {
             ...branch,
             isSelector: true,
+            contextMenuCopy: { name: branch.name },
             rightLabel: lastCommit,
-            rightContent: renderBranchRemoveAction?.(branch),
+            rightContent: renderBranchDeleteAction?.(branch),
             selectionState: {
               checked: selectedBranchNames.has(branch.name),
               onToggle: () => toggleBranchSelection(branch.name),
@@ -238,6 +195,7 @@ export function useBranchItems(
             ...branch,
             isSelector: true,
             isRef: true,
+            contextMenuCopy: { name: branch.name },
             rightLabel: lastCommit,
           },
           action: () => {
@@ -252,7 +210,11 @@ export function useBranchItems(
     }
 
     // Checkout mode: show categorized branches with headers, including during search.
-    const categorized = categorizeBranches(filteredBranches);
+    // Worktree branches are excluded here — they have their own dedicated
+    // switcher (WorktreePalette), so listing them again would be redundant.
+    const categorized = categorizeBranches(
+      filteredBranches.filter((branch) => !branch.worktreePath)
+    );
 
     if (categorized.recent.length > 0) {
       result.push({
@@ -265,22 +227,6 @@ export function useBranchItems(
         action: () => {},
       });
       categorized.recent.forEach((branch) => {
-        result.push(createBranchItem(branch));
-      });
-    }
-
-    // Worktrees — branches checked out in a secondary git worktree.
-    if (categorized.worktrees.length > 0) {
-      result.push({
-        id: "__header_worktrees__",
-        label: labels.worktrees,
-        desc: "",
-        icon: "",
-        type: "option" as const,
-        data: { isHeader: true },
-        action: () => {},
-      });
-      categorized.worktrees.forEach((branch) => {
         result.push(createBranchItem(branch));
       });
     }
@@ -321,8 +267,7 @@ export function useBranchItems(
     focusInput,
     selectedBranchNames,
     toggleBranchSelection,
-    removeWorktree,
-    renderBranchRemoveAction,
+    renderBranchDeleteAction,
     labels,
     t,
   ]);

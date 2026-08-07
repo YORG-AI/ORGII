@@ -23,6 +23,7 @@ import {
   kanbanReplayModeAtom,
 } from "@src/store/ui/kanbanReplayAtom";
 import { kanbanManualArchivedSessionsAtom } from "@src/store/ui/kanbanViewStateAtom";
+import { dedupeByCanonicalSession } from "@src/util/session/canonicalSessionKey";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
 
 import type {
@@ -36,7 +37,7 @@ import { createReplayEvents } from "./useKanbanTasks/replayEvents";
 import { applyReplayCursor } from "./useKanbanTasks/replayProjection";
 import { sessionToKanbanTask } from "./useKanbanTasks/sessionToKanbanTask";
 import { getTaskTimestamp } from "./useKanbanTasks/taskTimestamps";
-import { useSessionOrgtrackMetadata } from "./useSessionOrgtrackMetadata";
+import { useSessionImpact } from "./useSessionImpact";
 
 // ============================================
 // Types
@@ -101,19 +102,20 @@ export function useKanbanTasks(
 
   const visibleSessions = useMemo(
     () =>
-      sessions.filter(
-        (session) =>
-          isPrimarySessionListSession(session) &&
-          (!sessionIdFilter || sessionIdFilter.has(session.session_id))
+      // Collapse dual-ingested duplicates (e.g. a Codex rollout surfaced both
+      // as a native CLI session and as imported "Codex App" history) to one
+      // card, keeping the copy that carries impact / tokens / model. Runs
+      // before task construction so both the board and List view are deduped.
+      dedupeByCanonicalSession(
+        sessions.filter(
+          (session) =>
+            isPrimarySessionListSession(session) &&
+            (!sessionIdFilter || sessionIdFilter.has(session.session_id))
+        )
       ),
     [sessions, sessionIdFilter]
   );
-  const {
-    metadataBySessionId,
-    unavailableSessionIds,
-    analyzingSessionIds,
-    analyzeSession,
-  } = useSessionOrgtrackMetadata(visibleSessions);
+  const { impactBySessionId } = useSessionImpact(visibleSessions);
 
   // Pair sessions with their kanban-task projection once. Downstream
   // code reads from this so we don't re-iterate `sessions` per concern.
@@ -132,15 +134,7 @@ export function useKanbanTasks(
         session,
         task: {
           ...task,
-          orgtrackMetadata: metadataBySessionId.get(session.session_id),
-          orgtrackMetadataUnavailable: unavailableSessionIds.has(
-            session.session_id
-          ),
-          orgtrackMetadataLoading: analyzingSessionIds.has(session.session_id),
-          onUpdateGitBlame: unavailableSessionIds.has(session.session_id)
-            ? undefined
-            : () => analyzeSession(session, { rebuild: true }),
-          onAnalyzeGitBlame: () => analyzeSession(session, { rebuild: false }),
+          impact: impactBySessionId.get(session.session_id),
         },
       };
     });
@@ -150,10 +144,7 @@ export function useKanbanTasks(
     manualArchivedSessionIds,
     autoArchiveTtl,
     nowTick,
-    metadataBySessionId,
-    unavailableSessionIds,
-    analyzingSessionIds,
-    analyzeSession,
+    impactBySessionId,
   ]);
 
   const sessionTasks = useMemo(

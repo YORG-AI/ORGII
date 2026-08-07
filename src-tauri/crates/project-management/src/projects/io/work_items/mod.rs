@@ -56,11 +56,14 @@ pub use atomic::{
     update_work_item_partial_with_revisions,
 };
 pub use batch::{batch_delete_work_items, batch_update_work_items};
+pub(crate) use crud::purge_work_item;
+pub(crate) use crud::write_work_item_remote;
 pub use crud::{
     allocate_short_id, allocate_standalone_short_id, delete_work_item, move_work_item,
     purge_expired_deleted_work_items, read_all_work_items, read_all_work_items_scoped,
-    read_standalone_work_item, read_standalone_work_items, read_work_item, read_work_item_scoped,
-    restore_work_item, write_standalone_work_item, write_work_item,
+    read_standalone_work_item, read_standalone_work_items, read_work_item,
+    read_work_item_by_row_id, read_work_item_scoped, restore_work_item, write_standalone_work_item,
+    write_work_item,
 };
 pub use enrichment::{
     read_all_work_items_enriched, read_all_work_items_enriched_scoped, read_work_item_enriched,

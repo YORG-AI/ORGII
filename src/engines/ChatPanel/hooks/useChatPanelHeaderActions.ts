@@ -9,6 +9,7 @@ import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
   chatHistoryDisplayModeAtom,
   chatPanelExploreAgentSearchEnabledAtom,
+  chatStatusBarVisibleAtom,
   chatTokenUsageVisibleAtom,
   chatTurnPaginationEnabledAtom,
 } from "@src/store/ui/chatPanelAtom";
@@ -45,6 +46,9 @@ export function useChatPanelHeaderActions({
   const [displayMode, setDisplayMode] = useAtom(chatHistoryDisplayModeAtom);
   const [tokenUsageVisible, setTokenUsageVisible] = useAtom(
     chatTokenUsageVisibleAtom
+  );
+  const [statusBarVisible, setStatusBarVisible] = useAtom(
+    chatStatusBarVisibleAtom
   );
   const [exploreAgentSearchEnabled, setExploreAgentSearchEnabled] = useAtom(
     chatPanelExploreAgentSearchEnabledAtom
@@ -110,6 +114,13 @@ export function useChatPanelHeaderActions({
     [setTokenUsageVisible]
   );
 
+  const handleStatusBarVisibleToggle = useCallback(
+    (checked: boolean) => {
+      setStatusBarVisible(checked);
+    },
+    [setStatusBarVisible]
+  );
+
   const handleCopyEventJson = useCallback(() => {
     const json = JSON.stringify(events, null, 2);
     navigator.clipboard
@@ -139,6 +150,7 @@ export function useChatPanelHeaderActions({
     handlePaginationToggle,
     handleRegisterSearchOpen,
     handleReloadFromMenu,
+    handleStatusBarVisibleToggle,
     handleToggleAllBlocksCollapsed,
     handleTokenUsageVisibleToggle,
     headerActionsDropdownRef,
@@ -147,6 +159,7 @@ export function useChatPanelHeaderActions({
     isHeaderActionsOpen,
     isHeaderActionsPositioned,
     paginationEnabled,
+    statusBarVisible,
     tokenUsageVisible,
     toggleHeaderActionsMenu,
   };

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { SessionEventArraySchema } from "../schemas/sessionCore";
+import {
+  SessionEventArraySchema,
+  TurnMetadataIndexInput,
+} from "../schemas/sessionCore";
 
 describe("sessionCore RPC schemas", () => {
   it("normalizes legacy string result values instead of rejecting history loads", () => {
@@ -19,6 +22,21 @@ describe("sessionCore RPC schemas", () => {
       observation: "first message",
     });
     expect(parsed[1].result).toEqual({ content: "second message" });
+  });
+
+  it("bounds visible-round metadata reads", () => {
+    expect(
+      TurnMetadataIndexInput.parse({
+        sessionId: "session-1",
+        turnIds: ["turn-2", "turn-3"],
+      }).turnIds
+    ).toEqual(["turn-2", "turn-3"]);
+    expect(() =>
+      TurnMetadataIndexInput.parse({
+        sessionId: "session-1",
+        turnIds: Array.from({ length: 501 }, (_, index) => `turn-${index}`),
+      })
+    ).toThrow();
   });
 });
 

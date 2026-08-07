@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { cliAgentCreateTuiSession } from "@src/api/tauri/agent/cliTerminalSession";
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import type { CliAgentType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
@@ -28,6 +29,7 @@ import type {
   ChatPanelRegionNotice,
 } from "@src/engines/ChatPanel/types";
 import { useSessionCreator } from "@src/engines/SessionCore/hooks/session/useSessionCreator";
+import { getWorktreeFields } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/launchPayload";
 import type {
   SessionLaunchSuccessInfo,
   SessionLaunchWorkItemContext,
@@ -56,6 +58,7 @@ import { REPO_KIND } from "@src/store/repo/types";
 import {
   CLI_LAUNCH_MODE,
   SESSION_TARGET_KIND,
+  type WorktreeLaunchSource,
   agentIconIdAtom,
   agentNameAtom,
   cliAgentTypeAtom,
@@ -68,6 +71,7 @@ import {
   sessionCreatorStateAtom,
   sessionSourceAtom,
   sessionTargetKindAtom,
+  worktreeLaunchSourceAtom,
 } from "@src/store/session";
 import { restoreToInputAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultTuiModeAtom } from "@src/store/session/creatorDefaultTuiModeAtom";
@@ -304,14 +308,37 @@ const SessionCreatorChatPanelSingle: React.FC<
 
   const runningLocation = useAtomValue(runningLocationAtom);
   const setRunningLocation = useSetAtom(runningLocationAtom);
+  const selectedWorktreePath = useAtomValue(selectedWorktreePathAtom);
   const setSelectedWorktreePath = useSetAtom(selectedWorktreePathAtom);
+  const worktreeLaunchSource = useAtomValue(worktreeLaunchSourceAtom);
+  const setWorktreeLaunchSource = useSetAtom(worktreeLaunchSourceAtom);
 
   const handleWorktreeLocationChange = useCallback(
     (location: Parameters<typeof setRunningLocation>[0]) => {
       setSelectedWorktreePath(null);
+      if (location !== "worktree") {
+        setWorktreeLaunchSource(null);
+      }
       setRunningLocation(location);
     },
-    [setRunningLocation, setSelectedWorktreePath]
+    [setRunningLocation, setSelectedWorktreePath, setWorktreeLaunchSource]
+  );
+
+  const handleWorktreeSourceSelect = useCallback(
+    (source: WorktreeLaunchSource) => {
+      setSelectedWorktreePath(null);
+      setWorktreeLaunchSource(source);
+      setRunningLocation("worktree");
+      if (source.baseBranch) {
+        handleBranchChange(source.baseBranch);
+      }
+    },
+    [
+      handleBranchChange,
+      setRunningLocation,
+      setSelectedWorktreePath,
+      setWorktreeLaunchSource,
+    ]
   );
 
   const agentVariant = getRustAgentType(selectedAgentDefId);
@@ -476,11 +503,41 @@ const SessionCreatorChatPanelSingle: React.FC<
     ) {
       const command = selectedCliAgent.command.trim();
       if (command.length > 0) {
+        // Back the TUI terminal with a managed session row so the worktree
+        // selection is honored (cwd below) and lifecycle hooks can attribute
+        // status/transcripts via ORGII_SESSION_ID. Creation failure degrades
+        // to the old unbound repo-root terminal rather than blocking launch.
+        const repoPath = effectiveSource?.repoPath;
+        let cwd = repoPath;
+        let agentSessionId: string | undefined;
+        try {
+          const worktreeFields = getWorktreeFields({
+            runningLocation,
+            selectedWorktreePath,
+            worktreeLaunchSource,
+          });
+          const created = await cliAgentCreateTuiSession({
+            platform: cliAgentType,
+            name: selectedCliAgent.displayName,
+            repoPath,
+            isolate: worktreeFields.isolate,
+            branch: worktreeFields.branch,
+            worktreePath: worktreeFields.worktreePath,
+          });
+          agentSessionId = created.sessionId;
+          cwd = created.worktreePath || repoPath;
+        } catch (error) {
+          log.warn(
+            "TUI session create failed; opening unbound terminal",
+            error
+          );
+        }
         onOpenCliTerminal({
           cliAgentType,
           command,
           title: selectedCliAgent.displayName,
-          cwd: effectiveSource?.repoPath,
+          cwd,
+          agentSessionId,
           expectedProcess: deriveExpectedProcess(command),
         });
         setAttachedWorkItemContext(null);
@@ -495,7 +552,10 @@ const SessionCreatorChatPanelSingle: React.FC<
     isCliTuiMode,
     onOpenCliTerminal,
     originalHandleLaunch,
+    runningLocation,
     selectedCliAgent,
+    selectedWorktreePath,
+    worktreeLaunchSource,
   ]);
 
   const handleCliLaunchModeChange = useCallback(
@@ -725,7 +785,11 @@ const SessionCreatorChatPanelSingle: React.FC<
       branchLoading={branchLoading && !effectiveBranchName}
       onBranchChange={handleBranchChange}
       worktreeLocation={isDisplayedSystemPath ? undefined : runningLocation}
+      worktreeSourceLabel={
+        runningLocation === "worktree" ? worktreeLaunchSource?.label : undefined
+      }
       onWorktreeLocationChange={handleWorktreeLocationChange}
+      onWorktreeSourceSelect={handleWorktreeSourceSelect}
       fullWidth
       pillVariant={headerLayout === "compact" ? "ghost" : undefined}
     />
@@ -791,58 +855,54 @@ const SessionCreatorChatPanelSingle: React.FC<
     ) : null;
 
   const editorArea = (
-    <div className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}>
-      <EditorArea
-        variant="chatPanelFullScreen"
-        uploadedFiles={uploadedFiles}
-        onRemoveFile={handleRemoveFile}
-        composerInputRef={composerInputRef}
-        onContentChange={handleContentChangeWithTracking}
-        onAtMention={handleAtMention}
-        onAtMentionClose={handleAtMentionClose}
-        onSubmit={handleLaunch}
-        showContextMenu={showContextMenu}
-        setShowContextMenu={setShowContextMenu}
-        atSearchQuery={atSearchQuery}
-        setAtSearchQuery={setAtSearchQuery}
-        onAtSelect={handleAtSelect}
-        repoPath={currentRepoPath}
-        onAtMentionClick={handleAtMentionClick}
-        onUploadClick={handleUploadClick}
-        isLoading={isLoading}
-        onLaunch={handleLaunch}
-        advancedConfig={advancedConfig}
-        onAdvancedConfigChange={handleAdvancedConfigChange}
-        hideInfoLine={true}
-        repoId={displayedRepoId}
-        repoName={displayedRepoName}
-        repoKind={isOSMode && !sessionRepoId ? undefined : currentRepo?.kind}
-        branchName={
-          isOSMode && !sessionRepoId ? undefined : effectiveBranchName
-        }
-        onBranchChange={handleBranchChange}
-        onImagePaste={handleImagePaste}
-        attachedImages={attachedImages}
-        onRemoveImage={removeImage}
-        launchDisabled={!canLaunch}
-        requestModelOpen={requestModelOpen}
-        onModelOpenHandled={() => setRequestModelOpen(false)}
-        shellClassName="session-creator-chat-panel-fullscreen-input-shell"
-        initialContent={initialRestoreText || initialContent || undefined}
-        autoFocus
-        showSlashMenu={showSlashMenu}
-        slashQuery={slashQuery}
-        slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
-        onSlashCommand={handleSlashCommand}
-        onSlashCommandClose={handleSlashCommandClose}
-        onSlashSelect={handleSlashSelect}
-        onModeSelect={handleModeSelect}
-        currentMode={currentMode}
-        filteredSlashItems={filteredSlashItems}
-        slashLoading={slashLoading}
-        dropdownDirection={dropdownDirection}
-      />
-    </div>
+    <EditorArea
+      variant="chatPanelFullScreen"
+      uploadedFiles={uploadedFiles}
+      onRemoveFile={handleRemoveFile}
+      composerInputRef={composerInputRef}
+      onContentChange={handleContentChangeWithTracking}
+      onAtMention={handleAtMention}
+      onAtMentionClose={handleAtMentionClose}
+      onSubmit={handleLaunch}
+      showContextMenu={showContextMenu}
+      setShowContextMenu={setShowContextMenu}
+      atSearchQuery={atSearchQuery}
+      setAtSearchQuery={setAtSearchQuery}
+      onAtSelect={handleAtSelect}
+      repoPath={currentRepoPath}
+      onAtMentionClick={handleAtMentionClick}
+      onUploadClick={handleUploadClick}
+      isLoading={isLoading}
+      onLaunch={handleLaunch}
+      advancedConfig={advancedConfig}
+      onAdvancedConfigChange={handleAdvancedConfigChange}
+      hideInfoLine={true}
+      repoId={displayedRepoId}
+      repoName={displayedRepoName}
+      repoKind={isOSMode && !sessionRepoId ? undefined : currentRepo?.kind}
+      branchName={isOSMode && !sessionRepoId ? undefined : effectiveBranchName}
+      onBranchChange={handleBranchChange}
+      onImagePaste={handleImagePaste}
+      attachedImages={attachedImages}
+      onRemoveImage={removeImage}
+      launchDisabled={!canLaunch}
+      requestModelOpen={requestModelOpen}
+      onModelOpenHandled={() => setRequestModelOpen(false)}
+      shellClassName="session-creator-chat-panel-fullscreen-input-shell"
+      initialContent={initialRestoreText || initialContent || undefined}
+      autoFocus
+      showSlashMenu={showSlashMenu}
+      slashQuery={slashQuery}
+      slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
+      onSlashCommand={handleSlashCommand}
+      onSlashCommandClose={handleSlashCommandClose}
+      onSlashSelect={handleSlashSelect}
+      onModeSelect={handleModeSelect}
+      currentMode={currentMode}
+      filteredSlashItems={filteredSlashItems}
+      slashLoading={slashLoading}
+      dropdownDirection={dropdownDirection}
+    />
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -853,7 +913,7 @@ const SessionCreatorChatPanelSingle: React.FC<
       data-testid="session-creator-chat-panel"
     >
       <div
-        className={`session-creator-chat-panel-content flex min-h-0 flex-1 items-center justify-center px-4 ${
+        className={`session-creator-chat-panel-content flex min-h-0 flex-1 items-center justify-center px-4 ${DETAIL_PANEL_TOKENS.headerWidth} ${
           innerClassName ??
           (isFullScreenVariant
             ? centerFullScreenContent
@@ -862,9 +922,7 @@ const SessionCreatorChatPanelSingle: React.FC<
             : "pb-[4vh]")
         }`}
       >
-        <div
-          className={`flex w-full flex-col items-stretch gap-3 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
-        >
+        <div className="flex w-full flex-col items-stretch gap-3">
           {isCliTuiMode ? (
             <>
               {headerLayout !== "compact" && (

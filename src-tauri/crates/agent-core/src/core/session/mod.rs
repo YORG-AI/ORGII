@@ -18,11 +18,17 @@ pub mod exec_modes;
 pub(crate) mod file_registry;
 pub mod gateway_pipeline;
 pub mod goal_loop;
+pub mod housekeeper_compaction;
+pub mod journey_application_service;
+pub mod journey_context_visibility;
+pub mod journey_embedding;
+pub mod journey_review_queue;
 pub mod launch;
 pub mod overrides;
 pub mod persistence;
 pub mod plan_mode;
 pub(crate) mod project_init;
+pub mod prompt_scope_presets;
 // `recovery` is `#[doc(hidden)] pub` because it is only reached by the
 // `app` crate's `/test/*` HTTP debug routes through
 // `agent_core::debug::recovery`. The submodule itself is also gated by

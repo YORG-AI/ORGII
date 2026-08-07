@@ -85,6 +85,7 @@ pub fn resolve(
         metadata,
         adapter.name(),
         adapter.entity_field_map(),
+        None,
         |_| ConflictResolution::UseRemote,
     )
 }
@@ -101,6 +102,14 @@ pub fn resolve_with_policy<F>(
     metadata: &SyncMetadata,
     adapter_id: &str,
     field_map: &FieldMap,
+    // Optional per-field remote mtimes (local field name → mtime ms). When
+    // `Some`, each field is compared against its OWN remote mtime and a field
+    // absent from the map is treated as "the remote author did not touch it"
+    // (keep local) — correct when `change.fields` is a whole-row snapshot whose
+    // untouched fields still carry stale values. `None` keeps the legacy
+    // whole-row `remote_updated_at` clock (Linear/GitHub emit only changed
+    // fields, so a stale carry-over never appears).
+    remote_field_mtimes: Option<&HashMap<String, i64>>,
     mut tie_break: F,
 ) -> ResolverDecision
 where
@@ -139,9 +148,23 @@ where
             continue;
         };
 
+        // Per-field remote mtime when the adapter supplies one. If the map is
+        // present but this field is absent, the remote author did NOT change
+        // it (the wire value is a stale whole-row carry-over) — keep local.
+        let field_mtime_ms = match remote_field_mtimes {
+            Some(map) => match map.get(local_name) {
+                Some(mtime) => *mtime,
+                None => {
+                    decision.kept_local.push(local_name.to_string());
+                    continue;
+                }
+            },
+            None => remote_mtime_ms,
+        };
+
         match decide_one(
             local_name,
-            remote_mtime_ms,
+            field_mtime_ms,
             &metadata.field_revisions,
             &mut tie_break,
         ) {
@@ -152,7 +175,10 @@ where
                 decision.new_revisions.insert(
                     local_name.to_string(),
                     FieldRevision {
-                        mtime: remote_mtime_ms,
+                        // Stamp the adopted field with ITS remote mtime so a
+                        // re-pull is idempotent and later comparisons are
+                        // per-field accurate.
+                        mtime: field_mtime_ms,
                         source: adapter_id.to_string(),
                     },
                 );
@@ -163,6 +189,70 @@ where
         }
     }
 
+    decision
+}
+
+/// Named-field variant of [`resolve_with_policy`] for entities that are
+/// not adapter entities — projects, whose field set (`name`, `health`,
+/// `lead`, `description`, `work_item_prefix`, …) has no
+/// [`EntityField`](super::adapter::EntityField) variants and therefore
+/// no [`FieldMap`]. Same per-field policy:
+///
+/// - `remote_field_mtimes = Some(map)`: each field present in `fields`
+///   is compared against its OWN remote mtime; a field absent from the
+///   map is a stale whole-row carry-over the remote author didn't touch
+///   — keep local.
+/// - `remote_field_mtimes = None`: legacy whole-row clock
+///   (`remote_row_mtime_ms` for every field).
+///
+/// `revisions` is the entity's local per-field watermark store (for
+/// projects, `projects.field_revisions_json`). Ties adopt remote,
+/// matching the collab bridge's fixed `UseRemote` policy.
+pub fn resolve_named_fields(
+    field_names: &[&str],
+    fields: &Value,
+    remote_row_mtime_ms: i64,
+    revisions: &HashMap<String, FieldRevision>,
+    revision_source: &str,
+    remote_field_mtimes: Option<&HashMap<String, i64>>,
+) -> ResolverDecision {
+    let mut decision = ResolverDecision::default();
+    let Some(remote_obj) = fields.as_object() else {
+        return decision;
+    };
+    let mut tie_break = |_: &str| ConflictResolution::UseRemote;
+    for &local_name in field_names {
+        let Some(remote_value) = remote_obj.get(local_name) else {
+            continue;
+        };
+        let field_mtime_ms = match remote_field_mtimes {
+            Some(map) => match map.get(local_name) {
+                Some(mtime) => *mtime,
+                None => {
+                    decision.kept_local.push(local_name.to_string());
+                    continue;
+                }
+            },
+            None => remote_row_mtime_ms,
+        };
+        match decide_one(local_name, field_mtime_ms, revisions, &mut tie_break) {
+            Verdict::AdoptRemote => {
+                decision
+                    .adopted_fields
+                    .insert(local_name.to_string(), remote_value.clone());
+                decision.new_revisions.insert(
+                    local_name.to_string(),
+                    FieldRevision {
+                        mtime: field_mtime_ms,
+                        source: revision_source.to_string(),
+                    },
+                );
+            }
+            Verdict::KeepLocal => {
+                decision.kept_local.push(local_name.to_string());
+            }
+        }
+    }
     decision
 }
 
@@ -376,9 +466,10 @@ mod tests {
             json!({ "title": "Tied remote" }),
             false,
         );
-        let decision = resolve_with_policy(&inbound, &metadata, "stub", &STUB_FIELD_MAP, |_| {
-            ConflictResolution::KeepLocal
-        });
+        let decision =
+            resolve_with_policy(&inbound, &metadata, "stub", &STUB_FIELD_MAP, None, |_| {
+                ConflictResolution::KeepLocal
+            });
         assert!(decision.adopted_fields.is_empty());
         assert_eq!(decision.kept_local, vec!["title".to_string()]);
     }
@@ -451,10 +542,78 @@ mod tests {
             json!({ "title": "Newer github value" }),
             false,
         );
-        let decision = resolve_with_policy(&inbound, &metadata, "github", &STUB_FIELD_MAP, |_| {
-            ConflictResolution::UseRemote
-        });
+        let decision =
+            resolve_with_policy(&inbound, &metadata, "github", &STUB_FIELD_MAP, None, |_| {
+                ConflictResolution::UseRemote
+            });
         assert_eq!(decision.adopted_fields["title"], "Newer github value");
         assert_eq!(decision.new_revisions["title"].source, "github");
+    }
+
+    /// The critical collab-merge case: the inbound row is a WHOLE-ROW snapshot
+    /// (every field present), but the remote author only changed `title`. With
+    /// per-field mtimes, the untouched `status` must NOT overwrite a newer
+    /// local edit, and `title` (which the remote genuinely changed newer) is
+    /// adopted.
+    #[test]
+    fn per_field_mtimes_protect_untouched_fields_from_stale_whole_row() {
+        // Local edited `status` at 10:00:00; `title` last synced at 09:00:00.
+        let metadata = metadata_with(&[
+            ("status", 1_700_000_600_000, "local"),
+            ("title", 1_700_000_000_000, "collab"),
+        ]);
+        // Remote pushed a whole-row snapshot: it changed `title` at 10:00:05
+        // but carries a STALE `status` it never touched (its mtime is old).
+        // Fields are keyed by LOCAL field name (the resolver looks up
+        // `remote_obj.get(local_name)`), so `status`, not the remote "state".
+        let inbound = change(
+            Utc.timestamp_millis_opt(1_700_000_605_000).unwrap(),
+            json!({ "title": "Remote new title", "status": "stale-status" }),
+            false,
+        );
+        let mut mtimes = HashMap::new();
+        mtimes.insert("title".to_string(), 1_700_000_605_000_i64);
+        // `status` deliberately absent — the remote author did not touch it.
+
+        let decision = resolve_with_policy(
+            &inbound,
+            &metadata,
+            "collab",
+            &STUB_FIELD_MAP,
+            Some(&mtimes),
+            |_| ConflictResolution::UseRemote,
+        );
+
+        assert_eq!(decision.adopted_fields["title"], "Remote new title");
+        assert_eq!(decision.new_revisions["title"].mtime, 1_700_000_605_000);
+        // The untouched, newer-locally `status` is preserved, not reverted.
+        assert!(!decision.adopted_fields.contains_key("status"));
+        assert!(decision.kept_local.iter().any(|n| n == "status"));
+    }
+
+    /// A field present in the per-field map but OLDER than the local edit is
+    /// kept local (same-field latest-wins still holds under per-field mtimes).
+    #[test]
+    fn per_field_mtimes_keep_local_when_local_edit_is_newer() {
+        let metadata = metadata_with(&[("title", 1_700_000_600_000, "local")]);
+        let inbound = change(
+            Utc.timestamp_millis_opt(1_700_000_605_000).unwrap(),
+            json!({ "title": "Older remote title" }),
+            false,
+        );
+        let mut mtimes = HashMap::new();
+        mtimes.insert("title".to_string(), 1_700_000_100_000_i64); // older than local
+
+        let decision = resolve_with_policy(
+            &inbound,
+            &metadata,
+            "collab",
+            &STUB_FIELD_MAP,
+            Some(&mtimes),
+            |_| ConflictResolution::UseRemote,
+        );
+
+        assert!(decision.adopted_fields.is_empty());
+        assert_eq!(decision.kept_local, vec!["title".to_string()]);
     }
 }

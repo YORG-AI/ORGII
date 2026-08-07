@@ -1,5 +1,7 @@
 use crate::error::GitApiError;
-use crate::extractors::{has_windows_users_prefix, validate_file_path, validate_path};
+#[cfg(windows)]
+use crate::extractors::has_windows_users_prefix;
+use crate::extractors::{validate_file_path, validate_path};
 
 #[test]
 fn test_path_traversal_detection() {
@@ -36,6 +38,7 @@ fn test_unix_disallowed_paths() {
     assert!(validate_path("/root/.ssh/id_rsa").is_err());
 }
 
+#[cfg(windows)]
 #[test]
 fn test_windows_users_prefix_handles_non_ascii_without_panic() {
     assert!(!has_windows_users_prefix(r"C:\绳子\Users\TestUser\project"));

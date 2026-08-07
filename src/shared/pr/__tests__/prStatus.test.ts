@@ -90,7 +90,7 @@ describe("getPrStatusLabelKey", () => {
 describe("getPrStatusIconName", () => {
   it("maps statuses to their semantic icon names", () => {
     expect(getPrStatusIconName("open")).toBe("pull-request");
-    expect(getPrStatusIconName("draft")).toBe("pull-request");
+    expect(getPrStatusIconName("draft")).toBe("draft");
     expect(getPrStatusIconName("merged")).toBe("merge");
     expect(getPrStatusIconName("closed")).toBe("closed");
   });

@@ -20,7 +20,6 @@ import { ClaudeCodeSetup } from "./setup/ClaudeCodeSetup";
 import { CodexSetup } from "./setup/CodexSetup";
 import { CopilotSetup } from "./setup/CopilotSetup";
 import { CursorSetup } from "./setup/CursorSetup";
-import { GeminiSetup } from "./setup/GeminiSetup";
 import { GenericSetup } from "./setup/GenericSetup";
 import { KiroSetup } from "./setup/KiroSetup";
 import { LocalModelSetup } from "./setup/LocalModelSetup";
@@ -28,7 +27,6 @@ import type { AgentSetupProps } from "./setup/types";
 import type {
   ClaudeCodeSessionValues,
   CodexSessionValues,
-  GeminiSessionValues,
   KiroSessionValues,
 } from "./setup/types";
 
@@ -166,52 +164,6 @@ export const AgentSetupRouter: React.FC<AgentSetupRouterProps> = ({
               available_models: codexModels,
               model_context_lengths: {},
               enabled_models: enabledModels,
-              validated: true,
-            });
-            setTokenDetected(true);
-          }}
-        />
-      );
-
-    case "gemini":
-      return (
-        <GeminiSetup
-          {...sharedProps}
-          tokenDetected={tokenDetected}
-          detectingToken={detectingToken}
-          tokenError={tokenError}
-          onDetectToken={sharedProps.onAutoDetect ?? (() => {})}
-          onClearTokenError={clearTokenError}
-          preselectedMethod={isComplex ? setupMethod : undefined}
-          onSessionCaptured={(values: GeminiSessionValues) => {
-            const geminiModels = values.availableModels;
-            onChange({
-              auth_method: "oauth",
-              oauth_session_token: values.accessToken,
-              raw_key_input: "",
-              env_vars: [
-                { name: "GEMINI_REFRESH_TOKEN", value: values.refreshToken },
-                { name: "GOOGLE_CLOUD_PROJECT", value: values.projectId },
-                { name: "GOOGLE_CLOUD_PROJECT_ID", value: values.projectId },
-                { name: "GEMINI_EXPIRES_AT", value: values.expiresAt },
-                ...(values.expiresIn
-                  ? [
-                      {
-                        name: "GEMINI_EXPIRES_IN",
-                        value: String(values.expiresIn),
-                      },
-                    ]
-                  : []),
-                ...(values.tokenType
-                  ? [{ name: "GEMINI_TOKEN_TYPE", value: values.tokenType }]
-                  : []),
-                ...(values.scope
-                  ? [{ name: "GEMINI_SCOPE", value: values.scope }]
-                  : []),
-              ],
-              available_models: geminiModels,
-              model_context_lengths: {},
-              enabled_models: geminiModels.slice(0, 1),
               validated: true,
             });
             setTokenDetected(true);

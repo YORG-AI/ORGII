@@ -125,6 +125,7 @@ impl ContextUsageSnapshot {
             }
         }
 
+        let items = normalize_items_to_used_tokens(items, used_tokens);
         let mut sections = build_sections(items, used_tokens);
         let attributed = sections
             .iter()
@@ -318,6 +319,62 @@ fn build_sections(items: Vec<ContextUsageItem>, used_tokens: i64) -> Vec<Context
         .collect()
 }
 
+fn normalize_items_to_used_tokens(
+    mut items: Vec<ContextUsageItem>,
+    used_tokens: i64,
+) -> Vec<ContextUsageItem> {
+    if used_tokens <= 0 {
+        return items;
+    }
+
+    let total = items
+        .iter()
+        .map(|item| item.estimated_tokens.max(0))
+        .sum::<i64>();
+    if total <= used_tokens || total <= 0 {
+        return items;
+    }
+
+    let mut scaled = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let tokens = item.estimated_tokens.max(0) as i128;
+            let product = tokens * used_tokens as i128;
+            let scaled_tokens = (product / total as i128) as i64;
+            let remainder = product % total as i128;
+            (index, scaled_tokens, remainder)
+        })
+        .collect::<Vec<_>>();
+
+    let assigned = scaled
+        .iter()
+        .map(|(_, scaled_tokens, _)| *scaled_tokens)
+        .sum::<i64>();
+    let mut remaining = used_tokens.saturating_sub(assigned);
+
+    scaled.sort_by(|a, b| b.2.cmp(&a.2).then_with(|| a.0.cmp(&b.0)));
+    for (_, scaled_tokens, _) in &mut scaled {
+        if remaining <= 0 {
+            break;
+        }
+        *scaled_tokens += 1;
+        remaining -= 1;
+    }
+
+    scaled.sort_by_key(|(index, _, _)| *index);
+    for (index, scaled_tokens, _) in scaled {
+        if let Some(item) = items.get_mut(index) {
+            item.estimated_tokens = scaled_tokens;
+        }
+    }
+
+    items
+        .into_iter()
+        .filter(|item| item.estimated_tokens > 0)
+        .collect()
+}
+
 fn categorize_dynamic_system_text(text: &str) -> ContextUsageCategory {
     let lower = text.to_lowercase();
     if lower.contains("skill") {
@@ -467,6 +524,48 @@ mod tests {
                 .map(|section| section.estimated_tokens)
                 .sum::<i64>(),
             100
+        );
+    }
+
+    #[test]
+    fn scales_estimated_sections_down_to_provider_total() {
+        let items = vec![
+            ContextUsageItem {
+                category: ContextUsageCategory::Conversation,
+                label: "Conversation".to_string(),
+                source: "messages[0]".to_string(),
+                estimated_tokens: 80,
+                included: true,
+                cache_status: None,
+                details: None,
+            },
+            ContextUsageItem {
+                category: ContextUsageCategory::ToolResults,
+                label: "Tool history".to_string(),
+                source: "messages[1]".to_string(),
+                estimated_tokens: 40,
+                included: true,
+                cache_status: None,
+                details: None,
+            },
+        ];
+
+        let normalized = normalize_items_to_used_tokens(items, 60);
+        assert_eq!(
+            normalized
+                .iter()
+                .map(|item| item.estimated_tokens)
+                .sum::<i64>(),
+            60
+        );
+
+        let sections = build_sections(normalized, 60);
+        assert_eq!(
+            sections
+                .iter()
+                .map(|section| section.estimated_tokens)
+                .sum::<i64>(),
+            60
         );
     }
 

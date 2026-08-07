@@ -23,6 +23,12 @@
  * `cancel_active_turn` on the Rust side clears the pending snapshot
  * silently — no further events arrive, so the Build button simply stays
  * disabled (nothing to mark in FE state).
+ *
+ * Rehydrate safety: `rehydrateIfNewer` (used by cold-start snapshot
+ * loading) only writes when the slot is empty or the incoming snapshot
+ * carries the same revision id. This prevents a stale cold-start fetch
+ * from silently overwriting a live `plan_ready_for_approval` push that
+ * arrived while the async RPC was in flight.
  */
 import { atom } from "jotai";
 
@@ -51,7 +57,7 @@ function emptyState(): SessionPlanApprovalState {
   return { current: null };
 }
 
-function normalizePlanCallId(value: string | undefined): string {
+export function normalizePlanCallId(value: string | undefined): string {
   if (!value) return "";
   return value.startsWith("tool-call-")
     ? value.slice("tool-call-".length)
@@ -62,6 +68,38 @@ export function upsertPendingPlanApproval(
   prev: PlanApprovalStateMap,
   next: PendingPlanApproval
 ): PlanApprovalStateMap {
+  const updated = new Map(prev);
+  updated.set(next.sessionId, { current: next });
+  return updated;
+}
+
+/**
+ * Rehydrate-safe upsert: only writes `next` if the session slot is empty
+ * or the current revision id matches `next`'s revision id (i.e. no newer
+ * live push has already populated the slot with a different revision).
+ *
+ * Use this in cold-start / reconnect paths where an async RPC fetch may
+ * resolve after a live WebSocket push has already placed a newer revision
+ * into the atom. A plain `upsertPendingPlanApproval` would silently
+ * downgrade the atom to the stale snapshot in that race.
+ */
+export function rehydratePendingPlanApprovalIfNewer(
+  prev: PlanApprovalStateMap,
+  next: PendingPlanApproval
+): PlanApprovalStateMap {
+  const existing = prev.get(next.sessionId);
+  if (existing?.current) {
+    const currentRevId = normalizePlanCallId(
+      existing.current.planRevisionId ?? existing.current.toolCallId
+    );
+    const nextRevId = normalizePlanCallId(
+      next.planRevisionId ?? next.toolCallId
+    );
+    // A different revision is already live — preserve it.
+    if (currentRevId && nextRevId && currentRevId !== nextRevId) {
+      return prev;
+    }
+  }
   const updated = new Map(prev);
   updated.set(next.sessionId, { current: next });
   return updated;

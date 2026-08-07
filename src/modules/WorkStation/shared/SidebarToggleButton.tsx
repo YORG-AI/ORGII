@@ -59,6 +59,13 @@ export interface SidebarToggleButtonProps {
   tooltipPosition?: TooltipProps["position"];
   /** Keep the button visible for layout consistency, but make it inactive. */
   disabled?: boolean;
+  /**
+   * Show the `toggle_workstation_sidebar` shortcut hint in the tooltip.
+   * Defaults to `true`. Set `false` for sidebars that are intentionally not
+   * bound to that shortcut (e.g. Kanban), so the tooltip doesn't advertise
+   * a keybinding that has no effect on this sidebar.
+   */
+  showShortcut?: boolean;
 }
 
 const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
@@ -69,13 +76,16 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
   stableListIcon = false,
   tooltipPosition = "bottom",
   disabled = false,
+  showShortcut = true,
 }) => {
   const { t } = useTranslation("sessions");
   const Icon = position === "right" ? PanelRightIcon : PanelLeftIcon;
   const label = collapsed
     ? t("simulator.titleBar.showSidebar")
     : t("simulator.titleBar.hideSidebar");
-  const shortcut = getShortcutKeys("toggle_workstation_sidebar");
+  const shortcut = showShortcut
+    ? getShortcutKeys("toggle_workstation_sidebar")
+    : undefined;
   return (
     <WorkstationToolbarTooltip
       label={label}

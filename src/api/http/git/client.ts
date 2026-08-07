@@ -3,10 +3,11 @@
  *
  * Base URL configuration, HTTP helpers, and request caching.
  */
+import { IDE_SERVER_HTTP_URL } from "@src/config/ideServer";
 
-// Rust HTTP Server (port 13847) - Primary backend for all git operations
+// Rust HTTP Server (IDE server port) - Primary backend for all git operations
 // Routes are nested under /git, so full path is /git/api/git/repo
-export const RUST_GIT_BASE_URL = "http://localhost:13847/git/api/git/repo";
+export const RUST_GIT_BASE_URL = `${IDE_SERVER_HTTP_URL}/git/api/git/repo`;
 
 /**
  * Build a repo-scoped URL with properly encoded repo_id.

@@ -10,7 +10,13 @@ import {
   type LucideIcon,
   Search,
 } from "lucide-react";
-import React, { useCallback, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import Input from "@src/components/Input";
 import TabPill from "@src/components/TabPill";
@@ -20,6 +26,7 @@ import SidebarBase from "../SidebarBase";
 import { SidebarList } from "../blocks";
 import HoverAnimatedIcon from "../components/HoverAnimatedIcon";
 import NavigationMenu from "../components/NavigationMenu";
+import type { NavigationMenuItemClickHandler } from "../components/NavigationMenu/NavigationMenu/types";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -45,7 +52,8 @@ export interface NavigationSidebarProps {
   menuItems: NavigationMenuItem[];
   pinnedMenuItems?: NavigationMenuItem[];
   selectedKey?: string;
-  onMenuItemClick?: (key: string, item: NavigationMenuItem) => void;
+  onMenuItemClick?: NavigationMenuItemClickHandler;
+  onSubmenuOpenChange?: (key: string, open: boolean) => void;
   onMenuItemContextMenu?: (
     e: React.MouseEvent,
     key: string,
@@ -92,6 +100,11 @@ export interface NavigationSidebarProps {
    */
   collapsedSectionIds?: Set<string>;
   onCollapsedSectionsChange?: (next: Set<string>) => void;
+  /** Scroll a newly revealed row into view after its section mounts. */
+  revealMenuItemRequest?: {
+    key: string;
+    requestId: number;
+  };
 }
 
 function normalizeSearchValue(value: string): string {
@@ -164,6 +177,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     pinnedMenuItems = [],
     selectedKey,
     onMenuItemClick,
+    onSubmenuOpenChange,
     onMenuItemContextMenu,
     renderMenuItemWrapper,
     defaultOpenKeys = [],
@@ -184,7 +198,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
     collapsibleSections = false,
     collapsedSectionIds,
     onCollapsedSectionsChange,
+    revealMenuItemRequest,
   }) => {
+    const menuRevealRootRef = useRef<HTMLDivElement>(null);
+    const completedRevealRequestIdRef = useRef<number | null>(null);
     const normalizedSearchQuery = useMemo(
       () => normalizeSearchValue(search?.filterValue ?? search?.value ?? ""),
       [search?.filterValue, search?.value]
@@ -274,6 +291,31 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
       [collapsedSections, isControlled, onCollapsedSectionsChange]
     );
 
+    useEffect(() => {
+      if (
+        !revealMenuItemRequest ||
+        completedRevealRequestIdRef.current === revealMenuItemRequest.requestId
+      ) {
+        return;
+      }
+      const frame = window.requestAnimationFrame(() => {
+        const row = Array.from(
+          menuRevealRootRef.current?.querySelectorAll<HTMLElement>(
+            "[data-menu-item-id]"
+          ) ?? []
+        ).find(
+          (candidate) =>
+            candidate.getAttribute("data-menu-item-id") ===
+            revealMenuItemRequest.key
+        );
+        if (row) {
+          row.scrollIntoView({ block: "nearest", inline: "nearest" });
+          completedRevealRequestIdRef.current = revealMenuItemRequest.requestId;
+        }
+      });
+      return () => window.cancelAnimationFrame(frame);
+    }, [collapsedSections, revealMenuItemRequest, sections]);
+
     // Stable selected keys array
     const selectedKeys = useMemo(
       () => (selectedKey ? [selectedKey] : []),
@@ -291,8 +333,8 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
 
     // Stable handler refs — avoid inline arrow wrappers
     const handleMenuItemClick = useCallback(
-      (key: string, item: NavigationMenuItem) => {
-        onMenuItemClick?.(key, item);
+      (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
+        onMenuItemClick?.(key, item, event);
       },
       [onMenuItemClick]
     );
@@ -390,9 +432,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
               selectedKeys={selectedKeys}
               collapsed={false}
               defaultOpenKeys={resolvedDefaultOpenKeys}
-              enableHoverIconAnimation={enableHoverIconAnimation}
               compactRows={compactRows}
               onMenuItemClick={handleMenuItemClick}
+              onSubmenuOpenChange={onSubmenuOpenChange}
               onMenuItemContextMenu={handleMenuItemContextMenu}
               renderMenuItemWrapper={renderMenuItemWrapper}
             />
@@ -400,7 +442,11 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         )}
 
         {/* Section Container */}
-        <SidebarList isLoading={isLoading} topPadding={listTopPadding}>
+        <SidebarList
+          isLoading={isLoading}
+          topPadding={listTopPadding}
+          scrollContainerRef={menuRevealRootRef}
+        >
           {hasSearchInput &&
           filteredPinnedMenuItems.length === 0 &&
           sections.length === 0 ? (
@@ -417,12 +463,26 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                 collapsedSections.has(section.id);
 
               return (
-                <div key={section.id}>
+                <div key={section.id} data-sidebar-section-id={section.id}>
                   {section.title &&
                     (collapsibleSections ? (
                       <div
+                        data-sidebar-section-toggle={section.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!isSectionCollapsed}
                         className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-2 pl-2`}
                         onClick={() => {
+                          if (!hasSearchInput) toggleSection(section.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (
+                            event.target !== event.currentTarget ||
+                            (event.key !== "Enter" && event.key !== " ")
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
@@ -446,7 +506,8 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                                   type="button"
                                   title={action.label}
                                   aria-label={action.label}
-                                  className="flex h-5 w-5 items-center justify-center rounded text-text-2 transition-colors duration-150 hover:bg-fill-2 hover:text-text-1 focus:outline-none"
+                                  data-testid={action.dataTestId}
+                                  className="flex h-5 w-5 items-center justify-center rounded text-text-2 transition-colors duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:outline-none"
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
@@ -473,9 +534,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                       selectedKeys={selectedKeys}
                       collapsed={false}
                       defaultOpenKeys={resolvedDefaultOpenKeys}
-                      enableHoverIconAnimation={enableHoverIconAnimation}
                       compactRows={compactRows}
                       onMenuItemClick={handleMenuItemClick}
+                      onSubmenuOpenChange={onSubmenuOpenChange}
                       onMenuItemContextMenu={handleMenuItemContextMenu}
                       renderMenuItemWrapper={renderMenuItemWrapper}
                     />

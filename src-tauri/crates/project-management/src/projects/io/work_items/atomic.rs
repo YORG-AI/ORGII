@@ -77,7 +77,7 @@ pub fn update_work_item_atomic<T, F>(
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
-    let (value, changed_fields) =
+    let (value, changed_fields, payload_tail_changed) =
         update_work_item_atomic_with_revisions(project_slug, short_id, HashMap::new(), mutator)?;
     if !changed_fields.is_empty() {
         // Re-read the work item to build the outbox payload. The read
@@ -90,6 +90,14 @@ where
         let data = super::crud::read_work_item(project_slug, short_id)?;
         let payload = changed_fields_payload(&data, &changed_fields);
         crate::sync::io::record_local_update(project_slug, short_id, &changed_fields, &payload)?;
+    } else if payload_tail_changed {
+        // The mutator only touched payload-tail fields (execution_lock,
+        // linked_sessions, orchestrator_state, …) — not covered by the
+        // sync-tracked diff, but collab-synced orgs still need to push
+        // the row: those fields travel in the server payload jsonb
+        // (design §16.3). Without this, a local lock acquire/release
+        // through this path would never propagate to teammates.
+        crate::sync::collab_bridge::record_work_item_payload_touch(project_slug, short_id)?;
     }
     Ok(value)
 }
@@ -117,12 +125,18 @@ where
 /// uses this list to emit outbox rows; the merge path ignores it
 /// because outbox emission for adapter-applied changes would loop the
 /// change back to the originating system.
+///
+/// The returned `bool` reports whether any payload-tail field (fields
+/// that ride only in the collab server's payload jsonb — execution
+/// lock, linked sessions, todos, …; see [`payload_tail_fingerprint`])
+/// changed. [`update_work_item_atomic`] uses it to enqueue a collab
+/// bridge push for tail-only mutations the sync-tracked diff misses.
 pub fn update_work_item_atomic_with_revisions<T, F>(
     project_slug: &str,
     short_id: &str,
     override_revisions: HashMap<String, FieldRevision>,
     mutator: F,
-) -> Result<(T, Vec<&'static str>), String>
+) -> Result<(T, Vec<&'static str>, bool), String>
 where
     F: FnOnce(&mut WorkItemFrontmatter, &mut String) -> Result<T, String>,
 {
@@ -216,10 +230,12 @@ where
     // alongside the frontmatter snapshot.
     let before = SyncFieldSnapshot::capture(&frontmatter, &body);
     let history_before = WorkItemHistorySnapshot::capture(&frontmatter, &body);
+    let tail_before = payload_tail_fingerprint(&frontmatter);
 
     let result = mutator(&mut frontmatter, &mut body)?;
 
     let changed_fields = before.diff(&frontmatter, &body);
+    let payload_tail_changed = payload_tail_fingerprint(&frontmatter) != tail_before;
 
     // Persist mutated state back. Always bump `local_version` so any
     // OCC observers (sync, future readers caching by version) detect it.
@@ -369,7 +385,34 @@ where
     ))?;
 
     map_db(tx.commit())?;
-    Ok((result, changed_fields))
+    Ok((result, changed_fields, payload_tail_changed))
+}
+
+/// Serialized snapshot of every field that rides only in the collab
+/// server's payload jsonb (design §16.3) — i.e. outside the
+/// sync-tracked hot-field set — used to detect tail-only mutations in
+/// the closure-form atomic path. `history` is deliberately excluded:
+/// the history append accompanies every real change (and would make
+/// no-op mutators look like changes once `append_mutation_event`
+/// fires for the accompanying field).
+fn payload_tail_fingerprint(fm: &WorkItemFrontmatter) -> serde_json::Value {
+    serde_json::json!({
+        "project": fm.project,
+        "parent": fm.parent,
+        "assignee_type": fm.assignee_type,
+        "starred": fm.starred,
+        "created_by": fm.created_by,
+        "todos": fm.todos,
+        "comments": fm.comments,
+        "linked_sessions": fm.linked_sessions,
+        "proof_of_work": fm.proof_of_work,
+        "orchestrator_config": fm.orchestrator_config,
+        "orchestrator_state": fm.orchestrator_state,
+        "schedule": fm.schedule,
+        "execution_lock": fm.execution_lock,
+        "close_out": fm.close_out,
+        "work_products": fm.work_products,
+    })
 }
 
 /// Apply a partial update and return the new `WorkItemData`.
@@ -391,8 +434,32 @@ pub fn update_work_item_partial(
     if !changed_fields.is_empty() {
         let payload = changed_fields_payload(&data, &changed_fields);
         crate::sync::io::record_local_update(project_slug, short_id, &changed_fields, &payload)?;
+    } else if touches_payload_tail(updates) {
+        // Payload-tail-only patch (todos / comments / linked sessions /
+        // orchestrator state / lock …): not covered by the sync-tracked
+        // diff, but collab-synced orgs still need to push the row —
+        // those fields travel in the server payload jsonb (design §16.3).
+        crate::sync::collab_bridge::record_work_item_payload_touch(project_slug, short_id)?;
     }
     Ok(data)
+}
+
+/// True when the patch touches any field that lives only in the server
+/// payload jsonb (outside the sync-tracked field set).
+fn touches_payload_tail(updates: &WorkItemPartialUpdate) -> bool {
+    updates.todos.is_some()
+        || updates.comments.is_some()
+        || updates.linked_sessions.is_some()
+        || updates.orchestrator_config.is_some()
+        || updates.orchestrator_state.is_some()
+        || updates.schedule.is_some()
+        || updates.execution_lock.is_some()
+        || updates.close_out.is_some()
+        || updates.work_products.is_some()
+        || updates.starred.is_some()
+        || updates.assignee_type.is_some()
+        || updates.project.is_some()
+        || updates.created_by.is_some()
 }
 
 /// Build the JSON payload that gets persisted to
@@ -458,7 +525,7 @@ pub fn update_work_item_partial_with_revisions(
     override_revisions: HashMap<String, FieldRevision>,
     updates: &WorkItemPartialUpdate,
 ) -> Result<(WorkItemData, Vec<&'static str>), String> {
-    let (data, changed_fields) = update_work_item_atomic_with_revisions(
+    let (data, changed_fields, _payload_tail_changed) = update_work_item_atomic_with_revisions(
         project_slug,
         short_id,
         override_revisions,

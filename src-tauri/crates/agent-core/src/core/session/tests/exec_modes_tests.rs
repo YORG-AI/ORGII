@@ -451,7 +451,6 @@ fn mode_prompts_never_reference_tools_their_policy_denies() {
         crate::tools::names::TOOL_SEARCH,
         crate::tools::names::CREATE_PLAN,
         crate::tools::names::SUGGEST_MODE_SWITCH,
-        crate::tools::names::SUGGEST_NEXT_STEPS,
         crate::tools::names::MANAGE_WORK_ITEM,
         crate::tools::names::MANAGE_PROJECT,
         crate::tools::names::MANAGE_AGENT_DEF,

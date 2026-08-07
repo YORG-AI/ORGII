@@ -13,6 +13,7 @@ import React, {
   lazy,
   memo,
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -33,6 +34,8 @@ import {
 import type { SimulatorAppBaseState } from "@src/engines/Simulator/apps/core/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { matchesCanvasEvent } from "@src/modules/WorkStation/Canvas/config";
+import { SessionJourneyControls } from "@src/modules/WorkStation/Chat/Journey/SessionJourneyControls";
+import { listenForJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   TextSelectionDropdown,
@@ -284,6 +287,11 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
     [jumpToMessage, previewMessages, handleViewModeChange]
   );
 
+  useEffect(
+    () => listenForJourneyMessageJump(handleMessageClick),
+    [handleMessageClick]
+  );
+
   // Entering edit forces the preview surface so the plan textarea is actually
   // rendered (the plan doc only mounts in "preview" view).
   const handlePlanEditToggle = useCallback(() => {
@@ -427,7 +435,16 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
               ? () => handlePreviewToggle(!effectivePreviewMode)
               : undefined
           }
-          extraActions={planHeaderActions}
+          extraActions={
+            <>
+              {planHeaderActions}
+              <SessionJourneyControls
+                sessionId={sessionId}
+                messageId={state.currentEventId}
+                onJumpToMessage={handleMessageClick}
+              />
+            </>
+          }
         />
         <div className="flex min-h-0 flex-1">
           <WorkStationShell

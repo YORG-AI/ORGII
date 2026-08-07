@@ -47,8 +47,48 @@ import { useEffect, useRef } from "react";
 
 import { parseRawSessionEvent } from "@src/engines/SessionCore/core/schemas";
 import { createLogger } from "@src/hooks/logger";
+import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 const log = createLogger("useSessionChannel");
+
+const readySessionChannels = new Set<string>();
+const readySessionChannelWaiters = new Map<string, Set<() => void>>();
+
+function markSessionChannelReady(sessionId: string): void {
+  readySessionChannels.add(sessionId);
+  const waiters = readySessionChannelWaiters.get(sessionId);
+  if (!waiters) return;
+  readySessionChannelWaiters.delete(sessionId);
+  for (const resolve of waiters) resolve();
+}
+
+/**
+ * Wait until the active SessionSyncProvider has registered the per-session IPC
+ * channel. New fork sessions can complete very quickly; dispatching before this
+ * edge can lose the terminal event and leave only the optimistic running state.
+ */
+export async function waitForSessionChannelReady(
+  sessionId: string,
+  timeoutMs = 5_000
+): Promise<void> {
+  if (readySessionChannels.has(sessionId)) return;
+  await new Promise<void>((resolve) => {
+    const waiters = readySessionChannelWaiters.get(sessionId) ?? new Set();
+    waiters.add(resolve);
+    readySessionChannelWaiters.set(sessionId, waiters);
+    const timer = setTimeout(() => {
+      waiters.delete(resolve);
+      if (waiters.size === 0) readySessionChannelWaiters.delete(sessionId);
+      resolve();
+    }, timeoutMs);
+    const wrappedResolve = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    waiters.delete(resolve);
+    waiters.add(wrappedResolve);
+  });
+}
 
 export function validateSessionChannelMessage(message: string): string {
   parseRawSessionEvent(message);
@@ -230,18 +270,21 @@ export function useSessionChannel(
     );
 
     channel.onmessage = (message: string) => {
+      recordPushEvent("channel", "session-events");
       lifecycle.onMessage(message);
     };
 
-    lifecycle.start();
+    const subscription = lifecycle.start();
+    void subscription.then((channelId) => {
+      if (channelId !== null && !lifecycle.isDestroyed()) {
+        markSessionChannelReady(sessionId);
+      }
+    });
 
     return () => {
-      // Sever the message path eagerly so even if Tauri delivers more
-      // events between now and the unsubscribe IPC landing, the
-      // dispose flag inside `onMessage` is checked AND the closure
-      // identity can be GC'd once the Channel object is released.
-      // Replacing with a no-op (rather than `null`) avoids any
-      // "missing handler" warning Tauri may print in the future.
+      readySessionChannels.delete(sessionId);
+      // Sever the callback eagerly; lifecycle.dispose() guards late messages,
+      // and replacing the Tauri handler also releases the React closure.
       channel.onmessage = () => undefined;
       void lifecycle.dispose();
     };

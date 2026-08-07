@@ -416,7 +416,7 @@ export function getProjectContextMenuItems(options: ProjectContextMenuOptions) {
   const propertyItems = getProjectPropertyContextMenuItems(options);
   if (!includeBaseActions) return propertyItems;
 
-  return [
+  const items: ContextMenuItem[] = [
     {
       id: "open",
       label: t("common:actions.open"),
@@ -438,14 +438,18 @@ export function getProjectContextMenuItems(options: ProjectContextMenuOptions) {
     },
     { id: "divider-properties", label: "", divider: true },
     ...propertyItems,
-    { id: "divider-delete", label: "", divider: true },
-    {
-      id: "delete",
-      label: t("common:actions.delete"),
-      icon: createElement(Trash2, { size: DROPDOWN_ITEM.iconSize }),
-      shortcutId: "workitem_delete",
-      action: onDelete,
-      disabled: !onDelete,
-    },
   ];
+  if (onDelete) {
+    items.push(
+      { id: "divider-delete", label: "", divider: true },
+      {
+        id: "delete",
+        label: t("common:actions.delete"),
+        icon: createElement(Trash2, { size: DROPDOWN_ITEM.iconSize }),
+        shortcutId: "workitem_delete",
+        action: onDelete,
+      }
+    );
+  }
+  return items;
 }

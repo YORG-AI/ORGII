@@ -11,6 +11,7 @@ import {
 interface UseSessionEntryActionsParams {
   goToNewSession: (options?: GoToNewSessionOptions) => void;
   navigateChatPanel: (command: ChatPanelNavigateCommand) => void;
+  openNewChatTab: () => void;
   setChatPanelCreateTarget: (target: ChatPanelCreateTarget) => void;
 }
 
@@ -18,18 +19,45 @@ interface UseSessionEntryActionsResult {
   handleGoToNewSession: (options?: GoToNewSessionOptions) => void;
 }
 
+export function openNewChatFromSidebar(
+  {
+    goToNewSession,
+    navigateChatPanel,
+    openNewChatTab,
+    setChatPanelCreateTarget,
+  }: UseSessionEntryActionsParams,
+  options?: GoToNewSessionOptions
+): void {
+  navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
+  setChatPanelCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+  goToNewSession(options);
+  openNewChatTab();
+}
+
 export function useSessionEntryActions({
   goToNewSession,
   navigateChatPanel,
+  openNewChatTab,
   setChatPanelCreateTarget,
 }: UseSessionEntryActionsParams): UseSessionEntryActionsResult {
   const handleGoToNewSession = useCallback(
     (options?: GoToNewSessionOptions) => {
-      navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
-      setChatPanelCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
-      goToNewSession(options);
+      openNewChatFromSidebar(
+        {
+          goToNewSession,
+          navigateChatPanel,
+          openNewChatTab,
+          setChatPanelCreateTarget,
+        },
+        options
+      );
     },
-    [goToNewSession, navigateChatPanel, setChatPanelCreateTarget]
+    [
+      goToNewSession,
+      navigateChatPanel,
+      openNewChatTab,
+      setChatPanelCreateTarget,
+    ]
   );
 
   return { handleGoToNewSession };

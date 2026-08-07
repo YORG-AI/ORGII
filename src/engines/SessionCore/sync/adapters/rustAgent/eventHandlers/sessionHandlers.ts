@@ -301,6 +301,13 @@ export function handleSessionEvicted(
   resetAllStreamingState(ctx);
   ctx.setStreaming(false);
   clearStreamRetryStatus(ctx, sessionId);
+  // Mirror the Rust eviction in the JS snapshot cache — otherwise the JS
+  // heap keeps the full event arrays of a session Rust already dropped.
+  // Listeners are kept: if the session reloads, mounted consumers must keep
+  // receiving pushes.
+  if (sessionId) {
+    eventStoreProxy.releaseSessionSnapshot(sessionId);
+  }
   ctx.onStatusChangeRef.current?.("completed");
 }
 

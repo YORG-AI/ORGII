@@ -22,10 +22,12 @@ import {
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
+import { ADDRESS_COMMENTS_SLASH_SOURCE } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
 
 import { useFloatingPortalPosition } from "../useFloatingPortalPosition";
+import AddressCommentsFlyout from "./AddressCommentsFlyout";
 import FlyoutSubmenu from "./FlyoutSubmenu";
 import {
   DividerRow,
@@ -61,6 +63,7 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   showActionFlyouts = false,
   onImageUpload,
   showModeRows = true,
+  addressComments,
 }) => {
   const { t } = useTranslation("sessions");
   const isHeaderMode = searchMode === "header";
@@ -424,6 +427,10 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
 
             // entry.kind === "item" (flat rows when searching)
             const { item, flatIndex } = entry;
+            const opensAddressFlyout =
+              item.source === ADDRESS_COMMENTS_SLASH_SOURCE &&
+              addressComments !== undefined &&
+              addressComments.threads.length > 0;
             return (
               <SlashItemRow
                 key={`${item.category}-${item.source}-${item.name}`}
@@ -433,9 +440,23 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
                   if (!mouseMovedRef.current) return;
                   setKeyboardNavigated(false);
                   setHighlightIndex(flatIndex);
-                  setOpenFlyout(null);
+                  if (openFlyout?.kind !== "addressComments") {
+                    setOpenFlyout(null);
+                  }
                 }}
-                onClick={() => onSelect(item)}
+                onClick={(event) => {
+                  if (opensAddressFlyout) {
+                    setOpenFlyout({
+                      kind: "addressComments",
+                      anchorTop:
+                        event?.currentTarget instanceof HTMLElement
+                          ? event.currentTarget.getBoundingClientRect().top
+                          : 0,
+                    });
+                    return;
+                  }
+                  onSelect(item);
+                }}
               />
             );
           })}
@@ -452,6 +473,21 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Address-comments multi-select flyout */}
+      {openFlyout?.kind === "addressComments" && addressComments && (
+        <AddressCommentsFlyout
+          threads={addressComments.threads}
+          anchorTop={openFlyout.anchorTop}
+          panelRight={panelRight}
+          onConfirm={(selectedHeadIds) => {
+            addressComments.onConfirm(selectedHeadIds);
+            setOpenFlyout(null);
+            onClose();
+          }}
+          onClose={() => setOpenFlyout(null)}
+        />
+      )}
 
       {/* Category flyout (Skills / MCP Servers) */}
       {openFlyout?.kind === "category" &&

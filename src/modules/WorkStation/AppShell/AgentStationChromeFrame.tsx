@@ -3,13 +3,6 @@ import React from "react";
 interface AgentStationChromeFrameProps {
   enabled: boolean;
   illuminated: boolean;
-  /**
-   * Whether the outer layout is full/compact (chat docked as a flex sibling).
-   * In `inset` mode the WorkStation page already sits inside a padded card,
-   * so the agent-station chrome must NOT add its own `p-2` — that double
-   * padding produces a visible inner gutter around the simulator.
-   */
-  isFullMode: boolean;
   captionVisible?: boolean;
   hasSession: boolean;
   children: React.ReactNode;
@@ -18,7 +11,6 @@ interface AgentStationChromeFrameProps {
 const AgentStationChromeFrame: React.FC<AgentStationChromeFrameProps> = ({
   enabled,
   illuminated,
-  isFullMode,
   captionVisible = false,
   hasSession,
   children,
@@ -33,21 +25,8 @@ const AgentStationChromeFrame: React.FC<AgentStationChromeFrameProps> = ({
     ? "border-primary-6/80 ring-2 ring-primary-6/15"
     : "border-border-2";
 
-  // In `inset` mode the outer view container already paints a `rounded-page`
-  // (20px) card. The chrome frame sits 4px inside that card (`p-1`), so the
-  // chrome's own corner must shrink by the same 4px to stay visually
-  // concentric with the outer rounding. In full/compact mode the outer view
-  // is edge-to-edge (no radius), so the chrome keeps the full `rounded-page`.
-  const innerRadiusClass = isFullMode
-    ? "rounded-page"
-    : "rounded-[calc(var(--radius-page)-4px)]";
-  const framePaddingClass = isFullMode
-    ? captionVisible
-      ? "px-2 pb-2"
-      : "p-2"
-    : captionVisible
-      ? "px-1 pb-1"
-      : "p-1";
+  const innerRadiusClass = "rounded-page";
+  const framePaddingClass = captionVisible ? "px-2 pb-2" : "p-2";
   const borderWidthClass = hasSession ? "border-[1.5px]" : "border";
 
   return (
@@ -56,7 +35,7 @@ const AgentStationChromeFrame: React.FC<AgentStationChromeFrameProps> = ({
     >
       {illuminated && (
         <div
-          className={`composer-breathing pointer-events-none absolute inset-2 z-0 ${innerRadiusClass} bg-[radial-gradient(circle_at_50%_100%,color-mix(in_srgb,var(--color-primary-6)_14%,transparent),transparent_58%)]`}
+          className={`station-chrome-static-glow pointer-events-none absolute inset-2 z-0 ${innerRadiusClass} bg-[radial-gradient(circle_at_50%_100%,color-mix(in_srgb,var(--color-primary-6)_14%,transparent),transparent_58%)]`}
         />
       )}
       <div

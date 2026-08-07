@@ -52,22 +52,6 @@ fn normalize_tool_name_codex_file_change_to_edit() {
 }
 
 #[test]
-fn normalize_tool_name_gemini_write_file_to_edit() {
-    assert_eq!(
-        normalize_tool_name(CliAgentType::GeminiCli, "write_file"),
-        "Edit"
-    );
-}
-
-#[test]
-fn normalize_tool_name_gemini_run_shell_command_to_shell() {
-    assert_eq!(
-        normalize_tool_name(CliAgentType::GeminiCli, "run_shell_command"),
-        "Shell"
-    );
-}
-
-#[test]
 fn normalize_tool_name_copilot_passes_through() {
     assert_eq!(
         normalize_tool_name(CliAgentType::Copilot, "SomeTool"),

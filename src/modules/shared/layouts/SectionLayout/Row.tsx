@@ -79,7 +79,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
       ? SECTION_DESCRIPTION_COMPACT_CLASSES
       : SECTION_DESCRIPTION_CLASSES;
 
-    const pyClass = compact ? "py-1.5" : "py-2";
+    const pyClass = compact ? "py-1.5" : "py-3";
     const gapClass = compact ? "gap-1" : "gap-2";
     const minHeightClass = compact ? "" : "min-h-[52px]";
 
@@ -95,7 +95,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (!showHeader || label == null) {
       return (
         <div
-          className={`${minHeightClass} ${pyClass} ${indentClass} ${className}`}
+          className={`section-layout-row relative ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {children}
         </div>
@@ -105,7 +105,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
     if (layout === "vertical") {
       return (
         <div
-          className={`flex flex-col ${gapClass} ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
+          className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} ${indentClass} ${className}`}
         >
           {/* Header: Label */}
           <div>
@@ -129,7 +129,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
 
     return (
       <div
-        className={`flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
+        className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
       >
         {/* Label + Description */}
         <div

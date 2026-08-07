@@ -8,13 +8,10 @@ import {
 } from "@src/store/workstation/tabRegistry";
 
 /**
- * Focus a tab inside the unified workstation pane registry.
- *
- * Phase 1a removed the host-based route navigation that used to live here:
- * the unified pane tree owns focus, and the AppShell's `appMode` follows
- * the pane through other means (status bar / pane id derivation). Phase 2
- * will collapse the AppShell entirely, at which point even that
- * derivation goes away.
+ * Focus a tab inside the unified workstation pane registry. The unified pane
+ * tree owns focus, and the visible content host follows the active tab
+ * (`activeHostAtom`), so focusing a tab is all that is needed to swap the
+ * content area — no host pin to release.
  */
 export function useFocusTab(): (request: TabFocusRequest) => void {
   const setStationMode = useSetAtom(stationModeAtom);

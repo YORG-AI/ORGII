@@ -28,6 +28,7 @@
     "agentSessions": "Agent Session",
     "apiKeys": "API Keys",
     "appUpdate": "應用更新",
+    "security": "安全",
     "monitor": "裝置 & 網路",
     "osAgentConfig": "OS Agent 配置",
     "sdeAgentConfig": "SDE Agent 配置",
@@ -39,7 +40,8 @@
     "storage": "存儲",
     "projectUsage": "專案與用量",
     "agentMemory": "Agent 記憶",
-    "agentOrg": "Agent 團隊"
+    "agentOrg": "Agent 團隊",
+    "collaboration": "協作"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "模型 & Keys",
       "myRoles": "我的角色",
       "rulesMemoryEvolution": "規則、記憶 & 進化",
+      "security": "安全",
       "routines": "例程",
       "tools": "內置工具",
       "computerUse": "Computer Use",
@@ -64,8 +67,18 @@
       "git": "Git",
       "databases": "數據庫",
       "externalSkillsets": "Skills、MCPs、Plugins",
-      "housekeeper": "常駐管家"
+      "housekeeper": "MiniCPM 常駐管家"
     }
+  },
+  "security": {
+    "scan": "傳送密鑰前警告",
+    "scanDesc": "掃描你在輸入框中鍵入的內容，尋找 API 金鑰、權杖和密碼，並在傳送給模型前要求確認",
+    "entropy": "偵測高熵字串",
+    "entropyDesc": "同時標記不符合已知密鑰格式、看起來隨機的長字串。能發現更多密鑰，但偶爾可能誤報雜湊值或 ID",
+    "customPatterns": "自訂模式",
+    "customPatternsDesc": "每行一個正規表達式。任何符合項都會被視為密鑰。無效的表達式將被忽略",
+    "customPatternsPlaceholder": "例如 MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} 個模式無效，將被忽略：{{patterns}}"
   },
   "myRoles": {
     "currentStatus": "我的目前狀態",
@@ -149,17 +162,16 @@
       "zh-Hant": "繁體中文"
     },
     "layout": "佈局",
-    "globalLayoutMethod": "佈局方式",
-    "globalLayoutMethodDesc": "選擇內容面板如何呈現應用邊框",
+    "sidebar": "側邊欄",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "側邊欄邊緣層次",
+    "selectedItemTransparency": "選取項目透明度",
     "spotlightPlacement": "Spotlight 位置",
     "spotlightPlacementDesc": "選擇 Spotlight 命令面板開啟的位置",
     "spotlightPlacementOptions": {
       "top": "頂部",
       "center": "頁面置中"
     },
-    "inset": "舒適",
-    "full": "擴展",
-    "compact": "現代",
     "left": "左側",
     "right": "右側",
     "light": "淺色",
@@ -324,7 +336,7 @@
     "configAgentKeys": "OS & SDE Agent 的 API Keys",
     "configAgentKeysDesc": "添加 OpenAI、Anthropic、DeepSeek 等提供商的 API Key",
     "configCliKeys": "CLI Agent 的 API Keys",
-    "configCliKeysDesc": "添加 Claude Code、Codex、Gemini CLI 等 CLI 工具的 API Key"
+    "configCliKeysDesc": "添加 Claude Code、Codex 等 CLI 工具的 API Key"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agent",
@@ -787,8 +799,19 @@
   },
   "update": {
     "title": "App 更新",
+    "autoUpdate": "自動更新",
+    "autoUpdateDesc": "自動下載更新，並在安裝和重新啓動 ORGII 前詢問",
+    "channel": "更新通道",
+    "channelDesc": "Beta 通道會先於正式版收到預發布版本。切換回正式版不會降級，將在下一個正式版本發布時生效",
+    "channelStable": "正式版",
+    "channelBeta": "Beta",
     "detectUpdate": "檢測更新",
-    "currentVersion": "目前版本"
+    "currentVersion": "目前版本",
+    "installConfirmTitle": "更新已準備好安裝",
+    "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作。",
+    "installAndRestart": "安裝並重新啓動",
+    "autoDownloadUpdates": "以後自動下載更新",
+    "skipVersion": "跳過此版本"
   },
   "monitor": {
     "categoryTerminal": "終端機/工具程序",
@@ -890,7 +913,6 @@
     "diskCategory_logs": "日誌",
     "diskCategory_personalWorkspace": "OS Agent 工作區",
     "diskCategory_cursorConfig": "Session CLI 配置",
-    "diskCategory_geminiCliHome": "Gemini CLI 目錄",
     "diskCategory_extensions": "擴展",
     "diskNotScanned": "尚未掃描",
     "diskScanning": "掃描中...",
@@ -1292,5 +1314,11 @@
     "searchActions": "搜索動作...",
     "noActionsFound": "未找到動作",
     "noConfigurableProperties": "無可配置屬性"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "雲端",
+      "selfHosted": "自託管"
+    }
   }
 }

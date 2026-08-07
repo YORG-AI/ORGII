@@ -4,7 +4,7 @@ use crate::persistence::db_helpers::AgentSessionStatus;
 use crate::session::persistence as session_persistence;
 
 /// Rough session cost estimate: $0.003 / 1K tokens, the same placeholder
-/// rate `unified_stats` uses. Real billing comes from the hosted service;
+/// rate `session_directory` uses. Real billing comes from the hosted service;
 /// this replaces the previous hardcoded `0.0` so proof-of-work totals
 /// accumulate something meaningful.
 fn estimate_cost_usd(total_tokens: u64) -> f64 {

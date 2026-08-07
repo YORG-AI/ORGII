@@ -45,6 +45,7 @@ export type ChatPanelSurfaceKind =
   | "newProject"
   | "newGithubIssuesProject"
   | "newWorkItem"
+  | "newGithubIssuesProject"
   | "project"
   | "projectOrg"
   | "workItem"
@@ -53,7 +54,8 @@ export type ChatPanelSurfaceKind =
   | "workspaceOverview"
   | "manageIssues"
   | "newCollabOrg"
-  | "collabOrg";
+  | "collabOrg"
+  | "cloudOrg";
 
 export interface AppUiSnapshot {
   route?: {

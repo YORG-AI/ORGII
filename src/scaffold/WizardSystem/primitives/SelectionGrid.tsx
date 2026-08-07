@@ -62,6 +62,8 @@ export interface SelectionGridOption<T extends string = string> {
   disabled?: boolean;
   /** Badge text shown next to the label (e.g. "Recommended") */
   badge?: string;
+  /** Stable test id for this option's card (defaults to selection-grid-option-<key>) */
+  dataTestId?: string;
 }
 
 /** Props shared by both selection modes */
@@ -197,7 +199,9 @@ function SelectionGrid<T extends string = string>(
             disabled={option.disabled}
             variant={cardVariant}
             compact={compactCards}
-            dataTestId={`selection-grid-option-${option.key}`}
+            dataTestId={
+              option.dataTestId ?? `selection-grid-option-${option.key}`
+            }
           />
         );
       })}

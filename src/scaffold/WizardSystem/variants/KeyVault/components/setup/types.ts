@@ -123,27 +123,6 @@ export interface CodexSetupProps extends AgentSetupProps {
   preselectedMethod?: string;
 }
 
-export interface GeminiSessionValues {
-  accessToken: string;
-  refreshToken: string;
-  projectId: string;
-  expiresIn?: number;
-  expiresAt: string;
-  availableModels: string[];
-  tokenType?: string | null;
-  scope?: string | null;
-}
-
-export interface GeminiSetupProps extends AgentSetupProps {
-  tokenDetected: boolean;
-  detectingToken: boolean;
-  tokenError: string | null;
-  onDetectToken: () => void;
-  onClearTokenError?: () => void;
-  onSessionCaptured?: (values: GeminiSessionValues) => void;
-  preselectedMethod?: string;
-}
-
 export interface KiroSetupProps extends AgentSetupProps {
   // Token detection state (quick action)
   tokenDetected: boolean;

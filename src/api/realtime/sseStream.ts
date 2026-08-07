@@ -5,6 +5,7 @@
  * Provides a simple interface for connecting to SSE endpoints and handling events.
  */
 import { createLogger } from "@src/hooks/logger";
+import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 import {
   parseSSEEndData,
@@ -63,6 +64,7 @@ export function createSSEStream(options: SSEStreamOptions): () => void {
   // Handle output event (stdout/stderr lines)
   eventSource.addEventListener("output", (event) => {
     try {
+      recordPushEvent("sse", "output");
       const data = parseSSEOutputData(event.data);
       onOutput?.(data);
     } catch (parseError) {

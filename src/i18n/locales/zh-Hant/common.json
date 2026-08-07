@@ -31,10 +31,6 @@
     "closeCanvas": "關閉畫布",
     "generatingCanvas": "正在產生畫布…",
     "noContent": "暫無內容",
-    "noIssueSelected": "未選擇 Issue",
-    "selectIssueHint": "請從側邊欄的 Issues 面板中選擇一個 Issue。",
-    "noPrSelected": "未選擇 Pull request",
-    "selectPrHint": "請從側邊欄的 Pull request 面板中選擇一個 Pull request。",
     "reload": "重新載入",
     "urlPreviewRequiresTauri": "URL 預覽需要 Tauri",
     "openInExternalBrowser": "請改用外部瀏覽器開啟",
@@ -78,6 +74,11 @@
       "other": "敏感資訊"
     }
   },
+  "secretScan": {
+    "title": "偵測到可能的密鑰",
+    "message": "此訊息似乎包含敏感憑證：\n\n{{items}}\n\n傳送後，密鑰將儲存在聊天記錄中並傳送給模型。仍要傳送嗎？",
+    "sendAnyway": "仍然傳送"
+  },
   "actions": {
     "save": "保存",
     "cancel": "取消",
@@ -107,6 +108,7 @@
     "retry": "重試",
     "regenerate": "重新生成",
     "refresh": "刷新",
+    "rescan": "重新掃描",
     "reload": "重新加載",
     "reviewNextFile": "審查下一個文件",
     "reviewPreviousFile": "審查上一個文件",
@@ -208,9 +210,8 @@
     "openWorkspace": "開啟工作區",
     "skipThisVersion": "跳過此版本",
     "later": "稍後",
-    "updateAiBlame": "更新 AI Blame",
     "link": "連結",
-    "fetchPr": "Fetch PR"
+    "copyName": "複製名稱"
   },
   "refreshToast": {
     "successName": "{{name}} 已刷新",
@@ -422,7 +423,28 @@
     "nearby": "附近",
     "renowned": "知名",
     "dragToReorder": "拖拽調整消息順序",
-    "sessionBlame": "Session Blame",
+    "sessionBlame": "Session 歸屬",
+    "sessionBlameSubagent": "子代理：{{name}}",
+    "sessionBlameMainSession": "主 Session",
+    "sessionBlameAction": {
+      "read": "讀取",
+      "write": "寫入",
+      "create": "建立",
+      "delete": "刪除",
+      "rename": "重新命名",
+      "search": "搜尋"
+    },
+    "sessionBlamePrecision": {
+      "unknown": "歸屬未知",
+      "session_only": "僅歸屬至 Session",
+      "correlated": "關聯推斷",
+      "exact": "精確歸屬"
+    },
+    "sessionBlameBackfill": {
+      "indexing": "正在索引歷史 Session {{indexed}}/{{total}}",
+      "partial": "歷史索引不完整（{{failed}} 個失敗）",
+      "failed": "歷史 Session 索引失敗"
+    },
     "agentBlame": "Agent Blame",
     "initializeAgentBlame": "Initialize Agent Blame",
     "rescan": "Rescan",
@@ -440,7 +462,7 @@
     "orgtrackRebuildIndex": "Rebuild derived index",
     "orgtrackScanPhase": "Phase",
     "sessions": "Sessions",
-    "files": "Files",
+    "files": "檔案",
     "commits": "Commits",
     "entries": "Entries",
     "records": "Records",
@@ -977,9 +999,7 @@
     "scanningFileExtensions": "Scanning file extensions...",
     "startBrowsingMarket": "Start browsing the marketplace",
     "previewUnavailable": "預覽不可用",
-    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff.",
-    "fetchPrCommitToViewDiff": "Fetch PR to view this commit",
-    "prCommitMissingLocally": "This pull request commit is not available in your local repository yet."
+    "selectPrCommitToViewDiff": "Select a pull request commit from the header to view its diff."
   },
   "inbox": {
     "searchPlaceholder": "搜索消息...",
@@ -1032,6 +1052,10 @@
     "scanningFiles": "正在掃描文件...",
     "branchTooltip": "分支：{{branch}}",
     "branchTooltipSwitching": "分支：{{branch}}（切換中…）",
+    "switchWorkspaceTooltip": "切換工作區",
+    "switchWorktreeTooltip": "切換 Worktree",
+    "switchBranchTooltip": "切換分支",
+    "gitActionsTooltip": "Git 操作",
     "switchToSessionRepo": "切換到 {{name}}",
     "embeddingProgress": "嵌入：已處理 {{count}} 個 chunk",
     "embeddingProgressWithPercent": "嵌入：已處理 {{count}} 個 chunk（{{percent}}%）",
@@ -1044,6 +1068,7 @@
       "workspaceSection": "Workspace",
       "externalSection": "外部",
       "tooltip": "連接埠：{{workspace}} 個 Workspace，{{external}} 個外部",
+      "viewPortsTooltip": "查看使用中的連接埠",
       "noWorkspacePorts": "未偵測到 Workspace 連接埠",
       "externalLabel": "外部",
       "unknownProcess": "未知程序",
@@ -1163,9 +1188,9 @@
       "tokenLabel": "Personal access token",
       "tokenRequired": "需要 token",
       "createTokenButton": "建立 Token",
-      "openGitSettingsButton": "開啟 Git 設定",
+      "openGitSettingsButton": "開啟設定",
       "configureInSettings": "在設定中配置 Git",
-      "configureInSettingsDesc": "在 設定 → 整合 → Git 中加入 GitHub App 存取權限、儲存 token 或掃描本機憑證，然後重試此 Git 操作。"
+      "configureInSettingsDesc": "在 設定 → 連接 中加入 GitHub App 存取權限、儲存 token 或掃描本機憑證，然後重試此 Git 操作。"
     },
     "actions": {
       "publish": "Publish",
@@ -1372,7 +1397,9 @@
         "delete": "刪除",
         "deleteTemplate": "刪除 {branch}",
         "createSessionWith": "切換 Session 分支",
-        "createSessionWithTemplate": "切換 Session 分支到 {branch}"
+        "createSessionWithTemplate": "切換 Session 分支到 {branch}",
+        "switchWorktree": "切換 Worktree",
+        "switchWorktreeTemplate": "切換到 {worktree}"
       },
       "actions": {
         "createNew": "創建新分支",
@@ -1383,7 +1410,8 @@
         "refresh": "刷新分支",
         "checkoutDetachedSuccess": "已切換到 detached HEAD 狀態（當前提交）",
         "checkoutDetachedFailed": "切換到 detached HEAD 失敗",
-        "removeWorktree": "移除 Worktree"
+        "removeWorktree": "移除 Worktree",
+        "newWorktree": "新建 Worktree..."
       },
       "messages": {
         "deletedCount_one": "已刪除 {{count}} 個分支",
@@ -1398,7 +1426,9 @@
         "basedOn": "基於",
         "worktrees": "Worktrees",
         "worktreeInUse": "使用中",
-        "checkedOutInWorktree": "已在 Worktree 中檢出：{{path}}"
+        "checkedOutInWorktree": "已在 Worktree 中檢出：{{path}}",
+        "mainWorktreeSection": "主 Worktree",
+        "linkedWorktrees": "連結 Worktree"
       },
       "placeholders": {
         "checkout": "分支",
@@ -1507,7 +1537,8 @@
         "workspace": "搜尋或輸入資料夾路徑",
         "branch": "搜索分支...",
         "source": "搜索來源...",
-        "actions": "搜索操作..."
+        "actions": "搜索操作...",
+        "worktree": "搜索 Worktree..."
       },
       "groups": {
         "agentSession": "Agent 會話",
@@ -1538,6 +1569,11 @@
           "label": "搜尋 Agent 會話",
           "pillLabel": "搜尋會話",
           "placeholder": "搜尋 Agent 會話..."
+        },
+        "searchAllSessions": {
+          "label": "Search across all sessions",
+          "pillLabel": "Search All Sessions",
+          "placeholder": "Search across all sessions..."
         },
         "switchWorkspace": {
           "label": "切換工作區"
@@ -1636,11 +1672,8 @@
     "chatRight": "右側聊天",
     "pageSettings": "頁面設置",
     "pageLayout": "頁面佈局",
-    "layoutMode": "佈局模式",
     "inset": "內嵌",
     "full": "全屏",
-    "compact": "緊湊",
-    "comfort": "舒適",
     "theme": "主題",
     "primaryPanel": "側邊欄",
     "sidebarPosition": "側邊欄位置",
@@ -1699,15 +1732,13 @@
     "disableChatPagination": "關閉聊天分頁",
     "useModelPickerSpotlight": "使用 Spotlight 模型選擇器",
     "useModelPickerDropdown": "使用下拉式模型選擇器",
-    "useCompactWorkstationLayout": "使用緊湊工作站佈局",
-    "useComfortWorkstationLayout": "使用舒適工作站佈局",
     "moveWorkstationSidebarLeft": "將工作站側邊欄移到左側",
     "moveWorkstationSidebarRight": "將工作站側邊欄移到右側",
     "enableDockAutoHide": "自動隱藏工作站 Dock",
     "disableDockAutoHide": "一律顯示工作站 Dock",
     "openMyStation": "前往我的工作站",
     "openAgentStation": "前往 Agent 工作站",
-    "openOpsControl": "前往 Ops Control",
+    "openKanban": "前往 Kanban",
     "changeLanguage": "變更語言",
     "switchToSystemTheme": "跟隨系統主題",
     "detectUpdate": "檢查更新",
@@ -1872,15 +1903,6 @@
     "lastActive": "上次活躍: {{date}}",
     "activeNow": "當前活躍: {{ides}}",
     "active": "活躍",
-    "tabs": {
-      "activity": "活動",
-      "focus": "專注",
-      "languages": "語言",
-      "heatmap": "熱力圖",
-      "ide": "IDE",
-      "cursor": "Cursor",
-      "cli": "CLI"
-    },
     "cliSessions": "AI CLI 會話",
     "cliPrompt": "提示",
     "cliMessages": "消息",
@@ -1962,12 +1984,15 @@
     "removeWorktreeMessage": "這會從磁碟移除 Worktree checkout。branch 和 commits 會保留。",
     "removeWorktreeSuccess": "Worktree 已移除",
     "removeWorktreeFailed": "移除 Worktree 失敗",
+    "emptyState": {
+      "viewSourceControl": "檢視 Source Control",
+      "viewIssues": "檢視 Issues",
+      "viewGitHistory": "檢視 Git 歷史",
+      "viewPullRequests": "檢視 Pull Requests"
+    },
     "pill": {
       "focus": "聚焦",
       "allChanges": "全部更改"
-    },
-    "sessionFilter": {
-      "allSessions": "所有會話"
     }
   },
   "contextInfo": {
@@ -2007,7 +2032,20 @@
     "manualCompactNoRuntime": "請先傳送一則訊息後再壓縮",
     "manualCompactFailed": "壓縮失敗：{{message}}",
     "manualCompactChannelAttached": "此會話由頻道託管，請在頻道內使用 /compact",
-    "manualCompactInstructionsPlaceholder": "可選：本次壓縮的總結重點"
+    "manualCompactInstructionsPlaceholder": "可選：本次壓縮的總結重點",
+    "miniCpmCompactTitle": "MiniCPM 靜默自動壓縮",
+    "miniCpmCompactDescription": "自動非同步處理舊上下文",
+    "miniCpmCompactToggleAria": "開啟 MiniCPM 靜默自動壓縮",
+    "miniCpmCompactDisabled": "靜默壓縮未開啟",
+    "miniCpmCompactEnabled": "靜默壓縮已開啟",
+    "miniCpmCompactRunning": "MiniCPM 正在壓縮",
+    "miniCpmCompactComplete": "本次壓縮完成",
+    "miniCpmCompactBusy": "目前會話執行中",
+    "miniCpmCompactUnavailable": "MiniCPM 目前不可用",
+    "miniCpmCompactError": "MiniCPM 壓縮失敗",
+    "miniCpmCompactMetrics": "已維護 {{covered}} 條 · {{source}} → {{summary}} tokens",
+    "miniCpmCompactAction": "立即壓縮",
+    "miniCpmCompactRunningAction": "壓縮中"
   },
   "relativeDate": {
     "today": "今天",

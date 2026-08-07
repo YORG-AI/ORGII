@@ -27,7 +27,12 @@ import { useWizardParam } from "@src/hooks/navigation";
 import { clearStaleAccountIdAtom } from "@src/store/session/creatorDefaultModelAtom";
 
 import { disconnectAccount } from "./disconnectAccount";
-import { refreshAccountModels } from "./refreshAccountModels";
+import {
+  formatRefreshSummary,
+  refreshAccountModels,
+  refreshAllAccountModels,
+  refreshSummaryTone,
+} from "./refreshAccountModels";
 
 const log = createLogger("KeyVaultPage");
 
@@ -59,6 +64,7 @@ export function useKeyVaultPage() {
   const [refreshingAccountId, setRefreshingAccountId] = useState<string | null>(
     null
   );
+  const [refreshingAllModels, setRefreshingAllModels] = useState(false);
 
   // Wizard open-state derived from URL
   const { wizard, openWizard } = useWizardParam();
@@ -137,6 +143,30 @@ export function useKeyVaultPage() {
     },
     [getAccount, refresh, t]
   );
+
+  const handleRefreshAllModels = useCallback(async () => {
+    if (accounts.length === 0) return;
+    setRefreshingAllModels(true);
+    setRefreshLoading(true);
+    try {
+      const summary = await refreshAllAccountModels(accounts);
+      await refresh();
+      Message[refreshSummaryTone(summary)](
+        formatRefreshSummary(summary, t),
+        5000
+      );
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      Message.error(
+        t("keyVault.toasts.refreshError", { name: "Models", error: detail }),
+        5000
+      );
+      log.error("[RefreshAll] Error:", err);
+    } finally {
+      setRefreshingAllModels(false);
+      setRefreshLoading(false);
+    }
+  }, [accounts, refresh, t]);
 
   const handleRefreshAccountUsage = useCallback(
     async (accountId: string) => {
@@ -299,7 +329,9 @@ export function useKeyVaultPage() {
     handleRefresh,
     handleRefreshAccount,
     handleRefreshAccountUsage,
+    handleRefreshAllModels,
     refreshingAccountId,
+    refreshingAllModels,
     handleDisconnect,
     handleAddAccount: () => {
       setSelectedAccountId(null);

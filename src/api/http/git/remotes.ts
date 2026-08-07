@@ -31,6 +31,15 @@ export const getGitRemotes = async (params: {
     );
     return response.data;
   } catch (error) {
+    // "Not a git repository" / unknown repo path are DEFINITIVE answers, not
+    // transport failures: the directory can never yield a remote. Return an
+    // empty remote list so callers (repoScopeResolver) cache the "no remote"
+    // result instead of retrying forever — a plain-folder workspace row used
+    // to sit on "resolving…" indefinitely because every retry 404'd.
+    const message = error instanceof Error ? error.message : String(error);
+    if (/not a git repositor|repo.*not found|invalid path/i.test(message)) {
+      return { remotes: [] };
+    }
     log.error("[GitAPI] Failed to fetch remotes from Rust server:", error);
     return undefined;
   }

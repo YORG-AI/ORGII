@@ -144,53 +144,95 @@
  * shellInteractionClasses. The CSS-only approach means zero JS overhead.
  */
 
-@keyframes composer-breathe {
+@keyframes composer-breathe-dim {
   0%,
   100% {
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02),
-      0 20px 52px -26px
-        color-mix(in srgb, var(--color-primary-6) 42%, transparent),
-      0 8px 22px -18px
-        color-mix(in srgb, var(--color-primary-6) 30%, transparent);
+    opacity: 1;
   }
   50% {
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02),
-      0 24px 60px -22px
-        color-mix(in srgb, var(--color-primary-6) 78%, transparent),
-      0 10px 28px -16px
-        color-mix(in srgb, var(--color-primary-6) 62%, transparent);
+    opacity: 0;
   }
 }
 
-@keyframes composer-breathe-focused {
+@keyframes composer-breathe-bright {
   0%,
   100% {
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--color-primary-6) 15%, transparent),
-      0 20px 52px -26px
-        color-mix(in srgb, var(--color-primary-6) 42%, transparent),
-      0 8px 22px -18px
-        color-mix(in srgb, var(--color-primary-6) 30%, transparent);
+    opacity: 0;
   }
   50% {
-    box-shadow:
-      0 0 0 2px color-mix(in srgb, var(--color-primary-6) 15%, transparent),
-      0 24px 60px -22px
-        color-mix(in srgb, var(--color-primary-6) 78%, transparent),
-      0 10px 28px -16px
-        color-mix(in srgb, var(--color-primary-6) 62%, transparent);
+    opacity: 1;
   }
+}
+
+.station-chrome-static-glow {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 22px 56px -24px
+      color-mix(in srgb, var(--color-primary-6) 60%, transparent),
+    0 9px 25px -17px color-mix(in srgb, var(--color-primary-6) 46%, transparent);
 }
 
 .composer-breathing {
-  animation: composer-breathe 3.6s ease-in-out infinite;
+  &::before,
+  &::after {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    content: "";
+    border-radius: inherit;
+    will-change: opacity;
+  }
+
+  &::before {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.02),
+      0 20px 52px -26px
+        color-mix(in srgb, var(--color-primary-6) 42%, transparent),
+      0 8px 22px -18px
+        color-mix(in srgb, var(--color-primary-6) 30%, transparent);
+    animation: composer-breathe-dim 3.6s ease-in-out infinite;
+  }
+
+  &::after {
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.02),
+      0 24px 60px -22px
+        color-mix(in srgb, var(--color-primary-6) 78%, transparent),
+      0 10px 28px -16px
+        color-mix(in srgb, var(--color-primary-6) 62%, transparent);
+    animation: composer-breathe-bright 3.6s ease-in-out infinite;
+  }
 
   &:focus-within {
-    animation-name: composer-breathe-focused;
+    &::before {
+      box-shadow:
+        0 20px 52px -26px
+          color-mix(in srgb, var(--color-primary-6) 42%, transparent),
+        0 8px 22px -18px
+          color-mix(in srgb, var(--color-primary-6) 30%, transparent);
+    }
+
+    &::after {
+      box-shadow:
+        0 24px 60px -22px
+          color-mix(in srgb, var(--color-primary-6) 78%, transparent),
+        0 10px 28px -16px
+          color-mix(in srgb, var(--color-primary-6) 62%, transparent);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-breathing {
+    &::before,
+    &::after {
+      animation: none;
+      opacity: 0.5;
+      will-change: auto;
+    }
   }
 }
 

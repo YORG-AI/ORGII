@@ -1,0 +1,6 @@
+{
+  "type": 2,
+  "bubbleId": "b2-assistant-text",
+  "createdAt": "2026-05-02T08:32:35.100Z",
+  "text": "The smallest, smartest move is to simplify the refresh path: make the trigger idempotent and let the DB re-read gate on file mtime instead of forcing a full rescan."
+}

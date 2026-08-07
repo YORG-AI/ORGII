@@ -59,7 +59,7 @@ const DEFAULT_GEMINI_MODEL_CHAIN = [
 const CLAUDE_CODE_AGENT_TYPE = "claude_code";
 const CODEX_AGENT_TYPE = "codex";
 const CURSOR_AGENT_TYPE = "cursor_cli";
-const GEMINI_AGENT_TYPE = "gemini_cli";
+const GEMINI_API_AGENT_TYPE = "gemini_api";
 const RUST_AGENT_CATEGORY = "rust_agent";
 const CLI_AGENT_CATEGORY = "cli_agent";
 const CONTROL_LABEL_FILTER = (process.env.E2E_CONTROL_LABELS ?? "")
@@ -77,7 +77,6 @@ const CLI_PLAN_LABELS = [
   "claude-code-cli-agent",
   "codex-cli-agent",
   "cursor-cli-agent",
-  "gemini-cli-agent",
 ];
 const PLAN_CAPABLE_LABELS = [...RUST_PLAN_LABELS, ...CLI_PLAN_LABELS];
 const GEMINI_MODEL_CHAIN = parseE2EChain(
@@ -410,16 +409,16 @@ function selectModelFromChain(account, modelChain) {
 }
 
 function geminiFallbackConfigs(accounts, baseConfig) {
-  if (baseConfig.account?.agent_type !== GEMINI_AGENT_TYPE) return [];
+  if (baseConfig.account?.agent_type !== GEMINI_API_AGENT_TYPE) return [];
 
   const configs = [];
   const requireRustAgentSupport = baseConfig.category === RUST_AGENT_CATEGORY;
   const seen = new Set([`${baseConfig.account.id}:${baseConfig.model}`]);
   const candidateAccounts = accounts.filter(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       row.enabled &&
-      row.has_session_token &&
+      row.has_api_key &&
       (!requireRustAgentSupport || row.supports_rust_agents) &&
       accountMatchesChain(row, GEMINI_ACCOUNT_CHAIN)
   );
@@ -597,9 +596,9 @@ function scenarioConfigs(accounts) {
 
   if (shouldIncludeLabel(RUST_PLAN_LABELS[3])) {
     const account = requireAccount(accounts, {
-      agentType: GEMINI_AGENT_TYPE,
+      agentType: GEMINI_API_AGENT_TYPE,
       accountName: GEMINI_ACCOUNT_NAME,
-      requireSessionToken: true,
+      requireApiKey: true,
       requireRustAgentSupport: true,
     });
     configs.push({
@@ -678,23 +677,8 @@ function scenarioConfigs(accounts) {
     });
   }
 
-  if (shouldIncludeLabel(CLI_PLAN_LABELS[3])) {
-    const account = requireAccount(accounts, {
-      agentType: GEMINI_AGENT_TYPE,
-      accountName: GEMINI_ACCOUNT_NAME,
-      requireSessionToken: true,
-    });
-    configs.push({
-      label: CLI_PLAN_LABELS[3],
-      account,
-      model: selectModelFromChain(account, GEMINI_MODEL_CHAIN),
-      category: CLI_AGENT_CATEGORY,
-      cliAgentType: GEMINI_AGENT_TYPE,
-    });
-  }
-
   for (const config of configs) {
-    if (config.account?.agent_type === GEMINI_AGENT_TYPE) {
+    if (config.account?.agent_type === GEMINI_API_AGENT_TYPE) {
       config.fallbackConfigs = geminiFallbackConfigs(accounts, config);
       console.log(
         `[plan-gemini-chain] label=${config.label} primary=${accountDisplayName(config.account)}:${config.model} fallbacks=${JSON.stringify(

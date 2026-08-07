@@ -36,36 +36,4 @@ export const specialAgentToolPresets: Record<string, StatusPreset[]> = {
       resultPatch: { skipped: true },
     },
   ],
-  suggest_next_steps: [
-    {
-      key: "completed",
-      label: "Completed",
-      status: "completed",
-      resultPatch: {
-        content: JSON.stringify([
-          {
-            title: "Add unit tests for auth module",
-            command:
-              "Write unit tests for the authentication module covering login, logout, and token refresh flows.",
-          },
-          {
-            title: "Refactor database layer",
-            command:
-              "Refactor the database access layer to use connection pooling and add retry logic.",
-          },
-          {
-            title: "Update API documentation",
-            command:
-              "Update the REST API documentation to reflect the new endpoints.",
-          },
-        ]),
-      },
-    },
-    {
-      key: "running",
-      label: "Running",
-      status: "running",
-      resultPatch: {},
-    },
-  ],
 };

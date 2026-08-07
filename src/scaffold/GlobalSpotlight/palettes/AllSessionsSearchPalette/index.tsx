@@ -3,10 +3,17 @@
  *
  * Spotlight palette for full-text search across all cached sessions.
  * Results show the best-matched snippet per session with a click-to-navigate
- * action. Uses FTS5 via `cache_search_all_sessions`.
+ * action. Uses `cache_search_all_sessions`.
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Search } from "lucide-react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
@@ -17,18 +24,20 @@ import { sessionMapAtom } from "@src/store/session/sessionAtom";
 
 import type { BasePaletteProps } from "../../shared";
 import { PaletteBody, SpotlightShell } from "../../shell";
-import type { SpotlightItem } from "../../types";
+import type { PathSegment, SpotlightItem } from "../../types";
 import { useSelectorKernel } from "../core";
 
 // ============ PROPS ============
 
-export interface AllSessionsSearchPaletteProps extends BasePaletteProps {}
+export interface AllSessionsSearchPaletteProps extends BasePaletteProps {
+  asBody?: boolean;
+}
 
 // ============ COMPONENT ============
 
 export const AllSessionsSearchPalette: React.FC<
   AllSessionsSearchPaletteProps
-> = ({ isOpen, onClose }) => {
+> = ({ isOpen, onClose, onGoBackToParent, asBody = false }) => {
   const { t } = useTranslation("sessions");
   const { openSession } = useSessionView();
   const sessionMap = useAtomValue(sessionMapAtom);
@@ -68,6 +77,14 @@ export const AllSessionsSearchPalette: React.FC<
     debouncedSearch(query);
   }, [query, debouncedSearch]);
 
+  const handleGoBack = useCallback(() => {
+    if (onGoBackToParent) {
+      onGoBackToParent();
+      return;
+    }
+    onClose();
+  }, [onClose, onGoBackToParent]);
+
   const handleNavigate = useCallback(
     (sessionId: string, sessionName: string, repoPath: string) => {
       openSession(sessionId, sessionName, repoPath);
@@ -76,41 +93,90 @@ export const AllSessionsSearchPalette: React.FC<
     [openSession, onClose]
   );
 
-  const items: SpotlightItem[] = hits.map((hit) => {
-    const session = sessionMap.get(hit.sessionId);
-    const sessionName = session?.name ?? t("chat.session", "Session");
-    const cleanSnippet = hit.snippet.replace(/<\/?mark>/g, "");
-    return {
-      id: hit.sessionId,
-      label: sessionName,
-      description: cleanSnippet,
-      onClick: () =>
-        handleNavigate(hit.sessionId, sessionName, session?.repoPath ?? ""),
-    };
-  });
+  const items = useMemo<SpotlightItem[]>(
+    () =>
+      hits.map((hit) => {
+        const session = sessionMap.get(hit.sessionId);
+        const sessionName = session?.name ?? t("chat.session", "Session");
+        const cleanSnippet = hit.snippet.replace(/<\/?mark>/g, "");
+        return {
+          id: hit.sessionId,
+          label: sessionName,
+          description: cleanSnippet,
+          action: () =>
+            handleNavigate(hit.sessionId, sessionName, session?.repoPath ?? ""),
+        };
+      }),
+    [handleNavigate, hits, sessionMap, t]
+  );
+
+  const handleExternalKeyDown = useCallback(
+    (
+      event: React.KeyboardEvent<HTMLInputElement>,
+      internal: (event: React.KeyboardEvent<HTMLInputElement>) => void
+    ) => {
+      if (
+        (event.key === "Backspace" || event.key === "Delete") &&
+        query === ""
+      ) {
+        event.preventDefault();
+        handleGoBack();
+        return;
+      }
+
+      internal(event);
+    },
+    [handleGoBack, query]
+  );
 
   const kernel = useSelectorKernel({
     isOpen,
     onClose,
     items,
+    hasModalState: asBody || !!onGoBackToParent,
+    onGoBack: handleGoBack,
+    onReset: () => setQuery(""),
     externalSearchQuery: query,
     externalSetSearchQuery: setQuery,
+    externalHandleKeyDown: handleExternalKeyDown,
   });
 
+  const path = useMemo<PathSegment[]>(
+    () => [
+      {
+        type: "action",
+        id: "search-all-sessions",
+        label: t(
+          "common:selectors.spotlight.actions.searchAllSessions.pillLabel",
+          "Search All Sessions"
+        ),
+        icon: Search,
+        color: "primary",
+      },
+    ],
+    [t]
+  );
+
+  const body = (
+    <PaletteBody
+      kernel={kernel}
+      items={items}
+      placeholder={t(
+        "common:selectors.spotlight.actions.searchAllSessions.placeholder",
+        "Search across all sessions..."
+      )}
+      path={path}
+      onRemoveSegment={handleGoBack}
+      isLoading={isLoading}
+      containerHeight={400}
+    />
+  );
+
+  if (asBody) return body;
+
   return (
-    <SpotlightShell isOpen={isOpen} onClose={onClose}>
-      <PaletteBody
-        kernel={kernel}
-        items={items}
-        searchQuery={query}
-        placeholder={t(
-          "chat.searchAllSessionsPlaceholder",
-          "Search across all sessions…"
-        )}
-        inputVariant="simple"
-        isLoading={isLoading}
-        containerHeight={360}
-      />
+    <SpotlightShell isOpen={isOpen} onClose={onClose} hasActiveAction>
+      {body}
     </SpotlightShell>
   );
 };

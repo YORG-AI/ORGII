@@ -46,9 +46,8 @@
  * (via `paginationTrailingSlot`) opens a popover showing the original
  * task prompt — see `SubagentPromptToggle`. A collapse-all button
  * next to it calls the same global atom the main ChatPanel header
- * uses. `PlanTodoPinBar` stays permanently hidden via
- * `hidePinnedBars` — it's the parent session's affordance, not the
- * subagent cell's.
+ * uses. Todo progress stays on the parent composer and the cell's scoped
+ * title-row preview rather than appearing inside this chat history.
  *
  * "New event" divider
  *
@@ -203,7 +202,6 @@ const SubagentChatPaneComponent: React.FC<SubagentChatPaneProps> = ({
               <ChatHistory
                 surfaceBgClass="bg-chat-pane"
                 turnPaginationEnabled
-                hidePinnedBars
                 disableTailCollapse
                 hideGroupUserMessage
                 paginationTrailingSlot={paginationTrailingSlot}

@@ -22,3 +22,21 @@ export async function claudeCodeHistoryChunks(
 ): Promise<ActivityChunk[]> {
   return invoke<ActivityChunk[]>("claude_code_history_chunks", { sessionId });
 }
+
+export interface ImportedTranscriptStat {
+  mtimeMs: number;
+  sizeBytes: number;
+}
+
+/**
+ * Cheap freshness probe (a single `stat` backend-side). Lets the replay
+ * auto-refresh skip the full read/parse/merge pipeline when the transcript
+ * file hasn't changed. `null` when the source file is missing.
+ */
+export async function claudeCodeHistoryStat(
+  sessionId: string
+): Promise<ImportedTranscriptStat | null> {
+  return invoke<ImportedTranscriptStat | null>("claude_code_history_stat", {
+    sessionId,
+  });
+}

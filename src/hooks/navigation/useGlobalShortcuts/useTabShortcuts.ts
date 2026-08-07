@@ -10,10 +10,12 @@ import { getViewModeForRoute } from "@src/config/routeViewModeConfig";
 import {
   createAgentSessionSearchSpotlightRequest,
   createEditorSpotlightRequest,
+  openSessionCreatorSpotlight,
 } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { AppViewService } from "@src/services/app";
-import { WorkStationViewService } from "@src/services/workStation";
+import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { spotlightInitialQueryAtom, spotlightOpenAtom } from "@src/store";
+import { openOrFocusChatPanelStartPageTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { modelSelectorAtom } from "@src/store/ui/modelSelectorAtom";
 import {
   branchSelectorOpenAtom,
@@ -35,6 +37,7 @@ export function useTabShortcuts() {
   const setLocationSelectorOpen = useSetAtom(locationSelectorOpenAtom);
   const [sidebarCollapsed, setSidebarCollapsed] = useAtom(sidebarCollapsedAtom);
   const closeActiveWorkStationTab = useSetAtom(closeActiveWorkStationTabAtom);
+  const openStartPageTab = useSetAtom(openOrFocusChatPanelStartPageTabAtom);
   const actionSystem = useActionSystemOptional();
 
   // Refs to avoid listener re-registration
@@ -60,6 +63,20 @@ export function useTabShortcuts() {
 
     void AppViewService.createAgentStationSession();
   }, [actionSystem]);
+
+  // Handle Command+N — open (or focus) the singleton Launchpad start page in
+  // the chat panel. This is a global handler so it fires regardless of where
+  // focus is; the chat-panel-scoped ⌘N only fires when focus is inside the
+  // panel, which left ⌘N dead when the user was on another tab / surface.
+  // Outside WorkStation (e.g. MainApp) there is no chat-panel launchpad tab,
+  // so fall back to the session-creator spotlight.
+  const handleNewSessionShortcut = useCallback(() => {
+    if (getViewModeForRoute(window.location.pathname) === "workStation") {
+      openStartPageTab({});
+      return;
+    }
+    openSessionCreatorSpotlight();
+  }, [openStartPageTab]);
 
   // Handle Command+T or Command+L — Workstation: open the unified `+`
   // (TabBarPlusMenu) dropdown via the `workstation-new-tab` event. Only
@@ -235,6 +252,7 @@ export function useTabShortcuts() {
     spotlightOpen,
     spotlightOpenRef,
     handleCreateNewSession,
+    handleNewSessionShortcut,
     handleGoToCreateSession,
     handleToggleSpotlight,
     handleOpenModelSelector,

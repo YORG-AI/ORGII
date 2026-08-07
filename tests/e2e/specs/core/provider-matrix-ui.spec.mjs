@@ -12,7 +12,6 @@ const EXPECTED_CLI_AGENTS = [
   "cursor_cli",
   "claude_code",
   "codex",
-  "gemini_cli",
   "kiro",
   "copilot",
   "kimi_cli",
@@ -92,7 +91,6 @@ const AUTO_DETECT_DISPATCH_CLI_AGENTS = [
   "cursor_cli",
   "claude_code",
   "codex",
-  "gemini_cli",
   "copilot",
   "kiro",
 ];
@@ -211,11 +209,9 @@ describe("Provider/model matrix registry and auto-detect UI", () => {
     expect(xai.displayName).toContain("Grok");
     expect(xai.iconProvider).toBe("grok");
 
-    const geminiCli = matrix.agents.find((row) => row.name === "gemini_cli");
     const cursorCli = matrix.agents.find((row) => row.name === "cursor_cli");
     const kimiCli = matrix.agents.find((row) => row.name === "kimi_cli");
     const openCode = matrix.agents.find((row) => row.name === "opencode");
-    expect(geminiCli.supportsRustAgents).toBe(true);
     expect(cursorCli.supportsRustAgents).toBe(false);
     expect(kimiCli.envConfig.apiKeyEnvVar).toBe("MOONSHOT_API_KEY");
     expect(openCode.envConfig.apiKeyEnvVar).toBe("OPENCODE_API_KEY");

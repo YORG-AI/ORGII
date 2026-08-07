@@ -14,7 +14,7 @@ import { useNavigate } from "react-router-dom";
 import Button from "@src/components/Button";
 import "@src/components/DevPassport/devpassport.css";
 import { ROUTES } from "@src/config/routes";
-import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/csp";
+import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
 import { OnboardingLayout } from "@src/modules/shared/layouts";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 

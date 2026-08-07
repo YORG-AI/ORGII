@@ -143,6 +143,7 @@
     "gitFolderPathHint": "Liez cette organisation à un arbre de travail Git existant pour la synchronisation de dossier.",
     "gitFolderBadge": "Git",
     "gitFolderSynced": "Synchronisé avec un dossier Git",
+    "pendingSync": "Synchronisation en attente",
     "management": {
       "breadcrumb": "Paramètres de l'organisation",
       "overview": "Aperçu",
@@ -538,7 +539,11 @@
       "tokens": "tokens",
       "subAgentDefault": "Sub-Agent",
       "toolResult": "résultat de {{tool}}",
-      "reviewRequestedChanges": "Review a demandé des modifications"
+      "reviewRequestedChanges": "Review a demandé des modifications",
+      "collabLockRunning": "{{name}} is running",
+      "collabLockHeld": "{{name}}'s agent is already working on this item",
+      "collabLockConflict": "Another member just started an agent on this item",
+      "collabLockUnresolved": "Could not verify this work item's collaboration status. Check your connection and try again."
     },
     "changedFiles": {
       "title": "Fichiers Modifiés",

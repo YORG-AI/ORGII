@@ -115,7 +115,14 @@ body {
   /* Sidebar */
   --sidebar-bg: rgba(4, 4, 4, 0.9);
   --sidebar-border: rgba(255, 255, 255, 0.22);
+  --sidebar-selected-row-opacity: 5%;
+  --sidebar-selected-row-bg: color-mix(
+    in oklab,
+    var(--color-text-1) var(--sidebar-selected-row-opacity),
+    transparent
+  );
   --sidebar-backdrop: blur(8px) saturate(120%);
+  --sidebar-edge-shadow: none;
   --sidebar-shadow: none;
 
   /* Start Page */

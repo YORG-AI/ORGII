@@ -11,7 +11,6 @@ const getSnapshotSpy = vi.hoisted(() => vi.fn());
 const upsertSessionSpy = vi.hoisted(() => vi.fn());
 const beginOptimisticTurnSpy = vi.hoisted(() => vi.fn());
 const isAgentSessionSpy = vi.hoisted(() => vi.fn());
-const isCursorIdeSessionSpy = vi.hoisted(() => vi.fn());
 
 vi.mock("@src/util/core/state/instrumentedStore", () => ({
   getInstrumentedStore: () => ({ get: storeGetSpy }),
@@ -23,10 +22,6 @@ vi.mock("@src/engines/SessionCore/services/SessionService", () => ({
 
 vi.mock("@src/api/tauri/agent", () => ({
   respondModeSwitch: respondModeSwitchSpy,
-}));
-
-vi.mock("@src/api/tauri/cursorBridge", () => ({
-  cursorBridgeSetMode: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/rpc", () => ({
@@ -68,9 +63,7 @@ vi.mock("@src/util/session/resolveModelForMessage", () => ({
 }));
 
 vi.mock("@src/util/session/sessionDispatch", () => ({
-  composerIdFromSessionId: () => "composer-1",
   isAgentSession: isAgentSessionSpy,
-  isCursorIdeSession: isCursorIdeSessionSpy,
 }));
 
 const SESSION_ID = "agent-builtin:sde-abc";
@@ -98,7 +91,6 @@ function setupStore(opts: { lastUserText?: string; agentExecMode?: string }) {
 describe("switchMode → switchAgentMode resume", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    isCursorIdeSessionSpy.mockReturnValue(false);
     isAgentSessionSpy.mockReturnValue(true);
     delete (window as { __ORGII_E2E_MODE_SWITCH_MOCK__?: boolean })
       .__ORGII_E2E_MODE_SWITCH_MOCK__;

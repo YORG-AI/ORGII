@@ -432,6 +432,20 @@ body {
   background: var(--color-bg-2);
 }
 
+// macOS paints a native AbuttedSidebar material underneath the transparent webview.
+// Keep a faint app tint at the root so empty/transitional areas remain legible,
+// while translucent chrome (notably the navigation sidebar) can reveal the
+// desktop material. Other desktop hosts retain the opaque fallback above.
+html[data-host-desktop="macos"],
+html[data-host-desktop="macos"] body,
+html[data-host-desktop="macos"] #root {
+  background: color-mix(in srgb, var(--color-bg-2) 15%, transparent);
+}
+
+html[data-host-desktop="macos"] .sidebar-base {
+  background: transparent;
+}
+
 html[data-host-desktop="windows"],
 html[data-host-desktop="windows"] body,
 html[data-host-desktop="windows"] #root {

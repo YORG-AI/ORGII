@@ -12,21 +12,14 @@
  * - Browser sessions sync their state to the tab store
  * - All tab switching goes through useBrowserPaneState
  */
-import { useAtomValue } from "jotai";
-import React, {
-  Suspense,
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useAtom, useAtomValue } from "jotai";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { workStationInternalLayoutModeAtom } from "@src/store/ui/workStationAtom";
 import { extractSessionId } from "@src/store/workstation/browser/tabs";
-import { workstationNewBrowserSessionRequestAtom } from "@src/store/workstation/workstationTabBarAtoms";
+import {
+  workstationNewBrowserSessionConsumedTickAtom,
+  workstationNewBrowserSessionRequestAtom,
+} from "@src/store/workstation/workstationTabBarAtoms";
 
 import {
   WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS,
@@ -35,6 +28,10 @@ import {
   buildSecondaryPanelConfig,
 } from "../../shared";
 import BrowserPrimarySidebar from "../Panels/BrowserPrimarySidebar";
+import {
+  type BrowserHostContextValue,
+  BrowserHostProvider,
+} from "../context/browserHostContext";
 import {
   SHARED_BROWSER_HOST,
   SHARED_BROWSER_HOST_SCOPE,
@@ -45,17 +42,11 @@ import { AgentBrowserOverlay } from "./AgentBrowserOverlay";
 import type { BrowserLayoutProps } from "./types";
 import { useBrowserLayoutState } from "./useBrowserLayoutState";
 
-// Lazy-load heavy secondary panels
-const TokenManagerPanel = React.lazy(
-  () => import("../Panels/BrowserMainPane/content/TokenManagerContent")
-);
 export type { BrowserLayoutProps } from "./types";
 
 export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
   ({ repoPath, repoName: _repoName, isActive = true }) => {
-    const state = useBrowserLayoutState({ repoPath, isActive });
-    const internalLayoutMode = useAtomValue(workStationInternalLayoutModeAtom);
-    const webviewBottomInsetPx = internalLayoutMode === "comfort" ? 8 : 0;
+    const state = useBrowserLayoutState({ isActive });
 
     const setDevToolsCollapsed = state.browser.setDevToolsCollapsed;
     const handleCloseDevTools = useCallback(() => {
@@ -69,28 +60,31 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
 
     const [devToolsPanelHeight, setDevToolsPanelHeight] = useState(300);
 
-    // Cross-host "New Browser Tab" intent: the unified `+` menu (in both
-    // All-Tabs and Browser modes) bumps
-    // `workstationNewBrowserSessionRequestAtom` via
-    // `requestNewBrowserSessionAtom`. We dispatch `addSession(url,
-    // isPrivate)` whenever the tick advances past the value observed on
-    // mount — already-pending requests do not fire retroactively when
-    // the user navigates into Browser for the first time, but the URL /
-    // private payload carried by the latest request is honored.
+    // Cross-host "New Browser Tab" intent: the unified `+` menu and the
+    // Launchpad bump `workstationNewBrowserSessionRequestAtom` via
+    // `requestNewBrowserSessionAtom`. We dispatch `addSession(url, isPrivate)`
+    // for any request whose tick exceeds the consumed-tick atom — including a
+    // request issued before this host mounted (e.g. "New Browser" clicked from
+    // the empty Launchpad), which a per-mount ref would have missed. The
+    // module-level consumed tick prevents re-firing on a later remount.
     const newSessionRequest = useAtomValue(
       workstationNewBrowserSessionRequestAtom
     );
-    const lastSeenRequestTickRef = useRef<number>(newSessionRequest.tick);
+    const [consumedTick, setConsumedTick] = useAtom(
+      workstationNewBrowserSessionConsumedTickAtom
+    );
     const addBrowserSession = state.browser.browserState.addSession;
     useEffect(() => {
-      if (newSessionRequest.tick !== lastSeenRequestTickRef.current) {
-        lastSeenRequestTickRef.current = newSessionRequest.tick;
+      if (newSessionRequest.tick > consumedTick) {
+        setConsumedTick(newSessionRequest.tick);
         addBrowserSession(newSessionRequest.url, newSessionRequest.isPrivate);
       }
     }, [
       newSessionRequest.tick,
       newSessionRequest.url,
       newSessionRequest.isPrivate,
+      consumedTick,
+      setConsumedTick,
       addBrowserSession,
     ]);
 
@@ -109,15 +103,13 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
         buildPrimarySidebarConfig({
           content: (
             <BrowserPrimarySidebar
-              repoPath={repoPath}
               sessions={state.browser.browserState.sessions}
               activeSessionId={activeSessionId}
               onSelectSession={state.handleSelectSession}
               onNewSession={state.browser.handleNewSession}
               onNewPrivateSession={state.browser.handleNewPrivateSession}
               onCloseSession={state.handleCloseSession}
-              onOpenColorTokens={state.handleOpenColorTokens}
-              onOpenHistoryUrl={state.handleOpenHistoryUrl}
+              sessionsOnly
             />
           ),
           collapsed: state.browser.primarySidebarCollapsed,
@@ -129,15 +121,12 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
           maxSize: 400,
         }),
       [
-        repoPath,
         state.browser.browserState.sessions,
         activeSessionId,
         state.handleSelectSession,
         state.browser.handleNewSession,
         state.browser.handleNewPrivateSession,
         state.handleCloseSession,
-        state.handleOpenColorTokens,
-        state.handleOpenHistoryUrl,
         state.browser.primarySidebarCollapsed,
         state.browser.primarySidebarWidth,
         state.browser.setPrimarySidebarWidth,
@@ -155,28 +144,6 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
         className={`flex h-full min-h-0 w-full flex-col overflow-hidden ${WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS}`}
       >
         <div className="relative flex-1 overflow-hidden">
-          {state.hasOpenTabs &&
-            state.isShowingTokenCategory &&
-            state.activeTokenCategory && (
-              <div className="absolute inset-0 z-20 bg-workstation-bg">
-                <Suspense
-                  fallback={
-                    <Placeholder
-                      variant="loading"
-                      placement="detail-panel"
-                      fillParentHeight
-                      className={WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS}
-                    />
-                  }
-                >
-                  <TokenManagerPanel
-                    category={state.activeTokenCategory}
-                    repoPath={repoPath}
-                  />
-                </Suspense>
-              </div>
-            )}
-
           {(!state.hasOpenTabs || state.hasBrowserSessions) && (
             <div
               className={`absolute inset-0 ${
@@ -199,10 +166,9 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
                 onToggleDevToolsPane={state.browser.handleToggleDevTools}
                 devToolsPaneCollapsed={state.browser.devToolsCollapsed}
                 hideWebviews={!isActive || !state.showBrowserViewport}
-                webviewBottomInsetPx={webviewBottomInsetPx}
+                webviewBottomInsetPx={0}
                 isInspectMode={state.browser.isInspectMode}
                 onToggleInspectMode={state.browser.toggleInspectMode}
-                placeholderActions={state.browserQuickActions}
               />
             </div>
           )}
@@ -301,18 +267,94 @@ export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
     );
 
     // ============================================
+    // Phase 2.2: publish the Browser host's render surface above the tab
+    // dispatcher. Mirrors `ProjectHostProvider` — the value bundles the
+    // shared-webview activation flags + the DevTools polling stack + panel
+    // handlers so staged browser renderers (`browser-session` / `devtools`)
+    // can consume it via `useBrowserHostContext` once `UnifiedTabContent` is
+    // mounted for browser tabs. Providing it here is additive — BrowserLayout
+    // below still renders its bespoke `SharedBrowserWorkspace` /
+    // `SharedBrowserDevToolsPanel` directly and is unchanged.
+    // ============================================
+
+    const browser = state.browser;
+    const showBrowserViewport = state.showBrowserViewport;
+    const automationRunning = state.automation.isRunning;
+
+    const browserHostValue = useMemo<BrowserHostContextValue>(
+      () => ({
+        repoPath,
+        browserState: browser.browserState,
+        isWorkspaceActive:
+          isActive && showBrowserViewport && !automationRunning,
+        hideWebviews: !isActive || !showBrowserViewport,
+        webviewBottomInsetPx: 0,
+        isInspectMode: browser.isInspectMode,
+        onToggleInspectMode: browser.toggleInspectMode,
+        onOpenNativeDevTools: browser.handleOpenNativeDevTools,
+        onToggleDevToolsPane: browser.handleToggleDevTools,
+        devToolsPaneCollapsed: browser.devToolsCollapsed,
+        devToolsCollapsed: browser.devToolsCollapsed,
+        onToggleDevToolsCollapse: browser.handleToggleDevTools,
+        devToolsPanelWidth: browser.devToolsPanelWidth,
+        onDevToolsPanelWidthChange: browser.setDevToolsPanelWidth,
+        devToolsPanelHeight,
+        onDevToolsPanelHeightChange: setDevToolsPanelHeight,
+        devToolsPosition,
+        onToggleDevToolsPosition: handleToggleDevToolsPosition,
+        consoleEntries: browser.entries,
+        onClearConsoleEntries: browser.clearEntries,
+        networkEntries: browser.networkEntries,
+        onClearNetworkEntries: browser.clearNetworkEntries,
+        errorCount: browser.errorCount,
+        warningCount: browser.warningCount,
+        selectedElement: browser.selectedElement,
+        webviewLabel: browser.activeWebviewLabel,
+        currentUrl: browser.currentUrl,
+      }),
+      [
+        repoPath,
+        isActive,
+        showBrowserViewport,
+        automationRunning,
+        devToolsPanelHeight,
+        devToolsPosition,
+        handleToggleDevToolsPosition,
+        browser.browserState,
+        browser.isInspectMode,
+        browser.toggleInspectMode,
+        browser.handleOpenNativeDevTools,
+        browser.handleToggleDevTools,
+        browser.devToolsCollapsed,
+        browser.devToolsPanelWidth,
+        browser.setDevToolsPanelWidth,
+        browser.entries,
+        browser.clearEntries,
+        browser.networkEntries,
+        browser.clearNetworkEntries,
+        browser.errorCount,
+        browser.warningCount,
+        browser.selectedElement,
+        browser.activeWebviewLabel,
+        browser.currentUrl,
+      ]
+    );
+
+    // ============================================
     // Render
     // ============================================
 
     return (
-      <WorkStationShell
-        primarySidebarConfig={primarySidebarConfig}
-        secondaryPanelConfig={secondaryPanelConfig}
-        content={mainContent}
-        statusBar={null}
-        layoutMode={state.browser.layoutMode}
-        appClassName="browser-explorer"
-      />
+      <BrowserHostProvider value={browserHostValue}>
+        <WorkStationShell
+          primarySidebarConfig={primarySidebarConfig}
+          secondaryPanelConfig={secondaryPanelConfig}
+          content={mainContent}
+          statusBar={null}
+          layoutMode={state.browser.layoutMode}
+          appClassName="browser-explorer"
+        />
+      </BrowserHostProvider>
     );
   }
 );

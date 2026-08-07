@@ -8,7 +8,6 @@
  * - switchMode / skipMode action helpers
  */
 import { respondModeSwitch } from "@src/api/tauri/agent";
-import { cursorBridgeSetMode } from "@src/api/tauri/cursorBridge";
 import { rpc } from "@src/api/tauri/rpc";
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import {
@@ -22,11 +21,7 @@ import { sessionByIdAtom, upsertSession } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
-import {
-  composerIdFromSessionId,
-  isAgentSession,
-  isCursorIdeSession,
-} from "@src/util/session/sessionDispatch";
+import { isAgentSession } from "@src/util/session/sessionDispatch";
 
 // ============================================
 // Resolved cache
@@ -117,40 +112,6 @@ function getLastUserText(sessionId: string): string {
     }
   }
   return "";
-}
-
-async function switchCursorIdeMode(
-  eventId: string,
-  sessionId: string,
-  targetMode: string
-): Promise<void> {
-  const composerId = composerIdFromSessionId(sessionId);
-  // Bug-fix: must mark the event resolved even when composerId is missing,
-  // otherwise the chat history event stays stuck at awaiting_user forever
-  // while the module cache considers it resolved and suppresses the card.
-  await markModeSwitchEventResolved(eventId, sessionId, "switched", targetMode);
-  if (!composerId) return;
-
-  await cursorBridgeSetMode({ agentId: composerId, modeId: targetMode });
-
-  const lastUserText = getLastUserText(sessionId);
-  // Only skip the resend when there is no prior user message to anchor on.
-  // A loop is impossible by construction: every read-only mode (Plan, Ask,
-  // Debug, Review) denies `suggest_mode_switch` via `read_only_deny_base`,
-  // so the tool is absent from the LLM's toolset after the switch and cannot
-  // re-trigger another mode-switch.
-  if (!lastUserText) return;
-
-  // No beginOptimisticTurn here: Cursor IDE sessions have no turn lifecycle
-  // (the CDP stream emits no terminal event), so an optimistic `running`
-  // would never be cleared — the same reason useMessageDispatch closes the
-  // turn immediately after a successful cursor handoff.
-  const SessionService = await getSessionService();
-  await SessionService.sendMessage({
-    sessionId,
-    content: lastUserText,
-    mode: targetMode,
-  });
 }
 
 async function switchAgentMode(
@@ -269,11 +230,6 @@ export async function switchModeForSession(
         agentExecMode: targetMode as AgentExecMode,
       });
     }
-    return;
-  }
-
-  if (isCursorIdeSession(sessionId)) {
-    await switchCursorIdeMode(eventId, sessionId, targetMode);
     return;
   }
 

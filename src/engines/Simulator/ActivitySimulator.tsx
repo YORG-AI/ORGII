@@ -176,10 +176,9 @@ const ActivitySimulator: React.FC = memo(() => {
       }
       // Manually opening the Diff app from the dock is the "whole-session
       // diff" entry point — clear any per-round scope left over from a chat
-      // `TurnFilesFooter` "Review" click (which only the composer files-pill
+      // `TurnMetadataFooter` "Review" click (which only the composer files-pill
       // otherwise clears) and refresh so the full view reflects the latest
-      // working tree. Without this the file list stays narrowed to the
-      // reviewed round while the tab badge shows the full session count.
+      // working tree without re-applying a stale file-focus request.
       if ((appId as AppType) === AppType.DIFF) {
         setDiffScope(null);
         refreshDiff();

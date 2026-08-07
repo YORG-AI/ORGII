@@ -36,6 +36,7 @@ describe("COMPONENT_LOADERS", () => {
     "agent_message",
     "thinking",
     "user",
+    "context_compacted",
     "ask_user_questions",
     "ask_user_permissions",
     "subagent",
@@ -51,7 +52,6 @@ describe("COMPONENT_LOADERS", () => {
     "turn_summary",
     "worktree",
     "setup_repo",
-    "suggest_next_steps",
     "rate_limit_hint",
     "tool_call",
   ] as const;

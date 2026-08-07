@@ -201,7 +201,7 @@ impl Default for UnifiedSessionRecord {
 pub(super) const UNIFIED_SESSION_SELECT: &str = r#"
     SELECT
         s.session_id, s.name, s.status, s.model, s.account_id, s.user_input,
-        COALESCE((SELECT SUM(total_tokens) FROM session_token_usage WHERE session_id = s.session_id), 0),
+        COALESCE((SELECT total_tokens FROM orgtrack_core_session_usage WHERE session_id = s.session_id), 0),
         s.created_at, s.updated_at, s.session_type, s.channel, s.chat_id,
         s.workspace_path, s.org_id, s.project_id, s.project_name,
         s.work_item_id, s.agent_role, s.worktree_path,

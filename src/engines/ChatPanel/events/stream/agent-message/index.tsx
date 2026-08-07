@@ -19,7 +19,7 @@ import { getEventIcon } from "@src/config/toolIcons";
 import AgentChatItemDefault from "@src/engines/ChatPanel/ChatItems/AgentChatItemDefault";
 import { AgentMessageBlock } from "@src/engines/ChatPanel/blocks";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
-import { useCanvasPreviewForSession } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasPreviewForSession";
+import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import {
@@ -159,6 +159,7 @@ interface ChatVariantProps {
   llmUsage?: UniversalEventProps["llmUsage"];
   /** Event id used by AgentMessageBlock's locate-in-simulator arrow. */
   eventId?: string;
+  timestamp?: string;
 }
 
 const ChatVariant: React.FC<ChatVariantProps> = ({
@@ -170,6 +171,7 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   canvasUrls,
   llmUsage,
   eventId,
+  timestamp,
 }) => {
   // Canvas preview from the global atom is only relevant for the live
   // streaming message. Historical (non-streaming) messages already have
@@ -177,9 +179,10 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   // Reading the global atom unconditionally caused re-shows: any time a new
   // round started and openInSimulatorCanvas cleared cardDismissed, every
   // historical ChatVariant instance would briefly re-render the old canvas.
-  const { payload: streamingCanvasPayload } = useCanvasPreviewForSession(
+  const { snapshot: streamingCanvas } = useCanvasForTurn(
     isStreaming ? sessionId : null
   );
+  const streamingCanvasPayload = streamingCanvas.payload;
   const canvasPayload = isStreaming ? streamingCanvasPayload : null;
 
   if (!content && !thinkingContent && !isStreaming && !canvasPayload)
@@ -199,6 +202,9 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
         <AgentMessageBlock
           eventId={eventId}
           isStreaming={isStreaming}
+          itemIndex={itemIndex}
+          messageContent={content}
+          messageTimestamp={timestamp}
           rightContent={
             llmUsage ? <LlmUsageBadge usage={llmUsage} /> : undefined
           }
@@ -208,6 +214,7 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
             expand={true}
             finish={!isStreaming}
             streamHtml={isStreaming}
+            showCopyButton={false}
             appendedContent={
               <>
                 <MessageReferenceCards
@@ -411,6 +418,7 @@ export const AgentMessageEvent: React.FC<AgentMessageEventProps> = (props) => {
         canvasUrls={canvasUrls}
         llmUsage={normalizedProps?.llmUsage}
         eventId={normalizedProps?.eventId}
+        timestamp={normalizedProps?.timestamp ?? props.event?.createdAt}
       />
     );
   }

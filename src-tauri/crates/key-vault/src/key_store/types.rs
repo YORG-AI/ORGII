@@ -80,7 +80,6 @@ pub enum ModelType {
     CursorCli,
     ClaudeCode,
     Codex,
-    GeminiCli,
     Copilot,
     Kiro,
     KimiCli,
@@ -149,7 +148,6 @@ impl ModelType {
             ModelType::CursorCli => "cursor_cli",
             ModelType::ClaudeCode => "claude_code",
             ModelType::Codex => "codex",
-            ModelType::GeminiCli => "gemini_cli",
             ModelType::Copilot => "copilot",
             ModelType::Kiro => "kiro",
             ModelType::KimiCli => "kimi_cli",
@@ -210,7 +208,6 @@ impl ModelType {
             "cursor_cli" | "cursor" => Some(ModelType::CursorCli),
             "claude_code" => Some(ModelType::ClaudeCode),
             "codex" => Some(ModelType::Codex),
-            "gemini_cli" => Some(ModelType::GeminiCli),
             "copilot" | "github_copilot" => Some(ModelType::Copilot),
             "kiro" | "amazon_kiro" => Some(ModelType::Kiro),
             "kimi_cli" | "kimi_code" => Some(ModelType::KimiCli),
@@ -287,7 +284,6 @@ impl ModelType {
             ModelType::CursorCli
                 | ModelType::ClaudeCode
                 | ModelType::Codex
-                | ModelType::GeminiCli
                 | ModelType::Copilot
                 | ModelType::Kiro
                 | ModelType::KimiCli

@@ -197,6 +197,20 @@ pub async fn set_window_focus(focused: bool) -> Result<(), String> {
     Ok(())
 }
 
+/// Report whether a Source Control surface is visible in the frontend.
+/// While visible, focused git-status polling uses the fast (5s) interval;
+/// otherwise it relaxes to 10s to keep idle git subprocess load low.
+#[tauri::command]
+pub async fn set_source_control_attention(visible: bool) -> Result<(), String> {
+    let manager_lock = REPO_WATCH_MANAGER.read();
+    let manager = manager_lock
+        .as_ref()
+        .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
+
+    manager.watcher.set_source_control_attention(visible);
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn set_active_git_polling_repo(repo_id: Option<String>) -> Result<(), String> {
     let manager_lock = REPO_WATCH_MANAGER.read();

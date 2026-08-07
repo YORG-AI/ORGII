@@ -101,7 +101,7 @@ const KanbanReplayBar: React.FC = memo(() => {
       onAfterChange={handleOnAfterChange}
       isFollowMode={replayMode === "follow"}
       disabled={eventCount === 0}
-      ariaLabel={t("opsControl.replayBarAriaLabel")}
+      ariaLabel={t("kanban.replayBarAriaLabel")}
     />
   );
 });

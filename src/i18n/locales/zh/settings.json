@@ -28,6 +28,7 @@
     "agentSessions": "Agent Session",
     "apiKeys": "API Keys",
     "appUpdate": "应用更新",
+    "security": "安全",
     "monitor": "设备 & 网络",
     "osAgentConfig": "OS Agent 配置",
     "sdeAgentConfig": "SDE Agent 配置",
@@ -39,7 +40,8 @@
     "storage": "存储",
     "projectUsage": "项目与用量",
     "agentMemory": "Agent 记忆",
-    "agentOrg": "Agent 团队"
+    "agentOrg": "Agent 团队",
+    "collaboration": "协作"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "模型 & Keys",
       "myRoles": "我的角色",
       "rulesMemoryEvolution": "规则、记忆 & 进化",
+      "security": "安全",
       "routines": "例程",
       "tools": "内置工具",
       "computerUse": "Computer Use",
@@ -64,8 +67,18 @@
       "git": "Git",
       "databases": "数据库",
       "externalSkillsets": "Skills、MCPs、Plugins",
-      "housekeeper": "常驻管家"
+      "housekeeper": "MiniCPM 常驻管家"
     }
+  },
+  "security": {
+    "scan": "发送密钥前警告",
+    "scanDesc": "扫描你在输入框中键入的内容，查找 API 密钥、令牌和密码，并在发送给模型前请求确认",
+    "entropy": "检测高熵字符串",
+    "entropyDesc": "同时标记不符合已知密钥格式、看起来随机的长字符串。能发现更多密钥，但偶尔可能误报哈希值或 ID",
+    "customPatterns": "自定义模式",
+    "customPatternsDesc": "每行一个正则表达式。任何匹配都会被视为密钥。无效的表达式将被忽略",
+    "customPatternsPlaceholder": "例如 MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} 个模式无效，将被忽略：{{patterns}}"
   },
   "myRoles": {
     "currentStatus": "我的当前状态",
@@ -149,17 +162,16 @@
       "zh-Hant": "繁体中文"
     },
     "layout": "布局",
-    "globalLayoutMethod": "布局方式",
-    "globalLayoutMethodDesc": "选择内容面板如何呈现应用边框",
+    "sidebar": "侧边栏",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "侧边栏边缘层次",
+    "selectedItemTransparency": "选中项目透明度",
     "spotlightPlacement": "Spotlight 位置",
     "spotlightPlacementDesc": "选择 Spotlight 命令面板打开的位置",
     "spotlightPlacementOptions": {
       "top": "顶部",
       "center": "页面居中"
     },
-    "inset": "舒适",
-    "full": "扩展",
-    "compact": "现代",
     "left": "左侧",
     "right": "右侧",
     "light": "浅色",
@@ -324,7 +336,7 @@
     "configAgentKeys": "OS & SDE Agent 的 API Keys",
     "configAgentKeysDesc": "添加 OpenAI、Anthropic、DeepSeek 等提供商的 API Key",
     "configCliKeys": "CLI Agent 的 API Keys",
-    "configCliKeysDesc": "添加 Claude Code、Codex、Gemini CLI 等 CLI 工具的 API Key"
+    "configCliKeysDesc": "添加 Claude Code、Codex 等 CLI 工具的 API Key"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agent",
@@ -787,8 +799,19 @@
   },
   "update": {
     "title": "App 更新",
+    "autoUpdate": "自动更新",
+    "autoUpdateDesc": "自动下载更新，并在安装和重新启动 ORGII 前询问",
+    "channel": "更新通道",
+    "channelDesc": "Beta 通道会先于正式版收到预发布版本。切换回正式版不会降级，将在下一个正式版本发布时生效",
+    "channelStable": "正式版",
+    "channelBeta": "Beta",
     "detectUpdate": "检测更新",
-    "currentVersion": "当前版本"
+    "currentVersion": "当前版本",
+    "installConfirmTitle": "更新已准备好安装",
+    "installConfirmDesc": "版本 {{version}} 已下载。安装并重新启动 ORGII 前，请保存正在进行的工作。",
+    "installAndRestart": "安装并重新启动",
+    "autoDownloadUpdates": "以后自动下载更新",
+    "skipVersion": "跳过此版本"
   },
   "monitor": {
     "categoryTerminal": "终端/工具进程",
@@ -890,7 +913,6 @@
     "diskCategory_logs": "日志",
     "diskCategory_personalWorkspace": "OS Agent 工作区",
     "diskCategory_cursorConfig": "Session CLI 配置",
-    "diskCategory_geminiCliHome": "Gemini CLI 目录",
     "diskCategory_extensions": "扩展",
     "diskNotScanned": "尚未扫描",
     "diskScanning": "扫描中...",
@@ -916,7 +938,6 @@
     "diskCategory_codeMap": "Code Map 索引",
     "diskCategory_semanticIndex": "语义搜索索引",
     "diskCategory_cursorCliProfiles": "Cursor CLI 配置",
-    "diskCategory_geminiCliProfiles": "Gemini CLI 配置",
     "diskCategory_kiroCliProfiles": "Kiro CLI 配置",
     "diskCategory_opencodeCliProfiles": "OpenCode CLI 配置",
     "diskCategory_agentWorktrees": "Agent Session Worktrees",
@@ -987,8 +1008,8 @@
     "typingAnimationDesc": "为 Agent 消息启用打字机动画",
     "typingSpeed": "打字速度",
     "typingSpeedDesc": "每个字符的毫秒数（1ms = 最快，50ms = 最慢）",
-    "decryptEffect": "解密效果",
-    "decryptEffectDesc": "为 Agent 消息启用解密动画效果",
+    "decryptEffect": "打字机效果",
+    "decryptEffectDesc": "Agent 消息逐字显示",
     "sendOnEnter": "Enter 发送消息",
     "sendOnEnterDesc": "启用后 Enter 发送，Shift+Enter 换行；关闭后 Ctrl/Cmd+Enter 发送"
   },
@@ -1302,5 +1323,11 @@
     "searchActions": "搜索动作...",
     "noActionsFound": "未找到动作",
     "noConfigurableProperties": "无可配置属性"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "云端",
+      "selfHosted": "自托管"
+    }
   }
 }

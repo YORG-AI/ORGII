@@ -118,6 +118,7 @@ const AllChangesView: React.FC<AllChangesViewProps> = ({
       focusedNonce={focusTarget?.nonce ?? 0}
       onFileSelect={onFileSelect}
       onRequestContent={handleRequestContent}
+      showRenamePath
       hideBottomPadding
     />
   );

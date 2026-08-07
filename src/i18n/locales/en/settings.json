@@ -28,6 +28,7 @@
     "agentSessions": "Agent Sessions",
     "apiKeys": "API Keys",
     "appUpdate": "App Update",
+    "security": "Security",
     "monitor": "Device & Network",
     "osAgentConfig": "OS Agent Config",
     "sdeAgentConfig": "SDE Agent Config",
@@ -39,7 +40,8 @@
     "storage": "Storage",
     "projectUsage": "Project & Usage",
     "agentMemory": "Agent Memory",
-    "agentOrg": "Agent Team"
+    "agentOrg": "Agent Team",
+    "collaboration": "Collaboration"
   },
   "coreSidebar": {
     "groups": {
@@ -54,6 +56,7 @@
       "models": "Models & Keys",
       "myRoles": "My roles",
       "rulesMemoryEvolution": "Rules, Memory & Evolution",
+      "security": "Security",
       "routines": "Routines",
       "tools": "Built-in Tools",
       "computerUse": "Computer Use",
@@ -66,6 +69,16 @@
       "databases": "Databases",
       "housekeeper": "MiniCPM Housekeeper"
     }
+  },
+  "security": {
+    "scan": "Warn before sending secrets",
+    "scanDesc": "Scan what you type in the composer for API keys, tokens, and passwords, and ask for confirmation before sending them to the model",
+    "entropy": "Detect high-entropy strings",
+    "entropyDesc": "Also flag long, random-looking strings that don't match a known key format. Catches more secrets but may occasionally flag hashes or IDs",
+    "customPatterns": "Custom patterns",
+    "customPatternsDesc": "One regular expression per line. Any match is treated as a secret. Invalid expressions are ignored",
+    "customPatternsPlaceholder": "e.g. MYCORP_[A-Z0-9]{20}",
+    "invalidPatterns": "{{count}} pattern(s) are invalid and will be ignored: {{patterns}}"
   },
   "myRoles": {
     "currentStatus": "My current status",
@@ -149,17 +162,16 @@
       "zh-Hant": "Traditional Chinese"
     },
     "layout": "Layout",
-    "globalLayoutMethod": "Layout Method",
-    "globalLayoutMethodDesc": "Choose how content panels frame the app",
+    "sidebar": "Sidebar",
+    "spotlight": "Spotlight",
+    "sidebarEdgeDepth": "Sidebar edge depth",
+    "selectedItemTransparency": "Selected item transparency",
     "spotlightPlacement": "Spotlight position",
     "spotlightPlacementDesc": "Choose where the Spotlight command palette opens",
     "spotlightPlacementOptions": {
       "top": "Top",
       "center": "Page center"
     },
-    "inset": "Comfort",
-    "full": "Expanded",
-    "compact": "Modern",
     "left": "Left",
     "right": "Right",
     "light": "Light",
@@ -324,7 +336,7 @@
     "configAgentKeys": "API Keys for OS & SDE Agents",
     "configAgentKeysDesc": "Add API keys from providers like OpenAI, Anthropic, and DeepSeek",
     "configCliKeys": "API Keys for CLI Agents",
-    "configCliKeysDesc": "Add API keys for CLI tools like Claude Code, Codex, and Gemini CLI"
+    "configCliKeysDesc": "Add API keys for CLI tools like Claude Code and Codex"
   },
   "cliConfig": {
     "overviewLabel": "CLI Agents",
@@ -787,8 +799,19 @@
   },
   "update": {
     "title": "App Update",
+    "autoUpdate": "Automatic updates",
+    "autoUpdateDesc": "Download updates automatically and ask before installing and restarting ORGII",
+    "channel": "Update channel",
+    "channelDesc": "Beta receives prerelease builds ahead of the stable release. Switching back to Stable never downgrades — it takes effect at the next stable release",
+    "channelStable": "Stable",
+    "channelBeta": "Beta",
     "detectUpdate": "Detect Update",
-    "currentVersion": "Current Version"
+    "currentVersion": "Current Version",
+    "installConfirmTitle": "Update ready to install",
+    "installConfirmDesc": "Version {{version}} has been downloaded. Save any ongoing work before installing and restarting ORGII.",
+    "installAndRestart": "Install and restart",
+    "autoDownloadUpdates": "Automatically download future updates",
+    "skipVersion": "Skip this version"
   },
   "monitor": {
     "categoryTerminal": "Terminal/tool process",
@@ -891,7 +914,6 @@
     "diskCategory_logs": "Logs",
     "diskCategory_personalWorkspace": "OS Agent Workspace",
     "diskCategory_cursorConfig": "Session CLI Configs",
-    "diskCategory_geminiCliHome": "Gemini CLI Homes",
     "diskCategory_extensions": "Extensions",
     "diskNotScanned": "Not yet scanned",
     "diskScanning": "Scanning...",
@@ -916,7 +938,6 @@
     "diskCategory_codeMap": "Code Map Indexes",
     "diskCategory_semanticIndex": "Semantic Search Index",
     "diskCategory_cursorCliProfiles": "Cursor CLI Profiles",
-    "diskCategory_geminiCliProfiles": "Gemini CLI Profiles",
     "diskCategory_kiroCliProfiles": "Kiro CLI Profiles",
     "diskCategory_opencodeCliProfiles": "OpenCode CLI Profiles",
     "diskCategory_agentWorktrees": "Agent Session Worktrees",
@@ -987,8 +1008,8 @@
     "typingAnimationDesc": "Enable typewriter animation for Agent messages",
     "typingSpeed": "Typing Speed",
     "typingSpeedDesc": "Milliseconds per character (1ms = fastest, 50ms = slowest)",
-    "decryptEffect": "Decrypt Effect",
-    "decryptEffectDesc": "Enable decrypt animation for Agent messages",
+    "decryptEffect": "Typewriter Effect",
+    "decryptEffectDesc": "Reveal Agent messages character by character",
     "sendOnEnter": "Send messages with Enter",
     "sendOnEnterDesc": "When enabled, Enter sends and Shift+Enter inserts a new line. When disabled, Ctrl/Cmd+Enter sends"
   },
@@ -1302,5 +1323,11 @@
     "searchActions": "Search actions...",
     "noActionsFound": "No actions found",
     "noConfigurableProperties": "No configurable properties"
+  },
+  "collaboration": {
+    "tabs": {
+      "cloud": "Cloud",
+      "selfHosted": "Self-hosted"
+    }
   }
 }

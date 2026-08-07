@@ -47,7 +47,6 @@ const FileChangeRow = memo(({ file, onFileClick }: FileChangeRowProps) => {
   return (
     <div
       key={file.path}
-      title={file.path}
       className={`group ${COMPOSER_STACK_ROW_BASE} ${
         onFileClick ? `${COMPOSER_STACK_ROW_HOVER} cursor-pointer` : ""
       }`}

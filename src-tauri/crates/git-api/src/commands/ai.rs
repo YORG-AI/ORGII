@@ -23,6 +23,7 @@ use super::cursor_chat::cursor_stream_chat;
 use super::diff::{get_diff_numstat, get_staged_diff};
 
 const MAX_DIFF_CHARS: usize = 4000;
+const MAX_INSTRUCTION_CHARS: usize = 4000;
 
 const SYSTEM_PROMPT: &str = "\
 You are a git commit message generator. Given the diff below, write a \
@@ -34,6 +35,31 @@ Rules:\n\
 - Lowercase type prefix: feat | fix | refactor | docs | style | test | chore | perf | ci | build.\n\
 - If the scope is obvious, include it: `feat(auth): …`\n\
 - Do NOT repeat filenames already visible in the diff header.";
+
+fn build_system_prompt(commit_instructions: Option<&str>) -> Result<String, String> {
+    let Some(instructions) = commit_instructions
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(SYSTEM_PROMPT.to_string());
+    };
+
+    if instructions.chars().count() > MAX_INSTRUCTION_CHARS {
+        return Err(format!(
+            "Commit instructions must be {} characters or fewer",
+            MAX_INSTRUCTION_CHARS
+        ));
+    }
+
+    Ok(format!(
+        "{}\n\nUser-configured additional instructions:\n{}",
+        SYSTEM_PROMPT, instructions
+    ))
+}
+
+fn build_cursor_prompt(system_prompt: &str, diff_summary: &str) -> String {
+    format!("{}\n\nDiff:\n{}", system_prompt, diff_summary)
+}
 
 /// Preferred provider order for commit-message generation (cheapest first).
 const PREFERRED_API_TYPES: &[ModelType] = &[
@@ -62,7 +88,6 @@ const CLI_AGENT_FALLBACKS: &[(ModelType, &str, &str, Option<&str>)] = &[
         None,
     ),
     (ModelType::Codex, "openai", "gpt-4o-mini", None),
-    (ModelType::GeminiCli, "gemini", "gemini-2.0-flash", None),
 ];
 
 /// Default model per provider (small/cheap).
@@ -143,7 +168,7 @@ fn build_diff_summary(repo_path: &Path) -> Result<String, String> {
         return Ok(out);
     }
 
-    let numstat = get_diff_numstat(repo_path, "HEAD", None, false)?;
+    let numstat = get_diff_numstat(repo_path, "HEAD", None, false, false)?;
     if numstat.files.is_empty() {
         return Err("No staged or unstaged changes to summarize".to_string());
     }
@@ -166,13 +191,17 @@ fn build_diff_summary(repo_path: &Path) -> Result<String, String> {
 
 /// Tauri command: generate a commit message for the given repository.
 #[tauri::command]
-pub async fn generate_commit_message(repo_path: String) -> Result<String, String> {
+pub async fn generate_commit_message(
+    repo_path: String,
+    commit_instructions: Option<String>,
+) -> Result<String, String> {
     let path = Path::new(&repo_path);
     if !path.exists() {
         return Err(format!("Repository path does not exist: {}", repo_path));
     }
 
     let diff_summary = build_diff_summary(path)?;
+    let system_prompt = build_system_prompt(commit_instructions.as_deref())?;
     info!(
         "generate_commit_message: diff_summary len={}",
         diff_summary.len()
@@ -258,7 +287,7 @@ pub async fn generate_commit_message(repo_path: String) -> Result<String, String
         );
 
         let messages = vec![
-            json!({ "role": "system", "content": SYSTEM_PROMPT }),
+            json!({ "role": "system", "content": &system_prompt }),
             json!({ "role": "user", "content": diff_summary }),
         ];
 
@@ -298,7 +327,7 @@ pub async fn generate_commit_message(repo_path: String) -> Result<String, String
             if let Some(access_token) = token {
                 info!("generate_commit_message: trying Cursor StreamChat via Connect RPC");
 
-                let prompt = format!("{}\n\nDiff:\n{}", SYSTEM_PROMPT, diff_summary);
+                let prompt = build_cursor_prompt(&system_prompt, &diff_summary);
 
                 let raw = cursor_stream_chat(access_token, "gpt-4o-mini", &prompt).await?;
                 let content = raw.trim().trim_matches('`').trim().to_string();
@@ -349,6 +378,48 @@ mod tests {
         (ModelType::ZhipuApi, "zhipu", "glm-4-flash"),
         (ModelType::VllmApi, "vllm", "default"),
     ];
+
+    #[test]
+    fn custom_instructions_are_appended_after_the_builtin_prompt() {
+        let prompt = build_system_prompt(Some("  Write a detailed English body.  "))
+            .expect("custom instructions should be accepted");
+
+        assert!(prompt.starts_with(SYSTEM_PROMPT));
+        assert!(prompt
+            .ends_with("User-configured additional instructions:\nWrite a detailed English body."));
+    }
+
+    #[test]
+    fn blank_instructions_preserve_the_builtin_prompt_exactly() {
+        assert_eq!(build_system_prompt(None).unwrap(), SYSTEM_PROMPT);
+        assert_eq!(build_system_prompt(Some("  \n  ")).unwrap(), SYSTEM_PROMPT);
+    }
+
+    #[test]
+    fn instructions_over_the_limit_are_rejected() {
+        let instructions = "x".repeat(MAX_INSTRUCTION_CHARS + 1);
+        let error = build_system_prompt(Some(&instructions)).unwrap_err();
+        assert!(error.contains("4000 characters or fewer"));
+    }
+
+    #[test]
+    fn provider_prompt_payloads_share_the_effective_instructions() {
+        let system_prompt = build_system_prompt(Some("Include a detailed body."))
+            .expect("custom instructions should be accepted");
+        let messages = vec![
+            json!({ "role": "system", "content": &system_prompt }),
+            json!({ "role": "user", "content": "diff summary" }),
+        ];
+        let cursor_prompt = build_cursor_prompt(&system_prompt, "diff summary");
+
+        assert_eq!(
+            messages[0]["content"].as_str(),
+            Some(system_prompt.as_str())
+        );
+        assert_eq!(messages[1]["content"], "diff summary");
+        assert!(cursor_prompt.starts_with(&system_prompt));
+        assert!(cursor_prompt.ends_with("Diff:\ndiff summary"));
+    }
 
     #[test]
     fn preferred_api_types_have_explicit_small_model_defaults() {

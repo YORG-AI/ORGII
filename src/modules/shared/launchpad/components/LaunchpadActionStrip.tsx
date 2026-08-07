@@ -15,7 +15,7 @@ const LaunchpadActionStrip: React.FC<LaunchpadActionStripProps> = ({
   onOpenDetails,
   onClear,
 }) => (
-  <div className="w-fit max-w-full overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
+  <div className="w-full min-w-0 overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
     <RepoActionButtons
       repo={repo}
       onOpenDetails={onOpenDetails}

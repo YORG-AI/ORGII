@@ -233,10 +233,12 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
       ? decodedContent.split("\n").length
       : (segment.linesAdded ?? 0);
   const linesRemoved = segment.linesRemoved ?? 0;
-  const hasInfo = linesAdded > 0 || linesRemoved > 0 || segment.isDeleted;
+  const isCompletedDeletion = segment.isDeleted && status !== "running";
+  const hasInfo = linesAdded > 0 || linesRemoved > 0 || isCompletedDeletion;
+  const compactToolName = segment.isDeleted ? "delete_file" : "edit_file";
   const compactLabelState =
     status === "running" ? "compact_running" : "compact_done";
-  const compactTitle = useToolLabelText("edit_file", compactLabelState);
+  const compactTitle = useToolLabelText(compactToolName, compactLabelState);
 
   const {
     isHeaderHovered,
@@ -245,13 +247,13 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
     handleLocate,
   } = useBlockHeader({ eventId });
 
-  const editIcon = useMemo(
+  const activityIcon = useMemo(
     () =>
-      getToolIcon("edit_file", {
+      getToolIcon(compactToolName, {
         size: SESSION_UI_TOKENS.ICON.SIZE_SM,
         className: "text-text-2",
       }),
-    []
+    [compactToolName]
   );
 
   const content = (
@@ -268,7 +270,7 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
         }
       >
         <EventBlockHeaderIcon
-          icon={editIcon}
+          icon={activityIcon}
           isCollapsed
           isHeaderHovered={isHeaderHovered}
           hasContent={false}
@@ -291,9 +293,11 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
                 additions={linesAdded}
                 deletions={linesRemoved}
                 variant="plain"
-                className="translate-y-px gap-0"
+                className="translate-y-px"
+                valueClassName="font-normal"
+                reserveValueWidth={false}
               />
-              {segment.isDeleted && (
+              {isCompletedDeletion && (
                 <span className="text-danger-6">{t("tools.deleted")}</span>
               )}
             </span>
@@ -330,7 +334,9 @@ function isDeleteFileEvent(props: UniversalEventProps): boolean {
 
 const DeleteFileView: React.FC<DiffBlockProps> = (props) => {
   const { t } = useTranslation("sessions");
+  const displayMode = useChatHistoryDisplayMode();
   const { status, title } = props;
+  const isLoading = props.showActiveEventPainting === true;
 
   let filePath = "";
   let fileName = "";
@@ -349,11 +355,26 @@ const DeleteFileView: React.FC<DiffBlockProps> = (props) => {
 
   const displayTitle = getFileName(filePath) || fileName || "file";
 
+  if (status === "failed") {
+    return <FailedEventRow toolName="delete_file" label={title} />;
+  }
+
+  if (displayMode === "compact") {
+    return (
+      <CompactSegmentView
+        segment={{ filePath, fileName, isDeleted: true }}
+        eventId={props.eventId}
+        status={status}
+        isLoading={isLoading}
+        toolUsage={props.toolUsage}
+      />
+    );
+  }
+
   if (status === "running") {
     const deleteIcon = getToolIcon("delete_file", {
       size: SESSION_UI_TOKENS.ICON.SIZE_SM,
     });
-    const isLoading = props.showActiveEventPainting === true;
     return (
       <EventBlockHeader
         isCollapsed
@@ -370,10 +391,6 @@ const DeleteFileView: React.FC<DiffBlockProps> = (props) => {
         </EventBlockHeaderTitle>
       </EventBlockHeader>
     );
-  }
-
-  if (status === "failed") {
-    return <FailedEventRow toolName="delete_file" label={title} />;
   }
 
   return (

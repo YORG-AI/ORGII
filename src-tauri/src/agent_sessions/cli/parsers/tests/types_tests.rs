@@ -20,11 +20,6 @@ fn cli_agent_type_as_str_codex() {
 }
 
 #[test]
-fn cli_agent_type_as_str_gemini_cli() {
-    assert_eq!(CliAgentType::GeminiCli.as_str(), "gemini_cli");
-}
-
-#[test]
 fn cli_agent_type_as_str_kiro() {
     assert_eq!(CliAgentType::Kiro.as_str(), "kiro");
 }
@@ -47,10 +42,6 @@ fn cli_agent_type_parse_canonical_names() {
         Some(CliAgentType::ClaudeCode)
     );
     assert_eq!(CliAgentType::parse("codex"), Some(CliAgentType::Codex));
-    assert_eq!(
-        CliAgentType::parse("gemini_cli"),
-        Some(CliAgentType::GeminiCli)
-    );
     assert_eq!(CliAgentType::parse("kiro"), Some(CliAgentType::Kiro));
     assert_eq!(CliAgentType::parse("copilot"), Some(CliAgentType::Copilot));
 }
@@ -60,7 +51,6 @@ fn cli_agent_type_parse_canonical_names() {
 #[test]
 fn cli_agent_type_parse_aliases() {
     assert_eq!(CliAgentType::parse("cursor"), Some(CliAgentType::CursorCli));
-    assert_eq!(CliAgentType::parse("gemini"), Some(CliAgentType::GeminiCli));
 }
 
 // -- CliAgentType::parse unknown --
@@ -80,7 +70,6 @@ fn cli_agent_type_parse_roundtrip() {
         CliAgentType::CursorCli,
         CliAgentType::ClaudeCode,
         CliAgentType::Codex,
-        CliAgentType::GeminiCli,
         CliAgentType::Kiro,
         CliAgentType::Copilot,
     ] {
@@ -155,7 +144,6 @@ fn cli_agent_type_serde_roundtrip() {
         CliAgentType::CursorCli,
         CliAgentType::ClaudeCode,
         CliAgentType::Codex,
-        CliAgentType::GeminiCli,
         CliAgentType::Kiro,
         CliAgentType::Copilot,
     ] {

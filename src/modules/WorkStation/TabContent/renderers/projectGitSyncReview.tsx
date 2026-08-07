@@ -1,24 +1,22 @@
 /**
  * Renderer wrapper for `project-git-sync-review` tabs.
  *
- * `ProjectGitSyncReviewContent` is lazy-loaded inside the project
- * router and depends on `onProjectListRefreshRequested`. Phase 1b
- * cannot reach that callback without rewiring the router.
- *
- * TODO(phase-2): expose the project-list refresh callback through
- * the dispatcher context.
+ * Renders directly from tab data. Despite the old stub note, the router
+ * mounts `ProjectGitSyncReviewContent` with only `orgId`/`orgName` from
+ * `tab.data` — no host-coupled callbacks — so this needs nothing from the
+ * Project host context.
  */
 import React, { memo } from "react";
 
+import ProjectGitSyncReviewContent from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectGitSyncReviewContent";
+
 import type { UnifiedTabContentProps } from "../types";
-import { HostCoupledPlaceholder } from "./HostCoupledPlaceholder";
 
 const ProjectGitSyncReviewTabRenderer: React.FC<UnifiedTabContentProps> = memo(
   ({ tab }) => (
-    <HostCoupledPlaceholder
-      tabType={tab.type}
-      title={String(tab.title ?? "Git Sync Review")}
-      hostNote="Project git sync review still rendered by ProjectManagerContentRouter (needs project-list refresh callback). Phase 2 will lift this through the dispatcher context."
+    <ProjectGitSyncReviewContent
+      orgId={tab.data.orgId as string}
+      orgName={tab.data.orgName as string | undefined}
     />
   )
 );

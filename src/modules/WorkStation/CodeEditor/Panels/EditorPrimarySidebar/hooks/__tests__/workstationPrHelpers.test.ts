@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildWorkstationPrStorageKey,
+  filterPullRequestsByQuery,
   formatWorkstationPrTitle,
   getStoredWorkstationPr,
   isWorkstationPrEligible,
@@ -31,6 +32,32 @@ describe("parseGithubRepoFullName", () => {
     const { parseGithubRepoFullName } =
       await import("@src/services/git/operations/createPullRequest");
     expect(parseGithubRepoFullName("not-a-remote-url")).toBeNull();
+  });
+});
+
+describe("filterPullRequestsByQuery", () => {
+  const pullRequests = [
+    { number: 12, title: "Fix login bug" },
+    { number: 34, title: "Add dark mode" },
+  ];
+
+  it("matches titles case-insensitively", () => {
+    expect(filterPullRequestsByQuery(pullRequests, "DARK")).toEqual([
+      pullRequests[1],
+    ]);
+  });
+
+  it("matches PR numbers with or without a hash", () => {
+    expect(filterPullRequestsByQuery(pullRequests, "12")).toEqual([
+      pullRequests[0],
+    ]);
+    expect(filterPullRequestsByQuery(pullRequests, "#34")).toEqual([
+      pullRequests[1],
+    ]);
+  });
+
+  it("returns all pull requests for a blank query", () => {
+    expect(filterPullRequestsByQuery(pullRequests, "   ")).toBe(pullRequests);
   });
 });
 

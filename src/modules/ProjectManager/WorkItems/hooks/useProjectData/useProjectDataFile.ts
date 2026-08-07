@@ -116,7 +116,7 @@ export function useProjectDataFile(): UseProjectDataFileReturn {
             name: selected.name,
             description: selected.description,
             slug: selected.slug,
-            workspaceId: selected.workspaceId,
+            orgId: selected.orgId,
             workItemPrefix: selected.workItemPrefix,
             workItemPrefixCustom: selected.workItemPrefixCustom,
             status: selected.status,
@@ -190,9 +190,6 @@ export function useProjectDataFile(): UseProjectDataFileReturn {
           id: merged.id,
           name: merged.name,
           org_id: existing?.meta.org_id ?? STORY_PERSONAL_ORG_FILTER_ID,
-          workspace_id: Object.hasOwn(updates, "workspaceId")
-            ? merged.workspaceId
-            : existing?.meta.workspace_id,
           status: merged.status || "backlog",
           priority: merged.priority || "none",
           health: merged.health || "no_updates",

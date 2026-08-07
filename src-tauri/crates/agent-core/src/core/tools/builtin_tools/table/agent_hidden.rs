@@ -138,22 +138,6 @@ pub(super) static TOOLS: &[ToolEntry] = &[
         ..DEFAULT_TOOL_ENTRY
     },
     ToolEntry {
-        name: tool_names::SUGGEST_NEXT_STEPS,
-        description: "Propose contextual next steps at end of turn.",
-        description_detail: "Agent suggests 2-3 actionable next steps as clickable cards. The user picks one to continue the conversation.",
-        category: tool_categories::ORCHESTRATION,
-        icon_id: "arrow-big-right-dash",
-        simulator_app: AppChannels,
-        app_subtool: OtherInteractions,
-        chat_block: CbTitleOnly,
-        hidden: true,
-        label_running: "tools.suggestNextStepsRunning",
-        label_done: "tools.suggestNextStepsDone",
-        label_failed: "tools.suggestNextStepsFailed",
-        required_capability: CapOrch,
-        ..DEFAULT_TOOL_ENTRY
-    },
-    ToolEntry {
         name: tool_names::ORG_SEND_MESSAGE,
         description: "Send a typed org message inside an Agent Org run.",
         description_detail: "Org messaging primitive: routes a typed AgentMessage (plain or structured RPC) to an org participant by name, agent_id, or broadcast. Persisted to the org inbox; surfaced to the recipient on its next turn.",

@@ -1,7 +1,6 @@
 import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
-import type { ImportedHistorySourceId } from "@src/api/tauri/externalHistory";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { type Session, sessionMapAtom } from "@src/store/session";
@@ -12,22 +11,11 @@ import {
 
 import type { KanbanAgentTypeFilter, KanbanSidebarFilter } from "../config";
 import {
+  EXTERNAL_HISTORY_FILTER_BY_SOURCE,
   KANBAN_AGENT_TYPE_FILTER,
   KANBAN_COLUMNS,
   KANBAN_SIDEBAR_FILTER,
 } from "../config";
-
-const EXTERNAL_HISTORY_FILTER_BY_SOURCE: Record<
-  ImportedHistorySourceId,
-  KanbanAgentTypeFilter
-> = {
-  [DISPATCH_CATEGORY.CURSOR_IDE]: KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE,
-  codex_app: KANBAN_AGENT_TYPE_FILTER.CODEX,
-  claude_code: KANBAN_AGENT_TYPE_FILTER.CLAUDE_CODE,
-  opencode: KANBAN_AGENT_TYPE_FILTER.OPENCODE,
-  windsurf: KANBAN_AGENT_TYPE_FILTER.WINDSURF,
-  workbuddy: KANBAN_AGENT_TYPE_FILTER.WORKBUDDY,
-};
 
 function matchesAgentTypeFilter(
   session: Session | undefined,
@@ -38,7 +26,7 @@ function matchesAgentTypeFilter(
   if (!sessionId) return false;
 
   const category = getDispatchCategory(sessionId);
-  if (filter === KANBAN_AGENT_TYPE_FILTER.CURSOR_IDE) {
+  if (filter === KANBAN_AGENT_TYPE_FILTER.CURSOR_APP) {
     return category === DISPATCH_CATEGORY.CURSOR_IDE;
   }
 
@@ -62,6 +50,17 @@ export interface UseTaskKanbanFiltersOptions {
   sidebarFilter: KanbanSidebarFilter;
   agentTypeFilter: KanbanAgentTypeFilter;
   selectedTaskId: string | null;
+  fileSearchQuery: string;
+}
+
+export function normalizeFileSearchQuery(value: string): string {
+  return value.trim().replace(/\\/g, "/").toLowerCase();
+}
+
+export function buildTaskFileSearchText(task: KanbanTask): string {
+  return (task.impact?.touchedFiles ?? [])
+    .map((path) => path.replace(/\\/g, "/").toLowerCase())
+    .join("\u0000");
 }
 
 export function useTaskKanbanFilters({
@@ -70,11 +69,22 @@ export function useTaskKanbanFilters({
   sidebarFilter,
   agentTypeFilter,
   selectedTaskId,
+  fileSearchQuery,
 }: UseTaskKanbanFiltersOptions) {
   const sessionMap = useAtomValue(sessionMapAtom);
+  const normalizedFileQuery = normalizeFileSearchQuery(fileSearchQuery);
+  const fileSearchActive = normalizedFileQuery.length > 0;
+  const fileSearchTextByTaskId = useMemo(() => {
+    if (!fileSearchActive) return new Map<string, string>();
+    const index = new Map<string, string>();
+    for (const task of tasks) {
+      index.set(task.id, buildTaskFileSearchText(task));
+    }
+    return index;
+  }, [fileSearchActive, tasks]);
 
   const applyVisibleFilters = useMemo(() => {
-    return (sourceTasks: KanbanTask[]) =>
+    return (sourceTasks: KanbanTask[], includeFileSearch: boolean) =>
       sourceTasks.filter((task) => {
         if (sidebarFilter !== KANBAN_SIDEBAR_FILTER.ALL) {
           const status = task.status as KanbanSidebarFilter;
@@ -92,17 +102,32 @@ export function useTaskKanbanFilters({
           }
         }
 
+        if (
+          includeFileSearch &&
+          fileSearchActive &&
+          !fileSearchTextByTaskId.get(task.id)?.includes(normalizedFileQuery)
+        ) {
+          return false;
+        }
+
         return true;
       });
-  }, [agentTypeFilter, sessionMap, sidebarFilter]);
+  }, [
+    agentTypeFilter,
+    fileSearchActive,
+    fileSearchTextByTaskId,
+    normalizedFileQuery,
+    sessionMap,
+    sidebarFilter,
+  ]);
 
   const visibleTasks = useMemo(
-    () => applyVisibleFilters(tasks),
+    () => applyVisibleFilters(tasks, true),
     [applyVisibleFilters, tasks]
   );
 
   const visibleDiaryTasks = useMemo(
-    () => applyVisibleFilters(diaryTasks ?? tasks),
+    () => applyVisibleFilters(diaryTasks ?? tasks, false),
     [applyVisibleFilters, diaryTasks, tasks]
   );
 

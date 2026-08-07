@@ -74,8 +74,8 @@ const DiaryPanel: React.FC<DiaryPanelProps> = ({
         <Placeholder
           variant="empty"
           placement="sidebar"
-          title={t("opsControl.diary.emptyTitle")}
-          subtitle={t("opsControl.diary.emptySubtitle")}
+          title={t("kanban.diary.emptyTitle")}
+          subtitle={t("kanban.diary.emptySubtitle")}
         />
       </aside>
     );

@@ -55,24 +55,11 @@ mod tests {
         crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
             .expect("agent sessions schema");
         crate::session::persistence::init(&conn).expect("session schema");
-        conn.execute_batch(
-            "CREATE TABLE IF NOT EXISTS session_token_usage (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_id TEXT NOT NULL,
-                session_type TEXT NOT NULL DEFAULT 'sde',
-                model TEXT,
-                account_id TEXT,
-                input_tokens INTEGER NOT NULL DEFAULT 0,
-                output_tokens INTEGER NOT NULL DEFAULT 0,
-                cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-                cache_write_tokens INTEGER NOT NULL DEFAULT 0,
-                total_tokens INTEGER NOT NULL DEFAULT 0,
-                context_tokens INTEGER NOT NULL DEFAULT 0,
-                context_usage_json TEXT,
-                created_at TEXT NOT NULL DEFAULT ''
-            );",
-        )
-        .expect("session token usage schema");
+        // Canonical test DDL — includes every table UNIFIED_SESSION_SELECT
+        // reads (session_token_usage AND the orgtrack_core_session_usage
+        // projection); a hand-rolled subset here goes stale when the SELECT
+        // gains a new source table.
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
         crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
         crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
         crate::coordination::agent_member_interventions::init_schema(&conn)
@@ -122,6 +109,12 @@ mod tests {
                 parent_member_id: None,
             });
         ctx
+    }
+
+    fn eligible_task_metadata(member_ids: &[&str]) -> Option<Value> {
+        Some(serde_json::json!({
+            crate::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS: member_ids,
+        }))
     }
 
     fn upsert_org_member_session(
@@ -1111,7 +1104,7 @@ mod tests {
             status: TaskStatus::Pending,
             blocks: vec![],
             blocked_by: vec![],
-            metadata: None,
+            metadata: eligible_task_metadata(&["member-alice-agent"]),
         })
         .unwrap();
         AgentOrgTaskStore::create(CreateTaskParams {
@@ -1377,7 +1370,7 @@ mod tests {
             status: TaskStatus::InProgress,
             blocks: Vec::new(),
             blocked_by: Vec::new(),
-            metadata: None,
+            metadata: eligible_task_metadata(&["member-stale", "member-fresh"]),
         })
         .expect("create stale-owned task");
 
@@ -1442,7 +1435,7 @@ mod tests {
             status: TaskStatus::Pending,
             blocks: vec![],
             blocked_by: vec![],
-            metadata: None,
+            metadata: eligible_task_metadata(&["member-alice"]),
         })
         .expect("create task");
 
@@ -1481,7 +1474,7 @@ mod tests {
             status: TaskStatus::Pending,
             blocks: vec![],
             blocked_by: vec![],
-            metadata: None,
+            metadata: eligible_task_metadata(&["member-alice"]),
         })
         .unwrap();
         AgentOrgTaskStore::create(CreateTaskParams {
@@ -1494,7 +1487,7 @@ mod tests {
             status: TaskStatus::Pending,
             blocks: vec![],
             blocked_by: vec![],
-            metadata: None,
+            metadata: eligible_task_metadata(&["member-alice"]),
         })
         .unwrap();
         AgentOrgTaskStore::try_claim(&run_id, "busy-1", "member-alice", ClaimOptions::default())

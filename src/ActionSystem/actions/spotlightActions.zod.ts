@@ -14,6 +14,7 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   openAgentControlSpotlight,
   openAgentSessionSearchSpotlight,
+  openAllSessionsSearchSpotlight,
   openBranchSpotlight,
   openEditorSpotlight,
   openSessionCreatorSpotlight,
@@ -183,6 +184,25 @@ const spotlightOpenAgentSessionSearch = defineZodAction(
   }
 );
 
+const spotlightOpenAllSessionsSearch = defineZodAction(
+  {
+    id: ACTION_ID.SPOTLIGHT_OPEN_ALL_SESSIONS_SEARCH,
+    category: "spotlight",
+    description: "Open Spotlight's full-text search across all sessions",
+    params: z.object({}),
+    layer: "gui",
+    examples: [
+      "search across all sessions",
+      "search session content",
+      "search transcripts",
+    ],
+  },
+  async () => {
+    openAllSessionsSearchSpotlight();
+    return { success: true, message: "Opened all-sessions search" };
+  }
+);
+
 const spotlightOpenAgentControl = defineZodAction(
   {
     id: ACTION_ID.SPOTLIGHT_OPEN_AGENT_CONTROL,
@@ -229,6 +249,7 @@ export const spotlightZodActions = [
   spotlightOpenEditorCommand,
   spotlightOpenEditorSymbol,
   spotlightOpenAgentSessionSearch,
+  spotlightOpenAllSessionsSearch,
   spotlightOpenAgentControl,
   spotlightOpenSessionCreator,
 ];

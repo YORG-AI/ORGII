@@ -9,8 +9,6 @@ import { usePublishChatPanelHeader } from "./usePublishChatPanelHeader";
 interface ChatPanelSurfaceHeaderPublisherProps {
   title?: string;
   titleContent?: React.ReactNode;
-  tabTitle?: string;
-  tabIcon?: React.ReactNode;
   enabled: boolean;
   showAgentSwitch?: boolean;
   agentSwitchLabel?: string;
@@ -21,8 +19,6 @@ interface ChatPanelSurfaceHeaderPublisherProps {
 export function ChatPanelSurfaceHeaderPublisher({
   title,
   titleContent,
-  tabTitle,
-  tabIcon,
   enabled,
   showAgentSwitch = false,
   agentSwitchLabel = "Agent",
@@ -37,8 +33,6 @@ export function ChatPanelSurfaceHeaderPublisher({
     );
 
     return {
-      tabTitle: tabTitle ?? title,
-      tabIcon,
       content: (
         <span className="flex min-w-0 max-w-full cursor-default items-center gap-2">
           {titleNode}
@@ -66,8 +60,6 @@ export function ChatPanelSurfaceHeaderPublisher({
     enabled,
     onAgentSwitchChange,
     showAgentSwitch,
-    tabIcon,
-    tabTitle,
     title,
     titleContent,
   ]);

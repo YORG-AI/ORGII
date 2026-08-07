@@ -1,0 +1,25 @@
+[package]
+name = "orgtrack_protocol"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85.0"
+description = "Versioned, privacy-bounded wire contracts for Orgtrack resource interaction metadata."
+license = "AGPL-3.0-or-later"
+include = [
+    "src/**",
+    "schemas/**",
+    "fixtures/**",
+    "tests/**",
+    "Cargo.toml",
+    "README.md",
+]
+
+[lib]
+name = "orgtrack_protocol"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1.0"

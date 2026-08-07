@@ -31,7 +31,7 @@ import { CustomScrollbar } from "@src/components/CustomScrollbar";
 import type { GitFileStatus } from "@src/config/gitStatus";
 import { createLogger } from "@src/hooks/logger";
 import { useEditorAppearanceSettings } from "@src/hooks/settings";
-import { EditorService } from "@src/services/workStation";
+import { EditorService } from "@src/services/workStation/EditorService";
 
 import { useSelectionExtension } from "../Editor/hooks/useSelectionExtension";
 import type { TextSelectionInfo } from "../Editor/types";

@@ -87,7 +87,7 @@ export interface ChatAppearanceSettings {
 }
 
 export const DEFAULT_CHAT_APPEARANCE: ChatAppearanceSettings = {
-  fontSize: 14,
+  fontSize: 13,
   codeFontSize: 13,
   lineHeight: 1.6,
   typingEffectEnabled: true,

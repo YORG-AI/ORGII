@@ -75,18 +75,12 @@ export interface SidebarLocalOrgRecord {
   sync_provider?: string | null;
 }
 
-export interface SidebarCloudOrgRecord {
-  id: string;
-  name: string;
-}
-
 export interface UseProjectsWorkItemMenuItemsResult {
   menuItems: NavigationMenuItem[];
   projectMap: Map<string, SidebarProject>;
   workItemMap: Map<string, SidebarWorkItem>;
   linearWorkItemMap: Map<string, SidebarLinearWorkItem>;
   localOrgMap: Map<string, SidebarLocalOrgRecord>;
-  cloudOrgMap: Map<string, SidebarCloudOrgRecord>;
   linearOrgMap: Map<string, LinearOrgRecord>;
   loading: boolean;
   getLoadMoreGroupId: (id: string) => string | null;

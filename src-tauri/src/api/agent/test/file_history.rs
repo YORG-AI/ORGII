@@ -26,7 +26,7 @@ pub struct RestoreCheckpointRequest {
     /// When true (default), file-history is rewound to the checkpoint.
     revert_files: Option<bool>,
     /// `true` for CLI-runtime sessions (claude-code, codex, cursor-cli,
-    /// gemini-cli), `false`/omitted for Rust-runtime agent sessions.
+    /// Codex), `false`/omitted for Rust-runtime agent sessions.
     is_cli: Option<bool>,
     /// Agent-session message anchor id (optional; mirrors the production
     /// `messageId` argument passed to `agent_truncate_after_message`).

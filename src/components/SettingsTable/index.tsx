@@ -185,10 +185,12 @@ export interface SettingsTableProps<RowData> {
    *  (e.g. a scope TabPill). Renders only when this prop or `selectFilters`
    *  has content. */
   selectFiltersExtra?: ReactNode;
-  /** When true, filters/pills and search share one 32px row (search fixed-width on the right). Default: false. */
+  /** When true, filters/pills and search share one 32px row when space allows, then split into search/actions above filters. Default: false. */
   inlineHeaderToolbar?: boolean;
   /** When false, disables sticky table header. Default: true */
   stickyHeader?: boolean;
+  /** When true, pins the first (label) column while scrolling horizontally. */
+  stickyFirstColumn?: boolean;
   /** When true, shows a border below the header row. Default: false */
   headerBorder?: boolean;
   /** When true, removes horizontal cell padding on outer edges (first-child left, last-child right).
@@ -271,8 +273,8 @@ function SettingsTableToolbar({
   ) : undefined;
 
   return (
-    <div className="flex min-w-0 items-center gap-8 pb-2 pt-2">
-      <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+    <div className="flex min-w-0 flex-col gap-2 pb-2 pt-2 @[640px]:flex-row @[640px]:items-center @[640px]:gap-8">
+      <div className="order-2 w-full min-w-0 overflow-x-auto overflow-y-hidden @[640px]:order-1 @[640px]:flex-1">
         <div className="flex w-max min-w-full items-center gap-2">
           {searchBar?.leftContent}
           {effectiveTabPills ? (
@@ -324,10 +326,11 @@ function SettingsTableToolbar({
         </div>
       </div>
       {hasInlineSearch && searchBar ? (
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="order-1 flex w-full shrink-0 items-center gap-2 @[640px]:order-2 @[640px]:w-auto">
           <Input
             type="search"
-            className="w-52"
+            size={searchBar.searchInputSize ?? "small"}
+            className="min-w-0 flex-1 @[640px]:w-52 @[640px]:flex-none"
             value={searchBar.searchValue ?? ""}
             placeholder={searchBar.searchPlaceholder}
             prefix={<Search size={14} className="text-text-3" aria-hidden />}
@@ -426,6 +429,7 @@ export default function SettingsTable<RowData>({
   selectFiltersExtra,
   inlineHeaderToolbar = false,
   stickyHeader = true,
+  stickyFirstColumn = false,
   headerBorder = false,
   noPx = false,
   onRowClick,
@@ -520,6 +524,7 @@ export default function SettingsTable<RowData>({
     fillHeight && "table-settings-fill-height",
     maxHeight != null && "table-settings-fill-height",
     containedScroll && "table-settings-contained-scroll",
+    stickyFirstColumn && "table-settings-sticky-first-col",
     !hasSearchBar &&
       surfaceVariant !== "transparent" &&
       "table-settings-rounded-top",
@@ -548,9 +553,25 @@ export default function SettingsTable<RowData>({
       : surfaceVariant === "transparent"
         ? "settings-table-root-transparent"
         : "settings-table-root-default bg-surface-container";
+  // Standalone tables get an outer border. Tables flagged `noPx` are embedded
+  // inside a SectionContainer that already draws the border — skip it there to
+  // avoid a double border.
+  const hasOuterBorder = surfaceVariant !== "transparent" && !noPx;
+  // Page-scrolled tables with a sticky header: the header must carry the top
+  // border + radius itself so they stay pinned while scrolling (the root scrolls
+  // away). The header's side borders are pulled out by 1px (-mx-px) so they sit
+  // exactly on top of the root's side borders — otherwise the two 12px arcs land
+  // 1px apart and the corner renders a doubled/offset curve.
+  // Contained-scroll tables (fillHeight/maxHeight) clip via overflow-hidden, so
+  // the root can keep the full border with clean corners — no split needed.
+  const stickyBordered = hasOuterBorder && hasHeader && !containedScroll;
   const rootClasses = [
     "settings-table-root min-w-0 max-w-full",
     surfaceVariant !== "transparent" && "rounded-xl",
+    hasOuterBorder &&
+      (stickyBordered
+        ? "border-x border-b border-border-2"
+        : "border border-border-2"),
     fillHeight && "flex h-full min-h-0 flex-col overflow-hidden",
     maxHeight != null && "flex min-h-0 flex-col overflow-hidden",
     surfaceClassName,
@@ -572,26 +593,30 @@ export default function SettingsTable<RowData>({
       {hasHeader && (
         <div
           ref={searchRef}
-          className={`${containedScroll ? "shrink-0" : "sticky top-0 z-[21]"} border-b border-border-2 px-4 ${surfaceVariant !== "transparent" ? "rounded-t-xl" : ""} ${surfaceClassName} ${searchHeaderClassName}`.trim()}
+          className={`${containedScroll ? "shrink-0" : "sticky top-0 z-[21]"} ${stickyBordered ? "settings-table-sticky-mask bg-bg-2" : ""}`.trim()}
         >
-          {inlineHeaderToolbar ? (
-            <SettingsTableToolbar
-              searchBar={searchBar}
-              selectFilters={selectFilters}
-              selectFiltersExtra={selectFiltersExtra}
-            />
-          ) : (
-            <>
-              {searchBar && <SearchSortBar {...searchBar} noPadding />}
-              {hasSelectFilterRow && (
-                <SelectFilterRow
-                  filters={selectFilters ?? []}
-                  extra={selectFiltersExtra}
-                  hasSearchBarAbove={!!searchBar}
-                />
-              )}
-            </>
-          )}
+          <div
+            className={`${stickyBordered ? "settings-table-sticky-surface -mx-px border-x border-t border-border-2" : ""} border-b border-border-2 px-4 ${surfaceVariant !== "transparent" ? "rounded-t-xl" : ""} ${surfaceClassName} ${searchHeaderClassName}`.trim()}
+          >
+            {inlineHeaderToolbar ? (
+              <SettingsTableToolbar
+                searchBar={searchBar}
+                selectFilters={selectFilters}
+                selectFiltersExtra={selectFiltersExtra}
+              />
+            ) : (
+              <>
+                {searchBar && <SearchSortBar {...searchBar} noPadding />}
+                {hasSelectFilterRow && (
+                  <SelectFilterRow
+                    filters={selectFilters ?? []}
+                    extra={selectFiltersExtra}
+                    hasSearchBarAbove={!!searchBar}
+                  />
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
       <Table<RowData>

@@ -77,7 +77,7 @@ const API_AGENT_TYPE = process.env.E2E_API_AGENT_TYPE ?? "openai_api";
 const CLAUDE_CODE_AGENT_TYPE = "claude_code";
 const CODEX_AGENT_TYPE = "codex";
 const CURSOR_AGENT_TYPE = "cursor_cli";
-const GEMINI_AGENT_TYPE = "gemini_cli";
+const GEMINI_API_AGENT_TYPE = "gemini_api";
 const RUST_AGENT_CATEGORY = "rust_agent";
 const CLI_AGENT_CATEGORY = "cli_agent";
 const CONTROL_LABEL_FILTER = (process.env.E2E_CONTROL_LABELS ?? "")
@@ -114,7 +114,7 @@ function parseE2EChain(rawValue, fallbackValues) {
 }
 
 function isGeminiConfig(config) {
-  return config.account?.agent_type === GEMINI_AGENT_TYPE;
+  return config.account?.agent_type === GEMINI_API_AGENT_TYPE;
 }
 
 function isClaudeCodeConfig(config) {
@@ -419,6 +419,8 @@ const js = {
       chatHistoryCardRevisionIds: chatHistoryCards.map((card) => card.getAttribute('data-plan-revision-id') || ''),
       chatHistoryCardStatuses: chatHistoryCards.map((card) => card.getAttribute('data-plan-approval-status') || ''),
       readyCardCount: cards.filter((card) => card.getAttribute('data-plan-ready') === 'true').length,
+      visibleCardCount: cards.filter(isVisible).length,
+      visibleReadyCardCount: cards.filter((card) => isVisible(card) && card.getAttribute('data-plan-ready') === 'true').length,
       draftingCardCount: cards.filter((card) => card.getAttribute('data-plan-ready') !== 'true').length,
       readyCurrentCardCount: currentCards.filter((card) => card.getAttribute('data-plan-ready') === 'true').length,
       currentDraftCardCount: currentDraftCards.length,
@@ -438,15 +440,18 @@ const js = {
       visibleNavigateButtonCount: visibleNavigateButtons.length,
       buildButtonCount: buildButtons.length,
       enabledBuildButtonCount: buildButtons.filter((button) => !button.disabled).length,
+      visibleEnabledBuildButtonCount: buildButtons.filter((button) => isVisible(button) && !button.disabled).length,
       enabledBuildRevisionIds: buildButtons
         .filter((button) => !button.disabled)
         .map((button) => button.closest('[data-plan-revision-id]')?.getAttribute('data-plan-revision-id') || '')
         .filter(Boolean),
       editButtonCount: editButtons.length,
       planDocBuild: !!planDocBuild,
+      planDocBuildVisible: !!planDocBuild && isVisible(planDocBuild),
       planDocBuildEnabled: !!planDocBuild && !planDocBuild.disabled,
       planDocEdit: !!planDocEdit,
       planDocPanel: !!planDocPanel,
+      planDocPanelVisible: !!planDocPanel && isVisible(planDocPanel),
       planDocRevisionId: planDocPanel ? (planDocPanel.getAttribute('data-plan-revision-id') || '') : '',
       planDocText: planDocPanel ? (planDocPanel.textContent || '') : '',
       communicationPlanSurfaceCount: communicationPlanSurfaces.length,
@@ -986,9 +991,7 @@ async function assertControlFlowHealthyAfterStop(
 function isRotatingOAuthCliAccount(account) {
   return (
     account?.auth_method === "oauth" &&
-    [CLAUDE_CODE_AGENT_TYPE, CODEX_AGENT_TYPE, GEMINI_AGENT_TYPE].includes(
-      account?.agent_type
-    )
+    [CLAUDE_CODE_AGENT_TYPE, CODEX_AGENT_TYPE].includes(account?.agent_type)
   );
 }
 
@@ -1052,10 +1055,9 @@ function geminiFallbackConfigs(accounts, baseConfig) {
   const seen = new Set([`${baseConfig.account.id}:${baseConfig.model}`]);
   const candidateAccounts = accounts.filter(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
-      (!isRotatingOAuthCliAccount(row) || OAUTH_LIVE_MODE) &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       row.enabled &&
-      row.has_session_token &&
+      row.has_api_key &&
       accountMatchesChain(row, GEMINI_ACCOUNT_CHAIN) &&
       (!baseConfig.requiresRustAgentSupport || row.supports_rust_agents)
   );
@@ -1212,32 +1214,31 @@ function selectModelFromChain(account, modelChain) {
   return model;
 }
 
-function requireGeminiAccountFromChain(
+function requireGeminiApiAccountFromChain(
   accounts,
   { requireRustAgentSupport = false } = {}
 ) {
   const account = accounts.find(
     (row) =>
-      row.agent_type === GEMINI_AGENT_TYPE &&
-      (!isRotatingOAuthCliAccount(row) || OAUTH_LIVE_MODE) &&
+      row.agent_type === GEMINI_API_AGENT_TYPE &&
       accountMatchesChain(row, GEMINI_ACCOUNT_CHAIN) &&
       row.enabled &&
-      row.has_session_token &&
+      row.has_api_key &&
       (!requireRustAgentSupport || row.supports_rust_agents) &&
       GEMINI_MODEL_CHAIN.some((model) => accountSupportsModel(row, model))
   );
   if (account) {
-    assertE2EOAuthAccountAllowed(account, "Gemini E2E config");
     return account;
   }
 
   const rows = accounts
-    .filter((row) => row.agent_type === GEMINI_AGENT_TYPE)
+    .filter((row) => row.agent_type === GEMINI_API_AGENT_TYPE)
     .map((row) => ({
       id: row.id,
       name: row.name,
       enabled: row.enabled,
       auth_method: row.auth_method,
+      has_api_key: row.has_api_key,
       has_session_token: row.has_session_token,
       supports_rust_agents: row.supports_rust_agents,
       enabled_models: row.enabled_models,
@@ -1464,7 +1465,7 @@ function scenarioConfigs(accounts) {
   }
 
   if (shouldIncludeLabel("gemini-rust-agent")) {
-    const geminiRustAccount = requireGeminiAccountFromChain(accounts, {
+    const geminiRustAccount = requireGeminiApiAccountFromChain(accounts, {
       requireRustAgentSupport: true,
     });
     const geminiRustModel = selectModelFromChain(
@@ -1482,24 +1483,6 @@ function scenarioConfigs(accounts) {
       sessionIdPattern: /^sdeagent-|^osagent-|^agent-|^rustagent-/,
     });
   }
-
-  if (shouldIncludeLabel("gemini-cli-agent")) {
-    const geminiCliAccount = requireGeminiAccountFromChain(accounts);
-    const geminiCliModel = selectModelFromChain(
-      geminiCliAccount,
-      GEMINI_MODEL_CHAIN
-    );
-    configs.push({
-      label: "gemini-cli-agent",
-      account: geminiCliAccount,
-      model: geminiCliModel,
-      category: CLI_AGENT_CATEGORY,
-      cliAgentType: GEMINI_AGENT_TYPE,
-      fallbackConfigs: [],
-      sessionIdPattern: /^cliagent-/,
-    });
-  }
-
   if (shouldIncludeLabel("openai-api-rust-agent")) {
     try {
       const apiRustAccount = requireAccount(accounts, {
@@ -1722,6 +1705,13 @@ async function configureScenario(config, overrides = {}) {
     `configureWithExistingKey(${config.label})`
   );
   expect(configured.modelId).toBe(config.model);
+  // Pinning the repository can remount the chat panel and reactivate its
+  // persisted Launchpad tab. Clear that post-configuration state so the
+  // rendered Session Creator is the stable surface we exercise below.
+  unwrap(
+    await invokeE2E("resetToNewSession"),
+    `resetToNewSession(${config.label}-configured)`
+  );
   await waitForSessionCreatorReady(
     `${config.label}-configured`,
     overrides.repoPath ?? config.defaultRepoPath ?? requireDefaultRepoPath()

@@ -102,6 +102,7 @@ export function useFilesTabConfig({
           defaultFlexGrow: 1,
           resizable: true,
           defaultCollapsed: true,
+          headerTestId: "code-editor-timeline-section-toggle",
         },
       ],
     }),

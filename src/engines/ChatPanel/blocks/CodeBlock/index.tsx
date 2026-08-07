@@ -319,7 +319,8 @@ const ChatCodeBlock: React.FC<ChatCodeBlockProps> = memo(
                         additions={addedLines}
                         deletions={removedLines}
                         variant="plain"
-                        className="translate-y-px gap-0"
+                        gapClassName="gap-0"
+                        className="translate-y-px"
                       />
                     )}
                     {trailingTags?.map((tag, idx) => (

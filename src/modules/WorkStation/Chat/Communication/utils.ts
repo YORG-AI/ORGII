@@ -41,8 +41,8 @@ export function isTodoEvent(eventFunction: string): boolean {
 
 /**
  * Rust AppSubtool: subtool === "other_interactions".
- * Covers ask_user_questions, ask_user_permissions, suggest_mode_switch,
- * suggest_next_steps — interactive widgets that don't belong in the plain
+ * Covers ask_user_questions, ask_user_permissions, suggest_mode_switch —
+ * interactive widgets that don't belong in the plain
  * chat transcript.
  */
 export function isInteractionEvent(eventFunction: string): boolean {

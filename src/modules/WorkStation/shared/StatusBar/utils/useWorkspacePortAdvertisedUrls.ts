@@ -16,6 +16,10 @@ import {
 } from "@src/store/workstation/codeEditor/workspacePortsAtom";
 import { safeUnlisten } from "@src/util/platform/tauri";
 import { listenTauri } from "@src/util/platform/tauri/init";
+import {
+  type PtyOutputPayload,
+  ptyPayloadBytes,
+} from "@src/util/terminal/ptyOutputPayload";
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 import { normalizeHttpUrlCandidate } from "@src/util/url/validation";
 
@@ -25,11 +29,6 @@ const logger = createLogger("WorkspacePortAdvertisedUrls");
 
 const URL_CANDIDATE_PATTERN = /\bhttps?:\/\/[^\s<>"'`]+/gi;
 const PER_SESSION_BUFFER_LIMIT = 4096;
-
-interface PtyOutputPayload {
-  bytes?: number[];
-  data?: string;
-}
 
 function extractOrigins(text: string): string[] {
   const origins: string[] = [];
@@ -64,7 +63,7 @@ function isSameOrDescendant(candidate: string, parent: string): boolean {
 
 function folderIdForPath(
   path: string | undefined,
-  folders: WorkspacePortProbe[],
+  folders: WorkspacePortProbe[]
 ): string | null {
   if (!path) {
     return null;
@@ -89,7 +88,7 @@ function folderIdForPath(
 function folderIdForTerminalSession(
   session: TerminalSession,
   folders: WorkspacePortProbe[],
-  fallbackFolderId: string | null,
+  fallbackFolderId: string | null
 ): string | null {
   return (
     folderIdForPath(session.liveCwd ?? session.cwd, folders) ?? fallbackFolderId
@@ -128,7 +127,7 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
     const flushPending = () => {
       debounceTimerRef.current = null;
       const entries = Array.from(pendingOriginsByFolder.entries()).map(
-        ([folderId, origins]) => [folderId, Array.from(origins)] as const,
+        ([folderId, origins]) => [folderId, Array.from(origins)] as const
       );
       pendingOriginsByFolder.clear();
       if (entries.length === 0) {
@@ -165,14 +164,14 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
       }
       debounceTimerRef.current = window.setTimeout(
         flushPending,
-        WORKSPACE_PORT_ADVERTISED_URL_DEBOUNCE_MS,
+        WORKSPACE_PORT_ADVERTISED_URL_DEBOUNCE_MS
       );
     };
 
     const ingestChunk = (
       sessionId: string,
       folderId: string | null,
-      chunk: string,
+      chunk: string
     ) => {
       const previous = buffers.get(sessionId) ?? "";
       let next = previous + chunk;
@@ -181,7 +180,7 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
       }
       const lastBreak = Math.max(
         next.lastIndexOf("\n"),
-        next.lastIndexOf("\r"),
+        next.lastIndexOf("\r")
       );
       if (lastBreak === -1) {
         buffers.set(sessionId, next);
@@ -207,22 +206,20 @@ export function useWorkspacePortAdvertisedUrls(enabled: boolean): void {
               const folderId = folderIdForTerminalSession(
                 session,
                 foldersRef.current,
-                fallbackFolderId,
+                fallbackFolderId
               );
-              const { bytes, data } = event.payload;
-              if (bytes && bytes.length > 0) {
-                const decoded = decoder.decode(new Uint8Array(bytes), {
-                  stream: true,
-                });
+              const chunk = ptyPayloadBytes(event.payload);
+              if (chunk && chunk.length > 0) {
+                const decoded = decoder.decode(chunk, { stream: true });
                 if (decoded) {
                   ingestChunk(backendSessionId, folderId, decoded);
                 }
                 return;
               }
-              if (data) {
-                ingestChunk(backendSessionId, folderId, data);
+              if (event.payload.data) {
+                ingestChunk(backendSessionId, folderId, event.payload.data);
               }
-            },
+            }
           );
           if (cancelled) {
             safeUnlisten(unlisten);

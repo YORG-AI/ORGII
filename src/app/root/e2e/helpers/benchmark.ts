@@ -21,7 +21,6 @@ import {
   chatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { dockFilterAtom } from "@src/store/workstation";
 
 import { asError } from "../result";
 import type { E2EStore, Json, Result } from "../types";
@@ -88,7 +87,6 @@ export function createBenchmarkE2EHelpers(store: E2EStore) {
       store.set(benchmarkSelectedTaskIdAtom, activeTaskId);
 
       store.set(stationModeAtom, "my-station");
-      store.set(dockFilterAtom, "code");
       store.set(
         chatPanelContentModeAtom,
         CHAT_PANEL_CONTENT_MODE.BENCHMARK_SESSION_GROUP

@@ -506,7 +506,7 @@ function startFrontendDev() {
     pnpmCli.command,
     [...pnpmCli.argsPrefix, "run", scriptName],
     {
-      stdio: ["inherit", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       cwd: rootDir,
       env: cleanChildEnv(),
     }
@@ -574,7 +574,7 @@ function startTauriDev(features) {
     tauriCli.command,
     [...tauriCli.argsPrefix, ...args],
     {
-      stdio: ["inherit", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       cwd: rootDir,
       env: cleanChildEnv(),
     }

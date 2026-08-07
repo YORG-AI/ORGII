@@ -1,53 +1,51 @@
 #!/usr/bin/env node
 /**
- * Parallel local fast build.
+ * Local fast build.
  *
  * Standard `tauri:build:fast` serialises work:
  *   webpack (beforeBuildCommand) → then Rust compile → then bundle
  *
- * This script runs the two independent phases concurrently:
- *   1. webpack --mode production   (JS bundle → build/)
- *   2. cargo build --profile dev-build  (Rust → target/dev-build/)
- *
- * Tauri is invoked after both finish, but because the JS bundle and
- * Rust artifacts are already on disk it only has to copy + assemble
- * the .app — no recompilation happens.
- *
- * On a 10-core M-series Mac the parallel phase typically saves 60-90s
- * (webpack ~40s and Rust ~3-5min are fully overlapped).
+ * Builds webpack once, then lets Tauri compile and bundle the custom
+ * `dev-build` profile once. A direct Cargo pre-build cannot be reused by the
+ * Tauri CLI because its merged-config fingerprint differs, so attempting to
+ * parallelize those steps causes two full Rust compilations.
  *
  * Usage:
  *   pnpm run tauri:build:fast
  *   pnpm run tauri:build:fast -- /tmp/ORG2.app
  *   pnpm run tauri:build:fast -- ~/Desktop
  *   pnpm run tauri:build:fast -- --semantic ~/Desktop
+ *   pnpm run tauri:build:fast -- --instance 2
  */
 
-const { spawn, spawnSync } = require("child_process");
+const { spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { tauriFeatureString } = require("./features.cjs");
 const {
   applyDefaultDiagnosticsEndpoint,
 } = require("./diagnostics-endpoint.cjs");
+const { createInstanceProfile } = require("./instance-profile.cjs");
 
 const rootDir = path.join(__dirname, "..", "..");
 const rawArgs = process.argv.slice(2);
 const includeSemantic = rawArgs.includes("--semantic");
-const outputPathArg = rawArgs.find((arg) => arg !== "--semantic");
+const instanceOptionIndex = rawArgs.indexOf("--instance");
+const instanceProfile =
+  instanceOptionIndex >= 0
+    ? createInstanceProfile(rawArgs[instanceOptionIndex + 1])
+    : null;
+const positionalArgs = rawArgs.filter((arg, index) => {
+  if (arg === "--" || arg === "--semantic" || arg === "--instance") {
+    return false;
+  }
+  return instanceOptionIndex < 0 || index !== instanceOptionIndex + 1;
+});
+const outputPathArg = positionalArgs[0];
 const featureString = tauriFeatureString({ semantic: includeSemantic });
+const productName = instanceProfile?.productName ?? "ORG2";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-
-function prefix(tag, color) {
-  return (data) => {
-    const reset = "\x1b[0m";
-    const lines = data.toString().split("\n");
-    for (const line of lines) {
-      if (line.trim()) process.stdout.write(`${color}[${tag}]${reset} ${line}\n`);
-    }
-  };
-}
 
 function createBinPath(name) {
   const localPath = path.join(
@@ -92,8 +90,7 @@ function createPnpmCliCommand() {
 
   try {
     return createNodePackageCliCommand("pnpm", "pnpm");
-  } catch (_error) {
-  }
+  } catch (_error) {}
 
   const candidates = [
     process.env.PNPM_HOME && path.join(process.env.PNPM_HOME, "pnpm.cjs"),
@@ -136,32 +133,6 @@ function createPnpmExecCommand(binaryName, args) {
   };
 }
 
-function runParallel(commands) {
-  return new Promise((resolve) => {
-    const results = new Array(commands.length).fill(null);
-    let remaining = commands.length;
-
-    commands.forEach(({ cmd, args, opts, tag, color }, idx) => {
-      const child = spawn(cmd, args, {
-        cwd: rootDir,
-        env: { ...process.env, FORCE_COLOR: "1" },
-        shell: false,
-        ...opts,
-      });
-
-      const log = prefix(tag, color);
-      child.stdout?.on("data", log);
-      child.stderr?.on("data", log);
-
-      child.on("close", (code) => {
-        results[idx] = code ?? 1;
-        remaining -= 1;
-        if (remaining === 0) resolve(results);
-      });
-    });
-  });
-}
-
 function resolveCargoTargetDir() {
   const metadataResult = spawnSync(
     "cargo",
@@ -174,7 +145,9 @@ function resolveCargoTargetDir() {
   );
 
   if (metadataResult.status !== 0) {
-    console.error("Failed to resolve Cargo target directory via cargo metadata");
+    console.error(
+      "Failed to resolve Cargo target directory via cargo metadata"
+    );
     process.exit(metadataResult.status ?? 1);
   }
 
@@ -186,14 +159,20 @@ function resolveOutputAppPath(outputPath) {
   const resolved = path.resolve(rootDir, outputPath);
   return path.extname(resolved) === ".app"
     ? resolved
-    : path.join(resolved, "ORG2.app");
+    : path.join(resolved, `${productName}.app`);
 }
 
 function copyBuiltApp(outputPath) {
   if (!outputPath || process.platform !== "darwin") return;
 
   const targetDir = resolveCargoTargetDir();
-  const builtAppPath = path.join(targetDir, "dev-build", "bundle", "macos", "ORG2.app");
+  const builtAppPath = path.join(
+    targetDir,
+    "dev-build",
+    "bundle",
+    "macos",
+    `${productName}.app`
+  );
   if (!fs.existsSync(builtAppPath)) {
     console.error(`Built app not found at ${builtAppPath}`);
     process.exit(1);
@@ -203,7 +182,9 @@ function copyBuiltApp(outputPath) {
   fs.mkdirSync(path.dirname(destinationAppPath), { recursive: true });
   fs.rmSync(destinationAppPath, { recursive: true, force: true });
   fs.cpSync(builtAppPath, destinationAppPath, { recursive: true });
-  console.log(`\x1b[32m[build-fast-parallel] Copied app to ${destinationAppPath}\x1b[0m`);
+  console.log(
+    `\x1b[32m[build-fast-parallel] Copied app to ${destinationAppPath}\x1b[0m`
+  );
 }
 
 // ─── env: strip all signing/notarization so no certificate is required ────────
@@ -225,56 +206,57 @@ for (const key of [
   delete env[key];
 }
 env.CODESIGN_IDENTITY = "";
+if (instanceProfile) {
+  env.ORGII_IDE_SERVER_PORT = String(instanceProfile.ideServerPort);
+  env.ORGII_CLI_PROXY_PORT = String(instanceProfile.cliProxyPort);
+  env.ORGII_DEEP_LINK_SCHEME = instanceProfile.authDeepLinkScheme;
+}
 applyDefaultDiagnosticsEndpoint(env);
 
-// ─── phase 1: webpack + cargo in parallel ─────────────────────────────────────
+// ─── phase 1: frontend ────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("\x1b[1m[build-fast-parallel] Phase 1: webpack + cargo (parallel)\x1b[0m");
+  console.log("\x1b[1m[build-fast-parallel] Phase 1: webpack\x1b[0m");
   const t0 = Date.now();
 
-  // Derive cargo args for dev-build
-  const cargoArgs = ["build", "--profile", "dev-build"];
-  if (featureString.length > 0) {
-    cargoArgs.push("--features", featureString);
-  }
-  // Point cargo at the src-tauri workspace root
-  cargoArgs.push("--manifest-path", path.join(rootDir, "src-tauri", "Cargo.toml"));
-
-  const webpackCommand = createPnpmExecCommand("webpack", ["--mode", "production"]);
-  const [webpackCode, cargoCode] = await runParallel([
-    {
-      ...webpackCommand,
-      // FAST_PROD=true: use esbuild for transpilation + minification
-      // instead of SWC+Terser, saving ~30-40s on the webpack phase.
-      opts: { env: { ...env, FAST_PROD: "true" } },
-      tag: "webpack",
-      color: "\x1b[34m", // blue
-    },
-    {
-      cmd: "cargo",
-      args: cargoArgs,
-      opts: { env, cwd: rootDir },
-      tag: "cargo",
-      color: "\x1b[33m", // yellow
-    },
+  const webpackCommand = createPnpmExecCommand("webpack", [
+    "--mode",
+    "production",
   ]);
+  const webpackResult = spawnSync(webpackCommand.cmd, webpackCommand.args, {
+    cwd: rootDir,
+    env: { ...env, FAST_PROD: "true" },
+    stdio: "inherit",
+  });
+  const webpackCode = webpackResult.status ?? 1;
 
   const phase1Ms = Date.now() - t0;
   console.log(
     `\x1b[1m[build-fast-parallel] Phase 1 done in ${(phase1Ms / 1000).toFixed(1)}s` +
-      ` (webpack=${webpackCode} cargo=${cargoCode})\x1b[0m`
+      ` (webpack=${webpackCode})\x1b[0m`
   );
 
-  if (webpackCode !== 0 || cargoCode !== 0) {
-    process.exit(Math.max(webpackCode, cargoCode));
-  }
+  if (webpackCode !== 0) process.exit(webpackCode);
 
-  // ─── phase 2: tauri assemble-only (no recompile, no beforeBuildCommand) ─────
+  // ─── phase 2: one Rust compile + bundle ────────────────────────────────────
 
-  console.log("\x1b[1m[build-fast-parallel] Phase 2: tauri bundle (assemble only)\x1b[0m");
+  console.log(
+    "\x1b[1m[build-fast-parallel] Phase 2: tauri build + bundle\x1b[0m"
+  );
 
   const configOverride = JSON.stringify({
+    ...(instanceProfile
+      ? {
+          productName: instanceProfile.productName,
+          identifier: instanceProfile.identifier,
+          plugins: {
+            "deep-link": {
+              desktop: { schemes: instanceProfile.deepLinkSchemes },
+            },
+            updater: { active: false },
+          },
+        }
+      : {}),
     build: {
       // Empty string = skip beforeBuildCommand; artifacts already on disk.
       beforeBuildCommand: "",
@@ -302,10 +284,13 @@ async function main() {
     tauriArgs.push("--features", featureString);
   }
   tauriArgs.push(
-    "--bundles", bundleTarget,
-    "--config", configOverride,
+    "--bundles",
+    bundleTarget,
+    "--config",
+    configOverride,
     "--",
-    "--profile", "dev-build"
+    "--profile",
+    "dev-build"
   );
 
   const tauriCommand = createPnpmExecCommand("tauri", tauriArgs);
@@ -320,6 +305,14 @@ async function main() {
   }
 
   copyBuiltApp(outputPathArg);
+
+  if (instanceProfile) {
+    console.log(
+      `\x1b[32m[build-fast-parallel] Instance ${instanceProfile.id}: ` +
+        `${productName}.app, ${instanceProfile.identifier}, ` +
+        `IDE ${instanceProfile.ideServerPort}, proxy ${instanceProfile.cliProxyPort}\x1b[0m`
+    );
+  }
 
   const totalMs = Date.now() - t0;
   console.log(

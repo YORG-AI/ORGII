@@ -256,16 +256,20 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
         width: SETTINGS_TABLE_COL.hug,
         align: "right",
         sorter: (agentA, agentB) => {
-          const enabledA = isCliAgentEnabled(
-            agentA.name,
-            agentA.installed,
-            cliVisibilityOverrides
-          );
-          const enabledB = isCliAgentEnabled(
-            agentB.name,
-            agentB.installed,
-            cliVisibilityOverrides
-          );
+          const enabledA =
+            agentA.installed &&
+            isCliAgentEnabled(
+              agentA.name,
+              agentA.installed,
+              cliVisibilityOverrides
+            );
+          const enabledB =
+            agentB.installed &&
+            isCliAgentEnabled(
+              agentB.name,
+              agentB.installed,
+              cliVisibilityOverrides
+            );
           return Number(enabledA) - Number(enabledB);
         },
         renderCell: (agent) => {
@@ -274,6 +278,7 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
             agent.installed,
             cliVisibilityOverrides
           );
+          const switchChecked = agent.installed && enabled;
           return (
             <div
               className="flex items-center justify-end gap-2 whitespace-nowrap"
@@ -282,7 +287,8 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
             >
               <Switch
                 size={MODEL_TABLE_SWITCH_SIZE}
-                checked={enabled}
+                checked={switchChecked}
+                disabled={!agent.installed}
                 onChange={(nextEnabled) =>
                   handleEnabledChange(agent, nextEnabled)
                 }
@@ -320,11 +326,12 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
         activeTab={activeInlineTab}
         onActiveTabChange={setActiveInlineTab}
         onRefresh={fetchAgents}
+        refreshing={loading}
         onAdd={onAdd}
         cliAgents={cliAgents}
       />
     ),
-    [accounts, activeInlineTab, cliAgents, fetchAgents, onAdd]
+    [accounts, activeInlineTab, cliAgents, fetchAgents, loading, onAdd]
   );
 
   const expandable = useMemo(

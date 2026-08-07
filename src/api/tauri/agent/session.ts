@@ -3,6 +3,8 @@
  *
  * Session lifecycle, persistence, interaction, and message processing.
  */
+import { invoke } from "@tauri-apps/api/core";
+
 import { rpc } from "@src/api/tauri/rpc";
 import type { CliAgentType, NativeHarnessType } from "@src/api/types/keys";
 import type { OrgMemberLaunchOverride } from "@src/modules/MainApp/AgentOrgs/types";
@@ -14,6 +16,7 @@ import type {
   AgentStatusInfo,
   FileResolution,
   FileResolutionValue,
+  HousekeeperContextCompactionState,
   ManualCompactResult,
   ModeSwitchChoice,
   PendingQuestion,
@@ -46,6 +49,28 @@ export async function manualCompactSession(
     sessionId,
     ...(instructions ? { instructions } : {}),
   });
+}
+
+export async function getHousekeeperContextCompactionStatus(
+  sessionId: string
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.housekeeperContextCompactionStatus({ sessionId });
+}
+
+export async function setHousekeeperContextCompactionEnabled(
+  sessionId: string,
+  enabled: boolean
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.setHousekeeperContextCompactionEnabled({
+    sessionId,
+    enabled,
+  });
+}
+
+export async function compactHousekeeperContextNow(
+  sessionId: string
+): Promise<HousekeeperContextCompactionState> {
+  return rpc.agentSession.compactHousekeeperContextNow({ sessionId });
 }
 
 /** Cancel the active turn for a session using an explicit control-flow reason. */
@@ -199,6 +224,30 @@ export async function respondPermission(
     response,
     toolName,
     toolArgs,
+  });
+}
+
+/**
+ * Resolve a permission request parked on the CLI side: a managed
+ * session's PermissionRequest hook (`origin: "cli_hook"`) or an ACP
+ * agent's `session/request_permission` (`origin: "acp"`) on the
+ * `agent-permission-request` event. Routes to
+ * `cli_agent_approval_response`, which checks the hook registry first
+ * and falls back to the ACP registry by `requestId`. For hooks,
+ * `always_allow` is treated as a plain allow — persistent rules stay
+ * with the CLI's own permission store; ACP agents receive their
+ * `allow_always` option when offered.
+ */
+export async function respondCliHookPermission(
+  sessionId: string,
+  requestId: string,
+  response: PermissionResponseValue
+): Promise<void> {
+  return invoke("cli_agent_approval_response", {
+    sessionId,
+    requestId,
+    approved: response === "allow" || response === "always_allow",
+    alwaysAllow: response === "always_allow",
   });
 }
 

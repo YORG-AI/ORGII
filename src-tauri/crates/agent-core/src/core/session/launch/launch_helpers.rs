@@ -211,7 +211,7 @@ pub(super) fn provenance_fields(
             agent_role,
             ..
         } => (
-            Some(project_slug.clone()),
+            project_slug.clone(),
             Some(work_item_id.clone()),
             agent_role.clone(),
             None,
@@ -278,4 +278,28 @@ pub(super) fn flatten_org_members(members: &[OrgMember]) -> Vec<OrgMember> {
         flattened.extend(flatten_org_members(&member.children));
     }
     flattened
+}
+
+#[cfg(test)]
+mod provenance_tests {
+    use super::provenance_fields;
+    use crate::core::session::launch::LaunchProvenance;
+    use project_management::projects::types::WorkItemExecutionLockReason;
+
+    #[test]
+    fn standalone_work_item_keeps_session_linkage_without_project_scope() {
+        let provenance = LaunchProvenance::WorkItem {
+            project_slug: None,
+            work_item_id: "WI-0042".to_string(),
+            agent_role: Some("custom".to_string()),
+            lock_reason: WorkItemExecutionLockReason::ManualStart,
+        };
+
+        let (project_slug, work_item_id, agent_role, routine_fire_id) =
+            provenance_fields(&provenance);
+        assert_eq!(project_slug, None);
+        assert_eq!(work_item_id.as_deref(), Some("WI-0042"));
+        assert_eq!(agent_role.as_deref(), Some("custom"));
+        assert_eq!(routine_fire_id, None);
+    }
 }
