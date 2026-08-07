@@ -7,27 +7,81 @@ use crate::types::*;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
-use tauri::{AppHandle, State};
-use tokio::sync::Mutex;
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, State};
+use tokio_util::sync::CancellationToken;
 
-/// State for tracking running test processes
+/// Registry of in-flight test runs, keyed by the canonical `run_id`.
+///
+/// `run_tests` mints one `run_id` per command invocation, registers it here
+/// *before* any event is emitted, and hands the same id to the runner — so
+/// the id the frontend sees on `run_started` is always a valid key for
+/// `stop_tests`. Entries are removed when the run future completes (or is
+/// dropped), so the map never retains terminal runs.
 pub struct TestRunnerState {
-    /// Map of run_id to cancellation flag
-    running: Arc<Mutex<HashMap<String, bool>>>,
+    running: Mutex<HashMap<String, CancellationToken>>,
 }
 
 impl TestRunnerState {
     pub fn new() -> Self {
         Self {
-            running: Arc::new(Mutex::new(HashMap::new())),
+            running: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Register a new run and return the token the runner must observe.
+    fn begin(&self, run_id: &str) -> CancellationToken {
+        let token = CancellationToken::new();
+        self.lock().insert(run_id.to_string(), token.clone());
+        token
+    }
+
+    /// Remove a run from the registry once its future settles.
+    fn finish(&self, run_id: &str) {
+        self.lock().remove(run_id);
+    }
+
+    /// Signal cancellation for `run_id`. Returns `true` when an active run
+    /// was found and signalled, `false` when it already finished — a benign
+    /// race for callers, not an error.
+    fn request_stop(&self, run_id: &str) -> bool {
+        match self.lock().get(run_id) {
+            Some(token) => {
+                token.cancel();
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, CancellationToken>> {
+        self.running
+            .lock()
+            .expect("test runner state lock poisoned")
+    }
+
+    #[cfg(test)]
+    fn active_runs(&self) -> usize {
+        self.lock().len()
     }
 }
 
 impl Default for TestRunnerState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// Deregisters a run when the `run_tests` future settles — including when
+/// Tauri drops the future because the invoking webview went away.
+struct RunGuard<'a> {
+    state: &'a TestRunnerState,
+    run_id: &'a str,
+}
+
+impl Drop for RunGuard<'_> {
+    fn drop(&mut self) {
+        self.state.finish(self.run_id);
     }
 }
 
@@ -122,36 +176,40 @@ pub async fn run_tests(
         return Err("No test framework detected in project".to_string());
     }
 
-    // Mark as running
+    // Mint the canonical run id and register it before the runner emits
+    // anything, so a stop request for the id seen on `run_started` always
+    // finds this entry.
     let run_id = uuid::Uuid::new_v4().to_string();
-    {
-        let mut running = state.running.lock().await;
-        running.insert(run_id.clone(), false);
-    }
+    let cancel = state.begin(&run_id);
+    let _guard = RunGuard {
+        state: state.inner(),
+        run_id: &run_id,
+    };
 
-    // Run tests
-    let result = runner::run_tests(app, &path, detected_framework, test_ids).await;
+    let emit = move |event: TestEvent| {
+        let _ = app.emit("test-event", event);
+    };
 
-    // Remove from running
-    {
-        let mut running = state.running.lock().await;
-        running.remove(&run_id);
-    }
-
-    result
+    runner::run_tests(
+        run_id.clone(),
+        &path,
+        detected_framework,
+        test_ids,
+        cancel,
+        &emit,
+    )
+    .await
 }
 
-/// Stop a running test
+/// Signal cancellation for a running test run.
+///
+/// Returns `true` when an active run was signalled; the terminated run then
+/// reports itself via a `run_cancelled` event. Returns `false` when the run
+/// had already finished — callers should treat that as "nothing to stop",
+/// not as a failure.
 #[tauri::command]
-pub async fn stop_tests(run_id: String, state: State<'_, TestRunnerState>) -> Result<(), String> {
-    let mut running = state.running.lock().await;
-
-    if let Some(cancelled) = running.get_mut(&run_id) {
-        *cancelled = true;
-        Ok(())
-    } else {
-        Err(format!("No running test with id: {}", run_id))
-    }
+pub async fn stop_tests(run_id: String, state: State<'_, TestRunnerState>) -> Result<bool, String> {
+    Ok(state.request_stop(&run_id))
 }
 
 /// Get test patterns for a framework (useful for frontend filtering)
@@ -162,3 +220,7 @@ pub fn get_test_patterns(framework: TestFramework) -> Vec<String> {
         .map(|s| s.to_string())
         .collect()
 }
+
+#[cfg(test)]
+#[path = "tests/commands_tests.rs"]
+mod tests;

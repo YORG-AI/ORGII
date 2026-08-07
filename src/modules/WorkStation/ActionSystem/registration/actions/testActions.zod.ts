@@ -70,8 +70,14 @@ export function createTestZodActions(repoPath: string) {
       examples: ["stop tests", "cancel tests"],
     },
     async () => {
-      await TestService.stop();
-      return { success: true, message: "Tests stopped" };
+      const stopped = await TestService.stop();
+      if (!stopped) {
+        return { success: false, message: "No running test run to stop" };
+      }
+      return {
+        success: true,
+        message: "Stop requested; the run will report as cancelled",
+      };
     }
   );
 

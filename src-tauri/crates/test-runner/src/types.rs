@@ -86,16 +86,34 @@ pub struct TestRunSummary {
     pub results: Vec<TestResult>,
     pub started_at: String,
     pub finished_at: Option<String>,
+    /// True when the run was stopped before the test process finished on
+    /// its own. `results` then only cover whatever completed before the
+    /// process was terminated.
+    #[serde(default)]
+    pub cancelled: bool,
 }
 
 /// Events emitted during test run (for streaming to frontend)
+///
+/// Variant *tags* are snake_case (`run_started`), but the *fields* must be
+/// camelCase to match the frontend `TestEvent` union in
+/// `src/types/testing/types.ts` — hence the per-variant `rename_all`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TestEvent {
+    #[serde(rename_all = "camelCase")]
     RunStarted { run_id: String, total_tests: u32 },
+    #[serde(rename_all = "camelCase")]
     TestStarted { test_id: String, name: String },
+    #[serde(rename_all = "camelCase")]
     TestFinished { result: TestResult },
+    #[serde(rename_all = "camelCase")]
     RunFinished { summary: TestRunSummary },
+    /// The run was stopped via `stop_tests` and the test process (tree) has
+    /// been terminated.
+    #[serde(rename_all = "camelCase")]
+    RunCancelled { run_id: String },
+    #[serde(rename_all = "camelCase")]
     Error { message: String },
 }
 

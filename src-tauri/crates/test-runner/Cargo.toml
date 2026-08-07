@@ -21,8 +21,15 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1"
 tauri = { workspace = true }
 tokio = { workspace = true }
+tokio-util = { workspace = true } # CancellationToken for run cancellation
 tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2" # process-group signalling on cancellation
+
+[target.'cfg(windows)'.dependencies]
+app_platform = { path = "../app-platform" } # CREATE_NO_WINDOW for spawned test processes / taskkill
 
 [dev-dependencies]
 app_utils = { path = "../app-utils", features = ["testing"] }
