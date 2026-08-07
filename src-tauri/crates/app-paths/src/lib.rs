@@ -9,6 +9,10 @@
 //! to do filesystem and process work (e.g. `set_sensitive_file_permissions`)
 //! but takes no domain dependencies. Every other crate may depend on it.
 
+/// Canonical resolver for the Cursor app's own storage locations (IDE
+/// `globalStorage` databases, `~/.cursor` plugin cache).
+pub mod cursor;
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -33,7 +37,7 @@ pub fn external_history_home_dir() -> PathBuf {
     external_history_home_override().unwrap_or_else(home_dir)
 }
 
-fn external_history_home_override() -> Option<PathBuf> {
+pub(crate) fn external_history_home_override() -> Option<PathBuf> {
     std::env::var_os("ORGII_EXTERNAL_HISTORY_HOME")
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)

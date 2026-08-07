@@ -101,28 +101,6 @@ pub struct CursorPluginInfo {
     pub logo_path: Option<String>,
 }
 
-// ── Path helpers ──
-
-fn real_user_db() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/_unknown".to_string());
-    PathBuf::from(home)
-        .join("Library")
-        .join("Application Support")
-        .join("Cursor")
-        .join("User")
-        .join("globalStorage")
-        .join("state.vscdb")
-}
-
-fn plugins_cache_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/_unknown".to_string());
-    PathBuf::from(home)
-        .join(".cursor")
-        .join("plugins")
-        .join("cache")
-        .join("cursor-public")
-}
-
 // ── SQLite reader ──
 
 /// Read all installed plugin numeric IDs from `state.vscdb`. Returns a set of
@@ -341,7 +319,16 @@ fn read_hooks(plugin_dir: &Path) -> Vec<CursorPluginHook> {
 /// Never returns an error for the "not installed" state — that is a valid
 /// condition for users who don't have Cursor.
 pub fn list_installed_plugins() -> Result<Vec<CursorPluginInfo>, String> {
-    let db_path = real_user_db();
+    // Storage paths come from the canonical platform-aware resolver. A typed
+    // unavailability (no resolvable home/config root) degrades to the same
+    // "Cursor not installed" empty state — never a fabricated path.
+    let db_path = match app_paths::cursor::state_db_path() {
+        Ok(path) => path,
+        Err(err) => {
+            debug!(error = %err, "Cursor storage paths unavailable — treating as not installed");
+            return Ok(Vec::new());
+        }
+    };
     if !db_path.exists() {
         debug!("Cursor state.vscdb not found — Cursor not installed");
         return Ok(Vec::new());
@@ -358,7 +345,16 @@ pub fn list_installed_plugins() -> Result<Vec<CursorPluginInfo>, String> {
         "installed plugin IDs read from state.vscdb"
     );
 
-    let cache_dir = plugins_cache_dir();
+    let cache_dir = match app_paths::cursor::plugins_cache_dir() {
+        Ok(dir) => dir,
+        Err(err) => {
+            warn!(
+                error = %err,
+                "Cursor plugin cache dir unavailable — cannot resolve installed plugin metadata"
+            );
+            return Ok(Vec::new());
+        }
+    };
     let cached = discover_cached_plugins(&cache_dir);
 
     // installed_ids are numeric marketplace IDs (e.g. "657", "6392").
