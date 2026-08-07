@@ -123,14 +123,25 @@ pub fn parse_response(resp: ResponsesResponse) -> Result<LLMResponse, ProviderEr
 
     let mut usage = HashMap::new();
     if let Some(u) = resp.usage {
+        let cache_read_tokens = u
+            .input_tokens_details
+            .as_ref()
+            .map(|details| details.cached_tokens.max(0))
+            .unwrap_or(0);
         if let Some(input) = u.input_tokens {
-            usage.insert(usage_key::PROMPT_TOKENS.to_string(), input);
+            usage.insert(
+                usage_key::PROMPT_TOKENS.to_string(),
+                input.saturating_sub(cache_read_tokens).max(0),
+            );
         }
         if let Some(output) = u.output_tokens {
             usage.insert(usage_key::COMPLETION_TOKENS.to_string(), output);
         }
         if let Some(total) = u.total_tokens {
             usage.insert(usage_key::TOTAL_TOKENS.to_string(), total);
+        }
+        if cache_read_tokens > 0 {
+            usage.insert(usage_key::CACHE_READ_TOKENS.to_string(), cache_read_tokens);
         }
     }
 
@@ -166,6 +177,7 @@ mod tests {
                 input_tokens: Some(10),
                 output_tokens: Some(5),
                 total_tokens: Some(15),
+                input_tokens_details: None,
             }),
             error: None,
         };
@@ -176,6 +188,28 @@ mod tests {
         assert_eq!(result.finish_reason, "stop");
         assert_eq!(result.usage.get("prompt_tokens"), Some(&10));
         assert_eq!(result.usage.get("completion_tokens"), Some(&5));
+    }
+
+    #[test]
+    fn responses_cache_usage_is_deserialized_and_normalized() {
+        let resp: ResponsesResponse = serde_json::from_value(serde_json::json!({
+            "output": [],
+            "usage": {
+                "input_tokens": 1_200,
+                "output_tokens": 300,
+                "total_tokens": 1_500,
+                "input_tokens_details": { "cached_tokens": 800 }
+            },
+            "error": null
+        }))
+        .expect("Responses API cache usage should deserialize");
+
+        let result = parse_response(resp).expect("cache usage response should parse");
+
+        assert_eq!(result.usage[usage_key::PROMPT_TOKENS], 400);
+        assert_eq!(result.usage[usage_key::CACHE_READ_TOKENS], 800);
+        assert_eq!(result.usage[usage_key::COMPLETION_TOKENS], 300);
+        assert_eq!(result.usage[usage_key::TOTAL_TOKENS], 1_500);
     }
 
     #[test]
