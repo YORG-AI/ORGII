@@ -202,12 +202,45 @@ export const ModelAliasInfoSchema = z.object({
   icon: z.string().nullable().optional(),
 });
 
+export const ReasoningEffortSchema = z.enum([
+  "none",
+  "baseline",
+  "low",
+  "medium",
+  "high",
+  "extra_high",
+  "max",
+  "ultracode",
+]);
+
 export const ModelVariantInfoSchema = z.object({
   model: z.string(),
   base_model: z.string(),
   reasoning: z.string().nullable().optional(),
   fast: z.boolean().default(false),
   context_window: z.number().int().positive().nullable().optional(),
+  context_window_override: z.number().int().positive().nullable().optional(),
+  reasoning_effort_override: ReasoningEffortSchema.nullable().optional(),
+});
+
+export const ZENMUX_PROVIDER_SLUGS = [
+  "amazon-bedrock",
+  "google-vertex",
+  "anthropic",
+  "openai",
+  "bigmodel",
+  "deepseek",
+  "x-ai",
+] as const;
+
+export const ModelSlugInfoSchema = z.object({
+  model: z.string(),
+  slug: z
+    .string()
+    .refine(
+      (slug) => ZENMUX_PROVIDER_SLUGS.some((supported) => supported === slug),
+      "Unsupported ZenMux provider slug"
+    ),
 });
 
 export const DefaultVariantInfoSchema = z.object({
@@ -237,6 +270,7 @@ export const KeyInfoSchema = z.object({
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
+  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.unknown().nullable(),
   has_local_key: z.boolean(),
   is_listed: z.boolean(),
@@ -275,6 +309,7 @@ export const FullKeyResponseSchema = z.object({
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
+  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   auth_method: AuthMethodSchema,
 });
 
@@ -294,6 +329,7 @@ export const SaveKeyRequestSchema = z.object({
   model_aliases: z.array(ModelAliasInfoSchema).optional(),
   model_variants: z.array(ModelVariantInfoSchema).optional(),
   default_variants: z.array(DefaultVariantInfoSchema).optional(),
+  model_slugs: z.array(ModelSlugInfoSchema).optional(),
   quota_info: z.record(z.string(), z.unknown()).optional(),
   has_local_key: z.boolean().optional(),
   is_listed: z.boolean().optional(),
@@ -514,6 +550,15 @@ export const GetKeyByIdInput = z.object({
 
 export const SaveKeyInput = z.object({
   request: SaveKeyRequestSchema,
+});
+
+export const UpdateModelRuntimeSettingsInput = z.object({
+  request: z.object({
+    key_id: z.string(),
+    model: z.string(),
+    context_window_override: z.number().int().positive().nullable().optional(),
+    reasoning_effort_override: ReasoningEffortSchema.nullable().optional(),
+  }),
 });
 
 export const DeleteKeyInput = z.object({
