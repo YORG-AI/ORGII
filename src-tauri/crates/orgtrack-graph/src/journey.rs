@@ -229,41 +229,20 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
             ),
         )?;
     }
+    // Work items remain optional, independent metadata. They must never
+    // become a containment hop between a project and its sessions.
     for w in &input.work_items {
         require_id(&w.id, "work item id")?;
-        let pid = format!("project/{}", w.project_id);
-        if !ids.contains(&pid) {
+        if !ids.contains(&format!("project/{}", w.project_id)) {
             return Err(format!("work item {} has unknown project", w.id));
         }
-        let wid = format!("work_item/{}", w.id);
-        add_node(
-            &mut graph,
-            &mut ids,
-            &mut coverage,
-            node(
-                wid.clone(),
-                JourneyNodeKind::WorkItem,
-                w.source_ref.clone(),
-                None,
-            ),
-        )?;
-        graph.edges.push(edge(
-            pid,
-            wid,
-            JourneyEdgeKind::Contains,
-            w.source_ref.clone(),
-        ));
+        require_id(&w.source_ref, "work item source reference")?;
     }
     let session_ids: HashSet<_> = input.sessions.iter().map(|s| s.id.as_str()).collect();
     for s in &input.sessions {
         require_id(&s.id, "session id")?;
         if !ids.contains(&format!("project/{}", s.project_id)) {
             return Err(format!("session {} has unknown project", s.id));
-        }
-        if let Some(w) = &s.work_item_id {
-            if !ids.contains(&format!("work_item/{w}")) {
-                return Err(format!("session {} has unknown work item", s.id));
-            }
         }
         if let Some(parent) = &s.forked_from {
             require_id(&parent.parent_revision, "parent revision")?;
@@ -294,14 +273,6 @@ pub fn project_canonical_journey(input: &CanonicalJourneyInput) -> Result<Journe
             JourneyEdgeKind::Contains,
             s.source_ref.clone(),
         ));
-        if let Some(w) = &s.work_item_id {
-            graph.edges.push(edge(
-                format!("work_item/{w}"),
-                sid.clone(),
-                JourneyEdgeKind::RunOf,
-                s.source_ref.clone(),
-            ));
-        }
         if let Some(p) = &s.resumed_from {
             graph.edges.push(edge(
                 sid.clone(),

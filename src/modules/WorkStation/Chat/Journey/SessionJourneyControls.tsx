@@ -41,12 +41,18 @@ const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 export const SessionJourneyControls: React.FC<{
   sessionId: string | null;
   messageId?: string | null;
+  /** Runtime identity is required to close a fork and enqueue its review. */
+  forkCloseProvenance?: {
+    modelId: string;
+    accountId: string;
+    protocol: string;
+  } | null;
   onJumpToMessage?: (messageId: string) => void;
-}> = ({ sessionId, messageId, onJumpToMessage }) => {
+}> = ({ sessionId, messageId, forkCloseProvenance, onJumpToMessage }) => {
   const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialog, setDialog] = useState<
-    "task" | "checkpoint" | "finish" | "fork" | null
+    "task" | "checkpoint" | "finish" | "fork" | "closeFork" | null
   >(null);
   const [name, setName] = useState("");
   const [position, setPosition] = useState<"最近用户消息" | "下一条用户消息">(
@@ -134,6 +140,20 @@ export const SessionJourneyControls: React.FC<{
           outcome,
           messageId,
         });
+    if (dialog === "closeFork" && messageId && forkCloseProvenance)
+      return () =>
+        sessionJourneyApi.closeFork(
+          {
+            sessionId,
+            expectedRevision: revision,
+            forkId: snapshot?.active_branch_id ?? "",
+            reviewId: makeId("review"),
+            outcome,
+            messageId,
+          },
+          makeId("review-job"),
+          forkCloseProvenance
+        );
     if (dialog === "fork" && messageId)
       return () =>
         sessionJourneyApi.startFork({
@@ -145,7 +165,17 @@ export const SessionJourneyControls: React.FC<{
           anchorMessageId: messageId,
         });
     return null;
-  }, [dialog, messageId, name, outcome, position, revision, sessionId]);
+  }, [
+    dialog,
+    forkCloseProvenance,
+    messageId,
+    name,
+    outcome,
+    position,
+    revision,
+    sessionId,
+    snapshot?.active_branch_id,
+  ]);
   if (!sessionId) return null;
   return (
     <>
@@ -200,6 +230,22 @@ export const SessionJourneyControls: React.FC<{
             >
               结束
             </Button>
+            {snapshot?.active_branch_id !== "main" && (
+              <Button
+                size="small"
+                appearance="ghost"
+                icon={<X size={14} />}
+                onClick={() => setDialog("closeFork")}
+                disabled={needsAnchor || !forkCloseProvenance}
+                title={
+                  forkCloseProvenance
+                    ? "结束分叉并进入审核"
+                    : "当前运行时缺少审核所需的模型身份"
+                }
+              >
+                关闭分叉
+              </Button>
+            )}
           </>
         )}
         <Button
@@ -277,6 +323,7 @@ export const SessionJourneyControls: React.FC<{
           reviews={reviews}
           snapshot={snapshot}
           sessionId={sessionId}
+          selectedEvidenceMessageId={messageId ?? null}
           onMode={setMode}
           onReload={reload}
           onJump={onJumpToMessage}
@@ -287,7 +334,7 @@ export const SessionJourneyControls: React.FC<{
 };
 
 const JourneyDialog: React.FC<{
-  kind: "task" | "checkpoint" | "finish" | "fork" | null;
+  kind: "task" | "checkpoint" | "finish" | "fork" | "closeFork" | null;
   name: string;
   position: "最近用户消息" | "下一条用户消息";
   outcome: TaskOutcome;
@@ -318,7 +365,9 @@ const JourneyDialog: React.FC<{
           ? "创建检查点"
           : kind === "fork"
             ? "创建分叉任务"
-            : "结束任务"
+            : kind === "closeFork"
+              ? "关闭分叉并进入审核"
+              : "结束任务"
     }
     okText="确认"
     cancelText="取消"
@@ -327,7 +376,8 @@ const JourneyDialog: React.FC<{
     onOk={onSubmit}
     okButtonProps={{
       disabled:
-        (kind !== "finish" && !name.trim()) || (kind !== "task" && needsAnchor),
+        (kind !== "finish" && kind !== "closeFork" && !name.trim()) ||
+        (kind !== "task" && needsAnchor),
     }}
   >
     {kind === "task" || kind === "checkpoint" || kind === "fork" ? (
@@ -356,7 +406,7 @@ const JourneyDialog: React.FC<{
         </select>
       </label>
     ) : null}
-    {kind === "finish" ? (
+    {kind === "finish" || kind === "closeFork" ? (
       <label className="block text-sm text-text-2">
         结果
         <select
@@ -372,6 +422,11 @@ const JourneyDialog: React.FC<{
         </select>
       </label>
     ) : null}
+    {kind === "closeFork" ? (
+      <p className="mt-3 text-xs text-text-3">
+        关闭后将以所选精确消息为结尾，并进入后台审核。
+      </p>
+    ) : null}
     {kind !== "task" && needsAnchor ? (
       <p className="mt-3 text-xs text-warning-6">
         请先在消息列表中选择精确消息锚点。
@@ -385,14 +440,24 @@ const ReviewPanel: React.FC<{
   reviews: ReturnType<typeof visibleReviews>;
   snapshot: JourneySnapshot | null;
   sessionId: string;
+  selectedEvidenceMessageId: string | null;
   onMode: (mode: ReviewPanelMode) => void;
   onReload: () => Promise<void>;
   onJump?: (messageId: string) => void;
-}> = ({ mode, reviews, snapshot, sessionId, onMode, onReload, onJump }) => {
+}> = ({
+  mode,
+  reviews,
+  snapshot,
+  sessionId,
+  selectedEvidenceMessageId,
+  onMode,
+  onReload,
+  onJump,
+}) => {
   const panelClass =
     mode === "float"
       ? "fixed right-5 top-20 z-50 w-80 shadow-lg"
-      : "fixed left-0 top-20 z-40 w-80 border-r";
+      : "w-80 shrink-0 border-l border-border-2";
   const mutate = async (operation: () => Promise<unknown>) => {
     await operation();
     await onReload();
@@ -453,6 +518,12 @@ const ReviewPanel: React.FC<{
               {review.state === "ready" && (
                 <Button
                   size="small"
+                  disabled={!selectedEvidenceMessageId}
+                  title={
+                    selectedEvidenceMessageId
+                      ? "使用当前选中消息作为证据"
+                      : "请先在该分叉中选择证据消息"
+                  }
                   onClick={() =>
                     void mutate(() =>
                       sessionJourneyApi.confirm({
@@ -464,15 +535,33 @@ const ReviewPanel: React.FC<{
                           capsule?.conclusion ??
                           review.annotation ??
                           "已确认分叉结论",
-                        evidenceStartMessageId:
-                          fork?.parent_anchor_message_id ?? "",
-                        evidenceEndMessageId:
-                          fork?.parent_anchor_message_id ?? "",
+                        // The selected message is the evidence anchor. Parent
+                        // fork anchors are navigation points, never evidence.
+                        evidenceStartMessageId: selectedEvidenceMessageId ?? "",
+                        evidenceEndMessageId: selectedEvidenceMessageId ?? "",
                       })
                     )
                   }
                 >
                   确认并提升
+                </Button>
+              )}
+              {review.state === "failed" && (
+                <Button
+                  size="small"
+                  appearance="ghost"
+                  onClick={() =>
+                    void mutate(() =>
+                      sessionJourneyApi.retryReview({
+                        sessionId,
+                        expectedRevision: snapshot?.revision ?? 0,
+                        reviewId: review.id,
+                        jobId: `review-job:${review.id}`,
+                      })
+                    )
+                  }
+                >
+                  重试审核
                 </Button>
               )}
               <Button

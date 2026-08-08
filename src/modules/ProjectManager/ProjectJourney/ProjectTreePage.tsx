@@ -145,10 +145,10 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
       <div className="flex items-center gap-2 border-b border-border-2 px-3 py-2">
         <FolderTree size={16} className="text-primary-6" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium text-text-1">Project Tree</div>
+          <div className="text-sm font-medium text-text-1">项目树</div>
           <div className="text-[11px] text-text-3">
-            Workspace → Project → Work Item → Session / Task
-            {usedDemo ? " · demo data" : ""}
+            工作区 → 项目 → 会话 → 旅程
+            {usedDemo ? " · 演示数据" : ""}
           </div>
         </div>
         <button
@@ -156,14 +156,14 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
           className="rounded-md border border-border-2 px-2 py-1 text-xs text-text-2 hover:bg-fill-2"
           onClick={() => void reload(false)}
         >
-          <RefreshCw size={12} className="inline" /> Refresh
+          <RefreshCw size={12} className="inline" /> 刷新
         </button>
         <button
           type="button"
           className="rounded-md border border-border-2 px-2 py-1 text-xs text-text-2 hover:bg-fill-2"
           onClick={() => void reload(true)}
         >
-          Load demo
+          加载演示数据
         </button>
       </div>
 
@@ -171,7 +171,7 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
         <input
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter nodes…"
+          placeholder="筛选节点…"
           className="w-full rounded-md border border-border-2 bg-fill-1 px-2 py-1.5 text-xs text-text-1 outline-none focus:border-primary-6"
           data-testid="project-tree-filter"
         />
@@ -179,13 +179,13 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
 
       {error && (
         <div className="px-3 py-2 text-xs text-warning-6">
-          Load warning: {error} (showing available/demo data)
+          加载提示：{error}（显示可用数据）
         </div>
       )}
 
       <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
         {loading && (
-          <div className="p-4 text-xs text-text-3">Loading tree…</div>
+          <div className="p-4 text-xs text-text-3">正在加载项目树…</div>
         )}
         {!loading &&
           rows.map(({ node, depth }) => {
@@ -236,7 +236,7 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                       )
                     }
                   >
-                    Journey
+                    旅程
                   </button>
                 )}
                 {node.kind === "work_item" && onOpenWorkItem && (

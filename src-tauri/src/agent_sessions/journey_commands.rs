@@ -9,7 +9,7 @@ use agent_core::session::journey_application_service::{
     CreateCheckpointRequest, CreateForkRequest, CreateTaskRequest, DiscardForkRequest,
     DiscardForkResponse, FinishTaskRequest, JourneySnapshotResponse, JourneyWriteResponse,
     PromoteFactRequest, RequestForkCloseRequest, ReturnToParentRequest, ReturnToParentResponse,
-    SessionJourneyApplicationService,
+    RetryReviewRequest, SessionJourneyApplicationService,
 };
 use agent_core::session::journey_review_queue::ReviewJob;
 
@@ -100,6 +100,20 @@ pub async fn journey_fork_close(
     .map_err(|error| format!("会话旅程分叉关闭异常：{error}"))?
 }
 
+/// Re-queues a failed review using the same durable application service and
+/// compare-and-swap revision contract as every other Journey mutation.
+#[tauri::command]
+pub async fn journey_review_retry(
+    request: RetryReviewRequest,
+) -> Result<JourneyWriteResponse, String> {
+    tokio::task::spawn_blocking(move || {
+        let mut conn = open_connection()?;
+        SessionJourneyApplicationService::retry_review(&mut conn, request).map_err(service_error)
+    })
+    .await
+    .map_err(|error| format!("会话旅程审核重试异常：{error}"))?
+}
+
 #[tauri::command]
 pub async fn journey_review_list(
     session_id: String,
@@ -165,8 +179,8 @@ mod tests {
     use super::service_error;
     use agent_core::session::journey_application_service::{
         CreateCheckpointRequest, CreateForkRequest, CreateTaskRequest, DiscardForkRequest,
-        FinishTaskRequest, PromoteFactRequest, RequestForkCloseRequest, ReturnToParentRequest,
-        TaskStartPosition,
+        FinishTaskRequest, PromoteFactRequest, RequestForkCloseRequest, RetryReviewRequest,
+        ReturnToParentRequest, TaskStartPosition,
     };
 
     #[test]
@@ -255,6 +269,13 @@ mod tests {
                 review_id: "r".into(),
             })
             .unwrap(),
+            serde_json::to_value(RetryReviewRequest {
+                session_id: "s".into(),
+                expected_revision: 1,
+                review_id: "r".into(),
+                job_id: "job-r".into(),
+            })
+            .unwrap(),
         ];
         for payload in payloads {
             let serialized = payload.to_string();
@@ -275,6 +296,7 @@ mod tests {
             "journey_task_finish",
             "journey_fork_start",
             "journey_fork_close",
+            "journey_review_retry",
             "journey_review_list",
             "journey_ready_draft",
             "journey_confirm",

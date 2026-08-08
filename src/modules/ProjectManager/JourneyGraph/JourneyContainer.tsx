@@ -33,10 +33,10 @@ interface JourneyResult {
 }
 
 const journeyTabs = [
-  { key: "storyline", label: "Storyline" },
-  { key: "branches", label: "Branches" },
-  { key: "files", label: "File Lineage" },
-  { key: "coverage", label: "Coverage" },
+  { key: "storyline", label: "时间线" },
+  { key: "branches", label: "分叉" },
+  { key: "files", label: "文件血缘" },
+  { key: "coverage", label: "覆盖情况" },
 ];
 
 function JourneyContent({
@@ -94,7 +94,6 @@ export const JourneyContainer: React.FC<JourneyContainerProps> = ({
   const currentResult = result?.scope === scope ? result : null;
   const graph = currentResult?.graph ?? null;
   const error = currentResult?.error ?? null;
-
   return (
     <div
       className="flex h-full min-h-0 flex-col bg-bg-1"
@@ -106,7 +105,7 @@ export const JourneyContainer: React.FC<JourneyContainerProps> = ({
         </div>
         <button
           type="button"
-          aria-label="Refresh Journey"
+          aria-label="刷新旅程"
           className="rounded-md border border-border-2 p-1 text-text-2 hover:bg-fill-2"
           onClick={() => setRefreshKey((key) => key + 1)}
         >
@@ -125,11 +124,11 @@ export const JourneyContainer: React.FC<JourneyContainerProps> = ({
       </div>
       {error && (
         <div className="p-3 text-xs text-warning-6" role="alert">
-          Journey unavailable: {error}
+          旅程不可用：{error}
         </div>
       )}
       {!error && !graph && (
-        <div className="p-3 text-xs text-text-3">Loading Journey...</div>
+        <div className="p-3 text-xs text-text-3">正在加载旅程...</div>
       )}
       {graph && (
         <main className="min-h-0 flex-1 overflow-auto p-3">

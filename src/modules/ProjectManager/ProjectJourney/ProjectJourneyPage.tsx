@@ -20,14 +20,13 @@ const ProjectJourneyPage: React.FC<ProjectJourneyPageProps> = ({
   if (!identity)
     return (
       <div className="p-3 text-xs text-warning-6" role="alert">
-        Journey unavailable: Project identity is required; refusing to guess a
-        Journey graph.
+        项目旅程不可用：缺少项目标识，拒绝猜测旅程图。
       </div>
     );
   return (
     <JourneyContainer
       scope={`project/${identity}` as JourneyScope}
-      title={`Project Journey${projectName ? ` · ${projectName}` : ""}`}
+      title={`项目旅程${projectName ? ` · ${projectName}` : ""}`}
     />
   );
 };

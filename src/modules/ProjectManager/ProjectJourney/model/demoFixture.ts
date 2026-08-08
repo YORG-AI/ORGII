@@ -17,7 +17,7 @@ export const DEMO_WORK_ITEMS: WorkItemLike[] = [
     name: "四级树可感知化",
     status: "completed",
     workItemStatus: "completed",
-    spec: "Workspace→Project→WorkItem→Session 树只读聚合",
+    spec: "工作区→项目→会话→旅程树只读聚合（工作项仅元数据）",
     created_time: "2026-07-28T10:00:00.000Z",
     updated_time: "2026-07-28T18:00:00.000Z",
     todos: [
