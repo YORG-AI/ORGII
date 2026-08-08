@@ -1320,8 +1320,9 @@ impl JourneyApplicationService {
                 )
                 .map(|response| {
                     format!(
-                        "分叉已丢弃，父分叉 {} 的精确锚点为 sequence={}（修订 {}）。",
+                        "分叉已丢弃，父分叉 {} 的精确锚点为消息 {}（sequence={}，修订 {}）。",
                         response.parent_branch_id,
+                        response.parent_anchor_message_id,
                         response.parent_anchor_sequence,
                         response.revision
                     )

@@ -1303,7 +1303,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
 export type Org2TreeLevel =
   | "workspace"
   | "project"
-  | "task"
   | "session"
   | "unlinked";
 
@@ -1318,10 +1317,6 @@ const ORG2_TREE_LEVEL_BADGES: Record<
   project: {
     label: "P",
     className: "border-sky-400/60 bg-sky-500/20 text-sky-200",
-  },
-  task: {
-    label: "T",
-    className: "border-amber-400/60 bg-amber-500/20 text-amber-100",
   },
   session: {
     label: "S",
@@ -1348,34 +1343,32 @@ function createOrg2TreeBadge(level: Org2TreeLevel): React.ReactNode {
 export function buildOrg2TreeItems(
   sessions: readonly import("@src/store/session").Session[]
 ): NavigationMenuItem[] {
-  const projects = new Map<string, Map<string, NavigationMenuItem[]>>();
+  const projects = new Map<string, NavigationMenuItem[]>();
   for (const session of sessions) {
     const projectKey = session.projectSlug || session.projectId || "Unlinked";
-    const workItemKey = session.workItemId || "Unlinked task";
-    const projectBucket =
-      projects.get(projectKey) ?? new Map<string, NavigationMenuItem[]>();
-    const workItemBucket = projectBucket.get(workItemKey) ?? [];
-    workItemBucket.push({
+    const projectBucket = projects.get(projectKey) ?? [];
+    projectBucket.push({
       // 复用普通 session 列表的 id，点击、hover 行动作、右键菜单都走同一套逻辑。
       id: session.session_id,
       key: `org2-tree-session-${session.session_id}`,
       label: session.name || session.user_input || session.session_id,
-      shortcut: "session",
+      // Work Item is optional metadata, never an organisational parent.
+      shortcut: session.workItemId ? `工作项：${session.workItemId}` : "session",
       iconElement: createOrg2TreeBadge("session"),
     });
-    projectBucket.set(workItemKey, workItemBucket);
     projects.set(projectKey, projectBucket);
   }
   return [
     {
       id: "org2-tree-workspace",
       key: "org2-tree-workspace",
-      label: "Workspace hierarchy",
-      shortcut: "workspace",
+      label: "工作区层级",
+      shortcut: "工作区",
       iconElement: createOrg2TreeBadge("workspace"),
-      // # ORG2 hierarchy tree: workspace → project → task/work-item → session. Unlinked data stays under a muted fallback group.
+      // ORG2 hierarchy: workspace scope → project → session → journey.
+      // A Work Item may label a session but cannot become its parent.
       children: Array.from(projects.entries()).map(
-        ([projectName, workItems]) => {
+        ([projectName, sessionItems]) => {
           const isUnlinkedProject = projectName === "Unlinked";
           return {
             id: `org2-tree-project-${projectName}`,
@@ -1385,21 +1378,7 @@ export function buildOrg2TreeItems(
             iconElement: createOrg2TreeBadge(
               isUnlinkedProject ? "unlinked" : "project"
             ),
-            children: Array.from(workItems.entries()).map(
-              ([workItemName, sessionItems]) => {
-                const isUnlinkedTask = workItemName === "Unlinked task";
-                return {
-                  id: `org2-tree-wi-${projectName}-${workItemName}`,
-                  key: `org2-tree-wi-${projectName}-${workItemName}`,
-                  label: workItemName,
-                  shortcut: "task",
-                  iconElement: createOrg2TreeBadge(
-                    isUnlinkedTask ? "unlinked" : "task"
-                  ),
-                  children: sessionItems,
-                };
-              }
-            ),
+            children: sessionItems,
           };
         }
       ),

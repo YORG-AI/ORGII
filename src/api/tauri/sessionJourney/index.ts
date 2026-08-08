@@ -140,6 +140,7 @@ export const sessionJourneyApi = {
     invoke<{
       revision: number;
       parent_branch_id: string;
+      parent_anchor_message_id: string;
       parent_anchor_sequence: number;
     }>("journey_discard", { request }),
   returnToParent: (request: ReturnToParentRequest) =>
