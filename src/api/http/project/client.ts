@@ -428,6 +428,23 @@ export async function readWorkItem(
   });
 }
 
+export async function readWorkItemEnriched(
+  projectSlug: string,
+  shortId: string,
+  options?: ProjectScopeOptions
+): Promise<EnrichedWorkItem> {
+  const scopeSegment = scopeCacheSegment(options);
+  return cachedRead(
+    `${projectSlug}:workitem-enriched:${shortId}:${scopeSegment}`,
+    () =>
+      invoke<EnrichedWorkItem>("project_read_work_item_enriched", {
+        projectSlug,
+        shortId,
+        ...scopeInvokePayload(options),
+      })
+  );
+}
+
 export async function readStandaloneWorkItems(
   options?: WorkItemsReadOptions
 ): Promise<WorkItemData[]> {

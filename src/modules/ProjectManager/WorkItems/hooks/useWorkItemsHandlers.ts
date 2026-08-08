@@ -43,6 +43,7 @@ function isWorkItemStatus(status: TaskStatus): status is WorkItemStatus {
 }
 
 interface UseWorkItemsHandlersParams {
+  projectSlug?: string | null;
   selectedWorkItemId: string | null;
   showProperties: boolean;
   propertiesWasOpenRef: MutableRefObject<boolean | null>;
@@ -83,6 +84,7 @@ interface UseWorkItemsHandlersParams {
 }
 
 export function useWorkItemsHandlers({
+  projectSlug,
   selectedWorkItemId,
   showProperties,
   propertiesWasOpenRef,
@@ -187,12 +189,16 @@ export function useWorkItemsHandlers({
         status: fileStatus,
       });
 
-      await emit("orgii-data-changed");
+      await emit("orgii-data-changed", {
+        project_slug: projectSlug ?? undefined,
+        work_item_id: workItemId ?? undefined,
+        source: "work-items-create",
+      });
       if (workItemId) {
         selectAndCollapseProperties(workItemId);
       }
     },
-    [createWorkItemApi, selectAndCollapseProperties, t]
+    [createWorkItemApi, projectSlug, selectAndCollapseProperties, t]
   );
 
   const handleAddTask = useCallback(
@@ -215,7 +221,11 @@ export function useWorkItemsHandlers({
     async (workItemId: string) => {
       const shortId = getShortId(workItemId) ?? undefined;
       await deleteWorkItemApi(workItemId, shortId);
-      await emit("orgii-data-changed");
+      await emit("orgii-data-changed", {
+        project_slug: projectSlug ?? undefined,
+        work_item_id: shortId,
+        source: "work-items-delete",
+      });
 
       if (selectedWorkItemId === workItemId) {
         setSelectedWorkItemId(null);
@@ -226,6 +236,7 @@ export function useWorkItemsHandlers({
     [
       deleteWorkItemApi,
       getShortId,
+      projectSlug,
       selectedWorkItemId,
       setSelectedWorkItemId,
       refreshWorkItems,

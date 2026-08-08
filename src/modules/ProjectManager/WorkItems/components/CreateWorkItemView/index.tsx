@@ -236,7 +236,11 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
           selectedProjectSlug: inlineFields.selectedProjectSlug,
         });
 
-        await emit("orgii-data-changed");
+        await emit("orgii-data-changed", {
+          project_slug: result.projectSlug,
+          work_item_id: result.shortId,
+          source: "work-item-create",
+        });
         if (createMore) {
           inlineFields.resetDraftForCreateMore();
           onWorkItemCreated(result);

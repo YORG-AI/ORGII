@@ -26,7 +26,6 @@ import {
   CHAT_WIDTH_CSS_VAR,
   clampChatWidth,
 } from "@src/engines/ChatPanel/config";
-import { useViewportWidth } from "@src/engines/ChatPanel/hooks/useViewportWidth";
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
@@ -123,6 +122,8 @@ function WorkbenchActionSystemScope({
 // ============================================
 
 export interface AppLayoutProps {
+  /** Current window viewport width shared with the embedded Chat Panel. */
+  viewportWidth: number | undefined;
   /** Sidebar component to render (null = no sidebar) */
   sidebar?: React.ReactNode;
 
@@ -162,6 +163,7 @@ export interface AppLayoutProps {
 // ============================================
 
 const AppLayoutComponent: React.FC<AppLayoutProps> = ({
+  viewportWidth,
   sidebar,
   floatingSidebar,
   showChatPanel = false,
@@ -174,7 +176,6 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
   const rawChatWidth = useAtomValue(chatWidthAtom);
   const isChatPanelDragging = useAtomValue(chatPanelDraggingAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-  const viewportWidth = useViewportWidth();
   const chatSlotRef = useRef<HTMLDivElement>(null);
   // Settings-in-slot must always have a usable width even if the user
   // previously dragged the chat to zero. Fall back to the configured
@@ -258,6 +259,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
       </React.Suspense>
     ) : (
       <ChatPanel
+        viewportWidth={viewportWidth}
         embedded
         active={showChatPanel}
         useExternalWidth={chatPanelMaximized}

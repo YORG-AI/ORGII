@@ -154,10 +154,25 @@ export function useProjectData(
     setSelectedProjectId(newProjectId);
   }, []);
 
-  const activeLoadFromFiles = useCallback(() => {
-    if (!isActive) return;
-    void loadFromFiles();
-  }, [isActive, loadFromFiles]);
+  const activeLoadFromFiles = useCallback(
+    (
+      change?: {
+        projectSlug?: string;
+      } | null
+    ) => {
+      if (!isActive) return;
+      const activeProjectSlug = projectRef.current?.slug;
+      if (
+        change?.projectSlug &&
+        activeProjectSlug &&
+        change.projectSlug !== activeProjectSlug
+      ) {
+        return;
+      }
+      void loadFromFiles();
+    },
+    [isActive, loadFromFiles]
+  );
   useProjectDataChanged(activeLoadFromFiles);
 
   return {

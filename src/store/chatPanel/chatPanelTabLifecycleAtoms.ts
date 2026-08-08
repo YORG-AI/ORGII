@@ -12,10 +12,7 @@ import {
 import type { WorkManagementSection } from "@src/store/workstation";
 
 import { buildDefaultLaunchpadTab } from "./chatPanelTabFactories";
-import {
-  activateChatPanelTabAtom,
-  transitionChatPanelTabPresentationAtom,
-} from "./chatPanelTabPresentationAtoms";
+import { activateChatPanelTabAtom } from "./chatPanelTabPresentationAtoms";
 import {
   type ChatPanelSelectedChannel,
   getWorkManagementFallbackTitle,
@@ -95,10 +92,6 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
 
   if (nextTabs.length === 0) {
     const launchpad = buildDefaultLaunchpadTab();
-    set(transitionChatPanelTabPresentationAtom, {
-      previousTab: tab,
-      nextTab: launchpad,
-    });
     set(chatPanelTabsAtom, {
       tabs: [launchpad],
       activeTabId: launchpad.id,
@@ -110,10 +103,6 @@ export const closeChatPanelTabAtom = atom(null, (get, set, tabId: string) => {
   if (state.activeTabId === tabId) {
     const nextIdx = Math.max(0, idx - 1);
     nextActiveId = nextTabs[Math.min(nextIdx, nextTabs.length - 1)].id;
-    set(transitionChatPanelTabPresentationAtom, {
-      previousTab: tab,
-      nextTab: nextTabs.find((candidate) => candidate.id === nextActiveId),
-    });
   }
 
   set(chatPanelTabsAtom, { tabs: nextTabs, activeTabId: nextActiveId });

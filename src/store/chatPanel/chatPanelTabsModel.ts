@@ -121,9 +121,42 @@ export interface ChatPanelTabsState {
 /** Fixed id of the shared cloud/local organization management tab. */
 export const ORGANIZATION_TAB_ID = "chat-organization-management";
 
-const DEFAULT_FULLSCREEN_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
-  "work-management",
-]);
+type ChatPanelTabStationAccess = "always" | "wide-only";
+
+/**
+ * Minimum viewport width at which standalone Chat Panel surfaces may share
+ * the workbench with a Station pane.
+ */
+export const CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX = 1920;
+
+/**
+ * When a Chat Panel tab can share the workbench with a Station surface.
+ *
+ * This record is intentionally exhaustive: a new tab type must make an
+ * explicit layout decision instead of silently inheriting an unsafe default.
+ * Conversation-oriented tabs can always remain docked beside the Station;
+ * standalone management and detail surfaces unlock the split layout only on
+ * a wide desktop viewport.
+ */
+const CHAT_PANEL_TAB_STATION_ACCESS: Record<
+  ChatPanelTabType,
+  ChatPanelTabStationAccess
+> = {
+  session: "always",
+  terminal: "always",
+  "start-page": "always",
+  channel: "always",
+  runtime: "wide-only",
+  "team-inbox": "wide-only",
+  "work-management": "wide-only",
+  workspace: "wide-only",
+  organization: "wide-only",
+  "work-item": "wide-only",
+  "github-issue": "wide-only",
+  "github-pr": "wide-only",
+  project: "wide-only",
+  explore: "wide-only",
+};
 
 /**
  * Tab types safe to restore from persisted state. Terminals are process-bound,
@@ -145,12 +178,30 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "channel",
 ]);
 
-export function isChatPanelTabDefaultFullscreen(
-  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined
+export function isChatPanelTabStationAvailable(
+  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined,
+  viewportWidth: number | undefined
 ): boolean {
   const type =
     typeof tabOrType === "string" ? tabOrType : (tabOrType?.type ?? null);
-  return type !== null && DEFAULT_FULLSCREEN_CHAT_PANEL_TAB_TYPES.has(type);
+  if (type === null) return true;
+  const access = CHAT_PANEL_TAB_STATION_ACCESS[type];
+  return (
+    access === "always" ||
+    (viewportWidth !== undefined &&
+      viewportWidth >= CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX)
+  );
+}
+
+/** Resolve the layout without mutating the user's persisted maximize choice. */
+export function resolveChatPanelMaximizedForLayout(
+  userMaximized: boolean,
+  tabOrType: ChatPanelTab | ChatPanelTabType | null | undefined,
+  viewportWidth: number | undefined
+): boolean {
+  return (
+    userMaximized || !isChatPanelTabStationAvailable(tabOrType, viewportWidth)
+  );
 }
 
 export function getWorkManagementFallbackTitle(

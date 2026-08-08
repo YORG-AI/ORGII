@@ -11,62 +11,38 @@ import {
   CHAT_PANEL_SURFACE_KIND,
   DEFAULT_CHAT_PANEL_CREATE_TARGET,
   chatPanelCreateTargetAtom,
-  chatPanelMaximizedAtom,
   chatPanelNavigateAtom,
   chatPanelStartPageOpenAtom,
+  toggleChatPanelMaximizedAtom,
 } from "@src/store/ui/chatPanelAtom";
 
 import {
   type ChatPanelTab,
-  isChatPanelTabDefaultFullscreen,
+  isChatPanelTabStationAvailable,
 } from "./chatPanelTabsModel";
-import { chatPanelTabsAtom } from "./chatPanelTabsState";
+import {
+  activeChatPanelTabAtom,
+  chatPanelTabsAtom,
+} from "./chatPanelTabsState";
 
-/** Maximize-state snapshot taken before entering a default-fullscreen tab. */
-const defaultFullscreenTabPriorMaximizedAtom = atom<boolean | null>(null);
-
-export const transitionChatPanelTabPresentationAtom = atom(
+/** User toggle guarded by the active tab and current viewport policy. */
+export const toggleActiveChatPanelMaximizedAtom = atom(
   null,
-  (
-    get,
-    set,
-    {
-      previousTab,
-      nextTab,
-    }: {
-      previousTab: ChatPanelTab | null | undefined;
-      nextTab: ChatPanelTab | null | undefined;
+  (get, set, viewportWidth: number | undefined) => {
+    if (
+      !isChatPanelTabStationAvailable(
+        get(activeChatPanelTabAtom),
+        viewportWidth
+      )
+    ) {
+      return false;
     }
-  ) => {
-    const previousDefaultFullscreen =
-      isChatPanelTabDefaultFullscreen(previousTab);
-    const nextDefaultFullscreen = isChatPanelTabDefaultFullscreen(nextTab);
-
-    if (nextDefaultFullscreen) {
-      if (!previousDefaultFullscreen) {
-        set(
-          defaultFullscreenTabPriorMaximizedAtom,
-          get(chatPanelMaximizedAtom)
-        );
-      }
-      if (!get(chatPanelMaximizedAtom)) {
-        set(chatPanelMaximizedAtom, true);
-      }
-      return;
-    }
-
-    if (previousDefaultFullscreen) {
-      const priorMaximized = get(defaultFullscreenTabPriorMaximizedAtom);
-      // A manual Workstation restore while Kanban is active is an
-      // explicit override. Preserve it instead of restoring an older
-      // maximized state when the user later changes tabs.
-      if (get(chatPanelMaximizedAtom) && priorMaximized !== null) {
-        set(chatPanelMaximizedAtom, priorMaximized);
-      }
-      set(defaultFullscreenTabPriorMaximizedAtom, null);
-    }
+    set(toggleChatPanelMaximizedAtom);
+    return true;
   }
 );
+toggleActiveChatPanelMaximizedAtom.debugLabel =
+  "toggleActiveChatPanelMaximized";
 
 /** Make the active tab's legacy surface atoms match its canonical identity. */
 const syncChatPanelTabNavigationAtom = atom(
@@ -151,8 +127,8 @@ const syncChatPanelTabNavigationAtom = atom(
 
 /**
  * Reconcile legacy surface state after hydration or layout changes.
- * Presentation defaults are applied only on tab entry so a manual Workstation
- * restore is not overwritten while Kanban remains active.
+ * Maximize behavior is derived at the layout boundary from the active tab and
+ * viewport, so reconciliation never mutates the user's persisted preference.
  */
 export const syncActiveChatPanelTabStateAtom = atom(null, (get, set) => {
   const state = get(chatPanelTabsAtom);
@@ -169,13 +145,6 @@ export const syncActiveChatPanelTabStateAtom = atom(null, (get, set) => {
       get(chatPanelCreateTargetAtom) !== DEFAULT_CHAT_PANEL_CREATE_TARGET);
   if (!startPageOwnsExplicitNavigation) {
     set(syncChatPanelTabNavigationAtom, activeTab);
-  }
-
-  if (
-    isChatPanelTabDefaultFullscreen(activeTab) &&
-    get(defaultFullscreenTabPriorMaximizedAtom) === null
-  ) {
-    set(defaultFullscreenTabPriorMaximizedAtom, get(chatPanelMaximizedAtom));
   }
 });
 syncActiveChatPanelTabStateAtom.debugLabel = "syncActiveChatPanelTabState";
@@ -203,17 +172,9 @@ export const activateChatPanelTabAtom = atom(
     const state = get(chatPanelTabsAtom);
     const tab = state.tabs.find((candidate) => candidate.id === tabId);
     if (!tab) return;
-    const previousTab =
-      state.tabs.find((candidate) => candidate.id === state.activeTabId) ??
-      null;
-
     if (state.activeTabId !== tabId) {
       set(chatPanelTabsAtom, { ...state, activeTabId: tabId });
     }
-    set(transitionChatPanelTabPresentationAtom, {
-      previousTab,
-      nextTab: tab,
-    });
 
     set(syncChatPanelTabNavigationAtom, tab);
 
@@ -265,7 +226,7 @@ interface AppendAndActivateChatPanelTabOptions {
   repoPath?: string;
 }
 
-/** Append a tab and run the same presentation/navigation activation chain. */
+/** Append a tab and run the same navigation activation chain. */
 export const appendAndActivateChatPanelTabAtom = atom(
   null,
   (
@@ -274,14 +235,6 @@ export const appendAndActivateChatPanelTabAtom = atom(
     { tab, sessionName, repoPath }: AppendAndActivateChatPanelTabOptions
   ) => {
     const state = get(chatPanelTabsAtom);
-    const previousTab =
-      state.tabs.find((candidate) => candidate.id === state.activeTabId) ??
-      null;
-
-    set(transitionChatPanelTabPresentationAtom, {
-      previousTab,
-      nextTab: tab,
-    });
     set(chatPanelTabsAtom, {
       tabs: [...state.tabs, tab],
       activeTabId: tab.id,

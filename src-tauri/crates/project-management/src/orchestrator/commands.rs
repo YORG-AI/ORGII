@@ -16,9 +16,15 @@ use super::state_machine;
 use crate::projects::io::orchestrator_view;
 use core_types::session::PENDING_SESSION_PLACEHOLDER;
 
-fn emit_data_changed(app: &tauri::AppHandle) {
-    let ts = chrono::Utc::now().to_rfc3339();
-    let _ = app.emit(DATA_CHANGED_EVENT, &ts);
+fn emit_data_changed(app: &tauri::AppHandle, project_slug: &str, work_item_id: &str) {
+    let _ = app.emit(
+        DATA_CHANGED_EVENT,
+        serde_json::json!({
+            "project_slug": project_slug,
+            "work_item_id": work_item_id,
+            "source": "orchestrator",
+        }),
+    );
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -39,6 +45,7 @@ pub async fn orchestrator_start(
     work_item_id: String,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
+    let event_project_slug = project_slug.clone();
     let result = tokio::task::spawn_blocking(move || {
         projects_io::update_work_item_atomic(
             &project_slug,
@@ -87,7 +94,7 @@ pub async fn orchestrator_start(
     .await
     .map_err(|err| err.to_string())??;
 
-    emit_data_changed(&app);
+    emit_data_changed(&app, &event_project_slug, &result);
     Ok(result)
 }
 
@@ -98,6 +105,8 @@ pub async fn orchestrator_cancel(
     work_item_id: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let event_project_slug = project_slug.clone();
+    let event_work_item_id = work_item_id.clone();
     tokio::task::spawn_blocking(move || -> Result<(), String> {
         state_machine::mutate_work_item(&project_slug, &work_item_id, |frontmatter| {
             state_machine::cancel(frontmatter);
@@ -108,7 +117,7 @@ pub async fn orchestrator_cancel(
     .await
     .map_err(|err| err.to_string())??;
 
-    emit_data_changed(&app);
+    emit_data_changed(&app, &event_project_slug, &event_work_item_id);
     Ok(())
 }
 
@@ -119,6 +128,8 @@ pub async fn orchestrator_retry(
     work_item_id: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let event_project_slug = project_slug.clone();
+    let event_work_item_id = work_item_id.clone();
     tokio::task::spawn_blocking(move || {
         let state = orchestrator_view::read_orchestrator_state(&project_slug, &work_item_id)?
             .ok_or("No orchestrator state")?;
@@ -163,7 +174,7 @@ pub async fn orchestrator_retry(
     .await
     .map_err(|err| err.to_string())??;
 
-    emit_data_changed(&app);
+    emit_data_changed(&app, &event_project_slug, &event_work_item_id);
     Ok(())
 }
 
@@ -226,13 +237,15 @@ pub async fn orchestrator_create_follow_up(
     review_feedback: String,
     app: tauri::AppHandle,
 ) -> Result<String, String> {
+    let event_project_slug = project_slug.clone();
+    let event_parent_short_id = parent_short_id.clone();
     let result = tokio::task::spawn_blocking(move || {
         super::follow_up::create_follow_up(&project_slug, &parent_short_id, &review_feedback)
     })
     .await
     .map_err(|err| err.to_string())??;
 
-    emit_data_changed(&app);
+    emit_data_changed(&app, &event_project_slug, &event_parent_short_id);
     Ok(result)
 }
 
@@ -273,6 +286,8 @@ pub async fn orchestrator_set_pr(
     pr_status: String,
     app: tauri::AppHandle,
 ) -> Result<(), String> {
+    let event_project_slug = project_slug.clone();
+    let event_work_item_id = work_item_id.clone();
     tokio::task::spawn_blocking(move || {
         let status = match pr_status.as_str() {
             "open" => PrStatus::Open,
@@ -291,6 +306,6 @@ pub async fn orchestrator_set_pr(
     .await
     .map_err(|err| err.to_string())??;
 
-    emit_data_changed(&app);
+    emit_data_changed(&app, &event_project_slug, &event_work_item_id);
     Ok(())
 }

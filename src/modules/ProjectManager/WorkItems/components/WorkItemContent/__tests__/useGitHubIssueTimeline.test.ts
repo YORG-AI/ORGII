@@ -13,6 +13,7 @@ import {
 } from "vitest";
 
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
+import { resetGitHubIssueDetailCoordinator } from "@src/modules/shared/githubIssueDetailCoordinator";
 
 import {
   parseGitHubIssueNumber,
@@ -21,11 +22,16 @@ import {
 
 const mocks = vi.hoisted(() => ({
   getGitRemotes: vi.fn(),
+  getGitCredentialForRemote: vi.fn(),
   fetchIssueTimeline: vi.fn(),
 }));
 
 vi.mock("@src/api/http/git/remotes", () => ({
   getGitRemotes: mocks.getGitRemotes,
+}));
+
+vi.mock("@src/api/tauri/github", () => ({
+  getGitCredentialForRemote: mocks.getGitCredentialForRemote,
 }));
 
 vi.mock("@src/services/git/operations/githubIssues", () => ({
@@ -79,7 +85,15 @@ describe("useGitHubIssueTimeline", () => {
   });
 
   beforeEach(() => {
+    resetGitHubIssueDetailCoordinator();
     mocks.getGitRemotes.mockReset();
+    mocks.getGitCredentialForRemote.mockReset();
+    mocks.getGitCredentialForRemote.mockResolvedValue({
+      connection_id: "test-connection",
+      source: "connection",
+      username: "ada",
+      token: "discarded-test-token",
+    });
     mocks.fetchIssueTimeline.mockReset();
     container = document.createElement("div");
     document.body.appendChild(container);

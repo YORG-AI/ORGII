@@ -721,10 +721,10 @@ export const activeChatPanelSurfaceAtom = atom<ChatPanelSurfaceState>((get) => {
 activeChatPanelSurfaceAtom.debugLabel = "activeChatPanelSurfaceAtom";
 
 /**
- * Whether the chat-panel slot covers the entire main content area.
- * Maximizing is purely a slot-side affordance; the underlying station
- * mode never changes, so un-maximize requires no bookkeeping. Persisted
- * so a maximized layout survives reloads.
+ * The user's persisted preference for whether the chat-panel slot covers the
+ * entire main content area. The active tab and viewport may force the effective
+ * layout full-screen temporarily, but that layout is derived without mutating
+ * this preference or the underlying Station mode.
  */
 export const chatPanelMaximizedAtom = atomWithStorage<boolean>(
   "orgii:chatPanelMaximized",

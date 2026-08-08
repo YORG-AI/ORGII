@@ -84,6 +84,7 @@ export function useWorkItems(options: UseWorkItemsOptions = {}) {
 
   // Initialize handlers
   const handlers = useWorkItemsHandlers({
+    projectSlug,
     selectedWorkItemId: state.selectedWorkItemId,
     showProperties: state.showProperties,
     propertiesWasOpenRef: state.propertiesWasOpenRef,

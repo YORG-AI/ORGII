@@ -16,6 +16,7 @@ import type {
   GitHubIssue,
   GitHubIssueTimelineItem,
 } from "@src/api/tauri/github";
+import { resetGitHubIssueDetailCoordinator } from "@src/modules/shared/githubIssueDetailCoordinator";
 
 import {
   type TeamInboxGitHubIssueState,
@@ -26,15 +27,21 @@ const mocks = vi.hoisted(() => ({
   createIssueCommentLocal: vi.fn(),
   getGitHubRepoPermissionsLocal: vi.fn(),
   getGitHubViewerLogin: vi.fn(),
+  getGitCredentialForRemote: vi.fn(),
   getIssueLocal: vi.fn(),
+  fetchIssue: vi.fn(),
+  fetchIssueTimeline: vi.fn(),
   listIssuesLocal: vi.fn(),
   listIssueTimelineLocal: vi.fn(),
+  listRepoAssigneesLocal: vi.fn(),
   updateIssueLocal: vi.fn(),
 }));
 
 vi.mock("@src/api/tauri/github", () => mocks);
 
 vi.mock("@src/services/git/operations/githubIssues", () => ({
+  fetchIssue: mocks.fetchIssue,
+  fetchIssueTimeline: mocks.fetchIssueTimeline,
   issueCommentToTimelineItem: (comment: {
     id: number;
     body: string;
@@ -197,8 +204,17 @@ describe("useTeamInboxGitHubIssue", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetGitHubIssueDetailCoordinator();
     mocks.getIssueLocal.mockResolvedValue(issue);
     mocks.listIssueTimelineLocal.mockResolvedValue([timelineItem]);
+    mocks.fetchIssue.mockResolvedValue({ data: issue });
+    mocks.fetchIssueTimeline.mockResolvedValue({ data: [timelineItem] });
+    mocks.getGitCredentialForRemote.mockResolvedValue({
+      connection_id: "test-connection",
+      source: "connection",
+      username: "viewer",
+      token: "discarded-test-token",
+    });
     mocks.getGitHubViewerLogin.mockResolvedValue("viewer");
     mocks.getGitHubRepoPermissionsLocal.mockResolvedValue({
       role_name: "write",

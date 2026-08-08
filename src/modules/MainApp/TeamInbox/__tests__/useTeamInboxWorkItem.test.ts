@@ -187,8 +187,10 @@ describe("useTeamInboxWorkItem", () => {
       workItem: null,
       issue: "load_failed",
     });
-    expect(mocks.readProject).not.toHaveBeenCalled();
-    expect(mocks.readMembers).not.toHaveBeenCalled();
+    // Context reads are independent and start in parallel so the successful
+    // detail path has no required-read waterfall.
+    expect(mocks.readProject).toHaveBeenCalledTimes(1);
+    expect(mocks.readMembers).toHaveBeenCalledTimes(1);
   });
 
   it("serializes same-item updates so response order follows user intent", async () => {

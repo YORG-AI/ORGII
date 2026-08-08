@@ -28,7 +28,10 @@ export function createGitHubIssueDetailTab(
   issueTitle: string,
   repoPath: string,
   remoteUrl?: string,
-  stateScopeKey?: string
+  stateScopeKey?: string,
+  authScope?: string,
+  viewerLogin?: string | null,
+  repoPermissions?: GitHubIssueDetailTabData["repoPermissions"]
 ): WorkStationTab {
   return githubIssueDetailTabFactory({
     issueNumber,
@@ -36,5 +39,8 @@ export function createGitHubIssueDetailTab(
     repoPath,
     remoteUrl,
     stateScopeKey,
+    authScope,
+    viewerLogin,
+    repoPermissions,
   });
 }

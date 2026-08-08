@@ -277,9 +277,14 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
   } = workItemsResource;
 
   useProjectDataChanged(
-    useCallback(() => {
-      void loadProjectWorkItems();
-    }, [loadProjectWorkItems])
+    useCallback(
+      (change) => {
+        if (!change?.projectSlug || change.projectSlug === projectSlug) {
+          void loadProjectWorkItems();
+        }
+      },
+      [loadProjectWorkItems, projectSlug]
+    )
   );
 
   useEffect(() => {

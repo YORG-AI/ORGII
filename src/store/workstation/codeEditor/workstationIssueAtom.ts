@@ -25,6 +25,8 @@ export interface WorkstationIssueListState {
 }
 
 export interface WorkstationSelectedIssueState {
+  /** Auth + repository + issue identity that owns this snapshot. */
+  resourceKey?: string | null;
   issue: GitHubIssue | null;
   timeline: GitHubIssueTimelineItem[];
   loading: boolean;
@@ -45,6 +47,7 @@ const initialListState: WorkstationIssueListState = {
 };
 
 const initialSelectedState: WorkstationSelectedIssueState = {
+  resourceKey: null,
   issue: null,
   timeline: [],
   loading: false,
@@ -119,3 +122,40 @@ export const workstationIssueCallbackAtomFamily = atomFamily(
 export const workstationIssueCallbackAtom = workstationIssueCallbackAtomFamily(
   DEFAULT_WORKSTATION_REPO_SCOPE
 );
+
+const retainedIssueDetailScopes = new Map<string, number>();
+
+/**
+ * Retain an explicit issue-detail scope while a rendered consumer is mounted.
+ * The final release removes the atom-family entries immediately; bounded warm
+ * remount data belongs to the GitHub detail coordinator rather than this
+ * unbounded primitive-key atom family.
+ */
+export function retainWorkstationIssueDetailScope(
+  scopeKey: string,
+  options: { evictOnFinalRelease?: boolean } = {}
+): () => boolean {
+  retainedIssueDetailScopes.set(
+    scopeKey,
+    (retainedIssueDetailScopes.get(scopeKey) ?? 0) + 1
+  );
+  let released = false;
+  return () => {
+    if (released) return false;
+    released = true;
+    const remaining = (retainedIssueDetailScopes.get(scopeKey) ?? 1) - 1;
+    if (remaining > 0) {
+      retainedIssueDetailScopes.set(scopeKey, remaining);
+      return false;
+    }
+    retainedIssueDetailScopes.delete(scopeKey);
+    if (options.evictOnFinalRelease !== false) {
+      workstationSelectedIssueAtomFamily.remove(scopeKey);
+    }
+    return true;
+  };
+}
+
+export function getRetainedIssueDetailScopeCount(): number {
+  return retainedIssueDetailScopes.size;
+}

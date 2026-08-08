@@ -89,7 +89,10 @@ export function useMultiSelect({
             `Batch deleted ${result.deleted.length} work items (${result.errors.length} errors)`
           );
 
-          await emit("orgii-data-changed");
+          await emit("orgii-data-changed", {
+            project_slug: projectSlug,
+            source: "work-items-batch-delete",
+          });
           onBatchDeleteComplete?.();
           setSelectedIds(new Set());
           return;
@@ -100,7 +103,10 @@ export function useMultiSelect({
       for (const workItemId of ids) {
         await onDelete(workItemId);
       }
-      await emit("orgii-data-changed");
+      await emit("orgii-data-changed", {
+        project_slug: projectSlug ?? undefined,
+        source: "work-items-batch-delete-fallback",
+      });
       setSelectedIds(new Set());
     } catch (err) {
       logger.error("Batch delete failed:", err);

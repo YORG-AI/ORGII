@@ -1,12 +1,17 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
 import { ListChecks, SquareArrowOutUpRight, Trash2, X } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import {
-  type WorkItemFrontmatter,
   enrichedWorkItemToUI,
   projectApi,
   standaloneWorkItemDataToEnriched,
@@ -36,6 +41,7 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 
 import SessionContentView from "../SessionContentView";
 import { usePendingWorkItemAction } from "./usePendingWorkItemAction";
+import { useWorkItemGitHubIssueState } from "./useWorkItemGitHubIssueState";
 
 const logger = createLogger("WorkItemPanelView");
 const saveNoPendingWorkItemChanges = async (): Promise<void> => undefined;
@@ -44,46 +50,6 @@ interface WorkItemPanelViewProps {
   selectedWorkItem: ChatPanelSelectedWorkItem;
   onUpdateWorkItem?: (updates: Partial<WorkItem>) => void;
   onClose?: () => void;
-}
-
-function toStandaloneFrontmatter(
-  workItem: WorkItem,
-  shortId: string
-): WorkItemFrontmatter {
-  const now = new Date().toISOString();
-  return {
-    id: shortId,
-    short_id: shortId,
-    title: workItem.name,
-    project: workItem.project?.id,
-    status: workItem.workItemStatus ?? workItem.status ?? "backlog",
-    priority: workItem.priority ?? "none",
-    assignee: workItem.assignee?.id,
-    assignee_type: workItem.assigneeType,
-    labels: workItem.labels?.map((label) => label.id) ?? [],
-    milestone: workItem.milestone?.id,
-    start_date: workItem.startDate,
-    target_date: workItem.endDate ?? workItem.target_date ?? undefined,
-    created_at: workItem.created_time || now,
-    updated_at: now,
-    starred: workItem.star ?? false,
-    todos:
-      workItem.todos?.map((todo) => ({
-        id: todo.id,
-        content: todo.content,
-        status: todo.status,
-      })) ?? [],
-    comments: workItem.comments,
-    linked_sessions: workItem.linkedSessions,
-    proof_of_work: workItem.proofOfWork,
-    orchestrator_config: workItem.orchestratorConfig,
-    orchestrator_state: workItem.orchestratorState,
-    schedule: workItem.schedule ?? undefined,
-    routine_source: workItem.routineSource,
-    execution_lock: workItem.executionLock,
-    close_out: workItem.closeOut,
-    work_products: workItem.workProducts,
-  };
 }
 
 function applyWorkItemPatch(
@@ -127,10 +93,14 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     ]
   );
   const { currentUser } = useCurrentUserMemberIds(workItemMembers);
+  const sourceProjectSyncAdapterId =
+    selectedWorkItem.sourceProject?.project.syncAdapterId;
 
   useEffect(() => {
     const projectSlug = selectedWorkItem.projectSlug;
-    if (!projectSlug) return;
+    // Navigation already carries the canonical project record. Only fall back
+    // to a status IPC for older/restored tab payloads that lack that field.
+    if (!projectSlug || sourceProjectSyncAdapterId !== undefined) return;
 
     let cancelled = false;
     void projectSyncApi
@@ -152,7 +122,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [selectedWorkItem.projectSlug]);
+  }, [selectedWorkItem.projectSlug, sourceProjectSyncAdapterId]);
 
   const handleUpdateWorkItem = useCallback(
     async (updates: Partial<WorkItem>) => {
@@ -198,7 +168,11 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             workItem: updatedWorkItem,
           });
         }
-        await emit("orgii-data-changed");
+        await emit("orgii-data-changed", {
+          project_slug: selectedWorkItem.projectSlug || undefined,
+          work_item_id: selectedWorkItem.shortId,
+          source: "chat-panel-work-item-update",
+        });
       } catch (error) {
         logger.error("Failed to update chat panel work item", error);
       }
@@ -206,30 +180,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     [currentUser, onUpdateWorkItem, selectedWorkItem, setSelectedWorkItem]
   );
 
-  const refreshSelectedWorkItem = useCallback(async () => {
+  const refreshSelectedWorkItemOnce = useCallback(async () => {
     try {
       if (selectedWorkItem.projectSlug) {
-        const projects = await projectApi.readProjects();
-        const projectStillExists = projects.some(
-          (project) => project.slug === selectedWorkItem.projectSlug
-        );
-        if (!projectStillExists) {
-          // Reading the deleted project's items throws before it can return an
-          // empty list, so detect the parent tombstone explicitly. The local
-          // project store is authoritative even when cloud transport is down.
-          // Close the owning tab too: its payload, not the legacy selection
-          // atom, is what keeps the detail surface mounted.
-          closeWorkItemTab(selectedWorkItem.shortId);
-          return;
-        }
-        const items = await projectApi.readWorkItemsEnriched(
+        const fresh = await projectApi.readWorkItemEnriched(
           selectedWorkItem.projectSlug,
+          selectedWorkItem.shortId,
           selectedWorkItem.orgId ? { orgId: selectedWorkItem.orgId } : undefined
         );
-        const fresh = items.find(
-          (item) => item.shortId === selectedWorkItem.shortId
-        );
-        if (!fresh || fresh.deletedAt) {
+        if (fresh.deletedAt) {
           // A collaborator may delete the item itself or its parent project
           // while this detail is open. Enriched reads intentionally retain
           // soft-deleted rows, so a tombstone must be treated as absent too;
@@ -263,14 +222,60 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           : current
       );
     } catch (error) {
+      if (String(error).toLowerCase().includes("not found")) {
+        // The single-item command resolves both the parent and item at the
+        // authoritative SQLite boundary. Either tombstone makes this cached
+        // tab invalid, without scanning every project and every work item.
+        closeWorkItemTab(selectedWorkItem.shortId);
+        return;
+      }
       logger.warn("Failed to refresh chat panel work item", error);
     }
   }, [closeWorkItemTab, selectedWorkItem, setSelectedWorkItem]);
 
+  const refreshOnceRef = useRef(refreshSelectedWorkItemOnce);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  useEffect(() => {
+    refreshOnceRef.current = refreshSelectedWorkItemOnce;
+  }, [refreshSelectedWorkItemOnce]);
+
+  const refreshSelectedWorkItem = useCallback((): Promise<void> => {
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
+    }
+
+    const request = refreshOnceRef.current().finally(() => {
+      if (refreshInFlightRef.current === request) {
+        refreshInFlightRef.current = null;
+      }
+    });
+    refreshInFlightRef.current = request;
+    return request;
+  }, []);
+
   useProjectDataChanged(
-    useCallback(() => {
-      void refreshSelectedWorkItem();
-    }, [refreshSelectedWorkItem]),
+    useCallback(
+      (change) => {
+        if (
+          change?.projectSlug &&
+          change.projectSlug !== selectedWorkItem.projectSlug
+        ) {
+          return;
+        }
+        if (
+          change?.workItemId &&
+          change.workItemId !== selectedWorkItem.shortId
+        ) {
+          return;
+        }
+        void refreshSelectedWorkItem();
+      },
+      [
+        refreshSelectedWorkItem,
+        selectedWorkItem.projectSlug,
+        selectedWorkItem.shortId,
+      ]
+    ),
     // A detail surface can mount from a cached navigation payload after the
     // mutation signal already fired. Refreshing on mount closes that race;
     // subsequent signals keep the open panel live.
@@ -343,9 +348,10 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     selectedWorkItem.shortId || selectedWorkItem.workItem.session_id
   }`;
   const projectSyncAdapterId =
-    projectSyncAdapter?.projectSlug === selectedWorkItem.projectSlug
+    sourceProjectSyncAdapterId ??
+    (projectSyncAdapter?.projectSlug === selectedWorkItem.projectSlug
       ? projectSyncAdapter.adapterId
-      : undefined;
+      : undefined);
   const isGitHubSyncedProject =
     projectSyncAdapterId === STORY_SYNC_ADAPTER.GITHUB;
   const selectedWorkItemStatus =
@@ -355,6 +361,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
     isGitHubSyncedProject ||
     selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_OPEN ||
     selectedWorkItemStatus === WORK_ITEM_STATUS.GITHUB_CLOSED;
+  const githubIssueState = useWorkItemGitHubIssueState({
+    enabled: isGitHubWorkItem,
+    repoPath,
+    shortId: selectedWorkItem.shortId,
+    stateScopeKey: `chat-panel-work-item:${selectedWorkItem.orgId ?? "local"}:${selectedWorkItem.projectSlug}:${selectedWorkItem.shortId}`,
+  });
   const projectSelectionReadonly =
     Boolean(selectedWorkItem.projectSlug) &&
     (projectSyncAdapterId === undefined || isGitHubSyncedProject);
@@ -380,7 +392,11 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
       // mirror leaves the deleted detail mounted until another data-change
       // refresh happens, and a later cascade can fall back to that ghost tab.
       closeWorkItemTab(selectedWorkItem.shortId);
-      await emit("orgii-data-changed");
+      await emit("orgii-data-changed", {
+        project_slug: selectedWorkItem.projectSlug,
+        work_item_id: selectedWorkItem.shortId,
+        source: "chat-panel-work-item-delete",
+      });
     } catch (error) {
       logger.error("Failed to delete chat panel work item", error);
     }
@@ -492,6 +508,8 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           repoPath={repoPath}
           projectSlug={selectedWorkItem.projectSlug}
           shortId={selectedWorkItem.shortId}
+          githubIssueTimeline={githubIssueState.timeline}
+          githubIssueInteraction={githubIssueState.interaction}
           onStartAgent={handleStartAgent}
           isStartingAgent={isStartingAgent}
           onCancelAgent={handleCancelAgent}

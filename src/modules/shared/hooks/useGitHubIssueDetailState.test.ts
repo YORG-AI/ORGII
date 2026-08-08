@@ -15,6 +15,10 @@ import {
 } from "vitest";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import {
+  githubIssueResourceKey,
+  resetGitHubIssueDetailCoordinator,
+} from "@src/modules/shared/githubIssueDetailCoordinator";
 import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 
 import {
@@ -26,6 +30,8 @@ const mocks = vi.hoisted(() => ({
   createIssueCommentLocal: vi.fn(),
   getGitHubRepoPermissionsLocal: vi.fn(),
   getGitHubViewerLogin: vi.fn(),
+  fetchIssue: vi.fn(),
+  fetchIssueTimeline: vi.fn(),
   listIssueTimelineLocal: vi.fn(),
   listIssuesLocal: vi.fn(),
   listRepoAssigneesLocal: vi.fn(),
@@ -35,8 +41,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@src/api/tauri/github", () => mocks);
 
 vi.mock("@src/services/git/operations/githubIssues", () => ({
-  fetchIssue: vi.fn(),
-  fetchIssueTimeline: vi.fn(),
+  fetchIssue: mocks.fetchIssue,
+  fetchIssueTimeline: mocks.fetchIssueTimeline,
   issueCommentToTimelineItem: vi.fn(),
 }));
 
@@ -66,6 +72,7 @@ function Probe() {
     issueNumber: issue.number,
     repoPath: "/repos/ORG2",
     stateScopeKey: "issue-detail-test",
+    authScope: "test-auth",
   });
 
   return createElement(
@@ -113,6 +120,20 @@ function Probe() {
   );
 }
 
+function ColdProbe({ stateScopeKey }: { stateScopeKey: string }) {
+  const { selectedState } = useGitHubIssueDetailState({
+    issueNumber: issue.number,
+    repoPath: "/repos/ORG2",
+    remoteUrl: "git@github.com:org2AI/ORG2.git",
+    stateScopeKey,
+    authScope: "test-auth",
+  });
+  return createElement("div", {
+    "data-testid": stateScopeKey,
+    "data-loading": String(selectedState.loading),
+  });
+}
+
 describe("useGitHubIssueDetailState", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -127,7 +148,10 @@ describe("useGitHubIssueDetailState", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    resetGitHubIssueDetailCoordinator(store);
     mocks.getGitHubViewerLogin.mockResolvedValue("viewer");
+    mocks.fetchIssue.mockResolvedValue({ data: issue });
+    mocks.fetchIssueTimeline.mockResolvedValue({ data: [] });
     mocks.getGitHubRepoPermissionsLocal.mockResolvedValue({
       role_name: "write",
       can_manage_issues: true,
@@ -135,6 +159,11 @@ describe("useGitHubIssueDetailState", () => {
     });
     mocks.listRepoAssigneesLocal.mockResolvedValue([]);
     store.set(workstationSelectedIssueAtomFamily("issue-detail-test"), {
+      resourceKey: githubIssueResourceKey(
+        "test-auth",
+        "org2AI/ORG2",
+        issue.number
+      ),
       issue,
       timeline: [],
       loading: false,
@@ -157,6 +186,9 @@ describe("useGitHubIssueDetailState", () => {
   });
 
   it("resolves only repository-shaped remotes and GitHub issue URLs", () => {
+    expect(resolveGitHubIssueRepoFullName("org2AI/ORG2", undefined)).toBe(
+      "org2AI/ORG2"
+    );
     expect(
       resolveGitHubIssueRepoFullName(
         "git@github.com:org2AI/ORG2.git",
@@ -195,6 +227,31 @@ describe("useGitHubIssueDetailState", () => {
       "org2AI/ORG2"
     );
     expect(mocks.listIssuesLocal).not.toHaveBeenCalled();
+  });
+
+  it("single-flights cold detail, timeline, viewer, and permission reads across hosts", async () => {
+    await act(async () => {
+      root.render(
+        createElement(
+          Provider,
+          { store },
+          createElement(ColdProbe, { stateScopeKey: "cold-host-a" }),
+          createElement(ColdProbe, { stateScopeKey: "cold-host-b" })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(
+        container
+          .querySelector("[data-testid='cold-host-a']")
+          ?.getAttribute("data-loading")
+      ).toBe("false");
+    });
+    expect(mocks.fetchIssue).toHaveBeenCalledOnce();
+    expect(mocks.fetchIssueTimeline).toHaveBeenCalledOnce();
+    expect(mocks.getGitHubViewerLogin).toHaveBeenCalledOnce();
+    expect(mocks.getGitHubRepoPermissionsLocal).toHaveBeenCalledOnce();
   });
 
   it("single-flights concurrent duplicate-candidate requests", async () => {
@@ -353,6 +410,11 @@ describe("useGitHubIssueDetailState", () => {
     };
     act(() => {
       store.set(workstationSelectedIssueAtomFamily("issue-detail-test"), {
+        resourceKey: githubIssueResourceKey(
+          "test-auth",
+          "acme/other",
+          otherIssue.number
+        ),
         issue: otherIssue,
         timeline: [],
         loading: false,

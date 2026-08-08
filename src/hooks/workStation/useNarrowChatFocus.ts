@@ -25,11 +25,12 @@
  * un-maximize actions taken while narrow are preserved across the
  * next resize.
  *
- * Width sources (two of them, switched on direct manipulation):
+ * Width sources (switched on direct manipulation):
  *
  * - While the user drags the chat divider, `[data-workbench-surface]`
  *   provides the live width because the CSS variable intentionally leads
- *   the persisted chat-width atom.
+ *   the persisted chat-width atom. This target is observed only for the
+ *   duration of a direct drag.
  *
  * - At rest or during programmatic pane motion, derive the projected target
  *   width from `[data-main-content].contentRect.width - chatWidth`. This
@@ -154,6 +155,9 @@ export function useNarrowChatFocus({
   // run without waiting for the next ResizeObserver tick.
   const workbenchWidthRef = useRef<number>(0);
   const mainContentWidthRef = useRef<number>(0);
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const workbenchElementRef = useRef<Element | null>(null);
+  const workbenchObservedRef = useRef(false);
 
   useEffect(() => {
     if (!enabled) {
@@ -162,10 +166,7 @@ export function useNarrowChatFocus({
       return;
     }
 
-    let workbenchObserver: ResizeObserver | null = null;
-    let mainObserver: ResizeObserver | null = null;
-    let observedWorkbench: Element | null = null;
-    let observedMain: Element | null = null;
+    let resizeObserver: ResizeObserver | null = null;
     let lookupObserver: MutationObserver | null = null;
 
     const computeWorkbenchWidth = (): number => {
@@ -204,24 +205,23 @@ export function useNarrowChatFocus({
     };
 
     const attachObservers = (workbench: Element, main: Element) => {
-      observedWorkbench = workbench;
-      observedMain = main;
-
-      workbenchObserver = new ResizeObserver((entries) => {
+      workbenchElementRef.current = workbench;
+      resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          workbenchWidthRef.current = entry.contentRect.width;
+          if (entry.target === main) {
+            mainContentWidthRef.current = entry.contentRect.width;
+          } else if (entry.target === workbench) {
+            workbenchWidthRef.current = entry.contentRect.width;
+          }
         }
         evaluate();
       });
-      mainObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          mainContentWidthRef.current = entry.contentRect.width;
-        }
-        evaluate();
-      });
-
-      workbenchObserver.observe(workbench);
-      mainObserver.observe(main);
+      resizeObserverRef.current = resizeObserver;
+      resizeObserver.observe(main);
+      if (chatPanelDraggingRef.current) {
+        resizeObserver.observe(workbench);
+        workbenchObservedRef.current = true;
+      }
 
       workbenchWidthRef.current = workbench.getBoundingClientRect().width;
       mainContentWidthRef.current = main.getBoundingClientRect().width;
@@ -251,16 +251,34 @@ export function useNarrowChatFocus({
 
     return () => {
       lookupObserver?.disconnect();
-      if (workbenchObserver && observedWorkbench) {
-        workbenchObserver.unobserve(observedWorkbench);
-      }
-      if (mainObserver && observedMain) {
-        mainObserver.unobserve(observedMain);
-      }
-      workbenchObserver?.disconnect();
-      mainObserver?.disconnect();
+      resizeObserver?.disconnect();
+      resizeObserverRef.current = null;
+      workbenchElementRef.current = null;
+      workbenchObservedRef.current = false;
     };
   }, [enabled, setChatPanelMaximized]);
+
+  // The workbench's animated width is intentionally ignored outside direct
+  // manipulation. Observe it only while dragging so focus/unfocus animations
+  // do not wake this state machine once per frame with an unused measurement.
+  useEffect(() => {
+    if (!enabled) return;
+    const observer = resizeObserverRef.current;
+    const workbench = workbenchElementRef.current;
+    if (!observer || !workbench) return;
+
+    if (chatPanelDragging && !workbenchObservedRef.current) {
+      workbenchWidthRef.current = workbench.getBoundingClientRect().width;
+      observer.observe(workbench);
+      workbenchObservedRef.current = true;
+      return;
+    }
+
+    if (!chatPanelDragging && workbenchObservedRef.current) {
+      observer.unobserve(workbench);
+      workbenchObservedRef.current = false;
+    }
+  }, [chatPanelDragging, enabled]);
 
   // Atom-driven re-evaluations: chat width drag, chat visibility, or
   // maximize toggle changes shift the projected workbench width
