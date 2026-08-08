@@ -80,16 +80,36 @@ pub async fn journey_fork_start(
     .map_err(|error| format!("会话旅程分叉启动异常：{error}"))?
 }
 
-/// Closes a fork and durably queues a provider-neutral review job. The
-/// provenance is supplied by the foreground runtime and is never resolved by
-/// this command adapter.
+/// Closes a fork and durably queues a provider-neutral review job. Desktop
+/// resolves provenance from the durable session/key records so UI callers
+/// cannot omit or forge the runtime identity.
 #[tauri::command]
 pub async fn journey_fork_close(
     request: RequestForkCloseRequest,
     job_id: String,
-    provenance: RuntimeProvenance,
 ) -> Result<ReviewJob, String> {
     tokio::task::spawn_blocking(move || {
+        let session = agent_core::session::persistence::get_session(&request.session_id)
+            .map_err(|error| format!("无法读取会话运行来源：{error}"))?
+            .ok_or_else(|| "无法读取会话运行来源：会话不存在。".to_string())?;
+        let model_id = session
+            .model
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "无法关闭分叉：会话缺少模型来源。".to_string())?;
+        let account_id = session
+            .account_id
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(|| "无法关闭分叉：会话缺少账户来源。".to_string())?;
+        let protocol = key_vault::key_store::KEY_SERVICE
+            .get_key_by_id(&account_id)
+            .and_then(|key| key.protocol)
+            .map(|protocol| protocol.as_str().to_string())
+            .ok_or_else(|| "无法关闭分叉：账户缺少协议来源。".to_string())?;
+        let provenance = RuntimeProvenance {
+            model_id,
+            account_id,
+            protocol,
+        };
         let mut conn = open_connection()?;
         SessionJourneyApplicationService::request_fork_close_and_enqueue(
             &mut conn, request, job_id, provenance,
@@ -284,7 +304,6 @@ mod tests {
                 session_id: "s".into(),
                 expected_revision: 1,
                 review_id: "r".into(),
-                job_id: "job-r".into(),
             })
             .unwrap(),
         ];

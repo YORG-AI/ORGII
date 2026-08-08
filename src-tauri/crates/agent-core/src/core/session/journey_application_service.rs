@@ -130,7 +130,6 @@ pub struct RetryReviewRequest {
     pub session_id: String,
     pub expected_revision: u64,
     pub review_id: String,
-    pub job_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -351,7 +350,11 @@ impl SessionJourneyApplicationService {
             request.expected_revision,
         )
         .map_err(Self::domain_error)?;
-        ReviewJobRepository::retry(&tx, &request.job_id)
+        let job = ReviewJobRepository::get(&tx, &request.review_id)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?
+            .filter(|job| job.session_id == request.session_id)
+            .ok_or_else(|| JourneyApplicationError::校验失败("审核任务不存在。".into()))?;
+        ReviewJobRepository::retry(&tx, &job.job_id)
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         tx.commit()
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;

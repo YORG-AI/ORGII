@@ -41,22 +41,10 @@ const makeId = (prefix: string) => `${prefix}-${crypto.randomUUID()}`;
 export const SessionJourneyControls: React.FC<{
   sessionId: string | null;
   messageId?: string | null;
-  /** Runtime identity is required to close a fork and enqueue its review. */
-  forkCloseProvenance?: {
-    modelId: string;
-    accountId: string;
-    protocol: string;
-  } | null;
   onJumpToMessage?: (messageId: string) => void;
   /** Docked content is rendered by the Communication WorkStation secondary pane. */
   onDockedReviewPanelChange?: (panel: React.ReactNode | null) => void;
-}> = ({
-  sessionId,
-  messageId,
-  forkCloseProvenance,
-  onJumpToMessage,
-  onDockedReviewPanelChange,
-}) => {
+}> = ({ sessionId, messageId, onJumpToMessage, onDockedReviewPanelChange }) => {
   const [snapshot, setSnapshot] = useState<JourneySnapshot | null>(null);
   const [comparison, setComparison] = useState<ForkCompareResponse | null>(
     null
@@ -188,7 +176,7 @@ export const SessionJourneyControls: React.FC<{
           outcome,
           messageId,
         });
-    if (dialog === "closeFork" && messageId && forkCloseProvenance)
+    if (dialog === "closeFork" && messageId)
       return () =>
         sessionJourneyApi.closeFork(
           {
@@ -199,8 +187,7 @@ export const SessionJourneyControls: React.FC<{
             outcome,
             messageId,
           },
-          makeId("review-job"),
-          forkCloseProvenance
+          makeId("review-job")
         );
     if (dialog === "fork" && messageId)
       return () =>
@@ -215,7 +202,6 @@ export const SessionJourneyControls: React.FC<{
     return null;
   }, [
     dialog,
-    forkCloseProvenance,
     messageId,
     name,
     outcome,
@@ -284,12 +270,8 @@ export const SessionJourneyControls: React.FC<{
                 appearance="ghost"
                 icon={<X size={14} />}
                 onClick={() => setDialog("closeFork")}
-                disabled={needsAnchor || !forkCloseProvenance}
-                title={
-                  forkCloseProvenance
-                    ? "结束分叉并进入审核"
-                    : "当前运行时缺少审核所需的模型身份"
-                }
+                disabled={needsAnchor}
+                title="结束分叉并进入审核"
               >
                 关闭分叉
               </Button>
@@ -607,7 +589,6 @@ const ReviewPanel: React.FC<{
                         sessionId,
                         expectedRevision: snapshot?.revision ?? 0,
                         reviewId: review.id,
-                        jobId: `review-job:${review.id}`,
                       })
                     )
                   }
@@ -628,13 +609,14 @@ const ReviewPanel: React.FC<{
                 appearance="ghost"
                 onClick={() => {
                   if (window.confirm("确认丢弃这个分叉审核吗？"))
-                    void mutate(() =>
-                      sessionJourneyApi.discard({
+                    void mutate(async () => {
+                      const result = await sessionJourneyApi.discard({
                         sessionId,
                         expectedRevision: snapshot?.revision ?? 0,
                         reviewId: review.id,
-                      })
-                    );
+                      });
+                      onJump?.(result.parent_anchor_message_id);
+                    });
                 }}
               >
                 丢弃
@@ -644,13 +626,14 @@ const ReviewPanel: React.FC<{
                 appearance="ghost"
                 icon={<ChevronLeft size={14} />}
                 onClick={() =>
-                  void mutate(() =>
-                    sessionJourneyApi.returnToParent({
+                  void mutate(async () => {
+                    const result = await sessionJourneyApi.returnToParent({
                       sessionId,
                       expectedRevision: snapshot?.revision ?? 0,
                       reviewId: review.id,
-                    })
-                  )
+                    });
+                    onJump?.(result.parent_anchor_message_id);
+                  })
                 }
               >
                 返回主干
@@ -671,7 +654,12 @@ const ReviewPanel: React.FC<{
               {fork.tasks.length
                 ? `（${fork.tasks
                     .map(
-                      (task) => `${task.name}：${task.outcome ?? task.state}`
+                      (task) =>
+                        `${task.name}：${
+                          task.outcome
+                            ? journeyOutcomeLabel(task.outcome)
+                            : journeyTaskStateLabel(task.state)
+                        }`
                     )
                     .join("；")}）`
                 : ""}
@@ -698,6 +686,23 @@ const ReviewPanel: React.FC<{
     </aside>
   );
 };
+
+function journeyTaskStateLabel(state: string) {
+  return (
+    {
+      pending_next_user: "等待下一条用户消息",
+      pending: "待开始",
+      active: "进行中",
+      finished: "已结束",
+    }[state] ?? state
+  );
+}
+
+function journeyOutcomeLabel(outcome: string) {
+  return (
+    outcomeOptions.find((option) => option.value === outcome)?.label ?? outcome
+  );
+}
 
 function reviewStateLabel(state: JourneyReview["state"]) {
   switch (state) {

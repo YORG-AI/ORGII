@@ -15,10 +15,10 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
-use crate::core::journey_lifecycle::{RuntimeProvenance, SessionJourney};
-use crate::core::session::journey_application_service::{
-    FailReviewRequest, MarkReviewReadyRequest, SessionJourneyApplicationService,
+use crate::core::journey_lifecycle::{
+    HandoffCapsule, RuntimeProvenance, SessionJourney, SqliteJourneyRepository,
 };
+use crate::core::session::journey_application_service::SessionJourneyApplicationService;
 use crate::core::side_query::{side_query_typed, SideQueryConfig, StructuredOutput};
 use crate::providers::traits::LLMProvider;
 
@@ -708,24 +708,62 @@ fn commit_ready_review(
     draft: ReviewDraftAnnotation,
 ) -> Result<(), QueueError> {
     validate_evidence_ids(conn, job, &draft.evidence_message_ids).map_err(QueueError::Invalid)?;
-    let revision = SessionJourneyApplicationService::snapshot(conn, &job.session_id)
-        .map_err(|e| QueueError::Conflict(e.to_string()))?
-        .revision;
-    let annotation = serde_json::to_string(&draft)
-        .map_err(|_| QueueError::Invalid("无法序列化审核 annotation。".into()))?;
-    SessionJourneyApplicationService::mark_review_ready(
-        conn,
-        MarkReviewReadyRequest {
-            session_id: job.session_id.clone(),
-            expected_revision: revision,
-            review_id: job.review_id.clone(),
-            provenance: draft.provenance,
-            annotation: annotation.clone(),
-        },
-    )
-    .map_err(|e| QueueError::Conflict(e.to_string()))?;
+    let annotation = draft.conclusion.trim().to_string();
+    if annotation.is_empty() {
+        return Err(QueueError::Invalid("审核结论不能为空。".into()));
+    }
+    let current = SessionJourneyApplicationService::snapshot(conn, &job.session_id)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
+    let branch = current
+        .snapshot
+        .branches
+        .get(&job.fork_id)
+        .ok_or_else(|| QueueError::Invalid("审核分叉不存在。".into()))?;
+    let parent_branch_id = branch.parent_branch_id.clone();
+    let capsule = HandoffCapsule {
+        fork_id: job.fork_id.clone(),
+        review_id: job.review_id.clone(),
+        parent_branch_id,
+        parent_anchor_message_id: job.exact_anchor_message_id.clone(),
+        source_start_sequence: job.frozen_start_sequence,
+        source_end_sequence: job.frozen_end_sequence,
+        objective: draft.objective,
+        conclusion: draft.conclusion,
+        open_questions: draft.open_questions,
+        confirmed_items: draft.confirmation_items,
+        evidence_references: draft.evidence_message_ids,
+        generated_at: Some(now()),
+        provenance: draft.provenance.clone(),
+    };
+
+    // Review readiness, the immutable handoff capsule, its embedding outbox
+    // row, and queue completion are one durable publication boundary. A crash
+    // can therefore leave either the prior running job or the complete ready
+    // result, never a ready review without a capsule.
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| QueueError::Storage(format!("无法开启审核发布事务：{error}")))?;
+    let mut journey = SqliteJourneyRepository::load(&tx, &job.session_id)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?
+        .ok_or_else(|| QueueError::Conflict("审核对应的会话旅程不存在。".into()))?;
+    if journey.revision != current.revision {
+        return Err(QueueError::Conflict("审核发布前会话旅程已变化。".into()));
+    }
+    journey
+        .mark_review_ready(
+            current.revision,
+            &job.review_id,
+            draft.provenance,
+            annotation.clone(),
+        )
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
+    journey
+        .publish_handoff_capsule(journey.revision, &job.fork_id, capsule)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
+    SqliteJourneyRepository::compare_and_store_in_transaction(&tx, &journey, current.revision)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
     crate::core::session::journey_embedding::enqueue(
-        conn,
+        &tx,
         &format!("review:{}", job.review_id),
         crate::core::session::journey_embedding::JourneyEmbeddingKind::ReviewAnnotation,
         &job.session_id,
@@ -733,8 +771,10 @@ fn commit_ready_review(
         &job.review_id,
         &annotation,
     )
-    .map_err(|e| QueueError::Storage(format!("无法排队审核 embedding：{e}")))?;
-    ReviewJobRepository::complete(conn, &job.job_id)
+    .map_err(|error| QueueError::Storage(format!("无法排队审核 embedding：{error}")))?;
+    ReviewJobRepository::complete(&tx, &job.job_id)?;
+    tx.commit()
+        .map_err(|error| QueueError::Storage(format!("无法提交审核发布事务：{error}")))
 }
 
 fn commit_failed_review(
@@ -743,18 +783,24 @@ fn commit_failed_review(
     session_id: &str,
     review_id: &str,
 ) -> Result<(), QueueError> {
-    let _ = ReviewJobRepository::fail(conn, job_id, "审核模型调用失败，请显式重试。");
-    if let Ok(snapshot) = SessionJourneyApplicationService::snapshot(conn, session_id) {
-        let _ = SessionJourneyApplicationService::fail_review(
-            conn,
-            FailReviewRequest {
-                session_id: session_id.to_owned(),
-                expected_revision: snapshot.revision,
-                review_id: review_id.to_owned(),
-            },
-        );
-    }
-    Ok(())
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|error| QueueError::Storage(format!("无法开启审核失败事务：{error}")))?;
+    let job = ReviewJobRepository::get(&tx, review_id)?
+        .filter(|job| job.job_id == job_id && job.session_id == session_id)
+        .ok_or_else(|| QueueError::Conflict("审核失败任务不存在。".into()))?;
+    let mut journey = SqliteJourneyRepository::load(&tx, session_id)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?
+        .ok_or_else(|| QueueError::Conflict("审核对应的会话旅程不存在。".into()))?;
+    let previous_revision = journey.revision;
+    journey
+        .fail_review(previous_revision, review_id)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
+    SqliteJourneyRepository::compare_and_store_in_transaction(&tx, &journey, previous_revision)
+        .map_err(|error| QueueError::Conflict(error.to_string()))?;
+    ReviewJobRepository::fail(&tx, &job.job_id, "审核模型调用失败，请显式重试。")?;
+    tx.commit()
+        .map_err(|error| QueueError::Storage(format!("无法提交审核失败事务：{error}")))
 }
 
 pub struct ReviewWorker;
@@ -808,49 +854,11 @@ impl ReviewWorker {
         .await;
         match result {
             Ok(draft) => {
-                let revision = SessionJourneyApplicationService::snapshot(conn, &job.session_id)
-                    .map_err(|e| QueueError::Conflict(e.to_string()))?
-                    .revision;
-                let annotation = serde_json::to_string(&draft)
-                    .map_err(|_| QueueError::Invalid("无法序列化审核 annotation。".into()))?;
-                SessionJourneyApplicationService::mark_review_ready(
-                    conn,
-                    MarkReviewReadyRequest {
-                        session_id: job.session_id.clone(),
-                        expected_revision: revision,
-                        review_id: job.review_id.clone(),
-                        provenance: draft.provenance.clone(),
-                        annotation: annotation.clone(),
-                    },
-                )
-                .map_err(|e| QueueError::Conflict(e.to_string()))?;
-                crate::core::session::journey_embedding::enqueue(
-                    conn,
-                    &format!("review:{}", job.review_id),
-                    crate::core::session::journey_embedding::JourneyEmbeddingKind::ReviewAnnotation,
-                    &job.session_id,
-                    &job.fork_id,
-                    &job.review_id,
-                    &annotation,
-                )
-                .map_err(|e| QueueError::Storage(e.to_string()))?;
-                ReviewJobRepository::complete(conn, &job.job_id)?;
+                commit_ready_review(conn, &job, draft.clone())?;
                 Ok(Some(draft))
             }
             Err(error) => {
-                let _ = ReviewJobRepository::fail(conn, &job.job_id, &error);
-                if let Ok(snapshot) =
-                    SessionJourneyApplicationService::snapshot(conn, &job.session_id)
-                {
-                    let _ = SessionJourneyApplicationService::fail_review(
-                        conn,
-                        FailReviewRequest {
-                            session_id: job.session_id.clone(),
-                            expected_revision: snapshot.revision,
-                            review_id: job.review_id.clone(),
-                        },
-                    );
-                }
+                commit_failed_review(conn, &job.job_id, &job.session_id, &job.review_id)?;
                 Err(QueueError::Invalid(format!("审核 worker 失败：{error}")))
             }
         }
@@ -1076,8 +1084,21 @@ mod tests {
             .unwrap()
             .snapshot;
         assert_eq!(snapshot.reviews["r"].state, ReviewState::Ready);
-        assert!(snapshot.reviews["r"].annotation.is_some());
-        assert!(snapshot.branches["f"].handoff_capsule.is_none());
+        assert_eq!(
+            snapshot.reviews["r"].annotation.as_deref(),
+            Some("可以继续主分支")
+        );
+        let capsule = snapshot.branches["f"]
+            .handoff_capsule
+            .as_ref()
+            .expect("ready review publishes a handoff capsule");
+        assert_eq!(capsule.parent_branch_id, "main");
+        assert_eq!(capsule.parent_anchor_message_id, "anchor");
+        assert_eq!(capsule.source_start_sequence, 3);
+        assert_eq!(capsule.source_end_sequence, 5);
+        assert_eq!(capsule.conclusion, "可以继续主分支");
+        assert_eq!(capsule.evidence_references, vec!["f3", "f5"]);
+        assert_eq!(capsule.provenance, provenance());
         assert!(snapshot.reviews["r"].promoted_fact_ids.is_empty());
     }
 

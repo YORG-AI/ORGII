@@ -64,14 +64,12 @@ describe("session Journey typed desktop API", () => {
         outcome: "completed",
         messageId: "m",
       },
-      "job-r",
-      { modelId: "model", accountId: "account", protocol: "openai" }
+      "job-r"
     );
     await sessionJourneyApi.retryReview({
       sessionId: "s",
       expectedRevision: 4,
       reviewId: "r",
-      jobId: "job-r",
     });
     expect(invoke.mock.calls.map(([command]) => command)).toEqual([
       "journey_fork_close",

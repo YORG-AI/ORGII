@@ -791,10 +791,16 @@ impl SessionJourney {
                 return Err(JourneyError::InvalidState("仅关闭中的或已关闭分叉可丢弃"));
             }
             parent_anchor = branch.anchor_sequence;
+            let discarded_branch_id = branch.id.clone();
+            let parent_branch_id = branch.parent_branch_id.clone();
             branch.state = ForkState::Discarded;
             review.state = ReviewState::Discarded;
             for fact_id in &review.promoted_fact_ids {
                 s.facts.remove(fact_id);
+            }
+            if s.active_branch_id == discarded_branch_id {
+                s.active_branch_id = parent_branch_id;
+                s.active_task_id = None;
             }
             Ok(())
         })?;
@@ -1932,6 +1938,39 @@ mod tests {
         assert!(j.facts.is_empty());
     }
     #[test]
+    fn discarding_inactive_sibling_preserves_current_branch_and_task() {
+        let mut j = forked();
+        j.finish_task(
+            1,
+            TaskOutcome::Completed,
+            15,
+            FinishDisposition::CloseFork,
+            Some("w".into()),
+            Some(provenance()),
+        )
+        .unwrap();
+        j.complete_close(2, "f1", "r".into(), Some(provenance()), None)
+            .unwrap();
+        j.active_branch_id = "main".into();
+        j.active_task_id = None;
+        j.start_fork(
+            3,
+            "f2".into(),
+            "t2".into(),
+            "继续调查".into(),
+            "m20".into(),
+            20,
+        )
+        .unwrap();
+
+        assert_eq!(j.discard_fork(4, "r").unwrap(), 10);
+        assert_eq!(j.active_branch_id, "f2");
+        assert_eq!(j.active_task_id.as_deref(), Some("t2"));
+        assert_eq!(j.branches["f1"].state, ForkState::Discarded);
+        assert_eq!(j.branches["f2"].state, ForkState::Active);
+    }
+
+    #[test]
     fn ready_closed_review_publishes_immutable_handoff_and_returns_exact_parent() {
         let mut j = forked();
         j.finish_task(
@@ -2171,6 +2210,12 @@ mod tests {
             [],
         )
         .unwrap();
+        SqliteJourneyRepository::ensure_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id) VALUES ('s', 'anchor', 9, 'main', NULL)",
+            [],
+        )
+        .unwrap();
         JourneyApplicationService::execute(
             &mut conn,
             "s",
@@ -2181,6 +2226,11 @@ mod tests {
                 anchor_message_id: "anchor".into(),
                 task_name: "调查".into(),
             },
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id) VALUES ('s', 'fork-end', 10, 'fork-a', 'task-a')",
+            [],
         )
         .unwrap();
         let error = JourneyApplicationService::execute(
@@ -2217,6 +2267,12 @@ mod tests {
             [],
         )
         .unwrap();
+        SqliteJourneyRepository::ensure_schema(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id) VALUES ('s', 'anchor', 9, 'main', NULL)",
+            [],
+        )
+        .unwrap();
         let reply = JourneyApplicationService::execute(
             &mut conn,
             "s",
@@ -2230,6 +2286,11 @@ mod tests {
         )
         .unwrap();
         assert_eq!(reply, "分叉与活动任务已原子创建（修订 1）。");
+        conn.execute(
+            "INSERT INTO session_journey_memberships (session_id, message_id, sequence, branch_id, task_id) VALUES ('s', 'fork-end', 10, 'fork-a', 'task-a')",
+            [],
+        )
+        .unwrap();
         let reply = JourneyApplicationService::execute_with_provenance(
             &mut conn,
             "s",

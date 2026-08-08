@@ -158,7 +158,6 @@ export interface RetryReviewRequest {
   sessionId: string;
   expectedRevision: number;
   reviewId: string;
-  jobId: string;
 }
 
 /** Typed desktop boundary. UI code must not invoke Journey command strings. */
@@ -173,15 +172,10 @@ export const sessionJourneyApi = {
     invoke<JourneyWriteResponse>("journey_task_finish", { request }),
   startFork: (request: CreateForkRequest) =>
     invoke<JourneyWriteResponse>("journey_fork_start", { request }),
-  closeFork: (
-    request: ForkCloseRequest,
-    jobId: string,
-    provenance: RuntimeProvenance
-  ) =>
+  closeFork: (request: ForkCloseRequest, jobId: string) =>
     invoke<{ job_id: string; state: string }>("journey_fork_close", {
       request,
       jobId,
-      provenance,
     }),
   retryReview: (request: RetryReviewRequest) =>
     invoke<JourneyWriteResponse>("journey_review_retry", { request }),
