@@ -1885,7 +1885,8 @@ mod tests {
         assert_eq!(close.branches["f1"].state, ForkState::Active);
 
         let mut main = SessionJourney::new("s", "main");
-        main.task_start(0, "t1".into(), "主任务".into(), 1).unwrap();
+        main.start_task(0, "t1".into(), "主任务".into(), false, Some(1))
+            .unwrap();
         assert_eq!(
             main.finish_task(
                 1,

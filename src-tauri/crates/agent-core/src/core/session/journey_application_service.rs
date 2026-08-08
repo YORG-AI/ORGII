@@ -328,7 +328,8 @@ impl SessionJourneyApplicationService {
         request: RetryReviewRequest,
     ) -> JourneyApplicationResult<JourneyWriteResponse> {
         Self::ensure_session(conn, &request.session_id)?;
-        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        SqliteJourneyRepository::ensure_schema(conn)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         ReviewJobRepository::ensure_schema(conn)
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         let tx = conn
@@ -522,7 +523,8 @@ impl SessionJourneyApplicationService {
         provenance: RuntimeProvenance,
     ) -> JourneyApplicationResult<ReviewJob> {
         Self::ensure_session(conn, &request.session_id)?;
-        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        SqliteJourneyRepository::ensure_schema(conn)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         ReviewJobRepository::ensure_schema(conn)
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         let anchor = Self::message_anchor(conn, &request.session_id, &request.message_id)?;
@@ -653,7 +655,8 @@ impl SessionJourneyApplicationService {
         let end =
             Self::message_anchor(conn, &request.session_id, &request.evidence_end_message_id)?;
         Self::ensure_session(conn, &request.session_id)?;
-        SqliteJourneyRepository::ensure_schema(conn).map_err(Self::domain_error)?;
+        SqliteJourneyRepository::ensure_schema(conn)
+            .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         crate::core::session::journey_embedding::ensure_schema(conn)
             .map_err(|error| JourneyApplicationError::存储失败(error.to_string()))?;
         let tx = conn
